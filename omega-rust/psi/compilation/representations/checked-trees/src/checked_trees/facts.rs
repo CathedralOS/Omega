@@ -34,7 +34,7 @@ mod proof_applications;
 pub use declaration_descriptions::{
     CheckedCallableHeader, CheckedDeclarationCapture, CheckedDeclarationDescription,
     CheckedDeclarationDescriptions, CheckedDeclarationParameter, CheckedDeclarationSpecialization,
-    CheckedMachineDescription,
+    CheckedMachineDescription, CheckedSynchronousBoundaryTarget,
 };
 pub use proof_applications::{
     ProofApplicationMachine, ProofApplicationPlan, ProofApplicationTargetMember, ProofApplications,

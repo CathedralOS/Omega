@@ -197,8 +197,10 @@ execution still owes provider admission, completion and every recorded bound.
 Accepted package roles enter source preparation before checking instead.
 Psi owns their declaration admission and confined nomination before matching
 retained checks. Realization only rejoins the resulting source declarations to
-selected provider rows. Source-only synchronous provider-cycle checks consume
-Psi's checked invocation facts. Receiving provider admission independently
+selected provider rows. Selected-provider cycle policy consumes Psi's checked
+realized invocation summaries from canonical declaration headers, including
+dormant declarations, rather than reopening source or substituting permission
+ceilings for actual calls. Receiving provider admission independently
 checks every installed canonical instance, including uncalled closed tuples,
 using the same whole-plan graph rule. Opaque rows contribute their declared
 ceilings; uninstantiated source templates grant no executable instance.

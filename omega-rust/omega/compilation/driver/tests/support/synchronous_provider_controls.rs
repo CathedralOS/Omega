@@ -8,7 +8,96 @@ use effects::provider_plan::ProviderBinding;
 use terminal_codec::CanonicalTerminalArtifact;
 use terminal_psi_to_abstract_operations::RetainedTerminalArtifact;
 
+/// Exercise declaration policy after Source has been dropped, independently of
+/// the receiving executable-call graph checked by `inspect` below.
+pub(super) fn inspect_declarations(
+    retained: &RetainedTerminalArtifact,
+    target: &str,
+) -> Result<(), String> {
+    let original = retained
+        .native_realization_proposal()
+        .ok_or("invocation controls need a native proposal")?
+        .target_provider_proposals()
+        .iter()
+        .find(|proposal| proposal.target == target)
+        .ok_or("invocation controls lost the target proposal")?
+        .selection
+        .as_ref()
+        .map_err(|errors| format!("provider selection: {errors:?}"))?;
+    let loaded = CanonicalTerminalArtifact::from_bytes(&retained.artifact().to_bytes())
+        .map_err(|error| format!("invocation summary transport: {error:?}"))?;
+    for module in [
+        retained.artifact().semantic_module(),
+        loaded.semantic_module(),
+    ] {
+        validate_declarations(original, module)
+            .map_err(|errors| format!("canonical declaration cycles: {errors:?}"))?;
+    }
+    let module = loaded.semantic_module();
+    let mut consumed = None;
+    for selected in &original.plans {
+        for row in &selected.plan.rows {
+            if !matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
+                continue;
+            }
+            let header =
+                backend_plan::selected_checked_adapter_header(&selected.plan, row, module)?;
+            if header
+                .synchronous_invocations
+                .as_ref()
+                .is_ok_and(|targets| !targets.is_empty())
+            {
+                consumed = Some(header.declaration);
+                break;
+            }
+        }
+        if consumed.is_some() {
+            break;
+        }
+    }
+    let consumed =
+        consumed.ok_or("invocation control needs a selected header with actual calls")?;
+    let mut missing = module.clone();
+    let handle = missing
+        .scalar_applications
+        .proof_scope
+        .callable_headers
+        .iter()
+        .find_map(|(handle, header)| (header.declaration == consumed).then_some(handle))
+        .ok_or("consumed invocation header is absent")?;
+    let reason = "missing checked synchronous-invocation summary control";
+    missing
+        .scalar_applications
+        .proof_scope
+        .callable_headers
+        .get_mut(handle)
+        .synchronous_invocations = Err(reason.into());
+    let optimization = terminal_codec::build_identity_optimization_execution_record(&missing)
+        .map_err(|error| format!("missing-summary envelope: {error:?}"))?;
+    let missing = CanonicalTerminalArtifact::from_parts(missing, optimization, None)
+        .map_err(|error| format!("missing-summary artifact: {error:?}"))?;
+    let missing = CanonicalTerminalArtifact::from_bytes(&missing.to_bytes())
+        .map_err(|error| format!("missing-summary ingress: {error:?}"))?;
+    match validate_declarations(original, missing.semantic_module()) {
+        Err(errors) if errors.iter().any(|error| error.message == reason) => Ok(()),
+        other => Err(format!(
+            "missing consumed invocation summary did not refuse: {other:?}"
+        )),
+    }
+}
+
+fn validate_declarations(
+    selection: &TerminalTargetProviderSelection,
+    module: &terminal_psi::TerminalModule,
+) -> Result<(), Vec<diagnostics::Diagnostic>> {
+    backend_plan::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
+        selection.plans.iter().map(|selected| &selected.plan),
+        module,
+    )
+}
+
 pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Result<(), String> {
+    inspect_declarations(retained, target)?;
     let loaded = CanonicalTerminalArtifact::from_bytes(&retained.artifact().to_bytes())
         .map_err(|error| format!("provider transport: {error:?}"))?;
     let original = retained
@@ -75,6 +164,10 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
         machine_package_identity: alternative.source_candidate_package_identity,
     };
     let changed = TerminalTargetProviderSelection::from_plans(plans, loaded.view())?;
+    require_cycle(
+        validate_declarations(&changed, module).map_err(|errors| format!("{errors:?}")),
+        "declared checked alternative",
+    )?;
     require_cycle(changed.admit(loaded.view(), target), "checked alternative")?;
     let facts = SelectedProviderPlanFacts::from_selected_plans(
         changed

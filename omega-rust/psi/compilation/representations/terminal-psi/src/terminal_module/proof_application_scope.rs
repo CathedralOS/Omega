@@ -48,6 +48,16 @@ pub struct ProofCallableHeader {
     pub source_target: Option<String>,
     pub product_eligible: bool,
     pub supplies_checked_body: bool,
+    /// Checker-normalized realized calls, including explicit abstract edges.
+    /// Neither public permission ceilings nor emitted calls replace this list.
+    pub synchronous_invocations: Result<Vec<DeclaredSynchronousBoundaryTarget>, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct DeclaredSynchronousBoundaryTarget {
+    pub declaration: TerminalIdentityIndex,
+    pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub application: Option<TerminalIdentityIndex>,
 }
 
 impl Default for ProofCallableHeader {
@@ -59,6 +69,7 @@ impl Default for ProofCallableHeader {
             source_target: None,
             product_eligible: false,
             supplies_checked_body: false,
+            synchronous_invocations: Err("checked synchronous invocation facts are absent".into()),
         }
     }
 }

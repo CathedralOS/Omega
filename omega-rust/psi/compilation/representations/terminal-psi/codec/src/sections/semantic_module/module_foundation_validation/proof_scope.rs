@@ -102,6 +102,20 @@ pub(super) fn validate(
         if header.source_target.as_ref().is_some_and(String::is_empty) {
             return malformed("callable header has an empty source target");
         }
+        match &header.synchronous_invocations {
+            Ok(targets) => {
+                for target in targets {
+                    text(target.declaration)?;
+                    if let Some(application) = target.application {
+                        text(application)?;
+                    }
+                }
+            }
+            Err(reason) if reason.is_empty() => {
+                return malformed("unavailable synchronous invocation facts have no reason");
+            }
+            Err(_) => {}
+        }
     }
     let mut bound_declarations = BTreeSet::new();
     let mut callables = BTreeSet::new();
