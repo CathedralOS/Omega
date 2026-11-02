@@ -49,7 +49,14 @@ fn address(
             .map(|backings| backings.places);
     }
     ancestors.push(capture);
-    let result = project_address(program, facts, state, capture, replaces_descriptor, ancestors);
+    let result = project_address(
+        program,
+        facts,
+        state,
+        capture,
+        replaces_descriptor,
+        ancestors,
+    );
     ancestors.pop();
     result
 }
@@ -162,9 +169,10 @@ fn project_address(
 }
 
 fn append_distinct(resolved: &mut Vec<ResolvedAlias>, candidate: ResolvedAlias) {
-    if !resolved.iter().any(|previous| {
-        previous.place == candidate.place && previous.lineage == candidate.lineage
-    }) {
+    if !resolved
+        .iter()
+        .any(|previous| previous.place == candidate.place && previous.lineage == candidate.lineage)
+    {
         resolved.push(candidate);
     }
 }

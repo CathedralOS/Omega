@@ -869,11 +869,23 @@ impl<'a> Replay<'a> {
             case_storage,
         )?;
         for binding in &edge.bindings {
-            if let DescriptorFlowSource::Contents(query) = &binding.source {
+            let query = match &binding.source {
+                DescriptorFlowSource::Location(location) => {
+                    Some(DescriptorContentsQuery::from_location(location))
+                }
+                DescriptorFlowSource::Contents(query) => Some(query.clone()),
+                DescriptorFlowSource::Unavailable(_) => None,
+            };
+            if let Some(query) = query {
+                // A formed reference has no owned child slots under its
+                // temporary. Capture the receiving carrier's complete cohort
+                // through that pointer's pre-edge storage alias, just as for
+                // a symbolic contents selection. This transports provenance;
+                // it neither observes the pointee at runtime nor grants access.
                 let structural_type = *machine.place_types.get(&binding.parameter.root)?;
                 let mut captured = Slots::from([(
                     binding.parameter.clone(),
-                    self.read_contents(machine, before, query),
+                    self.read_contents(machine, before, &query),
                 )]);
                 for slot in self.slot_kind.owned_slots(
                     self.types,

@@ -30,6 +30,8 @@ use crate::descriptor_lifetimes::{DescriptorPathSegment, descriptor_path};
 use crate::exactly_one::exactly_one;
 
 mod analysis;
+#[cfg(test)]
+mod arrivals_tests;
 mod case_flow;
 mod contents_queries;
 mod dispatch;

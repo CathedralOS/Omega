@@ -11,7 +11,7 @@ referent's 11 and the sibling stamp's 17 stay untouched.
 
 The owning tasks are **WRITE-ONLY-BORROW**, for replacing stored references
 without reading old contents or losing their borrow obligations, and
-**BUILD-OWNED-TARGET-SELECTION**, for choosing the forwarding implementation
+**BUILD-OWNED-TARGET-SELECTION**, for choosing the implementation that performs the store
 through explicit Build configuration.
 
 `Held` contains `target: &Cell` and a neighboring `stamp: i64`. Each positive
@@ -75,8 +75,9 @@ checked helper.
 The compiler repair distinguishes the final field being replaced from pointer
 reads needed to reach it. Locating that final field uses its receiver's existing
 write permission; it must not activate a new permission for reading the field's
-old reference. Intermediate pointer reads keep their existing checks. Unproved opaque boundaries
-also remain rejected: a declaration without a checked body needs admitted
+old reference. Intermediate pointer reads keep their existing checks. Writes through those
+pointers use the saved receiver and its live child borrows when checking
+conflicts. Unproved opaque boundaries also remain rejected: a declaration without a checked body needs admitted
 evidence that it will not observe write-only contents. The governing rules are
 [write-only authority](../../../../wiki/spec/terminal-psi/structural_access.md#write-only-authority),
 [returned-view lifetimes](../../../../wiki/spec/language/lifetimes.md#returned-views),
@@ -84,11 +85,17 @@ and [checked boundary providers](../../../../wiki/spec/terminal-psi/boundary_cal
 
 ## Evidence and remaining scope
 
-Existing row qualification records native and Terminal exit 0 for all nine
-places on Linux x86-64, with all nine observation twins rejected. The new
-Build-selected target-body migration has separate focused validation pending;
-its run records and producer identities stay in the claim and PR evidence.
-No execution on the other three hosted targets is claimed here.
+The frozen baseline rejected the original target-body program before execution
+because it could not identify the store destination. The first compiler repair
+allows seven places and the root program to execute with native and Terminal
+exit 0 on Linux x86-64, including the Build-selected store. The two forwarding
+places still refuse during native lowering, so this row remains unfinished.
+A live-child control also exposed a missing write conflict; it now rejects
+for the intended reason while valid incoming-pointer reads and writes execute
+with both exits 0. The remaining forwarding repair preserves the stored
+references when a formed view enters a block parameter, and is under focused
+validation. Run records and exact producer identities stay in the claim
+and PR evidence. No execution on the other three hosted targets is claimed here.
 
 This row establishes replacement of a stored reference through write-only
 access. It does not establish whole-record replacement, readable widening,

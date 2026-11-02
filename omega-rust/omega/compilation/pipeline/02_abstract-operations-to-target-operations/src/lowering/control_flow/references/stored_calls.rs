@@ -192,7 +192,6 @@ pub(in crate::lowering) fn catalog(
             },
         )
     else {
-        eprintln!("WRITEONLY-TRACE graph adaptation unresolved functions={:#?}", functions);
         return std::sync::Arc::new(effects);
     };
     let mut analysis = DescriptorAnalysis::with_reference_slots(types.catalog(), &graph);
@@ -227,8 +226,7 @@ pub(in crate::lowering) fn catalog(
         effects.access_results.insert(machine.id, result);
     }
     for function in candidates {
-        let raw = analysis.stored_effects(function.machine);
-        let summary = raw.clone().and_then(|rows| {
+        let summary = analysis.stored_effects(function.machine).and_then(|rows| {
             rows.into_iter()
                 .map(|row| {
                     let parameter = function.structural_parameters.get(row.parameter)?;
@@ -303,18 +301,6 @@ pub(in crate::lowering) fn catalog(
                 })
                 .collect()
         });
-        if summary.is_none() {
-            let rows = raw.as_ref().map(|rows| rows.iter().map(|row| {
-                let origins = row.origins.iter().map(|origin| match origin {
-                    DescriptorStoredOrigin::Parameter { position, projection } => format!("Parameter {position} {projection:?}"),
-                    DescriptorStoredOrigin::IncomingSlot { position, path } => format!("IncomingSlot {position} {path:?}"),
-                    DescriptorStoredOrigin::IncomingContents { position, steps, projection } => format!("IncomingContents {position} {steps:?} {projection:?}"),
-                    other => format!("{:?}", std::mem::discriminant(other)),
-                }).collect::<Vec<_>>();
-                (row.parameter, &row.steps, origins)
-            }).collect::<Vec<_>>());
-            eprintln!("WRITEONLY-TRACE machine={:?} raw={:?} function={:#?} storage={:#?}", function.machine, rows, function, graph.iter().find(|machine| machine.id == function.machine).map(|machine| &machine.storage_derivations));
-        }
         effects.machines.insert(function.machine, summary);
     }
     std::sync::Arc::new(effects)
