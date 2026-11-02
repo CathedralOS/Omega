@@ -2065,6 +2065,33 @@ fail/facts/runtime_index_application_call_index_through_parameter_rejected rejec
 fail/facts/runtime_index_application_call_index_through_target_body_rejected rejected 1258ms expected @c79bb8268163+wt
 	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_contract_index_through_call_result_rejected rejected 2286ms expected @4a93353f8274+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_contract_index_through_const_name_rejected rejected 1740ms expected @4a93353f8274+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_contract_index_through_field_rejected rejected 4544ms expected @4a93353f8274+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_contract_index_through_local_rejected rejected 4544ms expected @4a93353f8274+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_contract_index_through_match_join_rejected rejected 1921ms expected @4a93353f8274+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_contract_index_through_other_machine_rejected rejected 1595ms expected @4a93353f8274+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_contract_index_through_other_state_rejected rejected 6138ms expected @4a93353f8274+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_contract_index_through_parameter_rejected rejected 2422ms expected @4a93353f8274+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/runtime_index_application_contract_index_through_target_body_rejected rejected 2235ms expected @4a93353f8274+wt
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+	data `Index` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/saved_observation_snapshot_indexed_handback_call_result_rejected rejected 5494ms expected @755b31d334ff
 	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
 fail/facts/saved_observation_snapshot_indexed_handback_const_name_rejected rejected 5593ms expected @755b31d334ff
@@ -2253,6 +2280,8 @@ fail/generics/native_locator_undefined_user_coordinate rejected 516ms expected @
 	quoted byte literal cannot initialize owned fixed byte array `[u8; N]`: its width must be a compile-known resolved integer literal
 fail/generics/native_locator_wrong_explicit_extent rejected 306ms expected @b852a38544d0
 	quoted byte literal has 26 source byte(s), but owned fixed byte array `[u8; 25]` requires exactly 25; fixed-array literal copying neither truncates nor pads
+fail/generics/runtime_call_index_contract_wrong_result rejected 11827ms expected @4a93353f8274+wt
+	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/generics/runtime_call_index_wrong_result rejected 2275ms expected @c79bb8268163+wt
 	machine `probe` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 fail/generics/static_dispatch_private_ensures_explicit_requirement rejected 2985ms expected @24bfc5388538+wt
@@ -9273,6 +9302,15 @@ pass/facts/runtime_index_application_computed_through_other_machine_exit checked
 pass/facts/runtime_index_application_computed_through_other_state_exit checked 6212ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/runtime_index_application_computed_through_parameter_exit checked 7499ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/runtime_index_application_computed_through_target_body_exit checked 7434ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/runtime_index_application_contract_index_through_call_result_exit checked 14658ms check-target:macos_arm64 @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_const_name_exit checked 25453ms check-target:macos_arm64 @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_field_exit checked 20475ms check-target:macos_arm64 @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_local_exit checked 30029ms check-target:macos_arm64 @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_match_join_exit checked 30118ms check-target:macos_arm64 @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_other_machine_exit checked 25326ms check-target:macos_arm64 @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_other_state_exit checked 29990ms check-target:macos_arm64 @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_parameter_exit checked 30181ms check-target:macos_arm64 @4a93353f8274+wt
+pass/facts/runtime_index_application_contract_index_through_target_body_exit checked 25143ms check-target:macos_arm64 @4a93353f8274+wt
 pass/facts/runtime_index_application_equivalent_subject_through_call_result_exit checked 7390ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/runtime_index_application_equivalent_subject_through_const_name_exit checked 8470ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/runtime_index_application_equivalent_subject_through_field_exit checked 7401ms check-target:macos_arm64 @911f6617ba9e
@@ -11460,6 +11498,7 @@ pass/generics/runtime_applied_implementation_qualifier_exit rejected 2021ms chec
 	call `echo` has an invalid argument correspondence: selected executable carrier differs from its exact public application
 	call `echo` has an invalid argument correspondence: selected call has no admitted public application
 pass/generics/runtime_borrowed_value_inference_exit checked 4049ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/runtime_call_index_contract_result checked 5807ms @4a93353f8274+wt
 pass/generics/runtime_captured_map_borrowed_type checked 3944ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_captured_map_const_body checked 3751ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_captured_map_const_machine rejected 1249ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
