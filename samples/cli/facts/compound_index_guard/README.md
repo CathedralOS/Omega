@@ -51,6 +51,10 @@ or missing first write. The original match tested only one input with identical
 arm results; its old result is historical evidence, not a branch-discrimination
 claim.
 
+The [wrong-actual control](controls/call_result_wrong_actual/main.omg) retains the
+full guard and changes only the coordinate call's actual from `main.a` to `main.b`.
+Its guarded body must refuse: bounds on `b * 20 + a` do not bound `b * 20 + b`.
+
 Applicable requirements:
 
 - **Establishment:** the complete lower and upper conjunction establishes the
