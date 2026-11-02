@@ -1660,6 +1660,12 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
     }
 
+    for application in &program.applied_data_cleanup_selections {
+        if retained.declaration(application.declaration) {
+            visit_cleanup_selection(program, retained, &application.selection);
+        }
+    }
+
     for schema in program.wire_schemas() {
         if !retained.declaration(schema.symbol) {
             continue;

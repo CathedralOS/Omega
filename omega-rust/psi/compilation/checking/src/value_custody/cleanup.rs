@@ -423,6 +423,16 @@ pub fn nominal_cleanup_owner(
     nominal_cleanup_owner_walk(program, symbol)
 }
 
+/// The exact owned carrier an independent selected hook instance disposes.
+/// Generic data closed by specialization shares its declaration symbol with
+/// every other application, so the owner symbol alone cannot name it.
+pub fn nominal_cleanup_subject(
+    program: &dyn crate::CheckingInput,
+    symbol: SymbolHandle,
+) -> Option<TypeReferenceHandle> {
+    super::cleanup_selection::subject_for_executable(program, symbol)
+}
+
 fn nominal_cleanup_owner_walk(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,

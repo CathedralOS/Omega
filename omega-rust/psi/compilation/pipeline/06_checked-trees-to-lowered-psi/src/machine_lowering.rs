@@ -243,6 +243,8 @@ fn nominal_cleanup_subject_from_types<'types>(
         ))?;
     let identity = if machine.attached_data_application.is_valid() {
         checked.normalized_type_identity(machine.attached_data_application)
+    } else if let Some(subject) = validation::nominal_cleanup_subject(&checked.typed, source) {
+        checked.normalized_type_identity(subject)
     } else if let Some(application) = data.generic_instance {
         checked.normalized_type_identity(application)
     } else {
