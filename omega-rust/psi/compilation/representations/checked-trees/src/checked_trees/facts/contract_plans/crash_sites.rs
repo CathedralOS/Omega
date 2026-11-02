@@ -335,17 +335,15 @@ impl CheckedCrashCallSite {
             return Ok(identity);
         }
 
-        let mut bindings = proof.contract_calls.iter().filter(|(_, call)| {
-            call.caller_machine_symbol == caller_machine
-                && call.caller_state_symbol == self.location.state
-                && call.statement_index == self.location.statement_ordinal as usize
-                && call.call_ordinal == self.location.call_ordinal as usize
-        });
-        let (_, binding) = bindings
-            .next()
-            .ok_or("requirement call lost its checked executable binding")?;
-        if bindings.next().is_some()
-            || binding.target_machine_symbol != target_machine
+        let binding = proof
+            .unique_contract_call_at(&(
+                caller_machine,
+                self.location.state,
+                self.location.statement_ordinal as usize,
+                self.location.call_ordinal as usize,
+            ))
+            .ok_or("requirement call has no unique checked executable binding")?;
+        if binding.target_machine_symbol != target_machine
             || binding.target_state_symbol != target_state
             || !proof.call_contract_signatures.is_valid(binding.signature)
         {
@@ -487,4 +485,203 @@ fn crash_frontier_claim_sort_key(
     }
     key[10] = u64::from(ordinal);
     key
+}
+
+#[cfg(test)]
+mod executable_binding_tests {
+    use super::*;
+    use crate::{
+        CallContractSignature, ContractCallFact, MachineContractPlan, MachineContractPlans,
+        ProofFacts,
+    };
+
+    struct Binding {
+        plans: MachineContractPlans,
+        proof: ProofFacts,
+        checked: CheckedCrashCallSite,
+        caller: SymbolHandle,
+        target: SymbolHandle,
+        entry: SymbolHandle,
+    }
+
+    impl Binding {
+        fn new() -> Self {
+            let symbol = |index| SymbolHandle::from_parts(index, 1);
+            let caller = symbol(1);
+            let caller_state = symbol(2);
+            let target = symbol(3);
+            let entry = symbol(4);
+            let public_trait = symbol(5);
+            let public_member = symbol(6);
+            let plans = MachineContractPlans {
+                machines: vec![MachineContractPlan {
+                    machine: target,
+                    closed_scalar_values: Default::default(),
+                    crash: Default::default(),
+                    report_fingerprint: 37,
+                    commitment: MachineContractCommitment::from_digest([7; 32]),
+                }],
+                ..Default::default()
+            };
+            let mut proof = ProofFacts::default();
+            let signature = proof
+                .call_contract_signatures
+                .append(CallContractSignature {
+                    caller_machine_symbol: caller,
+                    caller_state_symbol: caller_state,
+                    statement_index: 2,
+                    call_ordinal: 1,
+                    declaring_trait: public_trait,
+                    signature: typed_trees::signature::StateSignature {
+                        symbol: public_member,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                });
+            proof.contract_calls.append(ContractCallFact {
+                caller_machine_symbol: caller,
+                caller_state_symbol: caller_state,
+                statement_index: 2,
+                call_ordinal: 1,
+                target_machine_symbol: target,
+                target_state_symbol: entry,
+                signature,
+                ..Default::default()
+            });
+            let checked = CheckedCrashCallSite::new_with_commitment(
+                CrashCallSiteLocation::new(caller_state, 2, 1),
+                public_trait,
+                public_member,
+                41,
+                MachineContractCommitment::from_digest([8; 32]),
+                Vec::new(),
+            );
+            Self {
+                plans,
+                proof,
+                checked,
+                caller,
+                target,
+                entry,
+            }
+        }
+
+        fn identity(&self) -> Result<crate::MachineContractIdentity, &'static str> {
+            self.checked.executable_contract_identity(
+                &self.plans,
+                &self.proof,
+                self.caller,
+                self.target,
+                self.entry,
+            )
+        }
+    }
+
+    #[test]
+    fn public_call_binds_its_distinct_executable_identity() {
+        let binding = Binding::new();
+        let identity = binding
+            .identity()
+            .expect("the exact public/executable link is valid");
+        assert_eq!(identity.report_fingerprint, 37);
+        assert_eq!(
+            identity.commitment,
+            MachineContractCommitment::from_digest([7; 32])
+        );
+    }
+
+    #[test]
+    fn missing_duplicate_or_other_executable_binding_rejects() {
+        let mut missing = Binding::new();
+        missing.proof.contract_calls = Default::default();
+        assert!(missing.identity().is_err());
+
+        let mut duplicate = Binding::new();
+        let row = duplicate
+            .proof
+            .contract_calls
+            .iter()
+            .next()
+            .unwrap()
+            .1
+            .clone();
+        duplicate.proof.contract_calls.append(row);
+        assert!(duplicate.identity().is_err());
+
+        let mut other = Binding::new();
+        let target = SymbolHandle::from_parts(7, 1);
+        let mut plan = other.plans.machines[0].clone();
+        plan.machine = target;
+        other.plans.machines.push(plan);
+        other.target = target;
+        assert!(other.identity().is_err());
+
+        let mut other_entry = Binding::new();
+        other_entry.entry = SymbolHandle::from_parts(8, 1);
+        assert!(other_entry.identity().is_err());
+    }
+
+    #[test]
+    fn missing_or_another_public_signature_rejects() {
+        let mut missing = Binding::new();
+        missing.proof.call_contract_signatures = Default::default();
+        assert!(missing.identity().is_err());
+
+        let mut other = Binding::new();
+        let signature = other
+            .proof
+            .contract_calls
+            .iter()
+            .next()
+            .unwrap()
+            .1
+            .signature;
+        other
+            .proof
+            .call_contract_signatures
+            .get_mut(signature)
+            .call_ordinal = 3;
+        assert!(other.identity().is_err());
+
+        let mut other_member = Binding::new();
+        let signature = other_member
+            .proof
+            .contract_calls
+            .iter()
+            .next()
+            .unwrap()
+            .1
+            .signature;
+        other_member
+            .proof
+            .call_contract_signatures
+            .get_mut(signature)
+            .signature
+            .symbol = SymbolHandle::from_parts(8, 1);
+        assert!(other_member.identity().is_err());
+    }
+
+    #[test]
+    fn ordinary_call_still_requires_its_exact_commitment() {
+        let mut binding = Binding::new();
+        binding.checked = CheckedCrashCallSite::new_with_commitment(
+            binding.checked.location(),
+            binding.target,
+            binding.entry,
+            37,
+            MachineContractCommitment::from_digest([9; 32]),
+            Vec::new(),
+        );
+        assert!(binding.identity().is_err());
+
+        binding.checked = CheckedCrashCallSite::new_with_commitment(
+            binding.checked.location(),
+            binding.target,
+            binding.entry,
+            42,
+            MachineContractCommitment::from_digest([7; 32]),
+            Vec::new(),
+        );
+        assert!(binding.identity().is_err());
+    }
 }
