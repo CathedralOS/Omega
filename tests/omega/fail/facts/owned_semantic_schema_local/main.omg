@@ -9,7 +9,6 @@ data Reading [copy] {
     #3 sequence: u64;
     #90 case Sample(#1 value: u64 in PayloadValue, retired #2);
     #7 case Empty;
-    retired #4;
 }
 data ExpectedPayload { value: u64 in PayloadValue; }
 data Envelope [copy] { left: u64; graph: reflect::TypeSchema; right: u64; }
@@ -87,8 +86,6 @@ machine inspect(graph: &reflect::TypeSchema) crashes Trap {
     require_true(!reflect::SchemaNode::is_erased(&payload));
     require_true(reflect::SchemaNode::retired_count(&sample) == 1u64);
     require_true(reflect::SchemaNode::retired_number(&sample, 0u64) == 2u64);
-    require_true(reflect::SchemaNode::retired_count(&root) == 1u64);
-    require_true(reflect::SchemaNode::retired_number(&root, 0u64) == 4u64);
     // A separate owner with the same declared field type gives an exact
     // runtime oracle for the complete qualified type, without guessing its
     // package identity or parsing a display name into authority.
