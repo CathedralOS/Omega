@@ -25,10 +25,11 @@ pub(super) fn parse<'tokens, 'source>(
         // conjunction/disjunction is synthesized without that span and must
         // keep the fact parser's declaration/application records instead.
         let expressions = exprs_of(syntax);
+        let span = expressions.source_span(expression).span;
         if matches!(
             expressions.expression(expression),
             ExpressionNode::Binary(_)
-        ) && !expressions.source_span(expression).span.is_empty()
+        ) && span.start < span.end
         {
             return Ok((expression, rest));
         }
