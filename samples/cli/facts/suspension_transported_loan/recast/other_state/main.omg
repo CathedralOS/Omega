@@ -6,7 +6,7 @@ public Immediate satisfies Scheduler { machine park() {} }
 data Cell { value: i32; }
 data Backing { values: [i32; 1]; }
 data Message { left: i32; body: &Cell; right: i32; }
-// The canaries beside the transported descriptor must survive with it.
+// The other two fields must keep their values while the saved access is moved.
 machine read(message: Message) -> i32 {
     transition message.left == 5 && message.right == 9 { true -> message.body.value _ -> 0 }
 }

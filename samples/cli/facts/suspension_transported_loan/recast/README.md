@@ -1,14 +1,19 @@
 # Keep reading the same data after a call that may pause
 
-A program should keep access to the same data after a function call that may
-pause. These examples store 73, make the call, and check that reading the data
-still gives 73. Data forbidden from surviving a pause must still be rejected.
+The compiler now accepts these programs, which keep reading the same data after
+a function call that may pause. Each changes how it views the data without
+making a copy; data forbidden from surviving a pause still rejects.
 
 The program reads a single-number buffer as a record with one field, without
 copying the data. It saves a reference—a way to access that existing data—before
 the call. Changing that reference to another compatible view is called a recast.
 The compiler must remember that both views still use the original storage and
 its restrictions.
+
+Each example stores 73, makes the call, and checks that reading the data still
+gives 73. The compiler also follows the helper's final call before releasing its
+local data. When another return leaves the data unused, cleanup identifies the
+value still occupying its storage, even after its last read has finished.
 
 This is another production of the parent fact, under
 `STATIC-MACHINE-MIGRATION` in [TASKS.md](../../../../../TASKS.md). It uses the
@@ -48,8 +53,27 @@ At fixed base `3009cab5a41` on macOS ARM64, the optimized compiler accepts the
 direct-loan local place and an explicit-borrow recast. The otherwise equivalent
 stored-reference local place rejects at `park`: "the loan lifetime resource is
 unavailable". Its twin also reports the original `backing`'s forbidden carry
-policy. These results were captured before the compiler repair; candidate
-execution and rejection evidence remains pending.
+policy. These results were captured before the compiler repair.
+
+On macOS ARM64, the optimized candidate runs all nine positive places with
+matching native and Terminal Psi results. All nine twins reject for the
+original backing's forbidden suspension policy. A [separate regression fixture](../../../../../tests/omega/pass/borrows/recast_suspension_branch_cleanup_exit/main.omg)
+executes both returning branches: one reads 73 through the saved reference, and
+the other leaves the record unused and returns 19.
+
+The recorded producer is source `fedee10e523` plus compiler patch SHA-256
+`1807520ca9f0be4e3d3fddf3b8a40183f64055d9a4e36f6934e7635ba345f8c8`,
+binary SHA-256 `3aa99c3a3a3c7df9dc3fcf7eb2549e63d17a6fdd47568462720226840bea288f`.
+The 18-project sample gate took 72 seconds. Source, producer/profile records,
+the patch, independent read-only review and raw branch observations are retained
+under `build/recast-loan/completion-4/` and `build/recast-loan/control-evidence/`.
+Later comment changes clarify the examples without changing their operations or
+oracles.
+
+Copied or projected source descriptors still fail to supply the required
+retained permission; joined source permissions and other derived lineages remain
+under the parent task. This row does not establish product-compiler parity or
+complete that task's acceptance.
 
 The inline scheduler can establish retention across a possibly suspending call;
 it does not demonstrate an actual parked activation or another host's runtime.

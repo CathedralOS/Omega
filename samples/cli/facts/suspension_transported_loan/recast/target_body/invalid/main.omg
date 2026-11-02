@@ -6,14 +6,14 @@ public Immediate satisfies Scheduler { machine park() {} }
 data Cell { value: i32; }
 data Backing [carry(suspension: forbidden, cpu: any, thread: any, address: movable)] { values: [i32; 1]; }
 data Message { left: i32; body: &Cell; right: i32; }
-// The canaries beside the transported descriptor must survive with it.
+// The other two fields must keep their values while the saved access is moved.
 machine read(message: Message) -> i32 {
     transition message.left == 5 && message.right == 9 { true -> message.body.value _ -> 0 }
 }
 boundary trait SelectedTransport {
     machine transport(tag: u64) -> i32 reaches Scheduler suspends;
 }
-// Each selected body transports the same loan; the tag proves which ran.
+// Each implementation must keep access to the same data; the number shows which one ran.
 X86Transport satisfies SelectedTransport {
     machine transport(tag: u64) -> i32 reaches Scheduler suspends {
         let backing: Backing = Backing { values: [73] };

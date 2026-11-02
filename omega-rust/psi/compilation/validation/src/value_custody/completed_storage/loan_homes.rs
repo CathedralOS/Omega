@@ -71,6 +71,34 @@ pub fn descriptor_formation_sources(
     (!sources.is_empty()).then_some(sources)
 }
 
+/// A later value in the same variable must not release an earlier value's
+/// saved access. Match the installed descriptor to its recorded creation,
+/// including the statement occurrence and field within that creation.
+pub fn descriptor_formation_matches_loan(
+    program: &dyn crate::CheckingInput,
+    control: &FlowControlFacts,
+    borrow: &BorrowFacts,
+    state: symbols::SymbolHandle,
+    statements: HandleSpan<FlowStatementFact>,
+    loan: &BorrowLoanFact,
+    value: Handle<FlowOperandFact>,
+    path: &[PlaceSegment],
+) -> Option<bool> {
+    if !control.operands.is_valid(value) {
+        return None;
+    }
+    let installed = control.operands.get(value);
+    if installed.state_symbol != state || installed.statement_index != loan.statement_index {
+        return Some(false);
+    }
+    let formed = place_segments(borrow.owner_segments.span(loan.formation_owner_path?)?);
+    let sources = descriptor_formation_sources(program, control, value, path, statements)?;
+    Some(sources.iter().any(|source| {
+        let capture = control.operands.get(source.capture);
+        capture.expression == loan.formation_expression && source.projection == formed
+    }))
+}
+
 /// One state's already completed installation records. The recorded semantic
 /// destination exists only for stable exact stores after RHS effects. Unknown
 /// installations keep their declared conservative owner path.
@@ -141,22 +169,16 @@ impl<'a> InstalledLoanHomes<'a> {
         }
         let suffix = &owner[installed.segments.len()..];
         let path = place_segments(suffix);
-        let formed = place_segments(
-            self.borrow
-                .owner_segments
-                .span(loan.formation_owner_path?)?,
-        );
-        let sources = descriptor_formation_sources(
+        if !descriptor_formation_matches_loan(
             program,
             self.control,
+            self.borrow,
+            self.state,
+            self.statements,
+            loan,
             completed.stored_value,
             &path,
-            self.statements,
-        )?;
-        if !sources.iter().any(|source| {
-            let capture = self.control.operands.get(source.capture);
-            capture.expression == loan.formation_expression && source.projection == formed
-        }) {
+        )? {
             return None;
         }
         prefix.extend_from_slice(suffix);
