@@ -27,7 +27,7 @@ pub struct PackageSourceConsumptionCommitment {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PackageCompilationSubject {
     root: semantic_vocabulary::PackageKeyIdentity,
-    dependency_closure: super::PackageDependencyClosure,
+    dependency_closure: crate::PackageDependencyClosure,
     source_consumption_commitment: PackageSourceConsumptionCommitment,
     consumed_units: Vec<ConsumedSourceUnit>,
 }
@@ -37,11 +37,11 @@ impl PackageCompilationSubject {
         self.root
     }
 
-    pub const fn dependency_closure(&self) -> &super::PackageDependencyClosure {
+    pub const fn dependency_closure(&self) -> &crate::PackageDependencyClosure {
         &self.dependency_closure
     }
 
-    pub const fn root_role(&self) -> super::BuildDeclarationKind {
+    pub const fn root_role(&self) -> crate::BuildDeclarationKind {
         self.dependency_closure.root_role()
     }
 
@@ -76,7 +76,7 @@ impl PackageSourceConsumptionCommitment {
 #[doc(hidden)]
 pub fn derive_source_consumption_commitment(
     consumed_units: &[ConsumedSourceUnit],
-    inputs: &super::PackageCompilationInputs,
+    inputs: &crate::PackageCompilationInputs,
 ) -> Result<PackageSourceConsumptionCommitment, Vec<Diagnostic>> {
     if consumed_units.is_empty() {
         return Err(vec![Diagnostic::error(
@@ -119,11 +119,11 @@ pub fn derive_source_consumption_commitment(
     })
 }
 
-fn canonical_root_role(role: super::BuildDeclarationKind) -> u8 {
+fn canonical_root_role(role: crate::BuildDeclarationKind) -> u8 {
     match role {
-        super::BuildDeclarationKind::Package => 0,
-        super::BuildDeclarationKind::Application => 1,
-        super::BuildDeclarationKind::Workspace => {
+        crate::BuildDeclarationKind::Package => 0,
+        crate::BuildDeclarationKind::Application => 1,
+        crate::BuildDeclarationKind::Workspace => {
             unreachable!("workspace roots reject before source-consumption commitment")
         }
     }
@@ -275,7 +275,7 @@ fn validate_generated_source_join(
 #[doc(hidden)]
 pub fn derive_package_compilation_subject<'source>(
     sources: impl IntoIterator<Item = &'source SourceFile>,
-    inputs: &super::PackageCompilationInputs,
+    inputs: &crate::PackageCompilationInputs,
     generated_sources: &[(source::SourceId, build_output::PackageGeneratedSource)],
 ) -> Result<PackageCompilationSubject, Vec<Diagnostic>> {
     let consumed_units = derive_consumed_source_units(sources, generated_sources)?;

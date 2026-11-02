@@ -657,7 +657,7 @@ impl PackageCompilationSourceInputs {
             let Some(expected) = &package.canonical_source_metadata else {
                 return Ok(false);
             };
-            if crate::source_snapshot::capture(&package.source_root)? != *expected {
+            if crate::source::source_snapshot::capture(&package.source_root)? != *expected {
                 return Ok(false);
             }
         }

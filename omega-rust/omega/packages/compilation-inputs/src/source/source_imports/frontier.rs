@@ -356,7 +356,7 @@ impl SourceStorage {
                 "anonymous source capture lost its core dependency",
             )]
         })?;
-        let core_identity = crate::anonymous_owner::core_snapshot_identity(core_snapshot)
+        let core_identity = crate::source::anonymous_owner::core_snapshot_identity(core_snapshot)
             .map_err(|message| vec![Diagnostic::error(message)])?;
         // Virtual and closed toolchain-contract inputs outside core remain
         // exact; checked-context duplication and core demand order do not

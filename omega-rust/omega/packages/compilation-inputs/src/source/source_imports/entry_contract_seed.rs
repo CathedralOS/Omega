@@ -6,7 +6,7 @@
 //! later, from the target catalog's slot.
 
 use crate::PackageCompilationInputs;
-use crate::source_imports::SourceStorage;
+use crate::source::source_imports::SourceStorage;
 use semantic_vocabulary::PackageKeyIdentity;
 use std::path::PathBuf;
 
@@ -49,7 +49,7 @@ pub(super) fn entry_contract_seeds_from_graphs(
     graphs: &[&PackageCompilationInputs],
     source_storage: &SourceStorage,
 ) -> Result<Vec<EntryContractSeed>, Vec<diagnostics::Diagnostic>> {
-    let bundled_root = crate::source_imports::bundled_omega_root()?.join("std");
+    let bundled_root = crate::source::source_imports::bundled_omega_root()?.join("std");
     let mut seeds = Vec::new();
     for profile in target::TargetProfile::ALL {
         let slot = profile.program_entry_slot();

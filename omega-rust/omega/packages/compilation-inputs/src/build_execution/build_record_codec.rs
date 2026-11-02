@@ -9,7 +9,7 @@
 //! malformed or unexpected fails the decode and the caller treats the record
 //! as absent.
 
-use crate::review_record_encoding::{
+use crate::reuse::review_record_encoding::{
     declaration_kind_tag, encode_optional, recover_declaration_kind, recover_optional,
 };
 use filesystem_authority::observation_codec::{ObservationCursor as Cursor, push_framed};

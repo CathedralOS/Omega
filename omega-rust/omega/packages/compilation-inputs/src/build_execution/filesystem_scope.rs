@@ -261,7 +261,8 @@ impl BuildMachineFilesystemScope {
     }
 
     fn bind_captured_source_input(mut self, input: CapturedBuildSourceInput) -> Self {
-        self.captured_source_view = Some(crate::source_snapshot::captured_source_view(&input));
+        self.captured_source_view =
+            Some(crate::source::source_snapshot::captured_source_view(&input));
         self.captured_source_input = Some(input);
         self
     }
@@ -279,7 +280,7 @@ impl BuildMachineFilesystemScope {
             .map(|(index, (name, input))| NamedBuildInput {
                 name: name.clone(),
                 input: input.clone(),
-                snapshot: crate::source_snapshot::captured_source_view(input),
+                snapshot: crate::source::source_snapshot::captured_source_view(input),
                 root: BuildMachineFilesystemGrantRootIdentity::new(index as u32 + 3)
                     .expect("bounded slot ordinal follows the source and output roots"),
             })

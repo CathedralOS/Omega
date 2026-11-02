@@ -19,7 +19,7 @@ mod build_source;
 pub use build_source::BuildSourceSelection;
 
 use crate::PackageCompilationInputs;
-use crate::source_imports::{
+use crate::source::source_imports::{
     GeneratedSourceExtension, ImportQueue, PackageImportPhase, PendingPackageImport,
     ProjectSourceSelection, SourceStorage, discover_imports, discover_imports_with_packages,
     discover_package_imports, validate_package_source_frontier,
@@ -98,7 +98,7 @@ impl DeferredProductSources {
     /// executable Product authority. The original Build parse prefix is shared.
     pub fn assemble_query(
         &self,
-        inputs: &crate::source_imports::ProductQueryInputs,
+        inputs: &crate::source::source_imports::ProductQueryInputs,
         timings: &mut CompileTimings,
         catalogue: &mut source::SourceCatalogue,
     ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
@@ -146,7 +146,7 @@ impl DeferredProductSources {
             catalogue,
         )?;
         imports.seed(
-            crate::source_imports::bundled_core_root()?.join("code_layout.omg"),
+            crate::source::source_imports::bundled_core_root()?.join("code_layout.omg"),
             source::DependencyScope::Product,
         );
         for scope in [
@@ -155,7 +155,8 @@ impl DeferredProductSources {
         ] {
             if sources_mention_floats(&storage, scope) {
                 imports.seed(
-                    crate::source_imports::bundled_core_root()?.join("float_operations.omg"),
+                    crate::source::source_imports::bundled_core_root()?
+                        .join("float_operations.omg"),
                     scope,
                 );
             }
@@ -174,9 +175,7 @@ impl DeferredProductSources {
             catalogue,
         )?;
         let mut bindings = append_build_prelude(&mut storage, build_source, timings, catalogue)?;
-        bindings.extend(crate::source_imports::retain_module_import_bindings(
-            &storage,
-        )?);
+        bindings.extend(crate::source::source_imports::retain_module_import_bindings(&storage)?);
         let root_sources = storage.root_sources();
         let source_items = storage
             .source_roots
@@ -532,7 +531,7 @@ impl ImmutableSourceParseCheckpoint {
         // Core query results are ordinary source-backed data. Load their
         // canonical declarations even for an import-free query occurrence;
         // source discovery neither evaluates the query nor selects a machine.
-        let core_root = crate::source_imports::bundled_core_root()?;
+        let core_root = crate::source::source_imports::bundled_core_root()?;
         let query_types = core_root.join("code_layout.omg");
         imports.seed(query_types, source_scope);
         // Primitive float spellings select ordinary source declarations and
@@ -558,7 +557,7 @@ impl ImmutableSourceParseCheckpoint {
         // Build bindings carry inert paths. Target entry contracts and Product
         // suppliers are not part of the initial Build name-resolution context.
         let seeds = if deferred_product.is_none() {
-            crate::source_imports::entry_contract_seeds(package_inputs, &source_storage)?
+            crate::source::source_imports::entry_contract_seeds(package_inputs, &source_storage)?
         } else {
             Vec::new()
         };
@@ -649,9 +648,8 @@ impl ImmutableSourceParseCheckpoint {
             .transpose()?;
         let mut source_scoped_top_level_bindings =
             append_build_prelude(&mut source_storage, self.build_source, timings, catalogue)?;
-        source_scoped_top_level_bindings.extend(
-            crate::source_imports::retain_module_import_bindings(&source_storage)?,
-        );
+        source_scoped_top_level_bindings
+            .extend(crate::source::source_imports::retain_module_import_bindings(&source_storage)?);
         let root_sources = source_storage.root_sources();
         let source_file_count = source_storage.file_count();
         let build_scope_sources = source_storage
@@ -803,7 +801,7 @@ impl ImmutableSourceParseCheckpoint {
         if let Some(package_inputs) = package_inputs {
             package_inputs.validate_for_compilation(
                 &self.root_path,
-                &crate::source_imports::bundled_core_root()?,
+                &crate::source::source_imports::bundled_core_root()?,
             )?;
         }
         Ok(())
@@ -850,8 +848,10 @@ fn append_dependency_build_handoffs_to_storage(
     timings: &mut CompileTimings,
     catalogue: &mut source::SourceCatalogue,
 ) -> Result<Vec<(source::SourceId, build_output::PackageGeneratedSource)>, Vec<Diagnostic>> {
-    let entries =
-        crate::source_imports::admit_dependency_build_handoffs(package_inputs, source_scope)?;
+    let entries = crate::source::source_imports::admit_dependency_build_handoffs(
+        package_inputs,
+        source_scope,
+    )?;
 
     for entry in &entries {
         imports.mark_loaded(&entry.logical_path, entry.scope);
@@ -861,7 +861,7 @@ fn append_dependency_build_handoffs_to_storage(
     for entry in entries {
         let text = entry.source_text()?;
         let entry_base = entry.authored_base(package_inputs)?;
-        let crate::source_imports::DependencyGeneratedSource {
+        let crate::source::source_imports::DependencyGeneratedSource {
             logical_path,
             source,
             package,
@@ -926,7 +926,7 @@ enum SourceRouting<'inputs> {
         package_inputs: Option<&'inputs PackageCompilationInputs>,
         phase: PackageImportPhase,
     },
-    Query(&'inputs crate::source_imports::ProductQueryInputs),
+    Query(&'inputs crate::source::source_imports::ProductQueryInputs),
 }
 
 fn load_source_frontiers(
@@ -1038,7 +1038,7 @@ fn append_build_prelude(
     timings: &mut CompileTimings,
     catalogue: &mut source::SourceCatalogue,
 ) -> Result<Vec<symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
-    let Some(prelude) = crate::source_imports::prepare_build_prelude(
+    let Some(prelude) = crate::source::source_imports::prepare_build_prelude(
         storage,
         build_source.map(BuildSourceSelection::source_id),
     ) else {
@@ -1071,7 +1071,7 @@ fn append_build_prelude(
 struct ParsingTimings<'timings>(&'timings mut CompileTimings);
 
 fn sources_mention_floats(
-    source_storage: &crate::source_imports::SourceStorage,
+    source_storage: &crate::source::source_imports::SourceStorage,
     scope: source::DependencyScope,
 ) -> bool {
     source_storage

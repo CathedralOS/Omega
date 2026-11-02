@@ -41,7 +41,7 @@ impl AnonymousSourceCapture {
     /// Derive Build's inventory in its own commitment domain, sharing acquired
     /// file bytes. This does not assign a package or declaration owner.
     pub fn build_input(&self) -> Result<build_output::CapturedBuildSourceInput, String> {
-        crate::source_snapshot::retained_source_input(&self.capture)
+        crate::source::source_snapshot::retained_source_input(&self.capture)
     }
 
     pub fn sources(&self) -> &Arc<source::SourceMap> {
@@ -103,7 +103,8 @@ fn snapshot(digest: &mut Sha256, capture: &CapturedSourceTree) -> Result<(), Str
     let mut entries = capture
         .entries()
         .map(|(path, entry)| {
-            crate::source_snapshot::capture_relative_path_bytes(path).map(|path| (path, entry))
+            crate::source::source_snapshot::capture_relative_path_bytes(path)
+                .map(|path| (path, entry))
         })
         .collect::<Result<Vec<_>, _>>()?;
     entries.sort_by(|left, right| left.0.cmp(&right.0));
@@ -120,7 +121,7 @@ fn snapshot(digest: &mut Sha256, capture: &CapturedSourceTree) -> Result<(), Str
                 digest.update([2]);
                 field(
                     digest,
-                    &crate::canonical_fs::os_str_bytes(target.as_os_str())?,
+                    &crate::source::canonical_fs::os_str_bytes(target.as_os_str())?,
                 );
             }
         }

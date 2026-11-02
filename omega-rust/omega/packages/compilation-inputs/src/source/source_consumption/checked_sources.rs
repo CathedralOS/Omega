@@ -69,7 +69,7 @@ impl BuildSourceCustody {
         catalogue: &mut source::SourceCatalogue,
     ) -> Result<
         Option<(
-            crate::source_imports::GeneratedSourceExtension,
+            crate::source::source_imports::GeneratedSourceExtension,
             &'inputs PackageCompilationInputs,
         )>,
         Vec<Diagnostic>,
@@ -85,7 +85,7 @@ impl BuildSourceCustody {
         let package_root = package_inputs
             .package_root(package_inputs.root())
             .expect("validated package inputs retain their root package");
-        let extension = crate::source_imports::admit_generated_extension(
+        let extension = crate::source::source_imports::admit_generated_extension(
             base_sources,
             package_root,
             Some(package_inputs.root()),

@@ -45,11 +45,11 @@
 //! the store, fingerprint, and capture protocol; that choice of lane and
 //! the caller opt-in live with the resolving consumers.
 
-#[cfg(unix)]
-use crate::canonical_fs::require_canonical_mode;
-use crate::canonical_fs::{canonical_file_executable, os_str_bytes};
 use crate::codec_bytes::{push_bytes, push_u64};
 use crate::cursor::{Cursor, TakeError, Truncated};
+#[cfg(unix)]
+use crate::source::canonical_fs::require_canonical_mode;
+use crate::source::canonical_fs::{canonical_file_executable, os_str_bytes};
 use filesystem_authority::{
     CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT, CanonicalFilesystemMetadataIndex,
     CanonicalFilesystemMetadataRow, CanonicalFilesystemMetadataRowKind,
@@ -203,7 +203,7 @@ impl CheckedSourceCache {
                 record_stored: false,
             });
         }
-        let index = crate::source_snapshot::capture(&canonical_root)?;
+        let index = crate::source::source_snapshot::capture(&canonical_root)?;
         // The cold capture hashed what it found; before publishing a record
         // keyed to the earlier fingerprint, confirm the tree still carries
         // exactly that stat identity. A tree that drifted under the cold
@@ -394,7 +394,7 @@ fn stat_capture(root: &Path) -> Result<BTreeMap<Vec<u8>, StatRow>, String> {
                 let child = child.map_err(|error| {
                     format!("could not enumerate canonical Source metadata entry: {error}")
                 })?;
-                crate::canonical_fs::check_metadata_row_ceiling(rows.len(), stack.len())?;
+                crate::source::canonical_fs::check_metadata_row_ceiling(rows.len(), stack.len())?;
                 let name = os_str_bytes(&child.file_name())?;
                 let mut child_relative = relative_path.clone();
                 if !child_relative.is_empty() {
@@ -438,7 +438,7 @@ fn stat_row(
         charge_content(aggregate_content_bytes, physical.len())?;
         (StatRowKind::File { executable }, physical.len(), None)
     } else if physical.file_type().is_symlink() {
-        let (target, target_length) = crate::canonical_fs::canonical_symlink_target(
+        let (target, target_length) = crate::source::canonical_fs::canonical_symlink_target(
             path,
             aggregate_content_bytes,
             AGGREGATE_CONTENT_BYTE_LIMIT,

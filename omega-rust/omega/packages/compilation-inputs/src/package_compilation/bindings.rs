@@ -3,7 +3,7 @@
 //! coordinates, and independently composed component descriptions.
 
 use super::canonical_source_root;
-use crate::source_snapshot;
+use crate::source::source_snapshot;
 use build_declarations::DependencyPurpose;
 use filesystem_authority::CanonicalFilesystemMetadataIndex;
 use semantic_vocabulary::PackageKeyIdentity;
@@ -71,7 +71,7 @@ impl PackageSourceBinding {
     /// way.
     pub fn with_cached_canonical_source_metadata(
         mut self,
-        cache: &crate::checked_source_cache::CheckedSourceCache,
+        cache: &crate::reuse::checked_source_cache::CheckedSourceCache,
     ) -> Result<Self, String> {
         if self.captured_source.is_some() {
             return Ok(self);

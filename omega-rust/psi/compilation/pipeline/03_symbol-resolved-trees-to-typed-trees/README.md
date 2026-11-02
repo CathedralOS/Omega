@@ -19,7 +19,7 @@ limits, not a different generated-source language.
   machine admission, consent and execution. Its private `AdmittedBuildProgram`
   retains the prepared program, selected machine, scope and sponsor; the
   coordinator receives the completed result, not an executable checkpoint.
-- [source assembly](../../../../omega/packages/compilation-inputs/src/source_assembly.rs): generated units and
+- [source assembly](../../../../omega/packages/compilation-inputs/src/source/source_assembly.rs): generated units and
   dependency bundles retain source bytes, logical paths, and producer custody.
   `GeneratedSourceExtension::parse` joins the exact base and produces separate
   syntax forests through Psi 00/01 before this continuation resolves them.
