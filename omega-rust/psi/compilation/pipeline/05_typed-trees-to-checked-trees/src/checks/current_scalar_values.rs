@@ -1091,6 +1091,37 @@ impl<'program> CurrentScalarValues<'program> {
         &self.hypotheses
     }
 
+    /// Bind a declaration recipe to current snapshots without treating its
+    /// unevaluated calls as completed runtime occurrences. The formation owner
+    /// must still discharge every operation before using the returned roster.
+    pub(crate) fn integer_expression(
+        &self,
+        expression: ExpressionHandle,
+    ) -> Option<ScopedArithmeticExpression> {
+        let captured = self
+            .current
+            .iter()
+            .map(|binding| (binding.symbol, binding.value.clone()))
+            .collect::<Vec<_>>();
+        self.application_value_with_captured(expression, &[], &captured)
+    }
+
+    pub(crate) fn integer_expression_formation(
+        &self,
+        machine: &Machine,
+        expression: &ScopedArithmeticExpression,
+    ) -> Option<(
+        validation::IntegerApplicationFormation,
+        ScopedArithmeticValue,
+    )> {
+        validation::scoped_integer_expression_formation(
+            self.program,
+            machine,
+            &self.hypotheses,
+            expression,
+        )
+    }
+
     pub(crate) fn declared_integer_application_formation(
         &self,
         machine: &Machine,

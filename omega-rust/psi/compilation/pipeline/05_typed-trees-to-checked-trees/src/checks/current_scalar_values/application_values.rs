@@ -102,6 +102,18 @@ impl CurrentScalarValues<'_> {
                         value,
                     });
                 }
+                ExpressionNode::Atomic(atomic) => pending.push(atomic.value),
+                ExpressionNode::Cast(cast) => pending.push(cast.value),
+                ExpressionNode::Call(call) => {
+                    if call.receiver.is_valid() {
+                        pending.push(call.receiver);
+                    }
+                    pending.extend(
+                        self.program
+                            .expression_table
+                            .expression_handles(call.arguments),
+                    );
+                }
                 ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
                 ExpressionNode::Binary(binary) => {
                     if !validation::has_builtin_parameter_bound_expression_meaning(

@@ -270,3 +270,7 @@ shared window separately from the scalar proof reads.
 [Declaration-local selector coordinates](local/declared_measure/computed_record/selected_value/README.md)
 carry the same private-cycle fact through indexed measure reads in all nine
 places, with public-contract and computed-selector compositions.
+
+[Ordinary-call computed endpoints](parameter/bounded_distance/moving_upper/computed_upper/call/README.md)
+continue the same bounded-distance fact through selected helper contracts and
+retained executable call decisions.

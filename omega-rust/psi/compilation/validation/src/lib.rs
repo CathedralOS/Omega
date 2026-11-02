@@ -273,6 +273,7 @@ pub use crate::declarations::selection_authority::{
     DeclarationSelectionAuthority, RecordedDeclarationAuthority, checked_selection_requirements,
     validate_authored_declaration_selections,
 };
+pub use crate::machine_calls::call_cycles::requirement_backing_machines;
 pub use crate::machine_calls::call_cycles::{
     RankRelevance, RuntimeRankApplicationBinding, RuntimeRankBodyWitness, RuntimeRankComponents,
     RuntimeRankInput, RuntimeRankOperand, ValidatedProofCallComponent, ValidatedProofRankInterval,
@@ -287,15 +288,14 @@ pub use crate::machine_calls::call_cycles::{
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
-    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
-    ReferenceResultTransport, ReferenceSlotContract, ReferenceViewFormation,
-    ScalarStorageCoordinate, StoredReferenceCallContext, StoredReferenceDestinationKind,
-    StoredReferenceEffect, StoredReferenceRelationRefusal, ValidatedSelfCallDescent,
-    assignment_stored_value_type, frame_coordinate_path, frame_length_coordinate_path,
-    frame_paths_overlap, operand_call_plans, state_reference_parameter_binding_is_stable,
-    storage_origin_types_match,
+    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource,
+    ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceSlotContract,
+    ReferenceViewFormation, ScalarStorageCoordinate, StoredReferenceCallContext,
+    StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
+    ValidatedSelfCallDescent, assignment_stored_value_type, frame_coordinate_path,
+    frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
+    state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
-pub use crate::machine_calls::call_cycles::requirement_backing_machines;
 pub use crate::machine_calls::denotational_calls::{
     SpecificationCallRequest, admit_specification_calls, checked_value_call_candidate,
     expression_values_have_call_identity, normal_return_call_candidate, requirement_satisfiers,
@@ -529,6 +529,7 @@ pub use proof_contracts::contract_entailment::scoped_arithmetic::{
     scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
     scoped_arithmetic_values_relation, scoped_call_result_observations,
     scoped_completed_call_guarantees, scoped_declared_integer_application_formation,
+    scoped_integer_expression_formation,
 };
 pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
 pub use proof_contracts::contract_entailment::statement_predicates::StatementPredicateObservations;

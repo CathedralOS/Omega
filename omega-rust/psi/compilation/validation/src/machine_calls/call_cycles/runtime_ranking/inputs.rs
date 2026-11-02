@@ -35,6 +35,8 @@ pub enum RuntimeRankOperand {
         state: SymbolHandle,
         expression: ExpressionHandle,
         primitive_type: PrimitiveType,
+        application: Option<crate::IntegerApplicationFormation>,
+        bindings: Vec<super::RuntimeRankApplicationBinding>,
     },
     Literal(u64),
 }
@@ -43,6 +45,7 @@ impl RuntimeRankInput {
     pub fn retain(
         &self,
         plan: &mut checked_trees::CheckedRankArrivalPlan,
+        program: &dyn crate::CheckingInput,
     ) -> checked_trees::CheckedRuntimeRankInput {
         use checked_trees::CheckedRuntimeRankInput as Input;
         match self {
@@ -54,7 +57,7 @@ impl RuntimeRankInput {
             } => Input::Distance {
                 lower_observation: *lower_observation,
                 lower_primitive: *lower_primitive,
-                upper: upper.retain(plan),
+                upper: upper.retain(plan, program),
             },
         }
     }
@@ -91,6 +94,7 @@ impl RuntimeRankOperand {
     pub fn retain(
         &self,
         plan: &mut checked_trees::CheckedRankArrivalPlan,
+        program: &dyn crate::CheckingInput,
     ) -> arena::Handle<checked_trees::CheckedRankOperand> {
         use checked_trees::CheckedRankOperand as Operand;
         let operand = match self {
@@ -120,11 +124,51 @@ impl RuntimeRankOperand {
                 state,
                 expression,
                 primitive_type,
-            } => Operand::Expression {
-                state: *state,
-                expression: *expression,
-                primitive_type: *primitive_type,
-            },
+                application,
+                bindings,
+            } => {
+                let formation = application
+                    .as_ref()
+                    .and_then(|application| {
+                        let (machine, _) = crate::find_state(program, *state)?;
+                        if application.owner() != *state || application.body() != *expression {
+                            return None;
+                        }
+                        let rows = bindings
+                            .iter()
+                            .map(|binding| binding.retain(plan))
+                            .collect::<Vec<_>>();
+                        let bindings = plan.bindings.insert_many(rows);
+                        let casts = plan
+                            .application_casts
+                            .insert_many(application.casts().iter().cloned());
+                        let calls = plan
+                            .application_calls
+                            .insert_many(application.calls().iter().copied());
+                        Some(plan.application_formations.insert(
+                            checked_trees::CheckedRankApplicationFormation {
+                                machine: machine.symbol,
+                                machine_body: machine.states,
+                                state: *state,
+                                application: checked_trees::CheckedRankApplicationFacts {
+                                    owner: application.owner(),
+                                    definition_body: application.body(),
+                                    casts,
+                                    calls,
+                                },
+                                bindings,
+                                owned_input: None,
+                            },
+                        ))
+                    })
+                    .unwrap_or_default();
+                Operand::Expression {
+                    state: *state,
+                    expression: *expression,
+                    primitive_type: *primitive_type,
+                    formation,
+                }
+            }
             Self::Literal(value) => Operand::Literal(*value),
         };
         plan.rank_operands.insert(operand)
@@ -157,11 +201,42 @@ impl RuntimeRankOperand {
                 state,
                 expression,
                 primitive_type,
-            } => Self::Expression {
-                state: *state,
-                expression: *expression,
-                primitive_type: *primitive_type,
-            },
+                formation,
+            } => {
+                let (application, bindings) = if formation.is_valid() {
+                    let row = plan.application_formations.get(*formation);
+                    if row.state != *state
+                        || row.application.owner != *state
+                        || row.application.definition_body != *expression
+                    {
+                        return None;
+                    }
+                    let application = crate::IntegerApplicationFormation::from_retained(
+                        row.application.owner,
+                        row.application.definition_body,
+                        plan.application_casts.span(row.application.casts)?.to_vec(),
+                        plan.application_calls.span(row.application.calls)?.to_vec(),
+                    )?;
+                    let bindings = plan
+                        .bindings
+                        .span(row.bindings)?
+                        .iter()
+                        .map(|binding| {
+                            super::RuntimeRankApplicationBinding::from_checked(plan, binding)
+                        })
+                        .collect::<Option<Vec<_>>>()?;
+                    (Some(application), bindings)
+                } else {
+                    (None, Vec::new())
+                };
+                Self::Expression {
+                    state: *state,
+                    expression: *expression,
+                    primitive_type: *primitive_type,
+                    application,
+                    bindings,
+                }
+            }
             Operand::Literal(value) => Self::Literal(*value),
         })
     }

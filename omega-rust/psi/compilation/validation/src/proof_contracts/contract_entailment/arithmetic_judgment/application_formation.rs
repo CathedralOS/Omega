@@ -22,15 +22,15 @@ use typed_trees::types::PrimitiveType;
 /// exact state and supplying input bindings alongside this result.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntegerApplicationFormation {
-    measure: symbols::SymbolHandle,
+    owner: symbols::SymbolHandle,
     body: ExpressionHandle,
     casts: Vec<crate::ExactIntegerCastFact>,
     calls: Vec<checked_trees::CheckedDeclarationCall>,
 }
 
 impl IntegerApplicationFormation {
-    pub fn measure(&self) -> symbols::SymbolHandle {
-        self.measure
+    pub fn owner(&self) -> symbols::SymbolHandle {
+        self.owner
     }
 
     pub fn body(&self) -> ExpressionHandle {
@@ -49,12 +49,12 @@ impl IntegerApplicationFormation {
     /// The enclosing runtime row and executable application authenticate the
     /// state, declaration and complete coordinate bindings separately.
     pub(crate) fn from_retained(
-        measure: symbols::SymbolHandle,
+        owner: symbols::SymbolHandle,
         body: ExpressionHandle,
         casts: Vec<crate::ExactIntegerCastFact>,
         calls: Vec<checked_trees::CheckedDeclarationCall>,
     ) -> Option<Self> {
-        if !measure.is_valid() || !body.is_valid() {
+        if !owner.is_valid() || !body.is_valid() {
             return None;
         }
         for cast in &casts {
@@ -76,7 +76,7 @@ impl IntegerApplicationFormation {
             return None;
         }
         Some(Self {
-            measure,
+            owner,
             body,
             casts,
             calls,
@@ -90,6 +90,38 @@ pub(in crate::proof_contracts::contract_entailment) struct FormedIntegerApplicat
 }
 
 impl Engine<'_> {
+    /// Form an authored scalar expression under its already installed input
+    /// roster. Endpoint expressions and declared measures share the same
+    /// child-first operation and call decisions; normalization supplies no debt.
+    pub(in crate::proof_contracts::contract_entailment) fn form_integer_expression(
+        &mut self,
+        owner: symbols::SymbolHandle,
+        body: ExpressionHandle,
+    ) -> Option<FormedIntegerApplication> {
+        let program = self.program;
+        let mut admitted = self.clone();
+        admitted.source_owner = owner;
+        let result_type = admitted.source_result_type(body)?;
+        program
+            .primitive_type_reference(result_type)?
+            .integer_bounds()?;
+        let mut decisions = ApplicationDecisions::default();
+        let value = formed_value(&mut admitted, program, body, 0, &mut decisions)?;
+        if !formed_type(&mut admitted, program, result_type, &value)
+            || admitted.requires_unsatisfiable
+        {
+            return None;
+        }
+        let formation = Some(IntegerApplicationFormation {
+            owner,
+            body,
+            casts: decisions.casts,
+            calls: decisions.calls,
+        });
+        *self = admitted;
+        Some(FormedIntegerApplication { value, formation })
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn form_declared_integer_application(
         &mut self,
         measure: symbols::SymbolHandle,
@@ -215,7 +247,7 @@ impl Engine<'_> {
         // An inconsistent path can establish a vacuous proposition, but it
         // supplies no concrete application decision for executable lowering.
         let formation = (!admitted.requires_unsatisfiable).then_some(IntegerApplicationFormation {
-            measure,
+            owner: measure,
             body: *body,
             casts: decisions.casts,
             calls: decisions.calls,

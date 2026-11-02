@@ -27,7 +27,7 @@ impl Builder<'_, '_> {
             .program
             .measures()
             .iter()
-            .find(|declaration| declaration.symbol == formation.application.measure)?;
+            .find(|declaration| declaration.symbol == formation.application.owner)?;
         if declaration.parameter.as_ref()?.symbol != input.formal
             || !self
                 .program

@@ -160,7 +160,7 @@ pub fn retain_runtime_rank_component(
                 let (application_measure, application_body, application_casts, application_calls) =
                     match value.application {
                         Some(application) => (
-                            application.measure(),
+                            application.owner(),
                             application.body(),
                             admitted
                                 .application_casts
@@ -178,7 +178,7 @@ pub fn retain_runtime_rank_component(
                     };
                 values.push(CheckedRuntimeIntegerRank {
                     application: checked_trees::CheckedRankApplicationFacts {
-                        measure: application_measure,
+                        owner: application_measure,
                         definition_body: application_body,
                         casts: application_casts,
                         calls: application_calls,
@@ -196,7 +196,7 @@ pub fn retain_runtime_rank_component(
                     coordinate,
                     parameter_position: value.parameter_position,
                     primitive_type: value.primitive_type,
-                    observation: value.observation.retain(admitted),
+                    observation: value.observation.retain(admitted, program),
                     function: value.function,
                 });
             }
@@ -275,11 +275,11 @@ pub fn retained_runtime_natural_components(
                             let coordinate = admitted.coordinates.get(value.coordinate);
                             Some(super::ValidatedRuntimeIntegerRank {
                                 application: if value.application.definition_body.is_valid() {
-                                    if value.application.measure != value.measure {
+                                    if value.application.owner != value.measure {
                                         return None;
                                     }
                                     Some(crate::IntegerApplicationFormation::from_retained(
-                                        value.application.measure,
+                                        value.application.owner,
                                         value.application.definition_body,
                                         admitted
                                             .application_casts
@@ -291,7 +291,7 @@ pub fn retained_runtime_natural_components(
                                             .to_vec(),
                                     )?)
                                 } else {
-                                    if value.application.measure.is_valid()
+                                    if value.application.owner.is_valid()
                                         || !value.application.casts.is_empty()
                                     {
                                         return None;
