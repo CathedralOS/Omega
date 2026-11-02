@@ -110,13 +110,14 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
         "targets borrow the same published artifact, not equal copies"
     );
 
-    // The same authored Build has no UEFI entry. Put that target first so its
-    // realization refusal cannot silently abort the later supported target.
-    let uefi = target::TargetProfile::from_omega_target_name(Some("uefi_x86_64")).unwrap();
+    // The same authored Build has no Linux x86-64 entry. That target precedes
+    // macOS in canonical catalog order, not just in this caller's request, so
+    // its refusal must not abort the later supported target.
+    let refused = target::TargetProfile::from_omega_target_name(Some("linux_x86_64")).unwrap();
     let source_checks = counters::product_source_check_count();
     let publications = counters::terminal_production_count();
     let builds = counters::build_execution_count();
-    let mut mixed = compile(&[uefi, profiles[0]]).into_iter();
+    let mut mixed = compile(&[refused, profiles[0]]).into_iter();
     assert_eq!(
         counters::product_source_check_count() - source_checks,
         1,
@@ -133,21 +134,25 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
         "a refused target cannot replay Build effects"
     );
     let (profile, failed) = mixed.next().expect("first target outcome");
-    assert_eq!(profile, uefi);
+    assert_eq!(profile, refused);
     let diagnostics = match failed {
-        Ok(_) => panic!("the fixture has no authored UEFI root binding"),
+        Ok(_) => panic!("the fixture has no authored Linux x86-64 root binding"),
         Err(diagnostics) => diagnostics,
     };
     assert!(
         diagnostics.iter().any(|diagnostic| diagnostic
             .message
-            .contains("selected target `uefi_x86_64` has no bound required root slot")),
+            .contains("selected target `linux_x86_64` has no bound required root slot")),
         "the refused target must reach its missing entry obligation: {diagnostics:?}"
     );
     let (profile, survived) = mixed.next().expect("later supported target outcome");
     assert_eq!(profile, profiles[0]);
     let survived = survived.expect("earlier target failure must not poison this target");
     assert!(mixed.next().is_none(), "one outcome per requested target");
+    let (_, supported) = reports
+        .iter()
+        .find(|(profile, _)| *profile == profiles[0])
+        .expect("exact supported target in the successful batch");
     assert_eq!(
         survived
             .retained_native_artifact()
@@ -155,8 +160,7 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
             .image()
             .output()
             .bytes,
-        reports[0]
-            .1
+        supported
             .retained_native_artifact()
             .unwrap()
             .image()
