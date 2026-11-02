@@ -646,8 +646,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   `omega-rust/omega/packages/{build-declarations,compilation-inputs,source-acquisition,build-output,package-manager}/`,
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
-    remaining host operations (including admitted carriers for reference results from
-    opaque host providers), and the staged dependency preparation/provider
+    remaining host operations, and the staged dependency preparation/provider
     park/resume contract to the production Build scheduler.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product

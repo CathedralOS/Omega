@@ -78,12 +78,16 @@ access diagnostic. These observations are recorded at source
 `9e24c7342c2aa5aadb81182616e887f42144e57b`; both explicit runtime oracles are
 retained beside every positive fixture.
 
-`mbx run -p compiler --example host_reference_result` exercises 22 public SDK
+`mbx run -p compiler --example host_reference_result` exercises 24 public SDK
 scenarios across retained and decoded artifacts. Its ordinary host writes the
 fill word, then returns an opaque selection of the captured Cell. The guest
 observes that write and changes the same backing twice. Missing opt-in and
 missing capture refuse before callback. Stale selections, a wrong type or path,
 insufficient access and an opaque numeric identity refuse normal completion.
+A materialized payload cannot replace a captured input alias: the modeled
+`Reference` result needs a public invocation-owned region, while
+`CapturedReference` authenticates a public input region. The additional
+materialized-copy refusal runs for both retained and decoded artifacts.
 The [two-input control](controls/host_regions/main.omg) captures two same-typed
 Cells while only input zero supplies the result region: selecting input one
 rejects. Storage exhaustion after the callback refuses completion; retry cannot
@@ -96,7 +100,10 @@ exits. A successful wrapper beside `interp: DECLINED` is a failing oracle;
 missing, duplicate and disagreeing engine reports also fail. Its refusal and
 observation controls pass with the rest of the 56 gate tests.
 
-Final production CLI qualification and matching Windows, macOS and Linux ARM64
-execution remain pending at this checkpoint. General host-owned allocations, unbounded native
+Production CLI qualification and matching-host run records are retained with
+actual source and producer identities in [PR1507](https://github.com/CathedralOS/Omega/pull/1507).
+The source identities above name the original observations; integration retains
+the modeled-provider carrier and the captured-input carrier as distinct
+completion protocols under wire version237. General host-owned allocations, unbounded native
 addresses and unrelated resource/qualification issuance are not supplied by this
 captured-input carrier.
