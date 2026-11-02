@@ -243,17 +243,17 @@ pub(crate) fn handle_assignment<'program>(
     };
     let definite = origins.destinations.len() == 1;
     for origin in origins.destinations {
-        let (destination, preserves_scalar_value) = if let Some(coordinate) =
-            origin.storage_coordinate(program, state)
-        {
-            (
-                coordinate.place,
-                definite && coordinate.preserves_scalar_value,
-            )
-        } else {
-            diagnostics.push(Diagnostic::error("cannot establish assignment invariants: source storage interpretation is unavailable"));
-            continue;
+        let coordinate = match origin.storage_coordinate(program, state) {
+            Ok(coordinate) => coordinate,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "cannot establish assignment invariants: source storage interpretation is unavailable: {reason}"
+                )));
+                continue;
+            }
         };
+        let destination = coordinate.place;
+        let preserves_scalar_value = definite && coordinate.preserves_scalar_value;
         let store = match field_store(
             program,
             state,

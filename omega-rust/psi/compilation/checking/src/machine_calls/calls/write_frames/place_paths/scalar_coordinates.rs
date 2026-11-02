@@ -73,7 +73,7 @@ impl LocalWriteSource {
             ),
         };
         let view_primitive = scalar_primitive(program, view, path)?;
-        let coordinate = self.storage_coordinate(program, state)?;
+        let coordinate = self.storage_coordinate(program, state).ok()?;
         let root = coordinate.place.root.as_symbol()?;
         let carrier = crate::state_root_type(program, state, root)?;
         let source_primitive = scalar_primitive(program, carrier, &coordinate.place.segments)?;
@@ -93,15 +93,16 @@ impl LocalWriteSource {
         &self,
         program: &dyn crate::CheckingInput,
         state: &State,
-    ) -> Option<StorageCoordinate> {
+    ) -> Result<StorageCoordinate, &'static str> {
         if !self.root.is_valid() {
-            return None;
+            return Err("source storage has no original declaration");
         }
         let mut root = self.root;
         let (mut carrier, mut path) = match &self.representation {
             Some((carrier, path)) => (*carrier, path.clone()),
             None => (
-                crate::state_root_type(program, state, root)?,
+                crate::state_root_type(program, state, root)
+                    .ok_or("source storage root has no declared type")?,
                 self.segments.clone(),
             ),
         };
@@ -111,17 +112,19 @@ impl LocalWriteSource {
             // A accessor is an operation capability, not an ordinary
             // scalar coordinate. Failed precision retains the backing footprint.
             let formation =
-                crate::reference_formation_source(program, recast.formation.expression())?;
+                crate::reference_formation_source(program, recast.formation.expression())
+                    .ok_or("retained view has no exact reference formation")?;
             if formation.interpretation.is_access_view() {
-                return None;
+                return Err("accessor storage is not a declaration reference view");
             }
             if carrier != recast.target_type || formation.view_type != recast.target_type {
-                return None;
+                return Err("retained view carrier does not match its exact formation target");
             }
             let (previous_carrier, mut previous_path) = match &recast.representation {
                 Some((carrier, path)) => (*carrier, path.clone()),
                 None => (
-                    crate::state_root_type(program, state, recast.root)?,
+                    crate::state_root_type(program, state, recast.root)
+                        .ok_or("retained view predecessor has no declared root type")?,
                     recast.segments.clone(),
                 ),
             };
@@ -129,10 +132,12 @@ impl LocalWriteSource {
                 program,
                 previous_carrier,
                 &previous_path,
-            )?;
+            )
+            .ok_or("retained view predecessor has no exact declared projection")?;
             let previous_storage =
                 crate::value_custody::places::assignment_value_type(program, previous_type);
-            if crate::reference_view_storage(program, previous_storage, carrier)?
+            if crate::reference_view_storage(program, previous_storage, carrier)
+                .ok_or("retained view storage classification is unavailable")?
                 == checked_trees::CheckedReferenceStorage::Declared
             {
                 // Equality is the existing complete stored declaration identity,
@@ -145,7 +150,8 @@ impl LocalWriteSource {
                     previous_type,
                     carrier,
                     &path,
-                )?;
+                )
+                .ok_or("physical reference view has no exact scalar storage translation")?;
                 preserves_scalar_value &= translated.preserves_scalar_value;
                 preserves_primitive_bits &= translated.preserves_primitive_bits;
                 previous_path.extend(translated.path.into_iter().map(|segment| match segment {
@@ -157,6 +163,9 @@ impl LocalWriteSource {
             carrier = previous_carrier;
             path = previous_path;
         }
+        if !root.is_valid() {
+            return Err("retained view resolves to no original storage declaration");
+        }
         let coordinate = StorageCoordinate {
             place: CanonicalPlace {
                 root: PlaceRoot::Symbol(root),
@@ -165,7 +174,7 @@ impl LocalWriteSource {
             preserves_scalar_value,
             preserves_primitive_bits,
         };
-        Some(coordinate)
+        Ok(coordinate)
     }
 }
 

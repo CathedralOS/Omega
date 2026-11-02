@@ -565,6 +565,14 @@ impl<'artifact> TerminalExecution<'artifact> {
         )? {
             return Ok(OperationFlow::Advance);
         }
+        if boundary_declaration
+            .requires_checked_non_observation(|id| self.structural_types().get(&id))
+        {
+            return Err(TerminalInterpretError::RuntimeSupplySelectionRejected {
+                boundary,
+                reason: "opaque host provider requires an admitted write-only non-observation judgment bound to its exact selected implementation and receipt",
+            });
+        }
         let requirements = handler.storage_requirements(boundary, &scalar_arguments);
         let original_storage = requirements.original;
         let mut boundary_arguments = self
