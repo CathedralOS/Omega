@@ -1,7 +1,7 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
-use super::insert_machine_type_parameter_children;
+use super::insert_generic_parameter_children;
 use crate::symbols::symbol_table::names::{symbol_seed, type_parameter_seeds};
 
 pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
@@ -38,10 +38,11 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
         );
 
     let mut data_children = SymbolTableBuilder::child_handles(data_children);
-    insert_machine_type_parameter_children(
+    insert_generic_parameter_children(
         builder,
         program,
         program.data_type_parameters(data_definition.type_parameters),
+        &data_definition.conformance_bounds,
         &mut data_children,
         has_sources,
     );

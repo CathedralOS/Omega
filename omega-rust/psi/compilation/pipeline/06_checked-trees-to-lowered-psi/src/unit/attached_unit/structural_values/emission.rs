@@ -1291,7 +1291,10 @@ impl Emission<'_, '_, '_> {
             .collect::<Vec<_>>();
         let schedule =
             argument_schedule::build_operations(self.checked, self.machine, self.state, &planned)?;
-        let mut staged_values = vec![Vec::new(); planned.len()];
+        let mut staged_values = vec![
+                super::super::argument_evaluation::ScalarArgumentCaptures::default();
+                planned.len()
+            ];
         let mut staged_selectors = vec![Vec::new(); planned.len()];
         let mut staged_structural_arguments = vec![Vec::new(); planned.len()];
         let mut staged_ranges = vec![Vec::new(); planned.len()];
@@ -1332,9 +1335,6 @@ impl Emission<'_, '_, '_> {
                     let count = source_count.ok_or(LoweringError::Unsupported(
                         "structural operand scalar has no source prefix",
                     ))?;
-                    if staged_values[operation].len() != ordinal {
-                        return unsupported("structural operand scalar ordinals are not dense");
-                    }
                     let value = self.evaluation.argument_at(
                         identities,
                         self.checked,
@@ -1351,7 +1351,7 @@ impl Emission<'_, '_, '_> {
                         self.calls,
                         self.environment,
                     )?;
-                    staged_values[operation].push(self.values.len());
+                    staged_values[operation].record(ordinal, self.values.len());
                     self.values.push(value);
                     continue;
                 }
@@ -1488,19 +1488,7 @@ impl Emission<'_, '_, '_> {
             let operation = &planned[index];
             let count = source_count.unwrap_or(self.values.len());
             let evaluated = if staged && operation.call().is_some() {
-                Some(
-                    staged_values[index]
-                        .iter()
-                        .map(|slot| {
-                            self.values
-                                .get(*slot)
-                                .copied()
-                                .ok_or(LoweringError::Unsupported(
-                                    "structural operand scalar lost its retained slot",
-                                ))
-                        })
-                        .collect::<Result<Vec<_>, _>>()?,
-                )
+                Some(staged_values[index].values(self.values))
             } else if operation.call().is_some() {
                 self.evaluation.arguments(
                     identities,

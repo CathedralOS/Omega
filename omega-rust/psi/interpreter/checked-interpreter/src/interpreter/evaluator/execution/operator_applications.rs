@@ -131,7 +131,7 @@ impl<'program> Evaluator<'program> {
         };
         match realization {
             SelectedRealization::CheckedBody { machine, state } => {
-                let arguments = self.eval_state_arguments(state, arguments, frame)?;
+                let arguments = self.eval_state_arguments(state, arguments, None, frame)?;
                 // The realization's body is a separate activation: guard-subject
                 // memoization belongs to the caller's transition, not to calls
                 // inside the realization.

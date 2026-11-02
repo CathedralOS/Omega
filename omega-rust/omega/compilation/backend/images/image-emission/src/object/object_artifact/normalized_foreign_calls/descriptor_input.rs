@@ -1,5 +1,6 @@
-//! Independently require the authenticated descriptor input's exact prefix
-//! guard before its foreign instruction. Generic physical replay separately
+//! Require the target producer's recorded descriptor input guard, carried in
+//! the selected call's identity, as its exact prefix guard before the foreign
+//! instruction. Generic physical replay separately
 //! binds these selected arithmetic instructions to their emitted trap bytes.
 use selected_instructions::{
     SelectedBlock, SelectedFunction, SelectedInstructionKind as Kind,
@@ -12,19 +13,7 @@ pub(super) fn validate(
     block: &SelectedBlock,
     record: &SelectedNormalizedForeignCall,
 ) -> Option<()> {
-    let types = function
-        .structural
-        .as_ref()
-        .map_or(&[][..], |contract| contract.structural_types.as_slice());
-    let guard = target_operations_to_selected_instructions::descriptor_input_guard_for_call(
-        &record.call.binding,
-        types,
-        &record.call.scalar_arguments,
-        &record.call.structural_arguments,
-        &record.call.result,
-    )
-    .ok()?;
-    let Some(guard) = guard else {
+    let Some(guard) = record.call.descriptor_input else {
         return Some(());
     };
     let operation = record.invocation_site.operation()?;

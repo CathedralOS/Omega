@@ -111,12 +111,7 @@ pub(super) fn extend_symbol_table(
         insert_measure_symbol_children(&mut extension, symbol, &measure, has_sources);
         program.measures[index].symbol = symbol;
     }
-    extend_root_family!(
-        traits,
-        Trait,
-        insert_trait_symbol_children,
-        Some(sources.as_ref())
-    );
+    extend_root_family!(traits, Trait, insert_trait_symbol_children);
     for index in roots.wire_schemas..program.wire_schemas.len() {
         let schema = program.wire_schemas[index].clone();
         let symbol = extension.insert_top_level([symbol_seed(
@@ -316,7 +311,7 @@ pub(super) fn build_symbol_table(
             program.measures[ordinal].symbol = measure_symbol;
         }
     }
-    install_root_family!(traits, insert_trait_symbol_children, sources.as_deref());
+    install_root_family!(traits, insert_trait_symbol_children);
     program.wire_schemas.for_each_mut(|schema| {
         schema.symbol = root_children.next().unwrap_or_default();
     });

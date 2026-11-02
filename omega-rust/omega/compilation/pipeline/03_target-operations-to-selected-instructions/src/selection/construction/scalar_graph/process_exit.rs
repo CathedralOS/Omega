@@ -134,6 +134,7 @@ pub(super) fn build(
             structural_indices: Vec::new(),
             result: target_operations::TargetBoundaryResult::Unit,
             callbacks: Vec::new(),
+            descriptor_input: None,
         };
         super::normalized_foreign::emit_invocation(
             function,

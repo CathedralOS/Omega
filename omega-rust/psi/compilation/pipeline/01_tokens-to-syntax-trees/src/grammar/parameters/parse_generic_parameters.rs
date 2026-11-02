@@ -23,9 +23,8 @@ pub(crate) enum GenericParameterSyntax {
     StaticBinders,
     TraitRequirements,
     /// A requirement signature inside a trait body. Runtime-capable `Value`
-    /// binders are admitted so a finite `requires Binder == literal || ...`
-    /// family can enumerate them; conformance binders stay on the trait or
-    /// provider declaration where a dynamic envelope can still refuse them.
+    /// binders and exact static implementation operands are admitted here;
+    /// dynamic family eligibility remains the dispatch owner's judgment.
     RequirementSignature,
     MachineDeclaration,
     /// A `data` declaration header. Like `StaticBinders` it admits static
@@ -76,12 +75,15 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
     let allow_conformance_binders = matches!(
         syntax,
         GenericParameterSyntax::TraitRequirements
+            | GenericParameterSyntax::RequirementSignature
             | GenericParameterSyntax::MachineDeclaration
             | GenericParameterSyntax::DataDeclaration
     );
     let trait_requirement_parameters = matches!(
         syntax,
-        GenericParameterSyntax::TraitRequirements | GenericParameterSyntax::DataDeclaration
+        GenericParameterSyntax::TraitRequirements
+            | GenericParameterSyntax::RequirementSignature
+            | GenericParameterSyntax::DataDeclaration
     );
     let allow_value_parameters = matches!(
         syntax,

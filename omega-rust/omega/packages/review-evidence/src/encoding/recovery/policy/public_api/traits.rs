@@ -25,7 +25,7 @@ pub(in crate::encoding::recovery) fn trait_shape(
         type_parameters: reader.sequence(3, type_parameter)?,
         conformance_bounds: reader.sequence(62, conformance_bound)?,
         parents: reader.sequence(58, trait_parent)?,
-        requirements: reader.sequence(104, trait_requirement)?,
+        requirements: reader.sequence(112, trait_requirement)?,
     })
 }
 
@@ -38,6 +38,7 @@ pub(in crate::encoding::recovery) fn trait_requirement(
         has_default_realization: reader.boolean()?,
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
+        conformance_bounds: reader.sequence(62, conformance_bound)?,
         parameters: reader.sequence(18, signature_parameter)?,
         return_type: reader.option(type_identity)?,
         contracts: reader.sequence(4, callable_contract)?,

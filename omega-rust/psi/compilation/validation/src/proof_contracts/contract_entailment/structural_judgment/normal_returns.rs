@@ -1705,6 +1705,26 @@ impl<'program> StructuralJudge<'program> {
                 }
             });
         }
+        if let ExpressionNode::Call(call) = node {
+            let order = (crate::CallSite::Expression { expression, call })
+                .argument_evaluation_order(program)
+                .ok()?;
+            if !order.is_natural() {
+                let arguments = expression_table(program).expression_handles(call.arguments);
+                let prefix = children_to_evaluate.len().checked_sub(arguments.len())?;
+                let mut children = children_to_evaluate
+                    .into_iter()
+                    .map(Some)
+                    .collect::<Vec<_>>();
+                children_to_evaluate = children[..prefix]
+                    .iter_mut()
+                    .filter_map(Option::take)
+                    .collect();
+                for position in order {
+                    children_to_evaluate.push(children.get_mut(prefix + position)?.take()?);
+                }
+            }
+        }
         let operands = children_to_evaluate
             .into_iter()
             .map(|(child, child_reference)| {
@@ -1790,12 +1810,17 @@ impl<'program> StructuralJudge<'program> {
         let outcomes: Vec<NormalReturnPath<'program>> = contexts
             .into_iter()
             .map(|(mut judge, inputs)| {
-                let call_inputs =
-                    if let Some(call) = expression_table(program).call_node(expression) {
+                let call_inputs = if let Some(call) =
+                    expression_table(program).call_node(expression)
+                {
+                    let arguments = expression_table(program).expression_handles(call.arguments);
+                    let order = (crate::CallSite::Expression { expression, call })
+                        .argument_evaluation_order(program)
+                        .ok()?;
+                    if order.is_natural() {
                         let mut cursor = 0;
                         Some(
-                            expression_table(program)
-                                .expression_handles(call.arguments)
+                            arguments
                                 .iter()
                                 .map(|source| {
                                     let offset = inputs[cursor..]
@@ -1807,8 +1832,20 @@ impl<'program> StructuralJudge<'program> {
                                 .collect::<Option<Vec<_>>>()?,
                         )
                     } else {
-                        None
-                    };
+                        let prefix = inputs.len().checked_sub(arguments.len())?;
+                        let mut values = vec![None; arguments.len()];
+                        for (evaluated, position) in order.enumerate() {
+                            let (source, value) = inputs.get(prefix + evaluated)?;
+                            if *source != arguments[position] {
+                                return None;
+                            }
+                            values[position] = Some(value.clone());
+                        }
+                        Some(values.into_iter().collect::<Option<Vec<_>>>()?)
+                    }
+                } else {
+                    None
+                };
                 if requested_operations.stop == ObservationStop::BeforeOperation(expression)
                     || requested_operations.expressions.contains(&expression)
                     || matches!(demand, NormalValueDemand::ObserveOnly(_))

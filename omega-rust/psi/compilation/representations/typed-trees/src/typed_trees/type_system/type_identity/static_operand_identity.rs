@@ -15,7 +15,39 @@ pub struct StaticOperandIdentityRequest<'a> {
     pub substitutions: &'a [(SymbolHandle, TypeReferenceHandle)],
 }
 
+/// The alpha-normalized public schema of a declaration-owned static operand.
+/// Exact nominal owners remain qualified; both static and region binders use
+/// their separately supplied declaration coordinates.
+pub struct DeclaredStaticOperandIdentityRequest<'a> {
+    pub operand: IndexIdentityArgument<'a>,
+    pub lexical_owner: SymbolHandle,
+    pub binders: &'a [(SymbolHandle, String)],
+    pub lifetime_binders: &'a [(super::LifetimeParameterIdentity, usize)],
+}
+
 impl TypedTrees {
+    pub fn declared_static_operand_identity(
+        &self,
+        request: DeclaredStaticOperandIdentityRequest<'_>,
+    ) -> Option<NormalizedTypeIdentity> {
+        let invalid = Cell::new(false);
+        let identity = substitution::index_argument(
+            self,
+            request.operand,
+            &TypeIdentityContext {
+                application_owner: request.lexical_owner,
+                application_argument_owner: request.lexical_owner,
+                binders: request.binders,
+                lifetime_binders: request.lifetime_binders,
+                qualification: super::TypeIdentityQualification::PackageQualified,
+                invalid_application: Some(&invalid),
+                invalid_index_argument: Some(&invalid),
+                ..Default::default()
+            },
+        );
+        (!invalid.get()).then(|| program_intern_type_identity(self, identity))
+    }
+
     /// Normalize a supplied operand through a chain of receiving applications.
     /// Unknown callable, index or region custody cannot compare equal to itself.
     pub fn static_operand_identity(

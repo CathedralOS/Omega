@@ -1013,7 +1013,7 @@ fn snapshot_satisfies_clause(
     }
 }
 
-fn snapshot_generic_conformance_bound(
+pub(super) fn snapshot_generic_conformance_bound(
     syntax_trees: &SyntaxTrees,
     bound: &GenericConformanceBound,
 ) -> GenericConformanceBoundSnapshot {

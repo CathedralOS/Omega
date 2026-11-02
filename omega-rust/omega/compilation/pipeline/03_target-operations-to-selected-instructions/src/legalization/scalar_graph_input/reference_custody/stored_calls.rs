@@ -153,8 +153,10 @@ pub(super) fn prepare(
                     // The selected import preserves pointers only under this
                     // guard obligation. Image replay independently requires
                     // the exact bound and count before invoking the import.
-                    && abstract_operations_to_target_operations::descriptor_input_guard(
+                    && target_operations::descriptor_input_guard(
                         declaration, binding, types,
+                        |buffer| native.borrowed_storage_layouts.iter()
+                            .find(|layout| layout.structural_type == buffer),
                     ).is_ok_and(|guard| guard.is_some())
             },
         )

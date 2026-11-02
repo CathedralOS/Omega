@@ -167,6 +167,7 @@ pub(super) fn project_normalized_foreign_call(
         scalar_arguments,
         structural_arguments,
         result,
+        descriptor_input,
     }) = scalar_graph_input::normalized_foreign::row(native, optimized.machine, operation)?
     else {
         return Err(Error::custody());
@@ -203,6 +204,7 @@ pub(super) fn project_normalized_foreign_call(
             structural_arguments: structural_arguments.clone(),
             result: result.clone(),
             callbacks,
+            descriptor_input: *descriptor_input,
         },
     ))
 }

@@ -15,6 +15,59 @@ use typed_trees::{
 
 use super::super::selected_applications;
 
+/// Derive a public demand from an already selected nominal call. This does
+/// not admit satisfaction or replace the source invocation: immutable checking
+/// still compares its complete nominal operands and regions.
+pub(super) fn nominal_source<'program>(
+    program: &'program TypedTrees,
+    owner: SymbolHandle,
+    binder: SymbolHandle,
+    target: SymbolHandle,
+) -> Result<
+    Option<(
+        SymbolHandle,
+        typed_trees::trait_definition::AppliedTraitScope<'program>,
+    )>,
+    Vec<Diagnostic>,
+> {
+    let Some(typed_trees::data::MachineParameterContractView::Nominal {
+        trait_definition,
+        requirement,
+    }) = program.retained_static_machine_contract(binder)
+    else {
+        return Ok(None);
+    };
+    let Some(provider) = program.machine_holding_state(target) else {
+        return Ok(None);
+    };
+    let authored = program.lifetime_declaration_owner(provider.symbol);
+    let Some(entry) = program
+        .machine_by_symbol(authored)
+        .and_then(|machine| program.machine_states(machine).first())
+    else {
+        return Ok(None);
+    };
+    if !program
+        .static_machine_binding_selects_target(owner, binder, entry.symbol)
+        .map_err(|reason| vec![Diagnostic::error(reason)])?
+        || !program.instantiated_machine_state_matches(
+            provider.symbol,
+            authored,
+            entry.symbol,
+            target,
+        )
+    {
+        return Ok(None);
+    }
+    let template = program
+        .closed_requirement_application(requirement.symbol)
+        .map_or(requirement.symbol, |closed| closed.template);
+    program
+        .machine_conformance_requirement_scope(provider.symbol, trait_definition.symbol, template)
+        .map(|scope| scope.map(|scope| (template, scope)))
+        .map_err(|reason| vec![Diagnostic::error(reason)])
+}
+
 pub(super) fn public_bindings(
     program: &mut TypedTrees,
     owner: SymbolHandle,
@@ -130,7 +183,8 @@ pub(super) fn complete_arguments(
     }
     let declaration = source.binding_declaration;
     let machine = program.machine_by_symbol(declaration)?;
-    let private_parameters = program.machine_type_parameters(machine);
+    let private_parameters = program
+        .requirement_callable_parameters(signature, &program.machine_callable_parameters(machine));
     if private_parameters.len() != parameters.len() || bindings.len() != parameters.len() {
         return None;
     }

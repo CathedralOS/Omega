@@ -310,6 +310,11 @@ No interval-only domain or replacement nominal identity is introduced.
 | `AccessPlan.field_count`, `BoundaryReach.service_count`, `ResourceProfile.region_count` | `[0..=32]` | each count `<= 32` |
 | `TransferRules.rule_count`, `AtomicTransferRules.rule_count` | `[0..=16]` | each count `<= 16` |
 
+The historical `SchemaField.size <= 4096` cap was explicitly removed by
+`76e95b69b5454683bef7a6eddf51f9faff5d0c2f`: geometry consumers now enforce
+allocation and placement limits, while the schema describes the full u64 size.
+That later API change is not a lost migration predicate; do not restore the cap.
+
 Compiler reflection must establish these values before policy execution,
 including inactive field slots whose alignment is one, not zero. The
 `layouts/schema_field_at_declared_size` and
@@ -1045,3 +1050,19 @@ an obsolete four-byte carrier. Native/Terminal agreement in working and fresh
 projects, original owner endpoints and fact-sensitive rejects qualify this
 cohort. Other hosts, GUI customers and the whole historical migration audit
 remain open.
+
+## Audited write-only scalar owner fields
+
+The two `Limited` fields in
+`tests/omega/pass/borrow/write_only_constrained_record_field/main.omg` at
+`7a9a7b8287e622137adeef7681b3143138d5724f` retain their original
+`u8 [0..=10]` bounds as containing-data `requires value <= 10 && next <= 10`.
+The [customer inventory](../../../tests/omega/pass/borrow/write_only_constrained_record_field/README.md)
+also reconciles the three depth parameters and preserves the independent
+arithmetic-policy and Utf8 cases. A write-only field address does not discharge
+these storage predicates; the ordinary store proof still must preserve them.
+The [same-fact production](../../../samples/cli/facts/data_where_standing/write_only/README.md)
+retains this establishment through nine places and tests missing-bound,
+out-of-bound-store and unauthorized-read controls. Final producer and execution
+observations are recorded with the owning PR; this inventory does not close the
+remaining historical audit or authorize suffix-parser retirement.

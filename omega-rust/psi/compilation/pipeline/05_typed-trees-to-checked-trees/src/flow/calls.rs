@@ -216,6 +216,7 @@ pub(super) fn build_call_flow_fact<'plans>(
         authored_site: Default::default(),
         authored_target: Default::default(),
         authored_arguments: HandleSpan::empty(),
+        argument_evaluation_order: HandleSpan::empty(),
         authored_receiver: Default::default(),
         authored_result: Default::default(),
         authored_closing_invocation: false,

@@ -152,7 +152,8 @@ pub use proof_contracts::contract_entailment::{
     immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
 };
 pub use proof_contracts::contract_results::{
-    ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
+    ReservedResultMember, ReservedResultPlace, callable_contract_scopes, reserved_result_owner,
+    reserved_result_place,
 };
 pub use proof_contracts::domains::{
     integer_domain_membership, scalar_domain_definition_predicate, scalar_domain_local_predicate,

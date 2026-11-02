@@ -182,6 +182,32 @@ impl AppliedTraitScope<'_> {
         Some((*reference, outer))
     }
 
+    /// Exact local argument identity before its simultaneous receiving frame.
+    /// Compound operands retain all supplying substitutions and region owners.
+    pub fn argument_identity(
+        &self,
+        program: &TypedTrees,
+        parameter: SymbolHandle,
+    ) -> Option<NormalizedTypeIdentity> {
+        let (reference, outer) = self.parameter_application(parameter)?;
+        let binder = program
+            .trait_type_parameters(self.declaration)
+            .iter()
+            .find(|binder| binder.symbol == parameter)?;
+        self.with_identity_scopes(program, |scopes| {
+            if binder.kind.is_const_or_value() {
+                applied_index_identity(
+                    program,
+                    IndexIdentityArgument::TypeReference(reference),
+                    self.argument_owner,
+                    &scopes[..outer],
+                )
+            } else {
+                applied_type_identity(program, reference, self.argument_owner, &scopes[..outer])
+            }
+        })
+    }
+
     /// Borrow the complete substitution route without manufacturing type nodes
     /// or flattening an inherited operand into the receiving telescope.
     pub fn with_identity_scopes<Result>(

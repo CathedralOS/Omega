@@ -167,6 +167,23 @@ pub(in crate::lowering) fn lower_boundary_call(
                 if let Some(home) = target_result.scalar_home().copied() {
                     insert_scalar_home(scalar_values, scalar_homes, home)?;
                 }
+                // Selection emits this guard before the import and image
+                // replay requires it, so the producer records it once here.
+                let catalog = structural_types.catalog();
+                let descriptor_input = target_operations::descriptor_input_guard_for_call(
+                    foreign,
+                    catalog,
+                    &scalar_arguments,
+                    &structural_arguments,
+                    &target_result,
+                    |buffer| crate::lowering::borrowed_storage::capture_type(buffer, catalog),
+                )
+                .map_err(|reason| LoweringError::DescriptorInputGuard {
+                    machine: function.machine,
+                    operation: *psi_operation,
+                    boundary: *boundary,
+                    reason,
+                })?;
                 operations.push(TargetUnitOperation::NormalizedForeignCall {
                     psi_operation: *psi_operation,
                     boundary: *boundary,
@@ -175,6 +192,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     scalar_arguments,
                     structural_arguments,
                     result: target_result,
+                    descriptor_input,
                 });
                 provenance.operations.push(*psi_operation);
                 return Ok(());

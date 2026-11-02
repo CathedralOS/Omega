@@ -11,7 +11,7 @@ use semantic_vocabulary::{
     CanonicalStructuralPathSegment, ScalarType, StructuralCaseId, StructuralTypeId,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBorrowedStorageField {
     path: HandleSpan<NativeStoragePathStep>,
     repetitions: HandleSpan<NativeStorageRepetition>,
@@ -32,7 +32,7 @@ impl Default for NativeBorrowedStorageField {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 struct NativeStoragePathStep(CanonicalStructuralPathSegment);
 
 impl Default for NativeStoragePathStep {
@@ -42,7 +42,7 @@ impl Default for NativeStoragePathStep {
 }
 
 /// A fixed-array dimension stays a recipe, not one compiler row per element.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct NativeStorageRepetition {
     pub path_position: usize,
     pub length: u64,
@@ -52,7 +52,7 @@ pub struct NativeStorageRepetition {
 /// Native storage whose contents are not represented by scalar or tag recipes.
 /// A matching semantic leaf keeps its custody; these bytes cannot be decoded
 /// as a replacement merely because another case overlays scalar storage here.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct NativeBorrowedStorageOpaqueRegion {
     path: HandleSpan<NativeStoragePathStep>,
     repetitions: HandleSpan<NativeStorageRepetition>,
@@ -61,7 +61,7 @@ pub struct NativeBorrowedStorageOpaqueRegion {
 }
 
 /// Nominal case identity and its signed 32-bit conventional native tag.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct NativeStorageCaseTag {
     pub case: StructuralCaseId,
     pub native_tag: i32,
@@ -69,7 +69,7 @@ pub struct NativeStorageCaseTag {
 
 /// Placement of one sum's discriminator below the borrowed storage root.
 /// The path selects the sum itself, including any enclosing payload cases.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBorrowedStorageDiscriminator {
     path: HandleSpan<NativeStoragePathStep>,
     repetitions: HandleSpan<NativeStorageRepetition>,
@@ -80,13 +80,13 @@ pub struct NativeBorrowedStorageDiscriminator {
 
 // Arena vacancy is distinct from any semantic identity. The slots supply the
 // arena's default without manufacturing a case or type for an empty row.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct NativeStorageDiscriminatorSlot(Option<NativeBorrowedStorageDiscriminator>);
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 struct NativeStorageCaseTagSlot(Option<NativeStorageCaseTag>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBorrowedStorageLayout {
     pub structural_type: StructuralTypeId,
     pub byte_size: u32,

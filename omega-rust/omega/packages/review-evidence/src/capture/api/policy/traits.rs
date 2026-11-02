@@ -157,6 +157,7 @@ fn project_requirement(
         has_default_realization: row.has_default_realization,
         lifetime_parameter_count: row.lifetime_parameter_count,
         type_parameters,
+        conformance_bounds: row.conformance_bounds,
         parameters,
         return_type,
         contracts,

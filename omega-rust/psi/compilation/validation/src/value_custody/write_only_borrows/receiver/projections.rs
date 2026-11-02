@@ -1,6 +1,10 @@
 //! Resolve receiver addresses while retaining access at each pointer crossing.
 //! A readable exclusive carrier can load its stored exclusive descriptor.
 //! A write-only referent cannot: following its stored pointer would read content.
+//!
+//! Addressing a store does not lend its destination's bare type to a callee.
+//! Stores retain the owner's predicates for ordinary invariant-window checking;
+//! projected loans must additionally preserve those predicates at their boundary.
 
 use super::super::{
     TypeReferenceHandle, direct_write_only_root, fixed_discardable_write_only_array_shape,
@@ -129,15 +133,18 @@ fn resolve_projection(
                         // may neither inspect a tag nor read another descriptor.
                         write_only_record_shape(program, referee)?;
                     }
-                    // Readability locates a field; it does not discharge the
-                    // parent's standing predicates when that field is lent or
-                    // written. Preserve this obligation on the entire path,
-                    // including readable prefixes before write-only attenuation.
+                    // A field loan would hide its parent's predicates from the
+                    // receiving bare referee. A store keeps the original place
+                    // and its full obligations: default-domain write checking
+                    // proves preservation or tracks debt until handback. Neither
+                    // operation gains permission to observe write-only content.
                     let owner =
                         crate::value_custody::places::data_definition_for_type(program, referee)?;
-                    if !crate::declarations::data_queries::data_field_is_where_independent(
-                        program, owner, field,
-                    ) {
+                    if matches!(endpoint, ProjectionEndpoint::Referent)
+                        && !crate::declarations::data_queries::data_field_is_where_independent(
+                            program, owner, field,
+                        )
+                    {
                         return None;
                     }
                     field

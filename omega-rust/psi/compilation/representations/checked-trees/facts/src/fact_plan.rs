@@ -18,7 +18,7 @@ macro_rules! fact_plan_root_roster {
             $($argument,)* places, place_segments, facts, scalar_values, boolean_predicates,
             boolean_predicate_bindings, integer_ranges, qualification_correspondences,
             domain_definition_facts, data_definition_facts, instantiated_expressions, refs,
-            symbol_sets, qualification_issuers,
+            symbol_sets, qualification_issuers, contract_member_projections,
         );
     };
 }
@@ -47,6 +47,7 @@ pub type QualificationCorrespondenceHandle = Handle<QualificationCorrespondence>
 
 #[derive(Debug, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FactPlan {
+    pub contract_member_projections: Arena<crate::ContractMemberProjection>,
     pub qualification_issuers: Arena<crate::BoundaryQualificationIssuerRecord>,
     pub places: Arena<Place>,
     pub place_segments: Arena<PlaceSegment>,

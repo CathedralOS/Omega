@@ -28,11 +28,12 @@ pub(super) struct InvocationTuple {
     pub lifetimes: Vec<typed_trees::static_applications::StaticMachineLifetimeBinding>,
 }
 
-struct PreparedInvocation {
-    site: super::super::CallSite,
-    owner: SymbolHandle,
-    target: SymbolHandle,
-    tuple: InvocationTuple,
+pub(super) struct PreparedInvocation {
+    pub(super) site: super::super::CallSite,
+    pub(super) owner: SymbolHandle,
+    pub(super) state: SymbolHandle,
+    pub(super) target: SymbolHandle,
+    pub(super) tuple: InvocationTuple,
 }
 
 fn occurrence(
@@ -334,7 +335,10 @@ fn instance_in_scope(
                             return false;
                         };
                         selected.next().is_none()
-                            && program.static_binding_matches_argument(
+                            && (if matches!(binding.value, typed_trees::static_applications::StaticMachineBindingValue::RuntimeValue { .. }) {
+                                matches!(parameter.kind, TypeParameterKind::Value { .. })
+                                    && super::super::const_arguments::is_runtime_value_argument(program, argument)
+                            } else { program.static_binding_matches_argument(
                                 &parameter.kind,
                                 &binding.value,
                                 argument,
@@ -342,7 +346,7 @@ fn instance_in_scope(
                                 expressions_of(program)
                                     .static_machine_application(application.application)
                                     .lexical_owner,
-                            )
+                            ) })
                     })
         });
     let Some(application) = matches.next() else {
@@ -399,6 +403,7 @@ fn prepare_invocations(
                             state.statement_nodes.handle_at(position as u32),
                         ),
                         owner: machine.symbol,
+                        state: state.symbol,
                         target: call.target_symbol,
                         tuple: occurrence(
                             program,
@@ -420,6 +425,7 @@ fn prepare_invocations(
                         invocations.push(PreparedInvocation {
                             site: super::super::CallSite::Expression(expression),
                             owner: machine.symbol,
+                            state: state.symbol,
                             target: call.target_symbol,
                             tuple: occurrence(
                                 program,
@@ -455,6 +461,7 @@ pub(super) fn invocation_tuples<'p>(
     let mut tuples = Vec::new();
     let mut add = |owner,
                    target,
+                   nominal_binder,
                    receiver: &dyn Fn() -> Option<AppliedTraitScope<'p>>,
                    application: TypeReferenceHandle,
                    dispatch: Option<&typed_trees::typed_trees::StaticRequirementDispatch>,
@@ -477,6 +484,12 @@ pub(super) fn invocation_tuples<'p>(
                 .trait_scope
                 .scope(program)
                 .map(|scope| (template, scope))
+        } else if let Some(source) =
+            invocation_binding_views::nominal_source(program, owner, nominal_binder, target)?
+        {
+            // Only the public demand is derived. Keep this occurrence's
+            // executable target and original nominal admission unchanged.
+            Some(source)
         } else {
             source_scope(program, owner, target, receiver, application)?
         };
@@ -492,6 +505,12 @@ pub(super) fn invocation_tuples<'p>(
         Ok(())
     };
     for machine in program.machines() {
+        // Universal bodies retain logical invocation contracts. Their static
+        // environment is not an executable demand; capture and ordinary
+        // specialization produce the concrete bodies that own those demands.
+        if program.callable_body_has_open_parameters(machine) {
+            continue;
+        }
         for state in program.machine_states(machine) {
             for (position, statement) in program
                 .statement_table
@@ -501,6 +520,7 @@ pub(super) fn invocation_tuples<'p>(
                     add(
                         machine.symbol,
                         call.target_symbol,
+                        call.static_machine_parameter,
                         &|| {
                             validation::qualified_trait_scope(
                                 program,
@@ -534,6 +554,7 @@ pub(super) fn invocation_tuples<'p>(
                         add(
                             machine.symbol,
                             call.target_symbol,
+                            call.static_machine_parameter,
                             &|| {
                                 if call.receiver.is_valid() {
                                     validation::qualified_trait_scope(
@@ -608,6 +629,9 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
     let mut statement_updates = Vec::new();
     let mut statement_dispatch_updates = Vec::new();
     for machine in program.machines() {
+        if program.callable_body_has_open_parameters(machine) {
+            continue;
+        }
         for state in program.machine_states(machine) {
             for (position, statement) in program
                 .statement_table
@@ -812,6 +836,9 @@ pub(super) fn retarget(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> 
         {
             dispatch.contract_signature = selected;
         }
+    }
+    for invocation in &invocations {
+        super::runtime_operands::realize(program, invocation)?;
     }
     for invocation in invocations {
         let (site, owner) = (invocation.site, invocation.owner);
