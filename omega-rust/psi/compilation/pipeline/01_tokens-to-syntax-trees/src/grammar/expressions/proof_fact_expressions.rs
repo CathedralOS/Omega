@@ -7,7 +7,7 @@ use super::parse_expression::parse_expression_handle_in;
 use crate::storage::tables::exprs_of;
 use crate::tokens::token_cursor::{Input, ParseResult};
 use syntax_trees::SyntaxTrees;
-use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
+use syntax_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 
 pub(super) fn parse<'tokens, 'source>(
     syntax: &mut SyntaxTrees,
@@ -21,6 +21,8 @@ pub(super) fn parse<'tokens, 'source>(
         ExpressionContext::TypeExpressionNoStructLiteral
     };
     if let Ok((expression, rest)) = parse_expression_handle_in(syntax, input, expression_context) {
+        // Only authored Boolean composition changes the fact's outer role.
+        // Comparisons may instead be an indexed domain's `<...>` prefix.
         // Authored binary operators carry their own token span. Domain-list
         // conjunction/disjunction is synthesized without that span and must
         // keep the fact parser's declaration/application records instead.
@@ -28,7 +30,8 @@ pub(super) fn parse<'tokens, 'source>(
         let span = expressions.source_span(expression).span;
         if matches!(
             expressions.expression(expression),
-            ExpressionNode::Binary(_)
+            ExpressionNode::Binary(binary)
+                if matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
         ) && span.start < span.end
         {
             return Ok((expression, rest));
