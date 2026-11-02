@@ -16,6 +16,61 @@ pub struct GenericBoundRequirement<'program> {
 }
 
 impl TypedTrees {
+    /// Align a provider's separate evidence suffix with the public member's
+    /// inline evidence positions. Both source orders remain intact within
+    /// their own telescope; callers still check kinds, bounds and contracts.
+    pub fn requirement_callable_parameters(
+        &self,
+        requirement: &StateSignature,
+        provider: &[crate::data::TypeParameter],
+    ) -> Vec<crate::data::TypeParameter> {
+        use crate::data::TypeParameterKind;
+        let mut ordinary = provider
+            .iter()
+            .filter(|parameter| parameter.kind != TypeParameterKind::Implementation);
+        let mut evidence = provider
+            .iter()
+            .filter(|parameter| parameter.kind == TypeParameterKind::Implementation);
+        let mut aligned = Vec::with_capacity(provider.len());
+        for required in self.state_signature_type_parameters(requirement) {
+            let selected = if required.kind == TypeParameterKind::Implementation {
+                evidence.next()
+            } else {
+                ordinary.next()
+            };
+            if let Some(parameter) = selected {
+                aligned.push(parameter.clone());
+            }
+        }
+        aligned.extend(ordinary.cloned());
+        aligned.extend(evidence.cloned());
+        aligned
+    }
+
+    /// One logical callable telescope includes the machine's separately stored
+    /// evidence suffix. These are views of existing declaration binders, never
+    /// new parameters or executable argument lanes.
+    pub fn machine_callable_parameters(
+        &self,
+        machine: &Machine,
+    ) -> Vec<crate::data::TypeParameter> {
+        let mut parameters = self.machine_type_parameters(machine).to_vec();
+        for bound in &machine.conformance_bounds {
+            if !parameters
+                .iter()
+                .any(|parameter| parameter.symbol == bound.binder)
+            {
+                parameters.push(crate::data::TypeParameter {
+                    symbol: bound.binder,
+                    name: bound.binder_name.clone(),
+                    kind: crate::data::TypeParameterKind::Implementation,
+                    ..Default::default()
+                });
+            }
+        }
+        parameters
+    }
+
     /// The exact evidence contracts owned by a callable declaration. A closed
     /// requirement retains these contracts beside its erased executable arity.
     pub fn callable_conformance_bounds(
@@ -61,6 +116,12 @@ impl TypedTrees {
             })
             .or_else(|| {
                 self.unique_data_definition_by_symbol(parent)
+                    .map(|declaration| declaration.conformance_bounds.as_slice())
+            })
+            .or_else(|| {
+                self.type_aliases()
+                    .iter()
+                    .find(|declaration| declaration.symbol == parent)
                     .map(|declaration| declaration.conformance_bounds.as_slice())
             })
             .and_then(|bounds| bounds.iter().find(|bound| bound.binder == binder))

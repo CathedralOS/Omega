@@ -16,7 +16,6 @@ pub(in crate::symbols::symbol_table) fn insert_data_symbol_children(
             data_symbol,
             type_parameter_seeds(
                 program.data_type_parameters(data_definition.type_parameters),
-                &data_definition.conformance_bounds,
                 false,
                 has_sources,
             )

@@ -27,28 +27,7 @@ pub(crate) fn validate_forwarded_argument(
         return Err("an implementation evidence binder is already selected and takes no application arguments".to_owned());
     }
     let actual = program
-        .traits()
-        .iter()
-        .flat_map(|definition| definition.conformance_bounds.iter())
-        .chain(
-            program
-                .machines()
-                .iter()
-                .flat_map(|machine| machine.conformance_bounds.iter()),
-        )
-        .chain(
-            program
-                .data_definitions()
-                .iter()
-                .flat_map(|definition| definition.conformance_bounds.iter()),
-        )
-        .chain(
-            program
-                .type_aliases()
-                .iter()
-                .flat_map(|definition| definition.conformance_bounds.iter()),
-        )
-        .find(|actual| actual.binder == selected.symbol)
+        .callable_conformance_bound(program.symbols.get(selected.symbol).parent, selected.symbol)
         .ok_or_else(|| "forwarded implementation binder has no declared contract".to_owned())?;
     let demanded = crate::refinement_fit::resolve_bound_carrier(program, required.trait_symbol);
     let promised = crate::refinement_fit::resolve_bound_carrier(program, actual.trait_symbol);
