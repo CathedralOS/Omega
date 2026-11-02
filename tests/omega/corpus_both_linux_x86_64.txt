@@ -8032,3 +8032,12 @@ pass/proofs/scalar_copy_guard_const_forwarding checked 1596ms @a92f16431042
 pass/proofs/scalar_copy_guard_disjoint_write built 6081ms @a92f16431042
 pass/proofs/scalar_field_copy_guard built 6453ms @a92f16431042
 pass/facts/case_where_equality_root_exit built 11569ms exit:0 interpreter-exit:0 interpreter:agrees @3c9cfd4b5e2d
+pass/facts/copied_case_before_later_argument_through_call_result_exit built 10676ms exit:0 interpreter-exit:0 interpreter:agrees @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_const_name_exit built 10676ms exit:0 interpreter-exit:0 interpreter:agrees @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_field_exit built 10650ms exit:0 interpreter-exit:0 interpreter:agrees @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_local_exit built 10646ms exit:0 interpreter-exit:0 interpreter:agrees @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_match_join_exit built 10962ms exit:0 interpreter-exit:0 interpreter:agrees @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_other_machine_exit built 10946ms exit:0 interpreter-exit:0 interpreter:agrees @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_other_state_exit built 10927ms exit:0 interpreter-exit:0 interpreter:agrees @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_parameter_exit built 10880ms exit:0 interpreter-exit:0 interpreter:agrees @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_target_body_exit built 9129ms exit:0 interpreter-exit:0 interpreter:agrees @1f3c4da0217e

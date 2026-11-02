@@ -6548,16 +6548,15 @@ pass/facts/copied_captured_window_index_argument_snapshot_through_other_machine 
 pass/facts/copied_captured_window_index_argument_snapshot_through_other_state checked 6924ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/copied_captured_window_index_argument_snapshot_through_parameter checked 6684ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/copied_captured_window_index_argument_snapshot_through_target_body checked 6909ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/copied_case_before_later_argument_through_call_result_exit checked 3303ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/copied_case_before_later_argument_through_const_name_exit checked 4436ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/copied_case_before_later_argument_through_field_exit checked 3811ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/copied_case_before_later_argument_through_local_exit checked 3522ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/copied_case_before_later_argument_through_match_join_exit checked 3280ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/copied_case_before_later_argument_through_other_machine_exit checked 3371ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/copied_case_before_later_argument_through_other_state_exit rejected 2661ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call read_payload from inspect: chosen == constructor:78:package:1c047a88f6ea7e8d75ff16d707473f41816c9bc011da9086196c34fd5ec5f4d1::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/copied_case_before_later_argument_through_parameter_exit checked 2948ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/copied_case_before_later_argument_through_target_body_exit checked 4356ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/copied_case_before_later_argument_through_call_result_exit checked 11101ms check-target:macos_arm64 @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_const_name_exit checked 10823ms check-target:macos_arm64 @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_field_exit checked 11528ms check-target:macos_arm64 @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_local_exit checked 11252ms check-target:macos_arm64 @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_match_join_exit checked 10587ms check-target:macos_arm64 @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_other_machine_exit checked 10579ms check-target:macos_arm64 @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_other_state_exit checked 10221ms check-target:macos_arm64 @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_parameter_exit checked 10262ms check-target:macos_arm64 @1f3c4da0217e
+pass/facts/copied_case_before_later_argument_through_target_body_exit checked 10796ms check-target:macos_arm64 @1f3c4da0217e
 pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 4405ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_const_name rejected 4273ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
@@ -22250,27 +22249,24 @@ fail/facts/copied_captured_window_index_argument_snapshot_through_parameter reje
 fail/facts/copied_captured_window_index_argument_snapshot_through_target_body rejected 5808ms expected @911f6617ba9e
 	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #1:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_case_before_later_argument_through_call_result_rejected rejected 3325ms expected @ccdb99ca2214
-	cannot prove requires contract for call read_payload from main: chosen == constructor:78:package:f38a1cb189b0355c155aae83834a7bc957c320f6bd80ca4c878fef70742c8575::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_case_before_later_argument_through_const_name_rejected rejected 2831ms expected @ccdb99ca2214
-	cannot prove requires contract for call read_payload from main: chosen == constructor:78:package:a5c6f5b5297e6f26c1e2a403753fa8139fa4030d7c7b28cfc528dea9f2c0e4a6::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_case_before_later_argument_through_field_rejected rejected 2531ms expected @ccdb99ca2214
-	cannot prove requires contract for call read_payload from main: holder.chosen == constructor:78:package:39230fbf1900c9b7ca71017f892e74cf8f7f6064b685fb584bf3d373409bd368::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_case_before_later_argument_through_local_rejected rejected 2820ms expected @ccdb99ca2214
-	cannot prove requires contract for call read_payload from main: chosen == constructor:78:package:7c366e7cfa6cde4b4722307bb0e8579e0a95630ba6c6b57a7663f39bf7102cc0::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_case_before_later_argument_through_match_join_rejected rejected 3338ms expected @ccdb99ca2214
-	cannot prove requires contract for call read_payload from main: chosen == constructor:78:package:c34556f3c76436cc219f742ac818d6b169f5d9a989427ea99a216580a8830160::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_case_before_later_argument_through_other_machine_rejected rejected 2840ms expected @ccdb99ca2214
-	cannot prove requires contract for call forward from main: chosen == constructor:78:package:42b77cfe5e93b94e2a53c72ecad390e53b3ef51d607d9d9b9537c601f864dd38::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_case_before_later_argument_through_other_state_rejected rejected 2637ms expected @ccdb99ca2214
-	cannot prove requires contract for call read_payload from inspect: chosen == constructor:78:package:04d2cb030aae999d2f7b7dc4bc9455c63d0794b6397adc83669daf6aacbd4abf::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_case_before_later_argument_through_parameter_rejected rejected 2722ms expected @ccdb99ca2214
-	cannot prove requires contract for call apply from main: chosen == constructor:78:package:fd458d6242cec5b536234c4184743a10b7a402acd39c5337234a85d06473718b::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_case_before_later_argument_through_target_body_rejected rejected 3258ms expected @ccdb99ca2214
-	cannot prove requires contract for call apply from main: chosen == constructor:78:package:8bcf21f5163a7fb9d23c0cd18861ee924bfe34eef516c310885e855d22b392b0::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call apply from main: chosen == constructor:78:package:8bcf21f5163a7fb9d23c0cd18861ee924bfe34eef516c310885e855d22b392b0::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call apply from main: chosen == constructor:78:package:8bcf21f5163a7fb9d23c0cd18861ee924bfe34eef516c310885e855d22b392b0::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call apply from main: chosen == constructor:78:package:8bcf21f5163a7fb9d23c0cd18861ee924bfe34eef516c310885e855d22b392b0::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_case_before_later_argument_through_call_result_rejected rejected 8976ms expected @1f3c4da0217e
+	cannot prove requires contract for call read_payload from main: chosen == constructor:78:package:4354175e470676a4b6cc64a978755ee955e542a4ce0dc66f81583f9d5b698e1c::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_case_before_later_argument_through_const_name_rejected rejected 9276ms expected @1f3c4da0217e
+	cannot prove requires contract for call read_payload from main: chosen == constructor:78:package:57797ce982e7ea1d072c251bea5dfd9c04dc785871285cb1abde4058df513b94::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_case_before_later_argument_through_field_rejected rejected 9135ms expected @1f3c4da0217e
+	cannot prove requires contract for call read_payload from main: holder.chosen == constructor:78:package:ae05111e2cc7286782fcc80ff8d4c8bdb034e45428b01961fbff80f81153365b::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_case_before_later_argument_through_local_rejected rejected 9206ms expected @1f3c4da0217e
+	cannot prove requires contract for call read_payload from main: chosen == constructor:78:package:663b043b98e8afb7fb4c135f019b733568e0f7a3e6851f711f4fa8da1d1eff28::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_case_before_later_argument_through_match_join_rejected rejected 9122ms expected @1f3c4da0217e
+	cannot prove requires contract for call read_payload from exercise: chosen == constructor:78:package:4a3cedc30cf468678db7eddd53058f2fec569a42af0ad2ee0dba830dcde4c5df::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_case_before_later_argument_through_other_machine_rejected rejected 9394ms expected @1f3c4da0217e
+	cannot prove requires contract for call forward from main: chosen == constructor:78:package:6753b165d76d39a3fc85f2663bcd0f42d4f9740e4eea8f5c88538cde214fc5f0::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_case_before_later_argument_through_other_state_rejected rejected 9516ms expected @1f3c4da0217e
+	cannot prove requires contract for call read_payload from inspect: chosen == constructor:78:package:807df582b537a9db985fff69800bfa40f8a4cfa177d3f916d42cba8da04e297f::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_case_before_later_argument_through_parameter_rejected rejected 9257ms expected @1f3c4da0217e
+	cannot prove requires contract for call apply from main: chosen == constructor:78:package:ec2d414258e1185b825c3567a563fef4d3485aa4b5c0c28af88948591f6b2439::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_case_before_later_argument_through_target_body_rejected rejected 9199ms expected @1f3c4da0217e
+	cannot prove requires contract for call apply from main: chosen == constructor:78:package:3cf80b530b5095095686b658b429503983bce9940880e0e06d216af4512f7f95::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 5261ms expected @911f6617ba9e
 	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
 	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -35966,3 +35962,9 @@ fail/borrows/returned_descriptor_does_not_select_pointee rejected 1758ms expecte
 fail/facts/case_where_equality_root_rejected rejected 5492ms expected @3c9cfd4b5e2d
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 pass/facts/case_where_equality_root_exit checked 13235ms check-target:macos_arm64 @3c9cfd4b5e2d
+fail/facts/copied_case_private_earlier_write_rejected rejected 9113ms expected @1f3c4da0217e
+	cannot prove requires contract for call read_payload from inspect: chosen == constructor:78:package:4d82e0f4aea190b4b96b04c3ec6b7ce7664db7a7f8ea51e8a588a618553c8d9c::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_case_private_second_absent_arrival_rejected rejected 9033ms expected @1f3c4da0217e
+	cannot prove requires contract for call read_payload from inspect: chosen == constructor:78:package:60e6fc46ba5e5f847f8c967f96a60b74ad19e93e10a5f095baf9ed62227eef3f::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_case_private_unknown_root_arrival_rejected rejected 7451ms expected @1f3c4da0217e
+	cannot prove requires contract for call read_payload from inspect: chosen == constructor:78:package:cf0253365fc921468ca3296d8c19e98497ee974db13c149e4a4c6c4427909478::Slot12:name:Present (needs fact `before == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
