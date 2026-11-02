@@ -166,7 +166,6 @@ impl Extend<SymbolHandle> for TypeDependencies<'_> {
 
 impl TypedReferences for TypeDependencies<'_> {
     fn callable_signature(&mut self, signature: &typed_trees::signature::StateSignature) {
-        self.contract_facts(signature.where_facts, signature.symbol);
         self.contracts(signature.contracts, signature.symbol);
     }
 

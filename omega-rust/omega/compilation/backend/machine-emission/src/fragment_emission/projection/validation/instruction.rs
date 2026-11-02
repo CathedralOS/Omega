@@ -28,7 +28,11 @@ pub(super) fn check(
         SelectedInstructionKind::ImageAddress { reference } => Some(reference),
         _ => None,
     };
-    match (row.image_address_fixup, span.image_address_fixup, reference) {
+    match (
+        row.image_address_fixup(),
+        span.image_address_fixup(),
+        reference,
+    ) {
         (None, None, None) => {}
         (Some(source), Some(actual), Some(reference)) => require(
             source.reference == reference

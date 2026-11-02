@@ -86,7 +86,7 @@ pub(super) fn provenance(
             instruction: jump,
             successor,
         } if jump.id == instruction.id => FunctionFragmentControlProvenance::Jump {
-            successor: successor_provenance(successor),
+            successor: Box::new(successor_provenance(successor)),
         },
         SelectedTerminator::ConditionalBranch {
             instruction: branch,
@@ -94,8 +94,8 @@ pub(super) fn provenance(
             when_zero,
         } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::NonZeroV1,
-            when_taken: successor_provenance(when_nonzero),
-            when_fallthrough: successor_provenance(when_zero),
+            when_taken: Box::new(successor_provenance(when_nonzero)),
+            when_fallthrough: Box::new(successor_provenance(when_zero)),
         },
         SelectedTerminator::ConditionalBranchU64LessThan {
             instruction: branch,
@@ -103,8 +103,8 @@ pub(super) fn provenance(
             when_not_less,
         } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::U64LessThanV1,
-            when_taken: successor_provenance(when_less),
-            when_fallthrough: successor_provenance(when_not_less),
+            when_taken: Box::new(successor_provenance(when_less)),
+            when_fallthrough: Box::new(successor_provenance(when_not_less)),
         },
         SelectedTerminator::ConditionalBranchI64LessThan {
             instruction: branch,
@@ -112,8 +112,8 @@ pub(super) fn provenance(
             when_not_less,
         } if branch.id == instruction.id => FunctionFragmentControlProvenance::ConditionalBranch {
             predicate: FunctionFragmentConditionalBranchPredicate::I64LessThanV1,
-            when_taken: successor_provenance(when_less),
-            when_fallthrough: successor_provenance(when_not_less),
+            when_taken: Box::new(successor_provenance(when_less)),
+            when_fallthrough: Box::new(successor_provenance(when_not_less)),
         },
         SelectedTerminator::HostedExitProcess {
             instruction: exited,

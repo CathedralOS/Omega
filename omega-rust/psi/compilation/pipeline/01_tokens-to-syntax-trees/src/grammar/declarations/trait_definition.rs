@@ -212,7 +212,6 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         signature.blocks = clauses.blocks;
         signature.contracts = clauses.contracts;
         signature.terminates_guarantee = clauses.terminates_guarantee;
-        signature.where_facts = clauses.where_facts;
         let (default_body, next) = if is_default {
             parse_trait_default_machine_body(syntax_trees, rest)?
         } else {

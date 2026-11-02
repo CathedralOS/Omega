@@ -783,7 +783,7 @@ impl LoanChains {
 
 /// End a lender home on each exit of its own state that does not lend it.
 ///
-/// Stage 05 records cleanup only for owners it tracks. A view or
+/// Psi 05 records cleanup only for owners it tracks. A view or
 /// reference carrier the lender forms has no checked cleanup row, and
 /// `affine_cleanup::complete` leaves it alone once the chain schedules its
 /// disposal at the members' exits. A lender that lends its view on one arm and

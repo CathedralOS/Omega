@@ -67,9 +67,12 @@ class BisectRun(unittest.TestCase):
         self.environment = {
             key: value for key, value in os.environ.items()
             if not key.startswith("GIT_")}
+        # The gate script counts the real corpus beside it; a bisect over every
+        # fixture is a sweep the user starts, so the test says so.
         self.environment.update(GIT_CONFIG_NOSYSTEM="1",
                                 GIT_CONFIG_GLOBAL=os.devnull,
-                                GIT_TERMINAL_PROMPT="0")
+                                GIT_TERMINAL_PROMPT="0",
+                                OMEGA_CORPUS_SWEEP="1")
         self.git(self.repository.parent, "init", "-b", "main",
                  str(self.repository))
         for name, value in (("user.name", "Bisect Test"),

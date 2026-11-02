@@ -969,7 +969,7 @@ pub fn canonical_requirement_schema_bytes(
 ) -> Result<Vec<u8>, Diagnostic> {
     let binders = crate::contract_structure::signature_generic_binders(program, signature);
     let content = crate::content_conservation_plans(program);
-    let mut bytes = b"omega.requirement-schema.v1\0".to_vec();
+    let mut bytes = b"omega.requirement-schema.v2\0".to_vec();
     let signature_bytes = canonical_state_signature_bytes(program, signature)?;
     bytes.extend((signature_bytes.len() as u64).to_le_bytes());
     bytes.extend(signature_bytes);
@@ -990,25 +990,6 @@ pub fn canonical_requirement_schema_bytes(
         bytes.extend((contract.len() as u64).to_le_bytes());
         bytes.extend(contract);
     }
-    let predicates = program
-        .proof_facts
-        .span_or_empty(signature.where_facts)
-        .iter()
-        .map(|fact| {
-            Ok(checked_trees::DeclaredContractClause {
-                kind: checked_trees::DeclaredContractKind::Requires,
-                fact: Some(crate::contract_structure::declared_fact(
-                    program, fact, &binders, &content,
-                )?),
-            })
-        })
-        .collect::<Result<Vec<_>, Diagnostic>>()?;
-    bytes.extend(
-        program
-            .type_identities
-            .with(|table| checked_trees::contract_declarations_commitment(&predicates, table))
-            .as_bytes(),
-    );
     Ok(bytes)
 }
 

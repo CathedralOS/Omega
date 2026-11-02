@@ -1010,7 +1010,7 @@ pub(crate) fn structural_storage_place(
             return None;
         }
         // The resolved head symbol IS which authored binder this place roots
-        // at, and stage 02 mints one parameter symbol per authored binder, so
+        // at, and Psi 02 mints one parameter symbol per authored binder, so
         // one roster cannot hold two entries sharing it and the uniqueness
         // bail below cannot widen. The spelling beside it is the operand a
         // renamed binder or a same-spelled sibling can disagree with.

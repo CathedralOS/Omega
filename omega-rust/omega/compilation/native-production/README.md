@@ -23,7 +23,7 @@ Its internal target boundary lets callers capture runtime layout companions
 before instruction selection, preserving error order without a callback hook.
 Machine emission owns frame geometry and its byte protocol, then joins the
 pipeline's encoded/layout products with the exit contract and source identities.
-It no longer drives compiler stages 07-09 behind the pipeline's entrance.
+It no longer drives compiler Omega 07-09 behind the pipeline's entrance.
 
 [realization.rs](src/realization.rs) admits the entry and captures runtime
 provisions. [Object emission](src/realization/object_emission.rs) uses the shared

@@ -1,1 +1,1 @@
-cannot prove declared where facts for static application of requirement `Factory::make`
+cannot prove requires contract for call dyn Factory::make from unproved: Width == 16 || Width == 32

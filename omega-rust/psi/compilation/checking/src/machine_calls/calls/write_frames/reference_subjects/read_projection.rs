@@ -110,6 +110,16 @@ fn capture_projection(
             carrier_readable = access.is_readable();
         }
         if let Some(segment) = source.segments.get(position) {
+            if usage == ProjectionUse::Address
+                && position + 1 == source.segments.len()
+                && let PlaceSegment::FixedRange { start, end } = segment
+            {
+                // This is an address into the existing collection. Earlier
+                // pointer loads still populate `cuts` above; the range is not
+                // a new owned array or permission to observe its contents.
+                cursor.validate_fixed_window(*start, *end)?;
+                break;
+            }
             if !matches!(
                 segment,
                 PlaceSegment::Field { .. }

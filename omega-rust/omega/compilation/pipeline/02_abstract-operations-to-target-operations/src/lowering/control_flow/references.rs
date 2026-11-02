@@ -1409,6 +1409,47 @@ pub(super) fn relocate_leaves(
     }
 }
 
+/// Establish the descriptor roster a boundary structural result returns. The
+/// opaque provider owns each referent storage region; the result place retains
+/// invocation provenance without pretending the pointee has caller storage.
+pub(super) fn boundary_result_references(
+    function: &AbstractFunction,
+    types: &StructuralTypeLookup<'_>,
+    result: &StructuralOperationResult,
+    live: &mut LiveDefinitions,
+) -> Result<(), LoweringError> {
+    if !contains_reference(types, result.structural_type) {
+        return Ok(());
+    }
+    let paths = leaf_paths(types, result.structural_type, 4096)
+        .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+    for path in paths {
+        let carrier_type = leaf_type(types, result.structural_type, &path)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let referent = referent(types, carrier_type)
+            .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
+        let leaf = ReferenceStorage {
+            root: ReferenceRoot::Alternatives(vec![
+                target_operations::TargetReferenceOrigin {
+                    base: target_operations::TargetReferenceOriginBase::Invocation {
+                        root: result.place,
+                        carrier_type: referent,
+                    },
+                    path: Vec::new(),
+                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+                },
+            ]),
+            carrier_type,
+            referent,
+            placed: None,
+        };
+        if live.references.insert((result.place, path), leaf).is_some() {
+            return Err(LoweringError::unsupported_control_flow(function.machine));
+        }
+    }
+    Ok(())
+}
+
 /// Establish the declared result reference roster of a structural-result
 /// `CallStructural` whose result carries descriptor storage, resolved against
 /// the already-committed `moved` argument leaves. Returns the ordered resolved

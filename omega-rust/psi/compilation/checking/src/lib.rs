@@ -301,7 +301,8 @@ pub use crate::machine_calls::denotational_calls::{
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
 pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
 pub use crate::value_custody::cleanup::{
-    nominal_cleanup_machine_for_type, nominal_cleanup_owner, validate_reserved_cleanup_selections,
+    nominal_cleanup_machine_for_type, nominal_cleanup_owner, nominal_cleanup_target,
+    validate_reserved_cleanup_selections,
 };
 pub use crate::value_custody::content_conservation::{
     ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
@@ -386,7 +387,7 @@ pub use proof_contracts::properties::{
     DeclaredPropertyRequirement, OpaqueDataPropertyReceipt, OpaqueDataPropertyReceiptKind,
     TypeCarryRequirements, declared_property_requirements, effective_data_carry_policy,
     effective_type_carry_policy, effective_type_carry_requirements,
-    type_satisfies_declared_property,
+    substituted_type_satisfies_copy, type_satisfies_declared_property,
 };
 pub use proof_contracts::proposition_entailment::select_named_evidence_implementation;
 pub use proof_contracts::quotients::{

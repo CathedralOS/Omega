@@ -505,7 +505,7 @@ impl Builder<'_, '_> {
     /// instead. Consumers resolve `Parameter { parameter_index }` against the
     /// retained structural parameter roster, which counts the same way, so the
     /// index is a shared coordinate rather than a local convention. One known
-    /// boundary: stage 06's `parameter_declaration` omits the `[erased]`
+    /// boundary: Psi 06's `parameter_declaration` omits the `[erased]`
     /// predicate, so a state that mixes an erased structural binding with a
     /// later structural formal is the one shape where the two sides disagree.
     fn structural_parameter(&self, symbol: SymbolHandle) -> Option<(u32, TypeReferenceHandle)> {

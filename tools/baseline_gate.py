@@ -33,7 +33,7 @@ def baseline_commands(runner):
         ("fmt", [sys.executable, "tools/fmt.py", "--check"]),
         ("clippy", [runner, "clippy", "--workspace", "--all-targets", "--",
                     "-D", "warnings"]),
-        ("corpus", [sys.executable, "tools/corpus_gate.py"]),
+        ("corpus", [sys.executable, "tools/corpus_gate.py", "--sweep"]),
         ("check", [runner, "check", "--workspace", "--all-targets"]),
         ("libraries", [runner, "nextest", "run", "--workspace", "--lib",
                        "--no-fail-fast"]),

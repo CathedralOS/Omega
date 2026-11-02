@@ -2959,7 +2959,7 @@ fn transfer_return_custody(
                         ReferenceOriginProjection::Element,
                     _ => projection.clone(),
                 }).collect::<Vec<_>>();
-                let Some(endpoint) = terminal_semantics::reference_origin_type(
+                let Some(endpoint) = terminal_semantics::captured_reference_origin_type(
                     types.iter(), parameter.structural_type, &path,
                 ) else { return false; };
                 let mut extent = origin.extent;

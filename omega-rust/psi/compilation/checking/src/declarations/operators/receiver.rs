@@ -255,7 +255,7 @@ fn local_type_reference_before_statement(
 /// data declaration, so `field_type_reference` cannot type `subject.value`.
 /// Resolve the field through the machine's attached data definition instead.
 /// `data_binding_parameter` owns which parameter holds that record; this gate
-/// was keyed to `StateParameter::is_self`, which stage 01 rejects, so it
+/// was keyed to `StateParameter::is_self`, which Psi 01 rejects, so it
 /// refused for every program.
 fn data_binding_field_type_reference(
     program: &dyn crate::CheckingInput,

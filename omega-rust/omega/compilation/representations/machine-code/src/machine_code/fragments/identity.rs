@@ -65,13 +65,13 @@ pub(crate) fn function_fragment_emission_identity(
                 hasher.raw(&row.offset.to_le_bytes());
                 hasher.bytes(&row.bytes);
                 encode_branch(&mut hasher, row.branch.as_deref());
-                encode_optional_internal_machine_fixup(&mut hasher, row.internal_machine_fixup);
+                encode_optional_internal_machine_fixup(&mut hasher, row.internal_machine_fixup());
                 encode_optional_normalized_foreign_call_fixup(
                     &mut hasher,
-                    row.normalized_foreign_call_fixup.as_ref(),
+                    row.normalized_foreign_call_fixup(),
                 );
                 // A row without an image address keeps its earlier identity.
-                if let Some(fixup) = row.image_address_fixup {
+                if let Some(fixup) = row.image_address_fixup() {
                     let mut identity = b"image-address-v2".to_vec();
                     fixup.reference.encode_identity(&mut identity);
                     fixup.fields.encode_identity(&mut identity);

@@ -2,7 +2,7 @@
 
 use optimization_core::OptimizationWorkBudget;
 
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use machine_code::ResolvedMachineLayout;
 
 use super::super::{
     StagedOptimizedX86BranchRelaxation, X86BranchRelaxationPolicy,
@@ -12,13 +12,13 @@ use super::super::{
 use super::RelaxationTrace;
 
 pub(super) fn finish_artifact(
-    source: &StagedOptimizedResolvedSelectedFormLayout,
+    source: &ResolvedMachineLayout,
     budget: OptimizationWorkBudget,
     trace: RelaxationTrace,
 ) -> Result<StagedOptimizedX86BranchRelaxation, OptimizedX86BranchRelaxationError> {
     let roots = super::revision_roots(source);
     let output_revision = revision_identity(roots, &trace.functions);
-    let mut program = source.program().clone();
+    let mut program = source.clone();
     program.functions = trace.functions;
     program.identity = program.recomputed_identity();
     let layout = std::sync::Arc::new(program);

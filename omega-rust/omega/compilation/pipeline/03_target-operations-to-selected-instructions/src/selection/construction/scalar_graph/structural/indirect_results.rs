@@ -1,7 +1,7 @@
 //! Hidden result storage uses the declared result place and the native CallPlan.
 use super::{
     Builder, LegalizedScalarFunction, LegalizedScalarInstruction, PlaceId, SelectedInstructionKind,
-    SelectedInstructionProvenance, SelectedMemoryAccessRole, VirtualRegisterId,
+    SelectedInstructionProvenance, VirtualRegisterId,
 };
 use crate::SelectedInstructionError;
 use crate::selection::aggregate_result_input::{call_completion, indirect_result};
@@ -121,46 +121,24 @@ pub(in crate::selection) fn returned(
         .ok_or_else(|| invalid())?
         .place;
     let pointer = builder.transport.result_pointer.ok_or_else(|| invalid())?;
-    let mut offset = 0u32;
-    while offset < placement.shape.byte_size {
-        let width = (placement.shape.byte_size - offset).min(8);
-        let (input, read_displacement) = super::displaced_memory_pointer(
-            builder,
+    super::byte_copy::copy(
+        builder,
+        selected_instructions::SelectedMemoryAccessOrigin::Block(block.id),
+        Default::default(),
+        super::byte_copy::CopyEnd {
             place,
-            input,
-            offset,
-            width,
-            Default::default(),
-        )?;
-        let value = transport_register(builder, place, offset)?;
-        super::super::structural_case::memory(
-            builder,
-            block.id,
-            place,
-            offset,
-            width,
-            SelectedMemoryAccessRole::ReadPlace,
-        )?;
-        super::super::aggregate_memory::load(builder, input, value, read_displacement, width)?;
-        let (pointer, write_displacement) = super::displaced_memory_pointer(
-            builder,
-            destination,
+            pointer: input,
+            byte_offset: 0,
+            elements: &[],
+        },
+        super::byte_copy::CopyEnd {
+            place: destination,
             pointer,
-            offset,
-            width,
-            Default::default(),
-        )?;
-        super::super::structural_case::memory(
-            builder,
-            block.id,
-            destination,
-            offset,
-            width,
-            SelectedMemoryAccessRole::WritePlace,
-        )?;
-        super::super::aggregate_memory::store(builder, pointer, value, write_displacement, width)?;
-        offset += width;
-    }
+            byte_offset: 0,
+            elements: &[],
+        },
+        placement.shape.byte_size,
+    )?;
     // The completed result is in caller-owned storage before hooks execute.
     // Keep its destination pointer live, then establish the ABI use afterward.
     for (owner, call) in cleanup_calls {

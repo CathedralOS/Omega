@@ -4,7 +4,7 @@
 //! declarations — signatures, parameters and return types — to emit
 //! operations, and this module is the one place that maps a state symbol to
 //! its declaring machine and state. It reads declarations only; authored
-//! statement and expression bodies belong to stage 05, which records what
+//! statement and expression bodies belong to Psi 05, which records what
 //! lowering needs in the plan.
 
 use crate::lowering_error::{LoweringError, unsupported};

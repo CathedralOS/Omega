@@ -804,7 +804,7 @@ enum Demand {
         selected: Option<(usize, usize)>,
     },
     Query {
-        query: Arc<build_evaluation::terminal_bindings::BuildProductQuery>,
+        query: Arc<build_evaluation::host::bindings::BuildProductQuery>,
         dependencies: QueryDependencies,
     },
 }
