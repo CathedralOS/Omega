@@ -152,10 +152,6 @@ FIREWALL_ALLOWANCES = (
     Allowance(stage("03"), stage("02"),
               "Debt: calls classified_boundary_shape and descriptor_input_guard instead of "
               "reading them from Omega 02 output"),
-    Allowance(stage("04"), stage("03"),
-              "Debt: calls staging_custody_core_accessors and selected_instruction_plan_identity; "
-              "ValidatedSelectedInstructions"),
-    Allowance(stage("05"), stage("02"), f"{STAGE_DEBT} (ValidatedOptimizedTargetOperations)"),
     Allowance(stage("05"), stage("04"),
               f"{STAGE_DEBT} (SelectedProgramRef, ValidatedSelectedAnalysis, allocation legality)"),
 )

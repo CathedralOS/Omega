@@ -1,4 +1,4 @@
-//! Bounded receiving view of the existing complete v6 plan commitment input.
+//! Bounded receiving view of the existing complete v7 plan commitment input.
 //!
 //! This reader does not mint a ProviderPlan, evaluated binding receipt, or
 //! selection authority. It authenticates the original normalized bytes and
@@ -10,7 +10,7 @@ use sha2::{Digest, Sha256};
 
 // Pin the layout implemented by this receiver independently of the writer.
 // A future writer schema must be rejected until its receiving grammar exists.
-const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v6\0";
+const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v7\0";
 
 const MAX_BYTES: usize = 8 * 1024 * 1024;
 const MAX_ROWS: usize = 4096;
@@ -187,6 +187,12 @@ impl<'a> ProviderPlanInput<'a> {
                 5 | 6 => {
                     reader.nonempty_string()?;
                     reader.nonempty_string()?;
+                    if reader.tag(1)? == 1 {
+                        reader.nonempty_string()?; // exact storage application
+                        reader.nonempty_string()?; // exact field declaration
+                    } else {
+                        reader.nonempty_string()?; // deferred refusal
+                    }
                     None
                 }
                 7 => Some((reader.nonempty_string()?, reader.package()?)),
@@ -288,7 +294,7 @@ impl<'a> Reader<'a> {
         Ok(())
     }
 
-    /// Validate the complete v6 roster without granting calling authority or
+    /// Validate the complete v7 roster without granting calling authority or
     /// replacing its declaration ABI keys with compact report coordinates.
     fn calling_applications(&mut self, requirement: &str) -> Result<(), &'static str> {
         let mut previous_application = None;
@@ -386,6 +392,38 @@ mod tests {
         });
         assert!(plan.validate_against_schema().is_empty());
         plan
+    }
+
+    #[test]
+    fn table_field_correspondence_is_committed_and_received_in_full() {
+        use crate::provider_plan::TableFieldStorage;
+        let storage = TableFieldStorage {
+            table_application: "closed-table<word>".into(),
+            field_declaration: "exact-package::table::invoke".into(),
+        };
+        for storage in [Ok(storage), Err("field is not addr".into())] {
+            let mut plan = selected_plan();
+            plan.rows[0].binding = ProviderBinding::TableFunction {
+                table: "Table".into(),
+                field: "invoke".into(),
+                storage,
+            };
+            let bytes = plan.identity_preimage();
+            let received = ProviderPlanInput::read(&bytes, plan.identity_digest().as_bytes())
+                .expect("complete table-field preimage");
+            assert_eq!(received.rows.len(), 1);
+            assert!(received.rows[0].checked_adapter.is_none());
+            let mut changed = plan.clone();
+            let ProviderBinding::TableFunction { storage, .. } = &mut changed.rows[0].binding
+            else {
+                panic!("table fixture");
+            };
+            match storage {
+                Ok(storage) => storage.field_declaration.push_str("-different-field"),
+                Err(reason) => reason.push_str("-different-refusal"),
+            }
+            assert_ne!(plan.identity_digest(), changed.identity_digest());
+        }
     }
 
     fn read(bytes: &[u8]) -> Result<ProviderPlanInput<'_>, &'static str> {
@@ -655,7 +693,7 @@ mod tests {
                 "truncated application prefix {end}"
             );
         }
-        for version in [b'4', b'5', b'7'] {
+        for version in [b'4', b'5', b'6', b'8'] {
             let mut other_schema = bytes.clone();
             other_schema[PROVIDER_PLAN_DOMAIN.len() - 2] = version;
             assert_eq!(

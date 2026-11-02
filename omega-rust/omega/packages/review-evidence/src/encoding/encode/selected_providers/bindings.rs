@@ -5,6 +5,23 @@ use crate::encoding::encode::values::{
 };
 use crate::record::PackagePolicyProviderBinding;
 
+fn encode_table_field_storage(
+    encoder: &mut Encoder,
+    storage: &Result<effects::provider_plan::TableFieldStorage, String>,
+) -> Result<(), PackageReviewEncodingError> {
+    encoder.field("storage", |encoder| match storage {
+        Ok(storage) => {
+            encoder.tag("checked", 0);
+            encoder.string_field("table_application", &storage.table_application)?;
+            encoder.string_field("field_declaration", &storage.field_declaration)
+        }
+        Err(reason) => {
+            encoder.tag("unavailable", 1);
+            encoder.string_field("reason", reason)
+        }
+    })
+}
+
 pub(in crate::encoding) fn binding(
     encoder: &mut Encoder,
     binding: &PackagePolicyProviderBinding,
@@ -34,21 +51,25 @@ pub(in crate::encoding) fn binding(
             table,
             field,
             table_declaration,
+            storage,
         } => {
             encoder.tag("vtable_field", 4);
             encoder.field("table", |encoder| encoder.string(table))?;
             encoder.field("field", |encoder| encoder.string(field))?;
             encoder.field_by("table_declaration", table_declaration, encode_nominal)?;
+            encode_table_field_storage(encoder, storage)?;
         }
         PackagePolicyProviderBinding::TableFunction {
             table,
             field,
             table_declaration,
+            storage,
         } => {
             encoder.tag("table_function", 5);
             encoder.field("table", |encoder| encoder.string(table))?;
             encoder.field("field", |encoder| encoder.string(field))?;
             encoder.field_by("table_declaration", table_declaration, encode_nominal)?;
+            encode_table_field_storage(encoder, storage)?;
         }
         PackagePolicyProviderBinding::CheckedAdapter {
             machine_identity,

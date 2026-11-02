@@ -79,15 +79,31 @@ impl PackagePolicyProviderBinding {
                 table,
                 field,
                 table_declaration,
+                storage,
             }
             | Self::TableFunction {
                 table,
                 field,
                 table_declaration,
+                storage,
             } => {
                 table_declaration.validate_resolved()?;
                 if table.is_empty() || field.is_empty() {
                     return Err("provider table binding has an empty field coordinate");
+                }
+                match storage {
+                    Ok(storage)
+                        if storage.table_application.is_empty()
+                            || storage.field_declaration.is_empty() =>
+                    {
+                        return Err(
+                            "provider table binding lost its checked storage correspondence",
+                        );
+                    }
+                    Err(reason) if reason.is_empty() => {
+                        return Err("provider table binding lost its deferred refusal");
+                    }
+                    _ => {}
                 }
             }
             Self::CheckedAdapter {

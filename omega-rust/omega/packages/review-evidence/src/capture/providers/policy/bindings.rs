@@ -79,20 +79,26 @@ pub(super) fn project(
         ProviderBinding::VtableSlot { index } => {
             PackagePolicyProviderBinding::VtableSlot { index: *index }
         }
-        ProviderBinding::VtableField { table, field } => {
-            PackagePolicyProviderBinding::VtableField {
-                table: table.clone(),
-                field: field.clone(),
-                table_declaration: table_declaration(compilation, realization)?,
-            }
-        }
-        ProviderBinding::TableFunction { table, field } => {
-            PackagePolicyProviderBinding::TableFunction {
-                table: table.clone(),
-                field: field.clone(),
-                table_declaration: table_declaration(compilation, realization)?,
-            }
-        }
+        ProviderBinding::VtableField {
+            table,
+            field,
+            storage,
+        } => PackagePolicyProviderBinding::VtableField {
+            table: table.clone(),
+            field: field.clone(),
+            table_declaration: table_declaration(compilation, realization, table, field, storage)?,
+            storage: storage.clone(),
+        },
+        ProviderBinding::TableFunction {
+            table,
+            field,
+            storage,
+        } => PackagePolicyProviderBinding::TableFunction {
+            table: table.clone(),
+            field: field.clone(),
+            table_declaration: table_declaration(compilation, realization, table, field, storage)?,
+            storage: storage.clone(),
+        },
         ProviderBinding::CheckedAdapter {
             machine_identity,
             machine_package_identity,
@@ -151,12 +157,26 @@ fn producer(
 fn table_declaration(
     compilation: &PackageReviewInput<'_>,
     realization: SymbolHandle,
+    table_name: &str,
+    field_name: &str,
+    storage: &Result<effects::provider_plan::TableFieldStorage, String>,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     let Some(machine) = compilation.exact_machine(realization) else {
         return Err(rejected("table binding has no exact realization machine"));
     };
     let dispatch = provider_planning::dispatch_tables::dispatch_table(&compilation.typed, machine)
         .map_err(|reason| rejected(&format!("table binding {reason}")))?;
+    if dispatch.path(&compilation.typed) != table_name
+        || &provider_planning::dispatch_tables::field_storage(
+            &compilation.typed,
+            machine,
+            field_name,
+        ) != storage
+    {
+        return Err(rejected(
+            "table binding differs from its exact checked field use",
+        ));
+    }
     let tables = compilation
         .data_definitions()
         .iter()

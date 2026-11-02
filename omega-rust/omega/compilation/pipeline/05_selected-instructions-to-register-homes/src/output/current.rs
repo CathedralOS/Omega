@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use crate::{ValidatedPostAllocationOptimizationManifest, ValidatedRegisterHomes};
-use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 use optimization_core::{OptimizationSelections, OptimizationWorkBudget};
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes::{AllocatedProgram, AllocatedProgramFacts};
@@ -32,8 +31,6 @@ pub(super) struct CurrentAllocation {
     /// post-allocation stage reads them instead of running the analysis.
     effects: Arc<PreAllocationMachineEffectPlan>,
     evidence: AllocationEvidence,
-    // Prior semantic/provider input is retained for proof joins, not instruction lookup.
-    target_input: Arc<ValidatedOptimizedTargetOperations>,
     selections: OptimizationSelections,
     budget: OptimizationWorkBudget,
 }
@@ -56,7 +53,6 @@ impl CurrentAllocation {
             environment: source.register_environment().clone(),
             effects: effects.shared_plan(),
             evidence: source.evidence().clone(),
-            target_input: Arc::clone(source.target_input),
             selections: source.selections().clone(),
             budget: source.budget_per_pass(),
         })
@@ -87,7 +83,6 @@ impl CurrentAllocation {
             manifest: &self.manifest,
             environment: &self.environment,
             evidence: self.evidence.clone(),
-            target_input: &self.target_input,
             selections: &self.selections,
             budget: self.budget,
         }
