@@ -9,9 +9,9 @@ use crate::{
 use optimization_core::OptimizationUnitIdentity;
 use selected_instructions::{
     CurrentSelectedProgram, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
+    SelectedProgram,
 };
 use semantic_vocabulary::FuelScheduleIdentity;
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 
 mod sealed {
     pub trait Sealed {}
@@ -152,9 +152,10 @@ impl ValidatedSelectedAnalysis for SelectedProgramRef<'_> {
     }
 }
 
-impl sealed::Sealed for ValidatedSelectedInstructions {}
+impl sealed::Sealed for SelectedProgram {}
 
-impl ValidatedSelectedAnalysis for ValidatedSelectedInstructions {
+/// The program instruction selection handed to this stage.
+impl ValidatedSelectedAnalysis for SelectedProgram {
     fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
         self.shared_plan()
     }
@@ -164,15 +165,15 @@ impl ValidatedSelectedAnalysis for ValidatedSelectedInstructions {
     }
 
     fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().identity()
+        self.identity()
     }
 
     fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
+        self.optimization_unit()
     }
 
     fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
+        self.fuel_schedule()
     }
 }
 

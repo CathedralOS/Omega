@@ -51,7 +51,7 @@ pub use selected_instructions::{
     SelectedInstructionKind, SelectedInstructionPlan, SelectedInstructionPlanIdentity,
     SelectedInstructionProvenance, SelectedLocalStorageSlot, SelectedMemoryAccess,
     SelectedMemoryAccessOrigin, SelectedMemoryAccessRole, SelectedNormalizedForeignCall,
-    SelectedOperand, SelectedOutgoingArgumentSlot, SelectedScalarReferenceSource,
+    SelectedOperand, SelectedOutgoingArgumentSlot, SelectedProgram, SelectedScalarReferenceSource,
     SelectedSelectionConstraints, SelectedStructuralBinding, SelectedStructuralCaseEdge,
     SelectedStructuralTransport, SelectedSuccessor, SelectedSuccessorRole, SelectedTerminator,
     SelectedValueBinding, SelectedValueTransport, StoredLoadForwardingIdentity, SuccessorLiveness,

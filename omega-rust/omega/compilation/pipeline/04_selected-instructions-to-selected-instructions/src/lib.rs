@@ -102,7 +102,7 @@ macro_rules! staged_producer_accessors {
     };
     (@row $producer:ident, selected) => {
         /// The current selected program this stage describes.
-        pub const fn selected(&self) -> &ValidatedSelectedInstructions {
+        pub const fn selected(&self) -> &SelectedProgram {
             self.$producer.selected()
         }
     };
@@ -291,7 +291,7 @@ pub use selected_optimization::optimization_output::{
     SelectedInstructionOptimizationOutput,
 };
 
-pub use selected_optimization::optimize_selected_instructions;
+pub use selected_optimization::{SelectedOptimizationInput, optimize_selected_instructions};
 
 // The refusal every bounded pass in this stage shares.
 pub use work_accounting::WorkDefect;

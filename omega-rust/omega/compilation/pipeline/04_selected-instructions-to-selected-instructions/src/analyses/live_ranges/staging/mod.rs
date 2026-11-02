@@ -15,10 +15,10 @@ use optimization_core::{
     PrePhysicalOptimizationManifestIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::SelectedProgram;
 use selected_instructions::StagedOptimizedCustodyCore;
 use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 use terminal_psi::TerminalPsiIdentity;
 
 pub(crate) fn stage_optimized_live_ranges(

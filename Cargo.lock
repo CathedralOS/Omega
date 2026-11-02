@@ -2209,7 +2209,6 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "target-operations",
- "target-operations-to-selected-instructions",
  "task-plans",
  "terminal-codec",
  "terminal-psi",

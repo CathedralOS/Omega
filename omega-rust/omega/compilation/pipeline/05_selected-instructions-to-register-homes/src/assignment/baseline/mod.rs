@@ -66,12 +66,7 @@ impl StagedOptimizedRegisterHomes {
     pub const fn legality(&self) -> &ValidatedAllocationLegality {
         self.legality.legality()
     }
-    assignment_context_accessors!(
-        legality
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-    );
+    assignment_context_accessors!();
     receipt_accessor_rows!(ref StagedOptimizedRegisterHomes {
         custody: StagedOptimizedRegisterHomeCustodyReceipt,
     });
@@ -148,14 +143,7 @@ impl StagedOptimizedRegisterHomesAfterFixedViewCopies {
     pub const fn legality(&self) -> &ValidatedAllocationLegality {
         self.reanalysis.legality()
     }
-    assignment_context_accessors!(
-        reanalysis
-            .transformation_stage()
-            .source_legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-    );
+    assignment_context_accessors!();
     receipt_accessor_rows!(ref StagedOptimizedRegisterHomesAfterFixedViewCopies {
         custody: StagedOptimizedPostCopyRegisterHomeCustodyReceipt,
     });

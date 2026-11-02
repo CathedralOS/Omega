@@ -1,10 +1,10 @@
 //! Source-custody preflight, work accounting, and insertion-site discovery.
 use super::{
     OptimizationWorkUsage, RegisterInstructionConstraint, RegisterOperandAccess,
-    SelectedInstructionId, SelectedTerminator, TargetRegisterEnvironmentConstraintKeys,
-    TargetRegisterEnvironmentIdentity, ValidatedPhysicalRegisterModel,
-    ValidatedRegisterConstraintCatalog, ValidatedRegisterReservationProfile,
-    ValidatedSelectedInstructions, VirtualRegisterId, target_register_environment_identity,
+    SelectedInstructionId, SelectedProgram, SelectedTerminator,
+    TargetRegisterEnvironmentConstraintKeys, TargetRegisterEnvironmentIdentity,
+    ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
+    ValidatedRegisterReservationProfile, VirtualRegisterId, target_register_environment_identity,
 };
 use crate::rewrites::block_edges::{block_instruction_ids, virtual_register_ids_are_dense};
 use crate::{
@@ -13,7 +13,7 @@ use crate::{
 use selected_instructions::terminator_instruction;
 
 pub(super) fn validate_roots(
-    selected: &ValidatedSelectedInstructions,
+    selected: &SelectedProgram,
     ranges: &ValidatedLiveRanges,
     legality: &ValidatedAllocationLegality,
     register_environment: TargetRegisterEnvironmentIdentity,
@@ -22,9 +22,9 @@ pub(super) fn validate_roots(
     reservations: &ValidatedRegisterReservationProfile,
     selected_keys: &TargetRegisterEnvironmentConstraintKeys,
 ) -> Result<(), FixedViewCopyError> {
-    if ranges.plan().selected != selected.receipt().identity()
-        || ranges.plan().optimization_unit != selected.receipt().optimization_unit()
-        || ranges.plan().fuel_schedule != selected.receipt().fuel_schedule()
+    if ranges.plan().selected != selected.identity()
+        || ranges.plan().optimization_unit != selected.optimization_unit()
+        || ranges.plan().fuel_schedule != selected.fuel_schedule()
         || ranges.plan().target != selected.plan().target
         || legality.receipt().ranges() != ranges.receipt().identity()
         || legality.receipt().register_environment() != register_environment
@@ -69,7 +69,7 @@ pub(super) fn copy_row<'a>(
 }
 
 pub(super) fn work_usage(
-    selected: &ValidatedSelectedInstructions,
+    selected: &SelectedProgram,
     boundaries: &[crate::rewrites::allocation_recovery::fixed_view_copy::evidence::AuthenticatedFixedViewBoundary],
     policy: FixedViewCopyPolicy,
 ) -> Result<OptimizationWorkUsage, FixedViewCopyError> {
