@@ -605,7 +605,6 @@ crashes Trap
             ValueBinding::DataSubject { item } -> value_tag(resolver_harness, output, index, 20, item, 0)
             ValueBinding::Proposition { proposition } -> value_tag(resolver_harness, output, index, 14, proposition, 0)
             ValueBinding::DomainSubject { domain } -> value_tag(resolver_harness, output, index, 16, domain, 0)
-            ValueBinding::DataSubject { item } -> value_tag(resolver_harness, output, index, 19, item, 0)
             ValueBinding::TypeOperand { binding } -> static_type_row(resolver_harness, output, index, binding)
             ValueBinding::BytePredicate { predicate } -> predicate_row(resolver_harness, output, index, predicate)
             ValueBinding::LayoutQuery { query } -> layout_row(resolver_harness, output, index, query)
@@ -616,14 +615,14 @@ crashes Trap
     machine static_type_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, binding: TypeBinding) {
         transition binding {
             TypeBinding::Builtin { builtin } -> static_builtin(resolver_harness, output, index, builtin)
-            TypeBinding::Data { item } -> value_tag(resolver_harness, output, index, 20, 2, item)
-            TypeBinding::GenericParameter { parameter } -> value_tag(resolver_harness, output, index, 20, 3, parameter)
-            _ -> value_tag(resolver_harness, output, index, 20, 0, 0)
+            TypeBinding::Data { item } -> value_tag(resolver_harness, output, index, 21, 2, item)
+            TypeBinding::GenericParameter { parameter } -> value_tag(resolver_harness, output, index, 21, 3, parameter)
+            _ -> value_tag(resolver_harness, output, index, 21, 0, 0)
         }
     }
     machine static_builtin(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, builtin: BuiltinType) {
         let tag: u64 in Trapping = ResolverHarness::builtin_tag(builtin);
-        ResolverHarness::value_tag(resolver_harness, output, index, 20, 1, tag);
+        ResolverHarness::value_tag(resolver_harness, output, index, 21, 1, tag);
     }
     // A layout query: 1 `size_of`, 2 `align_of`.
     machine layout_row(resolver_harness: &mut ResolverHarness, output: &NameResolution, index: u64 in Trapping, query: LayoutQuery) {
