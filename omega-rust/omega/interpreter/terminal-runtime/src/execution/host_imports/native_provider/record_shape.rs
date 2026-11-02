@@ -181,6 +181,64 @@ pub(in crate::execution::host_imports) enum IntegerRecordField {
     Array(IntegerSign, u16, u64),
 }
 
+/// Match a C scalar slot or scalar array against the complete selected recipe.
+/// Semantic width alone cannot authorize a wider C write into narrowed storage.
+pub(in crate::execution::host_imports) fn matches_integer_storage(
+    program: &TerminalProgram,
+    layouts: &[NativeBorrowedStorageLayout],
+    root: StructuralTypeId,
+    sign: IntegerSign,
+    bits: u16,
+    length: Option<u64>,
+) -> bool {
+    let Ok(integer) = IntegerType::new(sign, bits) else {
+        return false;
+    };
+    if bits % 8 != 0 {
+        return false;
+    }
+    let scalar = ScalarType::Integer(integer);
+    let root_shape = program.structural_type(root).map(|row| &row.shape);
+    let count = match (length, root_shape) {
+        (None, Some(StructuralTypeShape::PrimitiveScalar(value))) if *value == scalar => 1,
+        (Some(count), Some(StructuralTypeShape::FixedArray { element, length }))
+            if length.literal() == Some(count)
+                && matches!(program.structural_type(*element).map(|row| &row.shape),
+                Some(StructuralTypeShape::PrimitiveScalar(value)) if *value == scalar) =>
+        {
+            count
+        }
+        _ => return false,
+    };
+    let Ok(count) = usize::try_from(count) else {
+        return false;
+    };
+    let bytes = usize::from(bits / 8);
+    let Some(extent) = count.checked_mul(bytes) else {
+        return false;
+    };
+    let Ok(codec) = StorageCodec::admit(program, layouts, root) else {
+        return false;
+    };
+    codec.extent == extent
+        && codec.alignment >= bytes
+        && codec.references.is_empty()
+        && codec.fields.len() == count
+        && (0..count).all(|index| {
+            let path = if length.is_some() {
+                vec![Path::FixedIndex(index as u64)]
+            } else {
+                Vec::new()
+            };
+            codec.fields.iter().any(|field| {
+                field.path == path
+                    && field.offset == index * bytes
+                    && field.logical == scalar
+                    && field.stored == scalar
+            })
+        })
+}
+
 /// Complete integer record, ordered by its selected native offsets. Every
 /// expected field joins the semantic field identity to its exact codec paths.
 /// Neither equal byte extent nor a flattened roster can replace this tree.

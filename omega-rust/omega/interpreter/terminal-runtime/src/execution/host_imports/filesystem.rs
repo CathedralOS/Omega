@@ -493,8 +493,14 @@ fn matches_parameters(
                     (Some(value), Formal::IntegerReference(sign, bits, access))
                         if value.access == *access =>
                     {
-                        matches!(program.structural_type(value.structural_type).map(|row| &row.shape),
-                            Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))) if integer.sign() == *sign && integer.bits() == *bits)
+                        super::native_provider::matches_integer_storage(
+                            program,
+                            layouts,
+                            value.structural_type,
+                            *sign,
+                            *bits,
+                            None,
+                        )
                     }
                     (
                         Some(value),
@@ -529,17 +535,14 @@ fn matches_parameters(
                     (Some(value), Formal::UnsignedArray(count, bits, access))
                         if value.access == *access =>
                     {
-                        match program
-                            .structural_type(value.structural_type)
-                            .map(|row| &row.shape)
-                        {
-                            Some(StructuralTypeShape::FixedArray { element, length })
-                                if length.literal() == Some(*count) =>
-                            {
-                                matches!(program.structural_type(*element).map(|row| &row.shape), Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))) if integer.sign() == IntegerSign::Unsigned && integer.bits() == *bits)
-                            }
-                            _ => false,
-                        }
+                        super::native_provider::matches_integer_storage(
+                            program,
+                            layouts,
+                            value.structural_type,
+                            IntegerSign::Unsigned,
+                            *bits,
+                            Some(*count),
+                        )
                     }
                     _ => false,
                 }
