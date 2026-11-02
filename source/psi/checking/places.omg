@@ -7,6 +7,7 @@ use psi::checking::domains;
 use psi::checking::evaluation;
 use psi::checking::facts;
 use psi::checking::obligations;
+use psi::checking::reference_origins;
 use psi::checking::references;
 use psi::checking::zone;
 use psi::checks::checks;
@@ -894,9 +895,31 @@ crashes Trap
     machine candidate(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping) {
         let entry: Place = Checker::place_at(checker, index);
         let path: ArrivalPath = Checker::path_below(checker, source, index + 1, 0);
-        transition entry.subject > 0 && path.depth > 0 {
-            true -> copied(checker, typing, target, source, index, end, entry.subject, path)
+        let owned: bool = Checker::owned_below(checker, typing, source, index + 1);
+        transition path.depth > 0 && owned {
+            true -> typed(checker, typing, target, source, index, end, entry, path)
             _ -> next(checker, typing, target, source, index + 1, end)
+        }
+    }
+
+    machine typed(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, entry: Place, path: ArrivalPath) {
+        let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+        transition row.kind == TypeKind::Reference {
+            true -> reference(checker, typing, target, source, index, end, path)
+            false -> scalar(checker, typing, target, source, index, end, entry, path)
+        }
+    }
+
+    machine reference(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, path: ArrivalPath) {
+        let copy: u64 in Trapping = Checker::enter_path(checker, typing, target, path);
+        Checker::copy_reference_origin(checker, typing, copy, index + 1);
+        transition { _ -> next(checker, typing, target, source, index + 1, end) }
+    }
+
+    machine scalar(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping, index: u64 in Trapping, end: u64 in Trapping, entry: Place, path: ArrivalPath) {
+        transition entry.subject > 0 {
+            true -> copied(checker, typing, target, source, index, end, entry.subject, path)
+            false -> next(checker, typing, target, source, index + 1, end)
         }
     }
 

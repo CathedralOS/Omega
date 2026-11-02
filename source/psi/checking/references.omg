@@ -1,3 +1,4 @@
+use psi::checking::reference_origins;
 use psi::checking::aliases;
 use psi::checking::checker;
 use psi::checking::evaluation;
@@ -18,35 +19,13 @@ use psi::types::types;
 // Only sequential local initialization or binding replacement establishes an
 // origin. Assignment through an exclusive reference writes its referent;
 // replacing a mutable shared-reference local captures a new origin without
-// redirecting previous aliases. Conditional reference values whose origins disagree,
-// returned references and stored reference fields have no known origin yet.
+// redirecting previous aliases. Conditional and returned references without
+// a proved storage identity remain unknown. Owned reference
+// fields transport captured descriptor identities through ordinary value copies.
 // Losing an origin is conservative and need not be undone by a zone restore;
 // a state opens a fresh table. Thus branch traversal never selects one arm's
 // origin as the other arm's. A write whose origin cannot be recovered is
 // refused as UnsupportedCheck rather than assigned independent storage.
-
-public machine Checker::clear_reference_origins(checker: &mut Checker)
-crashes Trap
-{
-    transition { _ -> next(checker, 0) }
-
-    machine next(checker: &mut Checker, index: u64 in Trapping) {
-        transition index < 256 {
-            true -> clear(checker, index)
-            _ -> done()
-        }
-    }
-
-    machine clear(checker: &mut Checker, index: u64 in Trapping)
-    requires index < 256
-    {
-        checker.reference_origins[index] = 0;
-        checker.reference_footprints[index] = false;
-        transition { _ -> next(checker, index + 1) }
-    }
-
-    machine done() {}
-}
 
 // The containing storage of an untracked element or range is still known
 // when its collection is. Stop at an unknown reference: its containing
@@ -110,8 +89,8 @@ crashes Trap
     machine capture(checker: &mut Checker, index: u64 in Trapping, origin: u64 in Trapping)
     requires index < 256
     {
-        checker.reference_origins[index] = origin as u64;
-        checker.reference_footprints[index] = false;
+        let captured: ReferenceOrigin = Checker::exact_reference_origin(origin);
+        Checker::record_reference_origin(checker, index, captured);
     }
 
     machine owned(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, value: Value) {
@@ -197,8 +176,7 @@ crashes Trap
     machine captured(checker: &mut Checker, index: u64 in Trapping, footprint: u64 in Trapping)
     requires index < 256
     {
-        checker.reference_origins[index] = footprint as u64;
-        checker.reference_footprints[index] = true;
+        Checker::record_reference_origin(checker, index, ReferenceOrigin::Footprint { place: footprint });
     }
 
     machine done() {}
@@ -217,8 +195,8 @@ crashes Trap
     machine read(checker: &Checker, index: u64 in Trapping) -> u64 in Trapping
     requires index < 256
     {
-        transition checker.reference_footprints[index] {
-            true -> found(checker.reference_origins[index] as u64 in Trapping)
+        transition checker.reference_origins[index] {
+            ReferenceOrigin::Footprint { place } -> found(place)
             _ -> none()
         }
     }
@@ -355,7 +333,7 @@ crashes Trap
         transition entry.kind {
             PlaceKind::Local -> local(checker, typing, place - 1, entry.type_handle)
             PlaceKind::Parameter -> parameter(checker, typing, place, entry.type_handle)
-            PlaceKind::Field -> parameter(checker, typing, place, entry.type_handle)
+            PlaceKind::Field -> field(checker, typing, place, entry)
             PlaceKind::Call -> parameter(checker, typing, place, entry.type_handle)
             // A logical arbitrary referent in the isolated refinement world.
             // This is not added to storage_origin or any borrow authority.
@@ -376,10 +354,24 @@ crashes Trap
     machine captured(checker: &Checker, typing: &Typing, index: u64 in Trapping, type_handle: u64 in Trapping) -> Value
     requires index < 256
     {
-        let origin: u64 in Trapping = checker.reference_origins[index] as u64 in Trapping;
-        let footprint: bool = checker.reference_footprints[index];
-        transition origin > 0 && !footprint {
-            true -> viewed(checker, typing, origin, type_handle)
+        transition checker.reference_origins[index] {
+            ReferenceOrigin::Exact { place } -> viewed(checker, typing, place, type_handle)
+            _ -> unknown()
+        }
+    }
+
+    machine field(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
+        let origin: ReferenceOrigin = Checker::reference_origin(checker, place);
+        transition origin {
+            ReferenceOrigin::Exact { place as captured } -> viewed(checker, typing, captured, entry.type_handle)
+            ReferenceOrigin::Unrecorded -> incoming(checker, typing, place, entry)
+            _ -> unknown()
+        }
+    }
+
+    machine incoming(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
+        transition Checker::incoming_reference_field(checker, entry.parent) {
+            true -> parameter(checker, typing, place, entry.type_handle)
             _ -> unknown()
         }
     }

@@ -1,0 +1,437 @@
+use psi::checking::checker;
+use psi::checking::evaluation;
+use psi::checking::places;
+use psi::checking::references;
+use psi::checking::snapshots;
+use psi::checks::checks;
+use psi::source::source;
+use psi::syntax::syntax;
+use psi::types::types;
+
+// Unrecorded incoming descriptors have an arbitrary referent. A descriptor
+// initialized from unknown storage must stay unknown instead of acquiring a
+// fresh, unrelated referent. Footprints locate writes, never observations.
+public data ReferenceOrigin [copy] {
+    case Unrecorded;
+    case Unknown;
+    case Exact(place: u64 in Trapping);
+    case Footprint(place: u64 in Trapping);
+}
+
+public machine Checker::exact_reference_origin(place: u64 in Trapping) -> ReferenceOrigin {
+    transition place > 0 {
+        true -> { ReferenceOrigin::Exact { place: place } }
+        false -> { ReferenceOrigin::Unknown }
+    }
+}
+
+public machine Checker::reference_origin_place(origin: ReferenceOrigin) -> u64 in Trapping {
+    transition origin {
+        ReferenceOrigin::Exact { place } -> { place }
+        ReferenceOrigin::Footprint { place } -> { place }
+        _ -> { 0 }
+    }
+}
+
+public machine Checker::reference_origin(checker: &Checker, place: u64 in Trapping) -> ReferenceOrigin
+crashes Trap
+{
+    transition place > 0 && place <= 256 {
+        true -> read(checker, place - 1)
+        false -> { ReferenceOrigin::Unknown }
+    }
+    machine read(checker: &Checker, index: u64 in Trapping) -> ReferenceOrigin
+    requires index < 256
+    { checker.reference_origins[index] }
+}
+
+// Zone restore does not restore descriptor captures. An arm may preserve an
+// existing identity, but cannot establish a new identity for its siblings.
+public machine Checker::record_reference_origin(checker: &mut Checker, index: u64 in Trapping, origin: ReferenceOrigin)
+requires index < 256
+crashes Trap
+{
+    let previous: ReferenceOrigin = checker.reference_origins[index];
+    let same: bool = Checker::same_reference_origin(previous, origin);
+    transition checker.saved_count == 0 || same {
+        true -> { checker.reference_origins[index] = origin; }
+        false -> { checker.reference_origins[index] = ReferenceOrigin::Unknown; }
+    }
+}
+
+machine Checker::same_reference_origin(left: ReferenceOrigin, right: ReferenceOrigin) -> bool {
+    transition left {
+        ReferenceOrigin::Exact { place } -> exact(place, right)
+        ReferenceOrigin::Footprint { place } -> footprint(place, right)
+        _ -> { false }
+    }
+    machine exact(place: u64 in Trapping, right: ReferenceOrigin) -> bool {
+        transition right {
+            ReferenceOrigin::Exact { place as other } -> { place == other }
+            _ -> { false }
+        }
+    }
+    machine footprint(place: u64 in Trapping, right: ReferenceOrigin) -> bool {
+        transition right {
+            ReferenceOrigin::Footprint { place as other } -> { place == other }
+            _ -> { false }
+        }
+    }
+}
+
+// Only fields rooted in arbitrary incoming storage may create an arbitrary
+// referent. Missing local provenance is not evidence of disjoint storage.
+public machine Checker::incoming_reference_field(checker: &Checker, parent: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> next(checker, parent, 0) }
+    machine next(checker: &Checker, place: u64 in Trapping, depth: u64 in Trapping) -> bool {
+        transition place > 0 && depth < 256 {
+            true -> inspect(checker, place, depth)
+            false -> { false }
+        }
+    }
+    machine inspect(checker: &Checker, place: u64 in Trapping, depth: u64 in Trapping) -> bool {
+        let entry: Place = Checker::place_at(checker, place - 1);
+        transition entry.kind {
+            PlaceKind::Parameter -> { true }
+            PlaceKind::Call -> { true }
+            PlaceKind::ContractResult -> { true }
+            PlaceKind::Field -> next(checker, entry.parent, depth + 1)
+            PlaceKind::Referent -> next(checker, entry.parent, depth + 1)
+            _ -> { false }
+        }
+    }
+}
+
+// An owned copy carries descriptor identities, never frozen pointee facts.
+// Capture incoming descriptors before rebasing them to a local destination.
+public machine Checker::copy_reference_origin(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping)
+crashes Trap
+{
+    let origin: ReferenceOrigin = Checker::reference_origin(checker, source);
+    transition origin {
+        ReferenceOrigin::Unrecorded -> incoming(checker, typing, target, source)
+        _ -> captured(checker, target, origin)
+    }
+    machine incoming(checker: &mut Checker, typing: &Typing, target: u64 in Trapping, source: u64 in Trapping) {
+        let value: Value = Checker::reference_value(checker, typing, source);
+        let origin: ReferenceOrigin = Checker::exact_reference_origin(value.place);
+        Checker::copy_captured_reference(checker, target, origin);
+    }
+    machine captured(checker: &mut Checker, target: u64 in Trapping, origin: ReferenceOrigin) {
+        Checker::copy_captured_reference(checker, target, origin);
+    }
+}
+
+machine Checker::copy_captured_reference(checker: &mut Checker, target: u64 in Trapping, origin: ReferenceOrigin)
+crashes Trap
+{
+    transition target > 0 && target <= 256 {
+        true -> write(checker, target - 1, origin)
+        false -> {}
+    }
+    machine write(checker: &mut Checker, index: u64 in Trapping, origin: ReferenceOrigin)
+    requires index < 256
+    { Checker::record_reference_origin(checker, index, origin); }
+}
+
+// Parent paths describe both owned fields and referent projections. Only
+// the former are duplicated or replaced with a containing owned value.
+public machine Checker::owned_below(checker: &Checker, typing: &Typing, root: u64 in Trapping, child: u64 in Trapping) -> bool
+crashes Trap
+{
+    transition { _ -> next(checker, typing, root, child, 0) }
+    machine next(checker: &Checker, typing: &Typing, root: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> bool {
+        transition current > 0 && root > 0 && depth < 256 {
+            true -> inspect(checker, typing, root, current, depth)
+            false -> { false }
+        }
+    }
+    machine inspect(checker: &Checker, typing: &Typing, root: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> bool {
+        transition current == root {
+            true -> { true }
+            false -> parent(checker, typing, root, current, depth)
+        }
+    }
+    machine parent(checker: &Checker, typing: &Typing, root: u64 in Trapping, current: u64 in Trapping, depth: u64 in Trapping) -> bool {
+        let entry: Place = Checker::place_at(checker, current - 1);
+        transition entry.parent > 0 && (entry.kind == PlaceKind::Field || entry.kind == PlaceKind::Length) {
+            true -> owner(checker, typing, root, entry.parent, depth)
+            false -> { false }
+        }
+    }
+    machine owner(checker: &Checker, typing: &Typing, root: u64 in Trapping, parent: u64 in Trapping, depth: u64 in Trapping) -> bool {
+        let owner: Place = Checker::place_at(checker, parent - 1);
+        let row: TypeRow = TypeTable::row(&typing.types, owner.type_handle);
+        transition parent == root || row.kind != TypeKind::Reference {
+            true -> next(checker, typing, root, parent, depth + 1)
+            false -> { false }
+        }
+    }
+}
+
+public machine Checker::forget_reference_origins(checker: &mut Checker, typing: &Typing, root: u64 in Trapping)
+crashes Trap
+{ Checker::forget_reference_storage(checker, typing, root, true); }
+
+machine Checker::forget_reference_descendants(checker: &mut Checker, typing: &Typing, root: u64 in Trapping)
+crashes Trap
+{ Checker::forget_reference_storage(checker, typing, root, false); }
+
+machine Checker::forget_reference_storage(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, include_root: bool)
+crashes Trap
+{
+    transition { _ -> next(checker, typing, root, include_root, 0) }
+    machine next(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, include_root: bool, index: u64 in Trapping) {
+        transition index < checker.place_count && index < 256 {
+            true -> inspect(checker, typing, root, include_root, index)
+            false -> {}
+        }
+    }
+    machine inspect(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, include_root: bool, index: u64 in Trapping)
+    requires index < 256
+    {
+        let replace: bool = (include_root || index + 1 != root) && Checker::owned_below(checker, typing, root, index + 1);
+        transition replace {
+            true -> { checker.reference_origins[index] = ReferenceOrigin::Unknown; }
+            false -> {}
+        }
+        transition { _ -> next(checker, typing, root, include_root, index + 1) }
+    }
+}
+
+// Place-index scratch for the transitive storage a container's exclusive
+// descriptors can reach. Collect before forgetting: replacing an aggregate
+// must retire its old nested pointees before its descriptor captures expire.
+data ReferenceWrites {
+    pending: [u64 in Trapping; 256];
+    seen: [bool; 256];
+    written: [bool; 256];
+    contents: [bool; 256];
+    count: u64 in Trapping;
+    end: u64 in Trapping;
+}
+
+public machine Checker::forget_exclusive_referents(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, root: u64 in Trapping, release: ReferenceRelease)
+crashes Trap
+{
+    let mut writes: ReferenceWrites;
+    writes.count = 0;
+    writes.end = checker.place_count as u64 in Trapping;
+    Checker::open_reference_writes(&mut writes);
+    Checker::enqueue_reference_write(&mut writes, root);
+    Checker::collect_reference_writes(checker, syntax, typing, &mut writes, release);
+    Checker::apply_reference_writes(checker, syntax, typing, &writes, release);
+}
+
+machine Checker::open_reference_writes(writes: &mut ReferenceWrites)
+crashes Trap
+{
+    transition { _ -> next(writes, 0) }
+    machine next(writes: &mut ReferenceWrites, index: u64 in Trapping) {
+        transition index < 256 { true -> clear(writes, index) false -> {} }
+    }
+    machine clear(writes: &mut ReferenceWrites, index: u64 in Trapping)
+    requires index < 256
+    {
+        writes.pending[index] = 0;
+        writes.seen[index] = false;
+        writes.written[index] = false;
+        writes.contents[index] = true;
+        transition { _ -> next(writes, index + 1) }
+    }
+}
+
+machine Checker::enqueue_reference_write(writes: &mut ReferenceWrites, place: u64 in Trapping)
+crashes Trap
+{
+    transition place > 0 && place <= writes.end && place <= 256 {
+        true -> candidate(writes, place, place - 1)
+        false -> {}
+    }
+    machine candidate(writes: &mut ReferenceWrites, place: u64 in Trapping, index: u64 in Trapping)
+    requires index < 256
+    {
+        transition !writes.seen[index] && writes.count < 256 {
+            true -> enqueue(writes, place, index, writes.count)
+            false -> {}
+        }
+    }
+    machine enqueue(writes: &mut ReferenceWrites, place: u64 in Trapping, index: u64 in Trapping, tail: u64 in Trapping)
+    requires index < 256
+    requires tail < 256
+    {
+        writes.seen[index] = true;
+        writes.pending[tail] = place;
+        writes.count = tail + 1;
+    }
+}
+
+machine Checker::collect_reference_writes(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease)
+crashes Trap
+{
+    transition { _ -> next(checker, syntax, typing, writes, release, 0) }
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping) {
+        transition head < writes.count && head < 256 {
+            true -> scan(checker, syntax, typing, writes, release, head, 0)
+            false -> {}
+        }
+    }
+    machine scan(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
+    requires head < 256
+    {
+        transition index < writes.end && index < 256 {
+            true -> inspect(checker, syntax, typing, writes, release, head, index)
+            false -> next(checker, syntax, typing, writes, release, head + 1)
+        }
+    }
+    machine inspect(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &mut ReferenceWrites, release: ReferenceRelease, head: u64 in Trapping, index: u64 in Trapping)
+    requires head < 256
+    {
+        let root: u64 in Trapping = writes.pending[head];
+        let entry: Place = Checker::place_at(checker, index);
+        let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
+        let within: bool = index + 1 != root && Checker::within(checker, index + 1, root);
+        transition within && row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared {
+            true -> origin(checker, syntax, writes, release, index + 1, entry.parent)
+            false -> {}
+        }
+        transition { _ -> scan(checker, syntax, typing, writes, release, head, index + 1) }
+    }
+    machine origin(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, descriptor: u64 in Trapping, parent: u64 in Trapping) {
+        let origin: ReferenceOrigin = Checker::reference_origin(checker, descriptor);
+        transition origin {
+            ReferenceOrigin::Exact { place } -> mark(writes, place, false)
+            ReferenceOrigin::Footprint { place } -> mark(writes, place, true)
+            ReferenceOrigin::Unrecorded -> incoming(checker, syntax, writes, release, descriptor, parent)
+            ReferenceOrigin::Unknown -> unknown(checker, syntax, release)
+        }
+    }
+    machine incoming(checker: &mut Checker, syntax: &SyntaxTrees, writes: &mut ReferenceWrites, release: ReferenceRelease, place: u64 in Trapping, parent: u64 in Trapping) {
+        transition Checker::incoming_reference_field(checker, parent) {
+            true -> mark(writes, place, false)
+            false -> unknown(checker, syntax, release)
+        }
+    }
+    machine mark(writes: &mut ReferenceWrites, place: u64 in Trapping, contents: bool) {
+        transition place > 0 && place <= writes.end && place <= 256 {
+            true -> written(writes, place, place - 1, contents)
+            false -> {}
+        }
+    }
+    machine written(writes: &mut ReferenceWrites, place: u64 in Trapping, index: u64 in Trapping, contents: bool)
+    requires index < 256
+    {
+        writes.written[index] = true;
+        writes.contents[index] = writes.contents[index] && contents;
+        Checker::enqueue_reference_write(writes, place);
+    }
+    // An unknown writable origin may alias any backing. Its descriptor
+    // subtree cannot stand in for that write footprint.
+    machine unknown(checker: &mut Checker, syntax: &SyntaxTrees, release: ReferenceRelease) {
+        transition release {
+            ReferenceRelease::Invocation { expression, lender } -> rejected(checker, expression.source_span)
+            ReferenceRelease::Refinement -> logical(checker, syntax)
+        }
+    }
+    machine logical(checker: &mut Checker, syntax: &SyntaxTrees) {
+        let item: MachineItem = SyntaxTrees::machine_item(syntax, checker.machine);
+        Checker::reject_reference_release(checker, item.source_span);
+    }
+    machine rejected(checker: &mut Checker, source_span: SourceSpan) {
+        Checker::reject_reference_release(checker, source_span);
+    }
+}
+
+// Snapshot every old observation before retiring any collected storage.
+// Clearing an owned descriptor is different from changing the pointee of a
+// descriptor elsewhere; the root reference's captured address survives.
+machine Checker::apply_reference_writes(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease)
+crashes Trap
+{
+    transition { _ -> next(checker, syntax, typing, writes, release, true, 0) }
+    machine next(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping) {
+        transition index < writes.end && index < 256 {
+            true -> inspect(checker, syntax, typing, writes, release, snapshotting, index)
+            false -> finished(checker, syntax, typing, writes, release, snapshotting)
+        }
+    }
+    machine inspect(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
+    requires index < 256
+    {
+        transition writes.written[index] {
+            true -> apply(checker, syntax, typing, writes, release, snapshotting, index)
+            false -> {}
+        }
+        transition { _ -> next(checker, syntax, typing, writes, release, snapshotting, index + 1) }
+    }
+    machine apply(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool, index: u64 in Trapping)
+    requires index < 256
+    {
+        transition snapshotting {
+            true -> snapshot(checker, syntax, typing, release, index + 1)
+            false -> retire(checker, typing, index + 1, writes.contents[index])
+        }
+    }
+    machine snapshot(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, release: ReferenceRelease, place: u64 in Trapping) {
+        transition release {
+            ReferenceRelease::Invocation { expression, lender } -> observed(checker, syntax, typing, expression, lender, place)
+            ReferenceRelease::Refinement -> {}
+        }
+    }
+    machine observed(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, expression: Expression, lender: u64 in Trapping, place: u64 in Trapping) {
+        checker.write_epoch = checker.write_epoch + 1;
+        let write: WriteFootprint = WriteFootprint { place: place, callee: 0, whole: true };
+        Checker::snapshot_operands(checker, syntax, typing, expression, lender, write);
+    }
+    machine retire(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, contents: bool) {
+        Checker::forget_reference_descendants(checker, typing, place);
+        transition contents {
+            true -> { Checker::forget_contents(checker, typing, place); }
+            false -> { Checker::forget_place(checker, typing, place); }
+        }
+    }
+    machine finished(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, writes: &ReferenceWrites, release: ReferenceRelease, snapshotting: bool) {
+        transition snapshotting {
+            true -> next(checker, syntax, typing, writes, release, false, 0)
+            false -> {}
+        }
+    }
+}
+
+machine Checker::reject_reference_release(checker: &mut Checker, source_span: SourceSpan)
+crashes Trap
+{
+    Checks::reject(&mut checker.output, CheckDiagnosticCode::UnsupportedCheck, source_span);
+}
+
+// Executed calls preserve earlier operand reads before invalidating storage;
+// a universal refinement world has no executed operand history.
+public data ReferenceRelease [copy] {
+    case Refinement;
+    case Invocation(expression: Expression, lender: u64 in Trapping);
+}
+
+public machine Checker::clear_reference_origins(checker: &mut Checker)
+crashes Trap
+{
+    transition { _ -> next(checker, 0) }
+
+    machine next(checker: &mut Checker, index: u64 in Trapping) {
+        transition index < 256 {
+            true -> clear(checker, index)
+            _ -> done()
+        }
+    }
+
+    machine clear(checker: &mut Checker, index: u64 in Trapping)
+    requires index < 256
+    {
+        checker.reference_origins[index] = ReferenceOrigin::Unrecorded;
+        transition { _ -> next(checker, index + 1) }
+    }
+
+    machine done() {}
+}
+

@@ -6,6 +6,8 @@ use psi::checking::evaluation;
 use psi::checking::frames;
 use psi::checking::places;
 use psi::checking::qualification;
+use psi::checking::reference_origins;
+use psi::checking::references;
 use psi::checking::zone;
 use psi::resolution::resolution;
 use psi::syntax::syntax;
@@ -196,65 +198,37 @@ crashes Trap
         }
     }
     machine embedded(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: &ArgumentValues, offset: u64 in Trapping, place: u64 in Trapping) {
-        Checker::retire_refinement_referents(checker, typing, place);
+        Checker::forget_exclusive_referents(checker, syntax, typing, place, ReferenceRelease::Refinement);
         transition { _ -> next(checker, syntax, typing, required, given, selected, arguments, offset + 1) }
     }
     machine exclusive(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: &ArgumentValues, offset: u64 in Trapping, place: u64 in Trapping) {
-        Checker::retire_refinement_value(checker, typing, given, selected, offset, place);
+        Checker::retire_refinement_value(checker, syntax, typing, given, selected, offset, place);
         transition { _ -> next(checker, syntax, typing, required, given, selected, arguments, offset + 1) }
     }
 }
 
-machine Checker::retire_refinement_value(checker: &mut Checker, typing: &Typing, given: CallClauses, target: Selection, offset: u64 in Trapping, place: u64 in Trapping)
+machine Checker::retire_refinement_value(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, given: CallClauses, target: Selection, offset: u64 in Trapping, place: u64 in Trapping)
 crashes Trap
 {
     transition target {
-        Selection::Machine { handle } -> declared(checker, typing, given, offset, place, handle)
-        _ -> whole(checker, typing, place)
+        Selection::Machine { handle } -> declared(checker, syntax, typing, given, offset, place, handle)
+        _ -> whole(checker, syntax, typing, place)
     }
-    machine declared(checker: &mut Checker, typing: &Typing, given: CallClauses, offset: u64 in Trapping, place: u64 in Trapping, machine: u64 in Trapping) {
+    machine declared(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, given: CallClauses, offset: u64 in Trapping, place: u64 in Trapping, machine: u64 in Trapping) {
         let unknown: bool = Checker::writes_unknown(checker, machine);
         let entire: bool = Checker::writes_whole(checker, given.first_parameter + offset);
         transition unknown || entire {
-            true -> whole(checker, typing, place)
-            _ -> fields(checker, typing, place, machine)
+            true -> whole(checker, syntax, typing, place)
+            _ -> fields(checker, syntax, typing, place, machine)
         }
     }
-    machine fields(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, machine: u64 in Trapping) {
+    machine fields(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping, machine: u64 in Trapping) {
+        Checker::forget_exclusive_referents(checker, syntax, typing, place, ReferenceRelease::Refinement);
         Checker::forget_written_fields(checker, typing, place, machine);
     }
-    machine whole(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) {
+    machine whole(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, place: u64 in Trapping) {
+        Checker::forget_exclusive_referents(checker, syntax, typing, place, ReferenceRelease::Refinement);
+        Checker::forget_reference_origins(checker, typing, place);
         Checker::forget_place(checker, typing, place);
-    }
-}
-
-
-// Ownership of a container does not freeze the storage its reference fields
-// reach. Retire each materialized exclusive descendant through the existing
-// place/forget owner; scalar siblings keep their incoming snapshot facts.
-// Entry facts already materialized every live subject they described. A
-// postcondition-only projection will be created with fresh carrier evidence.
-machine Checker::retire_refinement_referents(checker: &mut Checker, typing: &Typing, root: u64 in Trapping)
-crashes Trap
-{
-    transition { _ -> next(checker, typing, root, 0) }
-    machine next(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, index: u64 in Trapping) {
-        transition root > 0 && index < checker.place_count {
-            true -> candidate(checker, typing, root, index)
-            false -> {}
-        }
-    }
-    machine candidate(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, index: u64 in Trapping) {
-        let place: Place = Checker::place_at(checker, index);
-        let row: TypeRow = TypeTable::row(&typing.types, place.type_handle);
-        let contained: bool = index + 1 != root && Checker::within(checker, index + 1, root);
-        transition contained && row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared {
-            true -> forgotten(checker, typing, root, index)
-            false -> next(checker, typing, root, index + 1)
-        }
-    }
-    machine forgotten(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, index: u64 in Trapping) {
-        Checker::forget_place(checker, typing, index + 1);
-        transition { _ -> next(checker, typing, root, index + 1) }
     }
 }
