@@ -291,6 +291,157 @@ macro_rules! failed_display {
     };
 }
 
+/// Every validated rewrite carries the same two fields — the transformed plan
+/// shared by later stages and the receipt the rewrite replayed — and exposes
+/// the same three accessors over them: the plan borrowed and shared, and the
+/// receipt. One declarative row per validated type expands the carrier and
+/// that impl, so a family names its receipt instead of restating the shell.
+#[macro_export]
+macro_rules! validated_transformed_receipt {
+    (
+        $(#[$carrier_doc:meta])*
+        $name:ident, $receipt:ident
+    ) => {
+        $(#[$carrier_doc])*
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $name {
+            transformed: Arc<SelectedInstructionPlan>,
+            receipt: $receipt,
+        }
+
+        impl $name {
+            pub fn transformed(&self) -> &SelectedInstructionPlan {
+                &self.transformed
+            }
+
+            pub fn shared_transformed(&self) -> Arc<SelectedInstructionPlan> {
+                Arc::clone(&self.transformed)
+            }
+
+            pub const fn receipt(&self) -> &$receipt {
+                &self.receipt
+            }
+        }
+    };
+}
+
+/// Every selected-rewrite receipt exposes the same four identities: the
+/// selected plan before and after, plus the optimization-unit and fuel
+/// identities the rewrite carried. One declarative row per receipt expands
+/// those accessors; receipts with extra accessors keep them in their own
+/// impl.
+#[macro_export]
+macro_rules! receipt_selected_identities {
+    ($name:ident) => {
+        impl $name {
+            /// Identity of the selected plan the rewrite consumed.
+            pub const fn source_selected(&self) -> SelectedInstructionPlanIdentity {
+                self.source_selected
+            }
+            /// Identity of the selected plan the rewrite produced.
+            pub const fn transformed_selected(&self) -> SelectedInstructionPlanIdentity {
+                self.transformed_selected
+            }
+            /// Optimization unit the rewrite's evidence belongs to.
+            pub const fn optimization_unit(&self) -> OptimizationUnitIdentity {
+                self.optimization_unit
+            }
+            /// Fuel schedule the rewrite ran under.
+            pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
+                self.fuel_schedule
+            }
+        }
+    };
+}
+
+/// Every selected-rewrite receipt records the same four shared identities and
+/// the coordinate rows its transformation names. One declarative row per
+/// family expands the structure, the coordinate's own accessor rows and the
+/// shared identity accessors, so a family states the rows that distinguish its
+/// receipt — with the prose that says which instruction it folded — instead of
+/// restating the shell around them.
+#[macro_export]
+macro_rules! rewrite_receipt {
+    (
+        $receipt:ident {
+            $( $(#[$meta:meta])* $field:ident : $ty:ty ),* $(,)?
+        }
+    ) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $receipt {
+            source_selected: SelectedInstructionPlanIdentity,
+            transformed_selected: SelectedInstructionPlanIdentity,
+            optimization_unit: OptimizationUnitIdentity,
+            fuel_schedule: FuelScheduleIdentity,
+            $($(#[$meta])* $field: $ty,)*
+        }
+
+        impl $receipt {
+            receipt_accessor_rows!(ref $receipt {
+                $($(#[$meta])* $field: $ty),*
+            });
+        }
+
+        receipt_selected_identities!($receipt);
+    };
+    ($receipt:ident) => {
+        #[derive(Debug, Clone, PartialEq, Eq)]
+        pub struct $receipt {
+            source_selected: SelectedInstructionPlanIdentity,
+            transformed_selected: SelectedInstructionPlanIdentity,
+            optimization_unit: OptimizationUnitIdentity,
+            fuel_schedule: FuelScheduleIdentity,
+        }
+
+        receipt_selected_identities!($receipt);
+    };
+}
+
+/// Every rewrite receipt's canonical identity: the family's own domain
+/// separator, both selected-plan identities, the optimization unit, the fuel
+/// schedule, the transformed function coordinate, and the rule's instruction
+/// coordinate(s). One declarative row per rule expands the encoder and the
+/// receipt's own `identity()` accessor, so a rule declares only what
+/// distinguishes its identity. A row's prose stays a plain `//` comment: a doc
+/// comment on a macro invocation is an unused attribute.
+#[macro_export]
+macro_rules! rewrite_receipt_identity {
+    (
+        $function:ident, $identity:ident, $receipt:ident,
+        $separator:literal, $phrase:literal, $($coordinate:ident),+ $(,)?
+    ) => {
+        pub(crate) fn $function(receipt: &$receipt) -> $identity {
+            $identity::from_canonical_bytes(&$crate::rewriting::rewrite_bytes(
+                $separator,
+                &receipt.source_selected.bytes(),
+                &receipt.transformed_selected.bytes(),
+                &receipt.optimization_unit.bytes(),
+                |bytes| {
+                    $crate::codec_bytes::push_encoded(bytes, receipt.fuel_schedule.marker().to_le_bytes());
+                    bytes.extend_from_slice(
+                        &u64::try_from(receipt.function_index)
+                            .expect(concat!($phrase, " function index fits u64"))
+                            .to_le_bytes(),
+                    );
+                    $($crate::codec_bytes::push_encoded(bytes, receipt.$coordinate.0.to_le_bytes());)+
+                },
+            ))
+        }
+
+        impl $receipt {
+            /// The durable transformation identity the post-allocation
+            /// manifest ledger records: the receipt's exact fields under its
+            /// family's domain separator.
+            pub fn identity(&self) -> $identity {
+                $function(self)
+            }
+        }
+    };
+}
+
+pub mod codec_bytes;
+pub mod cursor;
+pub mod rewriting;
 pub mod work_accounting;
 pub use work_accounting::WorkDefect;
 mod optimization_input;

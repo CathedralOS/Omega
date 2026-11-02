@@ -75,7 +75,7 @@ impl ValidatedPreAllocationMachineEffects {
         receipt: PreAllocationMachineEffectReceipt,
     });
 
-    fn new(
+    pub fn new(
         plan: PreAllocationMachineEffectPlan,
         receipt: PreAllocationMachineEffectReceipt,
     ) -> Self {

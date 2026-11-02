@@ -78,7 +78,7 @@ impl Work {
     /// Start from the pass's exact initial receipt. Every pass names its own
     /// starting totals rather than inheriting a default, so an initial charge
     /// is never implicit.
-    pub(crate) const fn new(initial: OptimizationWorkUsage) -> Self {
+    pub const fn new(initial: OptimizationWorkUsage) -> Self {
         Self { usage: initial }
     }
 

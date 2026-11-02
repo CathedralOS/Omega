@@ -16,7 +16,7 @@ pub(super) struct CutIndex<'a> {
 }
 
 impl<'a> CutIndex<'a> {
-    pub(super) fn new(
+    pub fn new(
         fixed: &'a [FixedPrecoloredInterval],
         transitions: &[EntryFixedViewTransition],
     ) -> Self {

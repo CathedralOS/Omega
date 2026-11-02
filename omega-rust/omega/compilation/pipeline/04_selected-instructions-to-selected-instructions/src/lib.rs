@@ -24,8 +24,8 @@ extern crate selected_instruction_analyses;
 use selected_instruction_analyses as analyses;
 use selected_instruction_analyses::work_accounting;
 
-mod codec_bytes;
-mod cursor;
+use selected_instruction_analyses::codec_bytes;
+use selected_instruction_analyses::cursor;
 mod reanalysis;
 mod selected_input;
 pub use selected_input::ValidatedSelectedAnalysis;

@@ -10,7 +10,7 @@
 
 /// Every successor edge a terminator names, in its physical record order;
 /// `HostedExitProcess` and `Return` name none.
-pub(super) use selected_instructions::terminator_successors;
+pub use selected_instructions::terminator_successors;
 
 use selected_instructions::{
     LocalStorageSlotId, SelectedBlock, SelectedCasePayloadTransport, SelectedFunction,
@@ -21,7 +21,7 @@ use selected_instructions::{
 /// Whether every virtual register's identifier is its own position in the
 /// roster: the dense-id precondition an index-arithmetic rewrite states before
 /// it counts, indexes or renumbers registers.
-pub(super) fn virtual_register_ids_are_dense(function: &SelectedFunction) -> bool {
+pub fn virtual_register_ids_are_dense(function: &SelectedFunction) -> bool {
     function
         .virtual_registers
         .iter()
@@ -32,7 +32,7 @@ pub(super) fn virtual_register_ids_are_dense(function: &SelectedFunction) -> boo
 /// The function a plan-level rewrite entrypoint resolves — every
 /// admission and audit begins by naming the index its member recorded.
 /// The `(block_index, member_index)` of the instruction `member` names.
-pub(super) fn member_position(
+pub fn member_position(
     function: &SelectedFunction,
     member: SelectedInstructionId,
 ) -> Option<(usize, usize)> {
@@ -47,7 +47,7 @@ pub(super) fn member_position(
         })
 }
 
-pub(super) fn function_at<'p, E>(
+pub fn function_at<'p, E>(
     plan: &'p selected_instructions::SelectedInstructionPlan,
     function_index: usize,
     miss: E,
@@ -61,9 +61,7 @@ pub(super) fn function_at<'p, E>(
 
 /// Every position of a block: its body instructions, then the instruction
 /// its terminator carries.
-pub(super) fn block_instructions(
-    block: &SelectedBlock,
-) -> impl Iterator<Item = &SelectedInstruction> {
+pub fn block_instructions(block: &SelectedBlock) -> impl Iterator<Item = &SelectedInstruction> {
     block
         .instructions
         .iter()
@@ -71,12 +69,12 @@ pub(super) fn block_instructions(
 }
 
 /// Every instruction identity a block carries, in block order.
-pub(super) fn block_instruction_ids(block: &SelectedBlock) -> impl Iterator<Item = u32> + '_ {
+pub fn block_instruction_ids(block: &SelectedBlock) -> impl Iterator<Item = u32> + '_ {
     block_instructions(block).map(|instruction| instruction.id.0)
 }
 /// The register-plus-unit transport surface one edge carries — the
 /// dead-path audit's per-edge scan cost.
-pub(super) fn edge_surface(successor: &SelectedSuccessor) -> usize {
+pub fn edge_surface(successor: &SelectedSuccessor) -> usize {
     successor.bindings.len()
         + successor.structural_bindings.len()
         + successor
@@ -85,17 +83,14 @@ pub(super) fn edge_surface(successor: &SelectedSuccessor) -> usize {
             .map_or(0, |case| case.payloads.len())
 }
 
-pub(super) fn local_slot_mentions(slot: LocalStorageSlotId, register: VirtualRegisterId) -> bool {
+pub fn local_slot_mentions(slot: LocalStorageSlotId, register: VirtualRegisterId) -> bool {
     matches!(slot, LocalStorageSlotId::Spill { register: subject } if subject == register)
 }
 
 /// Whether one successor edge mentions `register` in any transport field or
 /// slot destination. Arguments read the register on the edge; parameters
 /// define it there. Neither belongs to the same-block substitution surface.
-pub(super) fn successor_mentions(
-    successor: &SelectedSuccessor,
-    register: VirtualRegisterId,
-) -> bool {
+pub fn successor_mentions(successor: &SelectedSuccessor, register: VirtualRegisterId) -> bool {
     let binding_mentions = successor
         .bindings
         .iter()

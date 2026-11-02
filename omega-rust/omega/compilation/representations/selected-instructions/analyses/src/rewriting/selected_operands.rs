@@ -1,7 +1,7 @@
 //! Constraint-row operand construction shared by producer rewrites.
 use selected_instructions::{SelectedInstruction, SelectedOperand, VirtualRegisterId};
 
-pub(super) fn selected_operand(
+pub fn selected_operand(
     constraint: &register_model::RegisterOperandConstraint,
     register: VirtualRegisterId,
 ) -> SelectedOperand {
@@ -19,7 +19,7 @@ pub(super) fn selected_operand(
 /// The copy-shaped instruction the producer rewrites emit: the copy row's
 /// operand grammar rebound to the fold's value and result registers, with
 /// the source instruction's roster surface and provenance carried over.
-pub(super) fn copy_shaped(
+pub fn copy_shaped(
     id: selected_instructions::SelectedInstructionId,
     kind: selected_instructions::SelectedInstructionKind,
     copy: &register_model::RegisterInstructionConstraint,
