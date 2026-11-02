@@ -1,7 +1,7 @@
 # Compound index guard
 
-Owning tasks: BUILD-OWNED-TARGET-SELECTION and the remaining compound-index
-acceptance under INDEX-INDUCTIVE-BOUNDS. This row preserves one fact and operation:
+Owning task: BUILD-OWNED-TARGET-SELECTION, retiring this row's remaining Source
+target family while preserving its compound-index requirement. This row preserves one fact and operation:
 `0 <= b * 20 + a < 200` permits storing `7` at `grid[b * 20 + a]`.
 The index remains a two-variable `i32 in Wrapping` computation and the grid retains
 200 elements. The authored runtime coordinates remain `a = 15`, `b = 3`.
@@ -12,7 +12,7 @@ The [root](main.omg) and nine places carry the same sentence and operation:
 [const name](const_name/main.omg), [nested machine](other_state/main.omg),
 [another machine](other_machine/main.omg), and
 [another target body](target_body/main.omg). Each place has its adjacent
-`invalid/main.omg` and corresponding pass/fail pin under `tests/omega/facts`.
+`invalid/main.omg` and corresponding pass/fail pin under `tests/omega/{pass,fail}/facts`.
 All positive Build files bind `ProgramEntry` for the four hosted targets and
 all positive Sources declare exit zero.
 
