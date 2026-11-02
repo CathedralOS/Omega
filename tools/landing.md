@@ -23,6 +23,10 @@ gh pr create --draft --base main --head work/NAME --title "lane: statement" --bo
 
 Reuse the existing pull request for the branch. Do not open a second one.
 Record the actual revision, commands, results, known limitations and claim ticket in the PR.
+Keep routine validation evidence in the PR and existing CI artifacts. Do not
+create GitHub releases or tags to host evidence; release publication is separate
+product-distribution work and requires an explicit user request. Existing
+historical evidence links remain valid and need not be removed.
 
 ## Mark ready and enqueue when the change can merge
 
