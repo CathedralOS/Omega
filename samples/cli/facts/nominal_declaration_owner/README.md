@@ -61,11 +61,13 @@ The nine pairs are pinned under `tests/omega/{pass,fail}/facts/` as
 canonical record ordering, full-capture changes and preservation of supplied/core
 owners have focused tests in `package-compilation::anonymous_owner`.
 
-This bounded advance covers genuinely missing/default Builds and leaves the
-parent capability open: authored anonymous Build activations still need final
-owner sealing after their nonempty dependency join, while preserving private
-activation state. Named-only OCREQ V1, additional constant forms and the other
-remaining MODULE-NAMESPACE-RESOLUTION requirements are not closed by this row.
+This row covers genuinely missing/default Builds, the only anonymous roots.
+An authored `build.omg` must declare a package, application or workspace role
+with its name, so its key is that name plus canonical source lineage, and two
+named lineages stay distinct even with equal content
+([declarations](../../../../wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity)).
+Additional constant forms and the other remaining MODULE-NAMESPACE-RESOLUTION
+requirements are not closed by this row.
 
 ## Build-owned target-body migration
 
