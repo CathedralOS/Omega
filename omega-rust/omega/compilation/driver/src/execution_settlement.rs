@@ -375,6 +375,7 @@ fn select_checked_providers(
         services,
         &build_config.root_bindings,
         selected_target_profile,
+        package_inputs,
     );
     let provider_planning::CheckedProviderSelection {
         settlement: providers,
@@ -387,12 +388,7 @@ fn select_checked_providers(
         timings,
     )?;
     let mut selected_program_entry = entry?
-        .map(|entry| {
-            entry.settle_calling_plans(
-                &providers.boundary_calling_plan_realizations,
-                package_inputs,
-            )
-        })
+        .map(|entry| entry.settle_calling_plans(&providers.boundary_calling_plan_realizations))
         .transpose()?;
     if let Some(entry) = &mut selected_program_entry {
         entry.bind_physical_adapter(typed, &selected_provider_provenance)?;

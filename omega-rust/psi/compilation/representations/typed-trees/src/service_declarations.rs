@@ -9,7 +9,7 @@ mod catalog;
 pub mod signatures;
 pub use catalog::{
     PreparedServiceCatalog, PreparedServiceDeclaration, PreparedServiceRequirement,
-    PreparedServiceSurface, ServiceCatalog, exact_identity,
+    PreparedServiceSurface, RetainedServiceSurface, ServiceCatalog, exact_identity,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
