@@ -91,6 +91,23 @@ jobs:
           OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
         run: python tools/ci/compiler_pilot.py
+      - name: Retain exact structural diagnostic output
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.samples != ''
+        env:
+          OMEGA_STRUCT_TRACE: '1'
+        run: |
+          python - <<'PYTHON'
+          import json
+          from pathlib import Path
+          from tools.sample_native_gate import run
+          root = Path('build/compiler-pilot')
+          summary = json.loads((root / 'summary.json').read_text())
+          assert any(stage['name'] == 'authenticate optimized producer' and stage['passed'] for stage in summary['stages'])
+          completed = run([summary['producer']['cli'], 'samples/cli/facts/transparent_generic_aliases/qualified_cases/main.omg', '--check'], 90)
+          output = 'child timed out' if completed is None else f'child exit: {completed.returncode}\n' + completed.stdout + completed.stderr
+          (root / 'structural-diagnostic.log').write_text(output)
+          print(output)
+          PYTHON
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json') if (root / name).is_file()]"
