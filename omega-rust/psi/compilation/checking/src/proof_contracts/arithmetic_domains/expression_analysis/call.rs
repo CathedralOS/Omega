@@ -76,7 +76,7 @@ fn returned_referent_range(
         return None;
     }
     let primitive = program.primitive_type_reference(result.referee)?;
-    let callee = crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol)?;
+    let callee = crate::machine_calls::calls::call_contract(program, call)?;
     let frames = crate::CallFrameResolver::new(program)?;
     let (_, selected_state) =
         crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)?;
@@ -279,7 +279,7 @@ fn declared_return_range(
         typed_trees::references::StaticArgumentCall::Expression(expression, call),
     );
     let callee = is_independent
-        .then(|| crate::machine_calls::calls::callee_entry_contract(program, call.target_symbol))
+        .then(|| crate::machine_calls::calls::call_contract(program, call))
         .flatten();
     let can_have_ensured = is_independent
         && (callee.as_ref().is_some_and(|callee| {
@@ -346,9 +346,8 @@ fn argument_collection_lengths(
     let Some(state) = walk.state else {
         return Vec::new();
     };
-    let Some(callee) =
-        crate::machine_calls::calls::callee_entry_contract(walk.program, call.target_symbol)
-            .filter(|_| call.selects_only_nominal_route())
+    let Some(callee) = crate::machine_calls::calls::call_contract(walk.program, call)
+        .filter(|_| call.selects_only_nominal_route())
     else {
         return Vec::new();
     };
@@ -426,8 +425,7 @@ fn exact_ordinary_actual_intervals(
     if !call.selects_only_nominal_route() {
         return None;
     }
-    let callee =
-        crate::machine_calls::calls::callee_entry_contract(walk.program, call.target_symbol)?;
+    let callee = crate::machine_calls::calls::call_contract(walk.program, call)?;
     let parameters = callee.parameters.iter().collect::<Vec<_>>();
     let arguments = expression_table(walk.program)
         .expression_handles(call.arguments)
