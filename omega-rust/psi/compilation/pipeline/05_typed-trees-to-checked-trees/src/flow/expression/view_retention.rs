@@ -28,7 +28,6 @@ use typed_trees::types::TypeReferenceHandle;
 use validation::borrow_contracts::ViewReturnInputSource;
 use validation::borrow_contracts::borrow_carrying_owner_paths;
 use validation::reference_result_custody::input_carrier_type;
-use validation::reference_result_custody::loan_place_segments;
 use validation::{
     CanonicalPlace, call_target_entry_symbol, call_target_return_type, call_target_symbol,
     effective_member_symbol, value_element_has_builtin_coordinate,
@@ -1122,10 +1121,14 @@ impl Execution<'_, '_, '_> {
             // The declaration supplies the lifetime relation, but the completed
             // value belongs to its contextual carrier. Generic preparation can
             // give those carriers different member symbols. Translate through
-            // their declaration selectors once, just as returned loans do;
-            // raw symbol equality would discard a valid leaf after storage.
+            // their declaration selectors once, just as returned loans do.
+            // Resolve the selected applied carrier, not the declaration-only
+            // loan namespace: its prepared case and payload symbols are the
+            // coordinates used by completed storage reads.
             let Some(path) = crate::borrow::structural_owner_path(self.program, &source.owner_path)
-                .and_then(|path| loan_place_segments(self.program, returned, &path))
+                .and_then(|path| {
+                    validation::canonical_qualification_path(self.program, returned, &path).ok()
+                })
             else {
                 *retention = Some(Handle::invalid());
                 return;

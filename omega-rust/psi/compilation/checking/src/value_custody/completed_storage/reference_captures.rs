@@ -58,64 +58,7 @@ pub fn reference_sources_at_path(
     current: Handle<FlowStorageSnapshot>,
 ) -> StoredOperand {
     let mut resolver = Resolver::new(program, control, current);
-    let selected = resolver.select(value, path);
-    if matches!(selected, Selection::Unavailable)
-        && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
-    {
-        for (query, result) in &resolver.memo {
-            if !control.operands.is_valid(query.value) {
-                continue;
-            }
-            let capture = control.operands.get(query.value);
-            eprintln!(
-                "CHECKSITE completed-reference unavailable={} query={:?} expression={} type={} operand={capture:?}",
-                matches!(result, Selection::Unavailable),
-                query.value,
-                program.expression_table.display_name(capture.expression),
-                program.normalized_type_identity_text(capture.type_reference),
-            );
-            eprintln!("CHECKSITE completed-reference path={:?}", query.path);
-            for leaf in control
-                .captured_reference_leaves
-                .span_or_empty(capture.reference_leaves)
-            {
-                eprintln!(
-                    "CHECKSITE completed-reference leaf={leaf:?} path={:?}",
-                    control.operand_child_paths.span_or_empty(leaf.path)
-                );
-            }
-        }
-        for ((profile, reference, path), result) in &resolver.profile_memo {
-            if control.operand_retentions.is_valid(*profile) {
-                eprintln!(
-                    "CHECKSITE completed-reference profile={profile:?} type={} path={path:?} unavailable={} data={:?}",
-                    program.normalized_type_identity_text(*reference),
-                    matches!(result, Some(Selection::Unavailable)),
-                    control.operand_retentions.get(*profile)
-                );
-                for leaf in control
-                    .operand_retained_leaves
-                    .span_or_empty(control.operand_retentions.get(*profile).leaves)
-                {
-                    eprintln!(
-                        "CHECKSITE completed-reference profile-leaf={leaf:?} path={:?}",
-                        control.operand_retained_paths.span_or_empty(leaf.path)
-                    );
-                    if control.operand_retentions.is_valid(leaf.retention) {
-                        let retained = control.operand_retentions.get(leaf.retention);
-                        eprintln!("CHECKSITE completed-reference leaf-retention={retained:?}");
-                        if control.operands.is_valid(retained.descriptor) {
-                            eprintln!(
-                                "CHECKSITE completed-reference leaf-descriptor={:?}",
-                                control.operands.get(retained.descriptor)
-                            );
-                        }
-                    }
-                }
-            }
-        }
-    }
-    stored_selection(selected)
+    stored_selection(resolver.select(value, path))
 }
 
 /// Follow the saved completed-value association of an owned observation.

@@ -21,7 +21,6 @@ use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
 use validation::borrow_contracts::borrow_carrying_owner_paths;
 use validation::completed_storage::captured_retention_profiles_at_path;
-use validation::reference_result_custody::loan_place_segments;
 /// Ephemeral results of the shared immutable completed-storage query.
 /// This is neither a second store inventory nor permission to load a pointer.
 pub(super) enum StoredReferenceContents {
@@ -307,8 +306,11 @@ impl Execution<'_, '_, '_> {
             let mut complete = true;
             let mut matched = false;
             for source in &sources {
-                let Some(output) = loan_place_segments(self.program, returned, &source.result_path)
-                else {
+                let Ok(output) = validation::canonical_qualification_path(
+                    self.program,
+                    returned,
+                    &source.result_path,
+                ) else {
                     return Some(HandleSpan::empty());
                 };
                 let suffix = match source.kind {
@@ -331,10 +333,15 @@ impl Execution<'_, '_, '_> {
                         ) else {
                             return Some(HandleSpan::empty());
                         };
-                        let projected = loan_place_segments(self.program, type_reference, &suffix)
-                            .and_then(|path| {
-                                owned_projection_type_reference(self.program, type_reference, &path)
-                            });
+                        let projected = validation::canonical_qualification_path(
+                            self.program,
+                            type_reference,
+                            &suffix,
+                        )
+                        .ok()
+                        .and_then(|path| {
+                            owned_projection_type_reference(self.program, type_reference, &path)
+                        });
                         if projected.is_none_or(|reference| !self.is_view_type(reference)) {
                             return Some(HandleSpan::empty());
                         }
@@ -355,7 +362,12 @@ impl Execution<'_, '_, '_> {
                 )
                 .and_then(|mut path| {
                     path.extend_from_slice(&suffix);
-                    loan_place_segments(self.program, actual.type_reference, &path)
+                    validation::canonical_qualification_path(
+                        self.program,
+                        actual.type_reference,
+                        &path,
+                    )
+                    .ok()
                 });
                 let Some(selected) = selected else {
                     complete = false;
