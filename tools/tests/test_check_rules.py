@@ -10,7 +10,8 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import check_rules
 from check_rules import (
-    RATCHETS, SHAPE_GATES, SOURCE_CONTEXT_READS, SOURCE_READS, STAGE06_ROOT, STATUS_PHRASES,
+    CACHE_STATE_NAMES, DENSE_ID_MAPS, RATCHETS, SHAPE_GATES, SOURCE_CONTEXT_READS,
+    SOURCE_READS, STAGE06_ROOT, STATUS_PHRASES,
     board_task_ids, changed_golden_rows, citing_documents, count_source_reads,
     count_status_phrases, dangling_task_ids, dangling_task_violations, fact_row_violations,
     golden_rows, golden_violations, lanes, measurement_violations, nearest_rows,
@@ -189,6 +190,53 @@ class Stage06RatchetTests(unittest.TestCase):
                 self.assertIn(f"--{ratchet.flag}", violations[0])
                 rewritten = read_baseline(write_ratchet(ratchet, {self.UNIT: 1}))
                 self.assertEqual(ratchet_violations(ratchet, {self.UNIT: 1}, rewritten), [])
+
+
+class DenseStateTests(unittest.TestCase):
+    """Dense IDs index flat tables, and derived data is not cached."""
+
+    tree = Stage06RatchetTests.tree
+
+    def test_maps_keyed_by_dense_ids_count(self):
+        text = """
+            values: BTreeMap<ValueId, u32>,
+            blocks: &mut std::collections::BTreeSet<semantic_vocabulary::BlockId>,
+            symbols: FxHashMap<SymbolHandle, Row>,
+            rows: HashMap<Handle<Row>, Row>,
+            names: BTreeMap<String, ValueId>, // keyed by a name, not an ID
+            pairs: BTreeMap<(ValueId, BlockId), u32>,
+            // BTreeMap<PlaceId, u32> in a comment
+        """
+        self.assertEqual(DENSE_ID_MAPS.count(text), 4)
+
+    def test_cache_state_counts(self):
+        text = """
+            struct Checker { shape_cache: Vec<u8>, summaries: StateMutationSummaryCache }
+            fn check(memos: &mut CheckingMemos, memory: &Memory, remember: bool) {
+                let mut cache: LayoutCache = LayoutCache::default();
+                let digest_memo = 0;
+                let index: OwnedIndex<Row> = KeyedRows::default();
+            }
+        """
+        self.assertEqual(CACHE_STATE_NAMES.count(text), 7)
+
+    def test_test_code_does_not_count(self):
+        root = self.tree({
+            "omega-rust/a/src/lib.rs": "struct A { values: BTreeMap<ValueId, u32> }\n"
+                                       "#[cfg(test)]\nmod tests { fn f(cache: BTreeMap<ValueId, u32>) {} }\n",
+            "omega-rust/a/src/tests.rs": "struct T { values: BTreeMap<ValueId, u32> }",
+            "omega-rust/a/tests/t.rs": "struct T { values: BTreeMap<ValueId, u32> }",
+        })
+        self.assertEqual(ratchet_counts(DENSE_ID_MAPS, root), {"omega-rust/a/src/lib.rs": 1})
+        self.assertEqual(ratchet_counts(CACHE_STATE_NAMES, root), {})
+
+    def test_a_new_map_fails_and_a_removed_one_lowers_the_baseline(self):
+        path = "omega-rust/a/src/lib.rs"
+        violations = ratchet_violations(DENSE_ID_MAPS, {path: 3}, {path: 2})
+        self.assertIn("3 maps keyed by dense IDs, baseline 2", violations[0])
+        self.assertIn("IdTable", violations[0])
+        violations = ratchet_violations(CACHE_STATE_NAMES, {path: 1}, {path: 2})
+        self.assertIn("--update-cache-state", violations[0])
 
 
 class RatchetBaselineTests(unittest.TestCase):
