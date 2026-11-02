@@ -323,9 +323,8 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 59 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 1 fact spells it in all nine places
-    (`target_layout_derived_constant`, `target_scoped_constant_realization`).
+    Frontier: 58 `samples/cli/facts/*/target_body` places still spell the
+    prefix.
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact

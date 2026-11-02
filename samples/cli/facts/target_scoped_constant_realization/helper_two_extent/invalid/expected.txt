@@ -1,0 +1,2 @@
+constant checking: scalar range condition
+bounds [1, 1] lie outside [0, 0]
