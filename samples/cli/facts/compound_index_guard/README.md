@@ -91,8 +91,29 @@ The migrated target-body prototype with the setup split freshly passed normal
 preparation and both engines, and its upperless twin refused the intended index
 bound on that same producer. The earlier prototype's missing explicit boundary
 `reaches` was an authored setup error, retained separately from compiler evidence.
-Whole-row qualification, counterfactuals, affected-current-compiler applicability,
-scoped goldens and final review are pending; the broader parent tasks remain open.
+Whole-row Source qualification on that retained producer currently checks seven
+positive places. The valid call-result and strengthened match places refuse:
+`cannot prove index main.b * 20 + a is within length 200 in put::entry`.
+The direct-copy control checks, while both the direct call and saved-input call
+variants refuse. The frozen trace retains the call's exact public result/input
+equation and a complete empty write frame; ownership or write-frame weakening is
+not justified. The numeric proof must consume that equation in the same wrapping
+compound observation. The original direct-call witness remains unchanged.
+
+The first match attempt also had an authored Rust-style dereference assignment;
+Omega's transparent `route = tag` syntax is now corrected, with the old refusal
+retained. It is distinct from the subsequent valid-program bounds refusal.
+
+Five focused preservation Sources are proper (one positive / four refusals),
+including exact actuals, stale field snapshots and distinct repeated calls; the
+one runnable snapshot control has native/Terminal zero and agreement. These are
+baseline observations on the retained producer, not a repaired-current-compiler
+claim. A newer optimized producer is available remotely for the frozen affected
+consumer challenge; its local use awaits safe shared-workspace headroom.
+
+Whole-row native qualification, counterfactuals, affected-current-compiler
+applicability, scoped goldens and final review remain pending. The broader parent
+tasks stay open.
 
 Commands and frozen inputs are retained in the existing ignored qualification
 directory `build/compound-index-build-selection-20261102`.
