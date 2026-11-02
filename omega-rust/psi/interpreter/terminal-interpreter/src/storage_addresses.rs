@@ -14,7 +14,7 @@ use crate::execution::TerminalExecution;
 use crate::execution::frame_field_mut;
 use crate::primitive_storage::{PrimitiveStorageEndpoint, scalar_field_projection};
 use crate::structural_inputs::byte_arrays::storage::ArrayStorageHome;
-use crate::values::{StructuralRuntimePlace, TerminalScalarValue};
+use crate::values::{StructuralRuntimePlace, StructuralScalarRuntimeField, TerminalScalarValue};
 use semantic_vocabulary::{IntegerValue, ScalarType};
 use terminal_psi::{Operation, StructuralArgument, StructuralPathSegment};
 use terminal_semantics::reference_storage_size;
@@ -25,6 +25,22 @@ fn exhausted() -> TerminalInterpretError {
 
 /// A finite canonical location path, tagged independently of source types.
 type Coordinate = (u64, u64);
+
+/// Interpreter cells and their containing aggregate homes use the same private
+/// address identity. An alias retains the source coordinate, not its child's
+/// artifact-local field numbers or fresh execution namespace.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum ScalarStorageAddressKey {
+    Scalar(StructuralRuntimePlace),
+    Field(StructuralScalarRuntimeField),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ScalarStorageAddress {
+    namespace: u64,
+    root: u64,
+    path: Vec<Coordinate>,
+}
 
 /// Elias gamma codes have an unambiguous end, including for zero (encode n+1).
 /// A leading sentinel retains every leading zero. Complete components append
@@ -76,6 +92,35 @@ fn path_coordinates(
 }
 
 impl TerminalExecution<'_> {
+    pub(crate) fn scalar_storage_address(
+        &self,
+        key: &ScalarStorageAddressKey,
+    ) -> Result<ScalarStorageAddress, TerminalInterpretError> {
+        if let Some(original) = self.component_scalar_addresses.get(key) {
+            return Ok(original.clone());
+        }
+        let (home, final_field) = match key {
+            ScalarStorageAddressKey::Scalar(home) => (home, None),
+            ScalarStorageAddressKey::Field(field) => {
+                let kind = match field.namespace {
+                    crate::values::StructuralFieldNamespace::Member => 3,
+                    crate::values::StructuralFieldNamespace::CasePayload => 4,
+                };
+                (&field.parent, Some((kind, field.field.get())))
+            }
+        };
+        let mut path = path_coordinates(&home.path)?;
+        path.extend(final_field);
+        Ok(ScalarStorageAddress {
+            namespace: self
+                .local_structural_identities
+                .exposure_namespace
+                .ok_or_else(exhausted)?,
+            root: home.opaque_identity,
+            path,
+        })
+    }
+
     /// Read-only scalar fields can retain declaration predicates and therefore
     /// need not have a canonical primitive-store path. Resolve their original
     /// cell through the same authority and re-view owners as scalar reads,
@@ -199,18 +244,15 @@ impl TerminalExecution<'_> {
                 )?;
                 return self.endpoint_identity(endpoint);
             }
-            PrimitiveStorageEndpoint::Scalar(place) => place,
+            PrimitiveStorageEndpoint::Scalar(place) => {
+                let address =
+                    self.scalar_storage_address(&ScalarStorageAddressKey::Scalar(place))?;
+                return Ok((Some(address.namespace), address.root, address.path));
+            }
             PrimitiveStorageEndpoint::ScalarField(field) => {
-                // Inline scalar fields share the same terminated path grammar
-                // as other subplaces. Their selected namespace is a segment
-                // tag, never an untagged integer confused with a path suffix.
-                let (kind, value) = match field.namespace {
-                    crate::values::StructuralFieldNamespace::Member => (3, field.field.get()),
-                    crate::values::StructuralFieldNamespace::CasePayload => (4, field.field.get()),
-                };
-                let mut path = path_coordinates(&field.parent.path)?;
-                path.push((kind, value));
-                return Ok((None, field.parent.opaque_identity, path));
+                let address =
+                    self.scalar_storage_address(&ScalarStorageAddressKey::Field(field))?;
+                return Ok((Some(address.namespace), address.root, address.path));
             }
             PrimitiveStorageEndpoint::OwnedArrayElement { home, index } => {
                 let (depth, place, _) = home.scalar_array_frame();

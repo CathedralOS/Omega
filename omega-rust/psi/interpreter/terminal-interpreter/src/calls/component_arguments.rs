@@ -20,6 +20,7 @@ use terminal_psi::{
     StructuralArgument, StructuralMultiplicity,
 };
 
+use super::component_scalar_arguments::LentScalarArgument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::program::TerminalProgram;
@@ -30,6 +31,7 @@ pub(super) struct PreparedComponentArguments {
     pub(super) remaining_affine: BTreeSet<StructuralAffineDiscard>,
     pub(super) remaining_claims: BTreeMap<ClaimId, crate::execution::LiveClaim>,
     pub(super) retired_sources: Vec<PlaceId>,
+    pub(super) borrowed_mutations: Vec<StructuralRuntimePlace>,
 }
 
 /// The original prepared tuple stays owned by the paused caller's component
@@ -39,6 +41,9 @@ pub(crate) struct ComponentInputCustody {
     pub(crate) source: Option<crate::effects::byte_buffers::BoundaryArguments>,
     pub(crate) values: Vec<TerminalStructuralValue>,
     pub(crate) contents: Vec<crate::TerminalStructuralContents>,
+    opaque_arguments: Vec<usize>,
+    scalar_arguments: Vec<LentScalarArgument>,
+    _scalar_scope: Option<crate::scalar_storage::ScalarLoanScope>,
 }
 
 impl ComponentInputCustody {
@@ -58,18 +63,27 @@ impl ComponentInputCustody {
         if entry.structural_parameters.len() != self.values.len() {
             return Err(malformed());
         }
-        for (parameter, value) in entry.structural_parameters.iter().zip(&self.values) {
-            if matches!(
+        for &index in &self.opaque_arguments {
+            let parameter = entry
+                .structural_parameters
+                .get(index)
+                .ok_or_else(malformed)?;
+            let value = self.values.get(index).ok_or_else(malformed)?;
+            if !matches!(
                 parameter.access,
                 terminal_psi::reading_borrow_pair_pattern!()
             ) {
-                let home = StructuralRuntimePlace::from(child.structural_value(parameter.place)?);
-                child.component_lent_host_atoms.insert(home.clone(), ())?;
-                child.structural_host_atoms.insert(
-                    home,
-                    crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
-                )?;
+                return Err(malformed());
             }
+            let home = StructuralRuntimePlace::from(child.structural_value(parameter.place)?);
+            child.component_lent_host_atoms.insert(home.clone(), ())?;
+            child.structural_host_atoms.insert(
+                home,
+                crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
+            )?;
+        }
+        for argument in &self.scalar_arguments {
+            argument.establish(child)?;
         }
         Ok(())
     }
@@ -95,7 +109,7 @@ impl<'artifact> TerminalExecution<'artifact> {
     }
 
     pub(super) fn prepare_component_arguments(
-        &self,
+        &mut self,
         arguments: &[StructuralArgument],
         completion_receipts: &[CompletionReceipt],
         receiver: &BoundaryMachineDeclaration,
@@ -143,6 +157,8 @@ impl<'artifact> TerminalExecution<'artifact> {
             std::mem::take(&mut prepared.values)
         };
         let mut contents = Vec::new();
+        let mut opaque_arguments = Vec::new();
+        let mut scalar_arguments = Vec::new();
         let mut remaining_affine = self.live_affine_frontier.clone();
         let receiver_types = self.structural_types();
         let provider_types = provider.program.structural_types();
@@ -271,12 +287,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             if lent
                 && (self.structural_cases.keys().any(within_value)
                     || self.structural_byte_storage.keys().any(within_value)
-                    || self.empty_array_storage.rows.keys().any(within_value)
-                    || self.structural_primitive_storage.keys().any(within_value)
-                    || self
-                        .structural_scalar_fields
-                        .keys()
-                        .any(|field| within_value(&field.parent)))
+                    || self.empty_array_storage.rows.keys().any(within_value))
             {
                 return Err(reject(
                     "component borrowed input needs its original materialized storage carrier",
@@ -306,9 +317,23 @@ impl<'artifact> TerminalExecution<'artifact> {
                     "component input requires a loan or resource storage transfer carrier",
                 ));
             }
+            let scalar_backing = lent
+                && (self.structural_primitive_storage.keys().any(within_value)
+                    || self
+                        .structural_scalar_fields
+                        .keys()
+                        .any(|field| within_value(&field.parent)));
+            if scalar_backing {
+                scalar_arguments.push(self.prepare_component_scalar_argument(
+                    value,
+                    argument_index,
+                    required.access,
+                    provider,
+                    supplied.structural_type,
+                )?);
             // The existing storage map authenticates the actual atom. A plain
             // opaque_identity, equal layout or synthesized input cannot answer it.
-            if !self.forward_host_atom(value) {
+            } else if !self.forward_host_atom(value) {
                 if !owned {
                     return Err(reject(
                         "component input requires actual unchanged opaque host storage",
@@ -321,6 +346,8 @@ impl<'artifact> TerminalExecution<'artifact> {
                     provider,
                     supplied.structural_type,
                 )?);
+            } else if lent {
+                opaque_arguments.push(argument_index);
             }
             // The caller binder authenticated these exact occurrence facts
             // before custody staging. Installation joined their full nominal
@@ -355,15 +382,29 @@ impl<'artifact> TerminalExecution<'artifact> {
             completion_receipts,
             &receiver.structural_parameters,
         )?;
+        let borrowed_mutations = scalar_arguments
+            .iter()
+            .filter_map(|argument| argument.mutated_home().cloned())
+            .collect();
+        let scalar_scope =
+            (!scalar_arguments.is_empty()).then(crate::scalar_storage::ScalarLoanScope::new);
+        let scalar_arguments = scalar_arguments
+            .into_iter()
+            .map(|argument| argument.lend(self, scalar_scope.as_ref().ok_or_else(malformed)?))
+            .collect::<Result<_, _>>()?;
         Ok(PreparedComponentArguments {
             custody: ComponentInputCustody {
                 source: lending.then_some(prepared),
                 values,
                 contents,
+                opaque_arguments,
+                scalar_arguments,
+                _scalar_scope: scalar_scope,
             },
             remaining_affine,
             remaining_claims,
             retired_sources,
+            borrowed_mutations,
         })
     }
 }
