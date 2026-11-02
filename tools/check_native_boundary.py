@@ -13,7 +13,7 @@ relying on a source-text search.
 
 The Omega firewall rules carry the edges that existed when they landed
 (2026-11-01) as `FIREWALL_ALLOWANCES`: 11 from Omega compilation crates into
-source-side Psi and 20 between Omega stages. Each row names the imports that
+source-side Psi and 16 between Omega stages. Each row names the imports that
 hold it. A row whose edge is gone fails until it is deleted, so the list only
 shrinks; two rows are sanctioned by pipeline.md and the rest are debt.
 """
@@ -178,10 +178,6 @@ FIREWALL_ALLOWANCES = (
     Allowance(stage("08"), stage("05"), f"{STAGE_DEBT} (ValidatedSelectedAnalysis)"),
     Allowance(stage("08"), stage("06"), f"{STAGE_DEBT} (StagedOptimizedPostAllocationMachinePlan)"),
     Allowance(stage("08"), stage("07"), f"{STAGE_DEBT} (StagedOptimizedSelectedFormEncoding)"),
-    Allowance(stage("09"), stage("05"), f"{STAGE_DEBT} (ValidatedSelectedAnalysis)"),
-    Allowance(stage("09"), stage("06"), f"{STAGE_DEBT} (StagedOptimizedPostAllocationMachinePlan)"),
-    Allowance(stage("09"), stage("07"), f"{STAGE_DEBT} (StagedOptimizedSelectedFormEncoding)"),
-    Allowance(stage("09"), stage("08"), f"{STAGE_DEBT} (StagedOptimizedResolvedSelectedFormLayout)"),
 )
 
 
