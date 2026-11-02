@@ -11,7 +11,7 @@ pub(crate) mod float_comparisons;
 mod float_intrinsic;
 mod operator_adapter;
 
-pub(crate) use float_intrinsic::derive_selected_primitive_float_binary_execution;
+pub use float_intrinsic::derive_selected_primitive_float_binary_execution;
 pub use operator_adapter::{
     CheckedOperatorAuthoredUseKind, derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,
