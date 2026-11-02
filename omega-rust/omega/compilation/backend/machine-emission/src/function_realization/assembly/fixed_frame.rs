@@ -170,7 +170,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
         pre_physical_manifest: pre_physical,
         post_allocation_manifest: post.identity,
         selected,
-        pre_allocation_machine_effects: machine.effects().receipt().identity(),
+        pre_allocation_machine_effects: machine.effects().identity,
         post_allocation_machine: machine.machine().receipt().identity(),
         baseline_pre_layout: encoding.identity(),
         pre_layout: encoding.identity(),

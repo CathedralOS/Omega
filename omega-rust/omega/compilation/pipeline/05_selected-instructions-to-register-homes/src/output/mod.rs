@@ -158,6 +158,8 @@ pub enum AllocationAdmissionError {
     /// The exercised recovery does not match the declared allocation-recovery
     /// selection: a declared rule did not run, or an undeclared one did.
     SelectionMismatch,
+    /// The current program's machine effects could not be analyzed.
+    MachineEffects(selected_instructions_to_selected_instructions::MachineEffectStageError),
 }
 
 stage_error_display!(AllocationAdmissionError, "allocation admission failed");

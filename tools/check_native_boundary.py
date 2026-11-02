@@ -160,8 +160,6 @@ FIREWALL_ALLOWANCES = (
               "Debt: calls staging_custody_core_accessors; StagedOptimizedCustodyCore"),
     Allowance(stage("05"), stage("04"),
               f"{STAGE_DEBT} (SelectedProgramRef, ValidatedSelectedAnalysis, allocation legality)"),
-    Allowance(stage("06"), stage("05"),
-              f"{STAGE_DEBT} (ValidatedRegisterHomes, ValidatedPreAllocationMachineEffects)"),
 )
 
 
