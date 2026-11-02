@@ -538,6 +538,39 @@ fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot r
 fail/facts/data_where_standing_nested_borrowed_field_target_body rejected 4620ms expected @96f561907a23
 	exact arithmetic in machine `X86Compute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmCompute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_write_only_call_result rejected 2244ms expected @bfee8ea078a6
+	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_write_only_const_name rejected 3366ms expected @bfee8ea078a6
+	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_write_only_enclosing_array_violation rejected 2199ms expected @bfee8ea078a6
+	data `Envelope`'s default domain is still FALSE at state exit: the invariant window opened on `envelope` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/data_where_standing_write_only_enclosing_owner_violation rejected 2198ms expected @bfee8ea078a6
+	data `Envelope`'s default domain is still FALSE at state exit: the invariant window opened on `envelope` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/data_where_standing_write_only_field rejected 2225ms expected @bfee8ea078a6
+	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_write_only_forbidden_read rejected 2255ms expected @bfee8ea078a6
+	machine `fill` state `entry` reads field `peer` from write-only parameter `counter`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
+fail/facts/data_where_standing_write_only_invalid_store rejected 2248ms expected @bfee8ea078a6
+	machine `fill` state `entry` assignment stores a value not provably within its data's `where` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
+fail/facts/data_where_standing_write_only_local rejected 2280ms expected @bfee8ea078a6
+	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_write_only_match_join rejected 2265ms expected @bfee8ea078a6
+	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_write_only_other_machine rejected 2238ms expected @bfee8ea078a6
+	exact arithmetic in machine `add` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_write_only_other_state rejected 2233ms expected @bfee8ea078a6
+	exact arithmetic in machine `next` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_write_only_outer_owner_violation rejected 2204ms expected @bfee8ea078a6
+	data `Outer`'s default domain is still FALSE at state exit: the invariant window opened on `outer` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/data_where_standing_write_only_parameter rejected 2222ms expected @bfee8ea078a6
+	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_write_only_recast_owner_violation rejected 2242ms expected @bfee8ea078a6
+	data `Outer`'s default domain is still FALSE at state exit: the invariant window opened on `outer` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/data_where_standing_write_only_relational_debt rejected 2250ms expected @bfee8ea078a6
+	data `Counter`'s default domain is still FALSE at state exit: the invariant window opened on `counter` must close first -- restore the `where` facts before this consumption point (ch11)
+fail/facts/data_where_standing_write_only_target_body rejected 2109ms expected @bfee8ea078a6
+	exact arithmetic in machine `X86Compute::compute` state `compute` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `ArmCompute::compute` state `compute` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/default_domain_mathematical_coupling_rejected rejected 4046ms expected @2cfbda3635e2+wt
 	data `Budget`'s default domain is still FALSE at state exit: the invariant window opened on `budget` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/dependency_type_qualified_call_by_value_rejected rejected 6236ms expected @900e2e7ae6af
@@ -3200,7 +3233,7 @@ pass/borrow/storage_address_loop_copy_identity_exit checked 4071ms check-target:
 pass/borrow/storage_address_window_identity_exit checked 3383ms check-target:linux_x86_64 @ccdb99ca2214
 pass/borrow/stored_write_only_metadata checked 2560ms @ccdb99ca2214
 pass/borrow/write_only_composed_forward_exit checked 16781ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrow/write_only_constrained_record_field checked 4565ms @8fce926f9735
+pass/borrow/write_only_constrained_record_field checked 5168ms check-target:macos_arm64 @bfee8ea078a6
 pass/borrow/write_only_projected_state_receiver_exit checked 3690ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/write_only_whole_scalar_replace checked 2711ms @ccdb99ca2214
 pass/borrows/aliased_descriptor_slot_after_last_use_exit checked 3442ms check-target:macos_arm64 @ccdb99ca2214
@@ -6809,6 +6842,18 @@ pass/facts/data_where_standing_through_other_machine_exit checked 6842ms check-t
 pass/facts/data_where_standing_through_other_state_exit checked 5470ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_through_parameter_exit checked 5373ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_through_target_body_exit checked 5527ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/data_where_standing_write_only_call_result checked 5168ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_write_only_const_name checked 5313ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_write_only_direct_field checked 5286ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_write_only_field checked 5129ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_write_only_local checked 5102ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_write_only_match_join checked 5067ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_write_only_other_machine checked 5065ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_write_only_other_state checked 5085ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_write_only_parameter checked 5083ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_write_only_predicate_helper checked 5116ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_write_only_relational_window checked 5887ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_write_only_target_body checked 4943ms check-target:macos_arm64 @bfee8ea078a6
 pass/facts/default_domain_mathematical_coupling_exit checked 16581ms check-target:macos_arm64 @2cfbda3635e2+wt
 pass/facts/dependency_type_qualified_call_by_value_exit checked 9091ms check-target:macos_arm64 @900e2e7ae6af
 pass/facts/dependency_type_qualified_call_operator_token_exit checked 7746ms check-target:macos_arm64 @900e2e7ae6af
