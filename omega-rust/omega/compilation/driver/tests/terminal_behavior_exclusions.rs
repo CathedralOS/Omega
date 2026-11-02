@@ -191,7 +191,13 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
     }
 }
 
-fn assert_calling_review_outlives_source(relative: &str, physical_refusal: Option<&str>) {
+fn assert_calling_review_outlives_source(
+    relative: &str,
+    physical_refusal: Option<&str>,
+) -> (
+    Vec<provider_planning::calling_policy_plans::BoundaryCallingPlanRealization>,
+    Vec<effects::provider_plan::ProviderPlan>,
+) {
     use std::sync::Arc;
 
     let (
@@ -405,6 +411,7 @@ fn assert_calling_review_outlives_source(relative: &str, physical_refusal: Optio
             ),
         }
     }
+    (realizations, plans)
 }
 
 #[test]
@@ -413,9 +420,33 @@ fn opaque_policy_review_activates_after_source_drop() {
         "tests/omega/pass/build/terminal_calling_policy_execution/main.omg",
         None,
     );
-    assert_calling_review_outlives_source(
+    let (realizations, plans) = assert_calling_review_outlives_source(
         "tests/omega/pass/facts/generic_calling_policy/shared_parent_roots_exit/main.omg",
         None,
+    );
+    let mut competing_root_observed = false;
+    for plan in &plans {
+        let root = plan.schema.root_application_identity().unwrap();
+        for attachment in &plan.schema.calling_applications {
+            let selected = realizations
+                .iter()
+                .find(|realization| {
+                    realization.calling_owner_application() == root
+                        && realization.materialized_signature().abi() == &attachment.abi
+                        && realization.commitment == attachment.plan.commitment
+                })
+                .expect("the selected attachment has an actual evaluated application");
+            competing_root_observed |= realizations.iter().any(|other| {
+                other.calling_owner_application() != root
+                    && other.materialized_signature().abi() == &attachment.abi
+                    && other.commitment != selected.commitment
+                    && other.native_application().unwrap() != selected.native_application().unwrap()
+            });
+        }
+    }
+    assert!(
+        competing_root_observed,
+        "the unused root must actually evaluate a different plan for the selected member ABI"
     );
     assert_calling_review_outlives_source(
         "tests/omega/pass/facts/generic_calling_policy/ordinary_parent_fused_exit/main.omg",
