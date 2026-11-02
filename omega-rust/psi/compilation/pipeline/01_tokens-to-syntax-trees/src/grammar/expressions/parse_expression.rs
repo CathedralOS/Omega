@@ -45,7 +45,7 @@ pub(crate) fn parse_proof_fact_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_expression_handle_in(syntax_trees, input, ExpressionContext::ProofFact)
+    super::proof_fact_expressions::parse(syntax_trees, input, ExpressionContext::ProofFact)
 }
 
 /// Only owning declaration predicates introduce a logical subject.
@@ -53,7 +53,7 @@ pub(crate) fn parse_logical_proof_fact_expression_handle<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ExpressionHandle> {
-    parse_expression_handle_in(syntax_trees, input, ExpressionContext::LogicalProofFact)
+    super::proof_fact_expressions::parse(syntax_trees, input, ExpressionContext::LogicalProofFact)
 }
 
 /// Parse the operator subset that can appear in a const generic argument

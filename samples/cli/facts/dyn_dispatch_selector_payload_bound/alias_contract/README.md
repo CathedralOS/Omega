@@ -1,58 +1,48 @@
-# Named public payload bound
+# A named public result bound
 
-This is another production of the [payload-bound fact](../README.md), under
-`RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY`: a transparent checked mathematical
-definition expresses the public requirement's existing guarantee.
+These examples use a named mathematical predicate to state the same public
+`result <= 88u64` guarantee as the [parent production](../README.md). The dynamic
+selector still chooses the executable implementation; the predicate only
+justifies the later `88u64 - result` operation.
 
-Dispatching a trait method through a dynamic trait carrier whose contract
-establishes `result <= 88u64` preserves the return bound across the selector and
-data lanes, discharging exact subtraction `88u64 - result`.
+Fact: Dispatching a trait method through a dynamic trait carrier (dyn / trait conformance) whose contract establishes result <= 88u64 preserves the return bound across the selector and data lanes, discharging exact subtraction 88u64 - result.
 
-The parent production's values, operation, inline implementation and transport
-shapes are unchanged. Only the public guarantee is spelled
-`within_payload_bound(result, 88u64)`, a public typed mathematical definition of
-`value <= ceiling`. The original inline-contract production remains in the parent
-folder. This is one fact with two contract productions.
+`within_payload_bound(value, ceiling)` is a transparent checked definition of
+`value <= ceiling`, following [named mathematical definitions](../../../../../wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions).
+The implementation members publish ordinary integer
+comparisons. Every positive calls both implementations with inputs 10 and 20
+and checks differences 50, 60, 40 and 30. Both match branches therefore have
+distinct observable results. The target place uses ordinary named
+implementations and four explicit Build choices, with architecture tags 17/29
+that detect a swapped selection.
 
-At baseline `e06334c63dc4a811b0bcf9f530cbc91b14b23eac`, optimized producer
-`b3a895c26149208c72bfa1f186e0c26bee9486ca59746de925d0f7fb5f8f5520`, the
-local alias production refuses exact subtraction in `main` local `diff`.
-The public predicate was lost by result-bound projection, and proper result
-intervals were not retained on saved call observations.
+The root and all nine places retain four hosted entries and expected exit 0 in
+both engines. Each twin changes only the published bound to 89 in the requirement
+and both selected member signatures. The executable bodies and runtime inputs
+stay unchanged. That weaker promise must reject at exact subtraction.
+The [parent table](../README.md) links every positive and reject twin.
 
-The repaired optimized compiler executes
-the root and all nine places with native exit 0 and Terminal exit 0 on
-`linux_x86_64`. Run `omega run --both <project>/main.omg` for the root and each
-of `local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`,
-`other_state`, `other_machine`, and `target_body`. All retain four hosted
-`ProgramEntry` bindings and expected exit 0.
+**BUILD-OWNED-TARGET-SELECTION** owns this source migration;
+**RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns preservation of the named
+public result guarantee and the exact selector through checking and execution.
+This is a second contract production of the existing fact, not another row.
+The parent's requirements cover establishment, exact inputs and selections,
+composition, proof boundaries, Terminal Psi, provider/layout/calling plans,
+instructions and actual native execution here as well.
 
-Each place has an `invalid/main.omg` twin that changes only the public alias's
-ceiling from 88 to 89. The implementation still returns 38 and still guarantees
-88, but its private guarantee cannot replace the public requirement's weakened
-guarantee. All nine twins reject with `exact arithmetic` at the consuming
-subtraction. The fixtures are pinned as
-`tests/omega/pass/facts/dyn_dispatch_payload_alias_through_<place>_exit` and
-`tests/omega/fail/facts/dyn_dispatch_payload_alias_through_<place>_public_bound_weakened`.
+Earlier baseline `e06334c63dc4a811b0bcf9f530cbc91b14b23eac`, using optimized
+producer `b3a895c26149208c72bfa1f186e0c26bee9486ca59746de925d0f7fb5f8f5520`,
+refused the local subtraction after losing the public predicate. The earlier
+repair's Linux observations and existing fixture goldens remain historical;
+they do not validate these changed programs. The current focused run covers all
+nineteen projects in this production alongside the nineteen parent projects.
+Repair revision `dbde2a0eb0ce5a77198bc4ee3f26d5253cf4a56c` passes all nineteen
+projects here on Linux x86-64 and macOS ARM64: ten positives execute successfully
+and nine controls reject at exact arithmetic. All nine pinned positive places
+exit 0 in both native and Terminal execution. The [parent validation record](../README.md#validation-and-remaining-scope)
+links the hosted runs and describes their complete focused selection.
 
-Establishment comes from checked implementation refinement. Predicate projection
-consumes the checked, reduced mathematical term with exact captured public
-result and immutable formal identities. It never opens an implementation body
-or supplies storage authority. The saved result is an invocation observation
-carrying its public interval, including a proper interval; it is not an
-invitation to replay an effectful dynamic call. Calls and returns preserve that
-observation through the existing transport shapes. Unknown operators, mutable
-formal values and unrepresentable bounds supply no interval.
-
-The inherited selector/data separation, four target Build bindings, Terminal
-lowering, ABI realization, indirect-call emission and authored runtime oracle
-remain the parent fact's mechanism. The measured matching-host runs exercise
-that full path; bindings alone establish no foreign-host run. Raw command,
-producer, source, engine and rejection records are retained in the task's
-ignored evidence checkpoint.
-
-This production establishes integer alias result-bound transport and
-public/private contract separation. The [IEEE alias production](../../dynamic_float_refinement/alias_contract/README.md)
-establishes literal IEEE entailment separately. Suspending requirements,
-crash/ranking support, package slot metadata, product parity and foreign-host
-execution remain open in the parent task.
+Matching fixture pairs remain under
+`tests/omega/{pass,fail}/facts/dyn_dispatch_payload_alias_through_*`.
+Broader operational contracts, product parity, Windows x86-64 execution and
+Linux ARM64 execution remain separate parent acceptance.

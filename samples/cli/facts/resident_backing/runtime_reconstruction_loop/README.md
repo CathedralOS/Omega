@@ -30,7 +30,13 @@ Run `omega run --both main.omg` and check `invalid/main.omg`. The positive
 binds all four hosted targets; execution observations are host-specific. Both
 engines must exit 0. Corpus copies retain the positive and invalid control.
 
-This establishes custody through reconstruction, checked-to-Terminal lowering,
-and native execution with separate live backing. It does not yet prove the
-Vec copy loop's recursive descriptor-equality contracts or its complete
-growth/release/reset lifecycle; those remain the parent outcome's acceptance.
+The recursive contracts also preserve each output's exact base and length.
+The rank-preserving call into `step` supplies no induction hypothesis: exit
+reasoning observes that body, then uses the contract only at its independently
+checked decreasing call to `carry_pair`. The helper's inputs retain their
+qualification receipts, and each completed result retains its field equations.
+Neither equal geometry nor descent establishes missing ownership or premises.
+
+This establishes custody and descriptor guarantees through reconstruction,
+checked-to-Terminal lowering, and native execution with separate live backing.
+The Vec growth/release/reset lifecycle remains the parent outcome's acceptance.

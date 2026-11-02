@@ -305,8 +305,8 @@ fn parses_plain_and_boundary_traits() {
 fn parses_trait_owned_fixed_operator_requirements() {
     let source = r#"
         trait Ranked<T> {
-            operator < compare(left: T, right: T) -> bool;
-            operator equivalent(left: T, right: T) -> bool;
+            machine < compare(left: T, right: T) -> bool;
+            machine equivalent(left: T, right: T) -> bool;
         }
     "#;
     let parsed = super::parse_source(source, "trait operators should parse");
@@ -319,6 +319,17 @@ fn parses_trait_owned_fixed_operator_requirements() {
         Some(OperatorSpelling::Less)
     );
     assert_eq!(parsed.items.state_signature(requirements[1]).spelling, None);
+}
+
+#[test]
+fn rejects_retired_operator_introducer_on_trait_requirements() {
+    for source in [
+        "trait Ranked<T> { operator < compare(left: T, right: T) -> bool; }",
+        "trait Ranked<T> { operator equivalent(left: T, right: T) -> bool; }",
+    ] {
+        let error = super::parse_tokenized_error(source, "trait `operator` must reject");
+        super::expect_error(&error, "the `operator` introducer is retired");
+    }
 }
 
 #[test]

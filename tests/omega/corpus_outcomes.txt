@@ -95,6 +95,14 @@ fail/contracts/completed_anonymous_cast_out_of_range_rejected rejected 401ms exp
 	anonymous value `2147483648` cannot land exactly in cast target `i32` in machine `exercise` state `entry` local `shifted`; type an operand before division if integer division was intended
 fail/contracts/completed_unit_call_requires_entry_case rejected 1331ms expected @d2f3e99f1e08
 	cannot prove requires contract for call retain from main: choice == constructor:80:package:d763eef68b74911c6c73d80b6728d886b63f0a89ca52797e221e9658799aab4d::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/runtime_recursive_result_false_base rejected 5958ms expected @3a4409d34005
+	cannot prove ensures contract for exit from carry at statement 2: result.first == first
+	cannot prove ensures contract for exit from carry at statement 2: result.second == second
+fail/contracts/runtime_recursive_result_swapped_actual rejected 7117ms expected @3a4409d34005
+	cannot prove ensures contract for exit from carry at statement 1: result.first == first
+	cannot prove ensures contract for exit from carry at statement 1: result.second == second
+	cannot prove ensures contract for exit from step at statement 0: result.first == first
+	cannot prove ensures contract for exit from step at statement 0: result.second == second
 fail/contracts/transition_argument_effects_reject_old_observation rejected 1317ms expected @d2f3e99f1e08
 	cannot prove requires contract for call finish from main: cell.value == 7 (needs fact `observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/dependent/data_requires_cyclic_handoff_store_rejected rejected 882ms expected @ddc8d6fcecbc
@@ -2257,51 +2265,51 @@ fail/facts/open_const_implementation_statement_const_result_rejected rejected 33
 fail/facts/open_const_implementation_statement_saved_output_rejected rejected 326ms expected @ea132c1fff8b
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
-fail/facts/open_index_distributivity_commutative_semiring_rejected rejected 4923ms expected @af2cbd5e6837
+fail/facts/open_index_distributivity_commutative_semiring_rejected rejected 8284ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<(A + B) * (C + D)>==Indexed<D * B + C * A + A * D + B * C>` is not established: actual `Indexed<(A + B) * (C + D)>` and expected `Indexed<D * B + C * A + A * D + B * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses associativity, distributivity over `add`; `add` of `IndexSemiring` licenses commutativity, associativity
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$71b9730bc4249a5a$0$2697::entry:statement-1:Indexed<(2 + 3) * (4 + 5)>==Indexed<5 * 3 + 4 * 2 + 2 * 5 + 3 * 4>` is not established: actual `Indexed<(2 + 3) * (4 + 5)>` and expected `Indexed<5 * 3 + 4 * 2 + 2 * 5 + 3 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses associativity, distributivity over `add`; `add` of `IndexSemiring` licenses commutativity, associativity
-fail/facts/open_index_distributivity_conditional_law_rejected rejected 6048ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$71b9730bc4249a5a$0$2728::entry:statement-1:Indexed<(2 + 3) * (4 + 5)>==Indexed<5 * 3 + 4 * 2 + 2 * 5 + 3 * 4>` is not established: actual `Indexed<(2 + 3) * (4 + 5)>` and expected `Indexed<5 * 3 + 4 * 2 + 2 * 5 + 3 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses associativity, distributivity over `add`; `add` of `IndexSemiring` licenses commutativity, associativity
+fail/facts/open_index_distributivity_conditional_law_rejected rejected 7797ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2653::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_foreign_addition_rejected rejected 3393ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2684::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_foreign_addition_rejected rejected 8796ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexProduct` licenses distributivity over `add`; `add` of `IndexSum` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$a9da6f701d472faf$0$2664::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexProduct` licenses distributivity over `add`; `add` of `IndexSum` licenses no law
-fail/facts/open_index_distributivity_missing_law_member_rejected rejected 593ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$a9da6f701d472faf$0$2695::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexProduct` licenses distributivity over `add`; `add` of `IndexSum` licenses no law
+fail/facts/open_index_distributivity_missing_law_member_rejected rejected 512ms expected @c2cfe5f3dece+wt
 	closed conformance `Canonical satisfies IndexSemiring` is incomplete: missing `IndexSemiring::distribute`
-fail/facts/open_index_distributivity_mutual_distributivity_rejected rejected 5343ms expected @af2cbd5e6837
+fail/facts/open_index_distributivity_mutual_distributivity_rejected rejected 8923ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses distributivity over `add`; `add` of `IndexSemiring` licenses distributivity over `multiply`
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2669::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses distributivity over `add`; `add` of `IndexSemiring` licenses distributivity over `multiply`
-fail/facts/open_index_distributivity_repeated_operand_law_rejected rejected 6790ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2700::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses distributivity over `add`; `add` of `IndexSemiring` licenses distributivity over `multiply`
+fail/facts/open_index_distributivity_repeated_operand_law_rejected rejected 9738ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2647::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_call_result_rejected rejected 4965ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2678::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_call_result_rejected rejected 7223ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2641::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_const_name_rejected rejected 4884ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2672::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_const_name_rejected rejected 9757ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2641::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_field_rejected rejected 3437ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2672::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_field_rejected rejected 7644ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2641::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_local_rejected rejected 4992ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2672::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_local_rejected rejected 8490ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2639::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_match_join_rejected rejected 4891ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2670::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_match_join_rejected rejected 8392ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2640::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_other_machine_rejected rejected 3823ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2671::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_other_machine_rejected rejected 8187ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2650::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_other_state_rejected rejected 3748ms expected @af2cbd5e6837
-	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2642::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_parameter_rejected rejected 3836ms expected @af2cbd5e6837
-	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2641::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_through_target_body_rejected rejected 4566ms expected @af2cbd5e6837
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2681::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_other_state_rejected rejected 8357ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
 	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2673::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
-fail/facts/open_index_distributivity_unproved_law_rejected rejected 4267ms expected @af2cbd5e6837
+fail/facts/open_index_distributivity_through_parameter_rejected rejected 9146ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2672::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_through_target_body_rejected rejected 8923ms expected @c2cfe5f3dece+wt
+	index compatibility condition `index-equality:Indexed:rearrange::entry:statement-1:Indexed<A * (B + C)>==Indexed<A * B + A * C>` is not established: actual `Indexed<A * (B + C)>` and expected `Indexed<A * B + A * C>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+	index compatibility condition `index-equality:Indexed:rearrange$specialized$cdd8c007864398e7$0$2704::entry:statement-1:Indexed<2 * (3 + 4)>==Indexed<2 * 3 + 2 * 4>` is not established: actual `Indexed<2 * (3 + 4)>` and expected `Indexed<2 * 3 + 2 * 4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `multiply` of `IndexSemiring` licenses no law; `add` of `IndexSemiring` licenses no law
+fail/facts/open_index_distributivity_unproved_law_rejected rejected 10159ms expected @c2cfe5f3dece+wt
 	machine `times_index_distribute` realizes `IndexSemiring::distribute` but requires `times_index(a, plus_index(b, c)) == plus_index(times_index(a, b), times_index(a, c))`, which the requirement does not imply; callers of the requirement prove only its own `requires`
 fail/facts/open_record_const_closed_call_call_result_rejected rejected 2255ms expected @e9f492c5ccc6+wt
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
@@ -2631,6 +2639,15 @@ fail/facts/resident_backing_runtime_cells_unbounded_rejected rejected 8432ms exp
 	cannot prove requires contract for call merge_vacant_extents from exchange: prefix.taken.length == 0 || suffix.length == 0 || embed(suffix.base) == embed(prefix.taken.base) + embed(prefix.taken.length) (needs fact `left.length == 0 || right.length == 0 || embed(right.base) == embed(left.base) + embed(left.length)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.base == storage.base
 	cannot prove ensures contract for exit from exchange at statement 6: result.storage.length == storage.length
+fail/facts/resident_backing_runtime_growth_swapped_source rejected 24692ms expected @3a4409d34005
+	cannot prove ensures contract for exit from copy_prefix at statement 1: result.original.base == original.base
+	cannot prove ensures contract for exit from copy_prefix at statement 1: result.original.length == original.length
+	cannot prove ensures contract for exit from copy_prefix at statement 1: result.replacement.base == replacement.base
+	cannot prove ensures contract for exit from copy_prefix at statement 1: result.replacement.length == replacement.length
+	cannot prove ensures contract for exit from step at statement 3: result.original.base == original.base
+	cannot prove ensures contract for exit from step at statement 3: result.original.length == original.length
+	cannot prove ensures contract for exit from step at statement 3: result.replacement.base == replacement.base
+	cannot prove ensures contract for exit from step at statement 3: result.replacement.length == replacement.length
 fail/facts/resident_backing_runtime_helper_loop_duplicate rejected 15333ms expected @4083ce80c932
 	cannot use `first` in machine `step` state `entry` (statement 1) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
 fail/facts/resident_backing_runtime_loop_changed_arrival rejected 8586ms expected @e993f43ba966+wt
@@ -2641,19 +2658,56 @@ fail/facts/resident_backing_runtime_loop_wrong_origin rejected 18867ms expected 
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.first.length == first.length
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.second.base == second.base
 	cannot prove ensures contract for exit from carry_pair at statement 2: result.second.length == second.length
-fail/facts/resident_backing_runtime_reconstruction_loop_changed_content rejected 17449ms expected @bfa46c0c6cb4
+fail/facts/resident_backing_runtime_reconstruction_loop_changed_content rejected 18701ms expected @3a4409d34005
 	construction value is not proven in domain `Extent::Granted` in forward state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
 	construction value is not proven in domain `Extent::Vacant` in forward state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	cannot prove ensures contract for exit from forward at statement 3: result.length == storage.length
 	cannot prove ensures contract for exit from forward at statement 3: Granted.content(old(&storage)) == Granted.content(&result)
 	cannot prove ensures contract for exit from forward at statement 3: Vacant.content(old(&storage)) == Vacant.content(&result)
 	cannot prove default-domain field requirement for return from forward, state entry, at statement 3: Extent requires Extent::Granted
 	cannot prove default-domain field requirement for return from forward, state entry, at statement 3: Extent requires Extent::Vacant
 	linear value `storage` reaches scope exit without being consumed or transferred in machine `forward` state `entry`
-fail/facts/resident_backing_runtime_reconstruction_loop_duplicate rejected 18164ms expected @bfa46c0c6cb4
+fail/facts/resident_backing_runtime_reconstruction_loop_duplicate rejected 17838ms expected @3a4409d34005
 	cannot use `first` in machine `step` state `entry` (statement 1) after `first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `first` first
 fail/facts/resident_backing_target_body_missing_vacancy rejected 5378ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resource_representation_buffered_call_result_capacity_rejected rejected 9402ms expected @b9975b628a04
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2813: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2825: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_const_name_capacity_rejected rejected 8683ms expected @b9975b628a04
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2811: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2823: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_field_capacity_rejected rejected 10317ms expected @b9975b628a04
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2820: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2832: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_local_capacity_rejected rejected 4782ms expected @b07784918316
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2805: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2817: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_match_join_capacity_rejected rejected 8947ms expected @b9975b628a04
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2813: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2825: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_other_machine_capacity_rejected rejected 8896ms expected @b9975b628a04
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2820: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2832: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_other_state_capacity_rejected rejected 8992ms expected @b9975b628a04
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2819: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2831: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_parameter_capacity_rejected rejected 8920ms expected @b9975b628a04
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2815: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2827: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+fail/facts/resource_representation_buffered_target_body_capacity_rejected rejected 9919ms expected @b9975b628a04
+	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2837: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
+	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2849: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
 fail/facts/runtime_index_application_call_index_through_call_result_rejected rejected 1427ms expected @c79bb8268163+wt
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Index` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -3048,6 +3102,8 @@ fail/memory/bump_allocator_reset_missing_prefix rejected 11974ms expected @2cfbd
 	cannot prove requires contract for call reset from invalid: embed(retired.length) + embed(strategy.remaining) == embed(strategy.capacity) (needs fact `embed(retired.length) + embed(strategy.remaining) == embed(strategy.capacity)` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/memory/bump_allocator_reset_with_live_resident rejected 5195ms expected @2cfbda3635e2+wt
 	implicit domain weakening in argument `retired` for state `reset::entry` drops `Resident<Policy, Word>`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
+fail/modules/package_qualified_scalar_access_denied rejected 5391ms expected @97115d9cab54
+	accessor write application: the access plan does not permit this operation
 fail/ownership/completed_case_claim_return_double_consume rejected 2699ms expected @02336e3b5381+wt
 	cannot use `pair.first` in machine `retire_pair` state `entry` (statement 1) after `pair.first` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `pair.first` first
 fail/ownership/nonreturning_claim_alternative_double_consume rejected 1802ms expected @f8fd5ea66130
@@ -3056,6 +3112,8 @@ fail/ownership/selected_constructor_missing_linear_move rejected 1028ms expected
 	linear match custody requires every reachable arm to move the same live source claims; a missing move leaves an obligation live on only some edges
 fail/parse/retired_standalone_boundary_requirement rejected 28ms @409a3e82132d+wt
 	tests/omega/fail/parse/retired_standalone_boundary_requirement/main.omg:6:10: standalone `boundary requirement Owner::operation(...);` declarations are retired; declare the operation as a member of a boundary trait (`boundary trait Owner { machine operation(...) reaches ...; }`), using a one-member trait when it needs independent provider selection
+fail/parse/retired_trait_operator_requirement rejected 680ms expected @c2cfe5f3dece+wt
+	tests/omega/fail/parse/retired_trait_operator_requirement/main.omg:5:5: the `operator` introducer is retired: a trait requirement binds operator syntax as an ordinary machine -- write `machine + name(...)`, or `machine name(...)` without a token
 fail/proofs/completed_guard_converted_snapshot_without_condition rejected 1136ms expected @2cede9e14eca
 	exact arithmetic in machine `invoke` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `echo(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/proofs/completed_guard_private_boolean_without_condition rejected 1893ms expected @2cede9e14eca
@@ -3074,6 +3132,8 @@ fail/proofs/refined_conversion_does_not_strengthen_base_view rejected 4347ms exp
 	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
 fail/proofs/representation_agreement_empty_encoder rejected 5249ms expected @e97ed21415d9
 	cannot prove ensures contract for exit from FalseAgreement::encode_covers at statement 0: RefuseEveryValue.try_from(value) == Result::Ok
+fail/proofs/reviewed_mathematical_data_contract_rejected rejected 733ms expected @2949992b6aa5
+	data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/proofs/selected_law_citation_linear_resource_reuse rejected 4194ms expected @8c2fec05b2ca
 	cannot use `token` in machine `main` state `entry` (statement 2) after `token` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `token` first
 fail/providers/applied_calling_surface_incomplete_result rejected 8128ms expected @d9073fc2214b
@@ -3146,6 +3206,8 @@ fail/traits/dyn_selected_reach_unknown_parameter_rejected rejected 27928ms expec
 	machine `observe` publishes service reach `<none>` but its checked body reaches undeclared service `Journal`
 fail/traits/dyn_selector_leading_crash_uncovered rejected 2077ms expected @3caadfad789f+wt
 	call from `observe` to `pass` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
+fail/traits/dyn_selector_unrelated_requirement rejected 911ms expected @dbde2a0eb0ce
+	a `dyn PayloadEvaluator` selector cannot call `UnrelatedEvaluator::compute`: `PayloadEvaluator` does not inherit `UnrelatedEvaluator`
 fail/traits/dyn_slot_metadata_unqualified rejected 685ms expected @e7be0895dec5+wt
 	argument `packet` for state `view` expects `&[u8][in Utf8]`, got `named value`
 fail/traits/dyn_statement_call_operand_positions_rejected rejected 16980ms expected @cb2bb7751cae+wt
@@ -3165,8 +3227,12 @@ fail/traits/public_method_evidence_not_inferred rejected 1101ms expected @b852a3
 	a value call to generic machine `choose` cannot derive a complete type/const/machine/conformance specialization tuple from its argument and result types; add a concrete destination annotation or provide concrete argument type evidence
 fail/traits/public_method_inferred_actual_conflict rejected 1431ms expected @b852a38544d0
 	argument `right` for state `pair` expects `&u32`, got `named value`
+fail/traits/refined_borrowed_implementation_wrong_region rejected 705ms expected @0f36ecb1ab02
+	conformance `SelectedReading` supplies lifetime arguments that disagree with the call's ordinary borrow constraints at `select` in `observe`: argument 0: selected Some("generic(name(nominal\\\\(package-owner\\\\(32:67b903e4ce8ed27f6c0bb5ea19594a87a4f2bc805cd6dec4c7206efe2fea2712\\\\)\\\\,path\\\\(View\\\\)\\\\)),region(owner(1384:1),ordinal(1)))"), required Some("generic(name(nominal\\\\(package-owner\\\\(32:67b903e4ce8ed27f6c0bb5ea19594a87a4f2bc805cd6dec4c7206efe2fea2712\\\\)\\\\,path\\\\(View\\\\)\\\\)),region(owner(1384:1),ordinal(0)))")
 fail/traits/refinement_clause_terminators rejected 3ms expected @89956713be3d
 	tests/omega/fail/traits/refinement_clause_terminators/main.omg:4:29: expected `machine`, found identifier `terminates`
+fail/traits/requirement_evidence_wrong_region rejected 7060ms expected @b9975b628a04
+	provider `SelectedReader::read` does not refine requirement `read` evidence parameter `Evidence`: forwarded binder `Evidence` does not guarantee the exact `Reading` trait application
 fail/traits/runtime_dyn_family_local_width_requires rejected 9611ms expected @7b6988120e7e
 	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/runtime_dyn_family_reordered_roster_requires rejected 8930ms expected @7b6988120e7e
@@ -3447,7 +3513,7 @@ pass/borrow/runtime_write_only_exclusive_reference_projected_exit checked 3088ms
 pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit checked 4202ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_indexed_record_copy_exit checked 3695ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_local_affine_aggregate_exit checked 3128ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrow/runtime_write_only_qualified_array_element_exit checked 4581ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrow/runtime_write_only_qualified_array_element_exit checked 15904ms check-target:macos_arm64 @3139db74cf0d
 pass/borrow/runtime_write_only_record_array_argument_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_reference_aggregate_alias_exit checked 16047ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit checked 16752ms check-target:macos_arm64 @ccdb99ca2214
@@ -3492,7 +3558,7 @@ pass/borrows/carry_property_declared checked 3255ms @ccdb99ca2214
 pass/borrows/case_payload_shared_transition_exit checked 34572ms check-target:macos_arm64 @8fce926f9735
 pass/borrows/case_payload_state_loan_exit checked 16758ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/collection_element_loans_exit checked 3405ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/collection_metadata_descriptor_storage_exit checked 6358ms check-target:macos_arm64 @e2e21da6e1d9
+pass/borrows/collection_metadata_descriptor_storage_exit checked 18209ms check-target:macos_arm64 @3139db74cf0d
 pass/borrows/completed_reference_read_preserves_prefix checked 3981ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/completed_reference_result_preserves_input_holds_exit checked 4046ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/completed_selector_join_pattern_effect_exit checked 4279ms check-target:macos_arm64 @ccdb99ca2214
@@ -3625,7 +3691,7 @@ pass/borrows/runtime_array_primitive_reference_capture_exit checked 3282ms check
 pass/borrows/runtime_assignment_rhs_carrier_replacement_exit checked 3998ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_boundary_range_view_exit checked 3925ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_bounded_and_shared_field_loans_exit checked 5220ms check-target:macos_arm64 @8fce926f9735
-pass/borrows/runtime_byte_case_partial_cleanup_exit checked 3267ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_byte_case_partial_cleanup_exit checked 15472ms check-target:macos_arm64 @3139db74cf0d
 pass/borrows/runtime_byte_view_element_loan_exit checked 16192ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_byte_view_element_reference_calls_exit checked 3807ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_callee_alias_descriptor_replacement_exit checked 3599ms check-target:macos_arm64 @ccdb99ca2214
@@ -3681,7 +3747,7 @@ pass/borrows/runtime_dropped_reference_qualification_exit rejected 3032ms check-
 pass/borrows/runtime_dyn_image_result_snapshot_exit checked 7009ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/borrows/runtime_dyn_multi_input_window_snapshot_exit checked 2994ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_dyn_result_region_snapshot_exit checked 3894ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_exclusive_byte_field_cleanup_exit checked 3538ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_exclusive_byte_field_cleanup_exit checked 16364ms check-target:macos_arm64 @60b8f1171d45
 pass/borrows/runtime_expired_call_carrier_selection_exit checked 3756ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_fixed_array_reference_slot_replacement_exit checked 3369ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_fixed_byte_view_forwarding_exit checked 3392ms check-target:macos_arm64 @ccdb99ca2214
@@ -7260,24 +7326,24 @@ pass/facts/double_indexed_rmw_through_other_machine_exit checked 3970ms check-ta
 pass/facts/double_indexed_rmw_through_other_state_exit checked 3815ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/double_indexed_rmw_through_parameter_exit checked 3311ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/double_indexed_rmw_through_target_body_exit checked 3381ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_payload_alias_through_call_result_exit checked 3024ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_payload_alias_through_const_name_exit checked 3533ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_payload_alias_through_field_exit checked 3143ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_payload_alias_through_local_exit checked 3336ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_payload_alias_through_match_join_exit checked 3343ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_payload_alias_through_other_machine_exit checked 4204ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_payload_alias_through_other_state_exit checked 3639ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_payload_alias_through_parameter_exit checked 4044ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_payload_alias_through_target_body_exit checked 3224ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit checked 3760ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit checked 3302ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit checked 3964ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_selector_payload_bound_through_local_exit checked 3240ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_selector_payload_bound_through_match_join_exit checked 2957ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit checked 3420ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit checked 3841ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit checked 4351ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit checked 3606ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/dyn_dispatch_payload_alias_through_call_result_exit checked 6490ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_const_name_exit checked 6995ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_field_exit checked 6629ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_local_exit checked 6120ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_match_join_exit checked 5877ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_other_machine_exit checked 5873ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_other_state_exit checked 5913ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_parameter_exit checked 5914ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_target_body_exit checked 6072ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit checked 6067ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit checked 5915ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit checked 5917ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_local_exit checked 5885ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_match_join_exit checked 5874ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit checked 5869ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit checked 5876ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit checked 5977ms check-target:macos_arm64 @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit checked 5960ms check-target:macos_arm64 @dbde2a0eb0ce
 pass/facts/dyn_returned_view_membership_through_call_result_exit checked 16817ms check-target:macos_arm64 @29381ea34733+wt
 pass/facts/dyn_returned_view_membership_through_const_name_exit checked 16733ms check-target:macos_arm64 @29381ea34733+wt
 pass/facts/dyn_returned_view_membership_through_field_exit checked 16732ms check-target:macos_arm64 @29381ea34733+wt
@@ -9750,16 +9816,16 @@ pass/facts/open_const_implementation_through_other_machine_exit checked 6729ms c
 pass/facts/open_const_implementation_through_other_state_exit checked 6704ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_const_implementation_through_parameter_exit checked 6683ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_const_implementation_through_target_body_exit checked 6705ms check-target:macos_arm64 @ea132c1fff8b
-pass/facts/open_index_distributivity_commutative_semiring_exit checked 7117ms check-target:macos_arm64 @af2cbd5e6837
-pass/facts/open_index_distributivity_through_call_result_exit checked 7094ms check-target:macos_arm64 @af2cbd5e6837
-pass/facts/open_index_distributivity_through_const_name_exit checked 6904ms check-target:macos_arm64 @af2cbd5e6837
-pass/facts/open_index_distributivity_through_field_exit checked 7078ms check-target:macos_arm64 @af2cbd5e6837
-pass/facts/open_index_distributivity_through_local_exit checked 7156ms check-target:macos_arm64 @af2cbd5e6837
-pass/facts/open_index_distributivity_through_match_join_exit checked 8527ms check-target:macos_arm64 @af2cbd5e6837
-pass/facts/open_index_distributivity_through_other_machine_exit checked 7141ms check-target:macos_arm64 @af2cbd5e6837
-pass/facts/open_index_distributivity_through_other_state_exit checked 8247ms check-target:macos_arm64 @af2cbd5e6837
-pass/facts/open_index_distributivity_through_parameter_exit checked 8195ms check-target:macos_arm64 @af2cbd5e6837
-pass/facts/open_index_distributivity_through_target_body_exit checked 8246ms check-target:macos_arm64 @af2cbd5e6837
+pass/facts/open_index_distributivity_commutative_semiring_exit checked 14797ms check-target:macos_arm64 @c2cfe5f3dece+wt
+pass/facts/open_index_distributivity_through_call_result_exit checked 13040ms check-target:macos_arm64 @c2cfe5f3dece+wt
+pass/facts/open_index_distributivity_through_const_name_exit checked 13024ms check-target:macos_arm64 @c2cfe5f3dece+wt
+pass/facts/open_index_distributivity_through_field_exit checked 11670ms check-target:macos_arm64 @c2cfe5f3dece+wt
+pass/facts/open_index_distributivity_through_local_exit checked 11723ms check-target:macos_arm64 @c2cfe5f3dece+wt
+pass/facts/open_index_distributivity_through_match_join_exit checked 12449ms check-target:macos_arm64 @c2cfe5f3dece+wt
+pass/facts/open_index_distributivity_through_other_machine_exit checked 12270ms check-target:macos_arm64 @c2cfe5f3dece+wt
+pass/facts/open_index_distributivity_through_other_state_exit checked 12741ms check-target:macos_arm64 @c2cfe5f3dece+wt
+pass/facts/open_index_distributivity_through_parameter_exit checked 12696ms check-target:macos_arm64 @c2cfe5f3dece+wt
+pass/facts/open_index_distributivity_through_target_body_exit checked 12879ms check-target:macos_arm64 @c2cfe5f3dece+wt
 pass/facts/open_record_const_closed_call_call_result_exit checked 17674ms check-target:macos_arm64 @e9f492c5ccc6+wt
 pass/facts/open_record_const_closed_call_const_name_exit checked 17403ms check-target:macos_arm64 @e9f492c5ccc6+wt
 pass/facts/open_record_const_closed_call_data_argument_exit checked 12570ms check-target:macos_arm64 @e9f492c5ccc6+wt
@@ -10200,10 +10266,20 @@ pass/facts/resident_backing_other_state_exit checked 9185ms check-target:macos_a
 pass/facts/resident_backing_parameter_exit checked 9413ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_plain_ram_exit checked 7289ms check-target:macos_arm64 @c6b8285077a8+wt
 pass/facts/resident_backing_runtime_cells_exit checked 10759ms check-target:macos_arm64 @c6b8285077a8+wt
+pass/facts/resident_backing_runtime_growth_exit checked 32578ms check-target:macos_arm64 @3a4409d34005
 pass/facts/resident_backing_runtime_helper_loop_exit checked 19198ms check-target:macos_arm64 @4083ce80c932
 pass/facts/resident_backing_runtime_loop_exit checked 20840ms check-target:macos_arm64 @6fe30d215f49
-pass/facts/resident_backing_runtime_reconstruction_loop_exit checked 20834ms check-target:macos_arm64 @bfa46c0c6cb4
+pass/facts/resident_backing_runtime_reconstruction_loop_exit checked 24170ms check-target:macos_arm64 @3a4409d34005
 pass/facts/resident_backing_target_body_exit checked 9694ms check-target:macos_arm64 @b3876048c0a2
+pass/facts/resource_representation_buffered_call_result_exit checked 13469ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_const_name_exit checked 15037ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_field_exit checked 13958ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_local_exit checked 8910ms check-target:macos_arm64 @b07784918316
+pass/facts/resource_representation_buffered_match_join_exit checked 12489ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_other_machine_exit checked 12781ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_other_state_exit checked 12676ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_parameter_exit checked 12499ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_target_body_exit checked 8888ms check-target:macos_arm64 @b07784918316
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 4216ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 3199ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_field_exit checked 3393ms check-target:macos_arm64 @ccdb99ca2214
@@ -10239,7 +10315,7 @@ pass/facts/returned_write_destination_through_match_join_exit checked 4166ms che
 pass/facts/returned_write_destination_through_other_machine_exit checked 3686ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/returned_write_destination_through_other_state_exit checked 3339ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/returned_write_destination_through_parameter_exit checked 3805ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/returned_write_destination_through_target_body_exit checked 3576ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/returned_write_destination_through_target_body_exit checked 11004ms check-target:macos_arm64 @f81c32a49890
 pass/facts/runtime_compound_guard_stored_call_result_exit rejected 2743ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove index `main.b * 20 + main.saved` is within length 200 in put::entry
 pass/facts/runtime_count_index_through_call_result_exit checked 3959ms check-target:macos_arm64 @ccdb99ca2214
@@ -10569,7 +10645,7 @@ pass/facts/selected_scalar_initializer_through_target_body_exit checked 5265ms c
 pass/facts/selected_value_application_through_call_result_exit checked 13240ms check-target:macos_arm64 @a3f86a99de08
 pass/facts/selected_value_application_through_const_name_exit checked 13244ms check-target:macos_arm64 @a3f86a99de08
 pass/facts/selected_value_application_through_field_exit checked 11946ms check-target:macos_arm64 @a3f86a99de08
-pass/facts/selected_value_application_through_local_exit checked 11928ms check-target:macos_arm64 @a3f86a99de08
+pass/facts/selected_value_application_through_local_exit checked 11579ms check-target:macos_arm64 @0f36ecb1ab02
 pass/facts/selected_value_application_through_match_join_exit checked 11841ms check-target:macos_arm64 @a3f86a99de08
 pass/facts/selected_value_application_through_other_machine_exit checked 11822ms check-target:macos_arm64 @a3f86a99de08
 pass/facts/selected_value_application_through_other_state_exit checked 11912ms check-target:macos_arm64 @a3f86a99de08
@@ -11307,7 +11383,7 @@ pass/facts/unannotated_dynamic_boundary_call_through_match_join_exit checked 488
 pass/facts/unannotated_dynamic_boundary_call_through_other_machine_exit checked 71602ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/unannotated_dynamic_boundary_call_through_other_state_exit checked 79614ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/unannotated_dynamic_boundary_call_through_parameter_exit checked 60632ms check-target:macos_arm64 @863cdf432f5d+wt
-pass/facts/unannotated_dynamic_boundary_call_through_target_body_exit checked 61373ms check-target:macos_arm64 @863cdf432f5d+wt
+pass/facts/unannotated_dynamic_boundary_call_through_target_body_exit checked 66710ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unannotated_generic_boundary_call_through_call_result_exit checked 4164ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_generic_boundary_call_through_const_name_exit checked 3567ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_generic_boundary_call_through_field_exit checked 3894ms check-target:macos_arm64 @ccdb99ca2214
@@ -11316,7 +11392,7 @@ pass/facts/unannotated_generic_boundary_call_through_match_join_exit checked 359
 pass/facts/unannotated_generic_boundary_call_through_other_machine_exit checked 3486ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_generic_boundary_call_through_other_state_exit checked 3482ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_generic_boundary_call_through_parameter_exit checked 3431ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_generic_boundary_call_through_target_body_exit checked 4131ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/unannotated_generic_boundary_call_through_target_body_exit checked 54411ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unannotated_imported_boundary_call_through_call_result_exit checked 4133ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_const_name_exit checked 4154ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_field_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
@@ -11325,7 +11401,7 @@ pass/facts/unannotated_imported_boundary_call_through_match_join_exit checked 40
 pass/facts/unannotated_imported_boundary_call_through_other_machine_exit checked 3999ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_other_state_exit checked 4566ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_parameter_exit checked 4743ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_imported_boundary_call_through_target_body_exit checked 3989ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/unannotated_imported_boundary_call_through_target_body_exit checked 54418ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unannotated_provider_boundary_call_through_call_result_exit checked 3699ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_provider_boundary_call_through_const_name_exit checked 3628ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_provider_boundary_call_through_field_exit checked 3469ms check-target:macos_arm64 @ccdb99ca2214
@@ -11334,7 +11410,7 @@ pass/facts/unannotated_provider_boundary_call_through_match_join_exit checked 32
 pass/facts/unannotated_provider_boundary_call_through_other_machine_exit checked 3426ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_provider_boundary_call_through_other_state_exit checked 3324ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_provider_boundary_call_through_parameter_exit checked 3652ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_provider_boundary_call_through_target_body_exit checked 3871ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/unannotated_provider_boundary_call_through_target_body_exit checked 65991ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unannotated_recursive_boundary_call_through_call_result_exit checked 3442ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_recursive_boundary_call_through_const_name_exit checked 3883ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_recursive_boundary_call_through_field_exit checked 3685ms check-target:macos_arm64 @ccdb99ca2214
@@ -11343,7 +11419,7 @@ pass/facts/unannotated_recursive_boundary_call_through_match_join_exit checked 3
 pass/facts/unannotated_recursive_boundary_call_through_other_machine_exit checked 3830ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_recursive_boundary_call_through_other_state_exit checked 3483ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_recursive_boundary_call_through_parameter_exit checked 3864ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_recursive_boundary_call_through_target_body_exit checked 4053ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/unannotated_recursive_boundary_call_through_target_body_exit checked 54539ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unannotated_transitive_boundary_call_through_call_result_exit checked 3250ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_transitive_boundary_call_through_const_name_exit checked 3588ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_transitive_boundary_call_through_field_exit checked 3626ms check-target:macos_arm64 @ccdb99ca2214
@@ -11352,7 +11428,7 @@ pass/facts/unannotated_transitive_boundary_call_through_match_join_exit checked 
 pass/facts/unannotated_transitive_boundary_call_through_other_machine_exit checked 3523ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_transitive_boundary_call_through_other_state_exit checked 3362ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_transitive_boundary_call_through_parameter_exit checked 3625ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_transitive_boundary_call_through_target_body_exit checked 4303ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/unannotated_transitive_boundary_call_through_target_body_exit checked 65982ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unsigned_32bit_division_remainder_bound_through_call_result_exit checked 3857ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unsigned_32bit_division_remainder_bound_through_const_name_exit checked 3409ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unsigned_32bit_division_remainder_bound_through_field_exit checked 3724ms check-target:macos_arm64 @ccdb99ca2214
@@ -12125,7 +12201,7 @@ pass/float/float_match_patterns checked 6544ms @ccdb99ca2214
 pass/float/float_ops_surface checked 6605ms @ccdb99ca2214
 pass/float/float_range_field_storage_exit checked 60100ms check-target:macos_arm64 @911f6617ba9e
 pass/float/float_saturating_arithmetic_exit checked 15769ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/float_selected_comparison_authority checked 24119ms check-target:macos_arm64 @95f6bd2b4430
+pass/float/float_selected_comparison_authority checked 18057ms check-target:macos_arm64 @c2cfe5f3dece+wt
 pass/float/float_to_int_trapping_nan_traps rejected 9930ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `Main::main` state `main`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 pass/float/float_trapping_overflow_traps checked 15775ms check-target:macos_arm64 @ccdb99ca2214
@@ -12429,7 +12505,7 @@ pass/generics/nested_static_type_equality_refines_delivery checked 4601ms @99a35
 pass/generics/nominal_machine_parameter_satisfaction_compile checked 2272ms @ccdb99ca2214
 pass/generics/omitted_data_binder_range_equation checked 65952ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/omitted_fixed_domain_array_equation checked 7865ms @911f6617ba9e
-pass/generics/open_computed_quantity_result checked 75268ms check-target:macos_arm64 @0eba905c6ff0
+pass/generics/open_computed_quantity_result checked 108679ms check-target:macos_arm64 @c2cfe5f3dece+wt
 pass/generics/open_const_completed_exit_positive checked 6864ms check-target:macos_arm64 @ea132c1fff8b
 pass/generics/open_const_distinct_applications checked 6663ms check-target:macos_arm64 @ea132c1fff8b
 pass/generics/open_const_float_owned_dependency checked 7295ms check-target:macos_arm64 @ccdb99ca2214
@@ -12454,7 +12530,7 @@ pass/generics/runtime_applied_implementation_qualifier_exit rejected 2021ms chec
 pass/generics/runtime_borrowed_value_inference_exit checked 4049ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_call_index_contract_result checked 5807ms @4a93353f8274+wt
 pass/generics/runtime_captured_map_borrowed_type checked 3944ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_captured_map_const_body checked 3751ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/runtime_captured_map_const_body checked 12169ms check-target:macos_arm64 @c2cfe5f3dece+wt
 pass/generics/runtime_captured_map_const_machine rejected 1249ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine argument `read` for `Selected` does not refine `Callback`: parameter 0 expects `&[u8; Count]`, got `&[u8; 3]`
 pass/generics/runtime_captured_map_dependent_machine checked 3160ms check-target:macos_arm64 @ccdb99ca2214
@@ -12594,7 +12670,7 @@ pass/generics/runtime_qualified_closed_equation_exit checked 7733ms check-target
 pass/generics/runtime_result_destination_inference_exit checked 3637ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_selected_map_capture_invocation_scopes rejected 2864ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cleanup effect preparation for `invoke$specialized$d4f0094e26d9f87c$0` requires a complete specialization of `Selected::borrow`
-pass/generics/runtime_selected_operator_body_exit checked 12412ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/runtime_selected_operator_body_exit checked 92486ms check-target:macos_arm64 @c2cfe5f3dece+wt
 pass/generics/runtime_static_requirement_complex_composition_exit rejected 3477ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @167d5864712d
 	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
 	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
@@ -13066,6 +13142,7 @@ pass/modules/nominal_constant_bodies checked 2843ms @ccdb99ca2214
 pass/modules/open_const_private_implementation_projection_exit checked 7832ms check-target:macos_arm64 @ea132c1fff8b
 pass/modules/package_bare_cases checked 4116ms @ccdb99ca2214
 pass/modules/package_declaration checked 2352ms @ccdb99ca2214
+pass/modules/package_qualified_scalar_access_exit checked 9360ms check-target:macos_arm64 @97115d9cab54
 pass/modules/package_sibling_declarations checked 2764ms @ccdb99ca2214
 pass/modules/packaged_structured_const_declared_carrier_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/packaged_structured_const_generic_composition_exit checked 4330ms check-target:macos_arm64 @ccdb99ca2214
@@ -13553,6 +13630,7 @@ pass/proofs/quotient_symbolic_endpoint checked 3783ms @ccdb99ca2214
 pass/proofs/recursive_terminal_erased_evidence checked 2610ms @ccdb99ca2214
 pass/proofs/representation_agreement_corrupt_decode_traps checked 10879ms check-target:macos_arm64 @e97ed21415d9
 pass/proofs/requires_bridge_telescope checked 3084ms @ccdb99ca2214
+pass/proofs/reviewed_mathematical_data_contract_exit checked 3510ms check-target:macos_arm64 @2949992b6aa5
 pass/proofs/ring_full_polynomial_compile checked 11534ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/ring_law_conformance checked 12155ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/runtime_byte_predicate_state_contract_exit checked 12017ms check-target:macos_arm64 @ccdb99ca2214
@@ -13575,7 +13653,7 @@ pass/proofs/runtime_ranked_intermediary_accumulator_exit rejected 10490ms check-
 	cannot prove ensures contract for exit from descend at statement 1: result <= previous
 	cannot prove ensures contract for exit from descend at statement 2: result <= previous
 pass/proofs/runtime_ranked_store_through_local_exit checked 12473ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/runtime_result_index_requirement_owner_exit checked 3136ms check-target:macos_arm64 @ccdb99ca2214
+pass/proofs/runtime_result_index_requirement_owner_exit checked 13124ms check-target:macos_arm64 @c2cfe5f3dece+wt
 pass/proofs/runtime_result_index_unrelated_machine_bound_exit checked 3050ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/runtime_result_index_zero_parameter_owner_exit checked 4865ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/runtime_sequential_ranked_components_exit rejected 10212ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -14364,7 +14442,7 @@ pass/terminal_psi/selected_empty_component checked 3908ms check-target:linux_x86
 pass/terminal_psi/selected_lowering_optimizer_component checked 3264ms check-target:linux_x86_64 @ccdb99ca2214
 pass/terminal_psi/selected_optimizer_component checked 3399ms check-target:linux_x86_64 @ccdb99ca2214
 pass/terminal_psi/structural_content_passthrough checked 11174ms check-target:macos_arm64 @ccdb99ca2214
-pass/terminal_psi/structural_scalar_trait_operator checked 4218ms check-target:linux_x86_64 @ccdb99ca2214
+pass/terminal_psi/structural_scalar_trait_operator checked 11875ms check-target:linux_x86_64 @c2cfe5f3dece+wt
 pass/terminal_psi/unsupported_optimizer_component checked 7987ms check-target:linux_x86_64 @ccdb99ca2214
 pass/termination/auxiliary_payload_computed_arrival checked 2365ms @ccdb99ca2214
 pass/termination/bitwise_payload_exit checked 11945ms check-target:macos_arm64 @ccdb99ca2214
@@ -14647,7 +14725,7 @@ pass/text/runtime_owned_string_byte_view_exit checked 49308ms check-target:macos
 pass/text/runtime_param_domain_forward_exit checked 11547ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/runtime_param_domain_literal_read_exit checked 11811ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/runtime_qualified_byte_array_storage_exit checked 5430ms check-target:macos_arm64 @911f6617ba9e
-pass/text/runtime_qualified_byte_field_cleanup_exit checked 3756ms check-target:macos_arm64 @ccdb99ca2214
+pass/text/runtime_qualified_byte_field_cleanup_exit checked 15993ms check-target:macos_arm64 @3139db74cf0d
 pass/text/runtime_qualified_byte_field_replacement_cleanup_exit checked 3147ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/runtime_qualified_owner_view_open_exit checked 5222ms check-target:macos_arm64 @911f6617ba9e
 pass/text/runtime_slice_indexed_string_guard_exit rejected 11489ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -14707,7 +14785,7 @@ pass/traits/applied_nominal_callback_proposition_contract checked 3031ms @ccdb99
 pass/traits/applied_nominal_callback_scopes_exit checked 4132ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/applied_qualified_signature_region_scope_exit checked 4383ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/boundary_trait_effects_host_call checked 3731ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/computed_static_arguments_exit checked 3592ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/computed_static_arguments_exit checked 14622ms check-target:macos_arm64 @c2cfe5f3dece+wt
 pass/traits/conformance_unused_lifetime_scope_exit checked 3746ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/contract_call_captured_trait_static_argument_exit checked 4208ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/contract_call_forwarded_static_arguments_exit checked 3312ms check-target:macos_arm64 @ccdb99ca2214
@@ -14716,7 +14794,7 @@ pass/traits/default_row_captured_invocation_regions_exit checked 3251ms check-ta
 pass/traits/default_row_domain_region_scopes checked 2185ms @ccdb99ca2214
 pass/traits/default_row_mixed_captured_operand checked 2448ms @ccdb99ca2214
 pass/traits/default_row_nested_captured_reference_exit checked 4131ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/default_row_same_spelled_supplier_region_exit checked 3825ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/default_row_same_spelled_supplier_region_exit checked 12622ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/default_row_shadowed_captured_operand checked 2440ms @ccdb99ca2214
 pass/traits/default_row_shadowed_captured_operand_exit checked 3328ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/dyn_finite_family checked 7996ms @05a6f6af37ec+wt
@@ -14739,7 +14817,7 @@ pass/traits/implementation_argument_category_collision checked 11458ms check-tar
 pass/traits/implementation_argument_mixed_telescope checked 2274ms @ccdb99ca2214
 pass/traits/implementation_argument_region_mapping checked 2453ms @ccdb99ca2214
 pass/traits/implementation_value_mapped_region_identity checked 5981ms check-target:macos_arm64 @68b6f6ba6c2f
-pass/traits/inherited_region_application_identity_exit checked 3431ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/inherited_region_application_identity_exit checked 12686ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/named_contract_arithmetic_refinement checked 3221ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/nominal_generic_reference_forwarding_exit checked 13096ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/nominal_machine_binder_static_dispatch checked 11534ms check-target:macos_arm64 @ccdb99ca2214
@@ -14751,8 +14829,10 @@ pass/traits/public_method_callback_prefix_inference_exit checked 2992ms check-ta
 pass/traits/public_method_const_prefix_inference_exit checked 3056ms check-target:macos_arm64 @b852a38544d0
 pass/traits/public_nested_machine_contract_scopes checked 3933ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/public_post_write_descriptor_guarantee_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
+pass/traits/refined_borrowed_implementation_exit checked 11281ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/renamed_invocation_contract_binders checked 2489ms @ccdb99ca2214
 pass/traits/repeated_structural_capture_exit checked 4355ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/traits/requirement_evidence_renamed_regions_exit checked 12215ms check-target:macos_arm64 @b9975b628a04
 pass/traits/ring_requirement_satisfies_exit checked 12063ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_array_assignments_establishment_exit checked 3214ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_array_literal_establishment_exit checked 2964ms check-target:macos_arm64 @ccdb99ca2214
@@ -14822,7 +14902,7 @@ pass/traits/structural_array_crash_identity_exit rejected 19934ms check-target:m
 pass/traits/structural_identity_crash_contract checked 4766ms @ccdb99ca2214
 pass/traits/trait_generic_bound_static_dispatch checked 11552ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/trait_member_effects checked 3379ms @ccdb99ca2214
-pass/traits/trait_operator_token checked 3208ms @ccdb99ca2214
+pass/traits/trait_operator_token checked 11859ms @c2cfe5f3dece+wt
 pass/traits/trait_parent_inherit checked 4132ms @ccdb99ca2214
 pass/traits/transparent_refinement_declaration checked 6187ms check-target:macos_arm64 @89956713be3d
 pass/traits/unused_trait_implementation_member_exit checked 3798ms check-target:macos_arm64 @ccdb99ca2214
@@ -15830,7 +15910,7 @@ fail/borrow/scalar_reference_result_does_not_preserve_mutated_bound rejected 215
 	cannot prove index `change(&mut position)` is within length 2 in test::entry
 fail/borrow/scalar_reference_result_uses_returned_argument rejected 2400ms expected @ccdb99ca2214
 	cannot prove index `select(&position, &other)` is within length 2 in test::entry
-fail/borrow/selected_selector_relation_does_not_supply_equality rejected 1822ms expected @ccdb99ca2214
+fail/borrow/selected_selector_relation_does_not_supply_equality rejected 9471ms expected @c2cfe5f3dece+wt
 	cannot prove index `other` is within length 4 in main::entry
 fail/borrow/selector_calls_do_not_share_write_frame rejected 1826ms expected @ccdb99ca2214
 	cannot prove index `other` is within length 4 in main::entry
@@ -16093,7 +16173,7 @@ fail/borrows/computed_byte_field_window_wrong_nominal rejected 1288ms expected @
 	argument `view` for state `entry` expects `&View<>`, got `named value`
 fail/borrows/computed_case_copy_requires_live_bounds rejected 1928ms expected @ccdb99ca2214
 	cannot prove index `select()` is within unknown slice length of `cells` in copy::entry
-fail/borrows/computed_shared_byte_field_window_requires_mutable rejected 1283ms expected @ccdb99ca2214
+fail/borrows/computed_shared_byte_field_window_requires_mutable rejected 7752ms expected @3139db74cf0d
 	machine `observe` state `entry` local `selected` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/computed_view_content_write_retires_old_scalar_fact rejected 2997ms expected @ccdb99ca2214
 	cannot prove requires contract for call false_counter from main: counter.called == false (needs fact `value == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -16385,7 +16465,7 @@ fail/borrows/materialized_reference_does_not_discharge_linear_owner rejected 980
 	linear value `receipt` reaches scope exit without being consumed or transferred in machine `main` state `entry`
 fail/borrows/mixed_record_shared_view_mutable_local_empty_range rejected 768ms expected @ccdb99ca2214
 	machine `violate` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
-fail/borrows/mixed_record_shared_view_mutable_local_nonempty_range rejected 840ms expected @ccdb99ca2214
+fail/borrows/mixed_record_shared_view_mutable_local_nonempty_range rejected 6244ms expected @3139db74cf0d
 	machine `violate` state `entry` local `requested` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/mixed_result_backing_write_under_carried_reference rejected 4356ms expected @ccdb99ca2214
 	statement 2 mutates `cell.value` while local borrow `payload` is still active (borrowed at statement 1; its last use is at statement 4)
@@ -16594,12 +16674,12 @@ fail/borrows/record_exclusive_view_backing_write rejected 1916ms expected @ccdb9
 fail/borrows/record_exclusive_view_fields_overlap rejected 2218ms expected @ccdb99ca2214
 	statement 1 borrows `values[0..2]` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 1)
 	`held` holds `values[0..2]` as mutable more than once
-fail/borrows/record_reference_from_immutable_bytes rejected 741ms expected @ccdb99ca2214
+fail/borrows/record_reference_from_immutable_bytes rejected 6378ms expected @3139db74cf0d
 	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 	construction of `Holder` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/record_result_retains_declared_lifetime_origins rejected 2232ms expected @ccdb99ca2214
 	statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/record_view_field_backing_write_while_stored rejected 2561ms expected @ccdb99ca2214
+fail/borrows/record_view_field_backing_write_while_stored rejected 11967ms expected @3139db74cf0d
 	statement 2 mutates `main.buffer[0]` while local borrow `room` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/reference_aggregate_conditional_replacement_loan rejected 2453ms expected @ccdb99ca2214
 	statement 5 mutates `main.left.value` while local borrow `held` is still active (borrowed at statement 4; its last use is at statement 6)
@@ -23535,48 +23615,74 @@ fail/facts/domain_selected_cleanup_unauthorized_selection_rejected rejected 750m
 	domain `u64::Foreign` cannot select dropped by cleanup: only the carrier's owning package may authorize the selection
 fail/facts/domain_selected_cleanup_wrong_carrier_rejected rejected 690ms expected @ccdb99ca2214
 	cleanup application `finish` receiver does not match its selected owned subject
-fail/facts/dyn_dispatch_payload_alias_through_call_result_public_bound_weakened rejected 1541ms expected @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_payload_alias_through_const_name_public_bound_weakened rejected 1542ms expected @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_payload_alias_through_field_public_bound_weakened rejected 1304ms expected @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_payload_alias_through_local_public_bound_weakened rejected 1802ms expected @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_payload_alias_through_match_join_public_bound_weakened rejected 1438ms expected @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_payload_alias_through_other_machine_public_bound_weakened rejected 1275ms expected @ccdb99ca2214
-	exact arithmetic in machine `forward` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_payload_alias_through_other_state_public_bound_weakened rejected 1811ms expected @ccdb99ca2214
-	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_payload_alias_through_parameter_public_bound_weakened rejected 1430ms expected @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_payload_alias_through_target_body_public_bound_weakened rejected 1500ms expected @ccdb99ca2214
-	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_selector_payload_bound_through_call_result_rejected rejected 1205ms expected @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_selector_payload_bound_through_const_name_rejected rejected 1191ms expected @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_selector_payload_bound_through_field_rejected rejected 1078ms expected @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_selector_payload_bound_through_local_rejected rejected 1468ms expected @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected rejected 1590ms expected @ccdb99ca2214
-	exact arithmetic in machine `evaluate` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_selector_payload_bound_through_other_machine_rejected rejected 1383ms expected @ccdb99ca2214
-	exact arithmetic in machine `forward` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected rejected 1108ms expected @ccdb99ca2214
-	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_selector_payload_bound_through_parameter_rejected rejected 1640ms expected @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/dyn_dispatch_selector_payload_bound_through_target_body_rejected rejected 1094ms expected @ccdb99ca2214
-	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_call_result_public_bound_weakened rejected 958ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `main` state `entry` local `first_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `first_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/dyn_dispatch_payload_alias_through_const_name_public_bound_weakened rejected 1517ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `main` state `entry` local `first_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `first_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/dyn_dispatch_payload_alias_through_field_public_bound_weakened rejected 934ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `main` state `entry` local `first_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `first_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/dyn_dispatch_payload_alias_through_local_public_bound_weakened rejected 1010ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `main` state `entry` local `first_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `first_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/dyn_dispatch_payload_alias_through_match_join_public_bound_weakened rejected 940ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `evaluate` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_other_machine_public_bound_weakened rejected 933ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `forward` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_other_state_public_bound_weakened rejected 956ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `evaluate` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_payload_alias_through_parameter_public_bound_weakened rejected 935ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `main` state `entry` local `first_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `evaluate(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `first_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `evaluate(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `evaluate(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `evaluate(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/dyn_dispatch_payload_alias_through_target_body_public_bound_weakened rejected 929ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `dispatch` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `dispatch` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_selector_payload_bound_through_call_result_rejected rejected 896ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `main` state `entry` local `first_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `first_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/dyn_dispatch_selector_payload_bound_through_const_name_rejected rejected 949ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `main` state `entry` local `first_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `first_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/dyn_dispatch_selector_payload_bound_through_field_rejected rejected 2127ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `main` state `entry` local `first_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `first_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/dyn_dispatch_selector_payload_bound_through_local_rejected rejected 1658ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `main` state `entry` local `first_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `first_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `dyn PayloadEvaluator::compute(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected rejected 1004ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `evaluate` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_selector_payload_bound_through_other_machine_rejected rejected 985ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `forward` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected rejected 1011ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `evaluate` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/dyn_dispatch_selector_payload_bound_through_parameter_rejected rejected 1017ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `main` state `entry` local `first_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `evaluate(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `first_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `evaluate(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_ten` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `evaluate(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+	exact arithmetic in machine `main` state `entry` local `second_at_twenty` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `evaluate(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
+fail/facts/dyn_dispatch_selector_payload_bound_through_target_body_rejected rejected 962ms expected @dbde2a0eb0ce
+	exact arithmetic in machine `dispatch` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+	exact arithmetic in machine `dispatch` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/dynamic_float_alias_through_call_result_outside_interval rejected 3916ms expected @ccdb99ca2214
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
 fail/facts/dynamic_float_alias_through_const_name_outside_interval rejected 3956ms expected @ccdb99ca2214
@@ -28380,7 +28486,7 @@ fail/facts/returned_write_destination_through_other_state_rejected rejected 1687
 	machine `later` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/returned_write_destination_through_parameter_rejected rejected 1481ms expected @ccdb99ca2214
 	machine `replace` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/returned_write_destination_through_target_body_rejected rejected 2192ms expected @ccdb99ca2214
+fail/facts/returned_write_destination_through_target_body_rejected rejected 2224ms expected @f81c32a49890
 	machine `main` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/runtime_count_index_through_call_result_rejected rejected 2647ms expected @ccdb99ca2214
 	cannot prove requires contract for call read_at$specialized$721fe5e54906d435$0 from indexed: count < items.len (needs fact `Index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -29086,7 +29192,7 @@ fail/facts/selected_value_application_through_const_name_rejected rejected 5569m
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/selected_value_application_through_field_rejected rejected 5810ms expected @a3f86a99de08
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/selected_value_application_through_local_rejected rejected 5810ms expected @a3f86a99de08
+fail/facts/selected_value_application_through_local_rejected rejected 2597ms expected @0f36ecb1ab02
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/selected_value_application_through_match_join_rejected rejected 5663ms expected @a3f86a99de08
 	exact arithmetic in machine `exercise` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
@@ -30457,11 +30563,9 @@ fail/facts/unannotated_dynamic_boundary_call_through_other_state_rejected reject
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_dynamic_boundary_call_through_parameter_rejected rejected 40730ms expected @863cdf432f5d+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_dynamic_boundary_call_through_target_body_rejected rejected 15894ms expected @863cdf432f5d+wt
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_target_body_rejected rejected 37533ms expected @005a0eaac360
+	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_generic_boundary_call_through_call_result_rejected rejected 2367ms expected @ccdb99ca2214
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_generic_boundary_call_through_const_name_rejected rejected 2250ms expected @ccdb99ca2214
@@ -30478,11 +30582,9 @@ fail/facts/unannotated_generic_boundary_call_through_other_state_rejected reject
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_generic_boundary_call_through_parameter_rejected rejected 2876ms expected @ccdb99ca2214
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_generic_boundary_call_through_target_body_rejected rejected 2651ms expected @ccdb99ca2214
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_target_body_rejected rejected 37300ms expected @005a0eaac360
+	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_imported_boundary_call_through_call_result_rejected rejected 2954ms expected @ccdb99ca2214
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_imported_boundary_call_through_const_name_rejected rejected 3076ms expected @ccdb99ca2214
@@ -30499,11 +30601,9 @@ fail/facts/unannotated_imported_boundary_call_through_other_state_rejected rejec
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_imported_boundary_call_through_parameter_rejected rejected 3438ms expected @ccdb99ca2214
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_imported_boundary_call_through_target_body_rejected rejected 3147ms expected @ccdb99ca2214
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_imported_boundary_call_through_target_body_rejected rejected 38440ms expected @005a0eaac360
+	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_provider_boundary_call_through_call_result_rejected rejected 2800ms expected @ccdb99ca2214
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
 fail/facts/unannotated_provider_boundary_call_through_const_name_rejected rejected 2185ms expected @ccdb99ca2214
@@ -30520,7 +30620,7 @@ fail/facts/unannotated_provider_boundary_call_through_other_state_rejected rejec
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
 fail/facts/unannotated_provider_boundary_call_through_parameter_rejected rejected 2835ms expected @ccdb99ca2214
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
-fail/facts/unannotated_provider_boundary_call_through_target_body_rejected rejected 2782ms expected @ccdb99ca2214
+fail/facts/unannotated_provider_boundary_call_through_target_body_rejected rejected 38142ms expected @005a0eaac360
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
 fail/facts/unannotated_recursive_boundary_call_through_call_result_rejected rejected 2634ms expected @ccdb99ca2214
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
@@ -30538,11 +30638,9 @@ fail/facts/unannotated_recursive_boundary_call_through_other_state_rejected reje
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_recursive_boundary_call_through_parameter_rejected rejected 2921ms expected @ccdb99ca2214
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_recursive_boundary_call_through_target_body_rejected rejected 3208ms expected @ccdb99ca2214
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_recursive_boundary_call_through_target_body_rejected rejected 30097ms expected @005a0eaac360
+	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_transitive_boundary_call_through_call_result_rejected rejected 2176ms expected @ccdb99ca2214
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_transitive_boundary_call_through_const_name_rejected rejected 3056ms expected @ccdb99ca2214
@@ -30559,11 +30657,9 @@ fail/facts/unannotated_transitive_boundary_call_through_other_state_rejected rej
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_transitive_boundary_call_through_parameter_rejected rejected 2713ms expected @ccdb99ca2214
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_transitive_boundary_call_through_target_body_rejected rejected 2141ms expected @ccdb99ca2214
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_target_body_rejected rejected 29860ms expected @005a0eaac360
+	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/uninitialized_dyn_selection_through_call_result rejected 1359ms expected @ccdb99ca2214
 	machine `get_selector` state `entry` statement 1: reading `selector` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
 fail/facts/uninitialized_dyn_selection_through_const_name rejected 1510ms expected @ccdb99ca2214
@@ -31618,7 +31714,7 @@ fail/float/float_guard_missing_upper_bound rejected 4071ms expected @ccdb99ca221
 	cannot prove requires contract for call admit from open_upper: difference >= 0.5 && difference <= 8.0 (needs fact `difference >= 0.5 && difference <= 8.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/float_range_field_store_outside_range rejected 6503ms expected @46cdd6b85b82+wt
 	data `Ratio`'s default domain is still FALSE at state exit: the invariant window opened on `built` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/float/float_selected_comparison_authority rejected 12116ms expected @95f6bd2b4430
+fail/float/float_selected_comparison_authority rejected 11960ms expected @c2cfe5f3dece+wt
 	cannot prove requires contract for call require_one from probe: entry(1.0) == 1.0 (needs fact `value == 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 109ms expected @ccdb99ca2214
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
@@ -32206,11 +32302,11 @@ fail/generics/grouped_decimal_const_suffix_rejected rejected 200ms unexpected @c
 	cannot form specification operator `/` in closed const argument: no exact selected meaning
 fail/generics/grouped_decimal_const_zero_division_rejected rejected 241ms unexpected @ccdb99ca2214
 	division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
-fail/generics/index_algebra_law_requires_identity rejected 2239ms expected @af2cbd5e6837
+fail/generics/index_algebra_law_requires_identity rejected 7678ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:reorder::entry:exit-0:Indexed<Left + Right>==Indexed<Right + Left>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<Right + Left>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexOperations` licenses no law
-fail/generics/index_equality_foreign_algebra rejected 3463ms expected @0eba905c6ff0
+fail/generics/index_equality_foreign_algebra rejected 8524ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:cannot_borrow_other_application::entry:statement-1:Indexed<1 + 2>==Indexed<3>` is not established: actual `Indexed<1 + 2>` and expected `Indexed<3>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexAdd` licenses no law
-fail/generics/index_equality_selected_boolean_relation rejected 3358ms expected @0eba905c6ff0
+fail/generics/index_equality_selected_boolean_relation rejected 7123ms expected @c2cfe5f3dece+wt
 	index compatibility condition `index-equality:Indexed:relation_is_not_equality::entry:statement-0:Indexed<Left + Right>==Indexed<4>` is not established: actual `Indexed<Left + Right>` and expected `Indexed<4>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required; selected operations: `add` of `IndexOperations` licenses no law
 fail/generics/indexed_domain_capacity_invalid_initializer rejected 1206ms expected @911f6617ba9e
 	construction of `DomainBytes<u64 in AtMost<256>, 256>` field `length` cannot be proven within its declared range `0..=256`; constrain the value, construct with a literal in range, or widen the field
@@ -32382,7 +32478,7 @@ fail/generics/open_const_wrong_evidence_binder rejected 700ms expected @ccdb99ca
 fail/generics/open_const_wrong_literal_tuple rejected 2610ms unexpected @ccdb99ca2214
 	cannot prove ensures contract for exit from forwarded at statement 0: result >= N
 	cannot prove ensures contract for exit from forwarded$specialized$eabf790a7a6ad24f$0 at statement 0: result >= 7
-fail/generics/open_index_unlicensed_algebra rejected 143ms expected @ccdb99ca2214
+fail/generics/open_index_unlicensed_algebra rejected 742ms expected @c2cfe5f3dece+wt
 	open index operator `+` requires an explicit conformance binder on the machine owning the index expression, but the owner is not a machine
 fail/generics/open_value_case_constructor_false rejected 1415ms expected @ccdb99ca2214
 	data `Tagged` case `At` literal violates the case constraint: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
@@ -32574,7 +32670,7 @@ fail/generics/selected_open_capture_wrong_extent rejected 859ms expected @ccdb99
 	argument `value` for state `forward` expects `[u64; 2]`, got `named value`
 fail/generics/selected_open_capture_wrong_nominal rejected 763ms expected @ccdb99ca2214
 	argument `value` for state `Selected::forward::forward` expects the `First` data type but got `Second` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
-fail/generics/selected_operator_preserves_blocking_ceiling rejected 1957ms expected @2fc408782574
+fail/generics/selected_operator_preserves_blocking_ceiling rejected 8666ms expected @c2cfe5f3dece+wt
 	machine `choose` omits `blocks` from its published contract, but its body may block
 fail/generics/selected_value_bool_public_contract_mismatch rejected 3086ms expected @ccdb99ca2214
 	cannot prove requires contract for call need_true from main: second == true (needs fact `value == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -32812,8 +32908,8 @@ fail/layouts/layout_arithmetic_overwritten_snapshot rejected 1138ms expected @cc
 	exact arithmetic in machine `main` state `entry` local `invalid` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/layouts/layout_arithmetic_subtract_underflow rejected 3593ms expected @ccdb99ca2214
 	constant checking: scalar range condition 0: bounds [-1, -1] lie outside [0, 18446744073709551615]
-fail/layouts/layout_contract_selected_equality rejected 1181ms unexpected @ccdb99ca2214
-	cannot form specification operator `==` in machine `required$specialized$c027caf142dac46a$0` requires contract: no exact selected meaning
+fail/layouts/layout_contract_selected_equality rejected 9988ms expected @c2cfe5f3dece+wt
+	cannot prove requires contract for call required$specialized$c027caf142dac46a$0$2648 from program: size_of() == 16 (needs fact `size_of() == 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/layouts/layout_query_captured_result_join_unknown rejected 1104ms expected @8b519ca647cd+wt
 	constant checking: scalar range condition 1: bounds [-16, 18446744073709551599] lie outside [0, 18446744073709551615]
 fail/layouts/layout_query_private_arrival_child_formation rejected 1200ms expected @8b519ca647cd+wt
@@ -33207,11 +33303,10 @@ fail/operators/operand_requires_invalidated rejected 2414ms expected @ccdb99ca22
 	cannot prove requires contract for call equal from compare: value >= 0 (needs fact `right >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/operators/range_extent_false_conjunct_cannot_establish rejected 1636ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from window at statement 0: false && result.len == limit - offset
-fail/operators/range_extent_requires_builtin_equality rejected 1173ms unexpected @ccdb99ca2214
-	cannot form specification operator `==` in machine `window$specialized$f185a89875c774f4$0` ensures contract: no exact selected meaning
-fail/operators/range_extent_requires_builtin_subtraction rejected 827ms unexpected @ccdb99ca2214
-	cannot form specification operator `==` in machine `window` ensures contract: no exact selected meaning
-	cannot form specification operator `-` in machine `window$specialized$401afaf6ae2c8e25$0` ensures contract: no exact selected meaning
+fail/operators/range_extent_requires_builtin_equality rejected 7612ms expected @c2cfe5f3dece+wt
+	cannot prove requires contract for call requires_one from main: result.len == 1 (needs fact `items.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/operators/range_extent_requires_builtin_subtraction rejected 9941ms expected @c2cfe5f3dece+wt
+	cannot prove requires contract for call requires_one from main: result.len == 1 (needs fact `items.len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/operators/result_domain_operator_family_wrong_signature rejected 3261ms expected @ccdb99ca2214
 	machine `wrong` does not match one exact overload of operator requirement `I8::from_f32`; its entry parameter and result types must equal one declared requirement signature
 fail/operators/root_operator_alpha_equivalent_generic_duplicate rejected 761ms expected @ccdb99ca2214
@@ -33287,7 +33382,7 @@ fail/ownership/cleanup_receiver_keeps_child_loan rejected 3180ms expected @ccdb9
 fail/ownership/computed_window_selector_keeps_snapshot rejected 2720ms expected @ccdb99ca2214
 	cannot store `tokens[index]` while `tokens[index]` is absent: the value moved out of borrowed storage at statement 3 must be restored as a whole
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 3): `tokens[index]` must hold a value again before this state's exits consume the borrow
-fail/ownership/computed_window_selector_requires_builtin_meaning rejected 1977ms expected @ccdb99ca2214
+fail/ownership/computed_window_selector_requires_builtin_meaning rejected 6810ms expected @c2cfe5f3dece+wt
 	cannot store `tokens[0]` while `tokens[index]` is absent: the value moved out of borrowed storage at statement 2 must be restored as a whole
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `misplaced`, state `entry` (statement 2): `tokens[index]` must hold a value again before this state's exits consume the borrow
 fail/ownership/conditional_scalar_return_preserves_live_claim rejected 2035ms expected @ccdb99ca2214
@@ -33974,7 +34069,7 @@ fail/proofs/numeric_state_rounding_boundary rejected 2164ms expected @ccdb99ca22
 	cannot prove requires contract for call upper from rounded_wrong: value <= 9 (needs fact `value <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/numeric_state_saturating_payload rejected 2031ms expected @ccdb99ca2214
 	cannot prove requires contract for call zero from wrong: saturated == 0 (needs fact `value == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/numeric_state_selected_operator rejected 2127ms expected @ccdb99ca2214
+fail/proofs/numeric_state_selected_operator rejected 7728ms expected @c2cfe5f3dece+wt
 	cannot prove requires contract for call positive from wrong: changed > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/numeric_state_unknown_arrival rejected 2395ms expected @ccdb99ca2214
 	cannot prove requires contract for call tens from dispatch: 0 <= 9 && embed(unchecked) + embed(0) * 10 <= 99 (needs fact `count <= 9 && embed(rest) + embed(count) * 10 <= 99` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -34146,14 +34241,14 @@ fail/proofs/result_extent_authored_subtraction rejected 2812ms expected @ccdb99c
 	cannot prove requires contract for call need_two from main: selected.len == 2 (needs fact `bytes.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/result_extent_formal_shadows_result rejected 3185ms expected @ccdb99ca2214
 	cannot prove requires contract for call need_two from main: selected.len == 2 (needs fact `bytes.len == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/result_index_abstract_bound_operator rejected 1415ms unexpected @0eba905c6ff0
-	cannot form specification operator `[]` in trait `Outer` state `issue` ensures contract: no exact selected meaning
+fail/proofs/result_index_abstract_bound_operator rejected 2445ms unexpected @c2cfe5f3dece+wt
+	cannot form specification operator `[]` in trait `Outer` state `issue` ensures contract: no exact selected meaning for operand types [[Value; 2], <unavailable>]
 fail/proofs/result_index_authored_operator rejected 2210ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from issue at statement 0: result.items[0].code == 7
 fail/proofs/result_index_false_producer rejected 3455ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from issue at statement 0: result.items[0].code == 7 && result.items[1].code == code
-fail/proofs/result_index_lexical_operator rejected 1384ms unexpected @ccdb99ca2214
-	cannot form specification operator `==` in machine `issue` ensures contract: no exact selected meaning
+fail/proofs/result_index_lexical_operator rejected 2897ms unexpected @c2cfe5f3dece+wt
+	cannot form specification operator `==` in machine `issue` ensures contract: no exact selected meaning for operand types [<unavailable>, <unavailable>]
 fail/proofs/result_index_shadowed_result rejected 3384ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from wrong at statement 0: result.items[0].code == 7
 fail/proofs/returned_field_embedded_sum_wrong_guarantee rejected 3997ms expected @911f6617ba9e
@@ -35838,15 +35933,15 @@ fail/traits/applied_nominal_callback_proposition_tag_rejected rejected 1515ms ex
 	machine parameter `Callback` of provider machine `visit` for trait requirement `Visitor::visit` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/traits/captured_const_contract_distinct_binders rejected 1767ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from Wrong::identity at statement 0: result <= Maximum
-fail/traits/computed_static_carrier rejected 88ms expected @ccdb99ca2214
+fail/traits/computed_static_carrier rejected 517ms expected @c2cfe5f3dece+wt
 	const argument expression: landed `u32` result cannot initialize `i32`
-fail/traits/computed_static_effect rejected 307ms expected @ccdb99ca2214
+fail/traits/computed_static_effect rejected 649ms expected @c2cfe5f3dece+wt
 	const-generic application evaluation failed: machine `effect` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/traits/computed_static_fractional rejected 55ms expected @ccdb99ca2214
+fail/traits/computed_static_fractional rejected 577ms expected @c2cfe5f3dece+wt
 	const argument expression: exact anonymous value `1/2` cannot land in an integer const argument
-fail/traits/computed_static_overflow rejected 46ms expected @ccdb99ca2214
+fail/traits/computed_static_overflow rejected 548ms expected @c2cfe5f3dece+wt
 	const argument expression: anonymous constant expression cannot land exactly at the selected integer carrier
-fail/traits/computed_static_runtime rejected 34ms expected @ccdb99ca2214
+fail/traits/computed_static_runtime rejected 506ms expected @c2cfe5f3dece+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/traits/computed_static_type_category rejected 716ms expected @ccdb99ca2214
 	machine `type_only` static argument 1 requires its declared binder kind, not a const value
@@ -35940,7 +36035,7 @@ fail/traits/equatable_operator_ambiguous_implementations rejected 111ms expected
 	cannot compare `Coin` values with `==`: 2 Equatable implementations satisfy `Equatable<Coin>` (`CoinEquality`, `CoinValueEquality`) and the operator selects at most one -- call the intended implementation's `equals` explicitly
 fail/traits/equatable_recursive_type rejected 84ms expected @ccdb99ca2214
 	conformance `NodeEquality satisfies Equatable<Node>`: type `Node` is recursive through field `next` of `Node`: synthesized structural equality would not terminate, so recursive Equatable implementations are not supported yet
-fail/traits/evidence_binder_distinct_lifetime_arguments rejected 704ms expected @ccdb99ca2214
+fail/traits/evidence_binder_distinct_lifetime_arguments rejected 1852ms expected @0f36ecb1ab02
 	generic machine `observe` cannot bind `Operations` to conformance `IdentityMap`: expected a complete `Identity` implementation with the instantiated trait arguments
 fail/traits/evidence_binder_given_data_type rejected 656ms expected @ccdb99ca2214
 	machine `apply` static argument 2 requires its declared binder kind, not a type argument
@@ -36049,7 +36144,7 @@ fail/traits/inherited_region_application_phantom_ambiguity rejected 1821ms expec
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
 fail/traits/inherited_region_application_result_ambiguity rejected 1356ms expected @ccdb99ca2214
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
-fail/traits/inherited_region_application_telescope_ambiguity rejected 1888ms expected @ccdb99ca2214
+fail/traits/inherited_region_application_telescope_ambiguity rejected 6571ms expected @0f36ecb1ab02
 	closed conformance `Ambiguous satisfies Diamond` cannot instantiate inherited row `Reading::read`
 fail/traits/member_omits_requirement_ensures rejected 1493ms expected @ccdb99ca2214
 	machine `Grow::shrink` realizes `Shrink::shrink` but does not guarantee its `ensures result <= value`; callers of the requirement assume it

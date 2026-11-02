@@ -140,6 +140,7 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
         super::return_values::exit_return_expression(program, exit_flow),
         expression,
         &origins,
+        &facts.termination.rank_arrivals,
     )
 }
 

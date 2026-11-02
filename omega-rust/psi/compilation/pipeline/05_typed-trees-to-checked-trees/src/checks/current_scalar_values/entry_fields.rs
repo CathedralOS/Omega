@@ -161,7 +161,6 @@ impl CurrentScalarValues<'_> {
                 if let Some(carrier) = super::integer_carrier(self.program, reference) {
                     if !path.is_empty() {
                         self.fields.push(ScalarField::for_owner(
-                            self.program,
                             parameter.symbol,
                             CapturedScalarField {
                                 path: path
@@ -169,7 +168,6 @@ impl CurrentScalarValues<'_> {
                                     .map(|symbol| ScalarProjection::Field(*symbol))
                                     .collect(),
                                 carrier,
-                                read_dependencies: Vec::new(),
                                 value: entry_value(
                                     self.program,
                                     reference,
@@ -244,36 +242,26 @@ impl CurrentScalarValues<'_> {
                 ) else {
                     continue;
                 };
-                let Some(sources) = field
-                    .source_requirements
-                    .iter()
-                    .map(|requirement| {
-                        frames
-                            .coordinate_sources_before_statement(
-                                self.machine,
-                                self.state,
-                                first,
-                                parameter.symbol,
-                                requirement,
-                            )
-                            .filter(|sources| !sources.is_empty())
-                    })
-                    .collect::<Option<Vec<_>>>()
-                else {
+                // Every source requirement must resolve to an exact origin before
+                // the body runs; the storage graph later expires the observation.
+                if !field.source_requirements.iter().all(|requirement| {
+                    frames
+                        .coordinate_sources_before_statement(
+                            self.machine,
+                            self.state,
+                            first,
+                            parameter.symbol,
+                            requirement,
+                        )
+                        .is_some_and(|sources| !sources.is_empty())
+                }) {
                     continue;
-                };
-                let read_dependencies = sources
-                    .into_iter()
-                    .flatten()
-                    .map(|source| source.path)
-                    .collect();
+                }
                 self.fields.push(ScalarField::for_owner(
-                    self.program,
                     parameter.symbol,
                     CapturedScalarField {
                         path,
                         carrier: field.primitive_type,
-                        read_dependencies,
                         value: entry_value(
                             self.program,
                             field.result_type_reference,

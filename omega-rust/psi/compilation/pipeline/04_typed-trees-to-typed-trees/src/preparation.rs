@@ -248,6 +248,11 @@ pub fn prepare_typed_trees(
         &program,
         &provider_candidates,
     );
+    // Call-region inference consumes completed argument values, including
+    // constructors nested directly in calls. Seed their postorder before the
+    // first specialization round; later rounds refresh newly produced values.
+    data_applications::retain_declared_field_scopes(&mut program)?;
+    let _ = crate::constructed_results::retain_constructed_result_types(&mut program)?;
     drop(pre_loop_guard);
     let spec_loop_guard = phase_profile::guard("psi.04.specialization_loop");
     loop {
@@ -472,6 +477,8 @@ fn normalize_open_index_identities(program: &mut TypedTrees) -> Result<(), Vec<D
 pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let type_frontier = program.type_reference_table.type_reference_count();
     program.retain_static_argument_contexts();
+    data_applications::retain_declared_field_scopes(program)?;
+    let _ = crate::constructed_results::retain_constructed_result_types(program)?;
     loop {
         let signatures = program.closed_requirement_applications().count();
         specialize_machine_calls(program, false)?;

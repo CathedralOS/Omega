@@ -75,9 +75,7 @@ pub(crate) fn proves_exit_expression<'program>(
             // Retire its may-writes before consuming prefix scalar values;
             // exact result/post-storage captures have their own proof owner.
             if let Some(returned) = returned {
-                values.invalidate_operand_writes(
-                    frames.map(|frames| frames.expression_write_frame(machine, returned)),
-                );
+                values.retire_operand_effects(returned);
                 values.prepare_exit_return(returned);
             }
             Some((machine, values, returned))
@@ -145,25 +143,22 @@ pub(crate) fn proves_call(
     ) else {
         return false;
     };
-    let Some(statement) = program
-        .statement_table
-        .statement_at(state, call.statement_index)
-    else {
-        return false;
-    };
     // Requirements are judged after operand evaluation and before this
     // invocation executes. The resolved completing occurrence shares the
     // ranking frontier: guard and nested operand effects remain, while the
     // callee's future writes cannot erase its own prepared actuals. An inner
     // call still uses the conservative full statement until ordered captures
     // supply its frontier; stripping its enclosing call would lose effects.
-    values.invalidate_operand_writes(frames.map(|frames| {
-        if target.is_valid() {
-            frames.transition_operand_write_frame(machine, statement)
-        } else {
-            frames.statement_value_write_frame(machine, statement)
-        }
-    }));
+    let at = program.storage_graph().and_then(|graph| {
+        validation::completed_storage::versions::invocation_snapshot(
+            program,
+            graph,
+            state.symbol,
+            call.statement_index,
+            call.call_ordinal,
+        )
+    });
+    values.retire_unpreserved(at);
     let Some((callee, callee_state)) = validation::find_state(program, call.target_symbol)
         .or_else(|| validation::find_machine_head(program, call.target_symbol))
     else {

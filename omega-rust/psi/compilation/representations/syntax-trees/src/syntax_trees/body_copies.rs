@@ -41,6 +41,7 @@ macro_rules! copied_state_signature {
                 .map(|bound| crate::item::GenericConformanceBound {
                     binder: bound.binder.clone(),
                     trait_name: bound.trait_name.clone(),
+                    lifetime_arguments: bound.lifetime_arguments.clone(),
                     arguments: $self.copy_type_reference_handle_span($other, bound.arguments),
                 })
                 .collect(),

@@ -4,7 +4,7 @@ data Token { byte: i32; }
 machine Token::drop(token: &mut Token) { token.byte = 0; }
 
 trait IndexAdd {
-    operator + add(left: u8, right: u8) -> u8;
+    machine + add(left: u8, right: u8) -> u8;
 }
 
 Selected satisfies IndexAdd {

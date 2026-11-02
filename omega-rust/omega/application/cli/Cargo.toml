@@ -15,7 +15,7 @@ test = true
 
 [dependencies]
 allocation-observation = { path = "../../../../tools/benchmark/allocation-observation", optional = true }
-omega-build = { path = "../../compilation/build" }
+omega-build = { path = "../../build-system/omega-build" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 mimalloc = { version = "0.1", default-features = false }
 bounded-process = { path = "../../foundation/bounded-process" }

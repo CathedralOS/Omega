@@ -16,7 +16,6 @@ use validation::{ScopedArithmeticHypothesis, expression_result_type_reference};
 pub(super) struct ConditionBinding {
     pub(super) owner: SymbolHandle,
     pub(super) path: Vec<SymbolHandle>,
-    pub(super) name: String,
     when_true: Vec<ScopedArithmeticHypothesis>,
     when_false: Vec<ScopedArithmeticHypothesis>,
 }
@@ -120,15 +119,9 @@ impl CurrentScalarValues<'_> {
         for condition in conditions {
             let mut path = prefix.to_vec();
             path.extend(condition.path);
-            let mut name = self.program.symbols.name(owner).to_owned();
-            for field in &path {
-                name.push('.');
-                name.push_str(self.program.symbols.name(*field));
-            }
             self.conditions.push(ConditionBinding {
                 owner,
                 path,
-                name,
                 when_true: condition.when_true,
                 when_false: condition.when_false,
             });

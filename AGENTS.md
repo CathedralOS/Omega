@@ -719,7 +719,11 @@ The rules that touch every edit:
   use `Handle<T>`/`HandleSpan<T>`; `Vec` is construction scratch, not the
   durable shape. Arena/vector-backed symbol tables over local hash maps; a
   map keyed by compiler-owned objects is a review trigger for missing
-  representation structure. Symbols are handle-first — string names are
+  representation structure. Dense IDs (`semantic_id!` types, arena handles)
+  index flat tables (`IdTable`/`IdSet` once they land; until then a `Vec`
+  indexed by the ID), and derived data is computed once by its owner, not
+  cached; `tools/check_rules.py` fails a file whose count of ID-keyed maps or
+  cache-shaped bindings rises. Symbols are handle-first — string names are
   debug/export payload, not identity. Source text stays in loading,
   diagnostic, and debug payload roles.
 - Entrypoints stay prominent: `main.rs` owns startup and visible dispatch
@@ -976,7 +980,7 @@ bootstrap implementation; those meanings stay distinct in subjects.
 | `omega` | The Terminal-Psi-consuming compiler stage: Omega representations, transforms, optimization, and realization semantics in `omega-rust/omega/compilation/{representations,pipeline,realization}/` or corresponding `source/omega/` implementation. Never a project-wide default. |
 | `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/compilation/backend/` and their product-source equivalents. Transform policy in `pipeline/` remains `omega`. |
 | `compiler` | Product compilation coordination and reports in `omega-rust/omega/compilation/compiler/`, the source-free native driver in `omega-rust/omega/compilation/native-production/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
-| `build` | The product's Build activation in `omega-rust/omega/compilation/build-evaluation/`, plus product build declarations such as `source/omega/build.omg`. Provider planning and trust admission under `realization/` use `omega`; CLI policy-file handling uses `cli`. Repository build commands and CI use `repo`. |
+| `build` | The build system in `omega-rust/omega/build-system/`: project and package flows in `omega-build/` and Build activation in `build-evaluation/`, plus product build declarations such as `source/omega/build.omg`. Provider planning and trust admission under `realization/` use `omega`; CLI policy-file handling uses `cli`. Repository build commands and CI use `repo`. |
 | `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/packages/`. Package command wiring accompanying those changes keeps `packages`. |
 | `cli` | Command parsing, flags, help, and command dispatch in `omega-rust/omega/application/cli/src/`, plus the corresponding product entrypoint. The command's underlying compiler or package behavior uses its owning lane. |
 | `tooling` | Shipped developer tools and shared host support in `omega-rust/omega/foundation/`, including artifact file writing and measurements. Semantic trust records and admission under `realization/trust-model/` use `omega`. |

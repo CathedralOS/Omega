@@ -952,6 +952,37 @@ pub(super) fn clone_single_specialized_machine(
         )
         .ok_or_else(|| failed("capture application has no complete supplying scope"))?;
         let environment = scope.environment();
+        // Evidence bounds retain ordinary trait region operands independently
+        // of their type leaves. Apply the same capture to the complete authored
+        // head, rather than leaving its region names in the template scope.
+        let mut bound_applications = Vec::new();
+        for (index, bound) in cloned.conformance_bounds.iter().enumerate() {
+            if bound.lifetime_arguments.is_empty() {
+                continue;
+            }
+            let arguments = program
+                .type_reference_table
+                .insert_type_reference_handles(bound.arguments.iter().copied());
+            let reference = program
+                .type_reference_table
+                .insert(TypeReferenceNode::Generic {
+                    base_symbol: bound.trait_symbol,
+                    base_name: bound.trait_name.clone(),
+                    lifetime_arguments: bound.lifetime_arguments.clone(),
+                    arguments,
+                });
+            let source_bound = &source_machine.conformance_bounds[index];
+            let source_owner = source
+                .unwrap_or(program)
+                .symbols
+                .get(source_bound.binder)
+                .parent;
+            program
+                .type_reference_table
+                .retain_operand_lifetime_owner(reference, source_owner)
+                .map_err(|message| vec![Diagnostic::error(message)])?;
+            bound_applications.push((index, reference));
+        }
         let references = program
             .type_reference_table
             .references_from(type_start)
@@ -977,6 +1008,28 @@ pub(super) fn clone_single_specialized_machine(
                 .type_reference_table
                 .substitute_applied_from(reference, applied)
                 .map_err(|message| vec![Diagnostic::error(message)])?;
+        }
+        for (index, reference) in bound_applications {
+            let TypeReferenceNode::Generic {
+                base_symbol,
+                lifetime_arguments,
+                arguments,
+                ..
+            } = program.type_reference_table.type_reference(reference)
+            else {
+                return Err(failed("captured evidence bound lost its trait application"));
+            };
+            let bound = &mut cloned.conformance_bounds[index];
+            if *base_symbol != bound.trait_symbol {
+                return Err(failed(
+                    "captured evidence bound changed its trait declaration",
+                ));
+            }
+            bound.lifetime_arguments = lifetime_arguments.clone();
+            bound.arguments = program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .to_vec();
         }
     }
     let cloned_expression_roots = cloned_expression_roots(program, &cloned);

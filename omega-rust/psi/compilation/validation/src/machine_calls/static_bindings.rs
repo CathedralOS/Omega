@@ -792,17 +792,15 @@ fn validate_conformance_bindings(
                 }
             };
         let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
-        if application.trait_definition != carrier.base
-            || !conformance_arguments_match(
-                program,
-                machine,
-                call.lexical_owner,
-                bindings,
-                lifetimes,
-                bound,
-                &application,
-            )
-        {
+        if !conformance_arguments_match(
+            program,
+            machine,
+            call.lexical_owner,
+            bindings,
+            lifetimes,
+            bound,
+            &application,
+        ) {
             diagnostics.push(Diagnostic::error(format!(
                 "generic machine `{}` cannot bind `{}` to conformance `{}`: expected a complete `{}` implementation with the instantiated trait arguments",
                 machine.name, bound.binder_name,
@@ -926,16 +924,23 @@ fn conformance_arguments_match(
         lexical_owner,
         &[machine_scope],
     );
-    let actual = crate::conformance_applications::applied_trait_argument_identities(
-        program,
-        application.trait_definition,
-        program
-            .type_reference_table
-            .type_reference_handles(conformance.arguments),
-        conformance.symbol,
-        lexical_owner,
-        &[actual_scope],
-    );
+    // The selected map may implement a child of the demanded trait. Keep
+    // every inherited simultaneous telescope before applying the map's own
+    // actual tuple; a direct-trait comparison loses both parents and regions.
+    let actual = (|| {
+        let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
+        let scope = typed_trees::trait_definition::AppliedTraitScope::from_conformance(
+            program.typed_program(),
+            conformance,
+        )?
+        .declaring_scope(program.typed_program(), carrier.base)?;
+        crate::conformance_applications::applied_scope_argument_identities(
+            program,
+            &scope,
+            lexical_owner,
+            &[actual_scope],
+        )
+    })();
     required
         .zip(actual)
         .is_some_and(|(required, actual)| required == actual)

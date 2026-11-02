@@ -22,7 +22,6 @@ samples/cli/facts/core_integer_endpoint/README.md CORE-INTEGER-FLOAT-APIS
 samples/cli/facts/default_domain_field_write/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION
 samples/cli/facts/domain_pattern_match_bound/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION
 samples/cli/facts/double_indexed_rmw/README.md CHECKER-CARRIES-OPERATION-DECISIONS
-samples/cli/facts/dyn_dispatch_selector_payload_bound/README.md DYNAMIC-DISPATCH
 samples/cli/facts/dynamic_trait_dispatch/README.md EXPLICIT-ENTRY-STORAGE
 samples/cli/facts/exact_integer_narrowing/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION
 samples/cli/facts/fixed_array_twofiftysix_elem_index_bound/README.md COUNTS-AND-ADDRESSES

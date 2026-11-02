@@ -71,23 +71,40 @@ struct TypeScope<'scope> {
     argument_lifetimes: &'scope [(String, RegionIdentity)],
     application_lifetimes: &'scope [Vec<(String, RegionIdentity)>],
     captured: &'scope [super::callable_regions::AppliedRegionBinding],
+    /// Declared application rows parallel to starts, retained only through
+    /// the supplying prefix selected by a Type substitution.
+    application_scopes: &'scope [typed_trees::type_identity::AppliedTypeIdentityScope<'scope>],
+    argument_owner: SymbolHandle,
     /// Region scopes survive a foreign operand without reactivating that
     /// operand's receiving Type substitutions.
     region_outer: Option<&'scope TypeScope<'scope>>,
 }
 
 impl TypeScope<'_> {
-    fn applied_region<'scope>(
-        &'scope self,
+    fn applied_region(
+        &self,
         program: &dyn crate::CheckingInput,
         parameter: typed_trees::type_identity::LifetimeParameterIdentity,
-    ) -> Option<&'scope RegionIdentity> {
+    ) -> Option<RegionIdentity> {
         let mut scope = Some(self);
         while let Some(frame) = scope {
             if let Some(argument) =
                 super::callable_regions::applied_region(program, frame.captured, parameter)
             {
-                return Some(argument);
+                return Some(argument.clone());
+            }
+            if let Some((argument, true)) =
+                typed_trees::type_identity::apply_resolved_lifetime_parameter_identity(
+                    program.typed_program(),
+                    parameter,
+                    frame.argument_owner,
+                    frame.application_scopes,
+                )
+            {
+                return Some(RegionIdentity::Captured(
+                    argument.declaration,
+                    argument.ordinal,
+                ));
             }
             scope = frame.region_outer.or(frame.outer);
         }
@@ -290,6 +307,8 @@ pub(super) fn symbolic_carried_lifetimes(
         &[],
         &[],
         &[],
+        &[],
+        SymbolHandle::invalid(),
         SymbolHandle::invalid(),
         false,
         LifetimeFrontier::Value,
@@ -363,6 +382,8 @@ pub(super) fn symbolic_input_lifetimes(
         &[],
         &[],
         &[],
+        &[],
+        SymbolHandle::invalid(),
         SymbolHandle::invalid(),
         false,
         LifetimeFrontier::Input,
@@ -415,6 +436,8 @@ pub(super) fn scoped_carried_lifetimes(
     argument_lifetimes: &[(String, RegionIdentity)],
     application_lifetimes: &[Vec<(String, RegionIdentity)>],
     captured: &[super::callable_regions::AppliedRegionBinding],
+    application_scopes: &[typed_trees::type_identity::AppliedTypeIdentityScope<'_>],
+    argument_owner: SymbolHandle,
     declaration: SymbolHandle,
     scoped_regions: bool,
     frontier: LifetimeFrontier,
@@ -432,6 +455,8 @@ pub(super) fn scoped_carried_lifetimes(
             argument_lifetimes,
             application_lifetimes,
             captured,
+            application_scopes,
+            argument_owner,
             ..TypeScope::default()
         },
         &[],
@@ -513,7 +538,7 @@ fn carried_region(
         return None;
     }
     if let Some(argument) = types.applied_region(program, region) {
-        return Some(argument.clone());
+        return Some(argument);
     }
     let mut scope = Some(types);
     while let Some(frame) = scope {
@@ -561,44 +586,74 @@ fn collect_type(
                             ordinal,
                         },
                     )
-                    .cloned()
                     .unwrap_or(RegionIdentity::Captured(declaration, ordinal)),
                 identity => identity,
             };
             (name, identity)
         })
         .collect::<Vec<_>>();
-    let (lifetimes, types) = if operand_owner.is_valid() {
-        // A declaration-owned field uses the region application of its active
-        // traversal frame, just as it uses that frame's Type substitutions.
-        // A supplied operand outside those frames re-enters its captured scope.
-        // The owner stamp alone does not distinguish a schema from an operand.
-        let mut scope = Some(types);
-        let mut supplying_scope = None;
-        while let Some(frame) = scope {
-            if program.lifetime_declaration_owner(frame.declaration)
-                == program.lifetime_declaration_owner(operand_owner)
-            {
-                supplying_scope = Some(frame);
-                break;
+    let (lifetimes, types) =
+        if operand_owner.is_valid() {
+            // A declaration-owned field uses the region application of its active
+            // traversal frame, just as it uses that frame's Type substitutions.
+            // A supplied operand outside those frames re-enters its captured scope.
+            // The owner stamp alone does not distinguish a schema from an operand.
+            let mut scope = Some(types);
+            let mut supplying_scope = None;
+            while let Some(frame) = scope {
+                if program.lifetime_declaration_owner(frame.declaration)
+                    == program.lifetime_declaration_owner(operand_owner)
+                {
+                    supplying_scope = Some(frame);
+                    break;
+                }
+                let application_owner = program.lifetime_declaration_owner(operand_owner);
+                if application_owner.is_valid()
+                    && let Some((ordinal, application)) =
+                        frame.application_scopes.iter().enumerate().rev().find(
+                            |(_, application)| {
+                                program.lifetime_declaration_owner(application.declaration)
+                                    == application_owner
+                            },
+                        )
+                    && ordinal < frame.starts.len()
+                    && ordinal < frame.application_lifetimes.len()
+                {
+                    let end = frame
+                        .starts
+                        .get(ordinal + 1)
+                        .copied()
+                        .unwrap_or(frame.bindings.len());
+                    if end <= frame.bindings.len() && frame.starts[ordinal] <= end {
+                        supplying_scope = Some(TypeScope {
+                            declaration: application.declaration,
+                            lifetimes: &frame.application_lifetimes[ordinal],
+                            bindings: &frame.bindings[..end],
+                            starts: &frame.starts[..=ordinal],
+                            application_scopes: &frame.application_scopes[..=ordinal],
+                            application_lifetimes: &frame.application_lifetimes[..=ordinal],
+                            ..frame
+                        });
+                        break;
+                    }
+                }
+                scope = frame.outer.copied();
             }
-            scope = frame.outer.copied();
-        }
-        supplying_scope.map_or(
-            (
-                &operand_lifetimes[..],
-                TypeScope {
-                    declaration: operand_owner,
-                    lifetimes: &operand_lifetimes,
-                    region_outer: Some(&receiver_types),
-                    ..TypeScope::default()
-                },
-            ),
-            |frame| (frame.lifetimes, frame),
-        )
-    } else {
-        (lifetimes, types)
-    };
+            supplying_scope.map_or(
+                (
+                    &operand_lifetimes[..],
+                    TypeScope {
+                        declaration: operand_owner,
+                        lifetimes: &operand_lifetimes,
+                        region_outer: Some(&receiver_types),
+                        ..TypeScope::default()
+                    },
+                ),
+                |frame| (frame.lifetimes, frame),
+            )
+        } else {
+            (lifetimes, types)
+        };
     macro_rules! carry_child {
         ($reference:expr $(,)?) => {
             collect_type(
@@ -941,6 +996,8 @@ fn collect_type(
                     argument_lifetimes: lifetimes,
                     application_lifetimes: &[],
                     captured: &[],
+                    application_scopes: &[],
+                    argument_owner: types.argument_owner,
                     region_outer: None,
                 },
                 owner_path,
@@ -983,6 +1040,10 @@ fn collect_type(
                         TypeScope {
                             bindings: &frame.bindings[..*start],
                             starts: &frame.starts[..scope_ordinal],
+                            application_scopes: &frame.application_scopes
+                                [..frame.application_scopes.len().min(scope_ordinal)],
+                            application_lifetimes: &frame.application_lifetimes
+                                [..frame.application_lifetimes.len().min(scope_ordinal)],
                             captured: &[],
                             ..*frame
                         }

@@ -93,6 +93,26 @@ pub fn canonical_template_contract_bytes(
     }
     for bound in &machine.conformance_bounds {
         let mut encoded = Vec::new();
+        if !bound.lifetime_arguments.is_empty() {
+            // This extension cannot collide with the legacy UTF-8 trait-name
+            // prefix. Preserve every pre-region-bound commitment byte.
+            encoded.push(0xff);
+            encoded.extend((bound.lifetime_arguments.len() as u64).to_le_bytes());
+            let owner = program.symbols.get(bound.binder).parent;
+            for lifetime in &bound.lifetime_arguments {
+                let identity = typed_trees::type_identity::portable_applied_lifetime_identity(
+                    program.typed_program(),
+                    lifetime.as_str(),
+                    owner,
+                    &[],
+                )
+                .and_then(|identity| program.type_identity_text(identity))
+                .ok_or_else(|| {
+                    Diagnostic::error("evidence-bound commitment lost its declared region")
+                })?;
+                encode_identity_text(&identity, &mut encoded);
+            }
+        }
         encoded.extend(bound.trait_name.as_str().as_bytes());
         encoded.push(0);
         for argument in &bound.arguments {

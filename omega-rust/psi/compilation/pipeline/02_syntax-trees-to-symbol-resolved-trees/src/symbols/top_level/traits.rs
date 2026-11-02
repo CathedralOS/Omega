@@ -98,7 +98,7 @@ trait_machine_identity_slots: &trait_machine_identity_slots,
         .resolve_type_parameter_kind_symbols(
             trait_definition.type_parameters,
             &local_type_parameters,
-            crate::symbols::top_level::MachineParameterArm::Skip,
+            crate::symbols::top_level::MachineParameterArm::ResolveWithAuthoredTraitArguments,
             true,
         );
 

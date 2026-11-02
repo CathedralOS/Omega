@@ -21,6 +21,7 @@ pub fn normal_exit_proves(
     returned: ExpressionHandle,
     expression: ExpressionHandle,
     origins: &[(SymbolHandle, SymbolHandle)],
+    ranks: &checked_trees::CheckedRankArrivalPlan,
 ) -> bool {
     if !returned.is_valid() {
         return false;
@@ -39,6 +40,7 @@ pub fn normal_exit_proves(
         returned,
         expression,
         origins,
+        ranks,
         seen: false,
         proven: true,
     };
@@ -53,6 +55,7 @@ struct ExitPredicate<'a> {
     returned: ExpressionHandle,
     expression: ExpressionHandle,
     origins: &'a [(SymbolHandle, SymbolHandle)],
+    ranks: &'a checked_trees::CheckedRankArrivalPlan,
     seen: bool,
     proven: bool,
 }
@@ -77,7 +80,8 @@ impl StructuralPrefixVisitor for ExitPredicate<'_> {
 
 impl ExitPredicate<'_> {
     fn proves_observation(&self, observation: PrefixObservation<'_, '_>) -> Option<bool> {
-        let (program, machine, state, judge, environment) = observation;
+        let (program, machine, state, mut judge, environment) = observation;
+        judge.retain_runtime_induction(self.ranks);
         let entry = program.machine_states(machine).first()?;
         let mut parameters = Vec::new();
         for parameter in program.state_parameters(entry) {
@@ -109,7 +113,7 @@ impl ExitPredicate<'_> {
                 &[],
                 ContentPlaceVersion::Current,
             )?;
-            parameters.push((parameter.name.to_string(), value));
+            parameters.push((parameter.symbol, value));
         }
         let paths = judge.normal_return_paths(
             self.returned,
@@ -120,23 +124,21 @@ impl ExitPredicate<'_> {
             return None;
         }
         for path in paths {
-            let mut bindings = parameters.clone();
-            if !program
-                .state_parameters(entry)
-                .iter()
-                .any(|parameter| parameter.name.as_str() == super::RESULT_BINDER)
-            {
-                bindings.push((super::RESULT_BINDER.to_owned(), path.value));
-            }
-            if !matches!(
-                path.judge.judge_predicate_in_scope(
-                    (machine, entry, entry.return_type),
-                    self.expression,
-                    &bindings,
-                    0,
-                ),
-                StructuralJudgment::Proven
-            ) {
+            // Substitute exact formal identities and the completed result. A
+            // source-style reread could replace its captured field equations
+            // with a weaker denotational application before judging the exit.
+            let predicate = path.judge.bound_contract_term(
+                self.expression,
+                machine.symbol,
+                program.state_parameters(entry),
+                machine.symbol,
+                &parameters,
+                &[],
+                Some(&path.value),
+                0,
+            )?;
+            let result = path.judge.judge_observed_predicate(predicate, 0);
+            if !matches!(result, StructuralJudgment::Proven) {
                 return Some(false);
             }
         }

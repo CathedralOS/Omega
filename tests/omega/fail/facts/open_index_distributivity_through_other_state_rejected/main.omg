@@ -6,8 +6,8 @@
 domain<T, const I: u64> T::Indexed<I>;
 
 trait IndexSemiring {
-    operator + add(a: u64, b: u64) -> u64 terminates;
-    operator * multiply(a: u64, b: u64) -> u64 terminates;
+    machine + add(a: u64, b: u64) -> u64 terminates;
+    machine * multiply(a: u64, b: u64) -> u64 terminates;
 }
 
 // Both selected operations are constant three: normalization consumes the laws the

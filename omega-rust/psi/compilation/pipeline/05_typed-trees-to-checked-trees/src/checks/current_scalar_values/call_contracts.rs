@@ -457,11 +457,7 @@ impl CurrentScalarValues<'_> {
                     });
                 }
                 for field in self.captured_scalar_fields(*argument, 0) {
-                    fields.push(ScalarField::for_owner(
-                        self.program,
-                        parameter.symbol,
-                        field,
-                    ));
+                    fields.push(ScalarField::for_owner(parameter.symbol, field));
                 }
                 for field in self.captured_field_lengths(*argument, 0) {
                     lengths.push(Length {
@@ -483,7 +479,6 @@ impl CurrentScalarValues<'_> {
                 value: self.capture(self.program, self.machine, self.state, *argument),
                 alternatives: Vec::new(),
                 immutable_coordinate: false,
-                read_dependencies: Some(Vec::new()),
             });
         }
         formals.extend(machine_values.iter().map(|(symbol, value)| Binding {
@@ -492,7 +487,6 @@ impl CurrentScalarValues<'_> {
             value: Some(value.clone()),
             alternatives: Vec::new(),
             immutable_coordinate: true,
-            read_dependencies: Some(Vec::new()),
         }));
         let occurrence = self.occurrence_at(self.program, callee, state, &lengths);
         if !form_operations && !admitted(occurrence, expression, &formals, &fields, 0) {

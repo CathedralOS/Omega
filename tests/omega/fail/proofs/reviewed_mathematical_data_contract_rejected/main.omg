@@ -1,0 +1,10 @@
+// The constructed value must satisfy the same mathematical bound as the public contract.
+use vendor::main;
+machine main() crashes Trap {
+    let value: Bounded = Bounded { value: 101 };
+    let observed: u64 = remainder(value);
+    let saved: u8 = preserve(17u8);
+    transition observed == 27 && saved == 17u8 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
