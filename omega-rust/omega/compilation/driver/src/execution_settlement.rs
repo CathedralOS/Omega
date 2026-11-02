@@ -482,7 +482,6 @@ fn prepare_target_provider_selection(
         boundary_calling_plan_realizations,
         code,
         &build_config.opaque_representation_selections,
-        &source.program.facts.synchronous_invocations,
     )
 }
 

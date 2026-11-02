@@ -3,7 +3,7 @@
 // Encoder failure reports written=0. Capacity failure may leave a partial output;
 // codec identity failure is checked before the first output write.
 use omega_language_std::console;
-use omega_language_std::wire;
+use omega::language::core::wire;
 
 data PreservePolicy {
 }

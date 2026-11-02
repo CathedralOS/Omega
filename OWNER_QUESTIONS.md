@@ -154,3 +154,35 @@ about the copy. [Lifetimes](wiki/spec/language/lifetimes.md) (line 101) says
 integer snapshots are not live storage. No passage names scalar copy guards or
 requires a restore to break a relation. These establish that facts follow
 captured values and storage footprints but leave the restore case open.
+
+### 3. Does a coerced `dyn` selector narrow its call to the selected conformance's envelope, or keep the requirement ceiling?
+
+Two accepted passages disagree. [Dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md)
+(lines 81-93) lists service reach, suspension, blocking, failure, termination
+and crash routes as per-requirement envelope axes and says "Coercion retains
+the selected conformance's exact envelope"; `suspend` and `block`
+acknowledgements "use the retained envelope, not the wider base declaration".
+[Effects](wiki/spec/language/effects.md) (lines 184-187) says dynamic and
+boundary calls "retain pinned requirement ceilings, not a narrower provider
+body eventually selected for them", and that their operational
+acknowledgements "still use the requirement envelope".
+
+Option A, the selector narrows: a selection known at check time, such as
+`QuietSource as dyn Source` carried through locals, fields, constants, private
+calls, joins and nested machines, contributes the selected conformance's
+published rows. An unknown selector (an unannotated public `dyn` parameter)
+keeps the requirement ceiling, and "eventually selected" in effects.md reads
+as a selection made by Build or at run time. `samples/cli/facts/dynamic_suspension`
+(suspension and blocking) and `samples/cli/facts/dynamic_selected_reach`
+(service reach) implement this reading. The `dynamic/` places of
+`samples/cli/facts/unannotated_direct_boundary_call` now reach `Mark` from the
+selected body, because their silent selection no longer carried the
+requirement's `Mark` row.
+
+Option B, the ceiling stays: every `dyn` call contributes its requirement's
+whole envelope, whatever the coercion selected. dynamic_dispatch.md's
+"retained envelope" then means the requirement's envelope, and both fact rows
+above, with their pinned fixtures, are reverted.
+
+In both options public and annotated ceilings, Build-selected providers and
+unknown selectors keep the requirement row; only check-time coercions differ.

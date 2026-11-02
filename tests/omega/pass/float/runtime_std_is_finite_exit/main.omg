@@ -9,7 +9,7 @@ use omega::language::core::float_operations;
 // fix routes -- before it, a failed inline arm guard sailed past its
 // sibling arm into the caller's failure trailer and both false legs
 // answered true. Distinct exit codes name the first leg that misses.
-use omega_language_std::math;
+use omega::language::core::math;
 use omega_language_std::console;
 data Main { }
 machine Main::main(main: &mut Main) reaches Console {

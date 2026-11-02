@@ -133,8 +133,8 @@ impl ExternalBindingContext<'_> {
                 ExternalBindingKind::Syscall { number: *number },
                 self.target_profile(plan)?,
             ),
-            ProviderBinding::VtableField { field, .. }
-            | ProviderBinding::TableFunction { field, .. } => {
+            ProviderBinding::VtableField { table, field }
+            | ProviderBinding::TableFunction { table, field } => {
                 let target_profile = self.target_profile(plan)?;
                 let layout_target = layout::LayoutTarget::for_profile(target_profile)
                     .map_err(|reason| vec![Diagnostic::error(reason)])?;
@@ -143,6 +143,7 @@ impl ExternalBindingContext<'_> {
                     layout_target,
                     provenance,
                     row_index,
+                    table,
                     field,
                     opaque_representation_selections,
                 )
@@ -210,7 +211,7 @@ impl ExternalBindingContext<'_> {
             trait_name: trait_name_text(&plan.schema).to_owned(),
             method: row.method.clone(),
             requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
-            table_type: plan.provider_type.clone(),
+            provider_type: plan.provider_type.clone(),
             calling_applications,
             binding,
         }))

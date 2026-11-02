@@ -182,6 +182,19 @@ producer and reloads its canonical artifact. Debug companions
 must retain the same program identity; changing that identity must reject at
 external ingress. This tests inspection without requiring a native program entry.
 
+`provider-choice-controls` captures the original checked provider choice and
+callback body facts, then releases Source before comparing complete proposals,
+callable headers and callback roots on retained and decoded artifacts.
+
+`callback-body-controls` inspects the same shared Terminal publication used by
+target callback planning, without replaying whole-provider selection or starting
+another source producer. It compares body/package/target/scope facts and callback
+roots with the checked Source oracle after releasing that Source. Body facts must
+survive unavailable full descriptions. `expected_callback_header_omission.txt`
+with `required` demands an actually consumed checked registrar: omitting its header
+and independently clearing its body flag must both refuse through public Artifact
+ingress. The fixture's ordinary execution retains its runtime oracle.
+
 `callback-telescope-controls <qualified-policy>` drops source before reconstructing
 the complete callback signature from retained and decoded Terminal artifacts.
 It executes the authored policy's exact logical callable with that input and

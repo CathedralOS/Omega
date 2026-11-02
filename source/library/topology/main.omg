@@ -28,11 +28,10 @@
 // (MAX_INSTANCES=1024 et al.) are the wire contract; a wider realization
 // moves to dynamically-sized carriers when the language admits them.
 //
-// Stage status: `digest` + `verify` are implemented — the request,
-// plan, and components decoders plus the full check pipeline
-// (commitment, roster, component binding, assumptions, bindings/graph
-// normalization, policy coverage + verifier identity, and independent
-// no_route/only_via predicate replay with certificate closure checks
-// over the reconstructed adjacency).
-use digest;
+// `verify` holds the request, plan and components decoders plus the full
+// check pipeline: commitment, roster, component binding, assumptions,
+// bindings/graph normalization, policy coverage and verifier identity, and
+// independent no_route/only_via predicate replay with certificate closure
+// checks over the reconstructed adjacency. Hashing uses core's `sha256`.
+use omega::language::core::sha256;
 use verify;

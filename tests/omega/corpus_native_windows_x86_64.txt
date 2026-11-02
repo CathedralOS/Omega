@@ -5221,6 +5221,7 @@ pass/generics/selected_member_shared_runtime_subject_exit built 3173ms exit:0 @5
 pass/generics/selected_open_capture_carriers_exit built 3809ms exit:0 @5f668826adf3+wt
 pass/generics/seq_map_filter checked 2977ms @5f668826adf3+wt
 pass/generics/static_callable_local_type_argument_exit built 2980ms exit:0 @5f668826adf3+wt
+pass/generics/static_dispatch_public_ensures_reaches_caller_exit built 4522ms exit:0 @24bfc5388538+wt
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 1881ms @5f668826adf3+wt
 pass/generics/swapped_type_parameter_result checked 1890ms @5f668826adf3+wt
 pass/generics/type_index_forwarding_exit rejected 2728ms @5f668826adf3+wt

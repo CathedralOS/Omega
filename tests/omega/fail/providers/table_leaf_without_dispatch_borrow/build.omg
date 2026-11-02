@@ -1,0 +1,4 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "table_leaf_without_dispatch_borrow");
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+}

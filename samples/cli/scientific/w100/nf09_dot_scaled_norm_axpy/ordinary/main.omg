@@ -1,9 +1,9 @@
 // Expected exit: 0.
 use omega::language::core::float_operations;
-use numerics::linalg::dot_scaled_norm_axpy::try_dot_f64;
-use numerics::linalg::dot_scaled_norm_axpy::try_scaled_norm_f64;
-use numerics::linalg::dot_scaled_norm_axpy::try_axpy_f64;
-use numerics::linalg::dot_scaled_norm_axpy::try_axpy_self_f64;
+use omega::language::core::linear_algebra::try_dot_f64;
+use omega::language::core::linear_algebra::try_scaled_norm_f64;
+use omega::language::core::linear_algebra::try_axpy_f64;
+use omega::language::core::linear_algebra::try_axpy_self_f64;
 
 // Ordinary geometry and disjoint/self axpy. Frozen oracle: dot=11,
 // norm=5, axpy=(7,10), self axpy=(21,30). Empty dot/norm are zero.

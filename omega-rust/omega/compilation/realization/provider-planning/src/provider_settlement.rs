@@ -392,7 +392,6 @@ pub fn settle_checked_providers(
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
     opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
-    synchronous_invocations: &checked_trees::SynchronousInvocationFacts,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
     if !std::ptr::eq(services.context().typed, &*checked.typed)
         || services.context().scope != source::DependencyScope::Product
@@ -516,15 +515,14 @@ pub fn settle_checked_providers(
         target_name,
         &selected_semantic_plans,
     )?;
-    // Cycle review only walks authored `invokes` edges and requires every
-    // schema method to bind a plan row. The toolchain-settled plan covers
+    // The cycle rule reads checked realized calls, including dormant declarations,
+    // and requires every schema method to bind a plan row. The toolchain plan covers
     // only its honestly realizable leaves and its syscall rows can never
     // invoke, so it joins after the authored-plan cycle check, before the
     // external-binding extraction that binds its syscall numbers.
-    crate::validate_selected_synchronous_invocation_cycles(
-        typed,
-        synchronous_invocations,
-        &selected_semantic_plans,
+    backend_plan::synchronous_invocations::validate_declared_synchronous_invocation_cycles(
+        selected_semantic_plans.iter(),
+        artifact.module(),
     )?;
     let external_binding_rows = crate::extract_native_external_binding_rows(
         target_name,

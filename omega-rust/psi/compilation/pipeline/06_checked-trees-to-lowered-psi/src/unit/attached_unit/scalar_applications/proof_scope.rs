@@ -64,9 +64,63 @@ pub(super) fn publish(
             callable: terminal_psi::TargetMachineCallable::Boundary(boundary.id),
         });
     }
+    // A selected generic template may have no emitted body or full signature.
+    // Keep its independent header on the same declaration roster nonetheless.
+    let mut headers = checked
+        .facts
+        .declaration_descriptions
+        .headers
+        .iter()
+        .map(|(_, header)| Ok((identity(header.machine)?, header)))
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    drop(identity);
+    headers.sort_by_key(|(declaration, _)| *declaration);
+    let mut callable_headers = arena::Arena::new();
+    for (declaration, header) in headers {
+        let callable = if header.callable.is_valid() {
+            Ok(identities.intern(&checked.callable_identity_text(header.callable)))
+        } else {
+            Err("checked machine has no callable signature identity".to_owned())
+        };
+        let synchronous_invocations = header
+            .synchronous_invocations
+            .as_ref()
+            .map_err(Clone::clone)
+            .and_then(|span| {
+                let targets = checked
+                    .facts
+                    .declaration_descriptions
+                    .invocation_targets
+                    .span(*span)
+                    .ok_or_else(|| {
+                        "checked declaration lost its retained invocation targets".to_owned()
+                    })?;
+                Ok(targets
+                    .iter()
+                    .map(|target| terminal_psi::DeclaredSynchronousBoundaryTarget {
+                        declaration: identities.intern(&target.declaration),
+                        package: target.package,
+                        application: target
+                            .application
+                            .as_ref()
+                            .map(|application| identities.intern(application)),
+                    })
+                    .collect())
+            });
+        callable_headers.insert(terminal_psi::ProofCallableHeader {
+            declaration,
+            callable,
+            package: header.package,
+            source_target: header.source_target.clone(),
+            product_eligible: header.product_eligible,
+            supplies_checked_body: header.supplies_checked_body,
+            synchronous_invocations,
+        });
+    }
     Ok(PublishedScope {
         scope: ProofApplicationScope {
             declarations: descriptions,
+            callable_headers,
             callables,
             plan,
             calls,

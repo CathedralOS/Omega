@@ -185,7 +185,11 @@ impl TerminalExecution<'_> {
             .checked_add(required)
             .and_then(|end| usize::try_from(end).ok())
             .ok_or_else(malformed)?;
-        let image = allocation.bytes.get(start..end).ok_or_else(malformed)?;
+        let backing = allocation
+            .bytes
+            .read()
+            .map_err(TerminalInterpretError::ResidentStorage)?;
+        let image = backing.get(start..end).ok_or_else(malformed)?;
         let mut value = self.mint_staged(&mut identity_cursor, result.structural_type)?;
         let extent_path = vec![
             StructuralPathSegment::Case(moved.id),
@@ -204,6 +208,7 @@ impl TerminalExecution<'_> {
             path: value_path.clone(),
         };
         let decoded = super::value_image::restore(self, plan, image, &value_home)?;
+        drop(backing);
         let mut storage = ConstructorStorage::new(self.account.as_ref());
         storage.stage_case(
             StructuralRuntimePlace::from(&value),

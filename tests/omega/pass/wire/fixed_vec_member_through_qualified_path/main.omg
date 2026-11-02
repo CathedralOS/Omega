@@ -1,4 +1,4 @@
-use omega_language_std::wire;
+use omega::language::core::wire;
 use omega::language::core::reflect;
 // The core FixedVec carrier is a wire member however its type is spelled:
 // here through the fully qualified path. The encoder and decoder recognize

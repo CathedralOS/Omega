@@ -130,10 +130,11 @@ impl TerminalExecution<'_> {
     /// binding, before its body runs. A direct implementation call never enters
     /// this route, even when it returns identical ResourceProfile data.
     pub(crate) fn capture_resource_profile_call(
-        &self,
+        &mut self,
         boundary: BoundaryMachineId,
         provider: MachineId,
         arguments: &[StructuralArgument],
+        handler: &mut impl crate::TerminalEffectHandler,
     ) -> Result<Option<PendingResourceProfile>, TerminalInterpretError> {
         let Some((plan, result_type)) = self
             .program
@@ -166,7 +167,29 @@ impl TerminalExecution<'_> {
             ));
         }
         let storage = StructuralRuntimePlace::from(&value);
-        let backing = self.provider_storage.descriptors.get(&storage).copied();
+        let mut backing = self.provider_storage.descriptors.get(&storage).copied();
+        if backing.is_none() {
+            if !self.is_live_provider_owner(&storage) {
+                return Err(TerminalInterpretError::ContentTransformationMismatch(
+                    "dynamic profile supply has no exact live extent owner",
+                ));
+            }
+            let (base, length) = self
+                .provider_storage_geometry(&storage, &plan.storage)?
+                .ok_or_else(malformed)?;
+            let request = super::TerminalProviderStorageRequest {
+                base,
+                length,
+                boundary,
+                provider,
+            };
+            if let Some(supply) = handler
+                .resolve_provider_storage(&request)
+                .map_err(TerminalInterpretError::ResidentStorage)?
+            {
+                backing = Some(self.bind_dynamic_provider_storage(storage, &request, supply)?);
+            }
+        }
         Ok(Some(PendingResourceProfile {
             boundary,
             provider,
