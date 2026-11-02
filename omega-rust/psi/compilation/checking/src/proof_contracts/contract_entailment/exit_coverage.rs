@@ -26,17 +26,16 @@ pub(crate) fn entailment_covers_all_exits(program: &dyn CheckingInput, machine: 
                 ),
             })
             || complementary_boolean_guards(program, &guards)
-            || complete_case_guards(program, &guards)
+            || complete_case_guards(program, machine, state, &guards)
     })
 }
 
-/// The `when` guards' equality comparisons as (left, mapped-right) pairs: a
-/// non-`when`, non-binary, or non-`==` guard contributes nothing, and
-/// `map_right` decides which right-operand shapes each caller reads.
-fn equality_comparisons<T>(
+/// The `when` guards' comparisons as (left, mapped-right) pairs. Each
+/// consumer owns its operation meaning and right-operand classification.
+fn guard_comparisons<T>(
     program: &dyn CheckingInput,
     guards: &[TransitionGuardNode],
-    map_right: impl Fn(&typed_trees::expression::TableBinaryExpression) -> Option<T>,
+    map_right: impl Fn(ExpressionHandle, &typed_trees::expression::TableBinaryExpression) -> Option<T>,
 ) -> Vec<(ExpressionHandle, T)> {
     guards
         .iter()
@@ -47,10 +46,7 @@ fn equality_comparisons<T>(
             let Some(comparison) = expression_table(program).binary_node(*expression) else {
                 return None;
             };
-            (comparison.operator == BinaryOperator::Equal)
-                .then(|| map_right(comparison))
-                .flatten()
-                .map(|right| (comparison.left, right))
+            map_right(*expression, comparison).map(|right| (comparison.left, right))
         })
         .collect()
 }
@@ -59,7 +55,8 @@ fn complementary_boolean_guards(
     program: &dyn CheckingInput,
     guards: &[TransitionGuardNode],
 ) -> bool {
-    let comparisons = equality_comparisons(program, guards, |comparison| {
+    let comparisons = guard_comparisons(program, guards, |_, comparison| {
+        (comparison.operator == BinaryOperator::Equal).then_some(())?;
         let polarity = expression_table(program).boolean_node(comparison.right)?;
         Some(*polarity)
     });
@@ -70,11 +67,22 @@ fn complementary_boolean_guards(
     })
 }
 
-fn complete_case_guards(program: &dyn CheckingInput, guards: &[TransitionGuardNode]) -> bool {
-    let comparisons = equality_comparisons(program, guards, |comparison| {
-        let Some(case) = expression_table(program).name_path_node(comparison.right) else {
-            return None;
-        };
+fn complete_case_guards(
+    program: &dyn CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    guards: &[TransitionGuardNode],
+) -> bool {
+    let comparisons = guard_comparisons(program, guards, |expression, comparison| {
+        match comparison.operator {
+            BinaryOperator::Equal => {},
+            BinaryOperator::CaseMembership
+                if crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(
+                    program, machine, Some(state), expression, comparison,
+                ) => {},
+            _ => return None,
+        }
+        let case = expression_table(program).name_path_node(comparison.right)?;
         Some(case.symbol)
     });
     comparisons.iter().any(|(subject, _)| {
