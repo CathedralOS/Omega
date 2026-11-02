@@ -42,13 +42,6 @@ pub(crate) fn source_relative_path(member_path: &WorkspaceMemberPath) -> SourceR
         .expect("authored workspace paths satisfy source-relative path invariants")
 }
 
-pub(crate) fn authored_workspace_member_path(
-    source_path: &SourceRelativePath,
-) -> WorkspaceMemberPath {
-    WorkspaceMemberPath::parse(source_path.as_str())
-        .expect("source-relative paths satisfy authored workspace path invariants")
-}
-
 #[cfg(test)]
 mod tests {
     use super::normalize_member_path;
