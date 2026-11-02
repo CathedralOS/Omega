@@ -14,11 +14,11 @@ use super::super::super::super::{
 };
 use super::super::super::LoweringError;
 use super::StateGraphEmission;
-use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::buffer::{OperationBuffer, StructuralBinding};
 use crate::emission::value_successor;
 use crate::expression_preparation::bindings::structural_fields::establish_case_payloads;
 use crate::expression_preparation::qualifications::SourceScalarReturn;
+use crate::shared::checked_facts::value_facts;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
 /// Result preparation cannot emit cleanup: another temporary may have to die

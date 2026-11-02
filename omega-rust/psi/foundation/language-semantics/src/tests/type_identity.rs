@@ -87,5 +87,14 @@ fn malformed_identity_offset_names_the_byte_the_grammar_stopped_on() {
         second_operand.find(",elided")
     );
     assert_eq!(malformed_identity_offset(""), Some(0));
-    assert_eq!(malformed_identity_offset("unknown(x)"), Some(8));
+    // An unknown tag stands where it begins, wherever it nests.
+    assert_eq!(malformed_identity_offset("unknown(x)"), Some(0));
+    assert_eq!(malformed_identity_offset("ref(unknown(x))"), Some(4));
+    // A refusal is a stop like any other: the grammar read the production and
+    // declined it, so the report names the same byte a malformed one would.
+    let scoped = "generic(name(compiler-type\\(atom\\(u8\\)\\)),unresolved-region)";
+    assert_eq!(
+        malformed_identity_offset(scoped),
+        Some(scoped.len() - ")".len())
+    );
 }

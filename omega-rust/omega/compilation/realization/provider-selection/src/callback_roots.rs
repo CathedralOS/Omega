@@ -53,7 +53,10 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
                 checked_adapters.push(SelectedCallbackRow {
                     plan,
                     row,
-                    checked_adapter_body: checked_adapter_body(plan, row, module),
+                    checked_adapter_body: backend_plan::selected_checked_adapter_header(
+                        plan, row, module,
+                    )
+                    .map(|header| header.supplies_checked_body),
                 });
             }
         }
@@ -97,63 +100,6 @@ impl<'plan> CallbackProviderDeclarations<'plan> {
             checked_adapter_body,
         })
     }
-}
-
-fn checked_adapter_body(
-    plan: &ProviderPlan,
-    row: &ProviderPlanRow,
-    module: &terminal_psi::TerminalModule,
-) -> Result<bool, String> {
-    let ProviderBinding::CheckedAdapter {
-        machine_identity,
-        machine_package_identity,
-    } = &row.binding
-    else {
-        return Err("callback forwarding row is not a checked adapter".into());
-    };
-    if *machine_package_identity != plan.origin_package_identity {
-        return Err(
-            "callback forwarding provider differs from its retained package identity".into(),
-        );
-    }
-    let callable = plan.identity_text(*machine_identity);
-    if callable.is_empty() {
-        return Err("callback forwarding provider has no complete callable identity".into());
-    }
-    let target = if plan.target.is_empty() {
-        target::TargetProfile::host().target_name()
-    } else {
-        &plan.target
-    };
-    let mut matches = module
-        .scalar_applications
-        .proof_scope
-        .callable_headers
-        .iter()
-        .map(|(_, header)| header)
-        .filter(|header| {
-            header.product_eligible
-                && header.package == *machine_package_identity
-                && header
-                    .source_target
-                    .as_deref()
-                    .is_none_or(|source| source == target)
-                && header
-                    .callable
-                    .as_ref()
-                    .is_ok_and(|identity| module.identities.text(*identity) == Some(callable))
-        });
-    let header = matches.next().ok_or_else(|| {
-        format!(
-            "callback forwarding provider `{callable}` has no exact canonical checked-body header"
-        )
-    })?;
-    if matches.next().is_some() {
-        return Err(format!(
-            "callback forwarding provider `{callable}` has multiple exact canonical checked-body headers"
-        ));
-    }
-    Ok(header.supplies_checked_body)
 }
 
 /// Preserve occurrence order and duplicate roots. Registration errors precede

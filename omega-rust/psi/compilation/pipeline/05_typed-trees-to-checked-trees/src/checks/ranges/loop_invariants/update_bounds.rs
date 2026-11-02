@@ -142,7 +142,7 @@ pub(super) fn updates_preserve_order(
                 if arrivals[target_index] != Some(next) {
                     arrivals[target_index] = Some(next);
                     changes[target_index] += 1;
-                    crate::collections::push_unique(&mut pending, target_index);
+                    crate::shared::collections::push_unique(&mut pending, target_index);
                 }
             }
             // Like the ordinary range checker, reaching another statement

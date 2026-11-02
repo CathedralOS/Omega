@@ -108,7 +108,8 @@ pub(crate) fn check_checked_facts_recording(
     expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
-    let setup_guard = phase_profile::guard("psi.05.check_checked_facts.setup_guards_and_entailment");
+    let setup_guard =
+        phase_profile::guard("psi.05.check_checked_facts.setup_guards_and_entailment");
     let call_frames = validation::CallFrameResolver::new(program);
     let incoming_guards = guard_index.index(program, call_frames.as_ref());
     let proof_only = validation::proof_only_classification(program);
@@ -135,11 +136,10 @@ pub(crate) fn check_checked_facts_recording(
         }
     }
 
-    if let Err(mut evidence_diagnostics) =
-        phase_profile::scope("psi.05.check_checked_facts.bind_call_evidence_arguments", || {
-            contracts::bind_call_evidence_arguments(program, facts)
-        })
-    {
+    if let Err(mut evidence_diagnostics) = phase_profile::scope(
+        "psi.05.check_checked_facts.bind_call_evidence_arguments",
+        || contracts::bind_call_evidence_arguments(program, facts),
+    ) {
         diagnostics.append(&mut evidence_diagnostics);
     }
 
@@ -157,11 +157,14 @@ pub(crate) fn check_checked_facts_recording(
         diagnostics.append(&mut borrow_diagnostics);
     }
 
-    phase_profile::scope("psi.05.check_checked_facts.runtime_indices_case_fences", || {
-        runtime_indices::check(program, facts, call_frames.as_ref(), &mut diagnostics);
-        case_access::check(program, facts, &mut diagnostics);
-        atomic_fences::check(program, facts, &mut diagnostics);
-    });
+    phase_profile::scope(
+        "psi.05.check_checked_facts.runtime_indices_case_fences",
+        || {
+            runtime_indices::check(program, facts, call_frames.as_ref(), &mut diagnostics);
+            case_access::check(program, facts, &mut diagnostics);
+            atomic_fences::check(program, facts, &mut diagnostics);
+        },
+    );
 
     // Content composition consumes the same retained positive judgments as
     // exit checking. Authored guarantees are obligations, not theorem roots;
@@ -172,18 +175,24 @@ pub(crate) fn check_checked_facts_recording(
         content::compose_partition_wrappers(program, facts, &mut entailment);
     });
 
-    phase_profile::checkpoint("after content composition", "psi.05.check_checked_facts.content_composition");
+    phase_profile::checkpoint(
+        "after content composition",
+        "psi.05.check_checked_facts.content_composition",
+    );
 
-    match phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts", || {
-        contracts::check_flow_call_contracts(
-            program,
-            facts,
-            incoming_guards,
-            call_frames.as_ref(),
-            &mut entailment,
-            expression_intervals,
-        )
-    }) {
+    match phase_profile::scope(
+        "psi.05.check_checked_facts.check_flow_call_contracts",
+        || {
+            contracts::check_flow_call_contracts(
+                program,
+                facts,
+                incoming_guards,
+                call_frames.as_ref(),
+                &mut entailment,
+                expression_intervals,
+            )
+        },
+    ) {
         Ok(decided) => {
             facts.qualifications.scalar_returns = decided.scalar_returns;
             facts.constant_predicate_obligations = decided.constant_obligations;
@@ -210,11 +219,10 @@ pub(crate) fn check_checked_facts_recording(
         diagnostics.append(&mut store_diagnostics);
     }
 
-    if let Err(mut multiplicity_diagnostics) =
-        phase_profile::scope("psi.05.check_checked_facts.check_linear_obligations", || {
-            multiplicity::check_linear_obligations(program, facts, incoming_guards)
-        })
-    {
+    if let Err(mut multiplicity_diagnostics) = phase_profile::scope(
+        "psi.05.check_checked_facts.check_linear_obligations",
+        || multiplicity::check_linear_obligations(program, facts, incoming_guards),
+    ) {
         diagnostics.append(&mut multiplicity_diagnostics);
     }
 
@@ -223,42 +231,48 @@ pub(crate) fn check_checked_facts_recording(
         "psi.05.check_checked_facts.check_linear_obligations",
     );
 
-    phase_profile::scope("psi.05.check_checked_facts.crashes_content_carry_operators", || {
-        if let Err(mut crash_edge_diagnostics) = crashes::check_crash_exit_edge_isolation(program) {
-            diagnostics.append(&mut crash_edge_diagnostics);
-        }
+    phase_profile::scope(
+        "psi.05.check_checked_facts.crashes_content_carry_operators",
+        || {
+            if let Err(mut crash_edge_diagnostics) =
+                crashes::check_crash_exit_edge_isolation(program)
+            {
+                diagnostics.append(&mut crash_edge_diagnostics);
+            }
 
-        if let Err(mut operator_crash_diagnostics) =
-            crashes::check_operator_invocation_custody(program, facts)
-        {
-            diagnostics.append(&mut operator_crash_diagnostics);
-        }
-        diagnostics.extend(crashes::infer_path_conditioned_guard_coverage(
-            program,
-            facts,
-            incoming_guards,
-        ));
-        if let Err(mut crash_diagnostics) =
-            crashes::check_published_ceiling_coverage(program, facts)
-        {
-            diagnostics.append(&mut crash_diagnostics);
-        }
+            if let Err(mut operator_crash_diagnostics) =
+                crashes::check_operator_invocation_custody(program, facts)
+            {
+                diagnostics.append(&mut operator_crash_diagnostics);
+            }
+            diagnostics.extend(crashes::infer_path_conditioned_guard_coverage(
+                program,
+                facts,
+                incoming_guards,
+            ));
+            if let Err(mut crash_diagnostics) =
+                crashes::check_published_ceiling_coverage(program, facts)
+            {
+                diagnostics.append(&mut crash_diagnostics);
+            }
 
-        if let Err(mut content_diagnostics) =
-            content::check_retained_content_custody(program, facts)
-        {
-            diagnostics.append(&mut content_diagnostics);
-        }
+            if let Err(mut content_diagnostics) =
+                content::check_retained_content_custody(program, facts)
+            {
+                diagnostics.append(&mut content_diagnostics);
+            }
 
-        if let Err(mut carry_diagnostics) = carry::check_suspension_carry(program, facts) {
-            diagnostics.append(&mut carry_diagnostics);
-        }
+            if let Err(mut carry_diagnostics) = carry::check_suspension_carry(program, facts) {
+                diagnostics.append(&mut carry_diagnostics);
+            }
 
-        if let Err(mut operator_diagnostics) = operators::check_operator_resolution(program, facts)
-        {
-            diagnostics.append(&mut operator_diagnostics);
-        }
-    });
+            if let Err(mut operator_diagnostics) =
+                operators::check_operator_resolution(program, facts)
+            {
+                diagnostics.append(&mut operator_diagnostics);
+            }
+        },
+    );
 
     phase_profile::checkpoint(
         "BEFORE indexed ranges",
@@ -285,7 +299,10 @@ pub(crate) fn check_checked_facts_recording(
         }
         Err(mut range_diagnostics) => diagnostics.append(&mut range_diagnostics),
     }
-    phase_profile::checkpoint("AFTER indexed ranges", "psi.05.check_checked_facts.check_indexed_accesses");
+    phase_profile::checkpoint(
+        "AFTER indexed ranges",
+        "psi.05.check_checked_facts.check_indexed_accesses",
+    );
     indexed_writes::record(program, facts);
     indexed_writes::record_assignment_indexes(program, facts);
 

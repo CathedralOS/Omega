@@ -153,8 +153,9 @@ value guard establishes or changes a service row.
 in place. `transitive/` carries the same call through a public wrapper with an
 independent `invokes Mark;` contract and a private helper. `generic/` retains an
 exact nominal machine requirement and substitutes the selected callable's
-published contract. `dynamic/` retains the selector slot's pinned requirement,
-without replacing it by a selected implementation's smaller body. The
+published contract. `dynamic/` carries the call through a selection whose
+implementation calls `Mark`; a dynamic call contributes its selected
+conformance's reach ([selected dynamic reach](../dynamic_selected_reach/README.md)). The
 `target_body` place also carries the call through the portable target family.
 These are productions of the same reach summary, not new fact folders.
 
@@ -224,7 +225,8 @@ reselects a provider by spelling or uses its body to narrow the requirement.
   consuming contract, and all applicable nine transports are retained.
 - **Soundness:** boundary/provider authority, trust, `invokes`, blocking,
   suspension and crashes remain independent. Selected implementations must fit
-  their requirements; a silent selected body cannot erase the pinned reach.
+  their requirements; a silent selected provider body cannot erase a boundary
+  call's pinned reach.
 - **Psi 06–08:** the checked service records survive ordinary Terminal production;
   positive runtime observations require actual Terminal execution.
 - **Omega 00–02:** exact boundary/provider identity selects the read implementation;
@@ -480,3 +482,7 @@ Producer `8ad1ae9751330a18ef4c670205524d579342a510` records 78 checked positives
 product-parser probe's initial-storage failures were also replayed on the exact
 published `daf76df20a9d` compiler and archived Psi/library sources. They remain
 attributed product-pipeline limitations, before the changed parser branch.
+
+## Build-owned target-body migration
+
+The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement publishes `reaches Mark`; each implementation's own body stays unannotated, and the twin's empty implementation ceiling still rejects for the hidden `Mark` reach. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.

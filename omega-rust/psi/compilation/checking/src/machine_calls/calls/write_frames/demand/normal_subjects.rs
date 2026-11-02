@@ -20,6 +20,27 @@ pub(crate) struct InvocationEntrySubject {
     pub type_reference: TypeReferenceHandle,
 }
 
+impl InvocationEntrySubject {
+    /// The borrowed declaration and its scalar presentation share storage,
+    /// not necessarily numerical values. The existing recast owner authenticates
+    /// the complete chain before either direction can transfer observations.
+    pub(crate) fn scalar_storage_coordinate(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: &typed_trees::state::State,
+    ) -> Option<super::super::ScalarStorageCoordinate> {
+        program.primitive_type_reference(self.type_reference)?;
+        let [source] = self.sources.as_slice() else {
+            return None;
+        };
+        if source.invocation_output.is_some() || source.is_image_storage {
+            return None;
+        }
+        let scalar = source.scalar_storage_coordinate(program, state)?;
+        (scalar.preserves_scalar_value || scalar.preserves_primitive_bits).then_some(scalar)
+    }
+}
+
 pub(crate) struct InvocationReferenceSubject {
     pub entry: InvocationEntrySubject,
     pub stable_on_return: bool,
@@ -190,9 +211,6 @@ impl<'program> CallFrameResolver<'program> {
                 .zip(origins.arguments.get(leading_operands..)?)
                 .filter_map(|((parameter, argument), origins)| {
                     let shell = crate::reference_shell(program, parameter.type_reference)?;
-                    if !shell.access.is_readable() {
-                        return None;
-                    }
                     let origins = origins.as_ref()?;
                     if origins.is_empty() {
                         return None;
@@ -214,14 +232,45 @@ impl<'program> CallFrameResolver<'program> {
                         )?;
                         let root_type =
                             reference_subjects::carrier_storage_type(program, root_type)?;
-                        declaration_preserving_views(program, root_type, source)?;
-                        reference_subjects::validate_owned_projection(
-                            program,
-                            root_type,
-                            &source.segments,
-                        )?;
-                        let reference =
-                            stored_origins::projected_type(program, root_type, &source.segments)?;
+                        let reference = if let Some(expected) =
+                            program.primitive_type_reference(shell.referee)
+                        {
+                            if source.invocation_output.is_some() || source.is_image_storage {
+                                return None;
+                            }
+                            let scalar = source.scalar_storage_coordinate(program, state)?;
+                            if scalar.view_primitive != expected
+                                || !(scalar.preserves_scalar_value
+                                    || scalar.preserves_primitive_bits)
+                            {
+                                return None;
+                            }
+                            // The captured origin may name an incoming reference
+                            // leaf, rather than an inline scalar field. The
+                            // scalar owner validates that complete read geometry;
+                            // an owned-only projection would discard the leaf
+                            // before the invocation can observe its referent.
+                            // This selects its carrier, not access or contents.
+                            let reference = match &source.representation {
+                                Some((carrier, path)) => {
+                                    stored_origins::projected_storage_type(program, *carrier, path)?
+                                }
+                                None => stored_origins::projected_storage_type(
+                                    program,
+                                    root_type,
+                                    &source.segments,
+                                )?,
+                            };
+                            crate::value_custody::places::assignment_value_type(program, reference)
+                        } else {
+                            reference_subjects::validate_owned_projection(
+                                program,
+                                root_type,
+                                &source.segments,
+                            )?;
+                            declaration_preserving_views(program, root_type, source)?;
+                            stored_origins::projected_type(program, root_type, &source.segments)?
+                        };
                         if !crate::declared_carriers_match(program, reference, shell.referee)
                             || program.arithmetic_domain_for_type_reference(reference)
                                 != program.arithmetic_domain_for_type_reference(shell.referee)

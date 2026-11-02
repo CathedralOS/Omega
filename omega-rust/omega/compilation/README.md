@@ -5,6 +5,7 @@ The compiler's machinery is grouped here by responsibility:
 | Directory | Responsibility |
 | --- | --- |
 | [driver/](driver/README.md) | Product compilation coordination; Cargo package `compiler` |
+| [build/](build/README.md) | Build coordination: requests, dependency jobs, sessions and publication; Cargo package `omega-build` |
 | [products/](products/README.md) | Requests, retained results, reports and publication |
 | [build-evaluation/](build-evaluation/README.md) | Build admission and execution |
 | [pipeline/](../../pipeline.md#connected-program-route) | Numbered transformations and optimization passes |

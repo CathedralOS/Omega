@@ -2,115 +2,132 @@
 
 A scalar store of zero through the u32 view restores Pair.start and its mixed parent predicate before returning the parent.
 
-Owner: **CANONICALIZE-SCALAR-RANGE-CONTRACTS**, specifically the scalar-recast
-source-domain restoration gap in [TASKS.md](../../../../TASKS.md).
-[Invariant windows](../../../../wiki/spec/language/dependent_values.md#invariant-windows)
-require proof at return/termination; [exclusive recasts](../../../../wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
-retain the original source's validity and handback obligations.
-[Loan lineage](../../../../wiki/spec/terminal-psi/loans.md) connects the view to
-its actual backing. A plain `u32` view's validity cannot establish the mixed
-`Pair` predicate.
+Owner: **CANONICALIZE-SCALAR-RANGE-CONTRACTS** in [TASKS.md](../../../../TASKS.md).
+This row establishes checked normal-call restoration through an authenticated
+scalar view, including a view forwarded through a nonmutating call.
 
-Each public `inspect` receives `pair: &mut Pair` and forms its own
-`let view: &mut u32 = &mut pair.start as &mut u32`. It first stores
-`0xFFFFFFFFu32` (signed -1), then the transported restoration scalar.
-`pair.end = 10` independently supplies the upper-bound witness before handback;
-there is no direct restoring store to `pair.start`. Helpers carry only scalars,
-finish before the window opens, and promise ordinary `ensures result == value`.
-No helper receives a raw view with the parent origin erased.
+`Pair` requires `start >= 0 && start <= end`. Each public `inspect` receives a
+valid parent, forms a u32 view of its signed i32 `start`, and forwards that view
+through `retain_view`. The ordinary `restore` helper stores all-one bits and
+then the transported restoration scalar; its checked `ensures view == replacement`
+supplies the new value. Handback must interpret that guarantee in the original
+signed storage and prove the complete parent predicate at this call's return.
+The formal's unrestricted u32 validity cannot supply the parent's predicate.
+The later caller store `pair.end = 10` cannot repair an earlier handback.
 
-`main` starts two valid parents at start 3 and 5, end 10, then checks restored
-start 0/end 10, both neighboring hex canaries, markers and origin
-canaries (the field place records its carrier neighbors in those markers). The match arms return the same zero but write markers 11 and 13;
-both arms execute, and a wrong selection traps. The field carrier has its own
-hex neighbors, copied to parent markers and checked by `main`. These final guards test runtime
-behavior; they supply no proof to `inspect`'s earlier handback obligation.
+`main` uses two parents with distinct initial starts (3 and 5), origins, markers
+and neighboring hex canaries. It checks restored start 0/end 10 and those
+canaries. The match place exercises both arms with distinct marker results;
+the field carrier's neighbors remain observable too. These runtime guards
+supply no proof to `inspect`'s earlier obligation.
 
 | Place | Positive | Reject twin | Restoration scalar |
 | --- | --- | --- | --- |
-| local | [source](local/main.omg) | [source](local/invalid/main.omg) | Local binding |
-| field | [source](field/main.omg) | [source](field/invalid/main.omg) | `Replacement.value` |
-| parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) | Explicit `replacement: u32` with exact entry contract |
-| call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | Ordinary identity result |
-| match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | Two identity/marker arms |
-| const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | `RESTORING` |
-| nested machine | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | Lexically nested identity result |
-| another machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | `Other::identity` result |
-| selected body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | Build-selected `SelectedRestoration` identity result |
+| Local | [source](local/main.omg) | [source](local/invalid/main.omg) | Local binding |
+| Field | [source](field/main.omg) | [source](field/invalid/main.omg) | `Replacement.value` |
+| Parameter | [source](parameter/main.omg) | [source](parameter/invalid/main.omg) | Exact entry contract |
+| Call result | [source](call_result/main.omg) | [source](call_result/invalid/main.omg) | Identity result |
+| Match join | [source](match_join/main.omg) | [source](match_join/invalid/main.omg) | Both identity/marker arms |
+| Const name | [source](const_name/main.omg) | [source](const_name/invalid/main.omg) | `RESTORING` |
+| Nested machine | [source](other_state/main.omg) | [source](other_state/invalid/main.omg) | Nested identity result |
+| Another machine | [source](other_machine/main.omg) | [source](other_machine/invalid/main.omg) | `Other::identity` |
+| Selected body | [source](target_body/main.omg) | [source](target_body/invalid/main.omg) | Selected implementation |
 
-Each twin changes only the restoration scalar from `0u32` to `0xFFFFFFFFu32`.
-The parameter twin also changes its exact input contract and both call inputs
-together, so no input requirement is intentionally violated. Identity contracts,
-parent construction, first corrupting store and runtime oracles stay unchanged.
-The intended refusal is **`default domain is still FALSE`** naming **`pair`**
-at return/termination. A formation failure or an unrelated input-contract refusal
-does not establish this obligation.
+Each twin changes only zero to all-one restoration bits. The parameter twin
+changes its matching exact contract and both inputs together. All explicit
+entry contracts remain satisfied; the intended refusal is **cannot lend
+restricted field `start`**, with **normal-return guarantees do not preserve the
+field's standing predicate**. Unrelated formation refusals do not count.
 
-All positives declare `Expected exit: 0` and pin native/interpreter exit 0.
-Every program has all four hosted `ProgramEntry` bindings; the selected-body
-Build also selects the ordinary named implementation on all four targets.
-Exact source, Build and oracle copies are pinned at
-`tests/omega/pass/facts/recast_parent_restoration_through_<place>_exit/` and
-`tests/omega/fail/facts/recast_parent_restoration_through_<place>_rejected/`.
-Sample twins use `expected.txt` for their intended-invalid discovery/oracle.
+Every positive declares exit 0 and all four hosted `ProgramEntry` bindings.
+Exact sources, Builds and oracles are pinned under
+`tests/omega/{pass,fail}/facts/recast_parent_restoration_through_<place>_*`.
+Other-host execution remains unverified.
+
+## Composition and authority controls
+
+- [Argument snapshot](controls/argument_snapshot/main.omg) copies zero before
+  a later argument changes its source local to all-one bits. A count and marker
+  expose ordered, single evaluation. Its [twin](controls/argument_snapshot/invalid/main.omg)
+  captures all-one bits before the later mutation to zero; the later value
+  cannot repair the earlier actual.
+- [Completion order](controls/completion_order/main.omg) nests two returning
+  calls in one expression. The marker chain (17 then +6 to 23) and distinct
+  returned values expose order and omitted effects. Its
+  [twin](controls/completion_order/invalid/main.omg) breaks only the first
+  restoration; a later restoring sibling cannot excuse it.
+- [Forwarding marker](controls/forwarding_marker/main.omg) changes a disjoint
+  marker while forwarding the formed view. Its
+  [twin](controls/forwarding_marker/invalid/main.omg) breaks restoration.
+  [Dirty forwarding](controls/dirty_forward/main.omg) rejects an already false
+  parent before the nonmutating call.
+- [Case backing](controls/case_backing/main.omg) and its
+  [nonmutating form](controls/case_backing/nonmutating/main.omg) retain the
+  selected `Envelope::Some` storage path. The
+  [overlapping helper](controls/case_backing/invalid/main.omg) rejects immediately,
+  despite a later restoring caller store.
+- [Preserved end](controls/preserved_end/main.omg),
+  [unrestored start](controls/unrestored/main.omg) and
+  [changed end](controls/changed_end/main.omg) distinguish untouched sibling facts
+  from missing restoration. Matching corpus pins retain each distinction.
+
+The exploratory attempt to lend both coupled `start` and `end` exclusively is
+an authority negative: a dependent loan pins its validity witnesses
+([dependent values](../../../../wiki/spec/language/dependent_values.md)).
+Physical disjointness cannot erase that restriction. No loan gate is relaxed.
+Write-only equality probes refuse specification formation on baseline and
+repair; they establish no new write-only guarantee API.
 
 ## Requirements and evidence
 
-1. **Establishment:** valid parent construction and a proved zero establish the
-   repaired signed field and `start >= 0 && start <= end`; the temporary all-one
-   bits open debt. Confirm the positive closes it and the twin cannot.
-2. **Identity and lifetime:** the locally formed recast must retain `pair.start`
-   as its exact storage origin, invalidate that field's old facts, and owe the
-   containing parent's mixed predicate when the borrow returns.
-3. **Composition:** field, exact parameter, identity results, both match arms,
-   const, nested machine and selected provider must carry the same scalar fact
-   into the store. No caller guard substitutes for that proof.
-4. **Soundness boundaries:** unrestricted `u32` validity grants no signed-parent
-   predicate. Both twin inputs satisfy all explicit entry contracts; rejection
-   must be the unclosed parent domain, with authority and custody preserved.
-5. **Psi 06–08:** qualify source checking, alias-store and loan restoration
-   lowering, and actual Terminal Psi observations for all nine positives. The
-   parent readback after `inspect` makes restoration observable; no affine
-   cleanup or ownership-hole mechanism is claimed by this scalar row.
-6. **Omega 00–02:** qualify four-target Build settlement, selected-body binding,
-   signed/unsigned 32-bit shared storage geometry, field carrier layout and
-   ordinary scalar/aggregate call plans. Bindings alone prove no execution.
-7. **Omega 03–06:** qualify store width and address, register/frame homes and
-   live values. Parent and field-carrier hex neighbors, distinct initial
-   values/origins and both match markers are runtime canaries.
-8. **Omega 07–09/emission:** qualify actual native images and Terminal agreement
-   at exit 0 through `omega run --both`; record producer revision, executable
-   digest/profile, target, command and observations. Actual macOS ARM64 results
-   are recorded below; other-host execution remains unverified.
+Construction establishes the initial predicate. Writes invalidate exact current
+storage, while immutable argument snapshots keep their earlier meaning.
+Normal-call transfer applies checked guarantees to all returned cells together,
+with source/view representation translated at the authenticated boundary.
+The complete parent is judged before later siblings, never assumed from its
+own declaration. Source validity, access authority and loan lineage remain
+separate obligations ([recasts](../../../../wiki/spec/layouts/recasts.md),
+[fact validity](../../../../wiki/spec/terminal-psi/fact_validity.md),
+[loans](../../../../wiki/spec/terminal-psi/loans.md)).
 
-## Qualification
+The unchanged programs continue through Terminal Psi, ordinary call plans,
+signed/unsigned shared geometry and native emission. Current observations cover
+macOS ARM64; canaries detect wrong stores, origins, carrier neighbors and branch
+selection. [PR #1386](https://github.com/CathedralOS/Omega/pull/1386) retains exact
+producer profiles, frozen inputs, raw results and independent review. Earlier
+productions and failures remain with [PR #1323](https://github.com/CathedralOS/Omega/pull/1323)
+and [PR #1345](https://github.com/CathedralOS/Omega/pull/1345).
 
-The optimized fixed-base producer `326591276188e2fcc3ca124ad47be809d7dba4ec`,
-SHA-256 `dc6d0658694f118dcbaeb930cbf602b46b480c0f46b8a65a824500c96d30f74d`,
-rejects all nine positive places at the parent default-domain obligation. It
-also wrongly accepts the unrestored scalar-view control before any later direct
-field write exposes the missing source valuation. The restored control accepts.
-These are actual Source observations, distinct from native execution.
+The exact optimized baseline `be5c01dd42f9038cf62412bd94a67a23b6658241`
+(SHA-256 `ad370b5f5a8ae3ae45520cb2f9f0225a5388cc625d840a993e41bea14f680b53`)
+wrongly refuses all nine positives. The repair executes all nine positives and
+both snapshot/order controls with native/Terminal exits 0/0; their twins reject
+the intended immediate handback.
 
-The optimized repair producer, SHA-256
-`a10f855a139286aa0e672d567d5d48eeb3160631cb689f431c3545c3a24e27cb`,
-uses that fixed base plus compiler patch
-`c4b1bcc36858f3c0c1ef62b32a494d8a1a93dd8a745d4b6c87f9d34cb7a2bc3c`.
-All nine canonical positives execute with native/Terminal exits 0/0 on
-`macos_arm64`; all nine twins reject the intended parent obligation. Sources
-and oracles remain unchanged during each capture.
+The clean pre-integration compiler checkpoint
+`c0be56a86d69ae34375a16c096f9099e7bce4b11` produces optimized runner
+SHA-256 `a54a3666bc77398105ab50160295026c68102210a4a229546b26f514ccb8775d`.
+Its 70-fixture source selection checks 34 positives, rejects 35 intended controls
+and retains one attributed baseline lowering refusal. The 35-fixture execution
+selection records 33 actual native/Terminal agreements, one compile-only result
+and that same refusal (`computed borrow lost its established local`); its gate
+exits 3. It is not an all-green result. The explicit zero-oracle names for the
+two new controls were corrected and those four fixtures remeasured separately.
+Actual integration observations are recorded separately in the PR evidence.
 
-Three focused controls retain the original failure and preservation boundaries:
-[preserved end](controls/preserved_end/main.omg) restores only through the view,
-[unrestored](controls/unrestored/main.omg) omits that restoration without a later
-direct field write, and [changed end](controls/changed_end/main.omg) replaces the
-sibling so its entry fact cannot justify handback. Matching corpus pins protect
-these distinctions. The PR and claim retain exact source hashes, producer
-receipts, raw observations, and independent review.
-Other-host native execution, broader scalar-range migration and GUI qualification
-remain open under the owning task.
+This closes this checked normal-call production of the row. Broader scalar-range
+migration, other representation/origin requirements, common-field case rosters
+and recursive/reference predicate inventories remain open under the parent task.
+GUI qualification stays pending.
 
-This row transports the restoring scalar into a locally formed view. It proves
-the bounded scalar-store restoration requirement, not general provenance and
-handback transport of a formed view through stored or returned references.
-That broader recast acceptance remains open with the parent task.
+
+After the actual golden conflict and affected incoming custody/layout changes,
+a fresh optimized integrated producer at `0a3a759c64e3ba71d5b04863d6e2e7a2fa9e8ff7`
+(SHA-256 `6770f858f84ee26cc676345b5fdf9413036bfa5d52531b37620a3e06afd8ead3`) checks the focused
+39 fixtures: 19 positives and 20 intended rejects. Its execution
+selection records 18 actual native/Terminal exit-0 agreements and
+one compile-only result; both focused gates exit 0. These include the complete
+nine-place row, snapshot/order controls and selected affected custody/authority
+consumers. Earlier 70-fixture observations and their baseline refusal remain
+separate. Golden publication retains changed-source or changed-outcome rows;
+all raw measured rows remain in the PR evidence.

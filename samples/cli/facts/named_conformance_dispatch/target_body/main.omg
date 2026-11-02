@@ -29,45 +29,65 @@ ensures result == left + right
 
 // Place: another target body. Every target body dispatches combine on the bounded operands.
 // Expected exit: 0
-linux_x86_64 machine probe(a: i32, b: i32) -> i32
-blocks
-requires 0 <= a && a <= 50
-requires 0 <= b && b <= 50
-ensures result == a + b
-{
-    block apply<Selected>(a, b)
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+boundary trait SelectedProbe {
+    machine probe(a: i32, b: i32) -> i32 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    blocks
+    requires 0 <= a && a <= 50
+    requires 0 <= b && b <= 50
+    ensures result == a + b;
+}
+X86Probe satisfies SelectedProbe {
+    machine probe(a: i32, b: i32) -> i32 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    blocks
+    requires 0 <= a && a <= 50
+    requires 0 <= b && b <= 50
+    ensures result == a + b
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        block apply<Selected>(a, b)
+    }
+}
+ArmProbe satisfies SelectedProbe {
+    machine probe(a: i32, b: i32) -> i32 reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    blocks
+    requires 0 <= a && a <= 50
+    requires 0 <= b && b <= 50
+    ensures result == a + b
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        block apply<Selected>(a, b)
+    }
 }
 
-linux_arm64 machine probe(a: i32, b: i32) -> i32
-blocks
-requires 0 <= a && a <= 50
-requires 0 <= b && b <= 50
-ensures result == a + b
-{
-    block apply<Selected>(a, b)
-}
-
-macos_arm64 machine probe(a: i32, b: i32) -> i32
-blocks
-requires 0 <= a && a <= 50
-requires 0 <= b && b <= 50
-ensures result == a + b
-{
-    block apply<Selected>(a, b)
-}
-
-windows_x86_64 machine probe(a: i32, b: i32) -> i32
-blocks
-requires 0 <= a && a <= 50
-requires 0 <= b && b <= 50
-ensures result == a + b
-{
-    block apply<Selected>(a, b)
-}
 
 machine main() blocks crashes Trap {
-    let result: i32 = block probe(20, 22);
+    let result: i32 = block SelectedProbe::probe(20, 22);
     transition result == 42 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() blocks crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    block main();
+}
+machine arm_entry() blocks crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    block main();
 }

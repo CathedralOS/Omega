@@ -651,7 +651,7 @@ Compatibility results are transient: there are no retained compatibility,
 mutation or call-comparison certificates. The overlap and containment judgments
 share a local selector cache, not a serialized snapshot to replay.
 [resources.rs](src/checks/borrows/resources.rs) constructs the loan lifecycle
-and restored-use rows once; execution planning and stage 06 still consume them.
+and restored-use rows once; execution planning and Psi 06 still consume them.
 
 Stated entry/state `requires` and incoming guards can supply integer ordering,
 equality, or disequality over those immutable bounds. Incoming guards use the

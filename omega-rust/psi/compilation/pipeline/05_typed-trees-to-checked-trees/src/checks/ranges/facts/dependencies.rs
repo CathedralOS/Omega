@@ -8,7 +8,7 @@
 use super::super::types::expression_type_reference;
 use super::invalidation::write_covers_place;
 use crate::flow;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use facts::PlaceRoot;
 use facts::PlaceSegment;
 use typed_trees::types::TypeReferenceNode;

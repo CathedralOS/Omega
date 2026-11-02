@@ -5,11 +5,11 @@
 //! and exact row admission.
 
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions::CurrentSelectedProgram;
 
+use machine_code::SelectedFormEncoding;
 use machine_code::SelectedFormEncodingRow;
-use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFormEncoding;
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use physical_instructions::PostAllocationMachinePlan;
 
 use super::super::OptimizedResolvedSelectedFormLayoutError as Error;
 use super::super::StagedOptimizedResolvedSelectedFormLayout;
@@ -18,16 +18,16 @@ mod function;
 mod order;
 mod roster;
 
-pub(super) fn validate<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    machine: &StagedOptimizedPostAllocationMachinePlan,
+pub(super) fn validate(
+    selected: CurrentSelectedProgram<'_>,
+    machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
-    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    pre_layout: &SelectedFormEncoding,
     policy: super::super::SelectedFunctionLayoutPolicy,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<(), Error> {
-    let selected_plan = selected.selected_plan();
-    let machine_plan = machine.machine().plan();
+    let selected_plan = selected.plan;
+    let machine_plan = machine;
     if artifact.functions().len() != selected_plan.functions.len() {
         return Err(Error::ArtifactMismatch);
     }

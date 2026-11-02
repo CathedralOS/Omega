@@ -249,6 +249,22 @@ pub(super) fn validate(
             diagnostics,
         );
     }
+    if let Some(state) = current_state
+        && local_data.initial_value.is_valid()
+        && crate::reference_shell(program, local_data.type_reference)
+            .is_none_or(|shell| shell.access != language_core::ReferenceAccess::Mutable)
+    {
+        crate::value_custody::recasts::pending_views::report_consumption(
+            program,
+            machine,
+            state,
+            statement_index,
+            local_data.initial_value,
+            local_data.type_reference,
+            &owner,
+            diagnostics,
+        );
+    }
     // Nominal guard: `let f: Foo = self.bar` binds a `Bar` value to a `Foo`
     // local -- wrong data type. Only an initialized `let` has a value.
     if local_data.initial_value.is_valid() {

@@ -3,11 +3,11 @@
 //! selector values stay in the active scalar roster across private continuations.
 
 use super::{Emission, LoweringError, StructuralAccess, StructuralArgument};
-use crate::checked_facts::value_facts;
 use crate::emission::completed_place::Frontier;
 use crate::expression_preparation::bindings::structural_paths::{
     PreparedStructuralPathSegment, emit_captured_argument_path,
 };
+use crate::shared::checked_facts::value_facts;
 use crate::unit::attached_unit::operation_frame::completed_arguments::selected_memberships;
 use semantic_vocabulary::PlaceId;
 

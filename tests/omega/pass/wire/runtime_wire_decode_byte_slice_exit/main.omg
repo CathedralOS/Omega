@@ -1,4 +1,4 @@
-use omega_language_std::wire;
+use omega::language::core::wire;
 use omega::language::core::reflect;
 // Wire stage 2 (#43), borrowed `&[u8]` ZERO-COPY decode. `decode` reads a
 // byte-LENGTH varint, bounds-checks it, then stores a fat `{ptr, len}`

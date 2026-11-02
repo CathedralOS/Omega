@@ -44,7 +44,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   kind.
   - Owners: [register allocation](omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/README.md)
     `omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/`
-    (pressure decision, `RuntimeSpillSource`) and stage 04
+    (pressure decision, `RuntimeSpillSource`) and Omega 04
     `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/`
     (`omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/admission.rs`,
     `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_spill/slot.rs`: stores, reloads, window-granular slot reuse).
@@ -63,10 +63,10 @@ rewrites and promotion are not prerequisites for the first useful compiler.
 
 - **ALLOCATION-REFINEMENT.** Add pressure-chosen live-range splits that move a
   value into an independently homed segment before falling back to storage.
-  - Owners: stage 04
+  - Owners: Omega 04
     `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/analyses/fixed_precolored_split_requirements/`,
     `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/allocation_recovery/fixed_view_copy/` and
-    `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_split.rs`; stage 05
+    `omega-rust/omega/compilation/pipeline/04_selected-instructions-to-selected-instructions/src/rewrites/runtime_split.rs`; Omega 05
     `omega-rust/omega/compilation/pipeline/05_selected-instructions-to-register-homes/src/assignment/runtime_spill/recovery.rs`
     (pressure decision; `split_domain_pressure` scores existing tied/edge
     domains but inserts no copies).
@@ -82,7 +82,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     multiple-incoming-connector and cyclic restrictions. Recompute liveness,
     ranges and legality after changing the selected graph; keep exact
     register-unit aliases and fixed-use constraints.
-  - Preserve stage 03 result origins at the first defining instruction after
+  - Preserve Omega 03 result origins at the first defining instruction after
     operand copies or scratch materialization. Regression control:
     `pass/arithmetic/runtime_pressure_trapping_add_exit` retains 32 arithmetic
     results and expects exit 70 through register-pressure recovery.
@@ -278,11 +278,11 @@ rewrites and promotion are not prerequisites for the first useful compiler.
     still declining.
   - Remaining: call-produced children
     (INTERPROCEDURAL-SUMMARIES). Type-path descent is not proof of stored
-    contents. Runtime-index `StructuralCaseMembership` cannot reach stage 01
-    from current source; bounded indexed reads stop at Psi stage 06's
+    contents. Runtime-index `StructuralCaseMembership` cannot reach Omega 01
+    from current source; bounded indexed reads stop at Psi 06's
     authored-binding check.
   - Corpus proof is blocked on routing: the pass executes in post-Terminal
-    stage 01, but native realization receives only
+    Omega 01, but native realization receives only
     `project_post_terminal()` selections, which strip Psi-phase names, so
     no product route drives the pass and a rollback pair's `module:`
     comparison at the Terminal artifact cannot observe its rewrites.
@@ -297,7 +297,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   runs identically; unsupported paths decline.
 
 - **INTERPROCEDURAL-SUMMARIES.** Add inlining and exact argument/result/
-  place-access summaries in abstract-operations stage 01.
+  place-access summaries in abstract-operations Omega 01.
   - Reuse `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/analyses/semantic/effect_summaries.rs`
     (revision-bound transitive effects) and
     `omega-rust/omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/analyses/control_flow/call_graph.rs` (call components, including known

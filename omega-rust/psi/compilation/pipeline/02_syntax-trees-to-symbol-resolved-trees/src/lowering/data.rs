@@ -342,7 +342,7 @@ suspends: contract.suspends,
 blocks: contract.blocks,
 contracts: contract.contracts,
 terminates_guarantee: contract.terminates_guarantee,
-where_facts: contract.where_facts })?;
+})?;
                         (
                             TypeParameterKind::Machine {
                                 contract: symbol_resolved_trees::data::MachineParameterContract::Structural(

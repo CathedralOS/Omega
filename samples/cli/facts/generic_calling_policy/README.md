@@ -3,8 +3,10 @@
 Owning task: **BUILD-OWNED-TARGET-SELECTION** in
 [TASKS.md](../../../../TASKS.md). Preserve exact generic named-policy selection,
 inline member closure and target-dependent calling geometry while moving helper
-selection to explicit Build rows. Earlier conformance-migration evidence below
-retains its original source and producer identities.
+selection to explicit Build rows. **PROVIDER-SELECTION-AFTER-TERMINAL** owns
+the subsequent migration of those choices onto the canonical Terminal catalog.
+Earlier conformance-migration evidence below retains its original source and
+producer identities.
 
 **Fact: GenericPolicy<Box<u64>, 8> places all eight bytes of boundary result 42 before the same value is observed.**
 
@@ -98,7 +100,60 @@ recorded separately.
    Terminal execution at exit 0. The native row tests final emitted behavior;
    it does not claim unmeasured instruction encodings or cross-host execution.
 
-## Current Build-selection evidence
+## Canonical helper-selection evidence
+
+Exact optimized producer `002791b61f14404bcf6ce65e5376131ca16e1efe` selects
+Calling helpers through the same canonical provider fixed point as Product,
+using the policy invocation's exact roots. Calling metadata and unrelated
+Product choices do not create executable demand. A selected child map can
+supply an inherited parent requirement; merely having an unused child map
+does not demand it. Selecting competing parent and child maps still rejects.
+The Source adapter rejoins the chosen exact checked bodies for the original
+Psi build-time admission, which remains mandatory before execution.
+
+The frozen candidate records 13 native/Terminal exit-0 agreements and 16
+intended rejections on macOS arm64, including the complete nine-place row and
+its Width-4 twins, own-policy and inherited helpers, unused descendants,
+missing selections and explicit helper rejection. Four additional positive
+check routes complete. The existing two-target integration test passes in
+74.18 seconds: source checking and Terminal publication each occur once, both
+targets share the artifact, and each target's bytes equal its single-target
+output. This test does not establish target-failure isolation or every stage's
+invocation count.
+
+The public [inherited helper](controls/inherited_helper/main.omg) and
+[unused descendant](controls/unused_descendant/main.omg) each pass the sample
+gate's `omega run --both`; their Width-4 twins reject for incomplete byte
+coverage. Initial package review costs 171 and 154 seconds respectively,
+versus 19 and 18 seconds compiling/running. These are actual public leaf
+observations, not qualification of the root's private source-graph encoding.
+The corpus runner SHA-256 is
+`47916d538d30dd04d63afa04f9531264892993d7788e1298ac8dddd3613ac777`;
+the public CLI SHA-256 is
+`1ab96d4c182ed1f3c60c5116875df26ce2538b84165b744ab43684c447798542`.
+Raw records remain in the active claim's `build/calling-helper-choice-r3-*`
+files; checked-in corpus rows retain the actual producer revision.
+
+Physical ABI row association now uses the canonical declaration census, exact
+inherited receiver application and Calling root independently of the member's
+declaring application. The [shared-parent control](controls/shared_parent_roots/main.omg)
+retains two evaluated policies for the same full member ABI with different
+roots and plans; only the selected root may supply its component application.
+Its [Width-4 twin](controls/shared_parent_roots/invalid/main.omg) still requires
+complete result-byte coverage. The [ordinary-parent control](controls/ordinary_parent_owner/main.omg)
+runs its checked implementation fused while a physical component request must
+refuse the ordinary declaring owner. Logical contract retention and exact
+ancestor correspondence grant neither nominal service reach nor physical ABI
+eligibility. The existing Source-discard tests exercise both retained and
+normally decoded artifacts with no Source companions for this ABI join.
+
+Source invocation admission, request enumeration, checked target-body
+correspondence and the other source-reading provider consumers still prevent
+full Source-free target planning. This component does not close that parent
+outcome or qualify foreign-host execution. Current scoped producer identities
+and observations remain in the implementation commit and active claim records.
+
+## Retained Build-selection evidence
 
 The canonical row and its pins use ordinary implementations and explicit
 Build selections. The exact optimized `6416b0fdfbe3cd7db319e5c4803f64d3254160cd`

@@ -1,7 +1,7 @@
 //! Runtime implementation selection: the module's interface/table catalog.
 //!
 //! Checking fixes the implementation each `Impl as dyn Trait<Args>` selects
-//! (`DynamicSelectionFact`), and stage 05 publishes the call shape of every
+//! (`DynamicSelectionFact`), and Psi 05 publishes the call shape of every
 //! slot a selection or selector call reaches (`CheckedDynamicSlotPlan`).
 //! Every distinct selector type is one interface and every distinct
 //! (interface, implementation) pair is one table. Ids come from sorting those
@@ -18,13 +18,13 @@
 //! closure keeps absent rows: no selector naming it can be produced here.
 
 use crate::LoweringError;
-use crate::checked_facts::flow_facts;
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::expression_preparation::bindings::structural_paths::ProjectionRoot;
 use crate::expression_preparation::bindings::structural_paths::terminal_access;
-use crate::terminal_identities::lookup_domain_id_for_carrier;
-use crate::terminal_identities::lookup_type_id;
-use crate::terminal_identities::structural_multiplicity;
+use crate::shared::checked_facts::flow_facts;
+use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
+use crate::shared::terminal_identities::lookup_type_id;
+use crate::shared::terminal_identities::structural_multiplicity;
 use checked_trees::{CheckedDynamicSlotPlan, CheckedTrees};
 use symbols::SymbolHandle;
 use terminal_psi::{
@@ -313,18 +313,20 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                 .ok_or(LoweringError::Unsupported(
                     "dynamic domain lost its exact source carrier",
                 ))?;
-            Ok(crate::terminal_identities::StructuralDomainBinding {
-                byte_predicate: if domain.content_projection.is_none()
-                    && domain.establishment_routes.is_empty()
-                {
-                    domain.byte_predicate
-                } else {
-                    None
+            Ok(
+                crate::shared::terminal_identities::StructuralDomainBinding {
+                    byte_predicate: if domain.content_projection.is_none()
+                        && domain.establishment_routes.is_empty()
+                    {
+                        domain.byte_predicate
+                    } else {
+                        None
+                    },
+                    semantic_domain,
+                    carrier: domain.carrier,
+                    domain: domain.id,
                 },
-                semantic_domain,
-                carrier: domain.carrier,
-                domain: domain.id,
-            })
+            )
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;
     let slot_plans = &checked.facts.flow.terminal_unit_effects.dynamic_slots;
@@ -414,8 +416,10 @@ pub(crate) fn lower_dynamic_dispatch_catalog(
                 rows.push(None);
                 continue;
             }
-            let id =
-                crate::terminal_identities::lookup_machine_id(&owners, row.realization_machine)?;
+            let id = crate::shared::terminal_identities::lookup_machine_id(
+                &owners,
+                row.realization_machine,
+            )?;
             let realization = module.machine(id).ok_or(LoweringError::Unsupported(
                 "dynamic table row names a machine outside the lowered closure",
             ))?;
@@ -452,7 +456,7 @@ fn lower_slot(
         semantic_vocabulary::StructuralTypeId,
     )],
     structural_types: &[terminal_psi::StructuralTypeDeclaration],
-    domain_ids: &[crate::terminal_identities::StructuralDomainBinding],
+    domain_ids: &[crate::shared::terminal_identities::StructuralDomainBinding],
     scalar_qualifications: &terminal_psi::ScalarQualificationCatalog,
 ) -> Result<TerminalDynamicSlot, LoweringError> {
     let Some((selector, scalars)) = plan.scalar_parameters.split_first() else {
@@ -479,7 +483,11 @@ fn lower_slot(
                 .iter()
                 .map(|domain| {
                     lookup_domain_id_for_carrier(domain_ids, *domain, structural_type).or_else(
-                        |_| crate::terminal_identities::lookup_domain_id(domain_ids, *domain),
+                        |_| {
+                            crate::shared::terminal_identities::lookup_domain_id(
+                                domain_ids, *domain,
+                            )
+                        },
                     )
                 })
                 .collect::<Result<Vec<_>, _>>()?;

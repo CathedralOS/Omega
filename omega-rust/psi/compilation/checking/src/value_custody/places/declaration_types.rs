@@ -31,10 +31,52 @@ pub(crate) fn declaration_type_equations(
                     substitutions.push((*symbol, equation.definition));
                 }
             }
+            closed_requirement_equations(program, machine, &mut substitutions);
         }
         owner = program.declaration_scope_parent(owner);
     }
     substitutions
+}
+
+/// A `requires` conjunct `Binder == ClosedType` is a type equation whose closed
+/// definition stays an entry predicate rather than a structural equation; inside
+/// the body it substitutes exactly as a declared equation does.
+fn closed_requirement_equations(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    substitutions: &mut Vec<(SymbolHandle, TypeReferenceHandle)>,
+) {
+    let mut pending = program
+        .machine_contracts(machine)
+        .iter()
+        .filter(|contract| contract.kind == typed_trees::signature::SignatureContractKind::Requires)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .filter_map(typed_trees::domain::ProofFact::as_expression)
+        .copied()
+        .collect::<Vec<_>>();
+    while let Some(expression) = pending.pop() {
+        if let typed_trees::expression::ExpressionNode::Binary(binary) =
+            program.expression_table.expression(expression)
+            && binary.operator == typed_trees::expression::BinaryOperator::And
+        {
+            pending.extend([binary.left, binary.right]);
+            continue;
+        }
+        let Some((left, right, false)) = program.static_type_predicate_operands(expression) else {
+            continue;
+        };
+        for (binder, definition) in [(left, right), (right, left)] {
+            if let TypeReferenceNode::Named { symbol, .. } =
+                program.type_reference_table.type_reference(binder)
+                && symbol.is_valid()
+                && program.symbols.get(*symbol).kind == SymbolKind::TypeParameter
+                && typed_trees::domain::index_argument_is_closed(program, definition)
+                && !substitutions.iter().any(|(existing, _)| existing == symbol)
+            {
+                substitutions.push((*symbol, definition));
+            }
+        }
+    }
 }
 
 /// The declared type of one current-state root: a state parameter, else the

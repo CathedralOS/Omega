@@ -241,7 +241,7 @@ fn narrow_loads_join_catalog_address_encoder_and_receiving_replay_on_four_target
                 Err(Error::ArtifactMismatch)
             ));
             let mut changed_row = row.clone();
-            changed_row.address = foreign;
+            changed_row.address = foreign.map(Box::new);
             assert!(
                 replay_fixture_row(
                     target,

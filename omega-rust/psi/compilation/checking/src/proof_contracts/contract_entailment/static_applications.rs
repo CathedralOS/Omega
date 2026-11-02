@@ -1,4 +1,5 @@
-//! Callable `where` facts under an already admitted, complete static tuple.
+//! Generic-tuple `requires` facts under an already admitted, complete static
+//! tuple.
 //!
 //! Values bind exact declaration symbols simultaneously. The ordinary scoped
 //! arithmetic judgment owns integer entailment; this adapter supplies Boolean
@@ -31,9 +32,9 @@ use crate::{
 /// source call additionally supplies its exact containing state's Requires;
 /// declaration-only applications have no state assumptions. Mutable runtime
 /// subjects never supply this judgment. Forwarding uses exact symbols.
-/// Non-expression facts and unsupported values answer `Unknown`, which is not
+/// Unsupported values answer `Unknown`, which is not
 /// admission. This operation borrows frozen representations and mints no proof.
-pub fn static_application_where_judgment(
+pub fn static_application_requirement_judgment(
     program: &dyn crate::CheckingInput,
     signature: &StateSignature,
     arguments: &[StaticMachineArgument],
@@ -125,17 +126,59 @@ pub fn static_application_where_judgment(
         boolean_bindings,
     };
     let mut judgment = Proven;
-    for fact in program.proof_facts.span_or_empty(signature.where_facts) {
-        let next = match fact {
-            ProofFact::Expression(expression) => {
-                let mut remaining = 4096;
-                context.judge_alternatives(*expression, prior_hypotheses.clone(), &mut remaining, 0)
-            }
-            _ => Unknown,
-        };
+    for expression in generic_tuple_requirements(program, signature) {
+        let mut remaining = 4096;
+        let next =
+            context.judge_alternatives(expression, prior_hypotheses.clone(), &mut remaining, 0);
         judgment = conjunction(judgment, next);
     }
     judgment
+}
+
+/// The generic declaration's admission obligations: each `requires` expression
+/// fact that names only constants and the signature's value or const binders.
+/// A fact over a runtime parameter, or over a type or machine binder, stays an
+/// ordinary entry obligation; this judgment cannot bind it to a static value.
+pub fn generic_tuple_requirements(
+    program: &dyn crate::CheckingInput,
+    signature: &StateSignature,
+) -> Vec<ExpressionHandle> {
+    let excluded = program
+        .state_signature_parameters(signature)
+        .iter()
+        .map(|parameter| parameter.symbol)
+        .chain(
+            program
+                .state_signature_type_parameters(signature)
+                .iter()
+                .filter(|parameter| {
+                    !matches!(
+                        parameter.kind,
+                        TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. }
+                    )
+                })
+                .map(|parameter| parameter.symbol),
+        )
+        .collect::<Vec<_>>();
+    let mut nodes = Vec::new();
+    program
+        .state_signature_contracts(signature)
+        .iter()
+        .filter(|contract| contract.kind == SignatureContractKind::Requires)
+        .flat_map(|contract| program.proof_facts.span_or_empty(contract.facts))
+        .filter_map(ProofFact::as_expression)
+        .copied()
+        .filter(|&root| {
+            nodes.clear();
+            crate::expression_traversal::collect_expression_tree(program, root, &mut nodes);
+            !nodes.iter().any(|&node| {
+                matches!(
+                    expression_table(program).expression(node),
+                    ExpressionNode::Name(path) if excluded.contains(&path.head_symbol)
+                )
+            })
+        })
+        .collect()
 }
 
 pub(super) enum ConstantValue {

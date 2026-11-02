@@ -13,8 +13,8 @@
 //! check on a static call's type argument for the typed-to-checked stage's
 //! monomorphization, and `validate_generic_instance_argument_bounds` checks a
 //! generated data instance's generic arguments for `value_custody::data`.
-//! The entrance first checks where a routed service carrier may appear and
-//! rejects a range constraint under a non-Exact domain, then walks the type:
+//! The entrance first rejects a boundary trait in a runtime value position and
+//! a range constraint under a non-Exact domain, then walks the type:
 //! reference access and lifetimes, constraints (`constraint_validation`),
 //! fixed-array lengths and elements, slices, generic applications and their
 //! arguments (lengths and arguments through `generic_arguments`), dynamic
@@ -184,27 +184,21 @@ pub(crate) enum TypeReferenceOwner<'program> {
 }
 
 impl TypeReferenceOwner<'_> {
-    fn is_direct_runtime_value_position(&self) -> bool {
+    /// Every position whose type describes runtime data, at any generic
+    /// depth and in every signature owner. A generic argument of a runtime
+    /// value is runtime data too: a boundary trait reaching a field through
+    /// `Envelope<&mut Counter>` is the same provider object as a direct field.
+    fn is_runtime_value_position(&self) -> bool {
         matches!(
             self,
-            Self::DataField {
-                generic_depth: 0,
-                ..
-            } | Self::StateParameter {
-                owner: StateSignatureOwner::Machine(_),
-                generic_depth: 0,
-                ..
-            } | Self::Expression {
-                generic_depth: 0,
-                ..
-            } | Self::StateLocalData {
-                generic_depth: 0,
-                ..
-            } | Self::StateReturn {
-                owner: StateSignatureOwner::Machine(_),
-                generic_depth: 0,
-                ..
-            }
+            Self::DataField { .. }
+                | Self::MachineOwnedData { .. }
+                | Self::StateLocalData { .. }
+                | Self::StateParameter { .. }
+                | Self::StateReturn { .. }
+                | Self::OperatorParameter { .. }
+                | Self::OperatorReturn { .. }
+                | Self::Expression { .. }
         )
     }
 
@@ -553,10 +547,9 @@ pub(crate) fn validate_type_reference_handle(
     );
 }
 
-/// Boundary traits describe operation requirements, not runtime values. Keep
-/// this check through borrowed shells and nominal applications after retiring
-/// Binding recognition; deleting the old carrier path must not admit provider
-/// objects or implicit receiving authority.
+/// Boundary traits describe operation requirements, not runtime values. The
+/// check walks borrowed shells, arrays, slices and nominal applications, so no
+/// runtime position admits a provider object or implicit receiving authority.
 fn validate_boundary_trait_value_placement(
     program: &dyn crate::CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -574,7 +567,18 @@ fn validate_boundary_trait_value_placement(
         | TypeReferenceNode::Slice { element_type } => {
             validate_boundary_trait_value_placement(program, *element_type, owner, diagnostics);
         }
-        TypeReferenceNode::Generic { arguments, .. } => {
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+            ..
+        } => {
+            // An applied boundary trait such as `Console<Interactive>` is still
+            // a requirement, not a value its arguments could make runtime data.
+            if owner.is_runtime_value_position() && is_boundary_trait(program, *base_symbol) {
+                push_boundary_trait_value_diagnostic(owner, base_name, diagnostics);
+                return;
+            }
             for argument in program
                 .type_reference_table
                 .type_reference_handles(*arguments)
@@ -593,15 +597,8 @@ fn validate_boundary_trait_value_placement(
             // the surviving vocabulary: call the requirement directly, or
             // carry an ordinary handle, session, or `dyn` value when runtime
             // multiplicity is what the program needs.
-            if owner.is_direct_runtime_value_position()
-                && program
-                    .traits()
-                    .iter()
-                    .any(|definition| definition.symbol == *symbol && definition.is_boundary)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses boundary trait `{name}` as a value type; call a `{name}` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity"
-                )));
+            if owner.is_runtime_value_position() && is_boundary_trait(program, *symbol) {
+                push_boundary_trait_value_diagnostic(owner, name, diagnostics);
                 return;
             }
             if let Some(origin) =
@@ -620,6 +617,23 @@ fn validate_boundary_trait_value_placement(
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => {}
     }
+}
+
+fn is_boundary_trait(program: &dyn crate::CheckingInput, symbol: symbols::SymbolHandle) -> bool {
+    program
+        .traits()
+        .iter()
+        .any(|definition| definition.symbol == symbol && definition.is_boundary)
+}
+
+fn push_boundary_trait_value_diagnostic(
+    owner: TypeReferenceOwner<'_>,
+    name: impl std::fmt::Display,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    diagnostics.push(Diagnostic::error(format!(
+        "{owner} uses boundary trait `{name}` as a value type; call a `{name}` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity"
+    )));
 }
 
 pub(crate) fn validate_generic_instance_argument_bounds(

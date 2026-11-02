@@ -36,7 +36,7 @@ not checked trees or a callable-name lookup. No lowering or unoptimized clone
 leaves production, and no admission can replace a stage or choose whether
 optimization runs.
 
-Permission-ledger validation belongs to the stage-05 lowering entrance, not
+Permission-ledger validation belongs to the Psi 06 lowering entrance, not
 this coordinator. Its work is included in the lowering timing row; there is
 no separate caller-owned ledger-check leg.
 
@@ -47,7 +47,7 @@ input/output labels; the Omega caller only merges their measured rows.
 implementation, incomplete proof search and ordinary rejection. Neither requires
 a dependency on the Omega reporting accumulator.
 
-The [stage-07 entry receipt owner](../../pipeline/08_lowered-psi-to-terminal-psi/src/entry_receipt.rs) checks the
+The [Psi 08 entry receipt owner](../../pipeline/08_lowered-psi-to-terminal-psi/src/entry_receipt.rs) checks the
 unique Unit entry in the published artifact and binds its exact semantic identity.
 Source preparation delegates explicit context eligibility to its own child.
 

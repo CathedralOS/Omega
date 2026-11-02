@@ -24,5 +24,5 @@ the raw `Value` binder is compared with `First`/`Second`, and
 `NativePlacement<InactivePageTablePlacement, InactivePageTables, Role>::initialize`
 without firmware dependencies. Cathedral's fresh-image QEMU boot remains the
 customer acceptance; this fixture does not establish that boot by itself.
-The integrated base `9be76689b25` changes Omega stage-02 admission, not the
+The integrated base `9be76689b25` changes Omega 02 admission, not the
 Psi checking or monomorphization inputs responsible for this rejection.

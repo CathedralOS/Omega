@@ -271,13 +271,14 @@ impl Expansion<'_> {
             if !identity.is_valid() {
                 return unsupported("storage observation collection has no exact identity");
             }
-            let declaration = crate::terminal_identities::structural_declaration_by_identity(
-                self.structural_types,
-                identities,
-                self.checked,
-                identity,
-                "storage observation collection has no retained declaration",
-            )?;
+            let declaration =
+                crate::shared::terminal_identities::structural_declaration_by_identity(
+                    self.structural_types,
+                    identities,
+                    self.checked,
+                    identity,
+                    "storage observation collection has no retained declaration",
+                )?;
             let path = structural_paths::prepare_projection_path(
                 identities,
                 self.checked,

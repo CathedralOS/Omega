@@ -22,11 +22,11 @@ use super::super::call_values::captured_values;
 use super::super::captured_predicates::retain_bindings;
 use super::super::captured_predicates::transport;
 use super::field_actuals::checked_place;
-use crate::facts::boolean_predicates::{self, BoundPredicate};
-use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::flow::expressions;
-use crate::places::place_at;
-use crate::semantic::facts::projected_argument_place;
+use crate::published::facts::boolean_predicates::{self, BoundPredicate};
+use crate::published::facts::contract_occurrences::append_expression_occurrences;
+use crate::published::places::place_at;
+use crate::published::semantic::facts::projected_argument_place;
 
 use validation::CallSite;
 use validation::CanonicalPlace;
@@ -1219,7 +1219,7 @@ fn actual_projection(
     expression: ExpressionHandle,
 ) -> Option<(ExpressionHandle, Vec<facts::PlaceSegment>)> {
     formal_place(program, invocation, expression)?;
-    crate::semantic::places::call_contract_argument_projection(
+    crate::published::semantic::places::call_contract_argument_projection(
         program,
         invocation.callable.parameters(program),
         validation::call_site_argument_expressions(program, &invocation.site),

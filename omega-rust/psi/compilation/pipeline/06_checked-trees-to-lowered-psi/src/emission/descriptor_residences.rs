@@ -9,7 +9,7 @@
 //! schedule. Parameter homes retain their checked declaration continuation;
 //! this completion owns operation-produced homes, including anonymous children.
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{OperationId, PlaceId};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{

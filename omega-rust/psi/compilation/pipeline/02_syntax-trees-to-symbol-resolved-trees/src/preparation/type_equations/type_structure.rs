@@ -64,7 +64,12 @@ pub(super) fn collect_binder_mentions(
             }
             collect_binder_mentions(syntax, *element_type, parameters, mentions);
         }
-        TypeReferenceNode::Reference { referee, .. } => {
+        TypeReferenceNode::Reference {
+            referee, lifetime, ..
+        } => {
+            if let Some(lifetime) = lifetime {
+                name_mention(lifetime.as_str(syntax));
+            }
             collect_binder_mentions(syntax, *referee, parameters, mentions);
         }
         TypeReferenceNode::Slice { element_type } => {

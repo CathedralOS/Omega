@@ -203,13 +203,14 @@ pub fn validate_authored_static_arguments(
         ) {
             diagnostics.push(error);
         }
-        requirement_predicates::validate_where_facts(
+        requirement_predicates::validate_tuple_requirements(
             program,
             owner,
             &signature,
             arguments,
             source.lexical_owner,
             None,
+            false,
             &mut diagnostics,
         );
     }

@@ -49,8 +49,6 @@ pub struct Machine {
     pub type_parameters: HandleSpan<TypeParameter>,
     pub satisfies: HandleSpan<SatisfiesClause>,
     pub conformance_bounds: Vec<GenericConformanceBound>,
-    /// Structural static equations retained until every application is discharged.
-    pub where_facts: HandleSpan<ProofFact>,
     /// TPR2 (decision 23): the machine authored BARE `terminates;` — the
     /// public eventual-terminal guarantee. `terminates by ...` supplies only
     /// the private ranking witness and does not set this.
@@ -193,10 +191,4 @@ pub struct StateSignature {
     /// (`terminates by ...` is rejected at parse: the witness belongs to
     /// implementations).
     pub terminates_guarantee: bool,
-    /// Signature-level `where` proof facts. A finite generic method family is
-    /// authored as explicit equality disjunctions over the signature's own
-    /// value binders (for example `where Width == 16 || Width == 32`); other
-    /// fact shapes remain ordinary proof obligations recorded here so the
-    /// later stages can reject them for dispatch purposes.
-    pub where_facts: HandleSpan<ProofFact>,
 }

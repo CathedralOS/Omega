@@ -130,7 +130,8 @@ fn tail(
                         ..
                     } = boolean.as_ref()
                     {
-                        let (_, case) = crate::proof::exact_outcome_case_test(program, guard)?;
+                        let (_, case) =
+                            crate::published::proof::exact_outcome_case_test(program, guard)?;
                         Some((CaseSubject::Expression(subject.clone()), case))
                     } else {
                         None

@@ -261,8 +261,7 @@ fn invocation_target_label(
     }
 }
 
-/// The boundary requirement symbol a type's service carrier names — or the
-/// type's own symbol when no exact service-parameter carrier classifies it.
+/// The boundary requirement symbol a type names.
 /// Callers then admit the symbol against the boundary trait table their own
 /// way (`.find` for the definition, `.any().then_some` for the symbol).
 pub(crate) fn boundary_requirement_symbol(

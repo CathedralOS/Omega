@@ -18,7 +18,7 @@ use validation::CanonicalPlace;
 use super::super::super::return_values::exit_return_expression;
 use super::scalar_exits::*;
 use crate::flow::{active_context_handles, canonical_place_from_semantic_place};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowExitFact, FlowStateFact};
 use diagnostics::Diagnostic;
 use facts::{FactOrigin, FactPayload, FactPlace, PlaceRoot, PlaceSegment, ProgramPoint};
@@ -187,7 +187,7 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
                 // indexed application from its declaration alone.
                 validation::field_domains::domain_constraint_identities(program,entry.return_type)
                     .contains(&(domain_symbol,semantic_domain))
-                    && crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
+                    && crate::published::facts::qualification_evidence::machine_has_checked_domain_establishment(
                         program, machine, domain_symbol,
                     )
                     && super::super::super::writes::value_satisfies_domain_predicates_in_contexts(
@@ -392,11 +392,11 @@ pub(in crate::checks::contracts) fn check_result_field_domains(
             segments.extend_from_slice(&path);
             diagnostics.push(Diagnostic::error(format!(
                 "cannot prove default-domain field requirement for return from {}, state {}, at statement {}: {} requires {}",
-                crate::labels::machine_name(program, exit.machine_symbol),
-                crate::labels::symbol_name(program, exit.state_symbol),
+                crate::published::labels::machine_name(program, exit.machine_symbol),
+                crate::published::labels::symbol_name(program, exit.state_symbol),
                 exit.statement_index,
                 facts::canonical_place_label_from_parts(program, root, &segments),
-                crate::labels::symbol_name(program, domain_symbol),
+                crate::published::labels::symbol_name(program, domain_symbol),
             )));
         }
     }
@@ -628,14 +628,14 @@ pub(in crate::checks::contracts) fn check_exclusive_referent_field_domains(
         }
         diagnostics.push(Diagnostic::error(format!(
             "cannot prove default-domain field requirement for return from {} at statement {}: {} requires {}",
-            crate::labels::machine_name(program, exit.machine_symbol),
+            crate::published::labels::machine_name(program, exit.machine_symbol),
             exit.statement_index,
             facts::canonical_place_label_from_parts(
                 program,
                 place.root,
                 facts.semantic.place_segments.span_or_empty(place.segments),
             ),
-            crate::labels::symbol_name(program, domain_symbol),
+            crate::published::labels::symbol_name(program, domain_symbol),
         )));
     }
 }

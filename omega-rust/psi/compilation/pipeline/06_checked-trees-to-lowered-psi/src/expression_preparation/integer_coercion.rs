@@ -6,7 +6,7 @@
 //! Width equality never replaces the source checker's symbolic fit proof.
 
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::ScalarType;
 
 pub(crate) fn coerce_integer_carrier(

@@ -15,7 +15,6 @@ use super::{
     QualifiedScalarType, ScalarType, Site, parameter, parameters, unsupported,
     validate_direct_parameter_types,
 };
-use crate::checked_facts::value_facts;
 use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::emission::claim_bindings::emit_establishment_claims;
 use crate::emission::operation_emission::LoweredScalarBinding;
@@ -28,6 +27,7 @@ use crate::expression_preparation::computation_graph::fields;
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator, LoweredScalarEffect,
 };
+use crate::shared::checked_facts::value_facts;
 use crate::unit::unit_cleanup::PreparedNormalCleanupAction;
 use checked_trees::data::DataMember;
 use checked_trees::{CheckedScalarCaseConstruction, CheckedScalarComputationStructuralArgument};
@@ -102,15 +102,10 @@ pub(crate) fn prepare(
             {
                 continue;
             }
-            let source = validation::scalar_case_constructor(&checked.typed, subject.expression)
-                .ok_or(LoweringError::Unsupported(
-                    "computed case lost its constructor",
-                ))?;
             slots.push(reserve(
                 identities,
                 checked,
-                subject.expression,
-                &source,
+                subject,
                 types,
                 place_id(allocate_dense(next_place)?),
             )?);
@@ -119,19 +114,18 @@ pub(crate) fn prepare(
     Ok(slots)
 }
 
-/// Resolve one exact constructor against the shared structural namespace.
+/// Resolve one checked constructor against the shared structural namespace.
 /// The caller owns allocation and the result's lifetime.
 pub(crate) fn reserve(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
-    expression: checked_trees::expression::ExpressionHandle,
-    source: &validation::ScalarCaseConstructor,
+    source: &CheckedScalarCaseConstruction,
     types: &[StructuralTypeDeclaration],
     place: PlaceId,
 ) -> Result<Slot, LoweringError> {
     let identity =
         validation::stored_structural_type_identity(checked, source.type_reference, &[], &[]);
-    let declaration = crate::terminal_identities::structural_declaration_by_identity(
+    let declaration = crate::shared::terminal_identities::structural_declaration_by_identity(
         types,
         identities,
         checked,
@@ -174,7 +168,7 @@ pub(crate) fn reserve(
         "computed case selected a foreign owner",
     ))?;
     let authored_fields = checked.data_payload_fields(variant);
-    let retained = &source.fields;
+    let retained = fields(checked, source)?;
     if retained.len() != case.fields.len() || retained.len() != authored_fields.len() {
         return unsupported("computed case field namespace disagrees");
     }
@@ -182,7 +176,7 @@ pub(crate) fn reserve(
     for field in retained {
         let authored = authored_fields
             .iter()
-            .find(|candidate| candidate.symbol == field.0)
+            .find(|candidate| candidate.symbol == field.symbol)
             .ok_or(LoweringError::Unsupported(
                 "computed case field has a foreign owner",
             ))?;
@@ -218,7 +212,7 @@ pub(crate) fn reserve(
     }
     let multiplicity = terminal_multiplicity(checked.type_multiplicity(source.type_reference));
     Ok(Slot {
-        expression,
+        expression: source.expression,
         place,
         structural_type: declaration.id,
         multiplicity,
@@ -353,7 +347,8 @@ impl Expansion<'_> {
         let subject = match subject {
             CheckedScalarComputationStructuralArgument::Case(subject) => subject,
             CheckedScalarComputationStructuralArgument::Place(argument) => {
-                let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
+                let (_, state) =
+                    crate::shared::declarations::state_declaration(self.checked, site.state)?;
                 let source = site
                     .bindings
                     .borrowed_structural_home(argument, self.checked.state_parameters(state))?;
@@ -418,7 +413,7 @@ impl Expansion<'_> {
         // This observer has only a no-code retirement, unlike a call operand
         // whose normal continuation carries the checked nominal action roster.
         // Constructor identity itself grants neither kind of disposition.
-        if !crate::content_classes::plain_owned_with_numeric_constraints(
+        if !crate::shared::content_classes::plain_owned_with_numeric_constraints(
             self.checked,
             subject.type_reference,
         ) || !matches!(

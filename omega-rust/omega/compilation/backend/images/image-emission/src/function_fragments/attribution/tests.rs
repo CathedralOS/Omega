@@ -534,17 +534,17 @@ fn bridge_continuation_does_not_attribute_the_semantic_edge_twice() {
     jump.instruction = SelectedInstructionId(4);
     jump.offset = 8;
     jump.control = Control::Jump {
-        successor: successor.clone(),
+        successor: Box::new(successor.clone()),
     };
     fragment.blocks[0].instructions.push(jump.clone());
     jump.instruction = SelectedInstructionId(5);
     jump.offset = 9;
     jump.control = Control::Jump {
-        successor: machine_code::FunctionFragmentSuccessorProvenance {
+        successor: Box::new(machine_code::FunctionFragmentSuccessorProvenance {
             role: SelectedSuccessorRole::EdgeTransferContinuation,
             block: SelectedBlockId(2),
             ..successor
-        },
+        }),
     };
     fragment.blocks[0].instructions.push(jump);
     fragment.blocks[0].byte_count = 10;
@@ -644,7 +644,7 @@ fn internal_jump_attributes_its_operation_not_a_fabricated_edge() {
         fuel: Vec::new(),
     };
     fragment.blocks[0].instructions[0].control = Control::Jump {
-        successor: successor.clone(),
+        successor: Box::new(successor.clone()),
     };
     let actual = produce(&fragment, &source).unwrap();
     assert_eq!(actual, expected);
@@ -661,7 +661,9 @@ fn internal_jump_attributes_its_operation_not_a_fabricated_edge() {
             ..successor
         },
     ] {
-        fragment.blocks[0].instructions[0].control = Control::Jump { successor: forged };
+        fragment.blocks[0].instructions[0].control = Control::Jump {
+            successor: Box::new(forged),
+        };
         assert!(produce(&fragment, &source).is_err());
         assert!(validate(&fragment, &source, &actual).is_err());
     }

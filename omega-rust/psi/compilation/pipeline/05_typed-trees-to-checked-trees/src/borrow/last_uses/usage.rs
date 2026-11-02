@@ -11,7 +11,7 @@ pub(super) use validation::statement_uses_symbol;
 
 use crate::borrow::owner_segment_matches_place_segment;
 use crate::borrow::tracker::BorrowOwnerSegment;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 pub(super) fn statement_uses_local_name(
     program: &dyn ::validation::CheckingInput,

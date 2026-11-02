@@ -2,7 +2,7 @@
 
 use super::operand_contexts::binding_origin_is_stable;
 use super::operand_contexts::entry_origin_is_stable;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use validation::CanonicalPlace;
 
 use super::canonical_place_segments_may_overlap;

@@ -226,6 +226,7 @@ pub(super) fn inspect(
     artifact: &CanonicalTerminalArtifact,
     requirement: &str,
     expectation: InputExpectation,
+    host_mutations: Option<u64>,
     nested: &[&str],
 ) -> Result<(), String> {
     let view = artifact.view();
@@ -271,8 +272,9 @@ pub(super) fn inspect(
         .find(|boundary| boundary.id == component_boundary)
         .and_then(|boundary| boundary.structural_parameters.first())
         .ok_or("component input parameter")?;
-    let expected_changes =
-        u64::from(required.access == terminal_psi::StructuralAccess::MutableBorrow);
+    let expected_changes = host_mutations.unwrap_or_else(|| {
+        u64::from(required.access == terminal_psi::StructuralAccess::MutableBorrow)
+    });
     // This is the public embedding's real opaque input. Guest-created storage
     // with the same structural type must never inherit this token's backing.
     let input = [TerminalStructuralValue::minted(

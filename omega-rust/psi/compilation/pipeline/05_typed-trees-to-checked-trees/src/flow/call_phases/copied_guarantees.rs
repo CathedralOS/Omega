@@ -5,7 +5,7 @@
 
 mod captured_aliases;
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use validation::CanonicalPlace;
 
 use super::super::FlowBuildContext;
@@ -372,7 +372,7 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
                 // A changed runtime selector also prevents substitution onto the
                 // current indexed place, even when its old element was untouched.
                 let mut occurrences = Vec::new();
-                crate::facts::contract_occurrences::append_expression_occurrences(
+                crate::published::facts::contract_occurrences::append_expression_occurrences(
                     self.program,
                     projection.expression,
                     &mut occurrences,
@@ -423,32 +423,32 @@ pub(super) fn retain_guarantees(
     let mut stale: Vec<Handle<ProofFact>> = Vec::new();
     for reference in proof.contract_fact_refs.span_or_empty(call.ensures) {
         let contract = proof.contract_facts.get(reference.fact);
-        let survives =
-            crate::facts::contract_occurrences::fact_referenced_occurrences(program, contract.fact)
-                .into_iter()
-                .all(|occurrence| {
-                    let Some(place) =
-                        validation::canonical_place_from_expression(program, occurrence)
-                    else {
-                        return true;
-                    };
-                    let Some(symbol) = place.root.as_symbol() else {
-                        return true;
-                    };
-                    match crate::semantic::facts::contract_parameter_position(
-                        program,
-                        proof,
-                        contract,
-                        call.target_state_symbol,
-                        symbol,
-                    ) {
-                        Ok(Some(position)) => sources.is_some_and(|sources| {
-                            sources.observation_survives(position, &place.segments)
-                        }),
-                        Ok(None) => true,
-                        Err(()) => false,
-                    }
-                });
+        let survives = crate::published::facts::contract_occurrences::fact_referenced_occurrences(
+            program,
+            contract.fact,
+        )
+        .into_iter()
+        .all(|occurrence| {
+            let Some(place) = validation::canonical_place_from_expression(program, occurrence)
+            else {
+                return true;
+            };
+            let Some(symbol) = place.root.as_symbol() else {
+                return true;
+            };
+            match crate::published::semantic::facts::contract_parameter_position(
+                program,
+                proof,
+                contract,
+                call.target_state_symbol,
+                symbol,
+            ) {
+                Ok(Some(position)) => sources
+                    .is_some_and(|sources| sources.observation_survives(position, &place.segments)),
+                Ok(None) => true,
+                Err(()) => false,
+            }
+        });
         if !survives && !stale.contains(&contract.fact) {
             stale.push(contract.fact);
         }

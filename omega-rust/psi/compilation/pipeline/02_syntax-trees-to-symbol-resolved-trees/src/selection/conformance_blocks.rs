@@ -232,19 +232,18 @@ pub(crate) fn route_named_implementation_calls(
     let mut select_requirement = |site: &super::body_calls::CallSite<'_>| {
         named_implementation_requirement(&implementation_rows, site)
     };
+    super::body_calls::retarget_signature_contract_calls(program, &mut select_requirement);
     let machines = program
         .machines
         .iter()
         .map(|machine| machine.symbol)
         .collect::<Vec<_>>();
-    for machine in machines
-        .into_iter()
-        .filter(|machine| work.contains(machine))
-    {
+    for machine in machines {
         super::body_calls::retarget_machine_calls(
             program,
             machine,
             inputs,
+            work.contains(&machine),
             &mut select_requirement,
         );
     }
@@ -344,42 +343,45 @@ pub(crate) fn route_conformance_requirement_calls(
     }
 
     let mut hidden_calls = Vec::new();
-    for plan in plans
-        .into_iter()
-        .filter(|plan| work.contains(&plan.machine))
-    {
-        retarget_machine_calls(program, plan.machine, inputs, &mut |site| {
-            // A qualified application names its complete public slot, not
-            // whichever application this lexical map supplies. Preserve
-            // that requirement for typed application formation; equality
-            // of declaration symbols alone cannot authorize rerouting.
-            if site.requirement_application.is_valid() {
-                return None;
-            }
-            let routed = routed_target(
-                site.target_symbol,
-                site.member,
-                site.argument_count,
-                plan.routes_by_name && site.local_receiver,
-                &plan.routes,
-            );
-            if routed.is_none()
-                && !site.target_symbol.is_valid()
-                && site.local_receiver
-                && let Some(scope) = &plan.default_body
-                && scope
-                    .hidden_names
-                    .iter()
-                    .any(|hidden| hidden.as_str() == site.member.as_str())
-            {
-                hidden_calls.push((
-                    scope.declaring_trait,
-                    scope.implementation.clone(),
-                    site.member.clone(),
-                ));
-            }
-            routed
-        });
+    for plan in plans {
+        retarget_machine_calls(
+            program,
+            plan.machine,
+            inputs,
+            work.contains(&plan.machine),
+            &mut |site| {
+                // A qualified application names its complete public slot, not
+                // whichever application this lexical map supplies. Preserve
+                // that requirement for typed application formation; equality
+                // of declaration symbols alone cannot authorize rerouting.
+                if site.requirement_application.is_valid() {
+                    return None;
+                }
+                let routed = routed_target(
+                    site.target_symbol,
+                    site.member,
+                    site.argument_count,
+                    plan.routes_by_name && site.local_receiver,
+                    &plan.routes,
+                );
+                if routed.is_none()
+                    && !site.target_symbol.is_valid()
+                    && site.local_receiver
+                    && let Some(scope) = &plan.default_body
+                    && scope
+                        .hidden_names
+                        .iter()
+                        .any(|hidden| hidden.as_str() == site.member.as_str())
+                {
+                    hidden_calls.push((
+                        scope.declaring_trait,
+                        scope.implementation.clone(),
+                        site.member.clone(),
+                    ));
+                }
+                routed
+            },
+        );
     }
     let diagnostics = hidden_calls
         .into_iter()

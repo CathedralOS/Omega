@@ -11,7 +11,7 @@ terminal-codec = { path = "../../../../psi/compilation/representations/terminal-
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 component-description = { path = "../../backend/artifacts/component-description" }
-effects = { path = "../../backend/plans/provider-evidence" }
+effects = { path = "../../backend/plans/effects" }
 target = { path = "../../backend/target" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }

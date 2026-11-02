@@ -11,8 +11,10 @@
 
 use super::OperationFrame;
 use super::calls::CallInputs;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{allocate_dense, lookup_claim_id, obligation_id, value_id};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{
+    allocate_dense, lookup_claim_id, obligation_id, value_id,
+};
 use checked_trees::{
     CheckedBoundaryMachineResultPlan, CheckedUnitCallPlan, CheckedUnitEffectOperationPlan,
 };
@@ -93,7 +95,7 @@ impl OperationFrame<'_, '_> {
                 OperationKind::EstablishActivationClaim {
                     bound,
                     committed: committed.id,
-                    backing_type: crate::activation_storage::backing_type(
+                    backing_type: crate::shared::activation_storage::backing_type(
                         identities,
                         self.structural_types.declarations(),
                         bound,
@@ -251,8 +253,10 @@ impl OperationFrame<'_, '_> {
         let binding = call.structural_result().ok_or(LoweringError::Unsupported(
             "activation outcome carrier is absent",
         ))?;
-        let result_type =
-            crate::terminal_identities::lookup_type_id(self.type_ids, &binding.type_identity)?;
+        let result_type = crate::shared::terminal_identities::lookup_type_id(
+            self.type_ids,
+            &binding.type_identity,
+        )?;
         let row = self
             .structural_types
             .declarations()

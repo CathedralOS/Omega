@@ -62,7 +62,7 @@ creates handoff loss, duplicate ramp-up, and competing partial fixes.
 
 - **Reframe stage-sliced or internal tasks around end-to-end samples.** If an
   item is phrased as an internal pass edit, intermediate representation change,
-  or single-stage obligation ("teach stage 05 to...", "restore X in compile-time
+  or single-stage obligation ("teach Psi 05 to...", "restore X in compile-time
   evaluator", "wire Y into backend plan"), reframe it around the runnable sample
   or `samples/cli/facts/<fact>/` row that proves the requirement end to end
   through `omega run --both` and its reject twins. Keep internal symbols and

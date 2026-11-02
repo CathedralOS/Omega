@@ -120,7 +120,7 @@ pub(crate) fn validate_selected_cleanup_guarantees(
                             return true;
                         }
                         let Some((target_machine, target_state)) =
-                            crate::proof::contract_target_from_state_symbol(
+                            crate::published::proof::contract_target_from_state_symbol(
                                 program,
                                 call.target_symbol,
                             )

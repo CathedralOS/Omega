@@ -109,9 +109,10 @@ pub(super) fn check_flow_call_contracts(
     entailment: &mut ProvenExitExpressions<'_, '_>,
     expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<ContractDecisions, Vec<Diagnostic>> {
-    let mut diagnostics = phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.cleanup_requirements", || {
-        crate::facts::contextual_cleanup::check_cleanup_requirements(program, facts)
-    });
+    let mut diagnostics = phase_profile::scope(
+        "psi.05.check_checked_facts.check_flow_call_contracts.cleanup_requirements",
+        || crate::published::facts::contextual_cleanup::check_cleanup_requirements(program, facts),
+    );
     let mut decided = Vec::new();
     let mut scalar_returns = Vec::new();
     let mut constant_obligations = Vec::new();
@@ -125,9 +126,12 @@ pub(super) fn check_flow_call_contracts(
     let call_frames =
         crate::flow::shared_call_frames_or(call_frames, program, &mut owned_call_frames);
 
-    phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.assembly_and_refutations", || {
-        assembly::check_assembly_fact_contracts(program, facts, &mut diagnostics);
-    });
+    phase_profile::scope(
+        "psi.05.check_checked_facts.check_flow_call_contracts.assembly_and_refutations",
+        || {
+            assembly::check_assembly_fact_contracts(program, facts, &mut diagnostics);
+        },
+    );
 
     // Mathematical applications owe the same substituted premises as runtime
     // calls, even when their result is erased or no guarantee is consumed.
@@ -200,13 +204,21 @@ pub(super) fn check_flow_call_contracts(
                     if struct_trace {
                         eprintln!(
                             "CALLREQ caller={} proof={} target={} proof={}",
-                            crate::labels::machine_name(program, state_flow.machine_symbol),
+                            crate::published::labels::machine_name(
+                                program,
+                                state_flow.machine_symbol
+                            ),
                             caller_is_proof,
-                            crate::labels::call_target_label(program, call_flow.target_symbol),
+                            crate::published::labels::call_target_label(
+                                program,
+                                call_flow.target_symbol
+                            ),
                             is_proof_machine(call_flow.target_symbol),
                         );
                     }
-                    let _s = phase_profile::guard("psi.05.check_checked_facts.check_flow_call_contracts.calls");
+                    let _s = phase_profile::guard(
+                        "psi.05.check_checked_facts.check_flow_call_contracts.calls",
+                    );
                     exits::check_state_transfer_result_domains(
                         program,
                         state_flow,
@@ -246,18 +258,21 @@ pub(super) fn check_flow_call_contracts(
                 let state_structural_values = structural_values_by_state
                     .get(&state_flow.state_symbol)
                     .map_or(&[][..], Vec::as_slice);
-                phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.writes", || {
-                    check_domain_field_writes(
-                        program,
-                        facts,
-                        &constructor_memberships,
-                        state_flow,
-                        state_structural_values,
-                        call_frames,
-                        &mut state_value_qualifications,
-                        &mut state_diagnostics,
-                    );
-                });
+                phase_profile::scope(
+                    "psi.05.check_checked_facts.check_flow_call_contracts.writes",
+                    || {
+                        check_domain_field_writes(
+                            program,
+                            facts,
+                            &constructor_memberships,
+                            state_flow,
+                            state_structural_values,
+                            call_frames,
+                            &mut state_value_qualifications,
+                            &mut state_diagnostics,
+                        );
+                    },
+                );
                 (
                     state_decided,
                     state_constant_obligations,
@@ -290,63 +305,85 @@ pub(super) fn check_flow_call_contracts(
         }
         diagnostics.extend(state_diagnostics);
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {
-            let _s = phase_profile::guard("psi.05.check_checked_facts.check_flow_call_contracts.exits");
+            let _s =
+                phase_profile::guard("psi.05.check_checked_facts.check_flow_call_contracts.exits");
             if has_activation_claim {
-                phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.exits.activation_return", || {
-                    return_values::check_activation_return(
+                phase_profile::scope(
+                    "psi.05.check_checked_facts.check_flow_call_contracts.exits.activation_return",
+                    || {
+                        return_values::check_activation_return(
+                            program,
+                            facts,
+                            state_flow,
+                            exit_flow,
+                            &mut diagnostics,
+                        )
+                    },
+                );
+            }
+            phase_profile::scope(
+                "psi.05.check_checked_facts.check_flow_call_contracts.exits.boundary_refutations",
+                || {
+                    boundary_refutations.check(
+                        program,
+                        facts,
+                        exit_flow,
+                        call_frames,
+                        &mut diagnostics,
+                    )
+                },
+            );
+            phase_profile::scope(
+                "psi.05.check_checked_facts.check_flow_call_contracts.exits.scalar_result_domains",
+                || {
+                    exits::check_scalar_result_domains(
                         program,
                         facts,
                         state_flow,
                         exit_flow,
+                        &mut scalar_returns,
                         &mut diagnostics,
                     )
-                });
-            }
-            phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.exits.boundary_refutations", || {
-                boundary_refutations.check(program, facts, exit_flow, call_frames, &mut diagnostics)
-            });
-            phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.exits.scalar_result_domains", || {
-                exits::check_scalar_result_domains(
-                    program,
-                    facts,
-                    state_flow,
-                    exit_flow,
-                    &mut scalar_returns,
-                    &mut diagnostics,
-                )
-            });
-            phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.exits.exit_ensures", || {
-                let available_content = entailment.content_sources();
-                check_exit_ensures(
-                    program,
-                    facts,
-                    state_flow,
-                    exit_flow,
-                    entailment.for_machine(facts, state_flow.machine_symbol),
-                    &content_plans,
-                    &available_content,
-                    call_frames,
-                    &mut cyclic_headers,
-                    &mut recipe_obligations,
-                    &mut integer_range_obligations,
-                    &mut diagnostics,
-                )
-            });
+                },
+            );
+            phase_profile::scope(
+                "psi.05.check_checked_facts.check_flow_call_contracts.exits.exit_ensures",
+                || {
+                    let available_content = entailment.content_sources();
+                    check_exit_ensures(
+                        program,
+                        facts,
+                        state_flow,
+                        exit_flow,
+                        entailment.for_machine(facts, state_flow.machine_symbol),
+                        &content_plans,
+                        &available_content,
+                        call_frames,
+                        &mut cyclic_headers,
+                        &mut recipe_obligations,
+                        &mut integer_range_obligations,
+                        &mut diagnostics,
+                    )
+                },
+            );
             // An owned nominal result also owes its declared field predicates
             // on the returned value itself -- enforced here so a caller may
             // consume them from the signature (flow/calls.rs).
             let exit_diagnostics = diagnostics.len();
-            phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.exits.result_field_domains", || {
-                exits::check_result_field_domains(
-                    program,
-                    facts,
-                    state_flow,
-                    exit_flow,
-                    call_frames,
-                    &value_qualifications,
-                    &mut diagnostics,
-                )
-            });
+            phase_profile::scope(
+                "psi.05.check_checked_facts.check_flow_call_contracts.exits.result_field_domains",
+                || {
+                    exits::check_result_field_domains(
+                        program,
+                        facts,
+                        state_flow,
+                        exit_flow,
+                        call_frames,
+                        &value_qualifications,
+                        &mut diagnostics,
+                    )
+                },
+            );
             // The return hands every readable `&mut` referent back to the
             // caller, so the field facts it assumed on entry are due again.
             // A reference return into that referent names the same place
@@ -364,7 +401,7 @@ pub(super) fn check_flow_call_contracts(
             );
             let mut reported = Vec::new();
             for diagnostic in diagnostics.split_off(exit_diagnostics) {
-                crate::collections::push_unique(&mut reported, diagnostic);
+                crate::shared::collections::push_unique(&mut reported, diagnostic);
             }
             diagnostics.extend(reported);
         }

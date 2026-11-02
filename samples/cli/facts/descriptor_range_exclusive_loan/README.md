@@ -40,7 +40,7 @@ same requirements and still replace a source while its selected loan is live.
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | both payloads are the named constants `CHOSEN` and `UNSELECTED` |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | the one evaluated flag and both payload loans reach the successor machine `pick`, which records the selected range there |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | a forwarding machine (`forward`) supplies the loans to `apply` |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of the four target bodies of `apply` selects and writes |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each Build-selected `apply` implementation selects and writes |
 
 ## Execution
 
@@ -81,7 +81,7 @@ construct's own input or selection, and checking fails closed during compile-tim
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `chosen` is reassigned while the range loan is live | `statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)` |
 | a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | `chosen` is reassigned in `pick` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)` |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | `chosen` is reassigned in `apply` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)` |
-| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target body reassigns `chosen` while the range loan is live | `statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)` |
+| another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target body reassigns `chosen` while the range loan is live | `statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)` |
 
 ## Pinned Fixtures
 
@@ -140,3 +140,30 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
   computed roots, join-place reads/projections, borrowed-result successor lifecycle) stays open on
   the board.
 
+## Build-owned target-body migration
+
+The `target_body` place and its twin carry no source target prefix.
+`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed `apply` family with
+ordinary named implementations (`X86Apply`, `ArmApply`) of a boundary-trait
+requirement `SelectedApply`, selected by explicit target-keyed Build rows. The
+operation, inputs, contracts and exit oracle are unchanged; the requirement
+publishes the same `requires` clauses the bodies declared. The entry wrapper and
+each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong
+Build row traps. The tag call is the body's first statement, so the twin's
+borrow diagnostic names statements one later than the prefixed bodies did.
+
+Base `4f87c9e08b1` refused the migrated positive at Terminal lowering:
+`SelectedApply::apply has no executable body ... (boundary requirement: scalar
+precondition representation)`. A requirement signature's own case-membership
+precondition (`chosen in Slot::Present`) had no lowering: the case test rejoined
+its scope through a machine state with the same parameters, and a requirement
+has none. It now also lowers in the declaration's own telescope, as a tag
+observation of the parameter referent
+(`tests/omega/pass/boundary/requirement_case_precondition_exit`; its twin
+`tests/omega/fail/boundary/requirement_case_precondition_unproved` passes the
+payload-free case and still rejects at the caller). Observed on macOS x86-64:
+the migrated positive exits 0 under `omega run --both` (native and Terminal Psi
+agree) and its twin rejects for the live loan. The other hosted targets keep
+their authored rows, unexecuted here.
+
+The `other_state` place is red on base and here alike (`machine pick ... cannot prove selected case for payload access`): the nested `pick` machine declares no case precondition of its own. The corpus golden pins it as a regression; it is outside this migration.

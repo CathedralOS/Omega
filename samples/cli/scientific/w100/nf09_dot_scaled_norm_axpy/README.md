@@ -1,6 +1,6 @@
 # Binary64 dot, scaled norm and AXPY
 
-Two complete applications call the owned `numerics::linalg::dot_scaled_norm_axpy`
+Two complete applications call the core `omega::language::core::linear_algebra`
 slice API. `ordinary/` exercises ordered dot, scaled norm, disjoint AXPY,
 exact self-AXPY, empty inputs and length mismatch without mutation. `scaled/`
 exercises large/small representable norms whose naive squared norms overflow

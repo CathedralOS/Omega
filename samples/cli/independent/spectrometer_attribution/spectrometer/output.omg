@@ -1,5 +1,5 @@
 module spectrometer::output;
-use omega_language_std::math;
+use omega::language::core::math;
 use spectrometer::model::Spectrometer;
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;

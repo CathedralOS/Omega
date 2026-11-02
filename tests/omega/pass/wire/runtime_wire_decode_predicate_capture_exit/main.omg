@@ -2,7 +2,7 @@
 // The owner constructor preserves grouped field reads, stable siblings,
 // exact nonconvex predicates, and authored constants with colliding names.
 use omega_language_std::console;
-use omega_language_std::wire;
+use omega::language::core::wire;
 use omega::language::core::reflect;
 data Msg {
     #0 payload: u32;

@@ -13,7 +13,6 @@ use super::super::{
     place_id, unsupported, value_id,
 };
 use super::{CheckedTrees, ValueOutcome};
-use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::claim_bindings::emit_establishment_claims;
 use crate::emission::operation_emission::buffer::{OperationBuffer, scalar_result_declaration};
 use crate::emission::operation_emission::calls::CallEmissionContext;
@@ -27,10 +26,11 @@ use crate::expression_preparation::bindings::structural_paths::terminal_access;
 use crate::expression_preparation::bindings::{LoanAccess, ScalarBindings};
 use crate::expression_preparation::byte_literals;
 use crate::expression_preparation::computation_graph::fields;
-use crate::reference_custody::binding_multiplicity;
 use crate::scalar_lowering::computations::cases::declarations;
-use crate::terminal_identities::lookup_machine_id;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::checked_facts::{flow_facts, value_facts};
+use crate::shared::reference_custody::binding_multiplicity;
+use crate::shared::terminal_identities::lookup_machine_id;
+use crate::shared::terminal_identities::stored_structural_identity;
 use arena::HandleSpan;
 use checked_trees::{
     CheckedStructuralValue, CheckedStructuralValueHandle, CheckedStructuralValueKind,
@@ -106,7 +106,8 @@ pub(crate) fn emit<'source>(
     let value = &production.value;
     let operand_calls = production.calls;
     let structural_type = production.structural_type;
-    let multiplicity = crate::terminal_identities::structural_multiplicity(production.multiplicity);
+    let multiplicity =
+        crate::shared::terminal_identities::structural_multiplicity(production.multiplicity);
     let occurrence = checked.facts.values.structural_values.nodes.get(*value);
     if occurrence.machine != machine
         || occurrence.state != state
@@ -130,7 +131,7 @@ pub(crate) fn emit<'source>(
         )?
     };
     let result_claims = emit_establishment_claims(&prepared_claims, &mut calls.claims)?;
-    let authored_state = crate::declarations::state_declaration(checked, state)?.1;
+    let authored_state = crate::shared::declarations::state_declaration(checked, state)?.1;
     let captured_sources = production
         .selection
         .is_valid()
@@ -144,10 +145,7 @@ pub(crate) fn emit<'source>(
             flow_facts(checked)
                 .ownership
                 .selection_sources
-                .span(receipt.sources)
-                .ok_or(LoweringError::Unsupported(
-                    "owned selection source span is stale",
-                ))?
+                .span_or_empty(receipt.sources)
                 .iter()
                 .enumerate()
                 // The checked roster already carries reverse declaration
@@ -762,7 +760,7 @@ fn prepare_owners(
     // Ordinary single-value materialization instead updates Evaluation's live
     // frontier at the consuming edge without reconstructing unrelated owners.
     let source_parameters =
-        checked.state_parameters(crate::declarations::state_declaration(checked, state)?.1);
+        checked.state_parameters(crate::shared::declarations::state_declaration(checked, state)?.1);
     let available = |symbol: symbols::SymbolHandle,
                      formation: u32|
      -> Result<bool, LoweringError> {
@@ -962,7 +960,7 @@ fn prepare_owners(
         if local.statement_index >= statement
             || !argument.path.is_empty()
             || argument.access != StructuralAccess::Owned
-            || !crate::content_classes::stored_value_contents(checked, local.declared_type)
+            || !crate::shared::content_classes::stored_value_contents(checked, local.declared_type)
         {
             return unsupported("selection survivor requires whole owned custody");
         }
@@ -974,7 +972,7 @@ fn prepare_owners(
                 "selection survivor requires an exact emitted operation-result frontier",
             ))?;
         if value.multiplicity
-            != crate::terminal_identities::structural_multiplicity(
+            != crate::shared::terminal_identities::structural_multiplicity(
                 checked.type_multiplicity(local.declared_type),
             )
             || !structural_types
@@ -1028,7 +1026,10 @@ fn prepare_owners(
             if declaration.access != StructuralAccess::Owned
                 || declaration.multiplicity != StructuralMultiplicity::Affine
                 || checked.type_multiplicity(parameter.type_reference) != Multiplicity::Affine
-                || !crate::content_classes::stored_value_contents(checked, parameter.type_reference)
+                || !crate::shared::content_classes::stored_value_contents(
+                    checked,
+                    parameter.type_reference,
+                )
             {
                 return unsupported("selection parameter source lacks exact owned custody");
             }
@@ -1104,7 +1105,7 @@ pub(super) struct Emission<'a, 'b, 'calls> {
     pub(super) multiplicity: StructuralMultiplicity,
     pub(super) structural_types: &'a [StructuralTypeDeclaration],
     pub(super) type_ids: &'a [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
-    pub(super) domain_ids: &'a [crate::terminal_identities::StructuralDomainBinding],
+    pub(super) domain_ids: &'a [crate::shared::terminal_identities::StructuralDomainBinding],
     pub(super) domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
     type_reference: checked_trees::types::TypeReferenceHandle,
     binding_type_reference: checked_trees::types::TypeReferenceHandle,
@@ -1660,8 +1661,8 @@ impl Emission<'_, '_, '_> {
         // describes its destination, not the custody of its contained values.
         let parent_access = std::mem::replace(&mut self.result_access, StructuralAccess::Owned);
         self.structural_type = child_type;
-        self.multiplicity = crate::terminal_identities::structural_multiplicity(
-            crate::reference_custody::result_multiplicity(self.checked, reference),
+        self.multiplicity = crate::shared::terminal_identities::structural_multiplicity(
+            crate::shared::reference_custody::result_multiplicity(self.checked, reference),
         );
         let argument = self.constructor_operand(identities, value, reference);
         self.structural_type = parent_type;
@@ -2410,7 +2411,7 @@ impl Emission<'_, '_, '_> {
                         self.checked, self.type_reference, &argument,
                     )?;
                     let qualifications = domains.into_iter().map(|domain|
-                        crate::terminal_identities::lookup_domain_id_for_carrier(
+                        crate::shared::terminal_identities::lookup_domain_id_for_carrier(
                             self.domain_ids, domain, self.structural_type,
                         )
                     ).collect::<Result<Vec<_>, _>>()?;
@@ -2464,19 +2465,11 @@ impl Emission<'_, '_, '_> {
                 }
             }
             CheckedStructuralValueKind::Case(construction) => {
-                let source = validation::scalar_case_constructor(
-                    &self.checked.typed,
-                    construction.expression,
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "structural case lost its authored constructor",
-                ))?;
                 let place = place_id(allocate_dense(self.environment.next_place)?);
                 let slot = crate::scalar_lowering::computations::cases::reserve(
                     identities,
                     self.checked,
-                    construction.expression,
-                    &source,
+                    &construction,
                     self.structural_types,
                     place,
                 )?;

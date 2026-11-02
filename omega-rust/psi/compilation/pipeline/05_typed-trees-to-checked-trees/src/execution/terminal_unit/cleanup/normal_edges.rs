@@ -317,7 +317,7 @@ fn cleanup_rows(
                     None,
                 )
                 .ok_or("normal cleanup cannot realize its selected region")?;
-                crate::collections::push_unique(&mut row.selected_regions, region);
+                crate::shared::collections::push_unique(&mut row.selected_regions, region);
             }
             row.actions.extend(actions);
         } else {

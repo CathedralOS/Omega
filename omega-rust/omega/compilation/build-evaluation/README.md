@@ -112,7 +112,7 @@ owns project roots, dependency-scope selection, generated-source collision
 checks, parsed-file ownership and exact import bindings. Its
 [toolchain library owner](../../packages/compilation-inputs/src/toolchain_library.rs)
 selects and validates the bundled sources.
-Psi stage 00 owns physical/in-memory loading, scoped load queues and ordered batch lexing; stage 01 owns
+Psi 00 owns physical/in-memory loading, scoped load queues and ordered batch lexing; Psi 01 owns
 batch parsing into the caller's syntax arena. Their source, token and parsed-root
 records live in the existing `source`, `tokens` and `syntax-trees` packages.
 Build/Product scope, source coordinates, backing text and diagnostic order travel

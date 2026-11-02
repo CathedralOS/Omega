@@ -2,8 +2,8 @@
 //!
 //! Publication assigns fresh artifact-local ids. Distinct overloads, binders
 //! and specializations cannot alias just because their nominal names coincide.
-use crate::lowering_error::LoweringError;
 use crate::machine_lowering::declarations;
+use crate::shared::lowering_error::LoweringError;
 use checked_trees::CheckedTrees;
 use semantic_vocabulary::proof_applications::ProofCallGraph;
 use symbols::SymbolHandle;
@@ -82,6 +82,31 @@ pub(super) fn publish(
         } else {
             Err("checked machine has no callable signature identity".to_owned())
         };
+        let synchronous_invocations = header
+            .synchronous_invocations
+            .as_ref()
+            .map_err(Clone::clone)
+            .and_then(|span| {
+                let targets = checked
+                    .facts
+                    .declaration_descriptions
+                    .invocation_targets
+                    .span(*span)
+                    .ok_or_else(|| {
+                        "checked declaration lost its retained invocation targets".to_owned()
+                    })?;
+                Ok(targets
+                    .iter()
+                    .map(|target| terminal_psi::DeclaredSynchronousBoundaryTarget {
+                        declaration: identities.intern(&target.declaration),
+                        package: target.package,
+                        application: target
+                            .application
+                            .as_ref()
+                            .map(|application| identities.intern(application)),
+                    })
+                    .collect())
+            });
         callable_headers.insert(terminal_psi::ProofCallableHeader {
             declaration,
             callable,
@@ -89,6 +114,7 @@ pub(super) fn publish(
             source_target: header.source_target.clone(),
             product_eligible: header.product_eligible,
             supplies_checked_body: header.supplies_checked_body,
+            synchronous_invocations,
         });
     }
     Ok(PublishedScope {

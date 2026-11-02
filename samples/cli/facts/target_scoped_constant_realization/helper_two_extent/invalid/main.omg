@@ -1,0 +1,32 @@
+// Invalid control: sizeof at extent2 cannot promise the distinct align_of observation1.
+boundary trait Answer { machine get() -> u64 reaches terminates; }
+Small satisfies Answer { machine get() -> u64 { 2 } }
+Large satisfies Answer { machine get() -> u64 { 2 } }
+Same satisfies Answer { machine get() -> u64 { 2 } }
+machine limit() -> u64 { Answer::get() }
+data Main { values: [u8; limit()]; }
+boundary trait LayoutObservation {
+    machine target_size() -> u64 reaches terminates
+    ensures result == align_of<Main>();
+}
+LayoutObservationCode satisfies LayoutObservation {
+    machine target_size() -> u64 ensures result == align_of<Main>() { size_of<Main>() }
+}
+machine target_size() -> u64 ensures result == align_of<Main>() { LayoutObservation::target_size() }
+boundary trait ExpectedExtent {
+    machine expected() -> u64 reaches terminates
+    ensures result == 4u64 || result == 8u64;
+}
+FourByteExpectation satisfies ExpectedExtent {
+    machine expected() -> u64 ensures result == 4u64 || result == 8u64 { 4 }
+}
+EightByteExpectation satisfies ExpectedExtent {
+    machine expected() -> u64 ensures result == 4u64 || result == 8u64 { 8 }
+}
+machine expected() -> u64 ensures result == 4u64 || result == 8u64 { ExpectedExtent::expected() }
+machine main() crashes Trap {
+    let observed: u64 = target_size();
+    transition observed == 2u64 { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

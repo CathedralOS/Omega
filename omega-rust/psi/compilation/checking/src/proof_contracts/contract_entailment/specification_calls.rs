@@ -188,6 +188,7 @@ pub(crate) fn validate_declaration_expression_formation(
         program,
         SpecificationCaller::Declaration(owner_symbol, parameters),
         root,
+        false,
         prior_facts,
         owner,
         diagnostics,
@@ -305,6 +306,7 @@ pub(crate) fn validate_declaration_call_requirements(
             program,
             SpecificationCaller::Declaration(owner_symbol, parameters),
             root,
+            matches!(fact, ProofFact::Expression(_)),
             prior_facts,
             owner,
             diagnostics,
@@ -333,6 +335,7 @@ pub(crate) fn validate_specification_call_requirements(
             program,
             SpecificationCaller::Machine(machine, state),
             root,
+            matches!(fact, ProofFact::Expression(_)),
             prior_facts,
             owner,
             diagnostics,
@@ -386,6 +389,7 @@ pub(crate) fn validate_proof_body_formation(
         program,
         SpecificationCaller::Machine(machine, Some(state)),
         expression,
+        false,
         &hypotheses,
         &owner,
         diagnostics,
@@ -657,6 +661,7 @@ fn validate_specification_expression(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
     expression: ExpressionHandle,
+    proposition_context: bool,
     prior_facts: &[ExpressionHandle],
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -668,6 +673,7 @@ fn validate_specification_expression(
         program,
         caller,
         expression,
+        proposition_context,
         SpecificationPremises {
             asserted: prior_facts,
             denied: &[],
@@ -685,6 +691,7 @@ fn validate_specification_expression_in_scope(
     program: &dyn crate::CheckingInput,
     caller: SpecificationCaller<'_>,
     expression: ExpressionHandle,
+    proposition_context: bool,
     prior_facts: SpecificationPremises<'_>,
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
@@ -715,6 +722,7 @@ fn validate_specification_expression_in_scope(
             program,
             caller,
             binary.left,
+            proposition_context,
             prior_facts,
             owner,
             diagnostics,
@@ -740,6 +748,7 @@ fn validate_specification_expression_in_scope(
             program,
             caller,
             binary.right,
+            proposition_context,
             SpecificationPremises {
                 asserted: &asserted,
                 denied: &denied,
@@ -751,11 +760,13 @@ fn validate_specification_expression_in_scope(
             formation_obligations,
         );
     } else {
+        let proposition_children = crate::contextual_proposition_children(program, expression);
         children(program, node, |child| {
             validate_specification_expression_in_scope(
                 program,
                 caller,
                 child,
+                proposition_context && proposition_children.contains(&Some(child)),
                 prior_facts,
                 owner,
                 diagnostics,
@@ -865,6 +876,43 @@ fn validate_specification_expression_in_scope(
             return;
         }
         ExpressionNode::Binary(_) | ExpressionNode::Indexed(_) => {
+            if proposition_context
+                && !super::structural_terms::is_case_observation(program, expression)
+                && let ExpressionNode::Binary(binary) = node
+                && matches!(
+                    binary.operator,
+                    BinaryOperator::Equal | BinaryOperator::NotEqual
+                )
+            {
+                let operands = [binary.left, binary.right];
+                let references = operands.map(|operand| caller.expression_type(program, operand));
+                let identities = std::array::from_fn::<_, 2, _>(|position| {
+                    crate::contextual_identity_subject_type(
+                        program,
+                        references[position]?,
+                        matches!(
+                            expression_table(program).expression(operands[position]),
+                            ExpressionNode::Name(_) | ExpressionNode::Borrow(_)
+                        ),
+                    )
+                });
+                if identities.iter().any(Option::is_some) {
+                    if identities[0].is_some() && identities[0] == identities[1] {
+                        // Prop selects full data identity, not Equatable or an
+                        // executable Boolean overload. All operands and selected
+                        // call preconditions were formed above; no runtime Copy,
+                        // layout, value equation or quotient authority is granted.
+                        return;
+                    }
+                    if let [Some(left), Some(right)] = references {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{owner} data identity requires the same complete operand type, found `{}` and `{}`",
+                            program.display_type_reference(left), program.display_type_reference(right),
+                        )).with_source_span(expression_table(program).source_span(expression)));
+                        return;
+                    }
+                }
+            }
             let (spelling, arguments) = match node {
                 ExpressionNode::Binary(binary) => {
                     let Some(spelling) =
@@ -935,8 +983,42 @@ fn validate_specification_expression_in_scope(
                 return;
             }
             let Some(selected) = resolution.into_selected() else {
+                let carriers = types
+                    .iter()
+                    .map(|reference| {
+                        reference.map_or_else(
+                            || "<unavailable>".to_owned(),
+                            |reference| program.display_type_reference(reference),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                let calls = arguments.iter().zip(&types).filter_map(|(argument, reference)| {
+                    if reference.is_some() { return None; }
+                    let call = expression_table(program).call_node(*argument)?;
+                    let path = |symbol: SymbolHandle| {
+                        if symbol.is_valid() { program.symbols.display_path(symbol, "::") }
+                        else { "<absent>".to_owned() }
+                    };
+                    let source = call.authored_machine_application.is_valid().then(|| {
+                        expression_table(program).static_machine_application(call.authored_machine_application)
+                    });
+                    let dispatch = call.static_requirement_dispatch.as_ref();
+                    let selection = dispatch.filter(|dispatch| dispatch.selection_application.is_valid())
+                        .map(|dispatch| expression_table(program).static_machine_application(dispatch.selection_application));
+                    let result = program.requirement_call_signature(caller.symbol(), call)
+                        .map_or_else(|| "<absent>".to_owned(), |signature| {
+                            format!("{} -> {}", path(signature.symbol), program.display_type_reference(signature.return_type))
+                        });
+                    Some(format!("; untyped call `{}` target `{}`, source `{}` / `{}`, selection `{}` / `{}`, public result `{}`",
+                        call.target, path(call.target_symbol),
+                        path(source.map_or_else(SymbolHandle::invalid, |source| source.lexical_owner)),
+                        path(source.map_or_else(SymbolHandle::invalid, |source| source.registration_operation)),
+                        path(selection.map_or_else(SymbolHandle::invalid, |source| source.lexical_owner)),
+                        path(dispatch.map_or_else(SymbolHandle::invalid, |dispatch| dispatch.contract_symbol())), result))
+                }).collect::<String>();
                 diagnostics.push(Diagnostic::error(format!(
-                    "cannot form specification operator `{}` in {owner}: no exact selected meaning",
+                    "cannot form specification operator `{}` in {owner}: no exact selected meaning for operand types [{carriers}]{calls}",
                     spelling.symbol(),
                 )).with_source_span(expression_table(program).source_span(expression)));
                 return;
@@ -1123,26 +1205,34 @@ fn validate_specification_expression_in_scope(
                         substitution
                             .iter()
                             .all(|(_, term)| term_has_complete_substitution(program, term))
-                            && matches!(
-                                instantiated_selected_fact_judgment(
-                                    program,
-                                    judge,
-                                    owner_symbol(&contract_owner),
-                                    parameters,
-                                    *required,
-                                    substitution,
-                                    &application_bindings
-                                        .as_ref()
-                                        .expect("complete application")
-                                        .machines,
-                                    &application_bindings
-                                        .as_ref()
-                                        .expect("complete application")
-                                        .types,
-                                    caller.state_scope(),
-                                ),
-                                StructuralJudgment::Proven
-                            )
+                            && application_bindings
+                                .as_ref()
+                                .expect("complete application")
+                                .predicate_machine_bindings(program, owner_symbol(&contract_owner), parameters, *required)
+                                .inspect_err(|reason| {
+                                    if super::struct_trace() {
+                                        eprintln!("STRUCT specification-predicate-application declined reason={reason}");
+                                    }
+                                })
+                                .is_ok_and(|machines| {
+                                    matches!(
+                                        instantiated_selected_fact_judgment(
+                                            program,
+                                            judge,
+                                            owner_symbol(&contract_owner),
+                                            parameters,
+                                            *required,
+                                            substitution,
+                                            &machines,
+                                            &application_bindings
+                                                .as_ref()
+                                                .expect("complete application")
+                                                .types,
+                                            caller.state_scope(),
+                                        ),
+                                        StructuralJudgment::Proven
+                                    )
+                                })
                     })
             });
             structural

@@ -15,7 +15,6 @@ mod named_provider_plans;
 mod plan_derivation;
 mod requirement_identities;
 
-pub(crate) use adapter_conformance::exact_checked_adapter_invocations;
 pub use adapter_conformance::{exact_checked_adapter, selected_requirement_checked_adapter};
 pub use requirement_identities::{same_semantic_name, satisfies_plan_name};
 

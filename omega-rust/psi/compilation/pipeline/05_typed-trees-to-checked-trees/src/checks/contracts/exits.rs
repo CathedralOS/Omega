@@ -35,7 +35,7 @@ use checked_trees::{CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 
 use super::prover::semantic_contexts_prove_contract_fact;
-use crate::labels::{machine_name, semantic_fact_requirement_label};
+use crate::published::labels::{machine_name, semantic_fact_requirement_label};
 
 mod cases;
 mod cyclic_headers;
@@ -308,7 +308,7 @@ pub(super) fn check_exit_ensures(
                                 |(owner, _)| {
                                     program.machine(state_flow.machine_symbol).is_some_and(
                                         |machine| {
-                                            match crate::facts::qualification_evidence::machine_domain_establishment_route(
+                                            match crate::published::facts::qualification_evidence::machine_domain_establishment_route(
                                                 program,
                                                 machine,
                                                 domain_symbol,

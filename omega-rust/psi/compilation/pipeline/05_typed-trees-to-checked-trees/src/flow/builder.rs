@@ -360,7 +360,7 @@ fn machine_groups(
                     .chain(family.members.iter().map(|member| member.machine))
                 {
                     if let Some(position) = program.machine_position_by_symbol(member) {
-                        crate::collections::push_unique(&mut callees, position);
+                        crate::shared::collections::push_unique(&mut callees, position);
                     }
                 }
             }

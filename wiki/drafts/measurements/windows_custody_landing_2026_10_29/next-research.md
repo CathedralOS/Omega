@@ -90,7 +90,7 @@ rather than summing Arc aliases; first-definition byte placement is not exclusiv
 ownership or a reachable-size proof. Do not recursively traverse every node
 merely to collect a counter or log each decode event.
 
-For retirement, `application/build/src/project_compilation.rs::compile_returned`
+For retirement, `compilation/build/src/project_compilation.rs::compile_returned`
 owns `BuildSession` through package completion and then drops it on return.
 Time an explicit drop at that same boundary; it includes compiler owners and
 package disposal. `CompilationSession::drop` may first store a changed graph,

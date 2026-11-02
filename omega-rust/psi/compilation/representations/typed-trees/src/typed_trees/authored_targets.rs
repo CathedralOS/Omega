@@ -70,7 +70,7 @@ impl TypedTrees {
     }
 
     /// Whether `symbol` was declared in a non-Product dependency scope, the
-    /// complement of the declarations whose target families stage 02 binds.
+    /// complement of the declarations whose target families Psi 02 binds.
     fn declared_outside_product_scope(&self, symbol: SymbolHandle) -> bool {
         self.symbols
             .symbol_provenance_source_span(symbol)

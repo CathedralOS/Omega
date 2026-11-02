@@ -7,7 +7,7 @@
 
 use crate::emission::operation_emission::buffer::OperationBuffer;
 use crate::emission::operation_emission::calls::CallEmissionContext;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 
 macro_rules! unsupported_error {
     ($message:literal) => {
@@ -931,13 +931,14 @@ pub(crate) fn lower_reference_origin_path(
                 let checked_trees::CheckedReferenceStorage::View { stored_scalar } = storage else {
                     return unsupported("returned view has no formation codec");
                 };
-                let declaration = crate::terminal_identities::structural_declaration_by_identity(
-                    types,
-                    identities,
-                    checked,
-                    *type_identity,
-                    "returned view lost its checked declaration",
-                )?;
+                let declaration =
+                    crate::shared::terminal_identities::structural_declaration_by_identity(
+                        types,
+                        identities,
+                        checked,
+                        *type_identity,
+                        "returned view lost its checked declaration",
+                    )?;
                 terminal_semantics::representation_view_declaration(
                     types.iter(),
                     declaration.id,

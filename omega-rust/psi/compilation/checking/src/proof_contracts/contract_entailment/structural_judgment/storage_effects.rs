@@ -367,14 +367,21 @@ impl StructuralJudge<'_> {
     pub(super) fn enter_storage_scope(
         &mut self,
         entry: &State,
+        caller_state: &State,
         subjects: &[crate::machine_calls::calls::InvocationEntrySubject],
         bindings: &[(SymbolHandle, Option<super::StructuralTerm>)],
     ) {
         let mut values = Vec::new();
         for subject in subjects {
-            let Some(source) = self.captured_reference_subject(subject) else {
+            if !crate::reference_shell(self.program, subject.parameter_type)
+                .is_some_and(|shell| shell.access.is_readable())
+            {
+                continue;
+            }
+            let Some(source) = self.captured_reference_subject(subject, caller_state) else {
                 continue;
             };
+            let scalar = subject.scalar_storage_coordinate(self.program, caller_state);
             for stored in self.stored_values.iter() {
                 if stored.coordinate.root != source.root {
                     continue;
@@ -388,6 +395,19 @@ impl StructuralJudge<'_> {
                 };
                 let Some(current) = stored.current.clone() else {
                     continue;
+                };
+                let current = match &scalar {
+                    Some(scalar) if !scalar.preserves_scalar_value => {
+                        if !suffix.is_empty() {
+                            continue;
+                        }
+                        super::super::structural_terms::normalize_scalar_representation(
+                            scalar.source_primitive,
+                            scalar.view_primitive,
+                            current,
+                        )
+                    }
+                    _ => current,
                 };
                 values.push(CapturedStorageValue {
                     coordinate: CapturedStorageCoordinate {
@@ -448,15 +468,29 @@ impl StructuralJudge<'_> {
         returned.observe_storage_effects(state, writes.complete_paths())?;
         if writes.is_complete() {
             for subject in subjects {
-                let Some(source) = caller.captured_reference_subject(subject) else {
+                let Some(source) = caller.captured_reference_subject(subject, state) else {
                     continue;
                 };
+                let scalar = subject.scalar_storage_coordinate(self.program, state);
                 for stored in self.stored_values.iter() {
                     if stored.coordinate.root != facts::PlaceRoot::Symbol(subject.parameter) {
                         continue;
                     }
                     let Some(current) = stored.current.clone() else {
                         continue;
+                    };
+                    let current = match &scalar {
+                        Some(scalar) if !scalar.preserves_scalar_value => {
+                            if !stored.coordinate.segments.is_empty() {
+                                continue;
+                            }
+                            super::super::structural_terms::normalize_scalar_representation(
+                                scalar.view_primitive,
+                                scalar.source_primitive,
+                                current,
+                            )
+                        }
+                        _ => current,
                     };
                     let mut coordinate = source.clone();
                     coordinate
@@ -847,16 +881,21 @@ impl StructuralJudge<'_> {
     pub(super) fn captured_reference_subject(
         &self,
         subject: &crate::machine_calls::calls::InvocationEntrySubject,
+        state: &State,
     ) -> Option<CapturedStorageCoordinate> {
         // A finite origin join authorizes an entry observation, not one
         // physical write destination. No selected payload identifies an alias.
         let [source] = subject.sources.as_slice() else {
             return None;
         };
-        self.capture_storage_place(CanonicalPlace {
-            root: facts::PlaceRoot::Symbol(source.root),
-            segments: source.segments.clone(),
-        })
+        let place = subject
+            .scalar_storage_coordinate(self.program, state)
+            .map(|scalar| scalar.place)
+            .unwrap_or_else(|| CanonicalPlace {
+                root: facts::PlaceRoot::Symbol(source.root),
+                segments: source.segments.clone(),
+            });
+        self.capture_storage_place(place)
     }
 
     fn capture_storage_place(&self, place: CanonicalPlace) -> Option<CapturedStorageCoordinate> {
@@ -1075,6 +1114,19 @@ impl StructuralJudge<'_> {
                 case: selected.symbol,
             });
         }
+        self.intake_storage_field_observations(&coordinate, reference, value);
+    }
+
+    /// Attach surviving child observations to a fresh aggregate identity. Both
+    /// whole reads and normal-call handback must perform this join: replacing
+    /// the whole observation alone would hide unchanged fields behind an opaque
+    /// new value. The write footprint has already retired overlapping children.
+    fn intake_storage_field_observations(
+        &mut self,
+        coordinate: &CapturedStorageCoordinate,
+        reference: TypeReferenceHandle,
+        value: &super::StructuralTerm,
+    ) {
         let equations = self
             .stored_values
             .iter()
@@ -1284,6 +1336,7 @@ impl StructuralJudge<'_> {
         &self,
         place: &CanonicalPlace,
         definition: &typed_trees::data::DataDefinition,
+        mut field_place: impl FnMut(symbols::SymbolHandle) -> Option<CanonicalPlace>,
     ) -> Option<super::StructuralTerm> {
         self.requires_value_preservation().then_some(())?;
         let coordinate = self.capture_storage_place(place.clone())?;
@@ -1323,14 +1376,9 @@ impl StructuralJudge<'_> {
             definition,
             variant,
             |field| {
-                let mut field_place = place.clone();
-                crate::value_custody::places::push_field_place_segments(
-                    self.program,
-                    &mut field_place.segments,
-                    field.symbol,
-                );
+                let selected = field_place(field.symbol)?;
                 let value = self.captured_place_projection(
-                    &field_place,
+                    &selected,
                     language_semantics::content::ContentPlaceVersion::Current,
                 );
                 if super::super::struct_trace() {

@@ -2,7 +2,7 @@
 
 use super::{ExpressionHandle, ExpressionNode};
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 pub(super) fn formation_place(
     program: &dyn ::validation::CheckingInput,
     machine: &typed_trees::machine::Machine,

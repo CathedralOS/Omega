@@ -10,11 +10,11 @@ requires models::Token == Payload, Payload == Token
 { value: Payload; anchor: Anchor; }
 
 machine capacity<Payload>() -> u64
-where Payload == models::Token
+requires Payload == models::Token
 { 7 }
 
 machine recovered<const Count: u64, Payload>() -> u64
-where models::Token == Payload
+requires models::Token == Payload
 { Count }
 
 data Builtin<Anchor [copy], Payload [copy]> [copy]

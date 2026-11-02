@@ -1,7 +1,7 @@
 //! The checked body a scalar call lowers.
 use super::super::CheckedUnitStructuralParameterPlan;
 use super::{CheckedTrees, LoweringError, PrimitiveType, unsupported};
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use crate::unit::attached_unit::bodies::UnitBody;
 
 /// The Unit body that owns a scalar callee's completion: an ordinary

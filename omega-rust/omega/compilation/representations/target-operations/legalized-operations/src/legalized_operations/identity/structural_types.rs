@@ -364,7 +364,6 @@ pub(super) fn encode_structural_type(bytes: &mut Vec<u8>, declaration: &Structur
     bytes.push(u8::from(declaration.descriptor_cleanup));
     bytes.push(u8::from(declaration.copyable));
     match &declaration.shape {
-        StructuralTypeShape::BindingCarrier => bytes.push(11),
         StructuralTypeShape::Reference { referent, access } => {
             bytes.push(7);
             crate::codec_bytes::push_encoded(bytes, referent.get().to_le_bytes());

@@ -29,3 +29,19 @@ preserving write of `3` to `9`.
 Still open on the parent item: formation, construction, calls, matching,
 coverage, and erasure of the general predicate representation. These nine
 places are the write of that predicate.
+
+## Mathematical coupling during allocator restoration
+
+[mathematical_coupling](mathematical_coupling/main.omg) exercises the same
+field-update operation with `embed(used) + embed(free) == embed(capacity)`.
+The exclusive call temporarily breaks and then restores that complete domain;
+the caller uses exact `capacity - used` before its runtime oracle. This is the
+allocator's `BUMP-ALLOCATOR-CANARY` restoration obligation, not a new row for
+another scalar width or field count. Source checking proves the mathematical
+predicate; store geometry must not reject it merely because a second bounded
+Terminal predicate spelling cannot express it. The twin changes only the final
+free count from 16 to 17 and must reject unclosed restoration. The runtime
+oracle checks both mutated fields, the unchanged capacity, and subtraction.
+Pins: `default_domain_mathematical_coupling_{exit,rejected}` under the facts
+corpus. Four hosted targets are declared; host execution is recorded with the
+submitted repair.

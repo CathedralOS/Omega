@@ -68,7 +68,10 @@ pub(super) fn prepare_component_geometry(
                             )
                     });
                 if !private_component_call {
-                    crate::collections::push_unique(&mut external_call_targets, call.target_symbol);
+                    crate::shared::collections::push_unique(
+                        &mut external_call_targets,
+                        call.target_symbol,
+                    );
                 }
                 if let Some(parameters) = call_target_parameters(program, call.target_symbol) {
                     for parameter in parameters {

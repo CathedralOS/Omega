@@ -21,7 +21,7 @@ use crate::execution::terminal_unit::types::{
     structural_access_for_type_reference,
 };
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::BorrowFacts;
 use checked_trees::CheckedOperatorFacts;
 use checked_trees::CheckedScalarComputationPlans;

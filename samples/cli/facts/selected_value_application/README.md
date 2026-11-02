@@ -84,3 +84,12 @@ The parent task remains open for dependent data/storage qualifications,
 reassignment identity, other constructor/forwarding routes and linear custody.
 Cathedral's installed-policy composition is a separate remaining customer gap;
 this fact establishes its selected-call argument-correspondence prerequisite.
+
+## Build-owned target-body migration
+
+The `target_body` place still spells the retired target prefix. Its family
+member is generic over an implementation map, and a boundary requirement's
+signature does not admit an evidence binder, so the place cannot yet move to
+named implementations selected by Build rows without changing the fact. The
+owner decision is
+[OWNER_QUESTIONS.md question 6](../../../../OWNER_QUESTIONS.md#6-may-a-boundary-requirements-own-signature-bind-a-generic-evidence-parameter).

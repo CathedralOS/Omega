@@ -1,6 +1,6 @@
 //! Join produced encoding/layout artifacts with their exact fixed-frame custody.
 //!
-//! Native compilation sequences stages 07-09. This owner constructs the exit
+//! Native compilation sequences Omega 07-09. This owner constructs the exit
 //! contract and seals the realization; retained readers can replay its joins.
 
 use super::assembly::{expected_fixed_frame_manifest, fixed_frame_custody};
@@ -20,8 +20,10 @@ use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMach
 use resolved_layout_to_resolved_layout::{
     ResolvedLayoutOptimization, validate_resolved_layout_optimization,
 };
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
-use selected_instructions_to_register_homes::RetainedAllocation;
+use selected_form_encoding_to_resolved_layout::{
+    StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
+};
+use selected_instructions_to_register_homes::{RetainedAllocation, ValidatedSelectedAnalysis};
 
 /// Bind the pipeline's produced frame, encoding and layout to one allocation.
 /// This checks their joins and exit contract without running a compiler stage.
@@ -107,12 +109,17 @@ pub(crate) fn validate_fixed_frame_function_relative_realization(
         &staged.encoding,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    validate_resolved_layout_optimization(
-        selected,
-        &staged.machine,
+    validate_optimized_resolved_selected_form_layout(
+        selected.current_program(),
+        staged.machine.machine().plan(),
         physical,
-        &staged.encoding,
+        staged.encoding.program(),
         &staged.baseline_layout,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    validate_resolved_layout_optimization(
+        physical,
+        staged.baseline_layout.program(),
         &current
             .selections()
             .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),

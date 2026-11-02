@@ -5,7 +5,7 @@ data IndexedPacket<Value [copy], const Capacity: u64> [copy]
 requires Value == [u8; Capacity]
 { items: Value; }
 machine capacity<Length [copy], const Capacity: u64>(items: Length) -> u64
-where Length == [u8; Capacity]
+requires Length == [u8; Capacity]
 { Capacity }
 machine consume(items: IndexedPacket<[u8; 2], extent()>) -> u64 { capacity(forward(items).value.items) }
 data Envelope<Value [copy]> [copy] { value: Value; }

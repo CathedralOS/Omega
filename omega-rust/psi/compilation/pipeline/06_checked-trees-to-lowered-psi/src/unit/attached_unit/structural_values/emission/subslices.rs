@@ -7,7 +7,7 @@ use super::{
 };
 use crate::emission::operation_emission::view_subslice::ViewFamily;
 use crate::expression_preparation::bindings::StructuralLocalBinding;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::terminal_identities::stored_structural_identity;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 use crate::unit::attached_unit::view_ranges;
 use checked_trees::{CheckedCallScalarArgument, CheckedStructuralValueHandle, CheckedSubsliceSite};

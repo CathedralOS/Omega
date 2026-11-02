@@ -17,7 +17,7 @@ use crate::flow::expressions;
 use crate::flow::reference_spans;
 use crate::flow::retained_constraint_refs;
 use crate::flow::retained_flow_contexts;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{
@@ -44,8 +44,9 @@ pub(super) fn build_call_flow_fact<'plans>(
     writes: Option<&super::call_phases::CallStorageWrites>,
 ) -> FlowCallFact {
     let storage_writes = writes.map(|writes| writes.observation_places.as_slice());
-    let (contract_call, entry, requires) =
-        phase_profile::scope("psi.05.build_check_facts.flow.call.entry_and_requires", || {
+    let (contract_call, entry, requires) = phase_profile::scope(
+        "psi.05.build_check_facts.flow.call.entry_and_requires",
+        || {
             super::state_values::record_invocation(program, build, machine, state, borrow_call);
             let contract_call = proof.contract_call_at(&(
                 machine.symbol,
@@ -75,9 +76,11 @@ pub(super) fn build_call_flow_fact<'plans>(
             let requires =
                 build_call_requires_contexts(semantic, build, machine, state, borrow_call);
             (contract_call, entry, requires)
-        });
-    let (argument_sources, observed_writes, invalidation) =
-        phase_profile::scope("psi.05.build_check_facts.flow.call.sources_and_invalidation", || {
+        },
+    );
+    let (argument_sources, observed_writes, invalidation) = phase_profile::scope(
+        "psi.05.build_check_facts.flow.call.sources_and_invalidation",
+        || {
             let argument_sources = super::call_phases::ArgumentSources::new(
                 program,
                 machine.symbol,
@@ -100,83 +103,94 @@ pub(super) fn build_call_flow_fact<'plans>(
                 observed_writes.as_ref(),
             );
             (argument_sources, observed_writes, invalidation)
+        },
+    );
+    let mut exit =
+        phase_profile::scope("psi.05.build_check_facts.flow.call.exit_and_carry", || {
+            let mut exit = build_call_exit_contexts(
+                program,
+                proof,
+                semantic,
+                build,
+                machine,
+                state,
+                borrow_call,
+                invalidation.post_contexts,
+                invalidation.post_constraints,
+                argument_sources.as_ref(),
+            );
+            append_one_to_one_call_carry_facts(
+                program,
+                semantic,
+                build,
+                machine,
+                state,
+                borrow_call,
+                &entry,
+                &mut exit,
+            );
+            exit
         });
-    let mut exit = phase_profile::scope("psi.05.build_check_facts.flow.call.exit_and_carry", || {
-        let mut exit = build_call_exit_contexts(
-            program,
-            proof,
-            semantic,
-            build,
-            machine,
-            state,
-            borrow_call,
-            invalidation.post_contexts,
-            invalidation.post_constraints,
-            argument_sources.as_ref(),
-        );
-        append_one_to_one_call_carry_facts(
-            program,
-            semantic,
-            build,
-            machine,
-            state,
-            borrow_call,
-            &entry,
-            &mut exit,
-        );
-        exit
-    });
-    phase_profile::scope("psi.05.build_check_facts.flow.call.result_and_param_domains", || {
-        append_call_result_field_domain_facts(
-            program,
-            semantic,
-            build,
-            machine,
-            state,
-            borrow_call,
-            &mut exit,
-        );
-        append_call_parameter_domain_facts(
-            program,
-            semantic,
-            build,
-            machine,
-            state,
-            borrow_call,
-            &mut exit,
-            argument_sources.as_ref(),
-        );
-    });
+    phase_profile::scope(
+        "psi.05.build_check_facts.flow.call.result_and_param_domains",
+        || {
+            append_call_result_field_domain_facts(
+                program,
+                semantic,
+                build,
+                machine,
+                state,
+                borrow_call,
+                &mut exit,
+            );
+            append_call_parameter_domain_facts(
+                program,
+                semantic,
+                build,
+                machine,
+                state,
+                borrow_call,
+                &mut exit,
+                argument_sources.as_ref(),
+            );
+        },
+    );
     // Every exclusive borrowed referent comes back satisfying the field facts
     // the callee re-proved at its return (checks/contracts/exits).
-    phase_profile::scope("psi.05.build_check_facts.flow.call.referent_domains", || {
-        append_call_referent_field_domain_facts(
-            program,
-            borrow,
-            semantic,
-            build,
-            machine,
-            state,
-            borrow_call,
-            entry.contexts,
-            &mut exit,
-            argument_sources.as_ref(),
-            domains,
-            writes.map(|writes| writes.contributions.as_slice()),
-        );
-    });
-    let boundary_edges = phase_profile::scope("psi.05.build_check_facts.flow.call.inst_and_boundary", || {
-        super::call_phases::append_instruction_effect(
-            program,
-            semantic,
-            build,
-            machine,
-            state,
-            borrow_call,
-            &mut exit,
-        );
-        append_call_boundary_edges(program, build, borrow_call)
-    });
+    phase_profile::scope(
+        "psi.05.build_check_facts.flow.call.referent_domains",
+        || {
+            append_call_referent_field_domain_facts(
+                program,
+                borrow,
+                semantic,
+                build,
+                machine,
+                state,
+                borrow_call,
+                entry.contexts,
+                &mut exit,
+                argument_sources.as_ref(),
+                domains,
+                writes.map(|writes| writes.contributions.as_slice()),
+            );
+        },
+    );
+    let boundary_edges = phase_profile::scope(
+        "psi.05.build_check_facts.flow.call.inst_and_boundary",
+        || {
+            super::call_phases::append_instruction_effect(
+                program,
+                semantic,
+                build,
+                machine,
+                state,
+                borrow_call,
+                &mut exit,
+            );
+            append_call_boundary_edges(program, build, borrow_call)
+        },
+    );
     *active_contexts = retained_flow_contexts(&build.contexts.semantic_context_refs, exit.contexts);
     *active_constraints =
         retained_constraint_refs(&build.contexts.constraint_refs, exit.constraints);
@@ -351,13 +365,15 @@ fn append_one_to_one_call_carry_facts<'plans>(
     let [source_argument] = linear_inputs.as_slice() else {
         return;
     };
-    let Some(source_place) = crate::semantic::places::canonical_place_to_fact_place_in_state(
-        program,
-        semantic,
-        state.symbol,
-        borrow_call.statement_index,
-        *source_argument,
-    ) else {
+    let Some(source_place) =
+        crate::published::semantic::places::canonical_place_to_fact_place_in_state(
+            program,
+            semantic,
+            state.symbol,
+            borrow_call.statement_index,
+            *source_argument,
+        )
+    else {
         return;
     };
     let target_place = semantic.append_place_from_expression(program, expression);
@@ -398,7 +414,7 @@ fn append_one_to_one_call_carry_facts<'plans>(
             {
                 continue;
             }
-            crate::collections::push_unique(&mut transfers, (payload, fact.evidence));
+            crate::shared::collections::push_unique(&mut transfers, (payload, fact.evidence));
         }
     }
     if transfers.is_empty() {
@@ -491,7 +507,7 @@ fn append_call_result_field_domain_facts<'plans>(
         return;
     }
     let point = crate::flow::call_ensures_point(machine, state, borrow_call);
-    let evidence = crate::facts::propagated_evidence(borrow_call.target_symbol);
+    let evidence = crate::published::facts::propagated_evidence(borrow_call.target_symbol);
     // A call that statically realizes a boundary requirement in a checked
     // machine is a direct call to that adapter, not the admitted crossing.
     // `facts::qualification_evidence::call_contract_evidence` already refuses
@@ -628,7 +644,7 @@ fn append_call_parameter_domain_facts<'plans>(
     }
     let arguments = validation::call_site_argument_expressions(program, &site);
     let point = crate::flow::call_ensures_point(machine, state, borrow_call);
-    let evidence = crate::facts::propagated_evidence(borrow_call.target_symbol);
+    let evidence = crate::published::facts::propagated_evidence(borrow_call.target_symbol);
     for (position, domain_symbol, semantic_domain) in claims.iter() {
         // Declared child obligations belong to call_phases::referents. This
         // publisher owns authored routed ensures, never input annotations.
@@ -652,8 +668,11 @@ fn append_call_parameter_domain_facts<'plans>(
             .into_iter()
             .collect::<Vec<_>>();
         for place in &places {
-            let place =
-                crate::semantic::places::append_place(semantic, place.root, &place.segments);
+            let place = crate::published::semantic::places::append_place(
+                semantic,
+                place.root,
+                &place.segments,
+            );
             let fact = semantic.append_fact(Fact {
                 place: FactPlace::Place(place),
                 point,
@@ -911,7 +930,7 @@ fn append_ensures_result_rows(
             membership.domain_symbol,
             membership.semantic_domain,
         );
-        crate::collections::push_unique(&mut *domains, row);
+        crate::shared::collections::push_unique(&mut *domains, row);
     });
 }
 
@@ -978,7 +997,7 @@ fn parameter_identity_rows(
             membership.domain_symbol,
             membership.semantic_domain,
         );
-        crate::collections::push_unique(&mut rows, row);
+        crate::shared::collections::push_unique(&mut rows, row);
     });
     rows
 }

@@ -5,7 +5,8 @@
 //! reaches a requested operand. Ancestry remains the recursion boundary; this
 //! log only avoids repeating a successfully completed, exact context.
 
-use super::{CitationFacts, PendingStructuralCitation, StructuralJudge, StructuralTerm};
+use super::{CitationFacts, PendingStructuralCitation, StructuralTerm};
+use crate::proof_contracts::contract_entailment::structural_judgment::StructuralTraversalInputs;
 use std::collections::HashMap;
 use std::hash::{Hash, Hasher};
 use symbols::SymbolHandle;
@@ -23,7 +24,7 @@ pub(super) struct StructuralArrival<'program> {
     pub(super) start_index: usize,
     pub(super) collect_citations: bool,
     pub(super) parent: usize,
-    pub(super) judge: StructuralJudge<'program>,
+    pub(super) inputs: StructuralTraversalInputs<'program>,
     pub(super) parameter_names: Vec<String>,
     pub(super) environment: Vec<(String, StructuralTerm)>,
     pub(super) hypotheses: Vec<(String, StructuralTerm)>,
@@ -52,7 +53,7 @@ impl StructuralArrival<'_> {
     }
 
     fn same_inputs(&self, other: &Self) -> bool {
-        self.judge.same_traversal_inputs(&other.judge)
+        self.inputs.same_inputs(&other.inputs)
             && self.path == other.path
             && self.parameter_names == other.parameter_names
             && same_named_values(&self.environment, &other.environment)

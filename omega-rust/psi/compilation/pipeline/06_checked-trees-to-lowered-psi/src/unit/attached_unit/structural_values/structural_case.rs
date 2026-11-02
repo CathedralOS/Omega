@@ -6,7 +6,7 @@ use super::super::{
 };
 use super::completed_aggregate::{self, CompletedAggregate};
 use super::emission;
-use crate::checked_facts::value_facts;
+use crate::shared::checked_facts::value_facts;
 use crate::unit::attached_unit::structural_values::ValueOutcome;
 
 impl emission::Emission<'_, '_, '_> {

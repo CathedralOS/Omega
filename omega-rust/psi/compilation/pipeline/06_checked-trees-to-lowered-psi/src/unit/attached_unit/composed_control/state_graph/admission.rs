@@ -2,7 +2,7 @@
 //! (a closed checked body without attachments), and the derivations the
 //! emitter reads back — the live state mask, each position's authored owner,
 //! entry aliases, claim transport, exclusive handoffs and the boundaries its
-//! calls name. Stage 05 judged every state's parameter custody, entry claims,
+//! calls name. Psi 05 judged every state's parameter custody, entry claims,
 //! edge transfers and closed-sum dispatch when it built the plan; lowering
 //! lowers that plan and does not re-derive those judgments from source
 //! (see the lowering ruling in TASKS.md, "Lowering simplification").
@@ -11,7 +11,7 @@ use super::super::{CheckedTrees, LoweringError};
 use super::{
     CheckedComposedUnitControlMachinePlan, claims, entry_aliases, exclusive_handoffs, topology,
 };
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
 pub(in crate::unit::attached_unit) struct AdmittedGraph<'a> {
@@ -70,7 +70,7 @@ pub(in crate::unit::attached_unit) fn admit<'a>(
     let authored = plan
         .states
         .iter()
-        .map(|state| crate::declarations::state_declaration(checked, state.state))
+        .map(|state| crate::shared::declarations::state_declaration(checked, state.state))
         .collect::<Result<Vec<_>, _>>()?;
     checked
         .machine_states(machine)

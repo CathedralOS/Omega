@@ -1,4 +1,4 @@
-//! Construct the resource rows consumed by execution planning and stage 06.
+//! Construct the resource rows consumed by execution planning and Psi 06.
 //! Formation and flow own loan ancestry and lifetime events. This owner joins
 //! those facts once, checks access attenuation, and builds the parent graph
 //! and disposition events required by lowering. Each disposition event whose

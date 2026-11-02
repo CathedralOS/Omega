@@ -59,6 +59,7 @@ mod tests {
                     callback: None,
                 }],
                 default_eligible: true,
+                physical_owner: Ok(semantic_vocabulary::CallingDeclarationOwner::BoundaryTrait),
                 storage: Ok(terminal_psi::CallingAbiStorage {
                     parameters: vec![],
                     result: None,

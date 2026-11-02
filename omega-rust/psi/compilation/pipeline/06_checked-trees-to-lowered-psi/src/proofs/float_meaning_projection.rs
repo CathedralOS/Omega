@@ -1,6 +1,6 @@
 //! Exact erasure of checked float-meaning projections into Terminal Psi.
 
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use checked_trees::{
     CheckedFloatMeaningEqualityProposition, CheckedFloatMeaningProjection,
     CheckedFloatMeaningProjectionError, CheckedFloatProjectionSource,
@@ -20,7 +20,7 @@ use terminal_psi::{
 };
 
 use crate::emission::scalar_types::terminal_scalar_type;
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 
 pub fn lower_float_meaning_equality(
     checked: CheckedFloatMeaningEqualityProposition,

@@ -1660,6 +1660,12 @@ pub fn visit_declarations(program: &TypedTrees, retained: &mut impl TypedReferen
         }
     }
 
+    for application in &program.applied_data_cleanup_selections {
+        if retained.declaration(application.declaration) {
+            visit_cleanup_selection(program, retained, &application.selection);
+        }
+    }
+
     for schema in program.wire_schemas() {
         if !retained.declaration(schema.symbol) {
             continue;
@@ -1960,7 +1966,6 @@ pub fn visit_signature(
     retained.enter_lexical_scope(signature.symbol);
     visit_constant_evaluation_entries(program, retained, signature.symbol);
     visit_type_parameters(program, retained, signature.type_parameters);
-    visit_proof_facts(program, retained, signature.where_facts);
     for parameter in program
         .tables
         .state_parameters
@@ -2660,12 +2665,6 @@ fn visit_machine_with_sidecars(
     {
         visit_type_reference(program, retained, equation.parameter);
         visit_type_reference(program, retained, equation.definition);
-    }
-    for &predicate in program
-        .expression_table
-        .expression_handles(machine.declared_type_predicates)
-    {
-        visit_expression(program, retained, predicate);
     }
     visit_type_reference(program, retained, machine.attached_data_application);
     for contract in program

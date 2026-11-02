@@ -7,7 +7,7 @@
 
 use super::super::{StructuralJudge, StructuralTerm};
 use super::metadata_paths;
-use super::{owner_symbol, selected_call_contract_for_parameters};
+use super::selected_call_contract_for_parameters;
 use crate::frozen_program::expression_table;
 use crate::proof_contracts::contract_entailment::{
     observed_projections, proof_integer, structural_terms,
@@ -234,8 +234,7 @@ impl StructuralJudge<'_> {
                         program, expression, reference, value,
                     );
                 }
-                let selected =
-                    selected_call_contract_for_parameters(program, call, scope, parameters)?;
+                selected_call_contract_for_parameters(program, call, scope, parameters)?;
                 let realization = structural_terms::realized_requirement_state(call);
                 let arguments = expression_table(program)
                     .expression_handles(call.arguments)
@@ -259,7 +258,13 @@ impl StructuralJudge<'_> {
                 .unwrap_or_default();
                 Some(StructuralTerm::Application {
                     result_type,
-                    target: realization.unwrap_or_else(|| owner_symbol(&selected)),
+                    target: realization.unwrap_or_else(|| {
+                        structural_terms::structural_call_target_in_frame(
+                            program,
+                            call,
+                            Some((scope, parameters)),
+                        )
+                    }),
                     selections: if realization.is_some() {
                         Vec::new()
                     } else {

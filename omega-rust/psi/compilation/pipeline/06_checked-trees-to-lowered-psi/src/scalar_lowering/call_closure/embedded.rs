@@ -11,7 +11,7 @@ pub(crate) struct EmbeddedScalarCalls<'catalogs> {
     terminal_machine: MachineId,
     signatures: &'catalogs [crate::unit::attached_unit::signatures::MachineSignature],
     structural_types: &'catalogs [terminal_psi::StructuralTypeDeclaration],
-    domain_ids: &'catalogs [crate::terminal_identities::StructuralDomainBinding],
+    domain_ids: &'catalogs [crate::shared::terminal_identities::StructuralDomainBinding],
     domain_declarations: &'catalogs [terminal_psi::StructuralDomainDeclaration],
     scalar_qualifications: &'catalogs terminal_psi::ScalarQualificationCatalog,
     claim_bindings: Vec<(
@@ -60,7 +60,7 @@ impl<'catalogs> EmbeddedScalarCalls<'catalogs> {
     pub(crate) fn with_callable_namespace(
         mut self,
         boundaries: &'catalogs [crate::unit::attached_unit::BoundaryParameters],
-        domain_ids: &'catalogs [crate::terminal_identities::StructuralDomainBinding],
+        domain_ids: &'catalogs [crate::shared::terminal_identities::StructuralDomainBinding],
         domain_declarations: &'catalogs [terminal_psi::StructuralDomainDeclaration],
         cleanup_receivers: Vec<(symbols::SymbolHandle, semantic_vocabulary::PlaceId)>,
         signatures: &'catalogs [crate::unit::attached_unit::signatures::MachineSignature],

@@ -147,6 +147,14 @@ the bound from a flattened published ceiling cannot recover that distinction.
 These declarations are semantic contract inputs, not proof certificates or a
 generic-substitution receipt.
 
+Callable declaration headers retain checker-normalized realized synchronous
+invocations independently of emitted bodies. Each invocation target names its boundary
+declaration and package, with an exact application when concrete and explicit
+absence when abstract. An unavailable summary retains its refusal reason;
+it is not an empty call set. Selected-provider cycle policy consumes these
+summaries, while receiving executable admission checks installed call closure
+independently.
+
 ## Publication and separate consumption
 
 Compilation may stop at Terminal Psi. A later interpreter or native lowerer
