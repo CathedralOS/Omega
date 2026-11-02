@@ -70,7 +70,7 @@ omega run --both samples/cli/facts/non_owning_reference_erasure/main.omg
 
 ## Observations and remaining acceptance
 
-Fresh optimized producer `a13bf162097` and its immutable SDK completed all ten
+The retained optimized producer `a13bf162097` and its immutable SDK completed all ten
 positive authored programs (root plus nine places) with native 0 / Terminal 0,
 and all nine routed-membership twins refused for the intended missing fact.
 The focused corpus records 44 Source/admission outcomes: 18 checked and 26
@@ -80,6 +80,18 @@ Five existing physical-view, shared/stored-reference and access-opposite CLI
 controls retained their outcomes. The unmodified match counterfactual exits 0;
 forcing either branch or changing the selected write to 74 traps. All four
 hosted target selections prepare and check; fresh execution is macOS ARM64.
+
+After reconciling actual Main write-coordinate and mutation-summary changes,
+optimized producer `1f01fe627c9` with its own SDK repeated the 44 Source/admission
+outcomes and 18 BOTH executions plus the intended admission refusal. Six affected
+normal CLI projects passed (four native 0 / Terminal 0, two proper membership
+refusals), alongside seven existing reference/array-window preservation cases,
+the same four Terminal counterfactuals and four-target preparation/checking.
+The array-window positive and missing-establishment opposite exercise the
+retained fixed-range physical translator. Authored Source and pin inputs did
+not change during this reconciliation. Current root, returned-pointer, selected
+body and match native images are byte-identical to the retained images; their
+Terminal products and producer identities remain separately recorded.
 
 The call-result lowering repair rejoins the unique checked reference backing
 using its registered stored structural identity. It preserves the distinct
