@@ -1,14 +1,14 @@
-//! Retain initialized owned entry homes independently of scalar proof reads.
+//! Retain initialized readable entry homes independently of scalar proof reads.
 //! A shared, pure and total declaration call may lend a home without copying
 //! its contained loans or cleanup obligations. The selected operand's Copy
 //! and disposal judgments remain separate when a call passes an owned value.
-pub(super) fn owned_input(
+pub(super) fn input_home(
     program: &dyn validation::CheckingInput,
     admitted: &checked_trees::CheckedRankArrivalPlan,
     state: &typed_trees::state::State,
     formal: symbols::SymbolHandle,
     actual: checked_trees::CheckedRankCoordinateHandle,
-) -> Option<checked_trees::CheckedRankApplicationOwnedInput> {
+) -> Option<checked_trees::CheckedRankApplicationInputHome> {
     admitted.coordinates.is_valid(actual).then_some(())?;
     let coordinate = admitted.coordinates.get(actual);
     let parameter = program
@@ -62,16 +62,23 @@ pub(super) fn owned_input(
             parameter.type_reference,
             &path[..length],
         )?;
-        if validation::reference_shell(program, selected).is_some() {
-            return None;
+        let mut observed = selected;
+        while let Some(shell) = validation::reference_shell(program, observed) {
+            if !shell.access.is_readable() {
+                return None;
+            }
+            observed = shell.referee;
         }
     }
-    let actual_type =
+    let mut actual_type =
         validation::project_type_reference_from_segments(program, parameter.type_reference, path)?;
+    while let Some(shell) = validation::reference_shell(program, actual_type) {
+        actual_type = shell.referee;
+    }
     if program.primitive_type_reference(actual_type).is_some() {
         return None;
     }
-    Some(checked_trees::CheckedRankApplicationOwnedInput {
+    Some(checked_trees::CheckedRankApplicationInputHome {
         formal,
         actual,
         actual_type,

@@ -22,7 +22,7 @@ impl Builder<'_, '_> {
         let (formation, call) = checked_trees::CheckedCallOrigin::Declaration { application, call }
             .declaration(scope.plan, self.machine, self.state)
             .ok()?;
-        let input = formation.owned_input?;
+        let input = formation.input_home?;
         let declaration = self
             .program
             .measures()
@@ -138,11 +138,11 @@ impl Builder<'_, '_> {
                 checked_trees::CheckedStructuralAccess::Owned
             }
         };
-        // The retained home proves initialized owned backing. Lending it
+        // The retained home proves initialized readable backing. Lending it
         // creates no materialized copy of its contained obligations, and this
         // pure/total scalar call ends before body effects or another cycle.
         // Owned operands passed their own Copy/disposal check above.
-        let mut argument_plan = crate::execution::terminal_unit::calls::owned_argument(
+        let mut argument_plan = crate::execution::terminal_unit::calls::storage_argument(
             self.program,
             &mut self.shapes,
             self.machine,
@@ -150,6 +150,7 @@ impl Builder<'_, '_> {
             0,
             &actual,
             &storage_target,
+            access,
             Some(&|expression| {
                 selectors.iter().find_map(|(source, value)| {
                     (*source == expression).then_some(

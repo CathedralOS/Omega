@@ -549,6 +549,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             let Some(entries) = judge.normal_argument_entries(
                 operands,
                 self.parameters,
+                OperationOperandDemand::All,
                 environment,
                 (machine, state, state.return_type),
                 self.call_site,

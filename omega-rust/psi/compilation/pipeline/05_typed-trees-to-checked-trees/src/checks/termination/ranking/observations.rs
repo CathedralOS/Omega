@@ -147,8 +147,8 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     }
                     let whole_input =
                         retain_observed_coordinate(admitted, destination.clone(), values.as_ref())?;
-                    let owned_input = declaration.parameter.as_ref().and_then(|formal| {
-                        super::super::application_inputs::owned_input(
+                    let input_home = declaration.parameter.as_ref().and_then(|formal| {
+                        super::super::application_inputs::input_home(
                             program,
                             admitted,
                             state,
@@ -163,7 +163,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                             state: state.symbol,
                             application: application_facts,
                             bindings,
-                            owned_input,
+                            input_home,
                         },
                     )
                 } else {
