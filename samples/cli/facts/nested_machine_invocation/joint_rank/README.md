@@ -279,3 +279,8 @@ places, with public-contract and computed-selector compositions.
 lend the caller-owned rank record to a pure, total shared call across all nine
 places. Repeated shared arguments, projected input and alias forwarding preserve
 the same initialized home; access violations and stale/reset descent still reject.
+
+[Repeated declaration-call actuals](local/declared_measure/computed_record/selected_value/repeated_actuals/README.md)
+continue that production through two calls sharing a helper's indexed source
+expression. Each call retains its own actual telescope through copy/writeback,
+joint-cycle comparison, nested public guarantees and execution lowering.

@@ -32,7 +32,25 @@ bindings are authored, and target-body implementations retain distinct tags.
 | other_machine | [source](../../../../../other_machine/declared_measure/computed_record/selected_value/repeated_actuals/main.omg) | [source](../../../../../other_machine/declared_measure/computed_record/selected_value/repeated_actuals/invalid/main.omg) |
 | target_body | [source](../../../../../target_body/declared_measure/computed_record/selected_value/repeated_actuals/main.omg) | [source](../../../../../target_body/declared_measure/computed_record/selected_value/repeated_actuals/invalid/main.omg) |
 
-The [computed-argument control](controls/computed_actuals/main.omg) retains independently formed arithmetic actuals. The [qualified-field control](controls/qualified_actuals/main.omg) retains two distinct exact selector fields from the input record. The [compensating-increase control](controls/invalid_compensating_increase/main.omg) preserves the full sum while decreasing one cell; it must reject.
+The [computed-argument control](controls/computed_actuals/main.omg) retains
+independently formed arithmetic actuals. The
+[qualified-field control](controls/qualified_actuals/main.omg) retains two
+distinct exact selector fields from the input record. The
+[nested public-call control](controls/nested_public_calls/main.omg) derives its
+result through another independently checked helper contract. The
+[constructor control](controls/constructed_actuals/main.omg) also exercises
+explicit successor construction; the primary nine places retain copy and
+indexed writeback. The
+[compensating-increase control](controls/invalid_compensating_increase/main.omg)
+preserves the full sum while decreasing one cell; it must reject.
+
+The missing/partial-bound controls refuse unformed arithmetic; the missing
+premise and unformed-child controls refuse helper preconditions, including a
+canceled child operation. The no-result-relation control cannot replace a
+public postcondition with a helper's private body. The stale-poststate control
+cannot reuse an entry equality after its source field changes. Corpus-only
+store controls distinguish a proved unequal or ordered selector from an
+overlapping or unknown selector before preserving an untouched sibling cell.
 
 ## Requirements
 
@@ -44,6 +62,9 @@ The [computed-argument control](controls/computed_actuals/main.omg) retains inde
   actual telescopes do not identify the observations.
 - Composition: calls enter a fresh formal namespace with only the reads
   belonging to that invocation; nested paths retain their remaining context.
+  Captured record roots remain available beside their scalar observations when
+  a public postcondition supplies another call. Call normalization preserves an
+  existing field denotation when the selector becomes a literal.
   All component edges must preserve rank and every complete cycle must descend.
 - Soundness: the nonprogress twins and compensating-increase control refuse.
   Whole-value custody, access, purity, totality, input qualification and operand
@@ -51,6 +72,8 @@ The [computed-argument control](controls/computed_actuals/main.omg) retains inde
 - Psi 06–08: accepted coordinates and their supplying call paths are retained in
   the ordinary checked arrival plan. Existing declared-call execution consumes
   the same complete initialized input and exact selected helper contract.
+  Callee-context reads do not become duplicate caller-body captures; direct
+  declaration reads remain available to the ordinary expression builder.
 - Omega 00–02: ordinary array/record geometry, aggregate return and calling plans
   carry both words and their canary. All four hosted target bindings remain
   explicit; selected target implementations use ordinary Build provider rows.
