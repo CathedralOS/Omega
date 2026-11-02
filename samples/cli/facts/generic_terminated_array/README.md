@@ -99,5 +99,18 @@ with native and Terminal exit 0, but rejects the second example at the final
 string-length call. Both missing-contract twins and both mutation controls
 reject for the missing terminator guarantee. The compiler was treating a
 read-only call with a constant generic argument as having unknown writes.
-New execution results will be recorded with the repair's tested producer;
-these probes do not extend the historical nine-place execution claim above.
+The repaired optimized producer `4cbcecdf2332841c7e1f3a579fc74deca1c54d71`
+(SHA-256 `0a9b7490f6164e95b57779ec1d2c1a8ac72f8c77ef2a5bfe98d4f75e02ad9034`)
+runs both probes with native and Terminal exit 0 on macOS arm64. All four
+controls reject for the missing terminator guarantee. An existing generic
+statement-call program also passes both engines, and three existing invalid
+programs retain their intended argument or write-invalidation refusals.
+The six new fixtures have checked outcomes recorded from that producer.
+These probes do not extend the historical nine-place execution claim above.
+
+An additional attempted control with an unresolved element type in a returned
+mutable reference stops at an earlier typing check. It is excluded from these
+passing controls. The storage analysis conservatively retains possible aliasing
+for unresolved element types and lengths; no execution claim is made for that
+separate mutable-return case. The broader migration and Cathedral boot remain
+unfinished.

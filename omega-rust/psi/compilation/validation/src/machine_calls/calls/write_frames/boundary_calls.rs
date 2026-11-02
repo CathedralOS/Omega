@@ -1,15 +1,12 @@
-//! Boundary-trait call resolution and caller-visible write frames.
+//! Determine which caller storage an external call may change.
 //!
-//! Boundary calls have no locally inspectable body. This owner resolves the
-//! selected trait signature and derives the exact receiver/exclusive-argument
-//! frame, failing closed when a mutable argument has no supported storage origin.
+//! An external call has no local body to inspect. Its selected declaration
+//! and supplied types tell us which arguments may carry writes. If a mutable
+//! argument's storage cannot be identified, the possible writes stay unknown.
 //!
-//! Generic receivers retain their exact owner tuple before method inference:
-//! losing it to the signature-free ceiling made copied scalar metadata appear
-//! writable. Owner and method bindings share the existing storage/origin
-//! queries, keyed by distinct symbols. This substitution is private to frame
-//! inference; fact-seeding consumers without a bound environment still refuse
-//! generic signatures rather than reading uninstantiated contracts.
+//! A generic call uses its prepared declaration together with the arguments
+//! that belong to that declaration. Contract checking has separate entry
+//! points: locating possible writes does not establish a callee's guarantees.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_owner};
 use super::isolation::{TypeIdentityMemo, aggregate_storage_types_match_in};

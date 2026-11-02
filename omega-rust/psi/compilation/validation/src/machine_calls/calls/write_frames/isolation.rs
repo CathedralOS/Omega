@@ -123,9 +123,9 @@ pub fn aggregate_storage_types_match(
     verdict
 }
 
-/// Under an active substitution, a `Named` parameter resolves to its bound
-/// actual and two applications of the same generic base match when every
-/// argument matches. Anything else keeps the nominal-identity rule.
+/// Compare storage types using the call's supplied type and constant arguments.
+/// Whole-type comparison includes nested array lengths. The remaining nominal
+/// comparison retains the existing treatment of storage and borrow lifetimes.
 pub(super) fn aggregate_storage_types_match_in(
     program: &dyn crate::CheckingInput,
     actual: TypeReferenceHandle,
