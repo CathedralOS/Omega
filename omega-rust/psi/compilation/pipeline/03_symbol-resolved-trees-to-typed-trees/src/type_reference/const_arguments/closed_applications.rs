@@ -4,12 +4,17 @@
 //! complete value constraints before any source recipe is replaced.
 
 use diagnostics::Diagnostic;
-use language_semantics::const_value::DecodedCanonicalConstValue;
+use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::name::Identifier;
 use typed_trees::types::TypeReferenceNode;
+
+enum ConstArgumentInput {
+    Expression(typed_trees::expression::ExpressionHandle),
+    Canonical(CanonicalConstValue),
+}
 
 pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(), Diagnostic> {
     let applications = program
@@ -81,21 +86,37 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
         let owner = program
             .type_reference_table
             .operand_lifetime_owner(application);
-        for (parameter, argument) in parameters.iter().zip(arguments) {
+        for (parameter, argument) in parameters.iter().zip(arguments.iter().copied()) {
             if argument.arena_index() as usize <= frontier {
                 continue;
             }
             let TypeParameterKind::Const { type_reference } = parameter.kind else {
                 continue;
             };
-            let TypeReferenceNode::ConstExpression(expression) =
-                *program.type_reference_table.type_reference(argument)
-            else {
-                continue;
+            let input = match program.type_reference_table.type_reference(argument) {
+                TypeReferenceNode::ConstExpression(expression) => {
+                    if program.pending_const_range_endpoints.contains(expression) {
+                        continue;
+                    }
+                    ConstArgumentInput::Expression(*expression)
+                }
+                TypeReferenceNode::Named { symbol, name } if !symbol.is_valid() => {
+                    let Some(value) = CanonicalConstValue::from_atom(name.as_str()) else {
+                        continue;
+                    };
+                    if !matches!(
+                        value.decode_encoding(),
+                        Some(
+                            DecodedCanonicalConstValue::Record { .. }
+                                | DecodedCanonicalConstValue::Variant { .. }
+                        )
+                    ) {
+                        continue;
+                    }
+                    ConstArgumentInput::Canonical(value)
+                }
+                _ => continue,
             };
-            if program.pending_const_range_endpoints.contains(&expression) {
-                continue;
-            }
             let carrier = program
                 .apply_callable_type(type_reference, &substitutions, &[], declaration)
                 .map_err(Diagnostic::error)?;
@@ -110,15 +131,42 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
             } else {
                 owner
             };
-            let value =
-                validation::check_closed_const_expression(program, owner, expression, carrier)
-                    .map_err(|errors| {
+            let value = match input {
+                ConstArgumentInput::Expression(expression) => {
+                    validation::check_closed_const_expression(program, owner, expression, carrier)
+                        .map_err(|errors| {
                         errors.into_iter().next().unwrap_or_else(|| {
                             Diagnostic::error(
                                 "closed const argument admission failed without a diagnostic",
                             )
                         })
+                    })?
+                }
+                ConstArgumentInput::Canonical(mut value) => {
+                    // Source atoms retain schema labels until their exact receiving
+                    // telescope is available. Validate their existing carrier claim
+                    // before publishing the same resolved identity as a completed
+                    // expression. Payload equality alone cannot retarget a nominal
+                    // value, and diagnostic display never determines an application.
+                    validation::validate_closed_const_argument(
+                        program,
+                        program.symbols.name(declaration),
+                        parameter,
+                        argument,
+                        &parameters,
+                        &arguments,
+                    )
+                    .map_err(|errors| {
+                        errors.into_iter().next().unwrap_or_else(|| {
+                            Diagnostic::error(
+                                "canonical const argument admission failed without a diagnostic",
+                            )
+                        })
                     })?;
+                    value.type_name = program.normalized_type_identity_text(carrier);
+                    Some(value)
+                }
+            };
             let Some(value) = value else {
                 continue;
             };

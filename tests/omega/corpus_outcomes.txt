@@ -1541,6 +1541,35 @@ fail/facts/open_const_implementation_statement_const_result_rejected rejected 33
 fail/facts/open_const_implementation_statement_saved_output_rejected rejected 326ms expected @ea132c1fff8b
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_call_result_rejected rejected 2255ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_const_name_rejected rejected 797ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_data_argument_rejected rejected 3005ms expected @e9f492c5ccc6+wt
+	machine `main` state `entry` local `packed` expects the `Envelope<#omega-const:13:Configuration49:record13:Configuration7:minimum15:integer3:u641:715:configuration()>` data type but got `Envelope<#omega-const:13:Configuration49:record13:Configuration7:minimum15:integer3:u641:628:Configuration { minimum: 6 }>` in the `local` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+fail/facts/open_record_const_closed_call_field_rejected rejected 2615ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_local_rejected rejected 2110ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_match_join_rejected rejected 2394ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_missing_requirement_rejected rejected 761ms expected @e9f492c5ccc6+wt
+	const-generic application evaluation failed: constant invocation of `configuration` failed checking: machine `@const-invocation` state `@const-invocation` value call to `configuration` violates required fact `false`: the instantiated fact is structurally false
+fail/facts/open_record_const_closed_call_nested_return_rejected rejected 1733ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_noncanonical_field_rejected rejected 1451ms expected @e9f492c5ccc6+wt
+	const-generic application evaluation failed: application result is not a canonical static value within encoding limits
+fail/facts/open_record_const_closed_call_other_machine_rejected rejected 1899ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_other_state_rejected rejected 1646ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_parameter_rejected rejected 1759ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_target_body_rejected rejected 1839ms expected @e9f492c5ccc6+wt
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
+fail/facts/open_record_const_closed_call_wrong_carrier_rejected rejected 689ms expected @e9f492c5ccc6+wt
+	const-generic application evaluation failed: constant initializer result does not match its declared carrier
 fail/facts/predicate_type_formation_rejected rejected 3892ms expected @62ce026b5931+wt
 	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -8326,6 +8355,18 @@ pass/facts/open_const_implementation_through_other_machine_exit checked 6729ms c
 pass/facts/open_const_implementation_through_other_state_exit checked 6704ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_const_implementation_through_parameter_exit checked 6683ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_const_implementation_through_target_body_exit checked 6705ms check-target:macos_arm64 @ea132c1fff8b
+pass/facts/open_record_const_closed_call_call_result_exit checked 17674ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_const_name_exit checked 17403ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_data_argument_exit checked 12570ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_equivalent_literal_exit checked 13482ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_field_exit checked 13473ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_local_exit checked 12596ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_match_join_exit checked 16024ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_nested_return_exit checked 11753ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_other_machine_exit checked 11815ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_other_state_exit checked 12676ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_parameter_exit checked 12649ms check-target:macos_arm64 @e9f492c5ccc6+wt
+pass/facts/open_record_const_closed_call_target_body_exit checked 10466ms check-target:macos_arm64 @e9f492c5ccc6+wt
 pass/facts/open_record_const_implementation_through_call_result_exit checked 6719ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_record_const_implementation_through_const_name_exit checked 6951ms check-target:macos_arm64 @ea132c1fff8b
 pass/facts/open_record_const_implementation_through_field_exit checked 6639ms check-target:macos_arm64 @ea132c1fff8b

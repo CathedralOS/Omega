@@ -482,6 +482,19 @@ pub(crate) fn evaluate(
         if ready.is_empty() {
             continue;
         }
+        // Static arguments are prerequisites of the initializer's selected
+        // call, not values supplied by that call's eventual specialization.
+        // Demand only this ready layer in the original forest so canonical
+        // argument receipts survive private probe construction and final replay.
+        let ready_declarations = ready
+            .iter()
+            .map(|ordinal| declarations[*ordinal].item)
+            .collect::<Vec<_>>();
+        syntax = super::const_generic_calls::evaluate_declaration_calls(
+            syntax,
+            context.clone(),
+            &ready_declarations,
+        )?;
         let mut probe = syntax.clone();
         // Retain authored pending values through the resolver's existing
         // initializer frontier. Unproved qualifications remain private and no
