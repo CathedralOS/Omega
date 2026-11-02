@@ -1,8 +1,7 @@
-//! Boolean observations of one exact live storage place.
-//!
-//! Call requirements and crash-route substitution consume the same fact join.
-//! The caller supplies current contexts and owns operand freshness; this query
-//! neither recovers an old initializer nor grants immutable entry identity.
+//! Determine whether a stored Boolean is true or false at this program point.
+//! Use only the facts the caller supplies as current; an old initializer is not
+//! evidence about a value that may have changed. Call checks and crash handling
+//! use this same query.
 
 use crate::flow::canonical_place_from_semantic_place;
 use crate::published::facts::boolean_predicates::{BoundPredicate, inferred_boolean_at_place};
@@ -14,9 +13,10 @@ use validation::CanonicalPlace;
 
 use facts::{FactOrigin, FactPayload, FactPlan, ProgramPoint, ScalarValue};
 
-/// Answer several Boolean questions at one unchanged point in the program.
-/// Prepare their common predicates only if ordinary value facts do not answer
-/// a query. Each place still receives its own freshness and inference checks.
+/// Check several Boolean fields without rebuilding the same conditions for each.
+/// Prepare those conditions only when a recorded value cannot answer a query.
+/// All queries borrow one unchanged set of facts at the same program point;
+/// each field still receives its own freshness and inference checks.
 pub(crate) struct BooleanValueQueries<'scope> {
     program: &'scope dyn validation::CheckingInput,
     operators: &'scope checked_trees::CheckedOperatorFacts,
