@@ -51,21 +51,29 @@ POLL_SECONDS = 2.0
 EMPTY_SLOT_GRACE_SECONDS = 10.0
 
 
-def slot_directory(repository, pool="build"):
-    """The pool lives with the other ignored build state, keyed by checkout.
+def shared_build_root(repository):
+    """The ignored `build/` beside the common git directory.
 
     A shared absolute path would let two unrelated checkouts (a worktree and
-    the main checkout, say) fight over one pool; keying by the common git
-    directory keeps each checkout's pool separate while still shared by every
-    worktree of that checkout. `pool` names the pool: "build" is the chain
-    pool (directory `build-slots`), and any other name gets its own directory
-    beside it (`<pool>-slots`) so diag checks never contend with chains.
+    the main checkout, say) fight over one state; keying by the common git
+    directory keeps each checkout's state separate while still shared by every
+    worktree of that checkout.
     """
     done = subprocess.run(
         ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
         cwd=repository, capture_output=True, text=True, timeout=30)
     root = Path(done.stdout.strip()).parent if not done.returncode else Path(repository)
-    directory = root / "build" / f"{pool}-slots"
+    return root / "build"
+
+
+def slot_directory(repository, pool="build"):
+    """The pool lives with the other shared build state (`shared_build_root`).
+
+    `pool` names the pool: "build" is the chain pool (directory
+    `build-slots`), and any other name gets its own directory beside it
+    (`<pool>-slots`) so diag checks never contend with chains.
+    """
+    directory = shared_build_root(repository) / f"{pool}-slots"
     directory.mkdir(parents=True, exist_ok=True)
     return directory
 

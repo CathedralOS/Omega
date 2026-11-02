@@ -804,9 +804,12 @@ Name the fixtures the change can move: `--compare` refuses to run without
 `--filter` or `--shard`, because both sides of an unfiltered comparison run the
 whole corpus, about two hours on a Windows host.
 
-The base is built from its commit in a separate worktree (`build/cmp`) with its
-own build directory, so neither uncommitted edits nor artifacts from this tree
-can leak into it. An already built immutable base can be reused with
+The base is built from its commit in a separate worktree
+(`build/compare-bases/<sha>`) with its own build directory, so neither uncommitted edits nor artifacts from
+this tree can leak into it. That worktree and the base's cached rows live in the
+`build/` beside the common git directory, shared by every worktree of the
+checkout: one session at a time measures a commit, and the next finds its runner
+and rows. The newest three base worktrees are kept. An already built immutable base can be reused with
 `--baseline-runner <binary>` alongside `--compare <revision>`. The gate still
 checks the exact baseline checkout revision, optimized profile, and fixture-root
 protocol, but does not invoke a Rust build. Retain the executable digest and its
@@ -905,8 +908,8 @@ Direct runner or CLI invocations should select the matching library explicitly
 when sharing build artifacts across checkouts. Release library validation still
 checks the selected content; this does not waive compiler or package identity.
 
-`--compare` caches the base under ignored
-`build/corpus_baselines/<sha>[-leg].txt`. Use it when the checked-in golden
+`--compare` caches the base under the shared, ignored
+`build/corpus_baselines/<sha>[-leg].txt`; a native leg names its target. Use it when the checked-in golden
 disagrees with your checkout over another lane's in-flight movement, which is
 the usual case: a run against the shared golden cannot separate that drift from
 yours, and re-recording the shared golden would pin their regression as
