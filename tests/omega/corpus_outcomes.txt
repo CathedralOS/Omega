@@ -271,7 +271,7 @@ fail/facts/case_predicate_missing_type_equation_rejected rejected 296ms expected
 	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
 fail/facts/case_predicate_other_default_argument_rejected rejected 1696ms expected @a7b775a62345
 	cannot prove requires contract for call width_range from invalid: <saved subject #1:1>.lo <= <saved subject #1:1>.hi && <saved subject #1:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_predicate_stale_snapshot_restore_rejected rejected 433ms expected @4a65db8ea7a5
+fail/facts/case_predicate_stale_snapshot_restore_rejected rejected 498ms expected @8fce926f9735
 	data `Interval<32>`'s default domain is still FALSE at state exit: the invariant window opened on `span` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/case_type_equation_recovery_through_call_result_rejected rejected 3011ms expected @0402685c2f27+wt
 	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
@@ -1602,32 +1602,34 @@ fail/facts/projection_receiver_call_through_target_body_rejected rejected 1442ms
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
 	cannot prove initializer of `direct` in observe is in domain `bool::Held`; an annotation cannot establish routed qualification
-fail/facts/recast_parent_restoration_changed_end_rejected rejected 564ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_case_backing_overlap_rejected rejected 3289ms expected @8fce926f9735
+	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
+fail/facts/recast_parent_restoration_changed_end_rejected rejected 804ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_dirty_forward_rejected rejected 1903ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_dirty_forward_rejected rejected 800ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at a call: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_forwarding_marker_rejected rejected 791ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_forwarding_marker_rejected rejected 843ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_call_result_rejected rejected 693ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_through_call_result_rejected rejected 827ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_const_name_rejected rejected 871ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_through_const_name_rejected rejected 951ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_field_rejected rejected 865ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_through_field_rejected rejected 1081ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_local_rejected rejected 737ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_through_local_rejected rejected 1060ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_match_join_rejected rejected 739ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_through_match_join_rejected rejected 848ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_other_machine_rejected rejected 1045ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_through_other_machine_rejected rejected 858ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_other_state_rejected rejected 816ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_through_other_state_rejected rejected 1310ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_parameter_rejected rejected 791ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_through_parameter_rejected rejected 1155ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_through_target_body_rejected rejected 724ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_through_target_body_rejected rejected 1209ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_unrestored_rejected rejected 719ms expected @4a65db8ea7a5
+fail/facts/recast_parent_restoration_unrestored_rejected rejected 917ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/recorded_build_role/call_result rejected 7895ms expected @1a41b8e686ed
 	failed to resolve tests/omega/fail/facts/recorded_build_role/call_result/my_library/values.omg: captured entry is absent: my_library
@@ -2203,7 +2205,7 @@ pass/borrow/storage_address_loop_copy_identity_exit checked 4071ms check-target:
 pass/borrow/storage_address_window_identity_exit checked 3383ms check-target:linux_x86_64 @ccdb99ca2214
 pass/borrow/stored_write_only_metadata checked 2560ms @ccdb99ca2214
 pass/borrow/write_only_composed_forward_exit checked 16781ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrow/write_only_constrained_record_field checked 4371ms @4a65db8ea7a5
+pass/borrow/write_only_constrained_record_field checked 4565ms @8fce926f9735
 pass/borrow/write_only_projected_state_receiver_exit checked 3690ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/write_only_whole_scalar_replace checked 2711ms @ccdb99ca2214
 pass/borrows/aliased_descriptor_slot_after_last_use_exit checked 3442ms check-target:macos_arm64 @ccdb99ca2214
@@ -2226,7 +2228,7 @@ pass/borrows/captured_state_shared_reborrow checked 5573ms check-target:macos_ar
 pass/borrows/carried_loan_replacement checked 3528ms @ccdb99ca2214
 pass/borrows/carry_permission_alias checked 3402ms @ccdb99ca2214
 pass/borrows/carry_property_declared checked 3255ms @ccdb99ca2214
-pass/borrows/case_payload_shared_transition_exit checked 19860ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/case_payload_shared_transition_exit checked 34572ms check-target:macos_arm64 @8fce926f9735
 pass/borrows/case_payload_state_loan_exit checked 16758ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/collection_element_loans_exit checked 3405ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/completed_reference_read_preserves_prefix checked 3981ms check-target:macos_arm64 @ccdb99ca2214
@@ -2358,7 +2360,7 @@ pass/borrows/runtime_anonymous_operand_backing_cleanup_exit checked 3739ms check
 pass/borrows/runtime_array_primitive_reference_capture_exit checked 3282ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_assignment_rhs_carrier_replacement_exit checked 3998ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_boundary_range_view_exit checked 3925ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_bounded_and_shared_field_loans_exit checked 4968ms check-target:macos_arm64 @4a65db8ea7a5
+pass/borrows/runtime_bounded_and_shared_field_loans_exit checked 5220ms check-target:macos_arm64 @8fce926f9735
 pass/borrows/runtime_byte_case_partial_cleanup_exit checked 3267ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_byte_view_element_loan_exit checked 16192ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_byte_view_element_reference_calls_exit checked 3807ms check-target:macos_arm64 @ccdb99ca2214
@@ -2533,7 +2535,7 @@ pass/borrows/runtime_returned_reference_array_restoration_exit checked 77761ms c
 pass/borrows/runtime_returned_reference_constructor_leaf_retirement_exit checked 61137ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_returned_stored_view_reborrow_exit checked 3531ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_scalar_call_stored_carrier_exit checked 3951ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_scalar_field_local_loan_handback_exit rejected 3049ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4a65db8ea7a5
+pass/borrows/runtime_scalar_field_local_loan_handback_exit rejected 3918ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @8fce926f9735
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "Main::main", reason: "computed borrow lost its established local", gap: None })
 pass/borrows/runtime_scalar_reads_shared_result_exit checked 4052ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_selected_byte_descriptor_store checked 3470ms check-target:macos_arm64 @ccdb99ca2214
@@ -4950,15 +4952,15 @@ pass/facts/case_const_equal_literals_with_predicate checked 2486ms @ccdb99ca2214
 pass/facts/case_const_equal_literals_without_predicate checked 3045ms @ccdb99ca2214
 pass/facts/case_const_forwarded_binder_compile rejected 1075ms regressed-from:checked @ccdb99ca2214
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-pass/facts/case_dependent_default_domain_through_call_result_exit checked 7882ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/case_dependent_default_domain_through_const_name_exit checked 4743ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/case_dependent_default_domain_through_field_exit checked 6695ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/case_dependent_default_domain_through_local_exit checked 4689ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/case_dependent_default_domain_through_match_join_exit checked 8547ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/case_dependent_default_domain_through_other_machine_exit checked 7819ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/case_dependent_default_domain_through_other_state_exit checked 5925ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/case_dependent_default_domain_through_parameter_exit checked 6538ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/case_dependent_default_domain_through_target_body_exit checked 7631ms check-target:macos_arm64 @4a65db8ea7a5
+pass/facts/case_dependent_default_domain_through_call_result_exit checked 6912ms check-target:macos_arm64 @8fce926f9735
+pass/facts/case_dependent_default_domain_through_const_name_exit checked 6073ms check-target:macos_arm64 @8fce926f9735
+pass/facts/case_dependent_default_domain_through_field_exit checked 6682ms check-target:macos_arm64 @8fce926f9735
+pass/facts/case_dependent_default_domain_through_local_exit checked 5985ms check-target:macos_arm64 @8fce926f9735
+pass/facts/case_dependent_default_domain_through_match_join_exit checked 6085ms check-target:macos_arm64 @8fce926f9735
+pass/facts/case_dependent_default_domain_through_other_machine_exit checked 6163ms check-target:macos_arm64 @8fce926f9735
+pass/facts/case_dependent_default_domain_through_other_state_exit checked 5361ms check-target:macos_arm64 @8fce926f9735
+pass/facts/case_dependent_default_domain_through_parameter_exit checked 4829ms check-target:macos_arm64 @8fce926f9735
+pass/facts/case_dependent_default_domain_through_target_body_exit checked 7396ms check-target:macos_arm64 @8fce926f9735
 pass/facts/case_equality_through_call_result_compile checked 2279ms @ccdb99ca2214
 pass/facts/case_equality_through_const_name_compile rejected 899ms regressed-from:checked @ccdb99ca2214
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -8580,17 +8582,19 @@ pass/facts/readonly_byte_pool_relocation_bound_through_other_machine_exit checke
 pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 3783ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 3869ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 2964ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/recast_parent_restoration_forwarding_marker_exit checked 4480ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/recast_parent_restoration_preserved_end_exit checked 6084ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/recast_parent_restoration_through_call_result_exit checked 5020ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/recast_parent_restoration_through_const_name_exit checked 4262ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/recast_parent_restoration_through_field_exit checked 4481ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/recast_parent_restoration_through_local_exit checked 4456ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/recast_parent_restoration_through_match_join_exit checked 4944ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/recast_parent_restoration_through_other_machine_exit checked 7732ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/recast_parent_restoration_through_other_state_exit checked 6204ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/recast_parent_restoration_through_parameter_exit checked 5758ms check-target:macos_arm64 @4a65db8ea7a5
-pass/facts/recast_parent_restoration_through_target_body_exit checked 6065ms check-target:macos_arm64 @4a65db8ea7a5
+pass/facts/recast_parent_restoration_case_backing_exit checked 6412ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_case_backing_nonmutating_exit checked 6356ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_forwarding_marker_exit checked 6178ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_preserved_end_exit checked 5639ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_through_call_result_exit checked 4929ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_through_const_name_exit checked 4674ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_through_field_exit checked 4643ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_through_local_exit checked 3727ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_through_match_join_exit checked 4203ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_through_other_machine_exit checked 10348ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_through_other_state_exit checked 5404ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_through_parameter_exit checked 10246ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_through_target_body_exit checked 10326ms check-target:macos_arm64 @8fce926f9735
 pass/facts/record_layout_geometry_through_call_result_exit checked 3578ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_const_name_exit checked 4172ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_field_exit checked 3172ms check-target:macos_arm64 @ccdb99ca2214
@@ -10148,7 +10152,7 @@ pass/facts/write_only_indexed_reborrow_through_target_body_exit checked 4526ms c
 pass/facts/write_only_indexed_reborrow_unary_selector_exit checked 3936ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_recast_through_call_result_exit checked 3577ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_recast_through_const_name_exit checked 3884ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_recast_through_field_exit checked 4668ms check-target:macos_arm64 @4a65db8ea7a5
+pass/facts/write_only_recast_through_field_exit checked 10064ms check-target:macos_arm64 @8fce926f9735
 pass/facts/write_only_recast_through_local_exit checked 3139ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_recast_through_match_join_exit checked 3613ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_recast_through_other_machine_exit checked 3267ms check-target:macos_arm64 @ccdb99ca2214
@@ -12398,8 +12402,8 @@ pass/recast/runtime_record_array_view_mutable_write_exit rejected 22967ms check-
 	cannot establish assignment invariants: source storage interpretation is unavailable
 	cannot establish assignment invariants: source storage interpretation is unavailable
 	cannot establish assignment invariants: source storage interpretation is unavailable
-pass/recast/runtime_restricted_field_call_arguments_exit checked 3655ms check-target:macos_arm64 @4a65db8ea7a5
-pass/recast/runtime_restricted_field_loans_exit checked 5041ms check-target:macos_arm64 @4a65db8ea7a5
+pass/recast/runtime_restricted_field_call_arguments_exit checked 5182ms check-target:macos_arm64 @8fce926f9735
+pass/recast/runtime_restricted_field_loans_exit checked 9177ms check-target:macos_arm64 @8fce926f9735
 pass/recast/runtime_scalar_parameter_shared_views_exit checked 15484ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_shared_domain_weakening_recast_exit checked 14074ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/runtime_shared_parameter_view_calls_exit checked 4120ms check-target:macos_arm64 @ccdb99ca2214
@@ -14120,7 +14124,7 @@ fail/borrow/borrow_carrying_field_reassignment_invalidated rejected 2075ms expec
 	statement 2 mutates `second` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrow/bounded_reference_cannot_lend_unrestricted_mutable rejected 11038ms expected @911f6617ba9e
 	cannot prove ensures contract for exit from replace at statement 3: position <= 1
-fail/borrow/bounded_reference_store_preserves_range rejected 2800ms expected @4a65db8ea7a5
+fail/borrow/bounded_reference_store_preserves_range rejected 6406ms expected @8fce926f9735
 	cannot prove ensures contract for exit from reset at statement 1: position <= 1
 fail/borrow/captured_selector_result_retires_written_bound rejected 1912ms expected @ccdb99ca2214
 	cannot prove index `chosen` is within length 4 in main::entry
@@ -14211,7 +14215,7 @@ fail/borrow/returned_write_destination_readable_access rejected 756ms expected @
 	machine `widen` state `entry` terminal expression expects `&i32`, got `call expression`
 fail/borrow/scalar_field_declared_range_requires_handback rejected 878ms expected @911f6617ba9e
 	machine `test` cannot lend restricted field `position` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/borrow/scalar_field_local_loan_requires_handback rejected 377ms expected @4a65db8ea7a5
+fail/borrow/scalar_field_local_loan_requires_handback rejected 226ms expected @8fce926f9735
 	machine `test` cannot lend restricted field `position` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/borrow/scalar_reborrow_does_not_preserve_arrival_bound rejected 2220ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from replace at statement 1: position <= 1
@@ -14443,7 +14447,7 @@ fail/borrows/case_payload_borrowed_affine_copy rejected 1892ms expected @ccdb99c
 	cannot transfer a non-copy value out of borrowed storage without replacing its owner in `inspect`, state `entry` (statement 2)
 fail/borrows/case_payload_duplicate_transfer rejected 2856ms unexpected @ccdb99ca2214
 	cannot use `choice::Present.value` in machine `inspect` state `entry` (statement 2) after `choice::Present.value` was transferred or consumed: it holds no value; read what is needed before the transfer or assign a whole value to `choice::Present.value` first
-fail/borrows/case_payload_shared_clone_mutation rejected 966ms expected @ccdb99ca2214
+fail/borrows/case_payload_shared_clone_mutation rejected 528ms expected @8fce926f9735
 	mutable argument `source` for state `clone` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/case_reference_from_immutable_bytes rejected 927ms expected @ccdb99ca2214
 	construction of `Selection` field `bytes` requires mutable source access; shared or immutable storage cannot supply it
@@ -15030,9 +15034,9 @@ fail/borrows/reference_record_index_predicate_invalid_store rejected 942ms expec
 fail/borrows/reference_record_mutable_shared_overlap rejected 58875ms expected @911f6617ba9e
 	statement 4 borrows `main.first.value` while local borrow `view` is still active (borrowed at statement 4; its last use is at statement 5)
 	`view` holds `main.first` as both mutable and read-only
-fail/borrows/reference_result_case_payload_missing_premise rejected 5767ms expected @00e93f641615+wt
-	cannot prove requires contract for call relay from main: choice == constructor:80:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Choice9:name:Some && choice.payload.target == constructor:78:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Cell9:name:Held (needs fact `choice == Choice::Some && choice.payload.target == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call has_value from main: observed.payload.target == constructor:78:package:ed07ddbac2ea0f7045e9e31f123cff36ff00ddd5bd1ff6fe4585b3fc8dc7f8a3::Cell9:name:Held (needs fact `cell == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/borrows/reference_result_case_payload_missing_premise rejected 24506ms expected @8fce926f9735
+	cannot prove requires contract for call relay from main: choice == constructor:80:package:ed1998ec80f94be73738ec7c9b812c72a25270fe6bfc1d33aeab410a2abe94c0::Choice9:name:Some && choice.payload.target == constructor:78:package:ed1998ec80f94be73738ec7c9b812c72a25270fe6bfc1d33aeab410a2abe94c0::Cell9:name:Held (needs fact `choice == Choice::Some && choice.payload.target == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call has_value from main: observed.payload.target == constructor:78:package:ed1998ec80f94be73738ec7c9b812c72a25270fe6bfc1d33aeab410a2abe94c0::Cell9:name:Held (needs fact `cell == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/region_store_live_sibling_reference checked 2393ms @ccdb99ca2214
 fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1806ms expected @ccdb99ca2214
 	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
@@ -15229,7 +15233,7 @@ fail/borrows/static_subject_delayed_loan rejected 1897ms expected @ccdb99ca2214
 fail/borrows/static_whole_record_field_overlap rejected 4392ms expected @ccdb99ca2214
 	state `write_other` receives `store` as mutable more than once
 	state `write_other` receives `store` while local borrow `field` is still active
-fail/borrows/stored_case_reference_state_widening rejected 863ms expected @ccdb99ca2214
+fail/borrows/stored_case_reference_state_widening rejected 230ms expected @8fce926f9735
 	argument `value` for state `entry` is declared `&mut` (`&mut Cell`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/borrows/stored_fixed_array_shared_write rejected 1508ms expected @ccdb99ca2214
 	mutable argument `buffer` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
@@ -16049,11 +16053,11 @@ fail/capabilities/undeclared_synchronous_invocation rejected 1502ms expected @2f
 	machine `EventProvider::fire_checked` does not refine `EventSource::fire`: its body may synchronously invoke binding `Handler`, but the requirement omits `invokes Handler` (requirement invokes: [])
 fail/capabilities/via_producer_without_target_body rejected 16700ms expected @ccdb99ca2214
 	ordinary external `via` producer `beeper_binding` has no body for target `windows_x86_64`
-fail/cases/borrowed_case_write_only_tag_read rejected 317ms expected @4a65db8ea7a5
+fail/cases/borrowed_case_write_only_tag_read rejected 229ms expected @8fce926f9735
 	machine `inspect` state `entry` reads write-only parameter `message`; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `inspect` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `inspect` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/cases/borrowed_case_wrong_pattern_owner rejected 597ms expected @95750e8d2f8d
+fail/cases/borrowed_case_wrong_pattern_owner rejected 221ms expected @8fce926f9735
 	case-membership operation lost its exact subject, carrier or case identity
 	match pattern does not select a record or case of its subject's exact carrier
 	match pattern does not select a record or case of its subject's exact carrier
@@ -17979,7 +17983,7 @@ fail/domains/view_local_qualified_store_unproven rejected 11051ms expected @ccdb
 	cannot prove the value assigned to `out_line` in Main::main is in domain `[u8]::Utf8`; a place declared `in [u8]::Utf8` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/domains/write_only_bare_helper_cannot_erase_field_default rejected 2376ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from corrupt at statement 1: holder.cell requires Cell::Before
-fail/domains/write_only_declared_field_domain_requires_restoration rejected 2040ms expected @4a65db8ea7a5
+fail/domains/write_only_declared_field_domain_requires_restoration rejected 1049ms expected @8fce926f9735
 	cannot prove default-domain field requirement for return from corrupt at statement 1: holder.cell requires Cell::Before
 fail/domains/write_only_stored_reference_requires_qualification rejected 1882ms expected @ccdb99ca2214
 	construction of `Holder` field `cell` is not proven in domain `Cell::Before` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
@@ -19566,23 +19570,23 @@ fail/facts/case_const_unequal_literals_subtraction_rejected rejected 647ms unexp
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/case_const_unequal_predicate_rejected rejected 75ms unexpected @ccdb99ca2214
 	data `Interval` case `Point` literal violates the case constraint: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/case_dependent_default_domain_through_call_result_rejected rejected 2209ms expected @4a65db8ea7a5
+fail/facts/case_dependent_default_domain_through_call_result_rejected rejected 2382ms expected @8fce926f9735
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_const_name_rejected rejected 3861ms expected @4a65db8ea7a5
+fail/facts/case_dependent_default_domain_through_const_name_rejected rejected 2022ms expected @8fce926f9735
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_field_rejected rejected 3485ms expected @4a65db8ea7a5
+fail/facts/case_dependent_default_domain_through_field_rejected rejected 6239ms expected @8fce926f9735
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_local_rejected rejected 3585ms expected @4a65db8ea7a5
+fail/facts/case_dependent_default_domain_through_local_rejected rejected 5528ms expected @8fce926f9735
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_match_join_rejected rejected 3978ms expected @4a65db8ea7a5
+fail/facts/case_dependent_default_domain_through_match_join_rejected rejected 5688ms expected @8fce926f9735
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_other_machine_rejected rejected 3252ms expected @4a65db8ea7a5
+fail/facts/case_dependent_default_domain_through_other_machine_rejected rejected 4473ms expected @8fce926f9735
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_other_state_rejected rejected 4302ms expected @4a65db8ea7a5
+fail/facts/case_dependent_default_domain_through_other_state_rejected rejected 4210ms expected @8fce926f9735
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_parameter_rejected rejected 4232ms expected @4a65db8ea7a5
+fail/facts/case_dependent_default_domain_through_parameter_rejected rejected 4209ms expected @8fce926f9735
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_dependent_default_domain_through_target_body_rejected rejected 2840ms expected @4a65db8ea7a5
+fail/facts/case_dependent_default_domain_through_target_body_rejected rejected 4426ms expected @8fce926f9735
 	cannot prove requires contract for call width_range from restored_width: span.lo <= span.hi && span.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/case_equality_through_call_result_compile rejected 831ms expected @ccdb99ca2214
 	exact arithmetic in machine `take` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -33120,7 +33124,7 @@ fail/recast/recast_slice_where_strengthening rejected 1013ms expected @911f6617b
 	machine `Main::main` state `main`: slice recast `[TooNarrow]` does not preserve exact byte tiling and source-to-target fact implication; raw storage cannot establish element facts
 fail/recast/reference_let_pun_requires_recast rejected 1862ms expected @ccdb99ca2214
 	machine `Bits::implicit_pun` state `implicit_pun`: reference initializer type `i64` must match the stated `&f32`; re-viewing a place's bytes under another shape is spelled `&x as &f32` (§5b recast)
-fail/recast/restricted_field_mutable_call_cannot_erase_invariant rejected 710ms expected @4a65db8ea7a5
+fail/recast/restricted_field_mutable_call_cannot_erase_invariant rejected 917ms expected @8fce926f9735
 	machine `main` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/recast/returned_recast_requires_declared_access rejected 731ms expected @ccdb99ca2214
 	machine `widen` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
@@ -34415,7 +34419,7 @@ run/borrows/returned_element_from_offset_view checked 2915ms check-target:macos_
 run/borrows/returned_image_nested_arrival checked 1013ms check-target:macos_arm64 @04f5793fae62
 run/borrows/returned_image_nested_field checked 1382ms check-target:macos_arm64 @04f5793fae62
 run/borrows/returned_indexed_case checked 2094ms check-target:macos_arm64 @efcd7fe73ad0
-run/borrows/returned_indexed_case_descriptor_field checked 2097ms check-target:macos_arm64 @efcd7fe73ad0
+run/borrows/returned_indexed_case_descriptor_field checked 3331ms check-target:macos_arm64 @8fce926f9735
 run/borrows/runtime_index_bounded_borrow checked 65385ms check-target:macos_arm64 @911f6617ba9e
 run/borrows/runtime_index_scalar_write_descriptor_result checked 2881ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/shared_field_borrow checked 11214ms check-target:macos_arm64 @ccdb99ca2214
@@ -34424,7 +34428,7 @@ run/borrows/shared_local_borrow checked 9392ms check-target:macos_arm64 @ccdb99c
 run/borrows/shared_recast_borrow checked 9622ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/shared_record_loan_member_read checked 9917ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/shared_runtime_index_borrow checked 45512ms check-target:macos_arm64 @911f6617ba9e
-run/borrows/stored_case_reference_state checked 3138ms check-target:macos_arm64 @ccdb99ca2214
+run/borrows/stored_case_reference_state checked 3276ms check-target:macos_arm64 @8fce926f9735
 run/borrows/stored_subview_identity checked 3763ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/stored_subview_nested_call_result checked 3209ms check-target:macos_arm64 @ccdb99ca2214
 run/borrows/stored_subview_repeated_updates checked 3256ms check-target:macos_arm64 @ccdb99ca2214
@@ -34473,7 +34477,7 @@ run/calls/qualified_literal_return_exit checked 2852ms check-target:macos_arm64 
 run/calls/recursive_machine_transition_scalar_arguments_exit checked 4449ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/resultless_scalar_parameters checked 9529ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/retained_implicit_entry_selection checked 1850ms check-target:macos_arm64 @44449d36ba89
-run/calls/returned_reference_case_write_then_view_exit checked 2787ms check-target:macos_arm64 @ccdb99ca2214
+run/calls/returned_reference_case_write_then_view_exit checked 2962ms check-target:macos_arm64 @8fce926f9735
 run/calls/runtime_float_distinct_operand_calls_exit rejected 8529ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `observe` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 run/calls/runtime_float_normalized_operand_single_evaluation_exit rejected 9316ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -34788,5 +34792,5 @@ fail/facts/case_predicate_wrong_named_type_rejected rejected 15863ms expected @a
 	`as ... in Typed` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 pass/facts/case_predicate_guard_effects_exit checked 53779ms check-target:macos_arm64 @a91a8de86514+wt
 pass/facts/case_predicate_named_coverage_exit checked 21533ms check-target:macos_arm64 @a91a8de86514+wt
-pass/facts/case_predicate_restoration_exit checked 4541ms check-target:macos_arm64 @4a65db8ea7a5
+pass/facts/case_predicate_restoration_exit checked 4811ms check-target:macos_arm64 @8fce926f9735
 pass/facts/case_predicate_zero_exit checked 22678ms check-target:macos_arm64 @a91a8de86514+wt

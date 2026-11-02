@@ -195,3 +195,13 @@ producer is `d1bc08fc53210f0fddffec513b887a9d3686ca44` plus compiler patch
 `453b9476fa0e86ebb9d7f31f5288688e157d164570c22949e62df71be5ec9daa`,
 executable SHA-256
 `734b7cf202544897579aa655310bd9dc21248b06d2fdb7bad675d69efb7bc2fb`.
+
+
+Final-code corpus qualification uses clean checkpoint
+`8fce926f97351853c0165602a991352592ef43e6`, optimized runner SHA-256
+`0a6461f6c5460dd3513139405eeb30a6a4627190acba54fd0f9668d82925ea9c`.
+Its 66-fixture check records 32 checked positives, 33 intended rejects, and
+one attributed baseline lowering refusal. The execution selection records
+31 native/Terminal agreements, one compile-only result, and that same refused
+local-loan fixture. The execution gate exits 3 for the retained baseline failure;
+no execution or repaired acceptance is claimed for it.
