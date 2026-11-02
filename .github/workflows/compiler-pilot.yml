@@ -108,9 +108,9 @@ jobs:
         run: |
           gh run download 41451849306 --name compiler-pilot-linux_x86_64-1f3c4da0217eac2b7401cc0d3b3e0186d954e7e2-1 --dir build/generic-retained-input
           git fetch --depth=1 origin 1f3c4da0217eac2b7401cc0d3b3e0186d954e7e2
-      - name: Observe frozen generic-case sources without Rust
+      - name: Qualify the selected generic-case row without Rust
         if: github.event_name == 'workflow_dispatch'
-        run: python tools/build_slot.py -- python tools/ci/generic_case_baseline.py
+        run: python tools/build_slot.py -- python tools/ci/generic_case_migration1.py
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
