@@ -3,10 +3,10 @@
 //! One encoding owns a single byte image and a single decoded-footprint
 //! table. A row names its instruction bytes as an offset span into that
 //! image and its decoded footprint as a handle into that table, so a row
-//! owns no heap allocation of its own: an encoding of 4000 instructions
-//! holds two growable buffers rather than 8000 independent ones, and
-//! cloning or comparing an encoding walks contiguous memory instead of
-//! chasing one indirection per instruction.
+//! owns no byte allocation of its own. Equal decoded footprints share an
+//! immutable payload, including their operand/effect vectors, while every
+//! row keeps a distinct slot. Cloning shares those payloads; mutating a
+//! proposed row detaches only that slot before independent replay.
 
 use crate::SelectedFormInternalMachineFixup;
 use register_model::{RegisterUnitId, RegisterViewId};
@@ -50,7 +50,7 @@ pub struct SelectedFormDecodedFootprintHandle(u64);
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SelectedFormEncodedRowStore {
     bytes: Vec<u8>,
-    footprints: Vec<SelectedFormDecodedFootprint>,
+    footprints: super::footprints::SharedFootprints,
 }
 
 impl SelectedFormEncodedRowStore {
@@ -74,8 +74,8 @@ impl SelectedFormEncodedRowStore {
             byte_count: bytes.len() as u64,
         };
         self.bytes.extend_from_slice(bytes);
-        self.footprints.push(footprint);
-        let handle = SelectedFormDecodedFootprintHandle(self.footprints.len() as u64);
+        let index = self.footprints.intern(footprint);
+        let handle = SelectedFormDecodedFootprintHandle(index as u64 + 1);
         (span, handle)
     }
 

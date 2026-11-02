@@ -234,6 +234,23 @@ fn encode_row_contents(
     let Some(footprint) = footprint else {
         return;
     };
+    encode_footprint(hasher, footprint);
+}
+
+/// An interning bucket, never admission or a replacement for exact equality.
+/// Reuse the canonical field encoder so new footprint fields have one owner.
+pub(super) fn footprint_bucket(footprint: &SelectedFormDecodedFootprint) -> [u8; 32] {
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.selected-form-decoded-footprint.storage.v1",
+    );
+    encode_footprint(&mut hasher, footprint);
+    hasher.finish()
+}
+
+fn encode_footprint(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    footprint: &SelectedFormDecodedFootprint,
+) {
     encode_views(hasher, &footprint.register_reads);
     encode_views(hasher, &footprint.register_writes);
     encode_units(hasher, &footprint.implicit_defs);
