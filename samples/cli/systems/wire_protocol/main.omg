@@ -1,4 +1,4 @@
-use omega_language_std::wire;
+use omega::language::core::wire;
 use omega::language::core::reflect;
 use omega::language::core::numeric_conversion;
 // Wire protocol sample: encode a sensor packet containing a nested header,
@@ -155,13 +155,15 @@ machine AuthoredCompactBinary::plan(compact_binary: &mut AuthoredCompactBinary, 
 machine AuthoredCompactBinary::evaluate(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64) -> Plan
 requires 1 <= fuel
 requires fuel <= 128
-terminates by fuel
 {
     transition { _ -> fill(compact_binary, schema, fuel, 0) }
 
+    // The fuel witness belongs to the recursive fill/place component.
     machine fill(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64, index: i64 in Wrapping) -> Plan
     requires 1 <= fuel
-    requires fuel <= 128 {
+    requires fuel <= 128
+    terminates by fuel
+    {
         transition fuel > 1 && index >= 0 && index < 32 && index < schema.field_count {
             true -> place(compact_binary, schema, fuel - 1, index)
             _ -> done(compact_binary, schema)

@@ -144,10 +144,7 @@ pub(crate) fn emit<'source>(
             flow_facts(checked)
                 .ownership
                 .selection_sources
-                .span(receipt.sources)
-                .ok_or(LoweringError::Unsupported(
-                    "owned selection source span is stale",
-                ))?
+                .span_or_empty(receipt.sources)
                 .iter()
                 .enumerate()
                 // The checked roster already carries reverse declaration

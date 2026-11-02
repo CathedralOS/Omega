@@ -1,4 +1,4 @@
-use numerics::arrays::shape_layout_contract;
+use omega::language::core::matrix_layout;
 use omega_language_std::console;
 data Main { }
 machine Main::main(context: &mut Main) reaches Console {

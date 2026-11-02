@@ -7,10 +7,12 @@
 //! and retained pointer/length ABI. Mutable views stage fixed-extent writes into
 //! the original backing. Neither protocol grants allocation tails or resizing.
 //! The host explicitly assumes equivalence of these offered implementations;
-//! checked library wrappers remain guest code, and no real host I/O occurs here.
-//! The same transfer serves retained or discarded counts. Linux kernel errors
-//! are not libc errno: unknown descriptors and host replay failures reject,
-//! rather than manufacturing a raw kernel status or touching OS descriptors.
+//! checked library wrappers remain guest code. Standard streams perform no real
+//! host I/O. Explicit matching-host filesystem delegation separately supplies
+//! kernel writes over the same captured bytes and an owned guest descriptor
+//! namespace. Its actual syscall status preserves errors and partial writes.
+//! The same transfer serves retained or discarded counts. Finite replay errors
+//! cannot manufacture Linux kernel statuses or touch arbitrary OS descriptors.
 //! Versioned Linux libc write uses the same private output and captured backing,
 //! with its own size_t/ssize_t ABI. Unsupported descriptors decline before output;
 //! this offer supplies neither libc read nor observable TLS errno state.
@@ -44,6 +46,7 @@ pub(super) struct DescriptorIoImport<'input> {
     contract: admission::DescriptorContract,
     input: Option<Arc<Mutex<Box<dyn Read + Send + 'input>>>>,
     output: BufferedStreams,
+    linux_filesystem: Option<super::filesystem::LinuxFilesystemWrite>,
 }
 
 impl<'input> DescriptorIoImport<'input> {
@@ -56,8 +59,9 @@ impl<'input> DescriptorIoImport<'input> {
         storage_layouts: &[NativeBorrowedStorageLayout],
         input: Option<Arc<Mutex<Box<dyn Read + Send + 'input>>>>,
         output: BufferedStreams,
+        filesystem: &super::filesystem::FilesystemContext,
     ) -> Result<Option<Self>, TerminalRuntimeError> {
-        let adapter = Self::for_filesystem(
+        let mut adapter = Self::for_filesystem(
             program,
             declaration,
             binding,
@@ -65,6 +69,19 @@ impl<'input> DescriptorIoImport<'input> {
             input,
             output,
         )?;
+        if let Some(adapter) = &mut adapter {
+            if matches!(
+                (adapter.contract.abi, adapter.contract.operation),
+                (DescriptorAbi::LinuxKernel, DescriptorOperation::Write)
+            ) {
+                adapter.linux_filesystem = super::filesystem::LinuxFilesystemWrite::admit(
+                    filesystem,
+                    program,
+                    declaration,
+                    binding,
+                );
+            }
+        }
         if adapter.as_ref().is_some_and(|adapter| {
             matches!(adapter.contract.operation, DescriptorOperation::Read)
                 && adapter.input.is_none()
@@ -96,6 +113,7 @@ impl<'input> DescriptorIoImport<'input> {
             contract,
             input,
             output,
+            linux_filesystem: None,
         }))
     }
 
@@ -314,6 +332,13 @@ impl TerminalEffectHandler for DescriptorIoImport<'_> {
                     && matches!(self.contract.abi, DescriptorAbi::WindowsCrt)
                 {
                     return self.result(-1);
+                }
+                if !matches!(*descriptor, 1 | 2) {
+                    if let Some(filesystem) = &self.linux_filesystem {
+                        let descriptor =
+                            i32::try_from(*descriptor).map_err(|_| invalid_operands())?;
+                        return self.result(filesystem.write(descriptor, &bytes[..count])?);
+                    }
                 }
                 self.output.append(*descriptor, &bytes[..count])?;
                 Ok(result)

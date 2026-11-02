@@ -3,8 +3,8 @@
 //! pointer-sized carrier never authorizes guessed backing, padding or tails.
 //! Linux syscall numbers are target data (syscall_64.tbl and asm-generic/unistd.h),
 //! not names of source requirements. The normalized syscall ABI currently admits
-//! only one-word parameters, so borrowed pointer/length aggregates stay unavailable
-//! there rather than receiving a made-up register split.
+//! complete integer carriers, including explicit pointer/length pairs. The
+//! evaluated plan must retain both words; capture still owns access bounds.
 
 use calling_conventions::{CallSignature, ValueShape};
 use runtime_abi::NativeBorrowedStorageLayout;
@@ -76,10 +76,10 @@ pub(super) fn admit(
             DescriptorBuffer::Scalar(*scalar)
         }
         Some(StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView { access }))
-            // The selected 64-bit C plan carries this exact pair as buffer
-            // pointer and size_t. Windows CRT has a 32-bit count; a syscall
-            // admits one-word authored operands instead of this C pair.
-            if matches!(abi, DescriptorAbi::DarwinLibSystem | DescriptorAbi::LinuxLibc)
+            // The selected 64-bit entry carries this exact pointer/count pair.
+            // Its evaluated plan owns both physical words; the view owns bounds.
+            // Windows CRT instead requires its independent 32-bit count.
+            if matches!(abi, DescriptorAbi::DarwinLibSystem | DescriptorAbi::LinuxLibc | DescriptorAbi::LinuxKernel)
                 && access.is_none_or(|access| access == formal.access) =>
         {
             DescriptorBuffer::Bytes

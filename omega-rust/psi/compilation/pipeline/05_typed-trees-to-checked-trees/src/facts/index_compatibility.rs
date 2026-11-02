@@ -23,7 +23,7 @@ use index_terms::{bound_index_arguments_equal, is_closed_index_argument};
 use instance_collection::{
     CompatibilityKey, StateCallIndex, append_call_result_ensured_instances,
     collect_type_indexed_instances, construction_field_type, expression_indexed_instances,
-    literal_element_type, selected_operation_count,
+    literal_element_type, selected_operation_count, selected_operation_licenses,
 };
 use labels::compatibility_name;
 pub(crate) use substitutions::{
@@ -294,10 +294,20 @@ impl CompatibilityScan<'_> {
                     if !self.unresolved.contains(&key) {
                         self.unresolved.push(key);
                         let name = compatibility_name(self.program, actual, expected, point);
+                        let licenses = selected_operation_licenses(
+                            self.program,
+                            actual.arguments.iter().chain(&expected.arguments).copied(),
+                        );
+                        let licensed = if licenses.is_empty() {
+                            String::new()
+                        } else {
+                            format!("; selected operations: {}", licenses.join("; "))
+                        };
                         self.diagnostics.push(Diagnostic::error(format!(
                         "index compatibility condition `{name}` is not established: actual `{}` \
                          and expected `{}` are distinct normalized instances; closed evaluation, \
-                         licensed normalization, or an exact local equality fact is required",
+                         licensed normalization, or an exact local equality fact is required\
+                         {licensed}",
                         actual.label, expected.label,
                     )));
                     }

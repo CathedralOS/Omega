@@ -31,6 +31,7 @@
 //! locks; interning and memo publication use separate lock scopes.
 
 use super::constraint_identity::{atom, compound};
+use super::coordinates::CoordinateTag;
 use super::{NormalizedResultDispatchSet, TypeIdentityId};
 use crate::TypedTrees;
 use crate::machine::Machine;
@@ -230,11 +231,11 @@ impl CallableIdentityTable {
             return *interned;
         }
         let text: Box<str> = compound(
-            "named-callable",
+            CoordinateTag::NamedCallable,
             [
-                atom("path", &parts.path),
-                atom("parameters", &parts.parameters),
-                atom("result-dispatch", &dispatch_text),
+                atom(CoordinateTag::Path, &parts.path),
+                atom(CoordinateTag::Parameters, &parts.parameters),
+                atom(CoordinateTag::ResultDispatch, &dispatch_text),
             ],
         )
         .into();

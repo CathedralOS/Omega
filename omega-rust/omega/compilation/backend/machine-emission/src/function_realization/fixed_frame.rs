@@ -20,7 +20,9 @@ use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMach
 use resolved_layout_to_resolved_layout::{
     ResolvedLayoutOptimization, validate_resolved_layout_optimization,
 };
-use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use selected_form_encoding_to_resolved_layout::{
+    StagedOptimizedResolvedSelectedFormLayout, validate_optimized_resolved_selected_form_layout,
+};
 use selected_instructions_to_register_homes::RetainedAllocation;
 
 /// Bind the pipeline's produced frame, encoding and layout to one allocation.
@@ -107,12 +109,17 @@ pub(crate) fn validate_fixed_frame_function_relative_realization(
         &staged.encoding,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    validate_resolved_layout_optimization(
+    validate_optimized_resolved_selected_form_layout(
         selected,
         &staged.machine,
         physical,
         &staged.encoding,
         &staged.baseline_layout,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    validate_resolved_layout_optimization(
+        physical,
+        staged.baseline_layout.program(),
         &current
             .selections()
             .project_phase(OptimizationExecutionPhase::FunctionRelativeLayout),

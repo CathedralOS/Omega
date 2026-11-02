@@ -154,3 +154,125 @@ about the copy. [Lifetimes](wiki/spec/language/lifetimes.md) (line 101) says
 integer snapshots are not live storage. No passage names scalar copy guards or
 requires a restore to break a relation. These establish that facts follow
 captured values and storage footprints but leave the restore case open.
+
+### 3. Does a coerced `dyn` selector narrow its call to the selected conformance's envelope, or keep the requirement ceiling?
+
+Two accepted passages disagree. [Dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md)
+(lines 81-93) lists service reach, suspension, blocking, failure, termination
+and crash routes as per-requirement envelope axes and says "Coercion retains
+the selected conformance's exact envelope"; `suspend` and `block`
+acknowledgements "use the retained envelope, not the wider base declaration".
+[Effects](wiki/spec/language/effects.md) (lines 184-187) says dynamic and
+boundary calls "retain pinned requirement ceilings, not a narrower provider
+body eventually selected for them", and that their operational
+acknowledgements "still use the requirement envelope".
+
+Option A, the selector narrows: a selection known at check time, such as
+`QuietSource as dyn Source` carried through locals, fields, constants, private
+calls, joins and nested machines, contributes the selected conformance's
+published rows. An unknown selector (an unannotated public `dyn` parameter)
+keeps the requirement ceiling, and "eventually selected" in effects.md reads
+as a selection made by Build or at run time. `samples/cli/facts/dynamic_suspension`
+(suspension and blocking) and `samples/cli/facts/dynamic_selected_reach`
+(service reach) implement this reading. The `dynamic/` places of
+`samples/cli/facts/unannotated_direct_boundary_call` now reach `Mark` from the
+selected body, because their silent selection no longer carried the
+requirement's `Mark` row.
+
+Option B, the ceiling stays: every `dyn` call contributes its requirement's
+whole envelope, whatever the coercion selected. dynamic_dispatch.md's
+"retained envelope" then means the requirement's envelope, and both fact rows
+above, with their pinned fixtures, are reverted.
+
+In both options public and annotated ceilings, Build-selected providers and
+unknown selectors keep the requirement row; only check-time coercions differ.
+
+### 4. What evidence lets open index normalization drop an identity element (`N + 0`, `N * 1`)?
+
+[Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
+lists zero/one identities among the normalizations a selected conformance
+licenses, each by its own law, and says connecting nullary algebra operations to
+constructor constants requires ordinary unfolding or citation. An open index
+spells an identity element as an integer leaf, `N + 0` or `N * 1`, and its
+expression fragment has no call, so no index can apply `zero()` or `one()`.
+`source/library/core/algebra.omg` states the identities over those nullary slot
+applications (`add(a, zero()) == a`) and says the checker has no compiler-known
+zero/one form. On base `05a6f6af37e` both spellings of an identity law leave
+`Indexed<N + 0>` and `Indexed<N>` distinct (`index compatibility condition ...
+is not established`): a trait whose laws name the literals (`add(a, 0) == a`,
+`multiply(a, 1) == a`) and a trait whose laws name the slot applications
+(`add(a, zero()) == a`). What evidence lets the normalizer drop a `0` or `1`
+leaf?
+
+Option A, the law names the literal: an identity law slot over the integer
+literal itself, detected by shape like commutativity and recorded on the
+selection beside the other laws. No connection between a nullary slot and a
+constant is needed because the law is stated about the leaf. The trait then
+fixes its operand to a numeric type, and left and right identity are separate
+laws.
+
+Option B, the library form plus a connection law: `CommutativeSemiring`'s
+identity laws over `zero()` and `one()`, plus a law slot `zero() == 0` (and
+`one() == 1`) that connects each nullary application to its constant. The
+normalizer drops a leaf only when the selected conformance declares both slots.
+
+Option C, no normalizer rule: identity elimination stays an ordinary
+established equality (a cited identity law and a local fact `N + 0 == N`), and
+open index normalization never removes a leaf. `N + 0` and `N` remain distinct
+instances whose compatibility needs that fact.
+
+The answer also fixes whether identities compose with distributivity
+(`A * (B + 1)` against `A * B + A`).
+
+Contracts checked: [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
+names the identities and says nothing of their shape or of how an integer leaf
+meets a nullary slot. [Domains](wiki/spec/language/domains.md) says computed open
+indices retain their selected operation and normalized expression and that
+compatibility is a verification condition, not evaluation in type equality.
+[Canonical static identities](wiki/spec/language/evaluation.md#canonical-static-identities)
+keeps open symbolic indices as normalized artifact data and keeps machine
+evaluation out of type equality, which rules out evaluating `zero()` to `0`
+inside an identity. [Conformances](wiki/spec/language/conformances.md) says the
+index checker consumes selected evidence and does not infer an algebra from
+operator punctuation. None says how a literal leaf acquires an identity law.
+`samples/cli/facts/open_index_distributivity` records the distributivity
+evidence this question leaves out.
+
+### 5. Is the expanded sum of products the canonical form of an open index under a declared distributivity law?
+
+[Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
+says distributivity requires its law, that changing the canonical form is an
+explicit language compatibility event, and that index normalizer version 3
+retains the exact selected provider. Version 3 sorted operands under
+commutativity and flattened under associativity, and ignored a declared
+distributivity law. The compiler now applies a declared left-distributivity law
+by expanding `x * (y + z)` to `x * y + x * z` once per summand, flattening and
+sorting the result under the addition's own laws, and expanding a nested sum in
+the same way. It keeps `normalizer_version: 3` and caps an expansion at 64
+summands, keeping the unexpanded form beyond. A trait that declares
+distributivity in both directions (a distributive lattice) expands in neither.
+Which expressions are identified depends only on the laws a conformance
+licenses; this question settles the representative text, the version label and
+the cap.
+
+Option A, expansion is canonical and the version advances to 4: amend the
+sentence naming version 3 and record the compatibility event.
+
+Option B, expansion is canonical and the version stays 3: no recorded form
+changes, because an expression's form moves only when its trait declares a
+distributivity law, which no normalizer consulted until now, and the library's
+only such trait (`CommutativeSemiring`) has no index customer.
+
+Option C, another representative (factoring, or a polynomial with explicit
+coefficients): every form the implementation produces under the law changes.
+
+Contracts checked: [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
+fixes the licensing and the version provenance but names no representative.
+`source/library/core/algebra.omg` describes the proof engine's tier-2
+normalizer as expanding a capped natural-coefficient polynomial form; that is
+commentary on the proof side, not a rule for index identity. [Domains](wiki/spec/language/domains.md)
+says computed open indices retain a normalized expression and that exact
+operation and law identities survive generic substitution and interface
+publication, without defining the expression's form.
+`samples/cli/facts/open_index_distributivity` pins the expansion with its reject
+twins.

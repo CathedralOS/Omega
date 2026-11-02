@@ -1,5 +1,5 @@
 module domain::codec;
-use omega_language_std::math;
+use omega::language::core::math;
 use domain::model::SensorBlock;
 use domain::model::SensorStream;
 use domain::model::InputBuffer;

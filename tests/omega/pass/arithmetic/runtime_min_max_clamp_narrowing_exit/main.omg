@@ -1,4 +1,4 @@
-use omega_language_std::math;
+use omega::language::core::math;
 
 // RUN canary (decision 17 S4 narrowing): min/max clamp narrowing lets a clamped
 // value feed EXACT arithmetic. `main.seed` is a full-range i32 (opaque). `max(_, 0)`

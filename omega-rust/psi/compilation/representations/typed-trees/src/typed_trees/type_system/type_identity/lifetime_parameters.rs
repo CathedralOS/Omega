@@ -4,6 +4,7 @@
 
 use super::constraint_identity::{atom, compound};
 use crate::TypedTrees;
+use language_semantics::type_identity::vocabulary::{Label, RegionForm};
 use symbols::SymbolHandle;
 
 /// Local semantic identity, not a portable artifact commitment or a loan.
@@ -64,11 +65,11 @@ pub fn portable_lifetime_parameter_identity(
     }
     .qualify_non_binder_name(program, owner, declaration);
     Some(compound(
-        "region",
+        RegionForm::Region,
         [
-            atom("kind", kind),
-            atom("declaration", &coordinate),
-            atom("ordinal", &region.ordinal.to_string()),
+            atom(Label::Kind, kind),
+            atom(Label::Declaration, &coordinate),
+            atom(Label::Ordinal, &region.ordinal.to_string()),
         ],
     ))
 }

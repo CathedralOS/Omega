@@ -215,12 +215,17 @@ impl TerminalExecution<'_> {
         else {
             return Err(malformed());
         };
-        let bytes = allocation.bytes.get_mut(start..end).ok_or_else(malformed)?;
+        let mut backing = allocation
+            .bytes
+            .write()
+            .map_err(TerminalInterpretError::ResidentStorage)?;
+        let bytes = backing.get_mut(start..end).ok_or_else(malformed)?;
 
         // All refusing work is over. No user code runs in this commit and none
         // of its operations can fail after the first write. Write only the image
         // footprint: the exact original window and unused tail remain owned.
         bytes.copy_from_slice(prepared.image.bytes());
+        drop(backing);
         let resident = self
             .provider_storage
             .residents
