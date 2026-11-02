@@ -46,7 +46,7 @@ save('source-inputs.json',dict(revision=revision,tree=git('rev-parse','HEAD^{tre
 sdk={k:v for k,v in inputs.items() if k.startswith('source/library/')};save('sdk-inputs.json',sdk)
 for p in sdk:
  dest=D/'sdk-snapshot'/p;dest.parent.mkdir(parents=True,exist_ok=True);shutil.copy2(ROOT/p,dest)
-lint,lint_seconds=run(['cargo','clippy','--locked','-p','validation','--lib','--','-D','warnings'],'validation-clippy')
+lint,lint_seconds=run(['cargo','clippy','--locked','-p','validation','--lib','--no-deps','--','-D','warnings'],'validation-clippy')
 save('validation-clippy.json',dict(returncode=lint.returncode,seconds=lint_seconds))
 if lint.returncode:print(lint.stderr,file=sys.stderr);sys.exit(lint.returncode)
 producer=prepare_producer(OUT,need_runner=False)
