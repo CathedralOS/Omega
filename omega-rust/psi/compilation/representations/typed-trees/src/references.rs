@@ -2433,6 +2433,7 @@ fn visit_statement(
                 .statement_table
                 .transition_patterns(transition.patterns)
             {
+                visit_type_reference(program, retained, pattern.pattern.application_type);
                 visit_expression(program, retained, pattern.pattern.head);
             }
 

@@ -182,10 +182,29 @@ pub(crate) fn validate_for_subject(
     let Some(case) =
         structural_match_pattern_case_for_subject(program, machine, state, subject, pattern)
     else {
-        diagnostics.push(
-            Diagnostic::error(
-                "match pattern does not select a record or case of its subject's exact carrier",
+        let head = match pattern {
+            MatchPattern::Value(head) => head,
+            MatchPattern::Destructure(pattern) => pattern.head,
+            MatchPattern::Wildcard => Default::default(),
+        };
+        let selected = expression_table(program).name_path_node(head).map(|path| {
+            (
+                expression_table(program)
+                    .name_path_members(path.members)
+                    .iter()
+                    .map(|name| name.as_str())
+                    .collect::<Vec<_>>()
+                    .join("::"),
+                path.symbol,
             )
+        });
+        let actual = super::declared_value_type(program, machine, state, subject)
+            .map(|reference| program.type_reference_table.type_reference(reference));
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "match pattern does not select a record or case of its subject's exact carrier in `{}::{}`: selected {selected:?}, subject {subject:?}, type {actual:?}",
+                machine.name, state.name,
+            ))
             .with_source_span(source_span),
         );
         return None;
