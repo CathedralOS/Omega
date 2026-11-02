@@ -13,6 +13,7 @@
 //! only identical membership and authority present in every covered arm survive.
 //! This publication transports authorized provenance, never establishes it.
 use crate::flow::expression::Execution;
+use crate::flow::expression::value_observations::OwnedValueObservation;
 use crate::flow::state_values::qualifications::CarriedPredicate;
 use arena::HandleSpan;
 use checked_trees::expression::ExpressionHandle;
@@ -85,7 +86,8 @@ impl Execution<'_, '_, '_> {
         let mut case_coverage = Vec::new();
         let mut shared_predicates: Option<Vec<CarriedPredicate>> = None;
         let mut shared_scalar: Option<Option<ScalarValue>> = None;
-        let mut shared_members: Option<Vec<_>> = None;
+        let mut shared_members: Option<Vec<(Vec<facts::PlaceSegment>, OwnedValueObservation)>> =
+            None;
         let mut shared_qualifications = None;
         let mut value_coverage = false;
         let mut alternatives = HandleSpan::empty();
