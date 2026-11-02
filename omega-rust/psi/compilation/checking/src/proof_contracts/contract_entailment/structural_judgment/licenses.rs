@@ -25,14 +25,18 @@ pub(super) struct RingLicense {
     pub(super) add_machine: SymbolHandle,
 }
 
-/// Shape-detected commutativity/associativity law slots one trait declares
-/// over `requirement`. The names are the trait's own law requirement slots;
-/// whether a carrier satisfies them is the supplied conformance's checked
-/// business, not this judgment's.
+/// Shape-detected commutativity, associativity and left-distributivity law
+/// slots one trait declares over `requirement`. The names are the trait's own
+/// law requirement slots; whether a carrier satisfies them is the supplied
+/// conformance's checked business, not this judgment's. A slot that states a
+/// premise is not collected: its equality is conditional.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct DeclaredIndexAlgebraLaws {
     pub commutativity: Vec<String>,
     pub associativity: Vec<String>,
+    /// The additive requirements the queried requirement distributes over,
+    /// named by the left-distributivity law slots that mention both.
+    pub distributivity: Vec<String>,
 }
 
 /// The trait-level half of the algebra license: `requirement`'s commutativity
@@ -95,6 +99,18 @@ pub(crate) fn declared_index_algebra_laws(
 ) -> DeclaredIndexAlgebraLaws {
     let mut laws = DeclaredIndexAlgebraLaws::default();
     for law in program.trait_machine_signatures(trait_definition) {
+        // A premise makes the equality hold only under it, and a rewrite of an
+        // index expression has no premise to discharge, so a conditional law
+        // licenses nothing.
+        if program
+            .state_signature_contracts(law)
+            .iter()
+            .any(|contract| {
+                contract.kind == typed_trees::signature::SignatureContractKind::Requires
+            })
+        {
+            continue;
+        }
         let parameters = program
             .state_signature_parameters(law)
             .iter()
@@ -106,6 +122,13 @@ pub(crate) fn declared_index_algebra_laws(
             }
             if associativity_shape(&left, &right, &parameters).as_deref() == Some(requirement) {
                 laws.associativity.push(law.name.as_str().to_owned());
+            }
+            if let Some((multiplication, addition)) =
+                distributivity_shape(&left, &right, &parameters)
+                && multiplication == requirement
+                && !laws.distributivity.contains(&addition)
+            {
+                laws.distributivity.push(addition);
             }
         });
     }
@@ -622,6 +645,11 @@ fn distributivity_shape(
         return None;
     };
     if mul_op == add_op {
+        return None;
+    }
+    // Like the other shapes, a law over repeated operands states only a
+    // special case; `R(a, S(a, a)) == S(R(a, a), R(a, a))` is not distributivity.
+    if a == b || b == c || a == c {
         return None;
     }
     for name in [a, b, c] {

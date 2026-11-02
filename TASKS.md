@@ -402,10 +402,13 @@ retired-syntax deletions to completion.
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
   [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
   [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-  - Extend `OpenIndexOperationSelection` in
-    `omega-rust/psi/compilation/checking/src/value_custody/type_references/open_index_expressions.rs`
-    with distributivity and zero/one law evidence surviving
-    `monomorphization::finalize_domain_instance_identities`.
+  - Record zero/one identity law evidence on `OpenIndexOperationSelection`
+    (`omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/values/expression/index_authority.rs`),
+    normalize `N + 0` and `N * 1` under it, and carry it through
+    `monomorphization::finalize_domain_instance_identities`. The law shape
+    waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 4; question 5
+    asks whether the landed distributivity expansion advances the normalizer
+    version.
   - Migrate library/corpus/embedded declarations off the `operator` introducer
     ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated

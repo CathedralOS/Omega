@@ -37,9 +37,15 @@ pub struct OpenIndexOperationSelection {
     pub algebra_trait: SymbolHandle,
     pub algebra_requirement: String,
     pub algebra_alias: Option<String>,
-    /// Reordering and reassociation consume different checked law slots.
+    /// Reordering, reassociation and expansion each consume a different checked
+    /// law slot of `algebra_trait`; none implies another.
     pub commutativity_licensed: bool,
     pub associativity_licensed: bool,
+    /// The additive requirements of `algebra_trait` this requirement distributes
+    /// over on the left, by the trait's own `R(a, S(b, c)) == S(R(a, b), R(a, c))`
+    /// law slots. The consuming conformance proves the law, so the evidence is
+    /// the pair of selections sharing one provider, never the spelled `*` and `+`.
+    pub distributes_over: Vec<String>,
 }
 
 impl OpenIndexOperationSelection {
