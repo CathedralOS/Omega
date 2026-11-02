@@ -225,7 +225,10 @@ pub fn selected_call_arguments<'program>(
             let source_machine = program
                 .machine_by_symbol(dispatch.realization_machine)
                 .ok_or("selected Value argument lost its authored machine")?;
-            let source_binders = program.machine_type_parameters(source_machine);
+            let source_binders = program.requirement_callable_parameters(
+                declared,
+                &program.machine_callable_parameters(source_machine),
+            );
             let declared_binders = program.requirement_invocation_contract_parameters(declared);
             if source_binders.len() != declared_binders.len() {
                 return Err("selected Value argument lost its admitted member telescope".into());
