@@ -1328,6 +1328,9 @@ impl<'a> Replay<'a> {
             return Some(summary);
         }
         self.summaries.insert(identity, None);
+        // A callee summary needs these maps only while extracting its results
+        // and effects. A pre-existing explicit read sweep owns its own cache.
+        let owns_snapshots = !self.snapshots.contains_key(&identity);
         let states = self.states(identity, depth)?;
         // A result's carrier stays local storage. Only its exact descriptor
         // slots export backing, under the same case/field paths as construction
@@ -1483,6 +1486,21 @@ impl<'a> Replay<'a> {
             invalidates_contents,
         };
         self.summaries.insert(identity, Some(summary.clone()));
+        if owns_snapshots {
+            // Keep unavailable/in-flight fences, compact summaries, and any
+            // outstanding Arc readers. A later direct query reconstructs the
+            // same immutable graph at its ordinary top-level depth.
+            if self.snapshots.get(&identity).is_some_and(Option::is_some) {
+                self.snapshots.remove(&identity);
+            }
+            if self
+                .arrival_snapshots
+                .get(&identity)
+                .is_some_and(Option::is_some)
+            {
+                self.arrival_snapshots.remove(&identity);
+            }
+        }
         Some(summary)
     }
     pub(super) fn symbolic(
@@ -1846,6 +1864,44 @@ mod snapshot_tests {
         );
         assert!(limited.states(id, 0).is_none());
         drop(limited);
+        // A called body exports only its summary. Successful scratch maps
+        // disappear immediately, and a later explicit sweep reconstructs them.
+        graph[0]
+            .flow
+            .get_mut(&positions[0])
+            .unwrap()
+            .definitions
+            .clear();
+        graph[0].returns = Some(vec![(positions[2], parameter.clone())]);
+        {
+            let mut summarized =
+                Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
+            let summary = summarized.summary(id, 0).unwrap();
+            assert!(!summarized.snapshots.contains_key(&id));
+            assert!(!summarized.arrival_snapshots.contains_key(&id));
+            let cached = summarized.summary(id, 128).unwrap();
+            let slots = summary.result.as_ref().unwrap();
+            let cached_slots = cached.result.as_ref().unwrap();
+            assert_eq!(slots.len(), 1);
+            assert_eq!(cached_slots.len(), slots.len());
+            assert_eq!(slots[0].path, cached_slots[0].path);
+            for slot in [&slots[0], &cached_slots[0]] {
+                assert!(matches!(slot.origins.as_slice(),
+                    [DescriptorStoredOrigin::IncomingSlot { position: 0, path }] if path.is_empty()));
+            }
+            assert!(summary.effects.is_empty() && cached.effects.is_empty());
+            assert_eq!(summary.invalidates_contents, cached.invalidates_contents);
+            let explicit = summarized.states(id, 0).unwrap();
+            assert_eq!(
+                explicit[&positions[2]].slots.get(&parameter),
+                Some(&original)
+            );
+            summarized.summary(id, 0).unwrap();
+            assert!(Arc::ptr_eq(
+                &explicit,
+                summarized.snapshots[&id].as_ref().unwrap()
+            ));
+        }
         // A new query cannot borrow a completed map from another body/context.
         // Disconnected raw rows remain an unavailable graph, never dead flow.
         graph[0]
