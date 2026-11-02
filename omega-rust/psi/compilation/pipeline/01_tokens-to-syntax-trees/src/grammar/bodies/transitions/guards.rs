@@ -606,7 +606,9 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
                     fields: exprs(syntax_trees).insert_match_fields(parsed_fields.fields),
                     has_rest,
                     guard: combined,
-                    proof_selectors: Default::default(),
+                    proof_selectors: syntax_trees
+                        .statements
+                        .insert_outcome_proof_selectors(proof_selectors.iter().cloned()),
                 },
             }),
             proof_selectors,

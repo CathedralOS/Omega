@@ -292,6 +292,7 @@ pub struct TableLocalData {
     Debug,
     Clone,
     Copy,
+    Default,
     PartialEq,
     Eq,
     syntax_trees_derive::PlainSyntaxEquivalent,
