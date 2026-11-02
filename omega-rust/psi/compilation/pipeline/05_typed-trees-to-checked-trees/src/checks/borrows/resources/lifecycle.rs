@@ -123,9 +123,15 @@ pub(crate) fn exact_loan_lifecycle_rows(
         .filter_map(|(offset, _)| span_handle(flow_state.borrow_weakenings, offset))
         .collect::<Vec<_>>();
     let ([activation], [weakening]) = (activations.as_slice(), weakenings.as_slice()) else {
-        return Err(Diagnostic::error(
-            "checked borrow resource requires exactly one activation and one weakening",
-        ));
+        return Err(Diagnostic::error(format!(
+            "checked borrow resource requires exactly one activation and one weakening \
+             (state {:?}, loan {:?}, formation statement {formation_statement}, \
+             activations {}, weakenings {})",
+            flow_state.state_symbol,
+            loan,
+            activations.len(),
+            weakenings.len(),
+        )));
     };
     if flow.borrow_lifetimes.activations.get(*activation).source
         != (FlowInvalidationSource::Statement {
