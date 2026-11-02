@@ -174,18 +174,14 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         continue;
                     }
 
-                    let (activation_handle, weakening_handle) = match exact_loan_lifecycle_rows(
-                        flow,
-                        flow_state,
-                        loan_handle,
-                        loan.statement_index,
-                    ) {
-                        Ok(rows) => rows,
-                        Err(drift) => {
-                            diagnostics.push(drift);
-                            continue;
-                        }
-                    };
+                    let (activation_handle, weakening_handle) =
+                        match exact_loan_lifecycle_rows(borrow, flow, flow_state, loan_handle) {
+                            Ok(rows) => rows,
+                            Err(drift) => {
+                                diagnostics.push(drift);
+                                continue;
+                            }
+                        };
                     let activation = flow.borrow_lifetimes.activations.get(activation_handle);
                     let weakening = flow.borrow_lifetimes.weakenings.get(weakening_handle);
 
@@ -232,18 +228,14 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         ));
                         continue;
                     };
-                    let (child_activation, child_weakening) = match exact_loan_lifecycle_rows(
-                        flow,
-                        flow_state,
-                        loan_handle,
-                        loan.statement_index,
-                    ) {
-                        Ok(rows) => rows,
-                        Err(drift) => {
-                            diagnostics.push(drift);
-                            continue;
-                        }
-                    };
+                    let (child_activation, child_weakening) =
+                        match exact_loan_lifecycle_rows(borrow, flow, flow_state, loan_handle) {
+                            Ok(rows) => rows,
+                            Err(drift) => {
+                                diagnostics.push(drift);
+                                continue;
+                            }
+                        };
                     let activation = flow.borrow_lifetimes.activations.get(child_activation);
                     let weakening = flow.borrow_lifetimes.weakenings.get(child_weakening);
                     let parent_weakenings = flow

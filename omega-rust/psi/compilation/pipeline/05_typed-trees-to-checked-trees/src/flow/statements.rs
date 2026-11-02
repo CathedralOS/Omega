@@ -69,7 +69,6 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
         let statement = &program.statement_table.statements(state.statement_nodes)[statement_index];
         let statement_calls = &borrow_calls[call_ranges[statement_index].clone()];
         let operand_capture_start = build.control.operands.frontier();
-        let operand_activation_start = build.borrow_lifetimes.activations.frontier();
         append_proof_output_ensures(
             proof,
             semantic,
@@ -380,54 +379,25 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             );
         }
         finish_statement_reference_custody(borrow, build, active_constraints);
-        let operand_activations = appended_span_since(
-            &build.borrow_lifetimes.activations,
-            operand_activation_start,
-        );
         for loan_index in loan_ranges[statement_index].clone() {
             let loan = &borrow_loans[loan_index];
-            if loan.established_by_call.is_valid() {
+            if loan.established_by_call.is_valid()
+                || (borrow.incoming_references.is_valid(loan.incoming_reference)
+                    && matches!(
+                        borrow
+                            .incoming_references
+                            .get(loan.incoming_reference)
+                            .origin,
+                        checked_trees::IncomingReferenceOrigin::DescriptorLoad { expression }
+                            if loan.storage_owner == facts::PlaceRoot::Expression(expression)
+                                && loan.formation_expression == expression
+                    ))
+            {
+                // Descriptor loads activate at operand completion, before a
+                // later call in this same statement can consume the pointer.
                 continue;
             }
             let loan_handle = borrow_state.loans.handle_at(loan_index as u32);
-            if borrow.incoming_references.is_valid(loan.incoming_reference)
-                && matches!(
-                    borrow
-                        .incoming_references
-                        .get(loan.incoming_reference)
-                        .origin,
-                    checked_trees::IncomingReferenceOrigin::DescriptorLoad { expression }
-                        if loan.storage_owner == facts::PlaceRoot::Expression(expression)
-                            && loan.formation_expression == expression
-                )
-            {
-                // Operand completion already activated this permission. A call
-                // may replace its current descriptor association, but the local
-                // lifetime debt still needs retirement at its ordinary expiry.
-                // Unread prepared descriptors acquire neither debt nor authority.
-                if build
-                    .borrow_lifetimes
-                    .activations
-                    .span_or_empty(operand_activations)
-                    .iter()
-                    .any(|activation| activation.loan == loan_handle)
-                    && !build
-                        .contexts
-                        .constraint_refs
-                        .span_or_empty(*active_constraints)
-                        .iter()
-                        .any(|reference| {
-                            reference.kind == FlowConstraintKind::BorrowLoan { loan: loan_handle }
-                        })
-                {
-                    append_constraint_ref(
-                        &mut build.contexts.constraint_refs,
-                        active_constraints,
-                        FlowConstraintKind::BorrowLoan { loan: loan_handle },
-                    );
-                }
-                continue;
-            }
 
             let formation_value = {
                 let captures_span =
