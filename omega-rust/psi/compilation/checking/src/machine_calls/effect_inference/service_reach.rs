@@ -852,7 +852,6 @@ pub fn fixed_installation_boundary_service_reach(
     let trait_requirements = program
         .traits()
         .iter()
-        .filter(|owner| owner.is_boundary)
         .flat_map(|owner| program.trait_machine_instances(owner))
         .filter(|signature| signature.symbol == target)
         .map(|signature| signature.service_reach_is_installation_bound);
