@@ -2764,6 +2764,25 @@ fail/facts/stored_shared_byte_view_element_lend_through_parameter_rejected rejec
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/stored_shared_byte_view_element_lend_through_target_body_rejected rejected 1937ms expected @0fb500fb9d4b
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/suspension_transported_loan_recast_through_call_result_rejected rejected 4524ms expected @56ac2516672d
+	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_recast_through_const_name_rejected rejected 4524ms expected @56ac2516672d
+	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_recast_through_field_rejected rejected 4275ms expected @56ac2516672d
+	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_recast_through_local_rejected rejected 4275ms expected @56ac2516672d
+	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_recast_through_match_join_rejected rejected 4525ms expected @56ac2516672d
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_recast_through_other_machine_rejected rejected 4529ms expected @56ac2516672d
+	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_recast_through_other_state_rejected rejected 4306ms expected @56ac2516672d
+	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_recast_through_parameter_rejected rejected 4302ms expected @56ac2516672d
+	call to `entry` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_recast_through_target_body_rejected rejected 3882ms expected @56ac2516672d
+	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/facts/suspension_transported_loan_through_call_result_rejected rejected 16145ms expected @3db1f7baaded+wt
 	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/facts/suspension_transported_loan_through_const_name_rejected rejected 19539ms expected @3db1f7baaded+wt
@@ -3536,6 +3555,7 @@ pass/borrows/qualified_byte_owner_shared_call_exit checked 73798ms check-target:
 pass/borrows/qualified_owner_state_loan_exit checked 4020ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/qualified_record_view_call_exit checked 92864ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/qualified_reference_field_retarget_exit checked 3667ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/recast_suspension_branch_cleanup_exit checked 5317ms check-target:macos_arm64 @56ac2516672d
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 79303ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/reference_cycle_projection_root_partition checked 2282ms @ccdb99ca2214
 pass/borrows/reference_parameter_field_store_exit checked 3380ms check-target:macos_arm64 @ccdb99ca2214
@@ -11063,6 +11083,15 @@ pass/facts/structural_issuer_forwarding_other_state checked 3373ms check-target:
 pass/facts/structural_issuer_forwarding_parameter checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/structural_issuer_forwarding_target_body checked 3943ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/subslice_state_extent_after_write_exit checked 3696ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/suspension_transported_loan_recast_through_call_result_exit checked 5317ms check-target:macos_arm64 @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_const_name_exit checked 5190ms check-target:macos_arm64 @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_field_exit checked 5190ms check-target:macos_arm64 @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_local_exit checked 5523ms check-target:macos_arm64 @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_match_join_exit checked 5527ms check-target:macos_arm64 @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_other_machine_exit checked 5128ms check-target:macos_arm64 @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_other_state_exit checked 5124ms check-target:macos_arm64 @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_parameter_exit checked 5209ms check-target:macos_arm64 @56ac2516672d
+pass/facts/suspension_transported_loan_recast_through_target_body_exit checked 5209ms check-target:macos_arm64 @56ac2516672d
 pass/facts/suspension_transported_loan_through_call_result_exit checked 25020ms check-target:macos_arm64 @3db1f7baaded+wt
 pass/facts/suspension_transported_loan_through_const_name_exit checked 24195ms check-target:macos_arm64 @3db1f7baaded+wt
 pass/facts/suspension_transported_loan_through_field_exit checked 23956ms check-target:macos_arm64 @3db1f7baaded+wt

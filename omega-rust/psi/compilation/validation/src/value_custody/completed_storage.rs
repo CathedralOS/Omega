@@ -100,4 +100,6 @@ mod occurrences;
 pub use occurrences::consumer_captures;
 
 mod loan_homes;
-pub use loan_homes::{InstalledLoanHomes, descriptor_formation_sources};
+pub use loan_homes::{
+    InstalledLoanHomes, descriptor_formation_matches_loan, descriptor_formation_sources,
+};
