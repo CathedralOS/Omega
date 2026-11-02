@@ -5542,6 +5542,7 @@ pass/layouts/resident_signed_field_access checked 6739ms @5f668826adf3+wt
 pass/layouts/resident_unused_lifecycle_scope checked 2452ms @5f668826adf3+wt
 pass/layouts/resident_view_without_local_initialization checked 2874ms @5f668826adf3+wt
 pass/layouts/resident_whole_extraction checked 2982ms @5f668826adf3+wt
+pass/layouts/runtime_accessor_with_linear_owner_exit built 5081ms exit:0 interpreter-exit:0 interpreter:agrees @84981c988bf9+wt
 pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 1960ms interpreter:unchecked @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
