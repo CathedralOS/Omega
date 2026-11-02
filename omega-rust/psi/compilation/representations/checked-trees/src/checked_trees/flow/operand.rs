@@ -272,6 +272,13 @@ pub struct FlowOperandFact {
 pub enum FlowOperandCompletion {
     #[default]
     Observation,
+    /// Contents of an admitted state input at the captured storage cut. This
+    /// names its incoming slot namespace, not an evaluated child or address.
+    /// Descriptor consumers must authenticate the selected incoming loan.
+    IncomingContents {
+        root: facts::PlaceRoot,
+        path: HandleSpan<facts::PlaceSegment>,
+    },
     Constructed(HandleSpan<FlowOperandChild>),
     Selected(HandleSpan<FlowOperandAlternative>),
     /// A projection of one already completed owned copy. The value's contents
@@ -290,6 +297,7 @@ impl FlowOperandFact {
         match self.completion {
             FlowOperandCompletion::Constructed(children) => children,
             FlowOperandCompletion::Observation
+            | FlowOperandCompletion::IncomingContents { .. }
             | FlowOperandCompletion::Selected(_)
             | FlowOperandCompletion::Copied { .. } => HandleSpan::empty(),
         }

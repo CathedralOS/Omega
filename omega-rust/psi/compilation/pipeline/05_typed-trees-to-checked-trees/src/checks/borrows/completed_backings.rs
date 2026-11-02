@@ -202,6 +202,16 @@ impl Resolver<'_> {
         // expressions can still name storage that later operands replaced;
         // follow the retained producer graph before considering that address.
         match operand.completion {
+            FlowOperandCompletion::IncomingContents { .. } => {
+                let frontier = validation::completed_storage::reference_sources_at_path(
+                    self.program,
+                    control,
+                    capture,
+                    path,
+                    operand.storage_snapshot,
+                );
+                return self.stored_frontier(frontier, operand, ancestors, forwarded_inputs);
+            }
             FlowOperandCompletion::Selected(alternatives) => {
                 let alternatives = control
                     .operand_alternatives
@@ -823,11 +833,24 @@ impl Resolver<'_> {
         if source == validation::borrow_contracts::ViewReturnInputSource::Stored
             && validation::reference_shell(self.program, actual.type_reference).is_some()
         {
+            if !control.operand_retentions.is_valid(actual.retention) {
+                return Err("the borrowed input has no captured stored-descriptor inventory");
+            }
+            let retained = control.operand_retentions.get(actual.retention);
+            if !control.operands.is_valid(retained.stored_value) {
+                return Err("the borrowed input has no captured contents source");
+            }
+            let mut projection = control
+                .operand_retained_paths
+                .span(retained.stored_projection)
+                .ok_or("the borrowed input has no captured stored-descriptor projection")?
+                .to_vec();
+            projection.extend_from_slice(path);
             let frontier = validation::completed_storage::reference_sources_at_path(
                 self.program,
                 control,
-                capture,
-                path,
+                retained.stored_value,
+                &projection,
                 actual.storage_snapshot,
             );
             return self.stored_frontier(frontier, actual, ancestors, forwarded_inputs);
