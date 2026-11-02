@@ -140,7 +140,7 @@ specialization retains canonical template bytes, exact arguments, conformance
 and contract commitments, and admission custody. Replay its domain-separated
 commitment before using it as proof-producer identity; compact reports are not
 authority. Omega's coordinator owns the
-[ordered settlement boundary](../../../../omega/compilation/psi-compiler/README.md#checked-settlement)
+[ordered settlement boundary](../../../../omega/compilation/compiler/README.md#checked-settlement)
 outside this crate.
 
 Typed elaboration and its allocation probe are documented with the

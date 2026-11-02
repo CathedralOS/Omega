@@ -2,7 +2,7 @@
 //! exits; this reads the statement prefix they begin after and refuses an
 //! exit roster the completion has no route for, such as an ordered arm that
 //! transfers or crashes instead of returning.
-use super::{CheckedTrees, LoweringError, unsupported};
+use super::{CheckedTrees, LoweringError};
 use crate::shared::checked_facts::flow_facts;
 use checked_trees::CheckedScalarBranchDestination;
 
@@ -13,34 +13,10 @@ pub(crate) fn returning_exits<'checked>(
     arms: arena::HandleSpan<checked_trees::CheckedScalarGuardedExit>,
     fallback: Option<&CheckedScalarBranchDestination>,
 ) -> Result<&'checked [checked_trees::CheckedScalarGuardedExit], LoweringError> {
-    let arms =
-        flow_facts(checked)
-            .guarded_exits
-            .exits
-            .span(arms)
-            .ok_or(LoweringError::Unsupported(
-                "ordered scalar guard roster is stale",
-            ))?;
-    if arms.is_empty() {
-        return unsupported("ordered scalar guard roster is empty");
-    }
-    if arms
-        .iter()
-        .map(|arm| &arm.destination)
-        .chain(fallback)
-        .any(|destination| {
-            !matches!(
-                destination,
-                CheckedScalarBranchDestination::Return {
-                    is_continuation: false,
-                    ..
-                }
-            )
-        })
-    {
-        return unsupported("ordered scalar exit transfers or crashes instead of returning");
-    }
-    Ok(arms)
+    flow_facts(checked)
+        .guarded_exits
+        .returning_exits(arms, fallback)
+        .map_err(LoweringError::Unsupported)
 }
 
 /// Exact normal destinations of this executable scalar control plan. Authored
@@ -50,35 +26,13 @@ pub(crate) fn returning_destinations(
     checked: &CheckedTrees,
     control: &checked_trees::CheckedUnitScalarControlPlan,
 ) -> Result<Vec<CheckedScalarBranchDestination>, LoweringError> {
-    use checked_trees::CheckedScalarStateTerminator;
-    let destinations = match &control.terminator {
-        CheckedScalarStateTerminator::Return { statement_ordinal } => {
-            vec![CheckedScalarBranchDestination::Return {
-                statement_ordinal: *statement_ordinal,
-                is_continuation: false,
-            }]
-        }
-        CheckedScalarStateTerminator::Conditional {
-            when_true,
-            when_false,
-            ..
-        } => {
-            vec![when_true.clone(), when_false.clone()]
-        }
-        CheckedScalarStateTerminator::Guarded { arms, fallback } => {
-            returning_exits(checked, *arms, fallback.as_ref())?
-                .iter()
-                .map(|arm| arm.destination.clone())
-                .chain(fallback.iter().cloned())
-                .collect()
-        }
-        _ => return unsupported("scalar completion has no normal return destination"),
-    };
+    let paths = control
+        .terminator
+        .returning_paths(&flow_facts(checked).guarded_exits)
+        .map_err(LoweringError::Unsupported)?;
     let mut selected = Vec::new();
-    for destination in destinations {
-        if !matches!(destination, CheckedScalarBranchDestination::Return { .. }) {
-            return unsupported("scalar completion has a nonreturning destination");
-        }
+    for path in paths {
+        let destination = path.destination;
         if !selected.contains(&destination) {
             selected.push(destination);
         }

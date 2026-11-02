@@ -180,7 +180,7 @@ fn nominal_declarations(
                     symbol,
                 );
                 let custody = validation::unique_data_definition_by_symbol(
-                    compilation.custody_checking_input,
+                    compilation.original_checking_input,
                     symbol,
                 );
                 let application = match (

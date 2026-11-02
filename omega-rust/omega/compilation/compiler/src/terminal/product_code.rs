@@ -13,6 +13,7 @@ use psi_compiler::{
 use std::sync::Arc;
 use symbols::SymbolHandle;
 
+#[derive(Clone, Copy)]
 pub(crate) struct ProductCodeSource<'a> {
     pub program: &'a Arc<checked_trees::CheckedTrees>,
     pub inventory: &'a checked_trees::PreparedProviderInventory,

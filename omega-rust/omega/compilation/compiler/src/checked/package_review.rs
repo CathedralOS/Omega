@@ -64,7 +64,7 @@ impl PackageReviewSource {
                 checked: self.retained.checked.clone(),
                 retain_native_inputs: false,
             };
-            let ((), output) = crate::compiler::produce_products(vec![((), Ok(request))])
+            let ((), output) = crate::target_batch::produce_products(vec![((), Ok(request))])
                 .into_iter()
                 .next()
                 .ok_or_else(|| vec![Diagnostic::error("component publication lost its outcome")])?;

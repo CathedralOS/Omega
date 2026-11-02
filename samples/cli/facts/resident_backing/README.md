@@ -95,6 +95,12 @@ contents after zero and repeated iterations; its twin repeats a consumed input
 and must reject the duplicate transfer. Recursive descriptor-equality proofs
 and the Vec copy/reallocation lifecycle remain separate unfinished requirements.
 
+The [reconstruction-loop production](runtime_reconstruction_loop/README.md)
+rebuilds both descriptors through checked content-conserving helpers on the
+backedge. Its direct and recursive exits have different claim origins; each
+completed call must still return its complete owned result. Its twin changes
+the reconstructed length and must reject the unchanged conservation contract.
+
 The field place captures its qualified extent through an ordinary call both
 before reconstructing `Held` and while restoring a borrowed `Held`. Its default
 domain consumes the returned length guarantee and the saved entry count. The

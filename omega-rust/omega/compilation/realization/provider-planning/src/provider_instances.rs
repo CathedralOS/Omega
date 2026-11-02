@@ -1,10 +1,7 @@
-//! Retain selected source correspondence once, then lend declaration-only views.
-//!
-//! The immutable checked owner and complete selected plan roster stay coupled.
-//! Explicit reference execution retains lazy Source instance projection. Product
-//! callback planning instead reads canonical callable headers and instance rows;
-//! it does not populate this Source cache. Cache population is not a provider
-//! grant or part of semantic equality.
+//! Retain source for explicit inspection and checked-interpreter execution.
+//! The compilation wrapper owns this record; target execution has only the
+//! same selected plan facts. Instance projection here cannot grant permission
+//! to execute a provider or change the target's selected plans.
 
 use crate::exact_checked_adapter;
 use checked_trees::typed_trees::machine::Machine;
@@ -14,7 +11,7 @@ use std::sync::{Arc, OnceLock};
 
 pub struct SelectedProviderSource {
     inventory: Arc<checked_trees::PreparedProviderInventory>,
-    plans: effects::SelectedProviderPlanFacts,
+    plans: Arc<effects::SelectedProviderPlanFacts>,
     declarations: OnceLock<PreparedProviderInstances>,
 }
 
@@ -43,7 +40,7 @@ impl Eq for SelectedProviderSource {}
 impl SelectedProviderSource {
     pub fn new(
         inventory: Arc<checked_trees::PreparedProviderInventory>,
-        plans: effects::SelectedProviderPlanFacts,
+        plans: Arc<effects::SelectedProviderPlanFacts>,
     ) -> Self {
         Self {
             inventory,

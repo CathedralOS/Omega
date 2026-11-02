@@ -4,7 +4,7 @@ The application first calls [prepare](src/preparation.rs) with retained Terminal
 and a `NativeCompileRequest`: component calls, imports, image custody and policy.
 Preparation selects native work and exposes each artifact's canonical scalar
 demand. The application sponsors scalar completion outside this crate, then passes
-the same `PreparedNativeCompilation` to [compile](src/compiler.rs). Compilation
+the same `PreparedNativeCompilation` to [compile](src/compile.rs). Compilation
 requires every required scalar completion before emitting any component or root image;
 it does not call an evaluator, reopen source or repeat preparation. Failures return
 the original image request and diagnostics.

@@ -245,7 +245,8 @@ retired-syntax deletions to completion.
     restoring hidden argument insertion.
   - Complete checked per-value loan carry evidence for suspension production
     without restoring hidden argument insertion: joins still refuse
-    supplier-less derived descriptors (casts, projected call referents),
+    derived descriptors whose source permissions have been copied, projected or
+    joined, projected call referents,
     supplied-output and lifetime-dependency descriptors, and backings with no
     enclosing owner; Terminal loan rows label accepted transfers `Unresolved`.
   - Retire `machine Data::operation` and reserved `T::drop` spellings across
@@ -437,7 +438,7 @@ narrows realization only.
   Enforce the connected single-pass Psi (`00–07`) + single-pass Build +
   per-target Omega (`00–09`) pipeline architecture and workspace dependency
   topology in [the pipeline contract](omega-rust/pipeline.md) end to end.
-  Owners: `omega-rust/omega/compilation/compiler/src/compiler.rs`,
+  Owners: `omega-rust/omega/compilation/compiler/src/target_batch.rs`,
   `omega-rust/psi/compilation/psi-compiler/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
@@ -454,7 +455,7 @@ narrows realization only.
     direct-import fixture shape.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
-    `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
+    `target_batch.rs` to produce one canonical Terminal Psi artifact, and run Omega
     `00–09` and emission once per requested target without
     checked-tree/lowered-Psi sidecars. Preserve source-cohort sharing across
     package occurrences while completing provider readiness/resumption and
@@ -492,17 +493,13 @@ narrows realization only.
     `selected-dispatch/src/provider_binding.rs` (selected dispatch, component
     progress, intrinsic review and deferred array/const-generic recipes)
     from typed/checked records to canonical Terminal Psi
-    plus target Build rows, and replace provisional completion-role nomination
-    so unused external candidates do not make selected returning implementations
-    fail closed.
+    plus target Build rows.
   - Move opaque selection and source-qualified review onto canonical Terminal
     Psi, so target planning drops its source-side signature preparation and
     passes source-discard/reload.
   - Move the remaining source-reading provider consumers onto prepared
-    declarations: host classification's catalog-local source join, typed
-    constant/comparison evaluation (including Early Build's typed-only
-    comparison path), general review call coordinates, source-dependent
-    direct-call preparation.
+    declarations: typed constant/comparison evaluation (including Early Build's
+    typed-only comparison path) and general review call coordinates.
   - Move review-only products' complete conformance evidence from checked
     source custody into Terminal Psi.
   - Publish portable dormant-use records and the trust-model accepted-machine
@@ -736,6 +733,12 @@ helper that passes does not close an item.
     tests where it implements the retired surface; other bootstrap languages
     keep their own syntax. Delete the old keyword, grammar, recommending
     diagnostics and compatibility paths, not just their documentation.
+  - Delete `ClauseKind::Where`, `RetiredWhereMachineRequirement` and the dead
+    case-fact readers in `source/psi` (checking, resolution, typing), and move the
+    multi-line data `where` literals in the `tests/psi` resolver, checking and
+    typing harnesses to `requires`. Verifying it needs the product gate, whose
+    `omega update` step ran over 30 minutes at 19 GB without finishing on
+    d83ddecd769.
   Acceptance: both producers accept the new data, generic, callable and assembly
   forms; all affected authored sources migrate without changing their result or
   refusal obligation. Existing applicable fact rows and their sensitive reject
@@ -1458,7 +1461,7 @@ defines the complete product bar.
   - Preserve exact closed slot applications, call occurrences, and selected
     plans across activation/result/out-parameter joins to native execution via
     `omega-rust/omega/compilation/backend/plans/program-entry-plan/`,
-    `omega-rust/omega/compilation/compiler/terminal-production/`,
+    `omega-rust/psi/compilation/psi-compiler/terminal-production/`,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/settlement/entry_settlement/`,
     `native-artifact`'s `publish_fragment_object`, and
     `omega-rust/omega/compilation/backend/images/image-emission/src/entries/hosted_receiver.rs`.

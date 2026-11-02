@@ -207,7 +207,7 @@ neither instruction semantics nor environment correspondence. End-to-end
 instruction coverage remains **INTERPRETED-ASSEMBLY** on the execution board;
 this contract is not a claim that all catalog entries already run here.
 
-The source-produced [embedding tests](../../../omega/compilation/psi-compiler/tests/terminal_entry_writeback.rs)
+The source-produced [embedding tests](../../../omega/compilation/compiler/tests/terminal_entry_writeback.rs)
 cover retained/loaded artifacts, borrowed-entry readback, once-only Build effects,
 resource refusal and frame retirement across fuel pauses. Two sequential empty
 call trees complete with exactly three live header cells; a two-cell allowance
