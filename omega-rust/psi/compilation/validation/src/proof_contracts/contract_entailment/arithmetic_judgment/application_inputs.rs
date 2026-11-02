@@ -1,6 +1,8 @@
 //! A record argument retains its complete value separately from its typed
-//! scalar read roster. Neither its identity nor those reads authorize a copy,
-//! storage access or application formation.
+//! scalar read roster. Each read keeps the supplying telescope discovered from
+//! the public contracts: projection syntax alone cannot distinguish two calls
+//! of the same helper with different actual selectors. Neither value identity
+//! nor the read roster authorizes copying, storage access or call formation.
 
 use super::Polynomial;
 use typed_trees::types::TypeReferenceHandle;
@@ -11,7 +13,7 @@ pub(in crate::proof_contracts::contract_entailment) enum IntegerApplicationInput
     Record {
         type_reference: TypeReferenceHandle,
         snapshot: Option<crate::CapturedOwnedSnapshot>,
-        reads: Vec<(crate::RankSubjectCoordinate, Polynomial)>,
+        reads: Vec<(crate::DeclaredInputRead, Polynomial)>,
     },
 }
 
@@ -55,12 +57,11 @@ impl IntegerApplicationInput {
                     binder: Binder::Symbol(formal),
                     value: Value::OwnedSnapshot(snapshot.clone()?),
                 }];
-                for (coordinate, value) in reads {
+                for (read, value) in reads {
+                    let mut read = read.clone();
+                    read.coordinate.parameter = formal;
                     bindings.push(Binding {
-                        binder: Binder::Coordinate(crate::RankSubjectCoordinate {
-                            parameter: formal,
-                            path: coordinate.path.clone(),
-                        }),
+                        binder: Binder::DeclaredRead(read),
                         value: scalar(value)?,
                     });
                 }
@@ -99,12 +100,7 @@ impl IntegerApplicationInput {
         let reads = shape
             .reads
             .iter()
-            .map(|read| {
-                Some((
-                    read.coordinate.clone(),
-                    engine.coordinate_value(&read.coordinate)?,
-                ))
-            })
+            .map(|read| Some((read.clone(), engine.declared_read_value(read)?)))
             .collect::<Option<Vec<_>>>()?;
         Some(Self::Record {
             type_reference: input_type,
@@ -195,6 +191,8 @@ impl super::Engine<'_> {
     pub(super) fn captured_record_call_input(
         &self,
         expression: typed_trees::expression::ExpressionHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        arguments: &[typed_trees::expression::ExpressionHandle],
     ) -> Option<IntegerApplicationInput> {
         // An explicit shared operand observes this already-captured value.
         // Do not ask for the borrow expression's constructed reference type:
@@ -226,16 +224,28 @@ impl super::Engine<'_> {
         let reads = self
             .formal_read_arguments
             .iter()
-            .filter_map(|(coordinate, value)| {
-                (coordinate.parameter == root).then_some(())?;
-                let path = coordinate.path.strip_prefix(place.segments.as_slice())?;
-                Some((
-                    crate::RankSubjectCoordinate {
-                        parameter: root,
-                        path: path.to_vec(),
-                    },
-                    value.clone(),
-                ))
+            .filter_map(|(read, value)| {
+                (read.coordinate.parameter == root).then_some(())?;
+                let path = read
+                    .coordinate
+                    .path
+                    .strip_prefix(place.segments.as_slice())?;
+                // The read roster was discovered through complete public
+                // telescopes. Select this call's entries before substituting
+                // its formals; the same helper projection can belong to
+                // several different invocations of that helper.
+                parameters
+                    .iter()
+                    .zip(arguments)
+                    .all(|(formal, actual)| {
+                        read.selector_arguments
+                            .iter()
+                            .any(|(bound, supplied)| *bound == formal.symbol && supplied == actual)
+                    })
+                    .then_some(())?;
+                let mut read = read.clone();
+                read.coordinate.path = path.to_vec();
+                Some((read, value.clone()))
             })
             .collect();
         Some(IntegerApplicationInput::Record {

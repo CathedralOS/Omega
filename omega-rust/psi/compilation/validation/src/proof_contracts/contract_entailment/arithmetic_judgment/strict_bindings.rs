@@ -666,7 +666,7 @@ impl<'program> Engine<'program> {
         let mut symbols: Vec<(SymbolHandle, Polynomial)> = Vec::with_capacity(bindings.len());
         self.saved_conditions.clear();
         let mut occurrences = Vec::new();
-        let mut coordinates: Vec<(crate::RankSubjectCoordinate, Polynomial)> = Vec::new();
+        let mut coordinates: Vec<(crate::DeclaredInputRead, Polynomial)> = Vec::new();
         let mut types = Vec::new();
         let mut owned = Vec::new();
         let mut result = None;
@@ -746,18 +746,17 @@ impl<'program> Engine<'program> {
                 ScopedArithmeticBinder::Occurrence(expression) => {
                     occurrences.push((expression, polynomial));
                 }
-                ScopedArithmeticBinder::Coordinate(ref coordinate) => {
-                    if !coordinate.parameter.is_valid() {
+                ScopedArithmeticBinder::DeclaredRead(ref read) => {
+                    if !read.coordinate.parameter.is_valid() {
                         return false;
                     }
-                    if let Some((_, existing)) =
-                        coordinates.iter().find(|(bound, _)| bound == coordinate)
+                    if let Some((_, existing)) = coordinates.iter().find(|(bound, _)| bound == read)
                     {
                         if *existing != polynomial {
                             return false;
                         }
                     } else {
-                        coordinates.push((coordinate.clone(), polynomial));
+                        coordinates.push((read.clone(), polynomial));
                     }
                 }
             }
@@ -782,9 +781,26 @@ impl<'program> Engine<'program> {
         &self,
         coordinate: &crate::RankSubjectCoordinate,
     ) -> Option<Polynomial> {
+        let mut reads = self
+            .formal_read_arguments
+            .iter()
+            .filter(|(bound, _)| &bound.coordinate == coordinate);
+        let (_, value) = reads.next()?;
+        // A selected call first narrows its reads to its exact supplied
+        // telescope. Outside that cut, a path alone cannot choose between
+        // different observations of the same declaration expression.
+        reads
+            .all(|(_, other)| other == value)
+            .then(|| value.clone())
+    }
+
+    pub(in crate::proof_contracts::contract_entailment) fn declared_read_value(
+        &self,
+        read: &crate::DeclaredInputRead,
+    ) -> Option<Polynomial> {
         self.formal_read_arguments
             .iter()
-            .find(|(bound, _)| bound == coordinate)
+            .find(|(bound, _)| bound == read)
             .map(|(_, value)| value.clone())
     }
 

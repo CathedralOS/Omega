@@ -484,8 +484,8 @@ impl<'program> ScopedCalls<'program> {
                     actuals
                         .iter()
                         .filter(|binding| {
-                            matches!(&binding.binder, ScopedArithmeticBinder::Coordinate(coordinate)
-                        if coordinate.parameter == parameter.symbol)
+                            matches!(&binding.binder, ScopedArithmeticBinder::DeclaredRead(coordinate)
+                        if coordinate.coordinate.parameter == parameter.symbol)
                         })
                         .cloned(),
                 );

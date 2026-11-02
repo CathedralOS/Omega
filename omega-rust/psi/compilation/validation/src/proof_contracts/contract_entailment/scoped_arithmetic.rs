@@ -34,9 +34,10 @@ pub enum ScopedArithmeticBinder {
     /// A declaration type binder, never an integer value symbol.
     Type(symbols::SymbolHandle),
     Symbol(symbols::SymbolHandle),
-    /// One typed projection of an already captured formal value. The binding
-    /// owns its exact root/path; a foreign contract expression is not an alias.
-    Coordinate(crate::RankSubjectCoordinate),
+    /// One declared read of a captured formal value, including its supplying
+    /// telescope. The same projection syntax under different actual arguments
+    /// is not one observation; retaining only its path loses that identity.
+    DeclaredRead(crate::DeclaredInputRead),
     /// One exact value occurrence whose denotation the binding owner supplies.
     Occurrence(ExpressionHandle),
     Result,
