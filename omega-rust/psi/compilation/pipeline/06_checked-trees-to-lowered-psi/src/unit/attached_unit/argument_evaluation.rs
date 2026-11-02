@@ -54,32 +54,24 @@ pub(crate) struct ScalarArgumentCaptures {
 }
 
 impl ScalarArgumentCaptures {
-    pub(crate) fn record(&mut self, ordinal: usize, slot: usize) -> Result<(), LoweringError> {
+    /// The checked schedule visits each declared scalar ordinal once.
+    pub(crate) fn record(&mut self, ordinal: usize, slot: usize) {
         if self.slots.len() <= ordinal {
             self.slots.resize(ordinal + 1, None);
         }
-        if self.slots[ordinal].replace(slot).is_some() {
-            return unsupported("scalar argument was evaluated more than once");
-        }
-        Ok(())
+        self.slots[ordinal] = Some(slot);
     }
 
-    pub(crate) fn values(
-        &self,
-        values: &[ValueDeclaration],
-    ) -> Result<Vec<ValueDeclaration>, LoweringError> {
+    /// Retain only completed observations. The ordinary call emitter still
+    /// owns the complete receiving scalar roster and its argument placement.
+    pub(crate) fn values(&self, values: &[ValueDeclaration]) -> Vec<ValueDeclaration> {
         self.slots
             .iter()
-            .map(|slot| {
-                slot.and_then(|slot| values.get(slot))
-                    .copied()
-                    .ok_or(LoweringError::Unsupported(
-                        "scalar argument has no completed retained value",
-                    ))
-            })
+            .filter_map(|slot| slot.and_then(|slot| values.get(slot)).copied())
             .collect()
     }
 }
+
 mod qualification_edge;
 mod record_captures;
 mod scalar_control;

@@ -411,7 +411,7 @@ pub(super) fn emit_call_operations(
                         &mut environment,
                     )
                 })?;
-                staged_scalar_slots[operation].record(ordinal, values.len())?;
+                staged_scalar_slots[operation].record(ordinal, values.len());
                 values.push(value);
                 continue;
             }
@@ -564,7 +564,7 @@ pub(super) fn emit_call_operations(
         // Keep private argument values across constructor evaluation and any
         // split blocks. Read their rebound identities only at the consuming
         // call, never from the values they held before a later operand ran.
-        let staged_scalars = staged_scalar_slots[operation_index].values(&values)?;
+        let staged_scalars = staged_scalar_slots[operation_index].values(&values);
         let staged_selectors = staged_selector_slots[operation_index]
             .iter()
             .map(|slot| {

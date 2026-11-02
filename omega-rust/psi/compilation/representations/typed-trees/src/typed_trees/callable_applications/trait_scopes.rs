@@ -293,6 +293,11 @@ impl TypedTrees {
         application: &AppliedTraitScope<'_>,
         requirement: SymbolHandle,
     ) -> Option<&signature::StateSignature> {
+        if let Some(closed) = self.closed_requirement_application(requirement) {
+            return self
+                .requirement_application_matches_scope(requirement, application)
+                .then_some(closed.signature);
+        }
         let identity = application.application_identity(self)?;
         self.applied_callable_signatures
             .iter()

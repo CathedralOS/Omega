@@ -72,9 +72,7 @@ pub(crate) fn locate(
         source_target,
         scalar_arguments,
         structural_arguments,
-        evaluation_order: control
-            .call_argument_evaluation_order(call)
-            .map_err(LoweringError::Unsupported)?,
+        evaluation_order: control.call_argument_evaluation_order(call),
     })
 }
 

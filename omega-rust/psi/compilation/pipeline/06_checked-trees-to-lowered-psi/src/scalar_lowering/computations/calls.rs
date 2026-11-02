@@ -289,9 +289,6 @@ impl Expansion<'_> {
         if scalar_ordinal != scalars.len() || structural_ordinal != structural.len() {
             return unsupported("computed call formal roster is incomplete");
         }
-        if source.evaluation_order.len() != signature.parameters.len() {
-            return unsupported("call operand order differs from its exact formal roster");
-        }
         for position in source.evaluation_order.iter().copied() {
             let source_parameter = &signature.parameters[position];
             // An `[erased]` formal position has no operand of either kind
@@ -508,9 +505,9 @@ impl Expansion<'_> {
                     }
                 }
             } else {
-                let scalar_ordinal = lanes[position].0.ok_or(LoweringError::Unsupported(
-                    "call operand has no physical lane",
-                ))?;
+                let Some(scalar_ordinal) = lanes[position].0 else {
+                    continue;
+                };
                 let scalar = scalars
                     .get(scalar_ordinal)
                     .ok_or(LoweringError::Unsupported(
@@ -521,9 +518,6 @@ impl Expansion<'_> {
                     ordinal: scalar_ordinal,
                 });
             }
-        }
-        if scalar_ordinal != scalars.len() || structural_ordinal != structural.len() {
-            return unsupported("computed call formal roster is incomplete");
         }
         // A direct callee's scalar formals as its body receives them; each
         // actual arrives as `received_scalar_type` says.
@@ -576,12 +570,7 @@ impl Expansion<'_> {
             arrivals.push(arrival);
             prefixes.push(prefix);
         }
-        let scalar_actuals = scalar_actuals
-            .into_iter()
-            .collect::<Option<Vec<_>>>()
-            .ok_or(LoweringError::Unsupported(
-                "call scalar argument lane is incomplete",
-            ))?;
+        let scalar_actuals = scalar_actuals.into_iter().flatten().collect();
         let call_types = prefixes.last().ok_or(LoweringError::Unsupported(
             "computed call lost its completed prefix",
         ))?;

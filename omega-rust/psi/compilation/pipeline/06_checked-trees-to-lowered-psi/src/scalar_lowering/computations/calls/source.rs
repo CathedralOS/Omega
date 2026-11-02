@@ -46,9 +46,7 @@ impl<'a> Expansion<'a> {
                 }
                 Ok(CallSource {
                     expression,
-                    evaluation_order: control
-                        .call_argument_evaluation_order(call)
-                        .map_err(LoweringError::Unsupported)?,
+                    evaluation_order: control.call_argument_evaluation_order(call),
                     arguments: control.call_arguments.span(call.authored_arguments).ok_or(
                         LoweringError::Unsupported(
                             "scalar invocation lost its authored argument roster",

@@ -232,6 +232,9 @@ impl TypedTrees {
                 if !matches {
                     continue;
                 }
+                let signature = prepared
+                    .as_ref()
+                    .map_or(signature, |prepared| prepared.signature);
                 if let Some(known) = &selected {
                     ambiguous |= known.signature.symbol != signature.symbol
                         || !known.application.same_application(self, application);

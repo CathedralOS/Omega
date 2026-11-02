@@ -1347,7 +1347,7 @@ impl Emission<'_, '_, '_> {
                         self.calls,
                         self.environment,
                     )?;
-                    staged_values[operation].record(ordinal, self.values.len())?;
+                    staged_values[operation].record(ordinal, self.values.len());
                     self.values.push(value);
                     continue;
                 }
@@ -1484,7 +1484,7 @@ impl Emission<'_, '_, '_> {
             let operation = &planned[index];
             let count = source_count.unwrap_or(self.values.len());
             let evaluated = if staged && operation.call().is_some() {
-                Some(staged_values[index].values(self.values)?)
+                Some(staged_values[index].values(self.values))
             } else if operation.call().is_some() {
                 self.evaluation.arguments(
                     identities,

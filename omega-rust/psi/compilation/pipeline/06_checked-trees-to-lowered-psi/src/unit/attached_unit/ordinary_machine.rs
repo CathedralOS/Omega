@@ -1538,8 +1538,7 @@ impl MachineEmission<'_> {
                     )
                 }?;
                 self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-                self.staged_arguments[operation]
-                    .record(ordinal, self.scalar_result_values.len())?;
+                self.staged_arguments[operation].record(ordinal, self.scalar_result_values.len());
                 self.scalar_result_values.push(value);
                 return Ok(());
             }
@@ -1731,7 +1730,7 @@ impl MachineEmission<'_> {
             .retained_scalar_prefix
             .unwrap_or(self.scalar_result_values.len());
         let evaluated_scalar_arguments = if staged {
-            Some(self.staged_arguments[operation_index].values(&self.scalar_result_values)?)
+            Some(self.staged_arguments[operation_index].values(&self.scalar_result_values))
         } else {
             {
                 let (mut environment, emission) = self.frame(source_value_count).split();

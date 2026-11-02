@@ -313,35 +313,18 @@ impl FlowControlFacts {
         }
     }
 
-    /// Validate the source permutation retained beside one checked invocation.
-    pub fn call_argument_evaluation_order(
-        &self,
-        call: &FlowCallFact,
-    ) -> Result<Vec<usize>, &'static str> {
-        let count = call.authored_arguments.len() as usize;
-        let positions = self
-            .call_argument_positions
-            .span(call.argument_evaluation_order)
-            .ok_or("call operand order has a stale span")?;
-        if positions.is_empty() {
-            return Ok((0..count).collect());
+    /// The checking owner has already formed this complete source permutation.
+    /// An absent span is natural order; an unavailable nonempty span contributes
+    /// no argument observations rather than reconstructing source evaluation.
+    pub fn call_argument_evaluation_order(&self, call: &FlowCallFact) -> Vec<usize> {
+        if call.argument_evaluation_order.is_empty() {
+            return (0..call.authored_arguments.len() as usize).collect();
         }
-        if positions.len() != count {
-            return Err("call operand order has an incomplete argument roster");
-        }
-        let mut seen = vec![false; count];
-        let mut result = Vec::with_capacity(count);
-        for position in positions {
-            let position = *position as usize;
-            let visited = seen
-                .get_mut(position)
-                .ok_or("call operand order names an unavailable argument")?;
-            if std::mem::replace(visited, true) {
-                return Err("call operand order repeats an argument");
-            }
-            result.push(position);
-        }
-        Ok(result)
+        self.call_argument_positions
+            .span_or_empty(call.argument_evaluation_order)
+            .iter()
+            .map(|position| *position as usize)
+            .collect()
     }
 
     /// The call row of `state` at an authored statement and call ordinal.

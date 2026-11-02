@@ -117,6 +117,11 @@ impl TypedTrees {
                 position.ok_or("runtime operand order lost a receiving Value formal")
             })
             .collect::<Result<Vec<_>, _>>()?;
+        for (ordinal, position) in runtime_positions.iter().enumerate() {
+            if runtime_positions[..ordinal].contains(position) {
+                return Err("runtime operand order maps independent binders to one formal");
+            }
+        }
         let mut explicit = Vec::new();
         let mut inferred = Vec::new();
         for ((_, mut expression), position) in runtime.into_iter().zip(&runtime_positions) {
