@@ -16,14 +16,14 @@ pub fn compile_sources(
         let mut prepared = compiler.begin_compilation(request)?;
         let mut queries = prepared.product_queries();
         let returned =
-            crate::build_execution::execute_build(prepared.execution(), queries.as_mut());
+            crate::compile::build_execution::execute_build(prepared.execution(), queries.as_mut());
         let products = compiler.complete_compilation(prepared, returned)?;
         let mut outcomes = Vec::with_capacity(products.len());
         let products = products
             .into_iter()
             .map(|product| (product.target, product.result))
             .collect();
-        for (target, product) in crate::native_completion::complete_products(products) {
+        for (target, product) in crate::compile::native_completion::complete_products(products) {
             let result = product.and_then(compiler::CompilationOutput::into_report);
             outcomes.push(match result {
                 Ok(report) => compiler::CompileTargetOutcome::new(target, Ok(report)),
@@ -42,8 +42,10 @@ pub fn check_source(
     let result = compiler::checked::run_on_compile_thread(|| {
         let mut prepared = compiler.begin_source_compilation(request)?;
         let mut queries = prepared.product_queries();
-        let returned =
-            crate::build_execution::execute_build(prepared.execution(), Some(&mut queries));
+        let returned = crate::compile::build_execution::execute_build(
+            prepared.execution(),
+            Some(&mut queries),
+        );
         Ok::<_, CompileFailure>(compiler.complete_source_check(prepared, returned))
     });
     match result {
@@ -69,8 +71,10 @@ pub fn produce_source(
                 compiler::CompilationProductError::Production(failure.into_diagnostics())
             })?;
         let mut queries = prepared.product_queries();
-        let returned =
-            crate::build_execution::execute_build(prepared.execution(), Some(&mut queries));
+        let returned = crate::compile::build_execution::execute_build(
+            prepared.execution(),
+            Some(&mut queries),
+        );
         compiler
             .complete_source_product(prepared, returned, product)
             .and_then(crate::complete_product)

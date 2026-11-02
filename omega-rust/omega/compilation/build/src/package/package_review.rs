@@ -21,7 +21,7 @@ struct PendingReviewBuild {
 /// Refresh that dependency while retaining completed reviews and the waiting
 /// consumer's Build. Each restart adds a newly demanded occurrence; exact
 /// input comparisons decide what work still applies after that refresh.
-pub(super) fn execute_pass(
+pub(crate) fn execute_pass(
     plan: PackageReviewPass<'_>,
     compiler: &mut compiler::CompilationSession,
     source_bindings: &mut PackageSourceBindings,

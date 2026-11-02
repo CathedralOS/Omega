@@ -57,7 +57,7 @@ pub(crate) fn compile_returned(
         &mut session.packages,
         execution_profile,
     );
-    let products = crate::package_compilation::compile_packages(
+    let products = crate::package::package_compilation::compile_packages(
         &mut session.compiler,
         admitted.requests,
         &mut completed,

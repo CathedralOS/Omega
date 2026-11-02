@@ -8,7 +8,7 @@
 mod readiness;
 
 use crate::BuildSession;
-use crate::build_execution::ReturnedPackageBuild;
+use crate::compile::build_execution::ReturnedPackageBuild;
 use compiler::{CompilationSession, CompileFailure, CompletedBuild, PackageBuild};
 use package_compilation::PackageCompilationInputs;
 use package_manager::operations::{

@@ -39,13 +39,13 @@ struct PackageFrontier<Owner> {
 
 /// How one package plan finished: its root's prepared Build, or the root
 /// request joined with every dependency occurrence's generated source.
-pub(super) enum PreparedPackageRoot {
+pub(crate) enum PreparedPackageRoot {
     Build(Box<PackageBuild>),
     Joined(CheckedCompileRequest),
 }
 
 /// One dependency-ordered plan and what to do with its Product root.
-pub(super) struct PackagePlan {
+pub(crate) struct PackagePlan {
     pub occurrences: Vec<PackageSourceRequest>,
     /// Join generated source into the root instead of preparing its Build.
     pub join_root: bool,
@@ -172,7 +172,7 @@ pub(crate) fn execute_build(
     Ok(returned)
 }
 
-pub(super) fn prepare_packages<Owner>(
+pub(crate) fn prepare_packages<Owner>(
     compiler: &mut CompilationSession,
     plans: Vec<(Owner, PackagePlan)>,
     completed: &mut [compiler::CompletedBuild],

@@ -31,8 +31,8 @@ pub(crate) fn compile(
                 optimization_rollback: request.optimization_rollback.clone(),
             }),
         };
-        let outcomes = crate::project_compilation::compile_returned(
-            crate::project_compilation::ProjectCompilationRequest {
+        let outcomes = crate::project::project_compilation::compile_returned(
+            crate::project::project_compilation::ProjectCompilationRequest {
                 prepared: resolved.prepared,
                 target_profiles: targets,
                 snapshot: request.build_snapshot.as_ref(),

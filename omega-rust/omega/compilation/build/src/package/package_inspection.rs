@@ -30,7 +30,7 @@ pub fn inspect_packages(
                 &mut session.packages,
                 &mut source_bindings,
                 &mut |plan, bindings| {
-                    crate::package_review::execute_pass(
+                    crate::package::package_review::execute_pass(
                         plan,
                         &mut session.compiler,
                         bindings,
@@ -56,21 +56,22 @@ fn resolve_inspection_sources(
     let mut acquisitions = inspection.source_acquisitions()?;
     let acquired = inspection.acquire_root()?;
     let entry = acquired.entry_path();
-    let (resolved, builds) = crate::build_execution::source_resolution::resolve_acquired_sources(
-        session,
-        acquired,
-        &entry,
-        &mut acquisitions,
-        profile,
-        package_compilation::BuildExecutionInputs {
-            snapshot: inspection.build_snapshot().cloned(),
-            ..Default::default()
-        },
-        false,
-    )
-    .map_err(|error| PackageInspectionError::from(error.to_string()))?;
+    let (resolved, builds) =
+        crate::compile::build_execution::source_resolution::resolve_acquired_sources(
+            session,
+            acquired,
+            &entry,
+            &mut acquisitions,
+            profile,
+            package_compilation::BuildExecutionInputs {
+                snapshot: inspection.build_snapshot().cloned(),
+                ..Default::default()
+            },
+            false,
+        )
+        .map_err(|error| PackageInspectionError::from(error.to_string()))?;
     let sources = inspection.complete_source_resolution(resolved)?;
-    let completed = crate::build_execution::source_resolution::settle_source_builds(
+    let completed = crate::compile::build_execution::source_resolution::settle_source_builds(
         builds,
         &mut session.compiler,
         profile,
