@@ -28,6 +28,24 @@ impl ValidatedOptimizedTargetOperations {
         &self.optimized
     }
 
+    /// The admitted boundary facts this plan's native call origins rejoin
+    /// to, from the verified input its optimized source was admitted with.
+    pub fn boundary_origins(&self) -> target_operations::BoundaryOriginFacts<'_> {
+        let input = self.optimized.verified_input();
+        target_operations::BoundaryOriginFacts {
+            program_entry: input.selected_program_entry_call().map(|call| {
+                target_operations::ProgramEntryOrigin {
+                    boundary: call.boundary(),
+                    entry: call.entry(),
+                    source_signature: call.source_signature(),
+                }
+            }),
+            assumed_bindings: input.admitted_assumed_bindings(),
+            target_machine_selections: input.target_machine_selections(),
+            module: input.context().module(),
+        }
+    }
+
     pub fn target(&self) -> NativeTarget {
         self.current_program.target
     }

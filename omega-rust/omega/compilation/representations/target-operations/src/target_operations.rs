@@ -49,6 +49,8 @@ pub use control_flow::{
 pub mod provenance;
 pub use provenance::{CallSiteOwner, TerminalPsiProvenance};
 pub mod boundary;
+mod boundary_origins;
+pub use boundary_origins::{BoundaryOriginFacts, ProgramEntryOrigin};
 pub use boundary::{
     AccessorScalarAccessRealization, BoundaryByteSequenceArgument, BoundaryExecutionBinding,
     BoundaryRealization, BoundaryScalarArgument, BoundarySettlementBinding,

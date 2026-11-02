@@ -147,8 +147,6 @@ FIREWALL_ALLOWANCES = (
               "Debt: calls build_verified_psi_optimization_unit; VerifiedPsiOptimizationInput"),
     Allowance(stage("02"), stage("00"), f"{STAGE_DEBT} (VerifiedPsiOptimizationInput)"),
     Allowance(stage("02"), stage("01"), f"{STAGE_DEBT} (ValidatedOptimizedAbstractPlan)"),
-    Allowance(stage("03"), stage("00"), f"{STAGE_DEBT} (VerifiedPsiOptimizationInput)"),
-    Allowance(stage("03"), stage("01"), f"{STAGE_DEBT} (ValidatedOptimizedAbstractPlan)"),
     Allowance(stage("03"), stage("02"),
               "Debt: calls classified_boundary_shape and descriptor_input_guard instead of "
               "reading them from Omega 02 output"),
