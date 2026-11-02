@@ -92,8 +92,16 @@ machine transport(storage: Extent in Granted & Vacant, choose: bool) -> Extent i
 crashes Trap
 {
     let length: u64 = storage.length;
-    let held: Held = retain_record(Held { storage: storage, length: length });
+    let mut held: Held = retain_record(Held { storage: storage, length: length });
+    restore_record(&mut held);
     exercise(held.storage)
+}
+
+machine restore_record(held: &mut Held) {
+    let length: u64 = held.length;
+    let storage: Extent in Granted & Vacant = retain_storage(held.storage);
+    held.storage = storage;
+    held.length = length;
 }
 
 machine exercise(vacant: Extent in Granted & Vacant) -> Extent in Granted & Vacant crashes Trap {

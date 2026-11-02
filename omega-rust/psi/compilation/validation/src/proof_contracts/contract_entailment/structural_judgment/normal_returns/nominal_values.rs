@@ -72,16 +72,29 @@ impl StructuralJudge<'_> {
             };
             let mut source = capture.observed_value.clone();
             if let Some(path) = path {
-                // The existing projection algebra refuses observation shells:
-                // an owned capture cannot authorize reading through a reference.
+                // Typed projection consumes authenticated inline observations
+                // and masks reference children; a descriptor still cannot
+                // authorize reading its referent.
                 for field in path.split('.') {
                     let Some(projected) =
-                        super::super::super::observed_projections::project_field(source, field)
+                        super::super::super::observed_projections::project_declared_field(
+                            self.program,
+                            self,
+                            source,
+                            field,
+                        )
                     else {
                         return observed;
                     };
                     source = projected;
                 }
+            }
+            if super::super::super::structural_terms::owned_observation_type(self.program, &source)
+                .is_some()
+            {
+                // This is the admitted inline value, not a borrowed descriptor.
+                // Compare its identity while retaining the constructor fence.
+                source = source.into_semantic_value();
             }
             let mut source_root = &source;
             while let StructuralTerm::Projection { subject, .. } = source_root {
