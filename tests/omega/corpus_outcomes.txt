@@ -11379,7 +11379,7 @@ pass/facts/unannotated_dynamic_boundary_call_through_match_join_exit checked 488
 pass/facts/unannotated_dynamic_boundary_call_through_other_machine_exit checked 71602ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/unannotated_dynamic_boundary_call_through_other_state_exit checked 79614ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/unannotated_dynamic_boundary_call_through_parameter_exit checked 60632ms check-target:macos_arm64 @863cdf432f5d+wt
-pass/facts/unannotated_dynamic_boundary_call_through_target_body_exit checked 61373ms check-target:macos_arm64 @863cdf432f5d+wt
+pass/facts/unannotated_dynamic_boundary_call_through_target_body_exit checked 66710ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unannotated_generic_boundary_call_through_call_result_exit checked 4164ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_generic_boundary_call_through_const_name_exit checked 3567ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_generic_boundary_call_through_field_exit checked 3894ms check-target:macos_arm64 @ccdb99ca2214
@@ -11388,7 +11388,7 @@ pass/facts/unannotated_generic_boundary_call_through_match_join_exit checked 359
 pass/facts/unannotated_generic_boundary_call_through_other_machine_exit checked 3486ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_generic_boundary_call_through_other_state_exit checked 3482ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_generic_boundary_call_through_parameter_exit checked 3431ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_generic_boundary_call_through_target_body_exit checked 4131ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/unannotated_generic_boundary_call_through_target_body_exit checked 54411ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unannotated_imported_boundary_call_through_call_result_exit checked 4133ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_const_name_exit checked 4154ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_field_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
@@ -11397,7 +11397,7 @@ pass/facts/unannotated_imported_boundary_call_through_match_join_exit checked 40
 pass/facts/unannotated_imported_boundary_call_through_other_machine_exit checked 3999ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_other_state_exit checked 4566ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_imported_boundary_call_through_parameter_exit checked 4743ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_imported_boundary_call_through_target_body_exit checked 3989ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/unannotated_imported_boundary_call_through_target_body_exit checked 54418ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unannotated_provider_boundary_call_through_call_result_exit checked 3699ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_provider_boundary_call_through_const_name_exit checked 3628ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_provider_boundary_call_through_field_exit checked 3469ms check-target:macos_arm64 @ccdb99ca2214
@@ -11406,7 +11406,7 @@ pass/facts/unannotated_provider_boundary_call_through_match_join_exit checked 32
 pass/facts/unannotated_provider_boundary_call_through_other_machine_exit checked 3426ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_provider_boundary_call_through_other_state_exit checked 3324ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_provider_boundary_call_through_parameter_exit checked 3652ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_provider_boundary_call_through_target_body_exit checked 3871ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/unannotated_provider_boundary_call_through_target_body_exit checked 65991ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unannotated_recursive_boundary_call_through_call_result_exit checked 3442ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_recursive_boundary_call_through_const_name_exit checked 3883ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_recursive_boundary_call_through_field_exit checked 3685ms check-target:macos_arm64 @ccdb99ca2214
@@ -11415,7 +11415,7 @@ pass/facts/unannotated_recursive_boundary_call_through_match_join_exit checked 3
 pass/facts/unannotated_recursive_boundary_call_through_other_machine_exit checked 3830ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_recursive_boundary_call_through_other_state_exit checked 3483ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_recursive_boundary_call_through_parameter_exit checked 3864ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_recursive_boundary_call_through_target_body_exit checked 4053ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/unannotated_recursive_boundary_call_through_target_body_exit checked 54539ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unannotated_transitive_boundary_call_through_call_result_exit checked 3250ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_transitive_boundary_call_through_const_name_exit checked 3588ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_transitive_boundary_call_through_field_exit checked 3626ms check-target:macos_arm64 @ccdb99ca2214
@@ -11424,7 +11424,7 @@ pass/facts/unannotated_transitive_boundary_call_through_match_join_exit checked 
 pass/facts/unannotated_transitive_boundary_call_through_other_machine_exit checked 3523ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_transitive_boundary_call_through_other_state_exit checked 3362ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_transitive_boundary_call_through_parameter_exit checked 3625ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/unannotated_transitive_boundary_call_through_target_body_exit checked 4303ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/unannotated_transitive_boundary_call_through_target_body_exit checked 65982ms check-target:macos_arm64 @005a0eaac360
 pass/facts/unsigned_32bit_division_remainder_bound_through_call_result_exit checked 3857ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unsigned_32bit_division_remainder_bound_through_const_name_exit checked 3409ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unsigned_32bit_division_remainder_bound_through_field_exit checked 3724ms check-target:macos_arm64 @ccdb99ca2214
@@ -30532,11 +30532,9 @@ fail/facts/unannotated_dynamic_boundary_call_through_other_state_rejected reject
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_dynamic_boundary_call_through_parameter_rejected rejected 40730ms expected @863cdf432f5d+wt
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_dynamic_boundary_call_through_target_body_rejected rejected 15894ms expected @863cdf432f5d+wt
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_dynamic_boundary_call_through_target_body_rejected rejected 37533ms expected @005a0eaac360
+	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_generic_boundary_call_through_call_result_rejected rejected 2367ms expected @ccdb99ca2214
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_generic_boundary_call_through_const_name_rejected rejected 2250ms expected @ccdb99ca2214
@@ -30553,11 +30551,9 @@ fail/facts/unannotated_generic_boundary_call_through_other_state_rejected reject
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_generic_boundary_call_through_parameter_rejected rejected 2876ms expected @ccdb99ca2214
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_generic_boundary_call_through_target_body_rejected rejected 2651ms expected @ccdb99ca2214
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_generic_boundary_call_through_target_body_rejected rejected 37300ms expected @005a0eaac360
+	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_imported_boundary_call_through_call_result_rejected rejected 2954ms expected @ccdb99ca2214
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_imported_boundary_call_through_const_name_rejected rejected 3076ms expected @ccdb99ca2214
@@ -30574,11 +30570,9 @@ fail/facts/unannotated_imported_boundary_call_through_other_state_rejected rejec
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_imported_boundary_call_through_parameter_rejected rejected 3438ms expected @ccdb99ca2214
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_imported_boundary_call_through_target_body_rejected rejected 3147ms expected @ccdb99ca2214
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_imported_boundary_call_through_target_body_rejected rejected 38440ms expected @005a0eaac360
+	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_provider_boundary_call_through_call_result_rejected rejected 2800ms expected @ccdb99ca2214
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
 fail/facts/unannotated_provider_boundary_call_through_const_name_rejected rejected 2185ms expected @ccdb99ca2214
@@ -30595,7 +30589,7 @@ fail/facts/unannotated_provider_boundary_call_through_other_state_rejected rejec
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
 fail/facts/unannotated_provider_boundary_call_through_parameter_rejected rejected 2835ms expected @ccdb99ca2214
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
-fail/facts/unannotated_provider_boundary_call_through_target_body_rejected rejected 2782ms expected @ccdb99ca2214
+fail/facts/unannotated_provider_boundary_call_through_target_body_rejected rejected 38142ms expected @005a0eaac360
 	machine `MarkerMark::read` state `read` does not satisfy trait `Mark` machine `read`: service `Forbidden` is not allowed by the trait requirement
 fail/facts/unannotated_recursive_boundary_call_through_call_result_rejected rejected 2634ms expected @ccdb99ca2214
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
@@ -30613,11 +30607,9 @@ fail/facts/unannotated_recursive_boundary_call_through_other_state_rejected reje
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_recursive_boundary_call_through_parameter_rejected rejected 2921ms expected @ccdb99ca2214
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_recursive_boundary_call_through_target_body_rejected rejected 3208ms expected @ccdb99ca2214
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_recursive_boundary_call_through_target_body_rejected rejected 30097ms expected @005a0eaac360
+	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_transitive_boundary_call_through_call_result_rejected rejected 2176ms expected @ccdb99ca2214
 	machine `take` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_transitive_boundary_call_through_const_name_rejected rejected 3056ms expected @ccdb99ca2214
@@ -30634,11 +30626,9 @@ fail/facts/unannotated_transitive_boundary_call_through_other_state_rejected rej
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/unannotated_transitive_boundary_call_through_parameter_rejected rejected 2713ms expected @ccdb99ca2214
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/unannotated_transitive_boundary_call_through_target_body_rejected rejected 2141ms expected @ccdb99ca2214
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-	machine `read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+fail/facts/unannotated_transitive_boundary_call_through_target_body_rejected rejected 29860ms expected @005a0eaac360
+	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
+	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 fail/facts/uninitialized_dyn_selection_through_call_result rejected 1359ms expected @ccdb99ca2214
 	machine `get_selector` state `entry` statement 1: reading `selector` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
 fail/facts/uninitialized_dyn_selection_through_const_name rejected 1510ms expected @ccdb99ca2214
