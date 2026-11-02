@@ -1,0 +1,20 @@
+// Expected error: where
+// A fixed inline destination preserves disjoint count facts when reference-prefix inventory is unavailable.
+data Item [copy] { value: u64; }
+data Table requires count <= 16, other_count <= 16 { items: [Item; 16] in Trapping; count: u64; others: [Item; 16] in Trapping; other_count: u64; }
+data Parser { table: Table; erased: bool; source: u64; }
+machine span(p: &Parser, n: u64) -> u64 { p.source }
+machine record(p: &mut Parser) crashes Trap { transition p.erased { true -> bounded(p) _ -> done() } machine bounded(p: &mut Parser) { transition p.table.other_count < 16 { true -> put(p) _ -> done() } } machine put(p: &mut Parser) { p.table.others[p.table.other_count] = Item { value: span(p, 0) }; p.table.other_count = p.table.other_count + 1; p.erased = false; p.table.count = 16; } machine done() {} }
+machine add(p: &mut Parser) crashes Trap { transition p.table.count < 16 { true -> put(p) _ -> done() } machine put(p: &mut Parser) { record(p); p.table.items[p.table.count] = Item { value: span(p, 0) }; p.table.count = p.table.count + 1; } machine done() {} }
+machine main() crashes Trap {
+    let mut p: Parser;
+    p.erased = true;
+    p.source = 0;
+    add(&mut p);
+    transition p.table.count == 1 && p.table.other_count == 1 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -287,7 +287,7 @@ crashes Trap
     }
 
     machine membership(resolver: &mut Resolver, sources: &SourceSet, syntax: &SyntaxTrees, root: u64 in Trapping, handle: u64 in Trapping, expression: Expression) {
-        let scope: NameScope = Resolver::fact_scope(false, 0, 0, 0, false);
+        let scope: NameScope = Resolver::fact_scope(false, 0, 0, 0, ValueBinding::NotAName);
         Resolver::bind_membership(resolver, sources, syntax, scope, handle, expression);
     }
 
