@@ -64,3 +64,9 @@ All nine places have Rust-reference Linux x86_64 observations at the recorded
 producer epochs above. Earlier places retain their original accepted records;
 this run adds only the final four. Other hosted execution, the Omega-written
 producer and the broader representation-family requirements remain open.
+
+Matching Mac ARM64 qualification is the next physical boundary: the ARM
+calling convention and named decoder must preserve the same backing and field
+values. The authored nine places, twins and rejected-payload control stay
+unchanged; current observations above remain Linux-only until that scoped run
+completes. This is one fact and one additional host, not a release matrix.
