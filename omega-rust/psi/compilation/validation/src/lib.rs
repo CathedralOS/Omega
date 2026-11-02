@@ -286,7 +286,7 @@ pub use crate::machine_calls::call_cycles::{
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
-    LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
+    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
     ReferenceResultTransport, ReferenceSlotContract, ReferenceViewFormation,
     ScalarStorageCoordinate, StoredReferenceCallContext, StoredReferenceDestinationKind,
     StoredReferenceEffect, StoredReferenceRelationRefusal, ValidatedSelfCallDescent,

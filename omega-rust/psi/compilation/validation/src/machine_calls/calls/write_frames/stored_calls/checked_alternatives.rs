@@ -40,13 +40,16 @@ pub(super) fn relative_effects(
                     (remap_place(&mut source.origin.source, parameters, target_parameters))?;
                     if !source.origin.source.is_static()
                         && source.origin.source.output_identity().is_none()
+                        && source.origin.source.result_home().is_none()
                     {
                         source.origin.path = super::path(program, &source.origin.source);
                     }
                     (remap_place(&mut source.carrier, parameters, target_parameters))?;
                     if let Some(backing) = source.carrier_backing.as_mut() {
                         (remap_place(&mut backing.source, parameters, target_parameters))?;
-                        if !backing.source.is_static() && backing.source.output_identity().is_none()
+                        if !backing.source.is_static()
+                            && backing.source.output_identity().is_none()
+                            && backing.source.result_home().is_none()
                         {
                             backing.path = super::path(program, &backing.source);
                         }
@@ -103,7 +106,10 @@ fn remap_place(
     parameters: &[StateParameter],
     target_parameters: &[StateParameter],
 ) -> Option<()> {
-    if place.is_static() || place.output_identity().is_some() {
+    // An opaque result home is an absolute occurrence identity, not a
+    // parameter-relative address: it never rebases into the target's
+    // namespace, just like outputs and image backing.
+    if place.is_static() || place.output_identity().is_some() || place.result_home().is_some() {
         return Some(());
     }
     place.root = remap_root(place.root, parameters, target_parameters)?;

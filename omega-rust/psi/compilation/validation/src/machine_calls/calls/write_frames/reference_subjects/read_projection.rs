@@ -320,9 +320,10 @@ fn complete_spans(
                     projected.source.root,
                     &projected.source.segments,
                 )?
-            } else if projected.source.is_static() {
-                // Immutable image backing retains its existing footprint;
-                // typed selectors still identify the projected value.
+            } else if projected.source.is_static() || projected.source.result_home().is_some() {
+                // Image backing and opaque result referents retain their
+                // existing footprint; typed selectors still identify the
+                // projected value.
                 projected.path.clone()
             } else {
                 return None;

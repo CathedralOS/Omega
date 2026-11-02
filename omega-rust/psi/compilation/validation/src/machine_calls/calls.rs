@@ -90,7 +90,7 @@ use write_frames::boundary_trait_call_signature;
 pub(crate) use write_frames::machine_state_by_symbol;
 pub use write_frames::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
-    LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
+    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
     ReferenceResultTransport, ReferenceSlotContract, ReferenceViewFormation,
     ScalarStorageCoordinate, StoredReferenceCallContext, StoredReferenceDestinationKind,
     StoredReferenceEffect, StoredReferenceRelationRefusal, assignment_stored_value_type,

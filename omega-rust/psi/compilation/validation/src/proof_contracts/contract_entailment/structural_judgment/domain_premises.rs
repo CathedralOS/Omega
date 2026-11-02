@@ -491,6 +491,7 @@ impl StructuralJudge<'_> {
                 return None;
             };
             if source.invocation_output.is_some()
+                || source.invocation_result.is_some()
                 || source.collection_coarse
                 || !source.recasts.is_empty()
                 || source.representation.is_some()

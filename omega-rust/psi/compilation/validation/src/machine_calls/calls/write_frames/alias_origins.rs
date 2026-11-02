@@ -241,6 +241,7 @@ pub(crate) fn stable_alias_initializer_origins(
             if let Some(origins) = super::transparent_results::captured_call_result_origins(
                 program,
                 call,
+                expression,
                 symbols,
                 inference,
                 |_, _, _, actual, inference| alias_origins!(inference, actual),
@@ -438,6 +439,7 @@ fn stable_alias_expression_origins(
         ExpressionNode::Call(call) => transparent_call_result_origins(
             program,
             call,
+            expression,
             symbols,
             &mut FrameInference::default(),
             |_, _, _, actual, _| expression_origins!(actual),

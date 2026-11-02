@@ -110,17 +110,32 @@ impl LocalWriteSource {
         program: &dyn crate::CheckingInput,
         state: &State,
     ) -> Result<StorageCoordinate, &'static str> {
-        if !self.root.is_valid() {
-            return Err("source storage has no original declaration");
-        }
-        let mut root = self.root;
-        let (mut carrier, mut path) = match &self.representation {
-            Some((carrier, path)) => (*carrier, path.clone()),
-            None => (
-                source_root_type(program, state, root)
-                    .ok_or("source storage root has no declared type")?,
+        let (mut root, mut carrier, mut path) = if let Some(home) = self.invocation_result {
+            // A completed result's opaque referent has no declaration root:
+            // its producing call site is the root identity, and the declared
+            // referee supplies the coordinates beneath it.
+            if !self.recasts.is_empty() {
+                return Err("opaque invocation result carries a retained view");
+            }
+            (
+                PlaceRoot::Expression(home.call),
+                home.referent,
                 self.segments.clone(),
-            ),
+            )
+        } else {
+            if !self.root.is_valid() {
+                return Err("source storage has no original declaration");
+            }
+            let root = self.root;
+            let (carrier, path) = match &self.representation {
+                Some((carrier, path)) => (*carrier, path.clone()),
+                None => (
+                    source_root_type(program, state, root)
+                        .ok_or("source storage root has no declared type")?,
+                    self.segments.clone(),
+                ),
+            };
+            (PlaceRoot::Symbol(root), carrier, path)
         };
         let mut preserves_scalar_value = true;
         let mut preserves_primitive_bits = true;
@@ -197,7 +212,7 @@ impl LocalWriteSource {
                     crate::RecastLeafSegment::Element(index) => PlaceSegment::FixedIndex { index },
                 }));
             }
-            root = recast.root;
+            root = PlaceRoot::Symbol(recast.root);
             carrier = previous_carrier;
             path = previous_path;
         }
@@ -206,7 +221,7 @@ impl LocalWriteSource {
         }
         let coordinate = StorageCoordinate {
             place: CanonicalPlace {
-                root: PlaceRoot::Symbol(root),
+                root,
                 segments: path,
             },
             preserves_scalar_value,

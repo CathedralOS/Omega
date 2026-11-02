@@ -279,10 +279,13 @@ fn source_coordinates(
     state: &State,
     source: &crate::LocalWriteSource,
 ) -> Result<(TypeReferenceHandle, Vec<PlaceSegment>), ()> {
-    if !source.root.is_valid() {
+    if !source.root.is_valid() && source.invocation_result.is_none() {
         return Err(());
     }
-    let declared = crate::state_root_type(program, state, source.root).ok_or(())?;
+    let declared = match source.invocation_result {
+        Some(home) => home.referent,
+        None => crate::state_root_type(program, state, source.root).ok_or(())?,
+    };
     let (carrier, path) = match &source.representation {
         Some((carrier, path)) => (*carrier, path.clone()),
         None => (declared, source.segments.clone()),
