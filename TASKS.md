@@ -641,7 +641,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   staging once in the Terminal interpreter under
   [scoped build execution](wiki/spec/build/scoped_execution.md) and
   [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance).
-  Owners: `omega-rust/omega/compilation/build-evaluation/src/`,
+  Owners: `omega-rust/omega/build-system/build-evaluation/src/`,
   `omega-rust/omega/packages/{build-declarations,package-compilation,source-acquisition,build-output,package-manager}/`,
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
@@ -1762,7 +1762,7 @@ defines the complete product bar.
     (`omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs`),
     with package-local satisfaction discovery, separate runner roots, and
     Terminal Psi + native execution in `omega-rust/omega/compilation/compiler/`.
-  - Extend `omega-rust/omega/compilation/build-evaluation/src/admission/program.rs`
+  - Extend `omega-rust/omega/build-system/build-evaluation/src/admission/program.rs`
     and `omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`
     to carry group-scoped providers, ordinary fixture storage, fresh mock state,
     and lock-reviewed test authority without automatic mutable context

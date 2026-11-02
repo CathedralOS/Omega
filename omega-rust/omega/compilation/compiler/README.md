@@ -2,7 +2,7 @@
 
 [lib.rs](src/lib.rs) exposes opaque source preparation and exact-return completion
 for any supplied target count. Application
-[`compile_sources`](../../compilation/build/src/compile/source_compilation.rs) owns the
+[`compile_sources`](../../build-system/omega-build/src/compile/source_compilation.rs) owns the
 one-shot `CompileRequest` lifecycle and executes Build between those calls.
 The coordinator sequences typed owner results; it does
 not implement package loading, build evaluation, transformation algorithms or
@@ -61,7 +61,7 @@ image and reloaded Terminal artifact. Build-helper production in
 [package compilation](src/checked/package_compilation.rs) publishes the same
 checked source without private constant replay. The waiting Build activation
 owns exact slot admission, canonical scalar completion and component installation
-in [provider installation](../build-evaluation/src/activation/provider_installation.rs).
+in [provider installation](../../build-system/build-evaluation/src/activation/provider_installation.rs).
 Its live account pays the evaluation, and installed components retain completed
 scalar inputs for the rest of that invocation.
 
@@ -100,9 +100,9 @@ reports belong to their product owners.
 
 Application Build requests package admission, then schedules dependency-ordered
 `PackageCompilationRequest`s in
-[`compile_packages`](../../compilation/build/src/package/package_compilation.rs), with the
+[`compile_packages`](../../build-system/omega-build/src/package/package_compilation.rs), with the
 requested product and root permission consent supplied up front. Its
-[Build execution owner](../../compilation/build/src/compile/build_execution.rs) advances
+[Build execution owner](../../build-system/omega-build/src/compile/build_execution.rs) advances
 dependency frontiers, joins generated outputs and waits for demanded independent
 components before their consumers advance. The compiler no longer schedules that
 dependency loop. Its [package facade](src/checked/package_compilation.rs) prepares
@@ -248,7 +248,7 @@ they do not import the evaluator or coordinator. Compilation still visibly
 schedules the stages and supplies their complete results to sealing.
 The continuation calls resolution and typing directly, including generated-source
 extension, with timing around those actual calls rather than another transition
-module. The existing [Build evaluator](../build-evaluation/src/build_evaluation.rs)
+module. The existing [Build evaluator](../../build-system/build-evaluation/src/build_evaluation.rs)
 owns the complete pre-effect admission/consent/execution protocol and returns
 configuration, restricted requests and the admitted source commitment together.
 Its private declaration-admission operation still uses the preliminary Psi
@@ -319,7 +319,7 @@ custody owns staging and installation mechanics.
 ## Supporting packages
 
 This directory contains only compilation coordination. Build activation belongs to
-[realization/build-evaluation](../build-evaluation/README.md), an
+[realization/build-evaluation](../../build-system/build-evaluation/README.md), an
 independent package consumed by the coordinator and package review.
 Project declaration grammar, retained build outputs and compilation-input custody
 belong to the package system's independent
