@@ -22,8 +22,9 @@
 
 use diagnostics::Diagnostic;
 use language_semantics::Multiplicity;
+use symbols::SymbolHandle;
 use typed_trees::data::{DataDefinition, TypeParameter};
-use typed_trees::types::TypeReferenceNode;
+use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DeclaredPropertyRequirement {
@@ -341,19 +342,41 @@ pub fn type_satisfies_declared_property(
                 .derive(type_reference)
                 .permits(required)
         }
-        DeclaredPropertyRequirement::Copy => {
-            type_satisfies_structural_property(program, type_parameters, type_reference, "copy")
-        }
-        DeclaredPropertyRequirement::Linear => {
-            type_satisfies_structural_property(program, type_parameters, type_reference, "linear")
-        }
+        DeclaredPropertyRequirement::Copy => type_satisfies_structural_property(
+            program,
+            type_parameters,
+            type_reference,
+            &[],
+            "copy",
+        ),
+        DeclaredPropertyRequirement::Linear => type_satisfies_structural_property(
+            program,
+            type_parameters,
+            type_reference,
+            &[],
+            "linear",
+        ),
     }
+}
+
+/// Copy permission of a formal carrier read through an applied substitution.
+/// A selected implementation's `[T; Count]` names the same structural identity
+/// as the caller's `[u8; 3]`; its permission is the actual element's, never the
+/// open formal's. Each substituted occurrence is answered by its actual, so a
+/// shape and the concrete value it names cannot disagree about duplication.
+pub fn substituted_type_satisfies_copy(
+    program: &dyn crate::CheckingInput,
+    type_reference: typed_trees::types::TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    type_satisfies_structural_property(program, &[], type_reference, substitutions, "copy")
 }
 
 fn type_satisfies_structural_property(
     program: &dyn crate::CheckingInput,
     type_parameters: &[TypeParameter],
     type_reference: typed_trees::types::TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, TypeReferenceHandle)],
     property: &str,
 ) -> bool {
     // Representation preserves the semantic property's obligation at every
@@ -364,6 +387,7 @@ fn type_satisfies_structural_property(
             program,
             type_parameters,
             storage.semantic_type,
+            substitutions,
             property,
         );
     }
@@ -377,6 +401,26 @@ fn type_satisfies_structural_property(
 
     match program.type_reference_table.type_reference(type_reference) {
         TypeReferenceNode::Named { symbol, name } => {
+            // The last binding for a formal wins. Its actual is read without
+            // that binding, so a self-referential row cannot loop.
+            if symbol.is_valid()
+                && let Some(position) = substitutions
+                    .iter()
+                    .rposition(|(formal, actual)| formal == symbol && *actual != type_reference)
+            {
+                let remaining = substitutions
+                    .iter()
+                    .filter(|(formal, _)| formal != symbol)
+                    .copied()
+                    .collect::<Vec<_>>();
+                return type_satisfies_structural_property(
+                    program,
+                    type_parameters,
+                    substitutions[position].1,
+                    &remaining,
+                    property,
+                );
+            }
             if let Some(parameter) =
                 type_parameter_for_reference(type_parameters, *symbol, name.as_str())
             {
@@ -387,12 +431,20 @@ fn type_satisfies_structural_property(
         TypeReferenceNode::Reference { access, .. } => {
             property == "copy" && *access == language_core::ReferenceAccess::Shared
         }
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            type_satisfies_structural_property(program, type_parameters, *base_type, property)
-        }
-        TypeReferenceNode::FixedArray { element_type, .. } => {
-            type_satisfies_structural_property(program, type_parameters, *element_type, property)
-        }
+        TypeReferenceNode::Constrained { base_type, .. } => type_satisfies_structural_property(
+            program,
+            type_parameters,
+            *base_type,
+            substitutions,
+            property,
+        ),
+        TypeReferenceNode::FixedArray { element_type, .. } => type_satisfies_structural_property(
+            program,
+            type_parameters,
+            *element_type,
+            substitutions,
+            property,
+        ),
         // An instantiated generic carries the property when its base data
         // declares it; the instantiation-time bound check separately verifies
         // the arguments uphold the base's parameter bounds.

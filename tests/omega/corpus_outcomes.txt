@@ -847,6 +847,27 @@ fail/facts/match_runtime_view_extent_through_parameter_rejected rejected 803ms e
 fail/facts/match_runtime_view_extent_through_target_body_rejected rejected 682ms expected @fc74098f66b9+wt
 	exact arithmetic in machine `X86Apply::apply` state `apply` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmApply::apply` state `apply` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/method_array_operand_inference_element_not_copy_rejected rejected 5256ms expected @c79bb8268163+wt
+	generic machine `last` has a concrete specialization tuple that does not satisfy its authored type bounds
+	generic machine `SelectedBytes::last` has a concrete specialization tuple that does not satisfy its authored type bounds
+fail/facts/method_array_operand_inference_through_call_result_rejected rejected 5023ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_const_name_rejected rejected 5429ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_field_rejected rejected 2123ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_local_rejected rejected 2848ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_match_join_rejected rejected 3065ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_other_machine_rejected rejected 4541ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_other_state_rejected rejected 4405ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_parameter_rejected rejected 3478ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
+fail/facts/method_array_operand_inference_through_target_body_rejected rejected 4000ms expected @c79bb8268163+wt
+	argument `bytes` for state `last` expects `&[u8; 4]`, got `named value`; expected carrier `ref(array(named(name(u8)),literal(4)))`, declared place carrier `array(named(name(u8)),literal(3))`
 fail/facts/named_const_callable_family_cross_module_alias_rejected rejected 739ms expected @75dd4e483f7a
 	generic machine `apply` has a static selection, but its complete type/const/machine/conformance specialization tuple cannot be derived in machine `main` state `main::entry`: Const slot `Count` conflicts: 5 [identity named(integer-const(5)); supplier unretained] versus 4 [identity named(integer-const(4)); supplier unretained]
 fail/facts/named_const_callable_family_forwarded_family_rejected rejected 565ms expected @75dd4e483f7a
@@ -7541,6 +7562,15 @@ pass/facts/may_write_stored_rebind_through_target_body_exit rejected 3218ms chec
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
+pass/facts/method_array_operand_inference_through_call_result_exit checked 22709ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_const_name_exit checked 26258ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_field_exit checked 18271ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_local_exit checked 17883ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_match_join_exit checked 17748ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_other_machine_exit checked 25976ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_other_state_exit checked 26881ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_parameter_exit checked 22272ms check-target:macos_arm64 @c79bb8268163+wt
+pass/facts/method_array_operand_inference_through_target_body_exit checked 13067ms check-target:macos_arm64 @c79bb8268163+wt
 pass/facts/mixed_width_record_padding_geometry_through_call_result_exit checked 4547ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/mixed_width_record_padding_geometry_through_const_name_exit checked 2839ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/mixed_width_record_padding_geometry_through_field_exit checked 3889ms check-target:macos_arm64 @ccdb99ca2214
