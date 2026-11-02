@@ -86,6 +86,8 @@ data BackingPair {
 
 machine carry_pair(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant,
     remaining: u64) -> BackingPair
+ensures result.first.base == first.base, result.first.length == first.length,
+    result.second.base == second.base, result.second.length == second.length
 terminates by remaining
 {
     transition remaining > 0 {
@@ -95,6 +97,8 @@ terminates by remaining
     machine step(first: Extent in Granted & Vacant, second: Extent in Granted & Vacant,
         remaining: u64) -> BackingPair
     requires remaining > 0
+    ensures result.first.base == first.base, result.first.length == first.length,
+        result.second.base == second.base, result.second.length == second.length
     {
         let left: Extent in Granted & Vacant = forward(first);
         let right: Extent in Granted & Vacant = forward(first);
@@ -103,7 +107,8 @@ terminates by remaining
 }
 
 machine forward(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant
-ensures Granted::content(old(&storage)) == Granted::content(&result),
+ensures result.base == storage.base, result.length == storage.length,
+    Granted::content(old(&storage)) == Granted::content(&result),
     Vacant::content(old(&storage)) == Vacant::content(&result)
 {
     let { base, length } = storage;

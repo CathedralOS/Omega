@@ -69,7 +69,8 @@ impl<'program> StructuralJudge<'program> {
         // captured equations/predicates remain detached values, not a license
         // to reevaluate a caller expression through new callee bindings.
         self.normal_results = std::sync::Arc::new(Vec::new());
-        self.completed_nominal_values = std::sync::Arc::new(Vec::new());
+        // Nominal receipts name detached completed values, not callee source
+        // expressions. Passed values retain those receipts across activation.
         self.premise_facts.clear();
         std::sync::Arc::make_mut(&mut self.body_invocations).push(entry.symbol);
         self.declaration_state = entry.symbol;
@@ -108,10 +109,18 @@ impl<'program> StructuralJudge<'program> {
         self.declaration_state = caller.declaration_state;
         self.body_type_parameters = caller.body_type_parameters;
         self.normal_results = std::sync::Arc::clone(&caller.normal_results);
-        // An owned Match snapshot belongs to the caller's activation. Callee
-        // captures are private; restoring only the value and losing its admission
-        // receipt discards payload/type facts across an otherwise disjoint call.
-        self.completed_nominal_values = std::sync::Arc::clone(&caller.completed_nominal_values);
+        // Both activations may retain completed values. Restoring only caller
+        // receipts loses the admission of a value returned by the callee; losing
+        // caller receipts drops payload facts across an otherwise disjoint call.
+        let receipts = std::sync::Arc::make_mut(&mut self.completed_nominal_values);
+        for receipt in caller.completed_nominal_values.iter() {
+            if !receipts
+                .iter()
+                .any(|retained| retained.value == receipt.value)
+            {
+                receipts.push(receipt.clone());
+            }
+        }
         Some(self)
     }
 }

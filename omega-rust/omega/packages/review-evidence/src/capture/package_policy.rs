@@ -45,6 +45,10 @@ pub fn project_checked_package_policy<'a>(
 ) -> Result<PackagePolicyBaseline, Vec<Diagnostic>> {
     let input = input.into();
     let queries = PolicyCheckingContexts::new(input.program, input.custody);
+    let mathematical_calls =
+        super::contracts::mathematical_calls::MathematicalCallQueries::new(&queries.candidate);
+    let original_mathematical_calls =
+        super::contracts::mathematical_calls::MathematicalCallQueries::new(&queries.custody);
     let external_providers = input.project_external_providers()?;
     let services = input.project_service_declarations()?;
     let compilation = &PackageReviewInput {
@@ -54,6 +58,8 @@ pub fn project_checked_package_policy<'a>(
             checking_input: &queries.candidate,
             original_checking_input: &queries.custody,
             contract_owner_queries: None,
+            mathematical_calls: Some(&mathematical_calls),
+            original_mathematical_calls: Some(&original_mathematical_calls),
             ..input.source
         },
         ..input

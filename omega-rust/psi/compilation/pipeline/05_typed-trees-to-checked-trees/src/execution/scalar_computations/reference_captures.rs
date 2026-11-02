@@ -1,7 +1,8 @@
-//! Reference production consumes the borrow owner's exact occurrence captures.
-//! A current descriptor keeps its own runtime coordinate even when several
-//! historical suppliers provided it. Those suppliers and their lineage remain
-//! independent BorrowFacts; geometry never invents a new resource or owning move.
+//! Construct reference values from their recorded source and permitted access.
+//! A reference parameter supplies that information on entry. Locals, field
+//! projections and new borrows use their own borrow records. Keep the current
+//! pointer and slice length; rebuilding them from an earlier allocation could
+//! select the wrong storage or widen the view.
 use super::{Builder, ExpressionHandle};
 use crate::flow::state_statements;
 use checked_trees::{BorrowAccessKind, CheckedStructuralAccess};
@@ -25,6 +26,24 @@ impl Builder<'_, '_> {
             })
             .and_then(|statement| statement.as_local_data())
             .filter(|local| local.initial_value == expression);
+        // A reference parameter already supplies its pointer, slice length
+        // and permitted access. Reuse that value when putting it in another
+        // value; this does not form a new borrow. Plain references and slices
+        // use the same check. Locals and fields still need their borrow records.
+        let incoming = descriptor.as_ref().and_then(|place| {
+            if !place.segments.is_empty()
+                || self.canonical_place(expression).as_ref() != Some(place)
+            {
+                return None;
+            }
+            let parameter = self.program.state_parameter_by_symbol(
+                self.program.state_by_symbol(self.state)?,
+                place.root.as_symbol()?,
+            )?;
+            let declared = validation::reference_shell(self.program, parameter.type_reference)?;
+            crate::values::reference_sources::access_can_supply(declared.access.into(), access)
+                .then_some(parameter.symbol)
+        });
         let mut source = None;
         let mut retain_capture = |root, segments, captured_kind: &BorrowAccessKind| {
             if *captured_kind != kind {
@@ -47,6 +66,13 @@ impl Builder<'_, '_> {
             source = Some(place);
             Some(())
         };
+        if let Some(parameter) = incoming {
+            retain_capture(
+                facts::PlaceRoot::Symbol(parameter),
+                Default::default(),
+                &kind,
+            )?;
+        }
         for loan in self.borrow.loans.span(state.loans)?.iter().filter(|loan| {
             loan.statement_index == self.statement_index
                 && loan.formation_expression == expression
@@ -197,14 +223,12 @@ impl Builder<'_, '_> {
                             .is_some()
                     })
             });
-        if !incoming {
-            if !borrowed {
-                return None;
-            }
-            // No ultimate-backing reconstruction: the original slot is loaded
-            // at this exact value occurrence, with all suppliers still retained.
-            self.captured_reference_place(expression, shell.access, Some(place))?;
+        if !incoming && !borrowed {
+            return None;
         }
+        // No ultimate-backing reconstruction: the original slot is loaded
+        // at this exact value occurrence, with all suppliers still retained.
+        self.captured_reference_place(expression, shell.access, Some(place))?;
         Some(validation::ReferenceFormationSource {
             source: expression,
             access: shell.access,

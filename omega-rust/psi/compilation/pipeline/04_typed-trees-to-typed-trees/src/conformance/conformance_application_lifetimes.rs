@@ -16,6 +16,7 @@ use typed_trees::type_identity::{AppliedTypeIdentityScope, IndexIdentityArgument
 use typed_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 
 mod argument_scopes;
+mod inherited_arguments;
 
 #[derive(Clone, Copy)]
 enum ElisionCallSite {
@@ -70,6 +71,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         let Some(caller_machine) = program.machine_by_symbol(call.caller_machine) else {
             continue;
         };
+        let caller_machine = caller_machine.symbol;
         // The caller state must resolve inside the caller machine itself; a
         // whole-program find could admit a same-named state stored elsewhere.
         let caller_state =
@@ -107,9 +109,10 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
         let mut conflicting_call_lifetime = false;
         let skip = parameters.len().saturating_sub(call.arguments.len());
         for (argument, parameter) in call.arguments.iter().zip(parameters.iter().skip(skip)) {
-            let Some((actual, applications)) = caller_state
-                .and_then(|state| argument_scopes::source_application(program, state, *argument))
-            else {
+            let Some((actual, applications)) = caller_state.and_then(|state| {
+                let machine = program.machine_by_symbol(caller_machine)?;
+                argument_scopes::source_application(program, machine, state, *argument)
+            }) else {
                 continue;
             };
             // A formed borrow presents the declared place as its referent.
@@ -137,10 +140,10 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                     actual,
                     callee_lifetimes,
                     argument_scopes::Scope {
-                        owner: caller_machine.symbol,
+                        owner: caller_machine,
                         frames,
                     },
-                    caller_machine.symbol,
+                    caller_machine,
                     RequiredLifetimeScope::Operand,
                     &mut |required, actual| {
                         if let Some(actual) = actual {
@@ -168,9 +171,9 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             continue;
         }
 
-        let evidence_bounds = callee_machine.map_or_else(Vec::new, |(machine, _)| {
-            machine.conformance_bounds.iter().collect::<Vec<_>>()
-        });
+        let evidence_bounds =
+            callee_machine.map_or_else(Vec::new, |(machine, _)| machine.conformance_bounds.clone());
+        let callee_machine = callee_machine.map(|(machine, _)| machine.symbol);
         let mut evidence_index = 0usize;
         for argument_ordinal in 0..call.machine_arguments.len() {
             let mut selected = call.machine_arguments[argument_ordinal].clone();
@@ -186,7 +189,7 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 break;
             };
             evidence_index += 1;
-            let Some((callee_machine, _)) = callee_machine else {
+            let Some(callee_machine) = callee_machine else {
                 break;
             };
             if !matches!(
@@ -195,20 +198,37 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
             ) {
                 continue;
             }
-            let Some(conformance) = program.conformance_by_symbol(selected.symbol) else {
+            let Some(conformance) = program.conformance_by_symbol(selected.symbol).cloned() else {
                 continue;
             };
             if conformance.lifetime_parameters.is_empty() {
                 continue;
             }
+            let Some(callee_declaration) = program.machine_by_symbol(callee_machine) else {
+                diagnostics.push(Diagnostic::error(
+                    "call lifetime constraints lost their exact callee declaration",
+                ));
+                continue;
+            };
+            let machine_parameters = program.machine_type_parameters(callee_declaration).to_vec();
+            let (declared_arguments, expected_arguments) = match inherited_arguments::materialize(
+                program,
+                &conformance,
+                bound,
+                callee_machine,
+            ) {
+                Ok(arguments) => arguments,
+                Err(reason) => {
+                    diagnostics.push(Diagnostic::error(format!(
+                        "conformance `{}` cannot retain its inherited application for call lifetime constraints: {reason}",
+                        program.symbols.name(conformance.symbol),
+                    )));
+                    continue;
+                }
+            };
             let mut inferred = Vec::<(String, String)>::new();
             let mut conflict = false;
-            for (declared, expected) in program
-                .type_reference_table
-                .type_reference_handles(conformance.arguments)
-                .iter()
-                .zip(&bound.arguments)
-            {
+            for (declared, expected) in declared_arguments.iter().zip(&expected_arguments) {
                 collect_conformance_lifetime_bindings(
                     program,
                     *declared,
@@ -245,12 +265,10 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 continue;
             };
 
-            let machine_substitutions = static_substitutions(
-                program.machine_type_parameters(callee_machine),
-                &call.machine_arguments,
-            );
+            let machine_substitutions =
+                static_substitutions(&machine_parameters, &call.machine_arguments);
             let conformance_substitutions = static_substitutions(
-                program.conformance_type_parameters(conformance),
+                program.conformance_type_parameters(&conformance),
                 selected
                     .application
                     .as_deref()
@@ -262,37 +280,45 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                 .zip(&resolved)
                 .map(|(parameter, argument)| (parameter.as_str().to_owned(), argument.clone()))
                 .collect::<Vec<_>>();
-            let declared_arguments = program
-                .type_reference_table
-                .type_reference_handles(conformance.arguments);
-            let shapes_match = declared_arguments.len() == bound.arguments.len()
+            let mut mismatched_argument = None;
+            let shapes_match = declared_arguments.len() == expected_arguments.len()
                 && declared_arguments
                     .iter()
-                    .zip(&bound.arguments)
-                    .all(|(declared, expected)| {
-                        typed_trees::type_identity::applied_type_identity_in_scope(
-                            program,
-                            *declared,
-                            conformance.symbol,
-                            call.caller_machine,
-                            &[AppliedTypeIdentityScope {
-                                declaration: conformance.symbol,
-                                arguments: &conformance_substitutions,
-                                lifetimes: &inferred_substitutions,
-                            }],
-                        )
-                        .zip(typed_trees::type_identity::applied_type_identity_in_scope(
-                            program,
-                            *expected,
-                            callee_machine.symbol,
-                            call.caller_machine,
-                            &[AppliedTypeIdentityScope {
-                                declaration: callee_machine.symbol,
-                                arguments: &machine_substitutions,
-                                lifetimes: &call_lifetimes,
-                            }],
-                        ))
-                        .is_some_and(|(declared, expected)| declared == expected)
+                    .zip(&expected_arguments)
+                    .enumerate()
+                    .all(|(ordinal, (declared, expected))| {
+                        let declared_identity =
+                            typed_trees::type_identity::applied_type_identity_in_scope(
+                                program,
+                                *declared,
+                                conformance.symbol,
+                                call.caller_machine,
+                                &[AppliedTypeIdentityScope {
+                                    declaration: conformance.symbol,
+                                    arguments: &conformance_substitutions,
+                                    lifetimes: &inferred_substitutions,
+                                }],
+                            );
+                        let expected_identity =
+                            typed_trees::type_identity::applied_type_identity_in_scope(
+                                program,
+                                *expected,
+                                callee_machine,
+                                call.caller_machine,
+                                &[AppliedTypeIdentityScope {
+                                    declaration: callee_machine,
+                                    arguments: &machine_substitutions,
+                                    lifetimes: &call_lifetimes,
+                                }],
+                            );
+                        let matches = declared_identity
+                            .zip(expected_identity)
+                            .is_some_and(|(declared, expected)| declared == expected);
+                        if !matches {
+                            mismatched_argument =
+                                Some((ordinal, declared_identity, expected_identity));
+                        }
+                        matches
                     });
             if !shapes_match {
                 if selected
@@ -300,12 +326,27 @@ pub(crate) fn resolve_elided_conformance_lifetimes(
                     .as_ref()
                     .is_some_and(|application| !application.lifetime_arguments.is_empty())
                 {
+                    let detail = mismatched_argument.map_or_else(
+                        || {
+                            format!(
+                                "argument count {} instead of {}",
+                                declared_arguments.len(),
+                                expected_arguments.len()
+                            )
+                        },
+                        |(ordinal, declared, expected)| {
+                            format!(
+                                "argument {ordinal}: selected {:?}, required {:?}",
+                                declared.and_then(|identity| program.type_identity_text(identity)),
+                                expected.and_then(|identity| program.type_identity_text(identity)),
+                            )
+                        },
+                    );
                     diagnostics.push(Diagnostic::error(format!(
-                        "conformance `{}` supplies lifetime arguments that disagree with the call's ordinary borrow constraints",
-                        conformance
-                            .alias
-                            .as_ref()
-                            .map_or("<unnamed>", |name| name.as_str())
+                        "conformance `{}` supplies lifetime arguments that disagree with the call's ordinary borrow constraints at `{}` in `{}`: {detail}",
+                        conformance.alias.as_ref().map_or("<unnamed>", |name| name.as_str()),
+                        program.symbols.name(callee_machine),
+                        program.symbols.display_path(call.caller_machine, "::"),
                     )));
                 }
                 continue;

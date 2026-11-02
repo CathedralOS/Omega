@@ -92,14 +92,20 @@ their backing. Its twin swaps the outputs and must reject the identity claims.
 The [nested helper-loop production](runtime_helper_loop/README.md) carries both
 backings through helper-call results on a backedge. It checks their distinct
 contents after zero and repeated iterations; its twin repeats a consumed input
-and must reject the duplicate transfer. Recursive descriptor-equality proofs
-and the Vec copy/reallocation lifecycle remain separate unfinished requirements.
+and must reject the duplicate transfer. The reconstruction production below
+also checks recursive descriptor guarantees; the Vec copy/reallocation lifecycle
+remains the parent outcome's acceptance.
 
 The [reconstruction-loop production](runtime_reconstruction_loop/README.md)
 rebuilds both descriptors through checked content-conserving helpers on the
 backedge. Its direct and recursive exits have different claim origins; each
 completed call must still return its complete owned result. Its twin changes
 the reconstructed length and must reject the unchanged conservation contract.
+
+The [runtime-growth customer](runtime_growth/README.md) uses the Bump package
+to copy live elements into larger backing and append another element. The
+recursive descriptor guarantees directly establish the grown vector's invariant;
+its twin swaps the recursive backing arguments and must reject.
 
 The field place captures its qualified extent through an ordinary call both
 before reconstructing `Held` and while restoring a borrowed `Held`. Its default

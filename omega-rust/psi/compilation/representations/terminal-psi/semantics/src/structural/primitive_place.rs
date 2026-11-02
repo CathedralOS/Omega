@@ -626,8 +626,9 @@ fn plain_scalar_field(field: &StructuralFieldType) -> Option<ScalarType> {
     }
 }
 
-/// Kind and extent identify carrier geometry; a field's access remains on
-/// the field rather than becoming part of the standalone declaration.
+/// The field and its declared byte carrier must have the same kind and extent.
+/// A declaration can describe the bytes without a loan, or name the stored
+/// descriptor with that field's exact access. A different access is incompatible.
 pub fn byte_carrier_geometry_matches(
     field: ByteSequenceCarrier,
     declared: ByteSequenceCarrier,
@@ -638,18 +639,19 @@ pub fn byte_carrier_geometry_matches(
             ByteSequenceCarrier::BoundedOwned { capacity: declared },
         ) => field == declared,
         (
-            ByteSequenceCarrier::BorrowedView { .. },
-            ByteSequenceCarrier::BorrowedView { access: None },
-        ) => true,
+            ByteSequenceCarrier::BorrowedView { access: field },
+            ByteSequenceCarrier::BorrowedView { access: declared },
+        ) => declared.is_none() || declared == field,
         (
             ByteSequenceCarrier::BoundedView {
-                capacity: field, ..
+                capacity: field,
+                access: field_access,
             },
             ByteSequenceCarrier::BoundedView {
                 capacity: declared,
-                access: None,
+                access: declared_access,
             },
-        ) => field == declared,
+        ) => field == declared && (declared_access.is_none() || declared_access == field_access),
         _ => false,
     }
 }

@@ -56,6 +56,12 @@ cleanup:
   item heading says it also covers. Settled decisions are named in lower case
   and are not task IDs. Fact READMEs held 121 such citations; those are listed
   in `tools/dangling_task_ids.txt` and may only be removed.
+- Dense-ID maps and caches. The compiler mints dense `semantic_id!` IDs and
+  arena handles, then on 2026-11-02 stored them in 1,537 BTreeMap/HashMap/set
+  types across 344 non-test files and layered 311 cache- or memo-shaped
+  bindings over them, while the ITERATION-PERFORMANCE campaign replaced them
+  with flat tables. Per-file counts in `tools/dense_id_maps.txt` and
+  `tools/cache_state.txt` may only fall.
 
 The diff checks compare `--base` (default: the merge base with origin/main)
 with HEAD and read only Git and the tree. Nothing here builds or runs the
@@ -77,6 +83,9 @@ STATUS_BASELINE = "tools/contract_status_phrases.txt"
 STAGE06_ROOT = "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi"
 SHAPE_GATE_BASELINE = "tools/stage06_shape_gates.txt"
 SOURCE_CONTEXT_BASELINE = "tools/stage06_source_context.txt"
+SEMANTIC_IDS = "omega-rust/psi/foundation/semantic-vocabulary/src/identity.rs"
+DENSE_MAP_BASELINE = "tools/dense_id_maps.txt"
+CACHE_STATE_BASELINE = "tools/cache_state.txt"
 CONTRACTS = ("omega-rust/pipeline.md", "wiki/spec")
 DANGLING_BASELINE = "tools/dangling_task_ids.txt"
 TASK_BOARDS = ("TASKS.md", "TASKS_OPTIMIZER.md", "TASKS_BOOTSTRAP.md", "OWNER_QUESTIONS.md")
@@ -122,6 +131,21 @@ STATUS_PHRASE = re.compile(
 # that reach past Psi 05's plans into the typed source trees.
 SHAPE_GATE = re.compile(r"unsupported\(|Unsupported|unpinned\(")
 SOURCE_CONTEXT = re.compile(r"\b(?:Frozen)?TypedTrees\b|\btyped_trees::expression\b|\.typed\b")
+
+# Product Rust excludes test directories, test files and `#[cfg(test)]` /
+# `#[cfg(all(test, …))]` modules. Cache state is a binding named *cache*/*memo*
+# or typed as a *Cache*/*Memo* type, so renaming the binding does not hide it.
+# Each branch consumes through its colon, so `let cache: LayoutCache` counts
+# once; `memo` before `r` is `memory`, not a memo.
+TEST_FILE = re.compile(r"(?:^|_)tests?\.rs$")
+LINE_COMMENT = re.compile(r"//[^\n]*")
+TEST_MODULE = re.compile(r"#\[cfg\((?:all\()?test\b[^\]]*\]\s*(?:#\[[^\]]*\]\s*)*"
+                         r"(?:pub(?:\([^)]*\))?\s+)?mod\s+\w+\s*\{")
+CACHE_NAME = r"[a-z_][a-z0-9_]*(?:cache|memo(?!r))[a-z0-9_]*"
+CACHE_TYPE = r"(?:\w+::)*\w*(?:Cache|Memo(?!r))\w*\b"
+CACHE_STATE = re.compile(rf"\blet\s+(?:mut\s+)?{CACHE_NAME}\b|\b{CACHE_NAME}\s*:(?!:)"
+                         rf"|(?<!:):(?!:)\s*&?\s*(?:mut\s+)?{CACHE_TYPE}"
+                         r"|\b(?:OwnedIndex|KeyedRows)\b")
 
 
 def git(*arguments, root=ROOT):
@@ -181,6 +205,43 @@ def stage06_files(root: Path = ROOT) -> list:
                   if "target" not in path.relative_to(root).parts)
 
 
+# Dense-ID maps and caches ---------------------------------------------------
+
+def product_rust_files(root: Path = ROOT) -> list:
+    return [path for path in rust_files(root)
+            if not {"tests", "benches"} & set(path.relative_to(root).parts)
+            and not TEST_FILE.search(path.name)]
+
+
+def product_text(text: str) -> str:
+    """Drop line comments and `#[cfg(test)]` modules, which ship nothing."""
+    text = LINE_COMMENT.sub("", text)
+    while match := TEST_MODULE.search(text):
+        depth, position = 1, match.end()
+        while depth and position < len(text):
+            depth += {"{": 1, "}": -1}.get(text[position], 0)
+            position += 1
+        text = text[:match.start()] + text[position:]
+    return text
+
+
+def count_cache_state(text: str) -> int:
+    # Substring tests skip the ~88% of files the regex would scan at every word.
+    if not any(word in text for word in ("cache", "Cache", "memo", "Memo",
+                                         "OwnedIndex", "KeyedRows")):
+        return 0
+    return len(CACHE_STATE.findall(product_text(text)))
+
+
+# A map or set keyed by a `semantic_id!` type, an arena `Handle<…>` or a
+# `*Handle` alias. The IDs are read from identity.rs, so a new ID is covered.
+DENSE_KEYS = "|".join(re.findall(r"semantic_id!\(\s*(\w+)",
+                                 (ROOT / SEMANTIC_IDS).read_text(encoding="utf-8"))
+                      + [r"\w*Handle"])
+DENSE_KEY_MAP = re.compile(
+    rf"\b(?:Fx)?(?:BTree|Hash|Index)(?:Map|Set)\s*<\s*&?\s*(?:\w+::)*(?:{DENSE_KEYS})\b")
+
+
 # Count ratchets -------------------------------------------------------------
 
 class Ratchet(NamedTuple):
@@ -232,6 +293,23 @@ RATCHETS = (
         "Stages cannot reconstruct missing input facts from source context "
         "(omega-rust/pipeline.md \"Public contracts\"): read the fact from the Psi 05 "
         "plan, and record it there when Psi 05 does not yet publish it."),
+    Ratchet(
+        DENSE_MAP_BASELINE, "update-dense-id-maps", "maps keyed by dense IDs",
+        product_rust_files, lambda text: len(DENSE_KEY_MAP.findall(product_text(text))),
+        ("BTreeMap/HashMap/BTreeSet/HashSet (Fx, Index) keyed by a semantic_id! type or",
+         "an arena Handle, per non-test file. Counts may only fall: dense IDs index",
+         "flat tables (AGENTS.md conventions)."),
+        "Dense IDs index flat tables, not maps (AGENTS.md): store the rows in an "
+        "IdTable/IdSet, or a Vec indexed by the ID."),
+    Ratchet(
+        CACHE_STATE_BASELINE, "update-cache-state", "cache-shaped names",
+        product_rust_files, count_cache_state,
+        ("Fields, parameters and locals named *cache*/*memo* (not memory) or typed",
+         "*Cache*/*Memo*, plus OwnedIndex/KeyedRows uses, per non-test file. Counts",
+         "may only fall: derived data is computed once by its owner, not cached",
+         "(AGENTS.md conventions)."),
+        "Derived data is computed once by its owner, not cached (AGENTS.md): have the "
+        "producing stage publish it as a table its consumers index."),
 )
 
 
@@ -264,7 +342,8 @@ def ratchet_violations(ratchet: Ratchet, counts: dict, baseline: dict) -> list:
     return violations
 
 
-SOURCE_READS, STATUS_PHRASES, SHAPE_GATES, SOURCE_CONTEXT_READS = RATCHETS
+(SOURCE_READS, STATUS_PHRASES, SHAPE_GATES, SOURCE_CONTEXT_READS, DENSE_ID_MAPS,
+ CACHE_STATE_NAMES) = RATCHETS
 
 
 # Dangling task IDs ----------------------------------------------------------

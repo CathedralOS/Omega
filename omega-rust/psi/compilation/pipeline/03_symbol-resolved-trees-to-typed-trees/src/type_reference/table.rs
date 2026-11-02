@@ -112,25 +112,43 @@ pub(super) fn lower_type_reference_handle_from_table_with_context(
             lifetime_arguments,
             arguments,
         } => {
-            let lowered_arguments =
-                lower_type_argument_handles(source_trees, typed_trees, *arguments, exposure)?;
+            if arguments.is_empty()
+                && let Some(application) = super::generic_origins::region_application(
+                    source_trees,
+                    base_name,
+                    *base_symbol,
+                    lifetime_arguments,
+                )?
+            {
+                // Table-backed uses retain the same exact source application
+                // as declaration-owned types, including its supplying scope.
+                super::direct::lower_type_reference_handle_with_context(
+                    source_trees,
+                    typed_trees,
+                    application,
+                    exposure,
+                )
+            } else {
+                let lowered_arguments =
+                    lower_type_argument_handles(source_trees, typed_trees, *arguments, exposure)?;
 
-            super::retain_type_reference_selection(
-                source_trees,
-                typed_trees,
-                base_name,
-                *base_symbol,
-                exposure,
-                language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
-            )?;
-            Ok(typed_trees
-                .type_reference_table
-                .insert(typed::types::TypeReferenceNode::Generic {
-                    base_symbol: *base_symbol,
-                    base_name: crate::lowerer::name::lower_name(base_name),
-                    lifetime_arguments: lower_names(&lifetime_arguments),
-                    arguments: lowered_arguments,
-                }))
+                super::retain_type_reference_selection(
+                    source_trees,
+                    typed_trees,
+                    base_name,
+                    *base_symbol,
+                    exposure,
+                    language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+                )?;
+                Ok(typed_trees.type_reference_table.insert(
+                    typed::types::TypeReferenceNode::Generic {
+                        base_symbol: *base_symbol,
+                        base_name: crate::lowerer::name::lower_name(base_name),
+                        lifetime_arguments: lower_names(&lifetime_arguments),
+                        arguments: lowered_arguments,
+                    },
+                ))
+            }
         }
         resolved::types::TypeReferenceNode::ConstExpression(expression) => {
             let expression = crate::expressions::expression::lower_expression_handle_from_table_with_symbol_substitution(

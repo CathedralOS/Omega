@@ -52,18 +52,10 @@ pub(super) fn source(
     // admission retains membership and loan obligations separately.
     let (root_structural_type, backing) =
         if let Some(semantic) = function.structural_parameter(source.place) {
-            if !matches!(
-                semantic.access,
-                StructuralAccess::SharedBorrow | terminal_psi::mutating_access_pair_pattern!()
-            ) || (source.access == StructuralAccess::MutableBorrow
-                && !matches!(
-                    semantic.access,
-                    terminal_psi::mutating_access_pair_pattern!()
-                ))
-                || semantic.multiplicity != StructuralMultiplicity::Unrestricted
-            {
-                return Err(invalid());
-            }
+            // A parameter can own a record containing the lent collection.
+            // Its multiplicity describes that record, not access to the
+            // selected backing. Check the complete projection below, as for
+            // local storage and completed values.
             let parameter = parameters
                 .iter()
                 .find(|parameter| parameter.place == source.place)
