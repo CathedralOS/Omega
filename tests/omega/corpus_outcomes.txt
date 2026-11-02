@@ -1866,6 +1866,12 @@ fail/generics/native_locator_undefined_user_coordinate rejected 516ms expected @
 	quoted byte literal cannot initialize owned fixed byte array `[u8; N]`: its width must be a compile-known resolved integer literal
 fail/generics/native_locator_wrong_explicit_extent rejected 306ms expected @b852a38544d0
 	quoted byte literal has 26 source byte(s), but owned fixed byte array `[u8; 25]` requires exactly 25; fixed-array literal copying neither truncates nor pads
+fail/generics/static_dispatch_private_ensures_explicit_requirement rejected 2985ms expected @24bfc5388538+wt
+	cannot prove requires contract for call hold from main: picked == 7 (needs fact `picked == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/generics/static_dispatch_private_ensures_nested_generic rejected 2984ms expected @24bfc5388538+wt
+	cannot prove requires contract for call hold from main: picked == 7 (needs fact `picked == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/generics/static_dispatch_private_ensures_through_generic rejected 2984ms expected @24bfc5388538+wt
+	cannot prove requires contract for call hold from main: picked == 7 (needs fact `picked == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/inline_asm/asm_where_retired rejected 26ms expected @0af7c594a1c0
 	tests/omega/fail/inline_asm/asm_where_retired/main.omg:3:22: expected one of `clobbers <registers>`, `requires`, `ensures`, `{`, found identifier `where`
 fail/layouts/accessor_with_linear_owner_write_denied rejected 988ms expected @84981c988bf9+wt
@@ -11152,6 +11158,7 @@ pass/generics/selected_value_bool_public_contract_exit checked 3801ms check-targ
 pass/generics/seq_map_filter rejected 1605ms regressed-from:checked @ccdb99ca2214
 	recursive proof machine `fold` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)
 pass/generics/static_callable_local_type_argument_exit checked 4188ms check-target:macos_arm64 @ccdb99ca2214
+pass/generics/static_dispatch_public_ensures_reaches_caller_exit checked 5189ms check-target:macos_arm64 @24bfc5388538+wt
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 3721ms @ada93c78b02f+wt
 pass/generics/swapped_type_parameter_result checked 2268ms @ccdb99ca2214
 pass/generics/type_index_forwarding_exit checked 4402ms check-target:macos_arm64 @ccdb99ca2214

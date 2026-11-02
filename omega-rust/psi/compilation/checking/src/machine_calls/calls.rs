@@ -444,6 +444,20 @@ pub(crate) fn callee_entry_contract(
     })
 }
 
+/// The contract this call's caller sees. A static requirement dispatch
+/// executes its selected realization but publishes only the requirement's
+/// contract; the realization's stronger private guarantees stay private.
+pub(crate) fn call_contract<'program>(
+    program: &'program dyn crate::CheckingInput,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<CalleeContract<'program>> {
+    let target = call
+        .static_requirement_dispatch
+        .as_ref()
+        .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol());
+    callee_entry_contract(program, target)
+}
+
 /// A boundary or requirement call targets the trait's declared signature
 /// symbol rather than a machine-body state. A retained closed application owns
 /// its already-substituted signature, even when the authored trait has `Type`
