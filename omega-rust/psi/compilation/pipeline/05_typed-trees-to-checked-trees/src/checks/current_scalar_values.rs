@@ -868,9 +868,12 @@ impl<'program> CurrentScalarValues<'program> {
                 numerics::bignum::BigInt::from_i64(value),
             ));
         }
-        // A completed call publishes all of its public result bounds. An
-        // exact interval is a constant; a proper interval belongs to this
-        // observed occurrence, not a replay of an effectful or dynamic call.
+        // A completed call retains its supplying roster as well as its result
+        // interval. Reducing it to an opaque bounded atom loses relational
+        // guarantees such as result == input + 1. ScopedCalls owns the exact
+        // selected public contract, occurrence identity and independence check;
+        // this capture never reads the callee body. Unrepresented actuals still
+        // supply only the independently known interval.
         if let Some(call) = program.expression_table.call_node(expression)
             && let Some((low, high)) =
                 validation::normal_return_integer_bounds(program, machine.symbol, expression, call)
@@ -886,10 +889,17 @@ impl<'program> CurrentScalarValues<'program> {
                 validation::expression_result_type_reference(program, machine, state, expression)?;
             let primitive = integer_carrier(program, reference)?;
             return Some(ScopedArithmeticValue::BoundedInteger {
-                value: Box::new(ScopedArithmeticValue::Atom {
-                    identity: format!("state:{:?}:call-result:{expression:?}", state.symbol),
-                    unsigned: unsigned(primitive),
-                }),
+                value: Box::new(
+                    self.current(expression)
+                        .map(ScopedArithmeticValue::Term)
+                        .unwrap_or_else(|| ScopedArithmeticValue::Atom {
+                            identity: format!(
+                                "state:{:?}:call-result:{expression:?}",
+                                state.symbol
+                            ),
+                            unsigned: unsigned(primitive),
+                        }),
+                ),
                 interval: BigIntInterval {
                     low: low.map(numerics::bignum::BigInt::from_i64),
                     high: high.map(numerics::bignum::BigInt::from_i64),
@@ -1728,10 +1738,11 @@ fn admitted(
         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => true,
         ExpressionNode::Cast(_) => integer_cast_operand(program, machine, state, expression)
             .is_some_and(|operand| admitted(occurrence, operand, bindings, fields, depth + 1)),
-        ExpressionNode::Call(_) => validation::integer_embedding_argument(program, expression)
-            .is_some_and(|(_, argument)| {
-                admitted(occurrence, argument, bindings, fields, depth + 1)
-            }),
+        ExpressionNode::Call(call) => program
+            .expression_table
+            .expression_handles(call.arguments)
+            .iter()
+            .all(|argument| admitted(occurrence, *argument, bindings, fields, depth + 1)),
         ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
             result_scalar_field_occurrence(occurrence, expression).is_some()
                 || length_occurrence(program, expression, lengths).is_some()
@@ -1819,9 +1830,21 @@ fn scoped(
                     value: ScopedArithmeticValue::Term(value),
                 });
             }
-            ExpressionNode::Call(_) => {
-                let (_, argument) = validation::integer_embedding_argument(program, expression)?;
-                pending.push((argument, depth + 1));
+            ExpressionNode::Call(call) => {
+                // The selected contract owner binds formals to these exact
+                // scalar actuals. A callable name is not an integer leaf, and
+                // reference/opaque actuals cannot acquire a value by omission.
+                // Symbol bindings alone do not name a completed argument:
+                // the importer would correctly give that formal a fresh
+                // post-state atom. Retain each complete actual's own roster,
+                // including nested calls, under its exact occurrence identity.
+                for argument in program.expression_table.expression_handles(call.arguments) {
+                    let value = scoped(occurrence, *argument, bindings, fields)?;
+                    projections.push(ScopedArithmeticBinding {
+                        binder: ScopedArithmeticBinder::Occurrence(*argument),
+                        value: ScopedArithmeticValue::Term(value),
+                    });
+                }
             }
             ExpressionNode::Member(_) | ExpressionNode::Indexed(_) => {
                 let value = result_scalar_field_occurrence(occurrence, expression)
