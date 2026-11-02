@@ -121,12 +121,6 @@ pub(super) fn scoped_template_applications(
                         &binders,
                         &mut deferred,
                     );
-                    visit_facts(
-                        syntax,
-                        syntax.items.proof_facts(signature.where_facts),
-                        &binders,
-                        &mut deferred,
-                    );
                     visit_type(syntax, signature.return_type, &binders, &mut deferred);
                     for parameter in syntax.items.state_parameters(signature.parameters) {
                         visit_type(

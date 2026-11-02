@@ -164,6 +164,5 @@ pub(crate) fn blank_state_signature() -> syntax_trees::item::StateSignature {
         contracts: HandleSpan::empty(),
         default_body: HandleSpan::empty(),
         terminates_guarantee: false,
-        where_facts: HandleSpan::empty(),
     }
 }
