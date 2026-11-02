@@ -300,6 +300,7 @@ pub(super) fn check_statement_borrows<'p>(
                             statement,
                             place,
                             expression: *expression,
+                            evaluation: occurrence.evaluation,
                             active_loans: &active,
                         },
                         stated_premises,

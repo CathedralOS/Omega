@@ -137,6 +137,26 @@ pub(in crate::checks::borrows) fn resolve_descriptor_all(
     descriptor_loads::resolve(program, facts, state, statement_index, constraints, place)
 }
 
+/// Storage read by collection metadata, before loading its final descriptor.
+/// Receiver crossings retain their own address and access lineage.
+pub(in crate::checks::borrows) fn descriptor_storage(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement: &FlowStatementFact,
+    constraints: HandleSpan<FlowConstraintRef>,
+    place: CapturedPlace,
+) -> Option<Vec<ResolvedAlias>> {
+    descriptor_loads::storage(
+        program,
+        facts,
+        state,
+        statement.statement_index,
+        constraints,
+        place,
+    )
+}
+
 pub(super) fn retain_captured_lineage(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
