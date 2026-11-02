@@ -706,9 +706,15 @@ fail/facts/fixed_layout_byte_roundtrip_through_parameter_missing_validation_reje
 fail/facts/fixed_layout_byte_roundtrip_through_target_body_missing_validation_rejected rejected 6397ms expected @e1c62c271d9e30b5f3117cc5bc054777ea994d51
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
 	construction of `Decoded` field `value`: unestablished recast target `Payload`; prove its predicate over current storage before consuming a valid value
+fail/facts/fixed_region_byte_roundtrip_through_call_result_short_region_rejected rejected 9737ms expected @36cacd8d3083
+	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
+fail/facts/fixed_region_byte_roundtrip_through_field_short_region_rejected rejected 9202ms expected @36cacd8d3083
+	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
 fail/facts/fixed_region_byte_roundtrip_through_local_overlap_rejected rejected 4491ms expected @ee194ea71d07
 	statement 4 mutates `destination[2]` while local borrow `output` is still active (borrowed at statement 3; its last use is at statement 5)
 fail/facts/fixed_region_byte_roundtrip_through_local_short_region_rejected rejected 763ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
+	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
+fail/facts/fixed_region_byte_roundtrip_through_parameter_short_region_rejected rejected 9134ms expected @36cacd8d3083
 	machine `main` state `entry`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `[u8; 40]` are not representation-compatible
 fail/facts/float_comparison_route_nonnumeric_contract_rejected rejected 8727ms expected @cc26a0e67500
 	cannot prove requires contract for call bounded from select: value <= 1.0 (needs fact `value <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -7084,7 +7090,10 @@ pass/facts/fixed_layout_storage_through_other_machine_exit checked 2922ms check-
 pass/facts/fixed_layout_storage_through_other_state_exit checked 2877ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_parameter_exit checked 2940ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
 pass/facts/fixed_layout_storage_through_target_body_exit checked 3009ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @2ba727eefb59+wt
+pass/facts/fixed_region_byte_roundtrip_through_call_result_exit checked 21807ms check-target:macos_arm64 @36cacd8d3083
+pass/facts/fixed_region_byte_roundtrip_through_field_exit checked 22231ms check-target:macos_arm64 @36cacd8d3083
 pass/facts/fixed_region_byte_roundtrip_through_local_exit checked 7520ms check-target:macos_arm64 @ee194ea71d07
+pass/facts/fixed_region_byte_roundtrip_through_parameter_exit checked 22073ms check-target:macos_arm64 @36cacd8d3083
 pass/facts/float_comparison_route_through_call_result_exit checked 6521ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_const_name_exit checked 7524ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/float_comparison_route_through_field_exit checked 5960ms check-target:macos_arm64 @ccdb99ca2214
