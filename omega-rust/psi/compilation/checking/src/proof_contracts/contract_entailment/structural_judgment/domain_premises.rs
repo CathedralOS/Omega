@@ -1563,21 +1563,26 @@ impl StructuralJudge<'_> {
                     )
                 };
                 let surviving = if refuted(binary.left, judgments) {
-                    binary.right
+                    Some(binary.right)
                 } else if refuted(binary.right, judgments) {
-                    binary.left
+                    Some(binary.left)
                 } else {
-                    return;
+                    None
                 };
-                self.intake_judged_instantiated_predicate(
-                    owner,
-                    parameters,
-                    surviving,
-                    bindings,
-                    type_bindings,
-                    judgments,
-                );
-                return;
+                if let Some(surviving) = surviving {
+                    self.intake_judged_instantiated_predicate(
+                        owner,
+                        parameters,
+                        surviving,
+                        bindings,
+                        type_bindings,
+                        judgments,
+                    );
+                    return;
+                }
+                // An admitted union is still evidence when neither arm can
+                // be selected. Retain its whole predicate below; choosing no
+                // disjunct must not discard the input value's contract.
             }
             if super::super::structural_terms::has_identity_equality_meaning(
                 program, owner, parameters, expression,

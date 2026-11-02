@@ -690,6 +690,7 @@ fn rebuild_fresh_typed_trees(typed: TypedTrees, source: &SymbolResolvedTrees) ->
         // Applied domain theories are derived after authored typing, alongside
         // specialization; the fresh source entrance regenerates them later.
         applied_domain_applications: _,
+        applied_data_cleanup_selections: _,
         external_bindings,
         plan_laid_layouts: _,
         plan_laid_target_layouts: _,

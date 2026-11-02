@@ -3,5 +3,8 @@ use alloc::bump;
 // A counter cannot enlarge the concrete tail.
 machine invalid(whole: Extent in Granted & Vacant) -> Bump
 requires whole.length == 16
-{ Bump { tail: whole, remaining: 32 } }
+{
+    let base: addr = whole.base;
+    Bump { tail: whole, remaining: 32, base: base, capacity: 16 }
+}
 machine main() {}

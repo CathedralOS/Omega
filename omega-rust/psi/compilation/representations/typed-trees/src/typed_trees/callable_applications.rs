@@ -9,6 +9,7 @@
 
 mod closed_operands;
 mod conformance_scopes;
+mod data_cleanup_scopes;
 mod domain_scopes;
 mod machine_instances;
 mod machine_selections;

@@ -109,9 +109,9 @@ local with `1.0`, which makes `value == value` true, so the route stays uncovere
   interpreter across the four hosted targets; `macos_arm64` is measured on the
   recording host, `windows_x86_64` is retained from the row's own recording.
 
-## Current failure
+## Repair record
 
-On base `05a6f6af37e` (Windows x86-64, opt-level 1), after the float provider demand repair, eight places exit 0 natively and in Terminal Psi. `const_name` refuses at checking with `` call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route ``, as the corpus golden already records (`regressed-from:checked` at `ccdb99ca2214`).
+On base `05a6f6af37e` (Windows x86-64, opt-level 1) `const_name`, the place that reads the NaN through an `i32`-to-`f32` view, refused at checking with `` call from `read_nan` to `maybe_ordered` at statement 2 call 0 has an uncovered Trap crash route ``, as the corpus golden recorded (`regressed-from:checked` at `ccdb99ca2214`), and every place refused provider settlement for its float comparison. After both repairs all nine places exit 0 natively and in Terminal Psi on Windows x86-64, and all nine twins reject with `has an uncovered Trap crash route`.
 
 ## Recorded runs
 

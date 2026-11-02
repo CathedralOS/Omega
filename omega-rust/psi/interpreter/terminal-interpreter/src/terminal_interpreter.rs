@@ -21,10 +21,10 @@
 //! the operations the loop dispatches; `effects` what the loop hands to the
 //! host; and `values`, `results` and `errors` what crosses the boundary.
 
-use crate::errors::TerminalArtifactInterpretError;
-use crate::execution::TerminalExecution;
-use crate::structural_inputs::TerminalStructuralInputs;
-use crate::values::TerminalScalarValue;
+use crate::boundary::errors::TerminalArtifactInterpretError;
+use crate::boundary::structural_inputs::TerminalStructuralInputs;
+use crate::boundary::values::TerminalScalarValue;
+use crate::engine::execution::TerminalExecution;
 
 impl TerminalExecution<'_> {
     /// Decode one artifact, then bind its scalar arguments and structural
@@ -36,7 +36,7 @@ impl TerminalExecution<'_> {
     ) -> Result<Self, TerminalArtifactInterpretError> {
         // This raw start and `TerminalProgram::instantiate` share the same
         // immutable program and input binding.
-        crate::program::TerminalProgram::load(semantic_bytes)?.start_execution(
+        crate::embedding::program::TerminalProgram::load(semantic_bytes)?.start_execution(
             scalar_arguments,
             structural_inputs,
             None,

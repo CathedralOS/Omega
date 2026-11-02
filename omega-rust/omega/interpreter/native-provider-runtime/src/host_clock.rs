@@ -27,10 +27,23 @@ pub fn read_host_clock_nanoseconds(selector: u32) -> std::io::Result<u64> {
     }
     #[cfg(not(unix))]
     {
-        let _ = selector;
-        Err(std::io::Error::new(
-            std::io::ErrorKind::Unsupported,
-            "this host has no admitted POSIX clock observation",
-        ))
+        // Windows has no POSIX clock IDs. The receiving Windows model asks
+        // only for realtime (0) and its monotonic counter (1), whose epoch is
+        // unspecified: one process-wide anchor keeps readings ordered.
+        static ANCHOR: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
+        let elapsed = match selector {
+            0 => std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|_| std::io::Error::other("host clock precedes the Unix epoch"))?,
+            1 => ANCHOR.get_or_init(std::time::Instant::now).elapsed(),
+            _ => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::Unsupported,
+                    "this host observes only realtime and monotonic clocks",
+                ));
+            }
+        };
+        u64::try_from(elapsed.as_nanos())
+            .map_err(|_| std::io::Error::other("host clock exceeds u64 nanoseconds"))
     }
 }

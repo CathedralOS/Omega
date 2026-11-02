@@ -839,8 +839,8 @@ impl StructuralJudge<'_> {
 }
 
 /// Discharge a selected entry predicate in its own formal scope. Boolean
-/// conjunction combines judgments, rather than asking value equality to fold
-/// a formula. Case membership keeps its tag-only authority; scalar leaves use
+/// structure retains whole-formula evidence before combining leaf judgments.
+/// Case membership keeps its tag-only authority; scalar leaves use
 /// the same exact-symbol substitution as selected normal guarantees.
 pub(super) fn selected_requirement_judgment(
     judge: &StructuralJudge<'_>,
@@ -858,6 +858,23 @@ pub(super) fn selected_requirement_judgment(
     if let Some(binary) = program.expression_table.binary_node(expression)
         && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
     {
+        // Knowing P or Q does not select either disjunct. First discharge the
+        // complete substituted requirement from retained predicate evidence.
+        if let Some(required) = judge.bound_contract_term(
+            expression,
+            callable,
+            parameters,
+            callable,
+            bindings,
+            type_bindings,
+            None,
+            depth + 1,
+        ) {
+            let judgment = judge.judge_observed_predicate(required, depth);
+            if !matches!(judgment, StructuralJudgment::Unknown) {
+                return judgment;
+            }
+        }
         // The retained conjunction is not overloadable. Its operands keep
         // their own selected predicate meanings; a nominal leaf must not
         // prevent a neighboring scalar leaf from reaching its judge.

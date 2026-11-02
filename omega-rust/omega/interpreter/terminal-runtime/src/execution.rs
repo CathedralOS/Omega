@@ -55,6 +55,19 @@ pub enum TerminalFilesystemDelegation {
     HostNamespace,
 }
 
+/// Explicit acceptance that the private native sponsor performs the declared
+/// package-owned service reach of admitted native imports on this matching
+/// host, as native execution of the same product does. Reach grants no
+/// capability, so this names the host's consent rather than a reach-derived
+/// grant. Toolchain-owned services keep their own modeled supplies; this never
+/// substitutes for filesystem, clock, input or exit delegation.
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub enum TerminalNativeServiceDelegation {
+    #[default]
+    Unprovided,
+    MatchingHost,
+}
+
 use native_artifact::TerminalRuntimeProvisions;
 use terminal_interpreter::{
     TerminalArtifactInterpretError, TerminalBindingRejection, TerminalExecutionStatus,
@@ -71,8 +84,10 @@ pub struct TerminalRuntimeRequest<'program> {
     /// Explicit private native sponsor. Its executable must dispatch the
     /// runtime worker hook before normal arguments. None admits no native C
     /// execution. This worker supplies no standard stream or external service
-    /// authority on its own; filesystem access needs the separate delegation.
+    /// authority on its own; filesystem access and package-owned service reach
+    /// need their separate delegations.
     pub native_provider: Option<std::process::Command>,
+    pub native_services: TerminalNativeServiceDelegation,
     pub filesystem: TerminalFilesystemDelegation,
     pub x86_flags: Option<terminal_interpreter::TerminalX86FlagsEnvironment>,
     pub memory_ordering: Option<terminal_interpreter::TerminalMemoryOrderingEnvironment>,
@@ -381,6 +396,7 @@ pub fn execute_sliced(
         request.standard_input,
         request.clock,
         request.native_provider,
+        request.native_services,
         request.filesystem,
     );
     let component_slots = request

@@ -19,14 +19,13 @@ machine invalid(whole: Extent in Granted & Vacant, capacity: u64) -> Held
 requires
     48 <= capacity,
     capacity == whole.length
-reaches ExtentPartition
 {
-    let mut strategy: Bump = Bump { tail: whole, remaining: capacity };
+    let mut strategy: Bump = Bump::open(whole);
     let first: Extent in Granted & Vacant = allocate(&mut strategy, 16, capacity);
     check_remaining(strategy.remaining, capacity, 16);
     let available: u64 = strategy.remaining;
     let second: Extent in Granted & Vacant = allocate(&mut strategy, 32, available);
-    let released: Released = release(strategy, second);
+    let mut released: Released = release(strategy, second);
     // The retired thirty-two bytes are unavailable: `available` is the residual
     // the rewind would restore, not the residual the strategy carries.
     let third: Extent in Granted & Vacant = allocate(&mut released.strategy, 24, available);

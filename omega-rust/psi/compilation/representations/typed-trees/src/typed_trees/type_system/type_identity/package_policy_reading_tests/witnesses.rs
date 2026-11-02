@@ -430,6 +430,7 @@ pub(super) fn expression_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
         algebra_alias: None,
         commutativity_licensed: true,
         associativity_licensed: true,
+        distributes_over: Vec::new(),
     };
     fixture
         .program

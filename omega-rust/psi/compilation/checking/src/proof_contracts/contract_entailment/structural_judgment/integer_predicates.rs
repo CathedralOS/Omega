@@ -821,7 +821,13 @@ impl<'program> StructuralJudge<'program> {
             else {
                 continue;
             };
-            if !extended.admitted(first_operation..extended.operations.len()) {
+            let premise_operations = first_operation..extended.operations.len();
+            // Projection may introduce another occurrence of a partial
+            // operation, such as a retained `available - requested`. Admit
+            // it from the already installed prefix, before using either
+            // Boolean alternative or the denied goal as a hypothesis.
+            if !extended.install_premises(&mut Vec::new()) || !extended.admitted(premise_operations)
+            {
                 continue;
             }
             if worlds.len().checked_mul(choices.len())? > 32 {
@@ -1463,7 +1469,10 @@ impl<'program> StructuralJudge<'program> {
                     if work.engine.integer_projection_registrations().1 != base_engine_reg.1 {
                         phase_profile::count("psi.05.numeric.prove.fork.existing_atoms.opaque", 1);
                     } else if !goal_only_linear_ops {
-                        phase_profile::count("psi.05.numeric.prove.fork.existing_atoms.non_linear", 1);
+                        phase_profile::count(
+                            "psi.05.numeric.prove.fork.existing_atoms.non_linear",
+                            1,
+                        );
                     } else if work.carrier_bounds.len() != base_bounds {
                         phase_profile::count(
                             "psi.05.numeric.prove.fork.existing_atoms.carrier_bounds",

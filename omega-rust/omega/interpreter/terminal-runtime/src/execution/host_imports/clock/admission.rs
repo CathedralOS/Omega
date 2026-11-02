@@ -9,10 +9,11 @@ use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerSign, IntegerType, ScalarType};
 use target::TargetProfile;
 use target_operations::NormalizedForeignCallBinding;
-use terminal_interpreter::TerminalImportSignature;
+use terminal_interpreter::{TerminalImportSignature, TerminalProgram};
 use terminal_psi::{BoundaryMachineDeclaration, BoundaryParameterKind};
 
 use super::super::unprovisioned;
+use super::windows::{self, WindowsWord};
 use super::{ClockImplementation, ClockNamespace, ClockOperation, TerminalRuntimeError, timespec};
 
 pub(super) fn select(
@@ -35,6 +36,9 @@ pub(super) fn select(
         return Ok(None);
     };
     let target = locator.target();
+    if target == TargetProfile::WindowsX64 {
+        return windows::select(locator);
+    }
     if !matches!(target, TargetProfile::MacosArm64 | TargetProfile::MacosX64) {
         return Ok(None);
     }
@@ -68,6 +72,7 @@ pub(super) fn select(
 }
 
 pub(super) fn validate(
+    program: &TerminalProgram,
     declaration: &BoundaryMachineDeclaration,
     binding: &NormalizedForeignCallBinding,
     signature: &TerminalImportSignature,
@@ -96,6 +101,23 @@ pub(super) fn validate(
         || (matches!(namespace, ClockNamespace::Linux)
             && signature.result.scalar() == Some(scalar(signed_wide)));
     let (shape_valid, parameter_order) = match implementation {
+        ClockImplementation::WindowsWord(word) => (
+            signature.scalar_parameters.is_empty()
+                && windows::word_loan_valid(program, signature, word)
+                && match word {
+                    WindowsWord::FileTime => signature.result.is_unit(),
+                    WindowsWord::Counter | WindowsWord::Frequency => {
+                        signature.result.scalar() == Some(scalar(signed))
+                    }
+                },
+            vec![BoundaryParameterKind::Structural],
+        ),
+        ClockImplementation::WindowsSleep => (
+            signature.scalar_parameters == [scalar(unsigned)]
+                && signature.structural_parameters.is_empty()
+                && signature.result.is_unit(),
+            vec![BoundaryParameterKind::Scalar],
+        ),
         ClockImplementation::Read => (
             selector_valid
                 && signature.result.scalar() == Some(scalar(wide))
@@ -130,6 +152,8 @@ pub(super) fn validate(
         return Err(invalid());
     }
     let operation = match implementation {
+        ClockImplementation::WindowsWord(word) => ClockOperation::WindowsWord(word),
+        ClockImplementation::WindowsSleep => ClockOperation::WindowsSleep,
         ClockImplementation::Read => ClockOperation::Read,
         ClockImplementation::Poll => ClockOperation::Poll,
         ClockImplementation::ReadTimespec => ClockOperation::ReadTimespec(timespec::admit(
