@@ -340,11 +340,6 @@ retired-syntax deletions to completion.
     supply, invalid unselected implementations, and retired-prefix rejection;
     applicability is checked on the selected closure, not by accepting untyped
     source or exposing a selected body's private guarantees to callers.
-  - Carry the requirement-guarantee dependency to generic evidence binders: a
-    binder `S satisfies R` instantiated at the implementation that defines its
-    caller still imports `R`'s guarantee, so a citation cycle through it is
-    accepted (reproduction in
-    `samples/cli/facts/independent_call_result_bound/README.md`).
   Acceptance: one portable call selects distinct ordinary implementations for
   two targets from the same Terminal artifact and Build companion, with authored
   results observed by `omega run --both` on matching hosts. Migrated target,
