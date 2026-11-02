@@ -32,8 +32,9 @@ use typed_trees::machine::Machine;
 use typed_trees::state::State;
 
 /// Handle `target = value` when `target` is an element of a data field.
-/// Returns `false` when `target` is not such a store, leaving it to the
-/// ordinary field-store handling.
+/// Return the exact field coordinate whose element obligations this ledger
+/// handled. A lexical alias or representation view does not discharge a
+/// different canonical source field; ordinary owner handling must check it.
 pub(super) fn handle_element_store<'program>(
     program: &'program dyn CheckingInput,
     machine: &Machine,
@@ -47,9 +48,9 @@ pub(super) fn handle_element_store<'program>(
     poisoned_paths: &[String],
     born_zero: bool,
     statement_index: usize,
-) -> bool {
+) -> Option<crate::CanonicalPlace> {
     let Some(indexed) = program.expression_table.indexed_node(target) else {
-        return false;
+        return None;
     };
     // `receiver.field[index]` names one element; a deeper selector such as
     // `receiver.field[i][j]` only says that some element of `field` changed.
@@ -58,23 +59,32 @@ pub(super) fn handle_element_store<'program>(
             ExpressionNode::Member(_) => (indexed.collection, Some(indexed.index)),
             _ => match innermost_member(program, indexed.collection) {
                 Some(member) => (member, None),
-                None => return false,
+                None => return None,
             },
         };
     let Some(member) = program.expression_table.member_node(member_expression) else {
-        return false;
+        return None;
     };
     let Some(receiver_spelling) = write_place_spelling(program, member.receiver) else {
-        return false;
+        return None;
     };
     let Some(definition) =
         data_definition_for_expression(program, machine, Some(state), member.receiver)
     else {
-        return false;
+        return None;
     };
     let Some(field) = data_field(program, definition, member.member.as_str()) else {
-        return false;
+        return None;
     };
+    // This names only the operation actually handled below. In particular,
+    // canonicalizing a local view does not rebase it to the original lender.
+    // Both the field's declaration identity and its full place must agree
+    // before a caller may omit that canonical owner's separate judgment.
+    let handled =
+        crate::canonical_place_from_expression(program, member_expression).filter(|place| {
+            matches!(place.segments.last(),
+            Some(facts::PlaceSegment::Field { symbol }) if *symbol == field.symbol)
+        });
     let affected = program
         .conjunctive_proof_facts(definition.where_facts)
         .filter(|fact| {
@@ -82,7 +92,7 @@ pub(super) fn handle_element_store<'program>(
         })
         .collect::<Vec<_>>();
     if affected.is_empty() {
-        return true;
+        return handled;
     }
     // The binding naming the record this state's places are rooted at; see
     // `place_queries::is_data_rooted`.
@@ -173,7 +183,7 @@ pub(super) fn handle_element_store<'program>(
     if !all_hold {
         place.element_windows.push(field.symbol);
     }
-    true
+    handled
 }
 
 fn innermost_member(

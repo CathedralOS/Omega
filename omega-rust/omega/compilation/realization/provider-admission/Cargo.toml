@@ -1,0 +1,34 @@
+[package]
+name = "provider-admission"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+provider-selection = { path = "../../realization/provider-selection" }
+language-semantics = { path = "../../../../psi/foundation/language-semantics" }
+component-description = { path = "../../backend/artifacts/component-description" }
+optimization-core = { path = "../../../foundation/optimization-core" }
+function-identity = { path = "../../../foundation/function-identity" }
+numerics = { path = "../../../../psi/foundation/numerics" }
+layout-plans = { path = "../../../../psi/foundation/layout-plans" }
+target-operations = { path = "../../representations/target-operations" }
+task-plans = { path = "../../backend/runtime/task-plans" }
+source = { path = "../../../../psi/foundation/source" }
+symbols = { path = "../../../../psi/foundation/symbols" }
+diagnostics = { path = "../../../../psi/foundation/diagnostics" }
+abstract-operations = { path = "../../representations/abstract-operations" }
+installation-evidence = { path = "../../backend/runtime/installation-evidence" }
+semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
+terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
+terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
+terminal-installation = { path = "../../../../psi/compilation/validation/terminal-installation" }
+terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
+calling-conventions = { path = "../../backend/calling-conventions" }
+backend-plan = { path = "../../backend/plans/backend-plan" }
+effects = { path = "../../backend/plans/effects" }
+target = { path = "../../backend/target" }
+
+[dev-dependencies]
+optimization-unit-semantics = { path = "../../representations/abstract-operations/optimization-unit/semantics" }
+terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-psi/fuel" }

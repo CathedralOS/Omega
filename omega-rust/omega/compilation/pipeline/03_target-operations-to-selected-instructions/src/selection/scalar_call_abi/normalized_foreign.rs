@@ -443,7 +443,7 @@ pub(crate) fn validate(
                     return Err(invalid!());
                 }
                 let classified =
-                    abstract_operations_to_target_operations::classified_boundary_shape(
+                    calling_conventions::classified_boundary_shape(
                         projected_type,
                         &signature.structural_types,
                         plan.call.policy,
@@ -460,7 +460,7 @@ pub(crate) fn validate(
                 });
                 if descriptor {
                     let classified =
-                        abstract_operations_to_target_operations::classified_boundary_shape(
+                        calling_conventions::classified_boundary_shape(
                             projected_type,
                             &signature.structural_types,
                             plan.call.policy,
@@ -558,7 +558,7 @@ pub(crate) fn validate(
                 &signature.structural_types,
             )
             .ok_or_else(|| invalid!())?;
-            let shape = abstract_operations_to_target_operations::classified_boundary_shape(
+            let shape = calling_conventions::classified_boundary_shape(
                 result.structural_type,
                 &signature.structural_types,
                 plan.call.policy,

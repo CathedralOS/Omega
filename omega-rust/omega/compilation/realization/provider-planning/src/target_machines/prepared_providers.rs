@@ -1,15 +1,21 @@
-//! Form Product candidates and close their declarations before portable code.
+//! Collect possible implementations and their declarations before publishing
+//! the shared intermediate program. Later steps can attach target calling
+//! plans without reading source again.
 //!
-//! Calling changes schema attachments, not candidate formation or nominal
-//! declaration closure. Each occurrence keeps its own evaluated bindings and
-//! Build evidence; only immutable declaration metadata crosses this boundary.
-//! Native schema validation remains after attachment. Publication keeps authored
-//! inspection/sibling choices separate from the actual native-augmented receipt.
+//! Each requested target keeps its own evaluated build settings. Validate
+//! native plans after attaching their complete calling information. Keep the
+//! authored choices used for inspection separate from the choices that also
+//! include native bindings.
 
 use super::{AuthoredTargetProviders, TargetProviderPreparationRequest};
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
+use crate::provider_planning::provider_rows::CapturedProviderRows;
 use crate::provider_settlement::assumed_bindings::PreparedAssumedBindings;
+use crate::provider_settlement::{
+    completion,
+    semantic_roles::{PreparedCompletionRole, PreparedCompletionRoles},
+};
 use crate::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelection,
 };
@@ -23,10 +29,20 @@ use std::sync::{Arc, Weak};
 use symbols::SymbolHandle;
 
 type SourceChoices = PreparedTargetChoices<ProviderPlanProvenance, ProviderSelection>;
+type ProductChoices = PreparedTargetChoices<PreparedProviderCompletion, ProviderSelection>;
+
+#[derive(Clone)]
+pub(crate) struct PreparedProviderCompletion {
+    pub provenance: ProviderPlanProvenance,
+    pub completion: Result<Vec<Vec<SymbolHandle>>, Vec<Diagnostic>>,
+    pub role: Option<PreparedCompletionRole>,
+}
+
 type ApplicationRoots = Result<Option<Vec<CanonicalProviderDeclaration>>, Vec<Diagnostic>>;
 
-/// Source-only inputs for one occurrence. There is no policy execution or
-/// selection in this operation, and its result retains no checked program.
+/// Inputs for preparing implementations for one requested target. Preparation
+/// reads declarations without running calling policies or choosing an
+/// implementation; its result does not retain the checked program.
 pub struct ProductProviderPreparation<'program> {
     pub checked: &'program Arc<checked_trees::CheckedTrees>,
     pub services: ServiceCatalog<'program>,
@@ -50,10 +66,21 @@ pub struct PreparedProductProviders {
     planning_target: Option<target::TargetProfile>,
     assumptions: PreparedAssumedBindings,
     bindings: EvaluatedViaBindingTable,
-    candidates: Vec<CallingCandidate>,
+    candidates: Vec<ProductCandidate>,
     native_start: usize,
-    choices: Result<SourceChoices, Vec<Diagnostic>>,
+    choices: Result<ProductChoices, Vec<Diagnostic>>,
+    completion_roles: PreparedCompletionRoles,
     publication: SourcePublication,
+}
+
+struct ProductCandidate {
+    calling: CallingCandidate,
+    rows: CapturedProviderRows,
+}
+
+pub(crate) struct SettledProductCandidate {
+    pub source: DerivedProviderPlan,
+    pub rows: CapturedProviderRows,
 }
 
 struct CallingCandidate {
@@ -99,8 +126,8 @@ impl CallingCandidate {
         if let Some(surface) = surface {
             let surface = surface.surface().map_err(|error| vec![error])?;
             derived.plan.schema = crate::service_schema::attach_calling(&surface, calling);
-            // Source closure may have observed the neutral plan. Its memo must
-            // never stand for the final schema's ABI commitments.
+            // Adding calling plans changes the schema. Clear any cached digest
+            // so later comparisons include the completed ABI information.
             derived.plan.digest_memo = Default::default();
         }
         Ok(derived)
@@ -137,7 +164,7 @@ impl SourceProposal {
         calling: &[BoundaryCallingPlanRealization],
     ) -> Result<PreparedTargetChoices, Vec<Diagnostic>> {
         let candidates = attach_candidates(self.candidates, calling)?;
-        attach_choices(self.choices, &candidates).map(SourceChoices::without_correspondence)
+        attach_choices(self.choices, candidates.iter()).map(SourceChoices::without_correspondence)
     }
 }
 
@@ -220,9 +247,10 @@ impl ProviderPublicationCatalog {
 pub(crate) struct SettledProductProviders {
     pub assumptions: PreparedAssumedBindings,
     pub bindings: EvaluatedViaBindingTable,
-    pub candidates: Vec<DerivedProviderPlan>,
+    pub candidates: Vec<SettledProductCandidate>,
     pub native_start: usize,
-    pub choices: Result<SourceChoices, Vec<Diagnostic>>,
+    pub choices: Result<ProductChoices, Vec<Diagnostic>>,
+    pub completion_roles: PreparedCompletionRoles,
     pub publication: ProviderPublicationCatalog,
 }
 
@@ -238,20 +266,32 @@ impl PreparedProductProviders {
                 "provider preparation belongs to another Product program or planning target",
             )]);
         }
-        let candidates = attach_candidates(self.candidates, calling)?;
-        // Validate once, with the final complete Calling applications. Neutral
-        // formation cannot discharge ABI uniqueness or commitment obligations.
+        let candidates = self
+            .candidates
+            .into_iter()
+            .map(|candidate| {
+                Ok(SettledProductCandidate {
+                    source: candidate.calling.attach(calling)?,
+                    rows: candidate.rows,
+                })
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
+        // Check native implementations against their complete calling plans.
+        // Earlier preparation cannot check ABI details that are attached here.
         for candidate in &candidates[self.native_start..] {
-            let errors = candidate.plan.validate_candidate_against_schema();
+            let errors = candidate.source.plan.validate_candidate_against_schema();
             if !errors.is_empty() {
                 return Err(vec![Diagnostic::error(format!(
                     "incomplete native Build provider `{}`: {}",
-                    candidate.plan.name,
+                    candidate.source.plan.name,
                     errors.join("; "),
                 ))]);
             }
         }
-        let choices = attach_choices(self.choices, &candidates);
+        let choices = attach_choices(
+            self.choices,
+            candidates.iter().map(|candidate| &candidate.source),
+        );
         let publication = ProviderPublicationCatalog {
             base_targets: self.publication.base_targets,
             deployed: self.publication.deployed,
@@ -268,6 +308,7 @@ impl PreparedProductProviders {
         };
         Ok(SettledProductProviders {
             assumptions: self.assumptions,
+            completion_roles: self.completion_roles,
             bindings: self.bindings,
             candidates,
             native_start: self.native_start,
@@ -287,18 +328,18 @@ fn attach_candidates(
         .collect()
 }
 
-fn attach_choices(
-    choices: Result<SourceChoices, Vec<Diagnostic>>,
-    candidates: &[DerivedProviderPlan],
-) -> Result<SourceChoices, Vec<Diagnostic>> {
+fn attach_choices<'candidate, Owner>(
+    choices: Result<PreparedTargetChoices<Owner, ProviderSelection>, Vec<Diagnostic>>,
+    candidates: impl ExactSizeIterator<Item = &'candidate DerivedProviderPlan>,
+) -> Result<PreparedTargetChoices<Owner, ProviderSelection>, Vec<Diagnostic>> {
     let mut choices = choices?;
     if choices.candidates.len() != candidates.len() {
         return Err(vec![Diagnostic::error(
             "provider Calling attachment lost its prepared candidate correspondence",
         )]);
     }
-    // Source preparation emits these rosters together, in authored/native
-    // order. One finalized plan feeds selection and original-row review.
+    // Both lists were built together in the same order. Give each choice its
+    // completed plan so selection and review inspect the same information.
     for (choice, candidate) in choices.candidates.iter_mut().zip(candidates) {
         choice.choice.plan = candidate.plan.clone();
     }
@@ -367,9 +408,9 @@ impl ProductProviderPreparation<'_> {
         );
         base_targets.sort();
         base_targets.dedup();
-        // This is a declaration census, not additional target evaluation. Late
-        // request scopes are not known until settlement succeeds. Capture the
-        // finite receiving catalog now, then emit only the original late roster.
+        // Some requested targets become known only after implementation selection.
+        // Save declarations for every supported target now, then publish only
+        // the targets requested later. This does not evaluate additional targets.
         let mut catalog_targets = base_targets.clone();
         catalog_targets.extend(
             target::TargetProfile::ALL
@@ -414,14 +455,49 @@ impl ProductProviderPreparation<'_> {
             });
         }
         let native_start = authored.candidates().len();
-        let candidates = authored
+        let inventory = authored
             .into_candidates()
             .into_iter()
             .chain(native)
-            .map(|derived| CallingCandidate::capture(self.services, derived))
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Vec<_>>();
+        let original_candidates = inventory.iter().collect::<Vec<_>>();
+        // Check every possible exit implementation while its checked body is
+        // available. Keep errors with that implementation so an unused invalid
+        // alternative cannot reject the selected program. Adding calling plans
+        // later changes argument placement, not which external operation exits.
+        let choices = choices.map(|choices| {
+            choices.map_owner(|plan, provenance| {
+                let completion = completion::capture(
+                    self.checked,
+                    &provenance,
+                    planning_target.map(target::TargetProfile::target_name),
+                    &original_candidates,
+                );
+                let role = PreparedCompletionRole::capture(&self.checked.typed, plan, &provenance);
+                PreparedProviderCompletion {
+                    provenance,
+                    completion,
+                    role,
+                }
+            })
+        });
+        let candidates = inventory
+            .into_iter()
+            .map(|derived| {
+                let rows = CapturedProviderRows::capture(
+                    &derived,
+                    self.services,
+                    self.exact_toolchain_sources,
+                );
+                Ok(ProductCandidate {
+                    calling: CallingCandidate::capture(self.services, derived)?,
+                    rows,
+                })
+            })
+            .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
         Ok(PreparedProductProviders {
             owner: Arc::downgrade(self.checked),
+            completion_roles: PreparedCompletionRoles::capture(&self.checked.typed),
             planning_target,
             assumptions: PreparedAssumedBindings::capture(
                 &self.checked.typed,

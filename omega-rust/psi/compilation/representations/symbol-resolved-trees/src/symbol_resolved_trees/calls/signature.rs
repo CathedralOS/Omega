@@ -36,6 +36,7 @@ pub struct StateSignatureStorage {
     pub spelling: Option<language_core::OperatorSpelling>,
     pub lifetime_parameters: Vec<DiagnosticName>,
     pub type_parameters: HandleSpan<crate::data::TypeParameter>,
+    pub conformance_bounds: Vec<crate::machine::GenericConformanceBound>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameter>,
     pub native_callback_parameters: Vec<NativeCallbackParameter>,

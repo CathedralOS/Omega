@@ -13,7 +13,7 @@ terminal-installation = { path = "../../../psi/compilation/validation/terminal-i
 terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
-psi-compiler = { path = "../../../psi/compilation/driver" }
+psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 filesystem-authority = { path = "../../../psi/foundation/filesystem-authority" }
 artifacts = { path = "../../foundation/artifacts" }
@@ -24,7 +24,7 @@ validation = { path = "../../../psi/compilation/validation" }
 build-output = { path = "../../packages/build-output" }
 effects = { path = "../backend/plans/effects" }
 optimization-core = { path = "../../foundation/optimization-core" }
-package-compilation = { path = "../../packages/compilation-inputs" }
+package-compilation = { path = "../../packages/package-compilation" }
 provider-planning = { path = "../realization/provider-planning" }
 selected-dispatch = { path = "../realization/selected-dispatch" }
 representation-planning = { path = "../../../psi/compilation/validation/representation-planning" }

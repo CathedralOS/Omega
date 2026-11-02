@@ -73,7 +73,7 @@ specialization tuple that does not satisfy its authored type bounds``
 The nearest row is [inferred_array_equation_call](../inferred_array_equation_call/README.md),
 which also transports a byte array into a generic call. It infers a const
 index through a `where` structural equation on a free machine, and its twins
-reject in preparation (`where equation binds ...`). This row has no equation:
+reject in preparation (`requires equation binds ...`). This row has no equation:
 it completes a partial explicit tuple of a Build-selected boundary method, and
 its repair is in checked execution planning (the Unit structural roster), a
 different layer. Its twins name the argument carrier and the copy bound, which

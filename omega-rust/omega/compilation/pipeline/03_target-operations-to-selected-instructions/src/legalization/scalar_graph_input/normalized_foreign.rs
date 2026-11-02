@@ -83,7 +83,7 @@ pub(in crate::legalization) fn result_at(
                 &plan.structural_types,
             )
             .ok_or(LegalizationError::custody())?;
-            let shape = abstract_operations_to_target_operations::classified_boundary_shape(
+            let shape = calling_conventions::classified_boundary_shape(
                 result.structural_type,
                 &plan.structural_types,
                 policy,
@@ -513,7 +513,7 @@ pub(in crate::legalization) fn structural_argument_at(
             if !admitted_root {
                 return Err(LegalizationError::custody());
             }
-            let classified = abstract_operations_to_target_operations::classified_boundary_shape(
+            let classified = calling_conventions::classified_boundary_shape(
                 projected_type,
                 declarations,
                 policy,
@@ -543,7 +543,7 @@ pub(in crate::legalization) fn structural_argument_at(
             let destination_shape = if descriptor {
                 // A view's loan still has referent storage custody, but its
                 // boundary operand is the descriptor value, not its address.
-                abstract_operations_to_target_operations::classified_boundary_shape(
+                calling_conventions::classified_boundary_shape(
                     projected_type,
                     declarations,
                     policy,

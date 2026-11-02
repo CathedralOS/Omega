@@ -25,6 +25,7 @@ dependencies = [
  "optimization-unit",
  "optimization-unit-semantics",
  "proof-admission",
+ "provider-admission",
  "semantic-vocabulary",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
@@ -44,19 +45,19 @@ name = "abstract-operations-to-target-operations"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "abstract-operations-to-abstract-operations",
  "calling-conventions",
  "diagnostics",
  "installation-evidence",
  "optimization-core",
+ "optimization-unit",
  "optimization-unit-semantics",
+ "provider-admission",
  "runtime-abi",
  "semantic-vocabulary",
  "symbols",
  "target",
  "target-operations",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
  "terminal-semantics",
 ]
 
@@ -847,6 +848,7 @@ dependencies = [
  "optimization-core",
  "optimization-unit-semantics",
  "program-entry-plan",
+ "provider-admission",
  "register-model",
  "runtime-abi",
  "selected-instructions",
@@ -862,7 +864,6 @@ dependencies = [
  "terminal-fuel",
  "terminal-installation",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",
@@ -1218,7 +1219,6 @@ name = "machine-emission"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "abstract-operations-to-abstract-operations",
  "abstract-operations-to-target-operations",
  "arena",
  "calling-conventions",
@@ -1228,8 +1228,10 @@ dependencies = [
  "isa-x86_64",
  "machine-code",
  "optimization-core",
+ "optimization-unit",
  "physical-instructions",
  "post-allocation-machine-to-selected-form-encoding",
+ "provider-admission",
  "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
@@ -1243,7 +1245,6 @@ dependencies = [
  "target-operations",
  "terminal-fuel",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
 ]
 
 [[package]]
@@ -1436,12 +1437,12 @@ dependencies = [
  "machine-code",
  "machine-emission",
  "optimization-core",
+ "provider-admission",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
  "target-operations",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
 ]
 
 [[package]]
@@ -1792,6 +1793,37 @@ dependencies = [
  "numerics",
  "semantic-vocabulary",
  "terminal-psi",
+]
+
+[[package]]
+name = "provider-admission"
+version = "0.1.0"
+dependencies = [
+ "abstract-operations",
+ "backend-plan",
+ "calling-conventions",
+ "component-description",
+ "diagnostics",
+ "effects",
+ "function-identity",
+ "installation-evidence",
+ "language-semantics",
+ "layout-plans",
+ "numerics",
+ "optimization-core",
+ "optimization-unit-semantics",
+ "provider-selection",
+ "semantic-vocabulary",
+ "source",
+ "symbols",
+ "target",
+ "target-operations",
+ "task-plans",
+ "terminal-codec",
+ "terminal-fuel",
+ "terminal-installation",
+ "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2146,6 +2178,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "selected-instruction-analyses"
+version = "0.1.0"
+dependencies = [
+ "arena",
+ "isa-aarch64",
+ "isa-x86_64",
+ "optimization-core",
+ "optimization-unit",
+ "phase-profile",
+ "register-environment",
+ "register-homes",
+ "register-model",
+ "selected-instructions",
+ "semantic-vocabulary",
+ "target",
+ "target-operations",
+ "terminal-psi",
+]
+
+[[package]]
 name = "selected-instructions"
 version = "0.1.0"
 dependencies = [
@@ -2179,8 +2231,8 @@ dependencies = [
  "register-environment",
  "register-homes",
  "register-model",
+ "selected-instruction-analyses",
  "selected-instructions",
- "selected-instructions-to-selected-instructions",
  "semantic-vocabulary",
  "target",
  "target-operations",
@@ -2204,6 +2256,7 @@ dependencies = [
  "register-environment",
  "register-homes",
  "register-model",
+ "selected-instruction-analyses",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
@@ -2451,11 +2504,13 @@ dependencies = [
  "calling-conventions",
  "function-identity",
  "installation-evidence",
+ "runtime-abi",
  "semantic-vocabulary",
  "target",
  "task-plans",
  "terminal-installation",
  "terminal-psi",
+ "terminal-semantics",
 ]
 
 [[package]]
@@ -2463,7 +2518,6 @@ name = "target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "abstract-operations-to-target-operations",
  "access-plans",
  "calling-conventions",
  "layout-plans",
@@ -2599,6 +2653,7 @@ dependencies = [
  "optimization-unit-semantics",
  "program-entry-plan",
  "proof-admission",
+ "provider-admission",
  "provider-selection",
  "runtime-abi",
  "semantic-vocabulary",

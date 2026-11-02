@@ -924,11 +924,20 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
+        let version = self
+            .read_storage_version(state, expression)
+            .or(self.storage_version);
         if !super::super::structural_terms::term_is_unobserved_descriptor(self.program, value)
             && let Some(case) = self
                 .stored_values
                 .iter()
-                .find(|stored| stored.coordinate == coordinate)
+                .find(|stored| {
+                    stored.coordinate == coordinate
+                        && (!self.graph_storage_mode()
+                            || version.is_some_and(|at| {
+                                self.current_value_valid(stored, &coordinate, at)
+                            }))
+                })
                 .and_then(|stored| stored.selected_case)
             && let Some((owner, _)) = self.program.variant_owner(case)
             && let Some(definition) = self.program.data_constructor_definition(
@@ -951,18 +960,20 @@ impl StructuralJudge<'_> {
                 case: selected.symbol,
             });
         }
-        self.intake_storage_field_observations(&coordinate, reference, value);
+        self.intake_storage_field_observations(&coordinate, reference, value, version);
     }
 
     /// Attach surviving child observations to a fresh aggregate identity. Both
     /// whole reads and normal-call handback must perform this join: replacing
     /// the whole observation alone would hide unchanged fields behind an opaque
-    /// new value. The write footprint has already retired overlapping children.
+    /// new value. Graph-backed observations retain their history after writes;
+    /// only the read cut can establish which children are still current.
     fn intake_storage_field_observations(
         &mut self,
         coordinate: &CapturedStorageCoordinate,
         reference: TypeReferenceHandle,
         value: &super::StructuralTerm,
+        version: Option<StorageVersion>,
     ) {
         let equations = self
             .stored_values
@@ -971,6 +982,10 @@ impl StructuralJudge<'_> {
                 if stored.coordinate.root != coordinate.root
                     || stored.coordinate.segments.len() <= coordinate.segments.len()
                     || !stored.coordinate.segments.starts_with(&coordinate.segments)
+                    || (self.graph_storage_mode()
+                        && !version.is_some_and(|at| {
+                            self.current_value_valid(stored, &stored.coordinate, at)
+                        }))
                 {
                     return None;
                 }
@@ -1213,7 +1228,21 @@ impl StructuralJudge<'_> {
         definition: &typed_trees::data::DataDefinition,
         mut field_place: impl FnMut(symbols::SymbolHandle) -> Option<CanonicalPlace>,
     ) -> Option<super::StructuralTerm> {
+        self.captured_data_subject_at(place, definition, &mut field_place, &mut Vec::new())
+    }
+
+    fn captured_data_subject_at(
+        &self,
+        place: &CanonicalPlace,
+        definition: &typed_trees::data::DataDefinition,
+        field_place: &mut dyn FnMut(symbols::SymbolHandle) -> Option<CanonicalPlace>,
+        active: &mut Vec<symbols::SymbolHandle>,
+    ) -> Option<super::StructuralTerm> {
         self.requires_value_preservation().then_some(())?;
+        if active.contains(&definition.symbol) {
+            return None;
+        }
+        active.push(definition.symbol);
         let coordinate = self.capture_storage_place(place.clone())?;
         let active_case = self
             .stored_values
@@ -1252,10 +1281,37 @@ impl StructuralJudge<'_> {
             variant,
             |field| {
                 let selected = field_place(field.symbol)?;
-                let value = self.captured_place_projection(
-                    &selected,
-                    language_semantics::content::ContentPlaceVersion::Current,
-                );
+                let value = self
+                    .captured_place_projection(
+                        &selected,
+                        language_semantics::content::ContentPlaceVersion::Current,
+                    )
+                    .or_else(|| {
+                        // A retired aggregate has no whole snapshot. Its inline
+                        // child may still have a complete current field roster.
+                        // Reference descriptors are never rebuilt from contents.
+                        crate::reference_shell(self.program, field.type_reference)
+                            .is_none()
+                            .then_some(())?;
+                        let child = crate::value_custody::places::data_definition_for_type(
+                            self.program,
+                            field.type_reference,
+                        )?;
+                        self.captured_data_subject_at(
+                            &selected,
+                            child,
+                            &mut |symbol| {
+                                let mut field = selected.clone();
+                                crate::value_custody::places::push_field_place_segments(
+                                    self.program,
+                                    &mut field.segments,
+                                    symbol,
+                                );
+                                Some(field)
+                            },
+                            active,
+                        )
+                    });
                 if super::super::struct_trace() {
                     eprintln!("STRUCT stored-subject field={} value={value:?}", field.name,);
                 }
@@ -1268,6 +1324,7 @@ impl StructuralJudge<'_> {
                 definition.name
             );
         }
+        active.pop();
         subject
     }
 

@@ -529,7 +529,7 @@ pub(in crate::object::function_fragments) fn validate_settlements(
                     return Err(Error::Mismatch("completion provider custody"));
                 }
             }
-            crate::object::object_artifact::replay::boundary::completion_receipts::validate_completion_custody(row, &source.verified_input().context().module().identities)
+            crate::object::object_artifact::replay::boundary::completion_receipts::validate_completion_custody(row, &source.lowering_facts().module().identities)
                 .map_err(|_| Error::Mismatch("completion receipts"))?;
         }
     }

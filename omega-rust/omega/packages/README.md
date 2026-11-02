@@ -8,7 +8,7 @@
 | [review-evidence/](review-evidence/README.md) | Compiler findings used by package review |
 | [build-declarations/](build-declarations/README.md) | Shared project and dependency declarations |
 | [build-output/](build-output/README.md) | Captured source/output trees and materialization |
-| [compilation-inputs/](compilation-inputs/README.md) | Source composition and compilation-input custody |
+| [package-compilation/](package-compilation/README.md) | Source composition and compilation-input custody |
 
 These are independent sibling packages. The compiler consumes input contracts
 without depending on install/update orchestration. Package operations and

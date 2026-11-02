@@ -177,7 +177,12 @@ impl StructuralJudge<'_> {
         {
             // A differently represented recast cannot inherit the source's
             // field namespace merely because both views have the same size.
-            self.intake_storage_field_observations(&storage.coordinate, reference, &value);
+            self.intake_storage_field_observations(
+                &storage.coordinate,
+                reference,
+                &value,
+                self.storage_version,
+            );
         }
         self.retain_storage_value(storage.coordinate.clone(), value, false);
         if let Some(backing) = backing

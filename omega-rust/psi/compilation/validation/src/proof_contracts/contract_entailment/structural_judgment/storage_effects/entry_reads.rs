@@ -74,7 +74,7 @@ impl StructuralJudge<'_> {
         place: crate::CanonicalPlace,
         value: Option<StructuralTerm>,
         active: &mut Vec<symbols::SymbolHandle>,
-    ) {
+    ) -> Option<StructuralTerm> {
         let program = self.program;
         // Arrays carry the same independently admitted element obligations as
         // nominal fields. Keep each declared slot; no missing slot can reduce
@@ -83,7 +83,7 @@ impl StructuralJudge<'_> {
             crate::field_domains::readable_fixed_array_elements(program, reference)
         {
             if !Self::nominal_type_has_data_predicates(program, element, active) {
-                return;
+                return None;
             }
             for element_index in 0..length {
                 let mut child = place.clone();
@@ -108,15 +108,15 @@ impl StructuralJudge<'_> {
                     active,
                 );
             }
-            return;
+            return None;
         }
         let Some(definition) =
             crate::field_domains::readable_nominal_definition(program, reference)
         else {
-            return;
+            return None;
         };
         if active.contains(&definition.symbol) {
-            return;
+            return None;
         }
         active.push(definition.symbol);
         let mut observed_fields = Vec::new();
@@ -169,7 +169,7 @@ impl StructuralJudge<'_> {
                     Err(_) => {}
                 }
             } else {
-                self.retain_entry_scalar_fields(
+                let nested = self.retain_entry_scalar_fields(
                     machine,
                     state,
                     field_reference,
@@ -177,12 +177,21 @@ impl StructuralJudge<'_> {
                     projected,
                     active,
                 );
+                // Inline data contributes its complete value. A reference field
+                // retains its descriptor/content distinction and cannot be
+                // filled by a logical constructor of the referenced contents.
+                if crate::reference_shell(program, field_reference).is_none()
+                    && let Some(nested) = nested
+                {
+                    observed_fields.push((field.symbol, nested));
+                }
             }
         }
         // This is an admitted invocation input, not a receiving annotation.
         // Bind its complete predicate only when every required field has an
         // authenticated entry observation. The constructor is a logical view
         // of those contents; it is never installed as a reference descriptor.
+        let mut completed = None;
         if !program
             .data_members(definition)
             .iter()
@@ -205,7 +214,8 @@ impl StructuralJudge<'_> {
                     definition.name
                 );
             }
-            self.intake_admitted_value_predicates(reference, subject);
+            self.intake_admitted_value_predicates(reference, subject.clone());
+            completed = Some(subject);
         } else if super::super::super::struct_trace() {
             let missing = program
                 .data_members(definition)
@@ -224,6 +234,7 @@ impl StructuralJudge<'_> {
             );
         }
         active.pop();
+        completed
     }
 
     /// An admitted input's predicate names its entry scalar values even when

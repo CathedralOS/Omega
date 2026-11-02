@@ -270,6 +270,7 @@ pub(in crate::checks::contracts) fn retain_alternative_reads<'facts>(
             storage,
             &binding.place,
             &cuts,
+            validation::completed_storage::StoredObservation::Contents,
         ) {
             continue;
         }

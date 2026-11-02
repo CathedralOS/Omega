@@ -115,7 +115,7 @@ pub(super) fn emit_invocation(
         environment,
     )?;
     if let Some(operation) = operation {
-        descriptor_input::emit(source, call, operation.operation, builder)?;
+        descriptor_input::emit(call, operation.operation, builder)?;
     }
     // Encoding materializes private addresses inside the call row, but frame
     // demand belongs here alongside every other outgoing argument. A final

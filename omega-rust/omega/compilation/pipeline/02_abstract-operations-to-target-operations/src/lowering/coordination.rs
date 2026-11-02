@@ -45,7 +45,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
     settlement_bindings: &[BoundarySettlementBinding],
     installation: Option<&dyn ProviderInstallationEvidence>,
     native_callbacks: &[crate::AdmittedNativeCallbackArgument],
-    verified_input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
+    verified_input: Option<&provider_admission::AdmittedLoweringFacts>,
 ) -> Result<TargetOperationPlan, LoweringError> {
     // Root and projected memberships are target-neutral source judgments.
     // They stay on the retained abstract contracts; field paths select the
@@ -126,6 +126,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
         &settlements_by_boundary,
     );
     let target_plan = TargetOperationPlan {
+        borrowed_storage_layouts: super::borrowed_storage::capture(plan),
         psi: plan.psi,
         target,
         entry: plan.entry,
@@ -161,7 +162,7 @@ pub(super) fn lower_to_target_operations_with_settlements_and_installation(
                         // Render this exact full-program catalog coordinate;
                         // focused public inspection can number another graph.
                         let declaration = verified_input.and_then(|input| {
-                            let module = input.context().module();
+                            let module = input.module();
                             let declaration = module.machine(function.machine)?.declaration.as_ref()?;
                             Some((
                                 module.identities.text(declaration.machine.identity()),

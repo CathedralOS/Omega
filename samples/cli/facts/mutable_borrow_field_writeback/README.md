@@ -57,8 +57,8 @@ consumer reads back from the aggregate.
 
 | Probe | Class | Diagnostic |
 | --- | --- | --- |
-| Write `81u64` into a field declared `where used <= 80u64` | static refusal, before native production (`--check` exit 1) | ``machine `main` state `entry` assignment stores a value not provably within its data's `where` facts`` |
-| Construct `Counter { used: 95u64, … }` against `where used <= 80u64` | static refusal at the construction gate, independent of seeding (`ch12: construction is the gate`) | ``data `Counter` literal violates the default domain: a `where` fact evaluates FALSE at this construction`` |
+| Write `81u64` into a field declared `where used <= 80u64` | static refusal, before native production (`--check` exit 1) | ``machine `main` state `entry` assignment stores a value not provably within its data's `requires` facts`` |
+| Construct `Counter { used: 95u64, … }` against `where used <= 80u64` | static refusal at the construction gate, independent of seeding (`ch12: construction is the gate`) | ``data `Counter` literal violates the default domain: a `requires` fact evaluates FALSE at this construction`` |
 | Two overlapping `&mut c` loans of the same aggregate | static refusal | ```statement 2 creates local borrow `r2` while local borrow `r1` is still active``` |
 | Write `r.used = 50u64` through a *shared* `&Counter` | static refusal | `assignment requires mutable source access through every reference crossed by its destination` |
 

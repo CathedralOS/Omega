@@ -46,7 +46,7 @@ impl<'program> StaticDeclaration<'program> {
                 parameters: program
                     .requirement_invocation_contract_parameters(application.signature),
                 lifetime_parameters: &source.lifetime_parameters,
-                conformance_bounds: &[],
+                conformance_bounds: &application.signature.conformance_bounds,
             });
         }
         if let Some(machine) = program.machine_by_symbol(symbol) {
@@ -89,16 +89,17 @@ impl<'program> StaticDeclaration<'program> {
             name: &signature.name,
             parameters: program.state_signature_type_parameters(signature),
             lifetime_parameters: &signature.lifetime_parameters,
-            conformance_bounds: &[],
+            conformance_bounds: &signature.conformance_bounds,
         })
     }
 }
 
-/// An open source schema is distinct from a missing concrete instance. The
-/// representation queries differ only in permitting this caller's declared
-/// Type/Const binders; both retain transitive nominal, region and operand
-/// custody checks. This classification admits no bound or provider evidence.
-fn is_declared_open_tuple(
+/// Decide whether a call must still be checked against its original declaration
+/// because its enclosing function or arguments are generic. Confirm the exact
+/// callee and argument ownership here; the caller still checks types, lifetimes,
+/// bounds and proofs. A call in a fully instantiated body cannot use this path
+/// to hide a missing instantiated callee.
+fn is_declared_source_tuple(
     program: &dyn crate::CheckingInput,
     application: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
@@ -124,7 +125,18 @@ fn is_declared_open_tuple(
     {
         return false;
     }
-    let mut open = bound.is_some();
+    // Calls inside a generic body keep their original declarations until the
+    // body is instantiated, even when a particular call has fixed arguments.
+    // Use the same test as the stage that creates concrete call instances.
+    // Otherwise those valid calls are mistaken for missing instances.
+    let mut open = bound.is_some()
+        || program
+            .machine_by_symbol(application.lexical_owner)
+            .is_some_and(|owner| {
+                program
+                    .typed_program()
+                    .callable_body_has_open_parameters(owner)
+            });
     if requirement_application.is_valid() {
         let Some(scope) = program
             .applied_requirement_scope(application.lexical_owner, requirement_application)
@@ -385,11 +397,11 @@ pub fn validate_static_machine_bindings(
                     continue;
                 }
                 let Some(closed) = program.closed_requirement_application(*target) else {
-                    // A live universal call keeps its exact authored declaration
-                    // until its own operands close. It still owes every ordinary
-                    // lifetime, bound, const and forwarded-evidence check below.
+                    // This generic call still names its source declaration.
+                    // The checks below must still prove its lifetime, constant,
+                    // bound and caller-supplied proof requirements.
                     if !selected.is_some_and(|previous| previous != application.binding_declaration)
-                        && is_declared_open_tuple(
+                        && is_declared_source_tuple(
                             program,
                             application,
                             bindings,

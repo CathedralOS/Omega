@@ -67,7 +67,7 @@ class NativeBoundaryTests(unittest.TestCase):
         self.assertEqual(len(dependency_violations(self.metadata)), 1)
 
     def test_dev_dependencies_are_not_production_edges(self):
-        compiler = self.package("compiler", "omega-rust/omega/compilation/driver")
+        compiler = self.package("compiler", "omega-rust/omega/compilation/compiler")
         self.edge(self.native, compiler, kind="dev")
         self.assertEqual(dependency_violations(self.metadata), [])
         self.edge(self.native, compiler)
@@ -147,7 +147,7 @@ class NativeBoundaryTests(unittest.TestCase):
         self.assertTrue(any("trust-model -> native-production" in failure for failure in failures))
 
     def test_psi_cannot_reach_omega_through_inactive_production_edges(self):
-        psi = self.package("psi-compiler", "omega-rust/psi/compilation/driver")
+        psi = self.package("psi-compiler", "omega-rust/psi/compilation/psi-compiler")
         foundation = self.package("language-semantics", "omega-rust/psi/foundation/language-semantics")
         self.edge(psi, foundation)
         self.assertEqual(psi_omega_dependency_violations(self.metadata), [])
@@ -169,7 +169,7 @@ class NativeBoundaryTests(unittest.TestCase):
         self.assertIn("selected-dispatch -> validation", failures[0])
 
     def test_source_coordinator_keeps_its_checker_dependency(self):
-        coordinator = self.package("psi-compiler", "omega-rust/psi/compilation/driver")
+        coordinator = self.package("psi-compiler", "omega-rust/psi/compilation/psi-compiler")
         checker = self.package("validation", "omega-rust/psi/compilation/validation")
         self.edge(coordinator, checker)
         self.assertEqual(realization_checker_entry_violations(self.metadata), [])
@@ -325,13 +325,13 @@ class ForbiddenDependencyTests(unittest.TestCase):
         self.assertEqual(forbidden_dependency_violations(self.metadata), [])
 
     def test_omega_stage_cannot_import_another_stage(self):
-        later = self.package("register-homes", OMEGA_STAGES[5])
-        earlier = self.package("selected-instructions", OMEGA_STAGES[4])
-        self.edge(later, earlier)
+        optimizer = self.package("optimized-abstract-operations", OMEGA_STAGES[1])
+        admission = self.package("terminal-psi-to-abstract-operations", OMEGA_STAGES[0])
+        self.edge(optimizer, admission)
         self.assertEqual(forbidden_dependency_violations(self.metadata), [])
-        first = self.package("abstract-operations", OMEGA_STAGES[0])
-        self.edge(later, first)
-        self.edge(first, later, kind="dev")
+        later = self.package("register-homes", OMEGA_STAGES[5])
+        self.edge(later, admission)
+        self.edge(admission, later, kind="dev")
         failures = forbidden_dependency_violations(self.metadata)
         self.assertEqual(len(failures), 1)
         self.assertIn("register-homes -> 00_terminal-psi-to-abstract-operations: stages cannot call", failures[0])
@@ -352,7 +352,7 @@ class ForbiddenDependencyTests(unittest.TestCase):
                           if failure.startswith(f"{rows[0].owner} ->")], [])
 
     def test_allowance_outside_every_rule_fails(self):
-        misplaced = Allowance("omega-rust/omega/compilation/driver",
+        misplaced = Allowance("omega-rust/omega/compilation/compiler",
                               "omega-rust/psi/compilation/representations/typed-trees", "Debt: test")
         rules = [rule._replace(allowed=(misplaced,)) for rule in FORBIDDEN_DEPENDENCIES if rule.allowed]
         failures = stale_allowance_violations(self.metadata, rules)

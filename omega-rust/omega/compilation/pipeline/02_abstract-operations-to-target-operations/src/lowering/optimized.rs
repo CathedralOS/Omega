@@ -1,48 +1,56 @@
-use abstract_operations_to_abstract_operations::ValidatedOptimizedAbstractPlan;
 use optimization_core::OptimizationExecutionPhase;
+use optimization_unit::OptimizedAbstractProgram;
+use provider_admission::{AdmittedLoweringFacts, AdmittedProviderInstallation};
 use std::sync::Arc;
 use target::NativeTarget;
 use target_operations::TargetOperationPlan;
-use terminal_psi_to_abstract_operations::AdmittedProviderInstallation;
 
 use crate::{AdmittedBoundarySettlement, LoweringError};
 
-/// Target lowering retaining the validated abstract plan and its admitted
-/// provider installation beside the produced program. The current program is
+/// Target lowering retaining the optimized abstract program, the admitted
+/// facts of the input it was admitted from, and its admitted provider
+/// installation beside the produced program. The current program is
 /// shared immutable representation data. Borrowing or retaining it does not
 /// grant the admission held by this private constructor.
 #[derive(Debug)]
 pub struct ValidatedOptimizedTargetOperations {
-    pub(super) optimized: ValidatedOptimizedAbstractPlan,
+    pub(super) optimized: OptimizedAbstractProgram,
+    lowering_facts: AdmittedLoweringFacts,
     current_program: Arc<TargetOperationPlan>,
     pub(super) provider_installation: Option<Box<AdmittedProviderInstallation>>,
-    borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
 }
 
 impl ValidatedOptimizedTargetOperations {
     /// The target producer's source-free geometry for borrowed boundary inputs.
     pub fn borrowed_storage_layouts(&self) -> &[runtime_abi::NativeBorrowedStorageLayout] {
-        &self.borrowed_storage_layouts
+        &self.current_program.borrowed_storage_layouts
     }
-    pub const fn optimized(&self) -> &ValidatedOptimizedAbstractPlan {
+    pub const fn optimized(&self) -> &OptimizedAbstractProgram {
         &self.optimized
+    }
+
+    /// The admitted facts of the input the optimized program was admitted
+    /// from: module, program entry, assumed bindings, target machine
+    /// selections and the sealed callback cohort.
+    pub const fn lowering_facts(&self) -> &AdmittedLoweringFacts {
+        &self.lowering_facts
     }
 
     /// The admitted boundary facts this plan's native call origins rejoin
     /// to, from the verified input its optimized source was admitted with.
     pub fn boundary_origins(&self) -> target_operations::BoundaryOriginFacts<'_> {
-        let input = self.optimized.verified_input();
+        let input = &self.lowering_facts;
         target_operations::BoundaryOriginFacts {
-            program_entry: input.selected_program_entry_call().map(|call| {
+            program_entry: input.program_entry().map(|call| {
                 target_operations::ProgramEntryOrigin {
                     boundary: call.boundary(),
                     entry: call.entry(),
                     source_signature: call.source_signature(),
                 }
             }),
-            assumed_bindings: input.admitted_assumed_bindings(),
+            assumed_bindings: input.assumed_bindings(),
             target_machine_selections: input.target_machine_selections(),
-            module: input.context().module(),
+            module: input.module(),
         }
     }
 
@@ -75,8 +83,8 @@ impl ValidatedOptimizedTargetOperations {
 ///
 /// ```compile_fail
 /// fn inject(request: &mut abstract_operations_to_target_operations::OptimizedTargetLoweringRequest<'_>,
-///     foreign: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput) {
-///     request.native_callbacks = foreign.admitted_native_callbacks();
+///     foreign: &provider_admission::AdmittedLoweringFacts) {
+///     request.native_callbacks = foreign.native_callbacks().callbacks();
 /// }
 /// ```
 pub struct OptimizedTargetLoweringRequest<'a> {
@@ -97,7 +105,8 @@ pub struct OptimizedTargetLoweringRequest<'a> {
 /// the independent audit's job; this default route does not re-derive what it
 /// just lowered.
 pub fn lower_optimized_to_target_operations(
-    optimized: ValidatedOptimizedAbstractPlan,
+    optimized: OptimizedAbstractProgram,
+    lowering_facts: AdmittedLoweringFacts,
     request: OptimizedTargetLoweringRequest<'_>,
 ) -> Result<ValidatedOptimizedTargetOperations, LoweringError> {
     let OptimizedTargetLoweringRequest {
@@ -110,6 +119,11 @@ pub fn lower_optimized_to_target_operations(
     if !optimized.selections().for_phase(phase).is_empty() {
         return Err(LoweringError::UnconsumedOptimizationPhase(phase));
     }
+    // The callback cohort must be the one admitted for this exact Terminal
+    // program; a cohort admitted for another program cannot be substituted.
+    if lowering_facts.native_callbacks().psi() != optimized.plan().psi {
+        return Err(LoweringError::ForeignNativeCallbackCohort);
+    }
     let installed = installation
         .as_ref()
         .map(|value| value as &dyn installation_evidence::ProviderInstallationEvidence);
@@ -121,12 +135,12 @@ pub fn lower_optimized_to_target_operations(
             target,
             &bindings,
             installed,
-            optimized.verified_input().admitted_native_callbacks(),
-            Some(optimized.verified_input()),
+            lowering_facts.native_callbacks().callbacks(),
+            Some(&lowering_facts),
         )?;
     Ok(ValidatedOptimizedTargetOperations {
-        borrowed_storage_layouts: super::borrowed_storage::capture(optimized.plan()),
         optimized,
+        lowering_facts,
         current_program: Arc::new(program),
         provider_installation: installation.map(Box::new),
     })

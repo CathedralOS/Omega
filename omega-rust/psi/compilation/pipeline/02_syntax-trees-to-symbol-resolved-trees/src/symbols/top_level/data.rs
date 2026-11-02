@@ -84,6 +84,8 @@ pub(super) fn assign_data_symbols(program: &mut SymbolResolvedTrees, symbols: &S
                     state_parameters,
                     child_type_references,
                     type_constraints,
+                    trait_proposition_slots: &trait_proposition_slots,
+                    trait_machine_identity_slots: &trait_machine_identity_slots,
                 }
                 .assign_parameter_contract_symbols(
                     &mut contract,

@@ -128,7 +128,7 @@ pub(super) struct MachineEmission<'a> {
     local_places: Vec<StructuralPlaceDeclaration>,
     private_places: Vec<StructuralPlaceDeclaration>,
     next_literal_argument: usize,
-    staged_arguments: Vec<Vec<usize>>,
+    staged_arguments: Vec<super::argument_evaluation::ScalarArgumentCaptures>,
     staged_subslices: Vec<Vec<(usize, PlaceId)>>,
     staged_selectors: Vec<Vec<usize>>,
     staged_structural_arguments:
@@ -403,7 +403,8 @@ pub(super) fn emit(
         &evaluation.place_observations,
     );
     primitive_locals::register_mut_formal_storage_homes(&mut evaluation, &parameter_storage)?;
-    let staged_arguments = vec![Vec::<usize>::new(); plan.operations.len()];
+    let staged_arguments =
+        vec![super::argument_evaluation::ScalarArgumentCaptures::default(); plan.operations.len()];
     let staged_subslices = vec![Vec::<(usize, PlaceId)>::new(); plan.operations.len()];
     let retained_scalar_prefix = None;
     let cleanup_receivers = machine_signatures
@@ -1518,9 +1519,6 @@ impl MachineEmission<'_> {
                         .ok_or(LoweringError::Unsupported(
                             "staged scalar argument has no source prefix",
                         ))?;
-                if self.staged_arguments[operation].len() != ordinal {
-                    return unsupported("staged scalar argument ordinals are not dense");
-                }
                 let value = {
                     let (mut environment, emission) = self.frame(source_value_count).split();
                     emission.evaluation.argument_at(
@@ -1541,7 +1539,7 @@ impl MachineEmission<'_> {
                     )
                 }?;
                 self.next_call_obligation = self.scalar_calls.next_obligation_identity;
-                self.staged_arguments[operation].push(self.scalar_result_values.len());
+                self.staged_arguments[operation].record(ordinal, self.scalar_result_values.len());
                 self.scalar_result_values.push(value);
                 return Ok(());
             }
@@ -1733,18 +1731,7 @@ impl MachineEmission<'_> {
             .retained_scalar_prefix
             .unwrap_or(self.scalar_result_values.len());
         let evaluated_scalar_arguments = if staged {
-            Some(
-                self.staged_arguments[operation_index]
-                    .iter()
-                    .map(|index| {
-                        self.scalar_result_values.get(*index).copied().ok_or(
-                            LoweringError::Unsupported(
-                                "staged scalar operand lost its retained value",
-                            ),
-                        )
-                    })
-                    .collect::<Result<Vec<_>, _>>()?,
-            )
+            Some(self.staged_arguments[operation_index].values(&self.scalar_result_values))
         } else {
             {
                 let (mut environment, emission) = self.frame(source_value_count).split();

@@ -100,33 +100,6 @@ impl StagedOptimizedLiteralFoldAttempt {
     }
 }
 
-/// Ordered custody for separately invoked literal folds. Extending this value
-/// requires another explicit API call; construction never iterates to a fixed
-/// point and ordinary optimized staging never calls it implicitly.
-#[derive(Debug)]
-pub struct StagedOptimizedLiteralFolds {
-    source: StagedOptimizedAllocationLegality,
-    steps: Vec<StagedOptimizedLiteralFoldStep>,
-    custody: StagedOptimizedLiteralFoldCustodyReceipt,
-}
-
-impl StagedOptimizedLiteralFolds {
-    pub const fn source_legality_stage(&self) -> &StagedOptimizedAllocationLegality {
-        &self.source
-    }
-    pub fn steps(&self) -> &[StagedOptimizedLiteralFoldStep] {
-        &self.steps
-    }
-    pub fn final_step(&self) -> &StagedOptimizedLiteralFoldStep {
-        self.steps
-            .last()
-            .expect("validated literal-fold sequence is nonempty")
-    }
-    pub const fn custody(&self) -> &StagedOptimizedLiteralFoldCustodyReceipt {
-        &self.custody
-    }
-}
-
 /// Completed execution of the selected-lowering projection of one exact
 /// source-visible suite. Applied steps are followed by one validated no-change
 /// attempt, so an empty `steps` vector is still an evidenced successful run.
@@ -158,6 +131,56 @@ impl StagedSelectedLoweringOptimizationRun {
     }
     pub const fn custody(&self) -> &StagedSelectedLoweringOptimizationCustodyReceipt {
         &self.custody
+    }
+}
+
+impl StagedSelectedLoweringOptimizationRun {
+    /// The completed run as register allocation reads it: the final program
+    /// and the facts rebuilt over it (the last step's, or the admitted
+    /// source's when the suite applied no fold), and the run's ledger.
+    pub(crate) fn into_completed(
+        self,
+    ) -> selected_instruction_analyses::CompletedSelectedOptimization<
+        SelectedLoweringOptimizationCompletionIdentity,
+    > {
+        let ledger = selected_instruction_analyses::SelectedOptimizationLedger {
+            identity: self.custody.identity,
+            phase_selections: self.custody.selected_lowering_selections,
+            source: self.custody.source,
+            transformations: self
+                .custody
+                .iterations
+                .iter()
+                .map(|iteration| {
+                    register_homes::PostAllocationSelectedTransformation::LiteralFold(
+                        iteration.fold(),
+                    )
+                })
+                .collect(),
+        };
+        let source = self.source;
+        let (current, liveness, ranges, legality) = match self.steps.into_iter().last() {
+            Some(step) => (
+                crate::OwnedSelectedProgram::retain(&step.fold),
+                step.liveness,
+                step.ranges,
+                step.legality,
+            ),
+            None => (
+                crate::OwnedSelectedProgram::retain(source.selected()),
+                source.liveness().clone(),
+                source.ranges().clone(),
+                source.legality().clone(),
+            ),
+        };
+        selected_instruction_analyses::CompletedSelectedOptimization {
+            source,
+            current,
+            liveness,
+            ranges,
+            legality,
+            ledger,
+        }
     }
 }
 
@@ -221,37 +244,6 @@ copy_receipt! {
         fold_usage: OptimizationWorkUsage,
         applied_count: usize,
         transformed_selected: SelectedInstructionPlanIdentity,
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct StagedOptimizedLiteralFoldCustodyReceipt {
-    source: StagedOptimizedAllocationLegalityCustodyReceipt,
-    iterations: Vec<StagedOptimizedLiteralFoldIterationReceipt>,
-    transformations: Vec<LiteralFoldIdentity>,
-    final_selected: SelectedInstructionPlanIdentity,
-    final_liveness: selected_instructions::LivenessIdentity,
-    final_ranges: selected_instructions::LiveRangeIdentity,
-    final_legality: register_homes::AllocationLegalityIdentity,
-    final_virtual_register_count: usize,
-    final_entry_transition_count: usize,
-}
-
-impl StagedOptimizedLiteralFoldCustodyReceipt {
-    receipt_accessor_rows!(ref StagedOptimizedLiteralFoldCustodyReceipt {
-            source: StagedOptimizedAllocationLegalityCustodyReceipt,
-            final_virtual_register_count: usize,
-            final_entry_transition_count: usize,
-            final_selected: SelectedInstructionPlanIdentity,
-            final_liveness: selected_instructions::LivenessIdentity,
-            final_ranges: selected_instructions::LiveRangeIdentity,
-            final_legality: register_homes::AllocationLegalityIdentity,
-    });
-    pub fn iterations(&self) -> &[StagedOptimizedLiteralFoldIterationReceipt] {
-        &self.iterations
-    }
-    pub fn transformations(&self) -> &[LiteralFoldIdentity] {
-        &self.transformations
     }
 }
 

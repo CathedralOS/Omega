@@ -61,7 +61,8 @@ pub use boundary::effects::original_storage::{
     TerminalOriginalStorageLoan, TerminalOriginalStorageRequest, TerminalOriginalStorageRoot,
 };
 pub use boundary::effects::results::{
-    TerminalByteSequenceValue, TerminalEffectResult, TerminalReferenceResult,
+    TerminalByteSequenceValue, TerminalEffectResult, TerminalReferencePayload,
+    TerminalReferenceResult,
 };
 pub use boundary::effects::scalar_loans::TerminalBoundaryScalarBuffer;
 pub use boundary::effects::storage_inputs::{

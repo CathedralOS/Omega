@@ -276,16 +276,70 @@ impl Evaluator<'_> {
         &mut self,
         state: &State,
         arguments: &[ExpressionHandle],
+        source: Option<validation::CallSite<'_>>,
         frame: &mut Frame,
     ) -> EvalResult<Vec<EvaluatedArgument>> {
         self.check_state_argument_count(state, arguments.len())?;
-        let mut evaluated = Vec::with_capacity(arguments.len());
-        for (ordinal, argument) in arguments.iter().copied().enumerate() {
-            let destination = self.program.state_parameters(state)[ordinal].type_reference;
-            let argument = self.eval_state_argument(argument, destination, frame)?;
-            evaluated.push(argument);
+        let order = match source {
+            Some(source) => source.argument_evaluation_order(self.program),
+            None => self.program.call_argument_evaluation_order(
+                Default::default(),
+                state.symbol,
+                arguments.len(),
+            ),
         }
-        Ok(evaluated)
+        .map_err(|reason| Halt::Unsupported(reason.to_owned()))?;
+        let mut aliases = Vec::new();
+        if let Some(source) = source {
+            let application = source.authored_application();
+            if application.is_valid() {
+                for binding in self
+                    .program
+                    .expression_table
+                    .static_machine_application_bindings(application)
+                {
+                    let typed_trees::static_applications::StaticMachineBindingValue::RuntimeValue {
+                        mut expression,
+                        ..
+                    } = binding.value
+                    else {
+                        continue;
+                    };
+                    while expression.is_valid() {
+                        match self.program.expression_table.expression(expression) {
+                            ExpressionNode::Member(member) => expression = member.receiver,
+                            ExpressionNode::SavedSubject(saved) => {
+                                let position = source.captured_argument_position(self.program, saved)
+                                    .ok_or_else(|| Halt::Unsupported("runtime descriptor alias belongs to another invocation".to_owned()))?;
+                                aliases.push((position, saved.capture));
+                                break;
+                            }
+                            _ => break,
+                        }
+                    }
+                }
+            }
+        }
+        let prefix = frame.match_subjects.len();
+        let result = (|| {
+            let mut evaluated = vec![None; arguments.len()];
+            for ordinal in order {
+                let destination = self.program.state_parameters(state)[ordinal].type_reference;
+                let argument = self.eval_state_argument(arguments[ordinal], destination, frame)?;
+                for (_, capture) in aliases.iter().filter(|(position, _)| *position == ordinal) {
+                    frame.match_subjects.push((*capture, argument.cell.clone()));
+                }
+                evaluated[ordinal] = Some(argument);
+            }
+            evaluated
+                .into_iter()
+                .collect::<Option<Vec<_>>>()
+                .ok_or_else(|| {
+                    Halt::Unsupported("call argument has no completed observation".to_owned())
+                })
+        })();
+        frame.match_subjects.truncate(prefix);
+        result
     }
 
     /// Evaluation and frame binding consume the same exact formal roster.

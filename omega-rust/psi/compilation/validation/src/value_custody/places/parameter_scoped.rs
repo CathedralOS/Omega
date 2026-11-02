@@ -11,10 +11,11 @@ use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) fn parameter_scoped_type_reference(
     program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
-    expression_type(program, parameters, expression, 0)
+    expression_type(program, owner, parameters, expression, 0)
 }
 
 /// Retain the lexical applications of an abstract callable's exact source.
@@ -42,7 +43,7 @@ pub fn parameter_source_type_application(
     if !place.segments.is_empty() {
         // This existing query authenticates nominal members and builtin []
         // against the supplied parameters; authored operators are not paths.
-        parameter_scoped_type_reference(program, parameters, expression)?;
+        parameter_scoped_type_reference(program, callable, parameters, expression)?;
     }
     let reference = match place.root {
         facts::PlaceRoot::Symbol(symbol) => {
@@ -65,12 +66,14 @@ pub fn parameter_source_type_application(
 
 fn expression_type(
     program: &dyn crate::CheckingInput,
+    owner: symbols::SymbolHandle,
     parameters: &[StateParameter],
     expression: ExpressionHandle,
     depth: usize,
 ) -> Option<TypeReferenceHandle> {
     let node = expression_table(program).expression_at_depth(expression, depth)?;
-    let child_type = |expression| expression_type(program, parameters, expression, depth + 1);
+    let child_type =
+        |expression| expression_type(program, owner, parameters, expression, depth + 1);
     let reference = match node {
         ExpressionNode::SavedSubject(saved) => child_type(program.saved_value_source(saved)?)?,
         ExpressionNode::Name(path) => {
@@ -113,15 +116,12 @@ fn expression_type(
             // slice accepted through implicit shared collection adaptation.
             // Its result requires an exact application, not the element type.
             let operands = [Some(collection_type), child_type(indexed.index)];
-            if !has_retained_builtin_index_meaning(program, expression)
-                || !typed_trees::operator::resolve_indexed_spelling_for_operands(
-                    program,
-                    language_core::OperatorSpelling::Index,
-                    &operands,
-                    expression_table(program).source_span(expression),
-                )
-                .is_empty()
-            {
+            // Abstract predicates may precede executable operator receipts.
+            // Their exact lexical owner still authenticates the selected
+            // builtin meaning; a declared/lexical [] continues to refuse.
+            if !typed_trees::operator::builtin_index_read_is_spelled(
+                program, owner, expression, &operands,
+            ) {
                 return None;
             }
             super::collection_element_type_reference(program, collection_type)?

@@ -1,19 +1,43 @@
-//! Keep original provider rows and their optional direct-call inputs together.
+//! Save source details needed to generate calls and memory accesses. Keep each
+//! operation associated with its original implementation, then attach target
+//! calling details without looking up declarations in source again.
 //!
-//! Source/layout preparation retains original row coordinates and deferred
-//! foreign ABI failures and immutable intrinsic declaration facts. It creates
-//! no projected plan or host grant. Selected execution joins target/accepted
-//! bindings and constructs complete leaves without reopening checked source.
+//! Save declaration errors too, so later steps report them in the same order.
 
 use crate::DerivedProviderPlan;
 use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRow};
 
-/// Planning precedes constant closure. This phase cannot supply intrinsic facts
-/// to completion until the finalized checked snapshot has prepared them.
+/// Calling details are attached. Saved declaration errors wait until after
+/// program-entry checks, preserving which error is reported first.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct UnpreparedProviderRows {
+pub struct DeferredProviderRows {
     direct: Vec<Option<DirectBoundaryInput>>,
+    declarations: Result<RowDeclarations, Diagnostic>,
+}
+
+/// Keep checked declarations with the implementation they describe.
+/// Report direct-call identity errors when attaching calling details;
+/// report declaration errors later, after program-entry checks.
+pub(crate) struct CapturedProviderRows {
+    direct: Result<Vec<Option<DirectBoundaryDeclaration>>, Vec<Diagnostic>>,
+    declarations: Result<RowDeclarations, Diagnostic>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RowDeclarations {
+    placed: Result<Option<crate::SealedAccessor>, Diagnostic>,
+    rows: Vec<Option<ProviderRowDeclarations>>,
+}
+
+#[derive(Clone)]
+struct DirectBoundaryDeclaration {
+    row_index: usize,
+    declaration_identity: String,
+    callable_identity: String,
+    realization_owner: String,
+    realization_package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    intrinsic: bool,
 }
 
 /// Declaration facts are produced once from the finalized checked snapshot.
@@ -36,33 +60,17 @@ pub struct ProviderRowDeclarations {
     pub exit_process: crate::intrinsic_declarations::ExitProcessDeclaration,
 }
 
-/// One candidate inventory owner. Toolchain-only plans have no authored source
-/// provenance; they cannot manufacture direct declaration inputs.
+/// Keep a possible implementation together with the declarations for its
+/// individual operations, so later code does not have to find them in source.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderPlanCandidate<Rows = PreparedProviderRows> {
-    source: ProviderPlanCandidateSource,
+    source: DerivedProviderPlan,
     rows: Rows,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-enum ProviderPlanCandidateSource {
-    Derived(DerivedProviderPlan),
-    Toolchain(ProviderPlan),
 }
 
 impl<Rows> ProviderPlanCandidate<Rows> {
     pub fn plan(&self) -> &ProviderPlan {
-        match &self.source {
-            ProviderPlanCandidateSource::Derived(source) => &source.plan,
-            ProviderPlanCandidateSource::Toolchain(plan) => plan,
-        }
-    }
-
-    pub(crate) fn derived(&self) -> Option<&DerivedProviderPlan> {
-        match &self.source {
-            ProviderPlanCandidateSource::Derived(source) => Some(source),
-            ProviderPlanCandidateSource::Toolchain(_) => None,
-        }
+        &self.source.plan
     }
 
     /// Borrow the producer's original row, without truncating a copied plan or
@@ -71,7 +79,7 @@ impl<Rows> ProviderPlanCandidate<Rows> {
         &self,
         input: &DirectBoundaryInput,
     ) -> Result<DirectBoundarySource<'_>, Diagnostic> {
-        self.source.direct_source(input.row_index)
+        derived_direct_source(&self.source, input.row_index)
     }
 }
 
@@ -94,19 +102,8 @@ impl ProviderPlanCandidate {
     }
 
     /// Rejoin exact producer provenance, never a first same-name candidate.
-    /// Toolchain rows have no authored realization and cannot supply row facts.
     pub fn matches_selection(&self, selected: &crate::SelectedProviderReviewProvenance) -> bool {
-        self.plan() == &selected.plan
-            && match &self.source {
-                ProviderPlanCandidateSource::Derived(source) => {
-                    source.provenance == selected.provider
-                }
-                ProviderPlanCandidateSource::Toolchain(_) => selected
-                    .provider
-                    .row_realizations
-                    .iter()
-                    .all(|row| matches!(row, crate::ProviderRowRealization::Toolchain)),
-            }
+        self.plan() == &selected.plan && self.source.provenance == selected.provider
     }
 
     pub fn accessor(&self) -> Result<Option<&crate::SealedAccessor>, Diagnostic> {
@@ -118,37 +115,34 @@ impl ProviderPlanCandidate {
     }
 }
 
-impl ProviderPlanCandidateSource {
-    fn direct_source(&self, row_index: usize) -> Result<DirectBoundarySource<'_>, Diagnostic> {
-        let Self::Derived(source) = self else {
-            return Err(Diagnostic::error(
-                "direct boundary has no original provider provenance",
-            ));
-        };
-        let provenance = &source.provenance;
-        let row =
-            source.plan.rows.get(row_index).ok_or_else(|| {
-                Diagnostic::error("direct boundary lost its original provider row")
-            })?;
-        let requirement = provenance
-            .row_requirements
-            .get(row_index)
-            .copied()
-            .ok_or_else(|| Diagnostic::error("direct boundary lost its original requirement"))?;
-        let realization = provenance
-            .row_realizations
-            .get(row_index)
-            .and_then(crate::ProviderRowRealization::authored)
-            .ok_or_else(|| Diagnostic::error("direct boundary lost its authored realization"))?;
-        Ok(DirectBoundarySource {
-            plan: &source.plan,
-            row,
-            schema: provenance.schema,
-            provider: provenance.provider_type,
-            requirement,
-            realization,
-        })
-    }
+fn derived_direct_source(
+    source: &DerivedProviderPlan,
+    row_index: usize,
+) -> Result<DirectBoundarySource<'_>, Diagnostic> {
+    let provenance = &source.provenance;
+    let row = source
+        .plan
+        .rows
+        .get(row_index)
+        .ok_or_else(|| Diagnostic::error("direct boundary lost its original provider row"))?;
+    let requirement = provenance
+        .row_requirements
+        .get(row_index)
+        .copied()
+        .ok_or_else(|| Diagnostic::error("direct boundary lost its original requirement"))?;
+    let realization = provenance
+        .row_realizations
+        .get(row_index)
+        .and_then(crate::ProviderRowRealization::authored)
+        .ok_or_else(|| Diagnostic::error("direct boundary lost its authored realization"))?;
+    Ok(DirectBoundarySource {
+        plan: &source.plan,
+        row,
+        schema: provenance.schema,
+        provider: provenance.provider_type,
+        requirement,
+        realization,
+    })
 }
 
 pub struct DirectBoundarySource<'a> {
@@ -236,11 +230,10 @@ impl DirectBoundaryInput {
     }
 }
 
-pub(crate) fn prepare(
-    source: DerivedProviderPlan,
+fn capture_direct_declarations(
+    source: &DerivedProviderPlan,
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
-    context: &super::external_binding_rows::ExternalBindingContext<'_>,
-) -> Result<ProviderPlanCandidate<UnpreparedProviderRows>, Vec<Diagnostic>> {
+) -> Result<Vec<Option<DirectBoundaryDeclaration>>, Vec<Diagnostic>> {
     let typed = services.context().typed;
     let mut direct = vec![None; source.plan.rows.len()];
     for (row_index, row) in source.plan.rows.iter().enumerate() {
@@ -294,117 +287,165 @@ pub(crate) fn prepare(
                 "boundary leaf does not bind one exact requirement contract",
             )]);
         }
-        let mechanism = if matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. }) {
-            DirectBoundaryMechanism::Intrinsic
-        } else {
-            let binding = context.row(&source.plan, row_index).and_then(|row| {
-                row.ok_or_else(|| {
-                    vec![Diagnostic::error(
-                        "foreign leaf lost its normalized external binding",
-                    )]
-                })
-            });
-            DirectBoundaryMechanism::Foreign(binding)
-        };
+        let intrinsic = matches!(row.binding, ProviderBinding::CompilerIntrinsic { .. });
         // Invocation-local intrinsic declarations remain private. Foreign leaves
         // must have the same hermetic owner as the published boundary catalog.
         let declaration_identity = match typed.normalized_hermetic_symbol_identity(machine.symbol) {
             Ok(identity) => identity,
-            Err(_) if matches!(mechanism, DirectBoundaryMechanism::Intrinsic) => format!(
+            Err(_) if intrinsic => format!(
                 "program-local::{}",
                 typed.symbols.display_path(machine.symbol, "::")
             ),
             Err(reason) => return Err(vec![Diagnostic::error(reason)]),
         };
-        direct[row_index] = Some(DirectBoundaryInput {
+        direct[row_index] = Some(DirectBoundaryDeclaration {
             row_index,
             declaration_identity,
             callable_identity,
             realization_owner: typed.symbols.display_path(machine.symbol, "::"),
             realization_package: typed.symbols.symbol_package_identity(machine.symbol),
-            mechanism,
+            intrinsic,
         });
     }
-    Ok(ProviderPlanCandidate {
-        source: ProviderPlanCandidateSource::Derived(source),
-        rows: UnpreparedProviderRows { direct },
-    })
+    Ok(direct)
 }
 
-impl ProviderPlanCandidate<UnpreparedProviderRows> {
-    pub(crate) fn toolchain(plan: ProviderPlan) -> Self {
-        let direct = vec![None; plan.rows.len()];
+impl CapturedProviderRows {
+    pub(crate) fn capture(
+        source: &DerivedProviderPlan,
+        services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,
+        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+    ) -> Self {
         Self {
-            source: ProviderPlanCandidateSource::Toolchain(plan),
-            rows: UnpreparedProviderRows { direct },
+            direct: capture_direct_declarations(source, services),
+            declarations: capture_row_declarations(
+                source,
+                services.context().typed,
+                exact_toolchain_sources,
+            ),
         }
     }
 
-    /// Transfer original ownership into completion-ready inputs after constant
-    /// closure. No source plan or direct payload is cloned or projected here.
-    pub(crate) fn prepare_row_declarations(
+    pub(crate) fn attach_physical_rows(
         self,
-        typed: &checked_trees::typed_trees::TypedTrees,
-        exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
-    ) -> Result<ProviderPlanCandidate, Diagnostic> {
-        let placed = crate::SealedAccessor::rejoin_plan(
-            crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
-            self.plan(),
-        );
-        let Self { source, rows } = self;
-        let mut prepared = Vec::with_capacity(rows.direct.len());
-        for (row_index, direct) in rows.direct.into_iter().enumerate() {
-            let authored = match &source {
-                ProviderPlanCandidateSource::Derived(source) => source
-                    .provenance
-                    .row_realizations
-                    .get(row_index)
-                    .and_then(crate::ProviderRowRealization::authored)
-                    .is_some(),
-                ProviderPlanCandidateSource::Toolchain(_) => false,
-            };
-            let declarations = if authored {
-                let row = source.direct_source(row_index)?;
-                let identity = crate::service_declarations::exact_identity(
-                    typed,
-                    row.schema.symbol(),
-                    exact_toolchain_sources,
-                );
-                Some(ProviderRowDeclarations {
-                    intrinsic: matches!(row.row.binding, ProviderBinding::CompilerIntrinsic { .. })
-                        .then(|| {
-                            crate::intrinsic_declarations::IntrinsicDeclaration::prepare(
-                                typed,
-                                row.plan,
-                                row.schema,
-                                row.row,
-                                row.requirement,
-                                row.realization,
-                                identity,
-                            )
-                        }),
-                    exit_process: crate::intrinsic_declarations::ExitProcessDeclaration::prepare(
-                        typed,
-                        row.plan,
-                        row.row,
-                        row.schema.symbol(),
-                        row.requirement,
-                        row.realization,
-                    ),
+        source: DerivedProviderPlan,
+        context: &super::external_binding_rows::ExternalBindingContext<'_>,
+    ) -> Result<ProviderPlanCandidate<DeferredProviderRows>, Vec<Diagnostic>> {
+        let direct =
+            self.direct?
+                .into_iter()
+                .map(|declaration| {
+                    declaration.map(|declaration| {
+                        let mechanism = if declaration.intrinsic {
+                            DirectBoundaryMechanism::Intrinsic
+                        } else {
+                            let binding = context
+                                .row(&source.plan, declaration.row_index)
+                                .and_then(|row| {
+                                    row.ok_or_else(|| {
+                                        vec![Diagnostic::error(
+                                            "foreign leaf lost its normalized external binding",
+                                        )]
+                                    })
+                                });
+                            DirectBoundaryMechanism::Foreign(binding)
+                        };
+                        DirectBoundaryInput {
+                            row_index: declaration.row_index,
+                            declaration_identity: declaration.declaration_identity,
+                            callable_identity: declaration.callable_identity,
+                            realization_owner: declaration.realization_owner,
+                            realization_package: declaration.realization_package,
+                            mechanism,
+                        }
+                    })
                 })
-            } else {
-                None
-            };
-            prepared.push(ProviderRow {
+                .collect();
+        Ok(ProviderPlanCandidate {
+            source,
+            rows: DeferredProviderRows {
+                direct,
+                declarations: self.declarations,
+            },
+        })
+    }
+}
+
+fn capture_row_declarations(
+    source: &DerivedProviderPlan,
+    typed: &checked_trees::typed_trees::TypedTrees,
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
+) -> Result<RowDeclarations, Diagnostic> {
+    let placed = crate::SealedAccessor::rejoin_plan(
+        crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
+        &source.plan,
+    );
+    let mut rows = Vec::with_capacity(source.plan.rows.len());
+    for row_index in 0..source.plan.rows.len() {
+        let authored = source
+            .provenance
+            .row_realizations
+            .get(row_index)
+            .and_then(crate::ProviderRowRealization::authored)
+            .is_some();
+        let declarations = if authored {
+            let row = derived_direct_source(source, row_index)?;
+            let identity = crate::service_declarations::exact_identity(
+                typed,
+                row.schema.symbol(),
+                exact_toolchain_sources,
+            );
+            Some(ProviderRowDeclarations {
+                intrinsic: matches!(row.row.binding, ProviderBinding::CompilerIntrinsic { .. })
+                    .then(|| {
+                        crate::intrinsic_declarations::IntrinsicDeclaration::prepare(
+                            typed,
+                            row.plan,
+                            row.schema,
+                            row.row,
+                            row.requirement,
+                            row.realization,
+                            identity,
+                        )
+                    }),
+                exit_process: crate::intrinsic_declarations::ExitProcessDeclaration::prepare(
+                    typed,
+                    row.plan,
+                    row.row,
+                    row.schema.symbol(),
+                    row.requirement,
+                    row.realization,
+                ),
+            })
+        } else {
+            None
+        };
+        rows.push(declarations);
+    }
+    Ok(RowDeclarations { placed, rows })
+}
+
+impl ProviderPlanCandidate<DeferredProviderRows> {
+    /// Report saved declaration errors after program-entry checks, then combine
+    /// declarations with calling details. Attaching calling plans preserved
+    /// the operation order, so the two lists still match by position.
+    pub(crate) fn finish_row_declarations(self) -> Result<ProviderPlanCandidate, Diagnostic> {
+        let Self { source, rows } = self;
+        let declarations = rows.declarations?;
+        let rows = declarations
+            .rows
+            .into_iter()
+            .zip(rows.direct)
+            .map(|(declarations, direct)| ProviderRow {
                 declarations,
                 direct,
-            });
-        }
+            })
+            .collect();
         Ok(ProviderPlanCandidate {
             source,
             rows: PreparedProviderRows {
-                placed,
-                rows: prepared,
+                placed: declarations.placed,
+                rows,
             },
         })
     }

@@ -59,6 +59,44 @@ impl TypedTrees {
         Some((selecting, scope))
     }
 
+    /// An inline member supplies its exact authored map row independently of
+    /// Build selection. Resolve only that member's lexical implementation and
+    /// retained capture; another visible map supplies no authority here.
+    pub fn machine_conformance_requirement_scope(
+        &self,
+        machine: SymbolHandle,
+        declaring_trait: SymbolHandle,
+        requirement: SymbolHandle,
+    ) -> Result<Option<AppliedTraitScope<'_>>, &'static str> {
+        let Some((implementation, scope)) = self.lexical_conformance_scope(machine) else {
+            return Ok(None);
+        };
+        let authored = self.lifetime_declaration_owner(machine);
+        let mut rows = implementation.rows.iter().filter(|row| {
+            row.source.owns_realization()
+                && row.realization_machine == authored
+                && row.declaring_trait == declaring_trait
+                && row.requirement == requirement
+        });
+        let Some(row) = rows.next() else {
+            return Ok(None);
+        };
+        if rows.next().is_some() {
+            return Err("inline member repeats an exact requirement row");
+        }
+        let entry = self
+            .machine_by_symbol(authored)
+            .and_then(|machine| self.machine_states(machine).first())
+            .ok_or("inline requirement member lost its authored entry")?;
+        if row.realization_state != entry.symbol {
+            return Err("inline requirement row does not name its member entry");
+        }
+        scope
+            .declaring_scope(self, declaring_trait)
+            .map(Some)
+            .ok_or("inline requirement row lost its exact declaring application")
+    }
+
     /// Source-owned application roots shared by logical signature preparation
     /// and executable requirement preparation. Keeping the complete supplying
     /// scope prevents either consumer from rebuilding an application from an

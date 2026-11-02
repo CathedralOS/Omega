@@ -94,6 +94,7 @@ pub fn contents_preserved_from(
     snapshot: Snapshot,
     source: &CanonicalPlace,
     cuts: &[Snapshot],
+    observation: StoredObservation,
 ) -> bool {
     if cuts.is_empty()
         || cuts
@@ -103,7 +104,7 @@ pub fn contents_preserved_from(
         return false;
     }
     let cuts = cuts.iter().map(|cut| identity(*cut)).collect();
-    matches!(resolve_snapshot(program, control, snapshot, source, StoredObservation::Contents, SourceBoundary::ReadCuts(&cuts)),
+    matches!(resolve_snapshot(program, control, snapshot, source, observation, SourceBoundary::ReadCuts(&cuts)),
         Some(Resolution::Sources { incoming: false, stores }) if !stores.is_empty())
 }
 
@@ -190,7 +191,7 @@ fn resolve_snapshot(
                     if unavailable
                         || (incoming
                             && !stores.is_empty()
-                            && matches!(observation, StoredObservation::Contents))
+                            && !matches!(observation, StoredObservation::Binding))
                     {
                         Resolution::Unavailable
                     } else if stores.is_empty() {
@@ -252,7 +253,9 @@ fn resolve_snapshot(
                 contents_complete,
             } => {
                 let (writes, complete) = match observation {
-                    StoredObservation::Binding => (bindings, bindings_complete),
+                    StoredObservation::Binding | StoredObservation::InlineContents => {
+                        (bindings, bindings_complete)
+                    }
                     StoredObservation::Contents => (contents, contents_complete),
                 };
                 let stable = complete
@@ -271,7 +274,8 @@ fn resolve_snapshot(
                                                     program, source, segments,
                                                 )
                                             }
-                                            StoredObservation::Contents => {
+                                            StoredObservation::InlineContents
+                                            | StoredObservation::Contents => {
                                                 crate::storage_path_relations::contents_overlap(
                                                     program, source, segments,
                                                 )

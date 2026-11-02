@@ -8,14 +8,14 @@ name = "ind19-spectrum-validation"
 path = "validation_driver.rs"
 
 [dependencies]
-compiler = { path = "../../../../omega-rust/omega/compilation/driver" }
+compiler = { path = "../../../../omega-rust/omega/compilation/compiler" }
 omega-build = { path = "../../../../omega-rust/omega/compilation/build" }
 terminal-runtime = { path = "../../../../omega-rust/omega/interpreter/terminal-runtime" }
 compilation-products = { path = "../../../../omega-rust/omega/compilation/products" }
 package-evidence = { path = "../../../../omega-rust/omega/packages/review-evidence" }
 optimization-core = { path = "../../../../omega-rust/omega/foundation/optimization-core" }
 build-declarations = { path = "../../../../omega-rust/omega/packages/build-declarations" }
-package-compilation = { path = "../../../../omega-rust/omega/packages/compilation-inputs", features = ["test-support"] }
+package-compilation = { path = "../../../../omega-rust/omega/packages/package-compilation", features = ["test-support"] }
 package-manager = { path = "../../../../omega-rust/omega/packages/package-manager" }
 build-time-evaluation = { path = "../../../../omega-rust/psi/compilation/build-time-evaluation" }
 provider-planning = { path = "../../../../omega-rust/omega/compilation/realization/provider-planning" }

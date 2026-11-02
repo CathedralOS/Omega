@@ -36,7 +36,9 @@ use std::path::{Path, PathBuf};
 
 #[test]
 fn provider_installation_uses_retained_artifact_custody() {
-    let source = include_str!("provider_installation/admission.rs");
+    let source = include_str!(
+        "../../../realization/provider-admission/src/provider_installation/admission.rs"
+    );
     assert!(source.contains("TerminalArtifactView<'_>"));
     assert!(!source.contains("admit_provider_installation_from_artifact("));
     assert!(!source.contains("semantic_bytes"));

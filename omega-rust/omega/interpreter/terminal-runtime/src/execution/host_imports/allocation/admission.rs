@@ -18,6 +18,7 @@ pub(super) fn select(
     for (symbol, operation) in [
         (b"calloc".as_slice(), AllocationOperation::Allocate),
         (b"free".as_slice(), AllocationOperation::Release),
+        (b"memset".as_slice(), AllocationOperation::Initialize),
     ] {
         if super::super::matches_platform_c_symbol(
             binding,
@@ -166,6 +167,98 @@ pub(super) fn validate(
             CallSignature {
                 parameters: vec![ValueShape::integer(8, 8)],
                 result: None,
+            }
+        }
+        AllocationOperation::Initialize => {
+            let signed32 = ScalarType::Integer(
+                IntegerType::new(IntegerSign::Signed, 32)
+                    .map_err(|_| invalid("memset requires a supported i32 value carrier"))?,
+            );
+            if signature.scalar_parameters != [signed32, unsigned]
+                || declaration.parameter_order
+                    != [
+                        BoundaryParameterKind::Structural,
+                        BoundaryParameterKind::Scalar,
+                        BoundaryParameterKind::Scalar,
+                    ]
+            {
+                return Err(invalid(
+                    "memset requires an owned allocation, an i32 fill and a u64 size",
+                ));
+            }
+            let [parameter] = signature.structural_parameters.as_slice() else {
+                return Err(invalid(
+                    "memset requires exactly one address-bearing owned value",
+                ));
+            };
+            if parameter.access != StructuralAccess::Owned {
+                return Err(invalid("memset cannot write through a borrowed value"));
+            }
+            let path = super::super::native_word::scalar_payload_path(
+                program,
+                parameter.structural_type,
+                address,
+            )?;
+            let BoundaryMachineResult::Structural(result) = &signature.result else {
+                return Err(invalid(
+                    "memset result must be a structural reference to the filled storage",
+                ));
+            };
+            let Some(terminal_psi::StructuralTypeShape::Reference {
+                access: StructuralAccess::MutableBorrow,
+                ..
+            }) = program
+                .structural_type(result.structural_type)
+                .map(|declaration| &declaration.shape)
+            else {
+                return Err(invalid("memset result must be an exclusive reference"));
+            };
+            let application = application.ok_or(invalid(
+                "memset requires the complete admitted calling application",
+            ))?;
+            if application.signature.parameters.len() != 3 {
+                return Err(invalid(
+                    "memset calling application has a different argument roster",
+                ));
+            }
+            for (index, (byte_size, alignment)) in [(8, 8), (4, 4), (8, 8)]
+                .iter()
+                .enumerate()
+            {
+                let envelope = super::super::native_word::native_word_envelope(
+                    &application.signature,
+                    application.signature.parameters[index],
+                )
+                .map_err(invalid)?;
+                if envelope.byte_size != *byte_size || envelope.alignment != *alignment {
+                    return Err(invalid(
+                        "memset native argument must occupy its declared word",
+                    ));
+                }
+            }
+            let result_root = application.signature.result.ok_or(invalid(
+                "memset calling application carries no result shape",
+            ))?;
+            let shape = application
+                .signature
+                .shapes
+                .get(usize::from(result_root))
+                .ok_or(invalid("memset result references an absent shape"))?;
+            if shape.class
+                != calling_conventions::BoundaryValueClass::Reference
+                || shape.byte_size != 8
+                || shape.alignment != 8
+            {
+                return Err(invalid("memset result must occupy one aligned pointer word"));
+            }
+            location = AddressLocation::OwnedArgument(path);
+            CallSignature {
+                parameters: vec![
+                    ValueShape::integer(8, 8),
+                    ValueShape::integer(4, 4),
+                    ValueShape::integer(8, 8),
+                ],
+                result: Some(ValueShape::integer(8, 8)),
             }
         }
     };

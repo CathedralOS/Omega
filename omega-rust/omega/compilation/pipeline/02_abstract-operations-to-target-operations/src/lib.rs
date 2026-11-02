@@ -22,16 +22,8 @@
 //! to Psi; physical type, layout and ABI constraints remain native-owned.
 
 mod lowering;
-mod structural_shapes;
 
-// The referent root a descriptor's storage is named by. The Omega 03 custody
-// replay resolves the same three cases, so it consumes this shape rather than
-// declaring a second one.
 pub use lowering::access_view_inputs;
-pub use lowering::control_flow::references::ReferenceRoot;
-pub use lowering::descriptor_input_guard::{
-    DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
-};
 pub use lowering::model::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedNativeCallbackArgument,
     LoweringError,
@@ -40,7 +32,3 @@ pub use lowering::optimized::{
     OptimizedTargetLoweringRequest, ValidatedOptimizedTargetOperations,
     lower_optimized_to_target_operations,
 };
-
-// Receiving stages reconstruct ABI classes from their own declaration inputs,
-// using the same boundary classification rather than a second type roster.
-pub use structural_shapes::classified_boundary_shape;

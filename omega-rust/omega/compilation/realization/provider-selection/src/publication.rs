@@ -132,9 +132,52 @@ pub struct SelectedTargetProviderPublication {
 }
 
 impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
+    /// Save additional checks with each possible implementation. Selection
+    /// carries them back to the caller only for implementations it chooses.
+    /// Keep existing declaration errors in place for the same later decision.
+    pub fn map_owner<Mapped>(
+        self,
+        mut map: impl FnMut(&effects::provider_plan::ProviderPlan, Owner) -> Mapped,
+    ) -> PreparedTargetChoices<Mapped, Origin> {
+        let candidates = self
+            .candidates
+            .into_iter()
+            .map(|candidate| {
+                let choice = candidate.choice;
+                let owner = choice
+                    .owner
+                    .map(|realizations| PreparedProviderRealizations {
+                        provider_declaration: realizations.provider_declaration,
+                        row_numeric_realizations: realizations.row_numeric_realizations,
+                        owner: map(&choice.plan, realizations.owner),
+                    });
+                PreparedProviderCandidate {
+                    choice: ProviderCandidate {
+                        plan: choice.plan,
+                        declarations: choice.declarations,
+                        native_build: choice.native_build,
+                        owner,
+                    },
+                    schema_owner: candidate.schema_owner,
+                    inherited_owners: candidate.inherited_owners,
+                    explicitly_selected: candidate.explicitly_selected,
+                }
+            })
+            .collect();
+        PreparedTargetChoices {
+            application_roots: self.application_roots,
+            profile: self.profile,
+            candidates,
+            defaults: self.defaults,
+            overrides: self.overrides,
+            independent_components: self.independent_components,
+        }
+    }
+
     /// Publication carries only canonical declarations. Original producer
     /// addresses are for the caller's review, not another selection input.
     pub fn without_correspondence(self) -> PreparedTargetChoices {
+        let choices = self.map_owner(|_, _| ());
         let declarations =
             |rows: Vec<ProviderDeclaration<CanonicalProviderDeclaration, Origin>>| {
                 rows.into_iter()
@@ -148,38 +191,12 @@ impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
                     .collect()
             };
         PreparedTargetChoices {
-            application_roots: self.application_roots,
-            profile: self.profile,
-            candidates: self
-                .candidates
-                .into_iter()
-                .map(|candidate| {
-                    let ProviderCandidate {
-                        plan,
-                        declarations,
-                        native_build,
-                        owner,
-                    } = candidate.choice;
-                    PreparedProviderCandidate {
-                        choice: ProviderCandidate {
-                            plan,
-                            declarations,
-                            native_build,
-                            owner: owner.map(|realizations| PreparedProviderRealizations {
-                                provider_declaration: realizations.provider_declaration,
-                                row_numeric_realizations: realizations.row_numeric_realizations,
-                                owner: (),
-                            }),
-                        },
-                        schema_owner: candidate.schema_owner,
-                        inherited_owners: candidate.inherited_owners,
-                        explicitly_selected: candidate.explicitly_selected,
-                    }
-                })
-                .collect(),
-            defaults: declarations(self.defaults),
-            overrides: declarations(self.overrides),
-            independent_components: self.independent_components,
+            application_roots: choices.application_roots,
+            profile: choices.profile,
+            candidates: choices.candidates,
+            defaults: declarations(choices.defaults),
+            overrides: declarations(choices.overrides),
+            independent_components: choices.independent_components,
         }
     }
 }

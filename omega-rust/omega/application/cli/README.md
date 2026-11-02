@@ -106,7 +106,7 @@ exit code; presentation agreement does not prove the underlying cause.
 The library is synchronous and inherits the compiler's current stack requirements.
 The CLI provisions its existing compiler worker stack; embedded callers must
 provide equivalent stack capacity where needed. This is not a scheduler, command
-bus, or new pipeline protocol. [Compiler orchestration](../../compilation/driver/src/compiler.rs)
+bus, or new pipeline protocol. [Compiler orchestration](../../compilation/compiler/src/compiler.rs)
 continues to pass representations through ordinary functions.
 
 ## Command surface
@@ -182,7 +182,7 @@ normal invocations do not collect optional timing measurements.
 summary, and publication lines) as a plain-text observation file; there is no
 `--output-only` switch. Required proof and installation
 records remain governed by the requested product. See the
-[compiler product contract](../../compilation/driver/README.md#product-boundaries-and-observations).
+[compiler product contract](../../compilation/compiler/README.md#product-boundaries-and-observations).
 
 `omega --version` reports the compiler version, source commit (when supplied by
 the packager), and Rust host target. Release bundles carry their matching library

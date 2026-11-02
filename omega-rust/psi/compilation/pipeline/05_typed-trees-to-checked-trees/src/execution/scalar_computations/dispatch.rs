@@ -67,7 +67,31 @@ impl Builder<'_, '_> {
         {
             return self.expression(selected, result_type);
         }
+        // The application owns its complete feasible-arm set. Keep all tested
+        // patterns, but do not request operations from impossible arm values.
+        let admitted_arms = self.declaration_scope.as_ref().and_then(|scope| {
+            let application = scope.plan.application_formations.get(scope.application);
+            let arms = application
+                .application
+                .dispatches
+                .handles()
+                .filter_map(|handle| {
+                    let arm = scope.plan.application_dispatches.get(handle);
+                    (arm.expression == source_expression).then_some(arm.source_arm)
+                })
+                .collect::<Vec<_>>();
+            (!arms.is_empty()).then_some(arms)
+        });
         let subject = self.dispatch_subject(dispatch)?;
+        if let Some(admitted_arms) = admitted_arms {
+            return self.declaration_dispatch(
+                source_expression,
+                dispatch,
+                subject,
+                result_type,
+                &admitted_arms,
+            );
+        }
         if matches!(
             subject,
             checked_trees::CheckedDispatchSubject::Structural { .. }
@@ -144,6 +168,106 @@ impl Builder<'_, '_> {
                 source_expression,
                 subject: checked_trees::CheckedDispatchSubject::Scalar(subject),
                 arms,
+            },
+        ))
+    }
+
+    /// Consume the checked path union without importing branch assumptions or
+    /// forming an unreachable child. Failed pattern evaluations still precede
+    /// the next feasible pattern; the final feasible arm covers the admitted
+    /// input, and evaluates its own pattern before producing its value.
+    fn declaration_dispatch(
+        &mut self,
+        source_expression: ExpressionHandle,
+        dispatch: &TableMatchExpression,
+        subject: checked_trees::CheckedDispatchSubject,
+        result_type: PrimitiveType,
+        admitted: &[arena::Handle<typed_trees::expression::TableMatchArm>],
+    ) -> Option<CheckedScalarComputationHandle> {
+        let checked_trees::CheckedDispatchSubject::Scalar(subject) = subject else {
+            return None;
+        };
+        let authored = self.program.expression_table.match_arms(dispatch.arms);
+        let handles = dispatch.arms.handles().collect::<Vec<_>>();
+        if admitted.iter().any(|arm| !handles.contains(arm)) {
+            return None;
+        }
+        let last = handles.iter().rposition(|arm| admitted.contains(arm))?;
+        let subject_type = self.plans.nodes.get(subject).primitive_type;
+        let mut pending = Vec::new();
+        let mut arms = Vec::new();
+        for (ordinal, (source_arm, arm)) in handles.iter().zip(authored).enumerate().take(last + 1)
+        {
+            match arm.pattern {
+                MatchPattern::Value(pattern) => {
+                    pending.push(self.expression(pattern, subject_type)?)
+                }
+                MatchPattern::Wildcard => {}
+                MatchPattern::Destructure(_) => return None,
+            }
+            if !admitted.contains(source_arm) {
+                continue;
+            }
+            let value = self.expression(arm.value, result_type)?;
+            let (pattern, value) = if ordinal == last {
+                pending.push(value);
+                (
+                    CheckedScalarDispatchPattern::Wildcard,
+                    self.dispatch_prefix(
+                        source_expression,
+                        result_type,
+                        std::mem::take(&mut pending),
+                    )?,
+                )
+            } else {
+                if matches!(arm.pattern, MatchPattern::Wildcard) {
+                    return None;
+                }
+                let pattern = self.dispatch_prefix(
+                    source_expression,
+                    subject_type,
+                    std::mem::take(&mut pending),
+                )?;
+                (CheckedScalarDispatchPattern::Value(pattern), value)
+            };
+            arms.push(CheckedScalarDispatchArm {
+                equality_use: arena::Handle::invalid(),
+                source_arm: *source_arm,
+                pattern,
+                value,
+            });
+        }
+        let arms = self.plans.dispatch_arms.insert_many(arms);
+        Some(self.insert(
+            result_type,
+            CheckedScalarComputationKind::Dispatch {
+                source_expression,
+                subject: checked_trees::CheckedDispatchSubject::Scalar(subject),
+                arms,
+            },
+        ))
+    }
+
+    fn dispatch_prefix(
+        &mut self,
+        source_expression: ExpressionHandle,
+        primitive_type: PrimitiveType,
+        operands: Vec<CheckedScalarComputationHandle>,
+    ) -> Option<CheckedScalarComputationHandle> {
+        let position = operands.len().checked_sub(1)?;
+        if position == 0 {
+            return operands.first().copied();
+        }
+        let operands = self.plans.operands.insert_many(operands);
+        Some(self.insert(
+            primitive_type,
+            CheckedScalarComputationKind::Apply {
+                source_expression,
+                expression: checked_trees::CheckedScalarExpression::Parameter {
+                    position,
+                    primitive_type,
+                },
+                operands,
             },
         ))
     }

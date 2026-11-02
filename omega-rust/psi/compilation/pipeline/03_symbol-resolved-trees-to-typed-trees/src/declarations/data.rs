@@ -122,21 +122,11 @@ fn lower_data_definition_contents(
         members: HandleSpan::empty(),
     };
 
-    for bound in &data_definition.conformance_bounds {
-        let mut arguments = Vec::new();
-        for argument in lowerer.source_trees.child_type_references(bound.arguments) {
-            arguments.push(lower_type_reference_into_table(lowerer, argument)?);
-        }
-        typed_data_definition
-            .conformance_bounds
-            .push(typed::machine::GenericConformanceBound {
-                binder: bound.binder,
-                binder_name: lower_name(&bound.binder_name),
-                trait_symbol: bound.trait_symbol,
-                trait_name: lower_name(&bound.trait_name),
-                arguments,
-            });
-    }
+    typed_data_definition.conformance_bounds =
+        crate::signatures::evidence::lower_conformance_bounds(
+            lowerer,
+            &data_definition.conformance_bounds,
+        )?;
     typed_data_definition.type_parameters =
         lower_type_parameters(lowerer, data_definition.type_parameters)?;
 

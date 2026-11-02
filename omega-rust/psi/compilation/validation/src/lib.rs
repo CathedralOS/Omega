@@ -152,7 +152,8 @@ pub use proof_contracts::contract_entailment::{
     immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
 };
 pub use proof_contracts::contract_results::{
-    ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
+    ReservedResultMember, ReservedResultPlace, callable_contract_scopes, reserved_result_owner,
+    reserved_result_place,
 };
 pub use proof_contracts::domains::{
     integer_domain_membership, scalar_domain_definition_predicate, scalar_domain_local_predicate,
@@ -487,6 +488,7 @@ pub use proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenota
 pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::call_requirements::structural_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::collection_bounds::CollectionBoundsObservations;
+pub use proof_contracts::contract_entailment::exit_predicates::normal_exit_proves;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::law_conformance::{
     InheritedRequirementApplication, inherited_requirement_proposition_application,

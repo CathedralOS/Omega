@@ -161,6 +161,9 @@ pub struct StateSignature {
     /// on a `requires machine` signature so a required machine may itself accept
     /// compile-time machine symbols.
     pub type_parameters: HandleSpan<TypeParameter>,
+    /// Exact whole-map contracts of the signature's implementation binders.
+    /// These are static code operands, never executable parameters.
+    pub conformance_bounds: Vec<GenericConformanceBound>,
     pub is_default: bool,
     pub parameters: HandleSpan<StateParameterHandle>,
     pub native_callback_parameters: Vec<NativeCallbackParameterNode>,

@@ -85,6 +85,16 @@ The accompanying ordinary-RAM control preserves an untouched neighbor but
 rejects a stale fact about the written field; content-only writes must not
 accidentally become the rule for every access view.
 
+The [runtime-loop production](runtime_loop/README.md) forwards two distinct
+allocation descriptors through a terminating loop before rejoining and using
+their backing. Its twin swaps the outputs and must reject the identity claims.
+
+The [nested helper-loop production](runtime_helper_loop/README.md) carries both
+backings through helper-call results on a backedge. It checks their distinct
+contents after zero and repeated iterations; its twin repeats a consumed input
+and must reject the duplicate transfer. Recursive descriptor-equality proofs
+and the Vec copy/reallocation lifecycle remain separate unfinished requirements.
+
 The field place captures its qualified extent through an ordinary call both
 before reconstructing `Held` and while restoring a borrowed `Held`. Its default
 domain consumes the returned length guarantee and the saved entry count. The

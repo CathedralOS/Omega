@@ -2,6 +2,8 @@
 //! Calls contribute their selected public contract, never a private body.
 //! Formal projections are substituted to the outer input coordinate before
 //! publication; foreign expression handles never become caller bindings.
+//! A read retains its complete call-occurrence path: a helper expression may
+//! recur under different actual telescopes, including distinct outer calls.
 
 use super::{DeclaredInputRead, DeclaredInputShape};
 use crate::proof_contracts::contract_entailment::specification_calls::{
@@ -34,7 +36,7 @@ pub(super) fn collect(
         &[],
         program.expression_table.expression_handles(measure.body),
         shape,
-        &mut vec![measure.symbol],
+        &mut vec![(measure.symbol, ExpressionHandle::invalid())],
     )
 }
 
@@ -46,7 +48,7 @@ fn scope(
     supplied: &[(SymbolHandle, ExpressionHandle)],
     expressions: &[ExpressionHandle],
     shape: &mut DeclaredInputShape,
-    active: &mut Vec<SymbolHandle>,
+    active: &mut Vec<(SymbolHandle, ExpressionHandle)>,
 ) -> Option<()> {
     let mut pending = expressions.to_vec();
     let mut visited = Vec::new();
@@ -79,19 +81,21 @@ fn scope(
             )
         {
             geometry.primitive_type.is_fixed_integer().then_some(())?;
-            let indexed = coordinate
-                .path
+            let calls = active
                 .iter()
-                .any(|step| matches!(step, facts::PlaceSegment::Index { .. }));
+                .skip(1)
+                .map(|(_, call)| *call)
+                .collect::<Vec<_>>();
             // A shared expression handle is not a shared supplying telescope.
             // Keep distinct demands; the application owner must never satisfy
             // two differently bound reads with one coordinate binding.
-            if !shape.reads.iter().any(|read| {
-                read.coordinate == coordinate
-                    && (!indexed
-                        || (read.selector_inputs == inputs && read.selector_arguments == supplied))
-            }) {
+            if !shape
+                .reads
+                .iter()
+                .any(|read| read.coordinate == coordinate && read.calls == calls)
+            {
                 shape.reads.push(DeclaredInputRead {
+                    calls,
                     coordinate,
                     type_reference: geometry.result_type_reference,
                     primitive_type: geometry.primitive_type,
@@ -105,7 +109,7 @@ fn scope(
         if let ExpressionNode::Call(call) = node {
             let selected = selected_call_contract_for_parameters(program, call, owner, parameters)?;
             let selected_owner = owner_symbol(&selected);
-            if active.contains(&selected_owner) {
+            if active.iter().any(|(owner, _)| *owner == selected_owner) {
                 return None;
             }
             let site = crate::CallSite::Expression { expression, call };
@@ -154,7 +158,7 @@ fn scope(
                     _ => None,
                 })
                 .collect::<Vec<_>>();
-            active.push(selected_owner);
+            active.push((selected_owner, expression));
             let result = scope(
                 program,
                 selected_owner,

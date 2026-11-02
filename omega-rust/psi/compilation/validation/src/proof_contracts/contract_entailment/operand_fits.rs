@@ -296,6 +296,75 @@ pub(crate) fn exact_binary_formation_at_occurrence(
     }
 }
 
+/// A total proposition has declaration operands, not a body statement cut.
+/// Independently admitted preceding facts supply its input context. Neither
+/// the pending proposition nor a body statement supplies an input premise.
+pub(crate) fn exact_binary_formation_in_specification(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    prior_facts: &[ExpressionHandle],
+    expression: ExpressionHandle,
+) -> CompletedIntegerFormation {
+    let Some(request) = exact_binary_fit_request(program, machine, state, expression) else {
+        return Default::default();
+    };
+    let OperandSource::CompletedOperation {
+        operator,
+        references,
+        ..
+    } = request.source
+    else {
+        return Default::default();
+    };
+    let Some(binary) = program.expression_table.binary_node(expression) else {
+        return Default::default();
+    };
+    let judge = super::structural_judgment::StructuralJudge::from_specification_state_requires(
+        program,
+        machine,
+        state,
+        prior_facts,
+    );
+    let environment = program
+        .state_parameters(state)
+        .iter()
+        .map(|parameter| {
+            let name = parameter.name.as_str().to_owned();
+            (name.clone(), StructuralTerm::Variable(name))
+        })
+        .collect::<Vec<_>>();
+    let terms = [binary.left, binary.right].map(|operand| {
+        judge.predicate_term_in_scope(
+            (machine, state, state.return_type),
+            operand,
+            &environment,
+            0,
+        )
+    });
+    let [Some(left), Some(right)] = terms else {
+        return Default::default();
+    };
+    let [left_reference, right_reference] = references;
+    let left = StructuralTerm::IntegerEmbedding {
+        reference: left_reference,
+        value: Box::new(left),
+    };
+    let right = StructuralTerm::IntegerEmbedding {
+        reference: right_reference,
+        value: Box::new(right),
+    };
+    let value = StructuralTerm::MathematicalBinary {
+        operator,
+        left: Box::new(left),
+        right: Box::new(right),
+    };
+    CompletedIntegerFormation {
+        proven: judge.integer_term_fits(value, request.target),
+        recipe: None,
+    }
+}
+
 /// The caller independently checks anonymous integrality/representation and
 /// builtin selection. The requested peer is an actual operand occurrence;
 /// no expected destination invents a source type or completed result.

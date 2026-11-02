@@ -3,6 +3,7 @@
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RuntimeRankApplicationBinding {
+    pub calls: Vec<typed_trees::expression::ExpressionHandle>,
     pub formal: crate::RankSubjectCoordinate,
     pub actual: crate::RankSubjectCoordinate,
     pub entry_indexes: Vec<checked_trees::CheckedEntryIndexBound>,
@@ -34,6 +35,9 @@ impl RuntimeRankApplicationBinding {
                     .insert_many(self.entry_indexes.iter().cloned()),
             });
         checked_trees::CheckedRankCoordinateBinding {
+            application_context: plan
+                .application_contexts
+                .insert_many(self.calls.iter().copied()),
             entry,
             destination,
             ..Default::default()
@@ -47,6 +51,10 @@ impl RuntimeRankApplicationBinding {
         let entry = plan.coordinates.get(binding.entry);
         let destination = plan.coordinates.get(binding.destination);
         Some(Self {
+            calls: plan
+                .application_contexts
+                .span(binding.application_context)?
+                .to_vec(),
             formal: crate::RankSubjectCoordinate {
                 parameter: entry.parameter,
                 path: plan.path_segments.span(entry.path)?.to_vec(),

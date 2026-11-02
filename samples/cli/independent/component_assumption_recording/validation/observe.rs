@@ -1,7 +1,7 @@
 //! Independent observations only: exact Build records under the repository
 //! fixture policy; native/Terminal production under the actual project's policy.
 use std::{collections::BTreeSet, path::Path};
-#[path = "../../../../../omega-rust/omega/compilation/driver/tests/support/fixture_package_inputs.rs"]
+#[path = "../../../../../omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
 fn records(root: &Path, output: &Path) {

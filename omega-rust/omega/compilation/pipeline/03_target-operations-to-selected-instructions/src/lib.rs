@@ -47,10 +47,6 @@ pub use structural_inputs::structural_reference_input::{
     PointerSlot, ReferenceSourceGeometry, RuntimeElement, reference_formation_geometry,
 };
 
-// The stage entry and its custody join.
-pub use abstract_operations_to_target_operations::{
-    DescriptorInputGuard, descriptor_input_guard_for_call,
-};
 pub use optimized::{
     OptimizedSelectionPipelineError, StagedOptimizedSelectedInstructions,
     StagedOptimizedSelectionCustodyReceipt, TargetSelectionInput,

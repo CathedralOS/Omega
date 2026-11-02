@@ -11,6 +11,7 @@
 //! matching use the same exact source owner; body/layout checking stays concrete.
 
 mod borrow_refinement;
+mod evidence;
 mod region_application;
 
 use crate::value_custody::type_references::{type_reference_label, type_references_match};
@@ -262,14 +263,17 @@ pub(crate) fn validate_applied_trait_signature(
     // Fixed application arguments and an inline implementation's environment
     // are not fresh invocation binders. All remaining binders still undergo
     // ordinary universal kind, property and contract refinement below.
-    let actual_type_parameters = crate::machine_calls::static_arguments::invocation_parameters(
+    let callable_parameters = program.machine_callable_parameters(callable_machine);
+    let invocation_parameters = crate::machine_calls::static_arguments::invocation_parameters(
         program,
         machine,
         callable_machine,
-        program.machine_type_parameters(callable_machine),
+        &callable_parameters,
         trait_definition.symbol,
         requirement.symbol,
     );
+    let actual_type_parameters =
+        program.requirement_callable_parameters(requirement, &invocation_parameters);
     let indexed_law_telescope_groups = indexed_law_callable_telescope_groups(
         program,
         trait_definition,
@@ -470,6 +474,15 @@ pub(crate) fn validate_applied_trait_signature(
                 program, &required, &actual,
             )?;
             let frame = prepared.lifetime_frame(program, &required, &actual)?;
+            evidence::validate(
+                program,
+                application,
+                requirement,
+                callable_machine,
+                &actual_type_parameters,
+                &frame,
+                diagnostics,
+            );
             crate::machine_calls::machine_parameters::validate_trait_callable_parameter_refinement(
                 program,
                 &format!(

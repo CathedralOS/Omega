@@ -266,7 +266,11 @@ pub(crate) fn build_dynamic_slot_plans(
             let Some(tuple) = application
                 .local_arguments
                 .iter()
-                .map(|argument| program.static_const_type_reference_identity(*argument))
+                .map(|argument| {
+                    argument.static_operand().and_then(|reference| {
+                        program.static_const_type_reference_identity(reference)
+                    })
+                })
                 .collect::<Option<Vec<_>>>()
             else {
                 continue;

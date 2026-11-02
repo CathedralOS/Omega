@@ -17,7 +17,7 @@ use terminal_runtime::{
 #[global_allocator]
 static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-#[path = "../../../../omega-rust/omega/compilation/driver/tests/support/fixture_package_inputs.rs"]
+#[path = "../../../../omega-rust/omega/compilation/compiler/tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
 /// The repository fixture policy's exact checked inputs for one control.
