@@ -126,7 +126,7 @@ pub(super) fn select(
             b"DeleteFileW",
             &[path],
             Signed(32),
-            Effect::Path,
+            Effect::Path { count: 1 },
         ),
         (
             b"kernel32.dll",
@@ -241,14 +241,35 @@ pub(super) fn select(
             b"CreateDirectoryW",
             &[path, Unsigned(64)],
             Signed(32),
-            Effect::Path,
+            Effect::Path { count: 1 },
         ),
         (
             b"kernel32.dll",
             b"RemoveDirectoryW",
             &[path],
             Signed(32),
-            Effect::Path,
+            Effect::Path { count: 1 },
+        ),
+        (
+            b"kernel32.dll",
+            b"FlushFileBuffers",
+            &[Signed(64)],
+            Signed(32),
+            Effect::Use,
+        ),
+        (
+            b"kernel32.dll",
+            b"SetFileAttributesW",
+            &[path, Unsigned(32)],
+            Signed(32),
+            Effect::Path { count: 1 },
+        ),
+        (
+            b"kernel32.dll",
+            b"MoveFileExW",
+            &[path, path, Unsigned(32)],
+            Signed(32),
+            Effect::Path { count: 2 },
         ),
     ];
     let mut candidates = Vec::new();
