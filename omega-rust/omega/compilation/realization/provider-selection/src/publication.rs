@@ -187,7 +187,6 @@ impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
 #[derive(Debug, Clone)]
 pub struct PreparedTargetProviderPublication {
     deployed: bool,
-    application_scopes: Vec<String>,
     targets: Vec<(String, Result<TargetProviderChoice, Vec<Diagnostic>>)>,
     assumed_bindings: Vec<effects::AssumedBindingContractSelection>,
 }
@@ -197,11 +196,9 @@ impl PreparedTargetProviderPublication {
         targets: Vec<(String, Result<TargetProviderChoice, Vec<Diagnostic>>)>,
         assumed_bindings: Vec<effects::AssumedBindingContractSelection>,
         deployed: bool,
-        application_scopes: Vec<String>,
     ) -> Self {
         Self {
             deployed,
-            application_scopes,
             targets,
             assumed_bindings,
         }
@@ -211,12 +208,15 @@ impl PreparedTargetProviderPublication {
         self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
         optimization_selection: optimization_core::OptimizationSelectionIdentity,
+        realization_scopes: &[String],
     ) -> Vec<backend_plan::TerminalTargetProviderProposal> {
         self.targets
             .into_iter()
             .map(|(target, prepared)| {
                 let mut application_roots = self.deployed.then(Vec::new);
-                let application_required = self.application_scopes.contains(&target);
+                // Declaring a Build row retains a choice, not a request to
+                // realize its backend. The operation owns the actual cohort.
+                let application_required = realization_scopes.contains(&target);
                 let selection = prepared
                     .and_then(|choice| {
                         let prepared = match choice {

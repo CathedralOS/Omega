@@ -3,8 +3,9 @@
 //! exact accepted binding, and review recompiles under that binding before it
 //! offers an acceptance decision.
 
-use super::{RootBinding, arrival_requirement_contract, selected_program_entry_machine};
+use super::{RootBinding, selected_program_entry_machine};
 use crate::{ProviderSelection, ProviderSelectionSubject};
+use build_time_evaluation::product_entries::arrival_requirement_contract;
 use checked_trees::typed_trees::service_declarations::{ProviderSchemaDeclaration, ServiceCatalog};
 use diagnostics::Diagnostic;
 use package_compilation::{AcceptedSemanticBinding, PackageCompilationInputs};
