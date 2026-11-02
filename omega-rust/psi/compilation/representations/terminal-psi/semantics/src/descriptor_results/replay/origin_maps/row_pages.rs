@@ -9,9 +9,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 const PAGE_ROWS: usize = 64;
+// Detaching a page copies only immutable cell handles. Keys may own paths and
+// values may own large origin sets; only the edited value may need a deep copy.
+type Rows<Key, Element> = BTreeMap<Arc<Key>, Arc<Element>>;
 #[derive(Clone, Debug)]
 pub(super) struct RowPages<Key: Ord + Clone, Element: Clone + Eq> {
-    pages: BTreeMap<Key, Arc<BTreeMap<Key, Element>>>,
+    pages: BTreeMap<Key, Arc<Rows<Key, Element>>>,
 }
 impl<Key: Ord + Clone, Element: Clone + Eq> Default for RowPages<Key, Element> {
     fn default() -> Self {
@@ -41,7 +44,7 @@ impl<Key: Ord + Clone, Element: Clone + Eq> RowPages<Key, Element> {
                 .get(floor)
                 .is_some_and(|peer| Arc::ptr_eq(rows, peer))
             {
-                keys.extend(rows.keys().cloned());
+                keys.extend(rows.keys().map(|key| key.as_ref().clone()));
             }
         }
         for (floor, rows) in &other.pages {
@@ -50,17 +53,24 @@ impl<Key: Ord + Clone, Element: Clone + Eq> RowPages<Key, Element> {
                 .get(floor)
                 .is_some_and(|peer| Arc::ptr_eq(rows, peer))
             {
-                keys.extend(rows.keys().cloned());
+                keys.extend(rows.keys().map(|key| key.as_ref().clone()));
             }
         }
         keys
     }
     pub(super) fn get(&self, key: &Key) -> Option<&Element> {
-        self.pages.range(..=key).next_back()?.1.get(key)
+        self.pages
+            .range(..=key)
+            .next_back()?
+            .1
+            .get(key)
+            .map(Arc::as_ref)
     }
     pub(super) fn get_mut(&mut self, key: &Key) -> Option<&mut Element> {
         let floor = self.floor(key)?;
-        Arc::make_mut(self.pages.get_mut(&floor)?).get_mut(key)
+        Arc::make_mut(self.pages.get_mut(&floor)?)
+            .get_mut(key)
+            .map(Arc::make_mut)
     }
     pub(super) fn insert(&mut self, key: Key, value: Element) -> Option<Element> {
         let mut floor = self
@@ -73,13 +83,13 @@ impl<Key: Ord + Clone, Element: Clone + Eq> RowPages<Key, Element> {
         }
         let floor = floor.unwrap_or_else(|| key.clone());
         let rows = Arc::make_mut(self.pages.entry(floor).or_default());
-        let previous = rows.insert(key, value);
+        let previous = rows.insert(Arc::new(key), Arc::new(value));
         if rows.len() > PAGE_ROWS {
             let middle = rows.keys().nth(rows.len() / 2).unwrap().clone();
             let upper = rows.split_off(&middle);
-            self.pages.insert(middle, Arc::new(upper));
+            self.pages.insert(middle.as_ref().clone(), Arc::new(upper));
         }
-        previous
+        previous.map(Arc::unwrap_or_clone)
     }
     pub(super) fn remove(&mut self, key: &Key) -> Option<Element> {
         let floor = self.floor(key)?;
@@ -88,28 +98,34 @@ impl<Key: Ord + Clone, Element: Clone + Eq> RowPages<Key, Element> {
         if rows.is_empty() {
             self.pages.remove(&floor);
         }
-        previous
+        previous.map(Arc::unwrap_or_clone)
     }
     pub(super) fn is_empty(&self) -> bool {
         self.pages.is_empty()
     }
     pub(super) fn iter(&self) -> impl DoubleEndedIterator<Item = (&Key, &Element)> {
-        self.pages.values().flat_map(|rows| rows.iter())
+        self.pages
+            .values()
+            .flat_map(|rows| rows.iter())
+            .map(|(key, value)| (key.as_ref(), value.as_ref()))
     }
     pub(super) fn keys(&self) -> impl DoubleEndedIterator<Item = &Key> {
-        self.pages.values().flat_map(|rows| rows.keys())
+        self.pages
+            .values()
+            .flat_map(|rows| rows.keys())
+            .map(Arc::as_ref)
     }
 }
 pub(super) struct IntoIter<Key: Ord + Clone, Element: Clone + Eq> {
-    pages: std::collections::btree_map::IntoValues<Key, Arc<BTreeMap<Key, Element>>>,
-    current: Option<std::collections::btree_map::IntoIter<Key, Element>>,
+    pages: std::collections::btree_map::IntoValues<Key, Arc<Rows<Key, Element>>>,
+    current: Option<std::collections::btree_map::IntoIter<Arc<Key>, Arc<Element>>>,
 }
 impl<Key: Ord + Clone, Element: Clone + Eq> Iterator for IntoIter<Key, Element> {
     type Item = (Key, Element);
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(row) = self.current.as_mut().and_then(Iterator::next) {
-                return Some(row);
+                return Some((Arc::unwrap_or_clone(row.0), Arc::unwrap_or_clone(row.1)));
             }
             let rows = self.pages.next()?;
             let rows = Arc::try_unwrap(rows).unwrap_or_else(|shared| shared.as_ref().clone());

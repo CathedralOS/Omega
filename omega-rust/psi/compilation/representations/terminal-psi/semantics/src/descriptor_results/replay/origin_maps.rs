@@ -235,6 +235,71 @@ mod tests {
     use super::*;
     use std::collections::BTreeSet;
 
+    #[test]
+    fn snapshot_writes_share_untouched_payloads_inside_a_detached_page() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        struct Counted {
+            payload: Vec<u64>,
+            copies: Arc<AtomicUsize>,
+        }
+        impl Clone for Counted {
+            fn clone(&self) -> Self {
+                self.copies.fetch_add(1, Ordering::Relaxed);
+                Self {
+                    payload: self.payload.clone(),
+                    copies: self.copies.clone(),
+                }
+            }
+        }
+        impl PartialEq for Counted {
+            fn eq(&self, other: &Self) -> bool {
+                self.payload == other.payload
+            }
+        }
+        impl Eq for Counted {}
+        let key = |ordinal| {
+            let mut key = location(1);
+            key.path
+                .push(crate::descriptor_lifetimes::DescriptorPathSegment::FixedIndex(ordinal));
+            key
+        };
+        let copies = Arc::new(AtomicUsize::new(0));
+        let value = |ordinal| Counted {
+            payload: vec![ordinal; 128],
+            copies: copies.clone(),
+        };
+        let mut map = OriginMap::new();
+        for ordinal in 0..512 {
+            map.insert(key(ordinal), value(ordinal));
+        }
+        let mut snapshots = Vec::new();
+        for ordinal in 0..64 {
+            snapshots.push(map.clone());
+            let old = map.insert(key(ordinal), value(ordinal + 1000)).unwrap();
+            assert_eq!(old.payload[0], ordinal);
+        }
+        // Returning the overwritten owned value clones that one shared cell;
+        // the other entries in its detached page retain their original payloads.
+        assert_eq!(copies.load(Ordering::Relaxed), 64);
+        assert_eq!(snapshots[0].get(&key(0)).unwrap().payload[0], 0);
+        let before_edit = map.clone();
+        map.get_mut(&key(511)).unwrap().payload[0] = 9000;
+        assert_eq!(copies.load(Ordering::Relaxed), 65);
+        assert_eq!(before_edit.get(&key(511)).unwrap().payload[0], 511);
+        assert_eq!(map.get(&key(511)).unwrap().payload[0], 9000);
+        map.remove(&key(511));
+        map.retain(|subject, _| subject != &key(510));
+        assert_eq!(map.len(), 510);
+        assert!(before_edit.get(&key(510)).is_some());
+        assert!(map.get(&key(510)).is_none());
+        assert_eq!(
+            map.into_iter()
+                .map(|(subject, _)| subject)
+                .collect::<Vec<_>>(),
+            (0..510).map(key).collect::<Vec<_>>()
+        );
+    }
+
     fn location(root: u64) -> DescriptorLocation {
         DescriptorLocation::whole(PlaceId::new(root).unwrap())
     }
