@@ -152,7 +152,8 @@ pub use proof_contracts::contract_entailment::{
     immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
 };
 pub use proof_contracts::contract_results::{
-    ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
+    ReservedResultMember, ReservedResultPlace, callable_contract_scopes, reserved_result_owner,
+    reserved_result_place,
 };
 pub use proof_contracts::domains::{
     integer_domain_membership, scalar_domain_definition_predicate, scalar_domain_local_predicate,
@@ -287,13 +288,13 @@ pub use crate::machine_calls::call_cycles::{
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
-    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
-    ReferenceResultTransport, ReferenceSlotContract, ReferenceViewFormation,
-    ScalarStorageCoordinate, StoredReferenceCallContext, StoredReferenceDestinationKind,
-    StoredReferenceEffect, StoredReferenceRelationRefusal, ValidatedSelfCallDescent,
-    assignment_stored_value_type, frame_coordinate_path, frame_length_coordinate_path,
-    frame_paths_overlap, operand_call_plans, state_reference_parameter_binding_is_stable,
-    storage_origin_types_match,
+    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource,
+    ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceSlotContract,
+    ReferenceViewFormation, ScalarStorageCoordinate, StoredReferenceCallContext,
+    StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
+    ValidatedSelfCallDescent, assignment_stored_value_type, frame_coordinate_path,
+    frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
+    state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
 pub use crate::machine_calls::denotational_calls::{
     SpecificationCallRequest, admit_specification_calls, checked_value_call_candidate,
