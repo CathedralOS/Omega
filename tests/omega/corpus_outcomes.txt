@@ -1997,9 +1997,18 @@ fail/facts/representation_agreement_through_local_rejected rejected 9591ms expec
 fail/facts/representation_agreement_through_match_join_rejected rejected 12557ms expected @7879363aac49
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
 	cannot prove requires contract for call require_round_trip$specialized$18ed551869c98b7d$0$2950 from use_agreement$specialized$2e38d334501d0853$0$2924: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/representation_agreement_through_other_machine_rejected rejected 12686ms expected @4c1f16dc8b68
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
+	cannot prove requires contract for call require_round_trip$specialized$0caa80008d03a86d$0$2951 from use_agreement$specialized$5f7bae5784139253$0$2925: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/representation_agreement_through_other_state_rejected rejected 12355ms expected @4c1f16dc8b68
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
+	cannot prove requires contract for call require_round_trip$specialized$8548df596ee3e465$0$2954 from use_agreement$specialized$e5eb497a874fc38b$0$2928: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/representation_agreement_through_parameter_rejected rejected 8469ms expected @e97ed21415d9
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
 	cannot prove requires contract for call require_round_trip$specialized$1d6acb26af11fe16$0$2911 from use_agreement$specialized$c4e69be4bb704c3a$0$2885: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/representation_agreement_through_target_body_rejected rejected 12374ms expected @4c1f16dc8b68
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
+	cannot prove requires contract for call require_round_trip$specialized$e4a68bb91ee2e87e$0$2972 from use_agreement$specialized$7cb630d725227b52$0$2946: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/representation_conversion_primitive_shadow_rejected rejected 3051ms expected @dde0f3a03bcd
 	data `Int` shadows the builtin type of the same name -- references would silently bind to the builtin and this definition would never be used (its contracts would go unvalidated). Pick a different name.
 fail/facts/representation_conversion_stored_output_source_write_rejected rejected 6488ms expected @dde0f3a03bcd
@@ -9258,7 +9267,10 @@ pass/facts/representation_agreement_through_const_name_exit checked 19859ms chec
 pass/facts/representation_agreement_through_field_exit checked 13390ms check-target:macos_arm64 @e97ed21415d9
 pass/facts/representation_agreement_through_local_exit checked 13984ms check-target:macos_arm64 @e97ed21415d9
 pass/facts/representation_agreement_through_match_join_exit checked 17231ms check-target:macos_arm64 @7879363aac49
+pass/facts/representation_agreement_through_other_machine_exit checked 17311ms check-target:macos_arm64 @4c1f16dc8b68
+pass/facts/representation_agreement_through_other_state_exit checked 17487ms check-target:macos_arm64 @4c1f16dc8b68
 pass/facts/representation_agreement_through_parameter_exit checked 13340ms check-target:macos_arm64 @e97ed21415d9
+pass/facts/representation_agreement_through_target_body_exit checked 17248ms check-target:macos_arm64 @4c1f16dc8b68
 pass/facts/representation_conversion_through_call_result_exit checked 9102ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_const_name_exit checked 9493ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_field_exit checked 9828ms check-target:macos_arm64 @dde0f3a03bcd
