@@ -1282,7 +1282,7 @@ defines the complete product bar.
   `language-core/src/inline_assembly/`, Psi 05 CFG/state transfer and
   `execution/terminal_unit/calls/call_operations.rs`, Psi 06 lowering,
   Omega 02 `lowering/control_flow/operations.rs`, Omega 03 scalar-graph
-  admission, `image-emission/src/function_fragments/{production,validation}.rs`,
+  admission, `image-emission/src/object/function_fragments/{production,validation}.rs`,
   `native-artifact/src/physical/derivation/provider_custody.rs`, and the
   shared Terminal/native execution paths.
   - Implement explicit `asm machine` bodies and nested basic-block declarations
@@ -1470,7 +1470,7 @@ defines the complete product bar.
     `omega-rust/omega/compilation/driver/terminal-production/`,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/`,
     `native-artifact`'s `publish_fragment_object`, and
-    `omega-rust/omega/compilation/backend/images/image-emission/src/hosted_receiver.rs`.
+    `omega-rust/omega/compilation/backend/images/image-emission/src/entries/hosted_receiver.rs`.
   - **PROCESS-EXIT-CONTRACT:** remove `Never` return-type assumptions in
     `source/library/std/process.omg` and treat process termination as a
     non-returning `ProcessExit` boundary call with affine cleanup before
