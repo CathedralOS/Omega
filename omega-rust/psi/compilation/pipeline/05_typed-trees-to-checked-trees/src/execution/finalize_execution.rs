@@ -87,9 +87,9 @@ pub(crate) fn finalize_execution(
         },
     );
     facts.flow.terminal_nominal_affine_unit_cleanups = nominal_cleanups;
-    if let Err(identity) = terminal_unit_effects.adopt_structural_types(nominal_types) {
+    if let Err((identity, reason)) = terminal_unit_effects.adopt_structural_types(nominal_types) {
         cleanup_diagnostics.push(Diagnostic::error(format!(
-            "Unit cleanup plans register structural type `{}` with a shape the ordinary Unit roster does not carry",
+            "Unit cleanup plans register structural type `{}` with a shape the ordinary Unit roster does not carry: {reason}",
             program.type_identity_text(identity).unwrap_or_default()
         )));
     }
@@ -138,9 +138,11 @@ pub(crate) fn finalize_execution(
             ))]
         })?;
     }
-    if let Err(identity) = terminal_unit_effects.adopt_structural_types(construction_shapes) {
+    if let Err((identity, reason)) =
+        terminal_unit_effects.adopt_structural_types(construction_shapes)
+    {
         cleanup_diagnostics.push(Diagnostic::error(format!(
-            "scalar computations construct structural type `{}` with a shape the ordinary Unit roster does not carry",
+            "scalar computations construct structural type `{}` with a shape the ordinary Unit roster does not carry: {reason}",
             program.type_identity_text(identity).unwrap_or_default()
         )));
     }

@@ -122,18 +122,24 @@ impl CheckedUnitEffectPlans {
     /// the one structural type namespace every Unit body lowers against.
     /// Identities are deterministic, so a shape already present must be the
     /// same shape; the conflicting identity is returned otherwise, as is an
-    /// empty identity, and the roster keeps every shape adopted before it.
+    /// empty identity. The conflict retains both plans for the diagnostic;
+    /// the roster keeps every shape adopted before it.
     pub fn adopt_structural_types(
         &mut self,
         types: impl IntoIterator<Item = CheckedUnitStructuralTypePlan>,
-    ) -> Result<(), TypeIdentityId> {
+    ) -> Result<(), (TypeIdentityId, String)> {
         for shape in types {
             if !shape.identity.is_valid() {
-                return Err(shape.identity);
+                return Err((shape.identity, "empty structural type identity".into()));
             }
             match crate::checked_structural_type_by_identity(&self.structural_types, shape.identity)
             {
-                Some(existing) if *existing != shape => return Err(shape.identity),
+                Some(existing) if *existing != shape => {
+                    return Err((
+                        shape.identity,
+                        format!("existing plan {existing:?}; incoming plan {shape:?}"),
+                    ));
+                }
                 Some(_) => {}
                 None => self.structural_types.push(shape),
             }

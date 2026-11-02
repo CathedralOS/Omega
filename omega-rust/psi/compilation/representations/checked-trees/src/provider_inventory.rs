@@ -22,7 +22,7 @@ pub struct PreparedProviderInventory {
     origins: OnceLock<Vec<SelectedTargetMachineOrigin>>,
     direct_calls: OnceLock<DirectCallDeclarations<SymbolHandle>>,
     trust: OnceLock<language_semantics::trust_declarations::TrustDeclarations>,
-    services: typed_trees::service_declarations::PreparedServiceCatalog,
+    services: Arc<typed_trees::service_declarations::PreparedServiceCatalog>,
 }
 
 impl PreparedProviderInventory {
@@ -43,7 +43,7 @@ impl PreparedProviderInventory {
             origins: OnceLock::new(),
             direct_calls: OnceLock::new(),
             trust: OnceLock::new(),
-            services,
+            services: Arc::new(services),
         }
     }
 

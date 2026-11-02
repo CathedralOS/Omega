@@ -829,7 +829,28 @@ fn instantiate_type(
     else {
         return TypeReferenceHandle::invalid();
     };
+    let extent_argument = match &instantiated {
+        TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Expression(argument),
+            ..
+        } => Some(*argument),
+        TypeReferenceNode::FixedArray { .. } => {
+            let argument = program
+                .type_reference_table
+                .array_extent_argument(reference);
+            argument.is_valid().then_some(argument)
+        }
+        _ => None,
+    };
     let result = program.type_reference_table.insert(instantiated);
+    if let Some(argument) = extent_argument
+        && program
+            .type_reference_table
+            .retain_array_extent_argument(result, argument)
+            .is_err()
+    {
+        return TypeReferenceHandle::invalid();
+    }
     program
         .type_reference_table
         .set_operand_origin(result, origin);

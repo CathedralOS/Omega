@@ -62,14 +62,50 @@ impl TypedTrees {
     ) -> Result<String, String> {
         self.normalized_hermetic_symbol_identity(data.symbol)
             .or_else(|reason| {
-                data.generic_instance
-                    .map(|origin| {
-                        format!(
-                            "closed-data-instance::{}",
-                            self.package_qualified_type_identity_text(origin)
-                        )
-                    })
-                    .ok_or(reason)
+                let origin = data.generic_instance.ok_or_else(|| reason.clone())?;
+                let TypeReferenceNode::Generic { base_symbol, .. } =
+                    self.type_reference_table.type_reference(origin)
+                else {
+                    return Err(reason);
+                };
+                if !base_symbol.is_valid() || *base_symbol == data.symbol {
+                    return Err(reason);
+                }
+                self.normalized_hermetic_symbol_identity(*base_symbol)?;
+                // An applied view may borrow the original declaration's symbol.
+                // Its spelling is not a portable owner. Validate every actual
+                // operand owner before rendering a closed-instance coordinate;
+                // nested generated data rejoin their own exact applications.
+                let mut pending = crate::references::collect_type_symbol_dependencies(self, origin);
+                let mut seen = std::collections::HashSet::new();
+                while let Some(symbol) = pending.pop() {
+                    if !seen.insert(symbol) || self.symbols.builtin_type_atom(symbol).is_some() {
+                        continue;
+                    }
+                    let Err(reason) = self.normalized_hermetic_symbol_identity(symbol) else {
+                        continue;
+                    };
+                    let instance = self
+                        .data_definition_by_symbol(symbol)
+                        .and_then(|data| data.generic_instance)
+                        .ok_or_else(|| reason.clone())?;
+                    let TypeReferenceNode::Generic { base_symbol, .. } =
+                        self.type_reference_table.type_reference(instance)
+                    else {
+                        return Err(reason);
+                    };
+                    if !base_symbol.is_valid() || *base_symbol == symbol {
+                        return Err(reason);
+                    }
+                    self.normalized_hermetic_symbol_identity(*base_symbol)?;
+                    pending.extend(crate::references::collect_type_symbol_dependencies(
+                        self, instance,
+                    ));
+                }
+                Ok(format!(
+                    "closed-data-instance::{}",
+                    self.package_qualified_type_identity_text(origin)
+                ))
             })
     }
     /// A native field names its source declaration, independently of the

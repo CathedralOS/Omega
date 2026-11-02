@@ -68,10 +68,20 @@ pub fn select_boundary_applications(
         let second = matching.next();
         let (Some((plan, row, execution, external_realization)), None) = (first, second) else {
             return Err(error(&format!(
-                "Terminal boundary application has no unique exact selected row: requirement `{}` at operation {:?}, {} selected matches",
+                "Terminal boundary application has no unique exact selected row: requirement `{}` in package {:?} at operation {:?}, {} selected matches; selected coordinates: {:?}",
                 requirement.overload(),
+                requirement.package(),
                 demand.terminal_operation(),
                 if first.is_none() { "no" } else { "multiple" },
+                selected_rows
+                    .iter()
+                    .map(|(plan, row, _, _)| (
+                        plan.schema
+                            .identity_text(plan.schema.declaration.trait_name),
+                        plan.schema.declaration.trait_package_identity,
+                        plan.identities.text(row.requirement_identity),
+                    ))
+                    .collect::<Vec<_>>(),
             )));
         };
         let realization = match &row.binding {

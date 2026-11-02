@@ -449,7 +449,6 @@ pub fn settle_checked_providers(
         context: crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
         exact_toolchain_sources,
         application_roots,
-        application_scopes: &[],
         overrides: build_provider_selections,
         assumed_bindings: &assumptions,
         independent_components: &independent_components,

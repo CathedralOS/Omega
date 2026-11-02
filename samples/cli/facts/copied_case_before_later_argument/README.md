@@ -2,33 +2,45 @@
 
 A copied Present payload of 7 stays readable after a later argument replaces its source with Absent.
 
-Parent: **STATE-LOCAL-VALUE-FRONTIER**. This is a prerequisite found during **CML4**; neither parent is closed by this row.
+This row advances **BUILD-OWNED-TARGET-SELECTION** and the existing **STATE-LOCAL-VALUE-FRONTIER** prerequisite found during **CML4**. Their broader acceptance remains open.
 
-Every place preserves `read_payload(chosen, set_to_absent(&mut chosen))` on `Slot [copy]`. The first argument finishes its copy of `Present { value: 7 }` before the second replaces the source with `Absent`. The caller proves `read_payload`'s declared `before in Slot::Present` requirement for that completed copy. The generic callee proves its payload read from this declared premise; it cannot obtain hidden scalar or case assumptions from particular callers.
+Every place preserves `read_payload(chosen, set_to_absent(&mut chosen))` on `Slot [copy]` (the field place uses `holder.chosen`). The first argument completes its independent copy of `Present { value: 7 }` before the second replaces the source with `Absent`. The caller establishes `read_payload`'s declared `before in Slot::Present` requirement for that exact completed copy. The generic reader proves its payload access from the declared premise.
 
-The parameter, forwarding-machine and four hosted `apply` bodies declare the corresponding `chosen in Slot::Present` premise. The internal named-state place retains its ordinary predecessor join; it is not an ordinary-call entry specialization. No extra branch, proof guard, operation, argument reordering or data-value change is introduced.
+The parameter, forwarding machine and selected implementation retain their original Present preconditions. The nested `inspect` retains its original signature without an added requirement: its inferred private obligation must hold on **every** closed arrival. Lexical nesting supplies no runtime capture or ambient parent premise. A second Absent arrival, an unknown entry operand or a replacement before the first argument must defeat that inference.
 
-Each invalid twin changes only the initial `Present { value: 7 }` to `Absent`; both match arms change together. The declared case requirements, payload reader, later write and final value7 comparison stay identical. Before execution, each invalid expects the declared-requires diagnostic for its immediate consumer: `read_payload` in local/field/call-result/match/constant/internal-state places, `apply` in parameter/target bodies, and `forward` in the forwarding-machine place. Actual observations must confirm these authored expectations; a mismatch must be preserved and diagnosed.
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| Local | [Mutable local](local/main.omg) | [Absent input](local/invalid/main.omg) |
+| Field | [Holder field and adjacent canaries](field/main.omg) | [Absent input](field/invalid/main.omg) |
+| Parameter | [Mutable owned parameter](parameter/main.omg) | [Absent input](parameter/invalid/main.omg) |
+| Call result | [Constructor-returning call](call_result/main.omg) | [Absent input](call_result/invalid/main.omg) |
+| Match join | [Both arms and distinct routes](match_join/main.omg) | [Absent in both arms](match_join/invalid/main.omg) |
+| Const name | [Whole case from INITIAL](const_name/main.omg) | [Absent constant](const_name/invalid/main.omg) |
+| Another state | [Closed private arrival](other_state/main.omg) | [Absent arrival](other_state/invalid/main.omg) |
+| Another machine | [Explicit wrapper contracts](other_machine/main.omg) | [Absent input](other_machine/invalid/main.omg) |
+| Target body | [Selected ordinary implementation](target_body/main.omg) | [Absent input](target_body/invalid/main.omg) |
 
-| Place | Transport |
-| --- | --- |
-| [local](local/main.omg) | Mutable local. |
-| [field](field/main.omg) | Owned `Holder.chosen` field. |
-| [parameter](parameter/main.omg) | Mutable owned parameter with declared case premise. |
-| [call result](call_result/main.omg) | Constructor-returning call. |
-| [match join](match_join/main.omg) | Same initial case in both arms. |
-| [const name](const_name/main.omg) | Whole case supplied by `INITIAL`. |
-| [another state](other_state/main.omg) | Internal successor-state join. |
-| [another machine](other_machine/main.omg) | Two generic wrappers with declared premises. |
-| [target body](target_body/main.omg) | Four hosted bodies with the same declared premise. |
+Each twin differs only in its initial `Present { value: 7 }` constructors becoming `Absent {}`; the match twin changes both arms. Build bytes, full public contracts, argument order, payload read, later write and runtime observations remain identical. The expected refusal names the immediate consumer: `read_payload`, `apply` or `forward`.
 
-- **Establishment:** source construction supplies Present/payload7; the caller establishes the declared case requirement at the exact completed argument.
-- **Identity and lifetime:** copied facts describe the completed value, while views keep their own live-storage obligations. The later source write cannot retag the detached copy.
-- **Composition:** all nine transports retain the same copy/write/read operation; generic wrappers propagate explicit requirements and internal state edges retain ordinary joins.
-- **Soundness:** a generic body is checked from its declared premises. Caller-specific constants/tags cannot become hidden callee assumptions. Missing capture evidence remains unknown for caller obligations.
-- **Psi lowering:** each child evaluates once, with the first copy completing before the later write.
-- **Settlement and layout:** ordinary sum layout and argument order carry the copied selected payload; all four hosted entry bindings remain authored.
-- **Native realization:** actual observed host results and Terminal inspections must substantiate tag/payload preservation; bound targets alone do not claim execution on other hosts.
-- **Emission:** the corrected positives retain the authored zero-exit oracle. Fresh accepted preparation, native/Terminal products and exact invalid diagnostics remain required. Earlier C80/C3/8df observations used an uncontracted generic reader and are historical observations of that mistaken premise, not validation of this corrected row.
+`observe_replacement` observes the Slot inside the activation that owns the replacement. It returns the original observed value only for Absent, otherwise sentinel 99, preserving the wrappers' unrestricted `u64` result and original reach/crash ceiling. Field canaries 101/107 detect neighboring writes. Match executes true and false with routes 17/23; each invocation finishes its checks before the next begins. The selected target also checks that its caller's independent Slot remains Present with payload 7 after the callee's owned Slot becomes Absent. These are post-operation runtime oracles, not added proof premises. Absent is a tag observation; it does not demonstrate clearing dead payload bytes or a particular physical copy strategy.
 
-Source/build mirrors and authored exit oracles remain under `tests/omega/{pass,fail}/facts/copied_case_before_later_argument_through_*`. The invalid diagnostic files now name these exact requires-call obligations. They are frozen pre-execution expectations, not results inferred after a run. This row covers declared-precondition caller snapshots; it does not by itself demonstrate a new implementation gap or justify publishing caller tags into generic bodies.
+Additional private-arrival opposites preserve the core operation:
+
+- [Second Absent arrival](private_arrivals/second-absent-arrival/main.omg).
+- [Unknown root arrival](private_arrivals/unknown-root-arrival/main.omg).
+- [Earlier overlapping replacement](private_arrivals/earlier-write/main.omg).
+
+The nine pairs and three additional refusals are mirrored under `tests/omega/{pass,fail}/facts/`.
+
+The implementation follows the existing owners:
+
+- **Establishment:** construction establishes Present/payload 7; declared contracts or checked all-arrival substitution establish the reader's actual completed operand. A goal never establishes its own classifier.
+- **Identity and lifetime:** detached copies retain their own case/payload. Exact prefix/storage facts account for the later write; mutation does not donate stale source facts.
+- **Composition:** wrappers substitute actual operands and retain their contracts. The tag-only shortcut requires whole-body tag preservation; other cases use the existing full-prefix/private-arrival proof rather than bypassing it.
+- **Soundness:** unknown, Absent and already-replaced arrivals refuse. Copy, affine and linear custody remain independent of whether a callee binding is mutable.
+- **Checked-to-Terminal Psi:** children execute once in authored order. Owned aggregate ingress retains its ordinary transfer; the scalar current-value storage check applies to scalar parameters. Reference access, loan and claim joins remain unchanged.
+- **Provider settlement, layout and ABI:** one ordinary `SelectedCopiedCaseApply` implements the exact requirement, selected explicitly for all four hosted targets. Entry bindings and sum representation remain ordinary Build/Terminal data.
+- **Instruction selection and activation storage:** caller and callee own distinct copied Slots; the replacement and caller-copy checks expose incorrect shared homes or lost writeback.
+- **Emission and execution:** the authored exit is zero in both engines on the observed matching host. Four-target image preparation establishes artifact formats, not execution on foreign hosts.
+
+Original exact optimized 3c9 observations established eight positive Source/native/Terminal agreements and the wrong refusal of the nested positive. The first repair (2261ae) then made the unchanged nested positive check and execute 0/0 while rejecting second-Absent and unknown-root arrivals. Strengthened ordinary places subsequently passed on actual df5; the selected target exposed a separate owned-mutable aggregate custody refusal. [Hosted capture 41451849306](https://github.com/CathedralOS/Omega/actions/runs/41451849306) built the combined optimized CLI and runner at exact `1f3c4da0217`: all 21 Source cases have their intended outcomes (nine positives and twelve refusals), all nine pins and all nine public programs execute native 0 / Terminal 0 on Linux x86_64, both runtime counterfactuals trap, and all four target images are emitted. Only the owned 21 Source and nine Linux runtime golden blocks are updated; other blocks and headers remain unchanged. The three private-arrival opposites are part of those twelve refusals. Four-target artifacts do not claim execution outside the observed Linux host. Earlier weak match/write oracles and wrong-label/setup attempts remain historical evidence, not successful controls.

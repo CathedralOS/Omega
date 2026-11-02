@@ -2012,6 +2012,12 @@ pub fn visit_type_reference(
     if !type_reference.is_valid() || !retained.type_reference(type_reference) {
         return;
     }
+    let extent_argument = program
+        .type_reference_table
+        .array_extent_argument(type_reference);
+    if extent_argument.is_valid() {
+        visit_type_reference(program, retained, extent_argument);
+    }
     for application in program
         .type_reference_table
         .type_alias_applications(type_reference)

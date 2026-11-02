@@ -98,6 +98,7 @@ impl CallableApplication {
             .operand_lifetime_owner(original);
         let mut applied_lifetimes = Vec::new();
         let mut supplied_origins = Vec::new();
+        let mut supplied_extent_argument = None;
         let node = match program.type_reference_node(original).clone() {
             types::TypeReferenceNode::CaseView { subject } => types::TypeReferenceNode::CaseView {
                 subject: self.type_reference(program, subject)?,
@@ -198,6 +199,10 @@ impl CallableApplication {
                             .rev()
                             .find(|(binder, _)| *binder == symbol)
                         {
+                            // This operand already belongs to the caller's
+                            // telescope. Retain it unchanged, rather than
+                            // applying the callee's substitutions a second time.
+                            supplied_extent_argument = Some(*argument);
                             match program.type_reference_node(*argument) {
                                 types::TypeReferenceNode::Named { symbol, name } => {
                                     if let Some(value) = program
@@ -394,7 +399,31 @@ impl CallableApplication {
             .constant_origins(original)?
             .to_vec();
         origins.extend(supplied_origins);
+        let extent_argument = match (&node, supplied_extent_argument) {
+            (types::TypeReferenceNode::FixedArray { .. }, Some(argument)) => Some(argument),
+            (
+                types::TypeReferenceNode::FixedArray {
+                    length: types::FixedArrayLength::Expression(argument),
+                    ..
+                },
+                None,
+            ) => Some(*argument),
+            (types::TypeReferenceNode::FixedArray { .. }, None) => {
+                let argument = program.type_reference_table.array_extent_argument(original);
+                if argument.is_valid() {
+                    Some(self.type_reference(program, argument)?)
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
         let applied = program.type_reference_table.insert(node);
+        if let Some(argument) = extent_argument {
+            program
+                .type_reference_table
+                .retain_array_extent_argument(applied, argument)?;
+        }
         let origin = program.type_reference_table.operand_origin(original);
         program
             .type_reference_table

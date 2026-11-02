@@ -328,13 +328,15 @@ pub(super) fn structural_call_requirement(
     let case_facts_only = runtime_values
         && callee.zip(callee_machine).is_some_and(|(state, machine)| {
             case_preservation::is_case_requirement(program, machine, state, expression)
-        });
-    let preserved = if case_facts_only {
-        case_preservation::body_preserves_case_tags(program, facts, machine)
-    } else if runtime_values {
+        })
+        && case_preservation::body_preserves_case_tags(program, facts, machine);
+    let preserved = if runtime_values {
         // The runtime path owner checks each executed prefix frame, including
         // argument evaluation, before retaining its observations. Writes after
         // this occurrence and recursive successors cannot invalidate its entry.
+        // If whole-body tag preservation fails, use that owner's completed
+        // value captures rather than rejecting a detached copy or replaying
+        // its changed source. Private premises still owe every closed arrival.
         true
     } else {
         entry_premises_are_preserved(program, facts, machine.symbol, &classification, resolver)

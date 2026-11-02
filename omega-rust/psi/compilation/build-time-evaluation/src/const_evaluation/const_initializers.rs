@@ -486,10 +486,15 @@ pub(crate) fn evaluate(
         // call, not values supplied by that call's eventual specialization.
         // Demand only this ready layer in the original forest so canonical
         // argument receipts survive private probe construction and final replay.
-        let ready_declarations = ready
+        let mut ready_declarations = ready
             .iter()
             .map(|ordinal| declarations[*ordinal].item)
             .collect::<Vec<_>>();
+        let owners = ready
+            .iter()
+            .flat_map(|ordinal| declarations[*ordinal].normalization_owners.iter().copied())
+            .collect::<Vec<_>>();
+        extend_normalization_owners(&syntax, &mut ready_declarations, &owners)?;
         syntax = super::const_generic_calls::evaluate_declaration_calls(
             syntax,
             context.clone(),
@@ -752,7 +757,7 @@ pub(crate) fn evaluate(
                     &prepared,
                     authority.clone(),
                     &symbols,
-                    &domain.accounting,
+                    &independent,
                     &[],
                 )
             })
