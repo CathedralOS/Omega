@@ -82,6 +82,7 @@ fn objective_c(count_binder: u32) -> PackagePolicyTraitShape {
         parents: Vec::new(),
         requirements: vec![PackagePolicyTraitRequirement {
             identity: identity("ObjectiveC::get_class"),
+            conformance_bounds: Vec::new(),
             spelling: None,
             has_default_realization: false,
             lifetime_parameter_count: 0,
