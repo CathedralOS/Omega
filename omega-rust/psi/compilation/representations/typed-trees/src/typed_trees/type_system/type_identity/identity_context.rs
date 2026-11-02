@@ -40,7 +40,7 @@ pub(crate) struct TypeIdentityContext<'binders> {
         &'binders [(LifetimeParameterIdentity, LifetimeParameterIdentity)],
     /// Declaration-schema alpha coordinates for exact region slots. Payload
     /// names never identify these binders across declarations.
-    pub(crate) lifetime_binders: &'binders [(LifetimeParameterIdentity, String)],
+    pub(crate) lifetime_binders: &'binders [(LifetimeParameterIdentity, usize)],
     pub(crate) invalid_application: Option<&'binders Cell<bool>>,
     pub(crate) encountered_regions: Option<&'binders Cell<bool>>,
     pub(crate) binders: &'binders [(SymbolHandle, String)],
@@ -241,7 +241,13 @@ impl TypeIdentityContext<'_> {
             .iter()
             .find(|(parameter, _)| *parameter == region)
         {
-            return atom("lifetime-binder", binder);
+            return compound(
+                RegionForm::Region,
+                [
+                    atom(Label::Owner, "schema"),
+                    atom(Label::Ordinal, &binder.to_string()),
+                ],
+            );
         }
         if self.qualification == TypeIdentityQualification::PackageQualified {
             if let Some(identity) =

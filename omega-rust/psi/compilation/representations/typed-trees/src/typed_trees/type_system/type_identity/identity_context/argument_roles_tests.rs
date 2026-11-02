@@ -99,13 +99,13 @@ fn resolved_region_substitution_is_scoped_and_simultaneous() {
                 lexical_owner: owner,
                 binders: &[],
                 lifetime_binders: &[
-                    (region(owner), "$L0".to_owned()),
+                    (region(owner), 0),
                     (
                         LifetimeParameterIdentity {
                             declaration: owner,
                             ordinal: 1,
                         },
-                        "$L1".to_owned(),
+                        1,
                     ),
                 ],
             })

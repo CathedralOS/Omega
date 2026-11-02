@@ -22,7 +22,7 @@ pub struct DeclaredStaticOperandIdentityRequest<'a> {
     pub operand: IndexIdentityArgument<'a>,
     pub lexical_owner: SymbolHandle,
     pub binders: &'a [(SymbolHandle, String)],
-    pub lifetime_binders: &'a [(super::LifetimeParameterIdentity, String)],
+    pub lifetime_binders: &'a [(super::LifetimeParameterIdentity, usize)],
 }
 
 impl TypedTrees {

@@ -900,7 +900,7 @@ fn signature_lifetime_binders(
                     ordinal,
                 };
                 if !binders.iter().any(|(known, _)| *known == parameter) {
-                    binders.push((parameter, format!("$L{}", binders.len())));
+                    binders.push((parameter, binders.len()));
                 }
             }
         }

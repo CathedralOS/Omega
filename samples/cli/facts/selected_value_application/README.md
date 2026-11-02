@@ -1,9 +1,18 @@
 # Selected runtime Value application
 
-Owning task: **RUNTIME-VALUE-GENERICS** in [TASKS.md](../../../../TASKS.md).
+Owning tasks: **BUILD-OWNED-TARGET-SELECTION** and
+**RUNTIME-VALUE-GENERICS** in [TASKS.md](../../../../TASKS.md).
 Requirement: an implementation's captured type telescope and its member's
-independent Value telescope compose without treating realized Value arguments as
-extra public formals, losing their exact subjects, or dropping returned facts.
+independent Value and explicit evidence telescopes compose without treating
+realized Value arguments as extra public formals, losing their exact subjects,
+replacing a caller's evidence with a Build provider, or dropping returned facts.
+
+The current Build-selection migration is unfinished. The optimized source
+probe at `c83230e4576` admits the new evidence declaration but wrongly refuses
+the valid target witness's exact subtraction; its index-11 twin still refuses
+with the intended bound diagnostic. Native/Terminal qualification of this
+migration is pending. Earlier evidence for the ordinary-wrapper row does not
+qualify these changed sources.
 
 Fact: A selected member preserves runtime index 9 below bound 10, so exact
 10 - right yields 1, while returning the second Cell and closed left 7.
@@ -54,6 +63,34 @@ roster from the whole independent member telescope. Declaration identity,
 actual subject identity, full contracts, ownership and erased/runtime relevance
 must survive the source-to-Terminal-to-native path. There is no implicit
 provider value, per-index specialized body, policy authority or OS structure here.
+
+The nine places call the same `SelectedValue::selected` contract. Ordinary
+places select `SelectionAdapter` in Build; the target place selects four named
+implementations through four explicit target rows. The caller still supplies
+`Second<Cell>` independently. Every implementation retains the same declared
+`Choose<Cell>` promise and runtime Value index.
+
+The additional producers stay in this fact folder:
+
+- [Public evidence](probes/public_evidence/main.omg) retains the exact bound in
+  source-free review and recovery.
+- [Two independent binders](probes/two_evidence/main.omg) distinguishes the
+  supplied maps; its unused first binder still owes its declared application.
+- [Unused evidence](probes/unused_evidence/main.omg) has a provider-bound reject
+  control, independently of whether the body invokes that evidence.
+- [A default body](probes/default_evidence/main.omg) preserves its declaration's
+  evidence namespace through synthesis.
+- [A nominal callable](probes/nominal_evidence/main.omg) retains the same full
+  telescope through an explicitly selected callable parameter.
+- [Wrong argument](probes/wrong_evidence_argument/main.omg) and
+  [wrong nominal trait](probes/wrong_evidence_trait/main.omg) controls retain
+  complete static admission.
+
+The strengthened match place transports index 9 alongside route markers 17
+and 23 and executes both routes. With the retained pre-migration producer,
+the marker-preserving ordinary wrapper exits 0 in both engines; swapping only
+the markers causes native trap signal 5 and Terminal `Trap`. This isolates the
+oracle change from the new requirement declaration.
 
 ## Requirement scope
 
