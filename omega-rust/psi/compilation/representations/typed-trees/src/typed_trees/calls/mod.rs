@@ -28,6 +28,39 @@ impl super::TypedTrees {
         if crate::operator::selected_named_expression_call_has_no_runtime_receiver(self, call) {
             return true;
         }
+        // A closed public result shape does not turn the exact evidence
+        // qualifier into a value receiver. Rejoin the receiver's own bound,
+        // including the retained complete requirement application.
+        if let Some(receiver) = self.expression_table.name_path_node(call.receiver)
+            && receiver.symbol.is_valid()
+            && self.symbols.get(receiver.symbol).kind == symbols::SymbolKind::ConformanceParameter
+            && let Ok(Some(requirement)) = self.evidence_bound_requirement(
+                self.symbols.get(receiver.symbol).parent,
+                receiver.symbol,
+                call.target_symbol,
+            )
+        {
+            return call.target == requirement.signature.name
+                && call.arguments.len()
+                    == self.state_signature_parameters(requirement.signature).len();
+        }
+        let binder = self.symbols.get(call.target_symbol).parent;
+        if binder.is_valid()
+            && self.symbols.get(binder).kind == symbols::SymbolKind::ConformanceParameter
+            && let Ok(Some(requirement)) = self.evidence_bound_requirement(
+                self.symbols.get(binder).parent,
+                binder,
+                call.target_symbol,
+            )
+        {
+            return self
+                .expression_table
+                .name_path_node(call.receiver)
+                .is_some_and(|path| path.symbol == binder)
+                && call.target == requirement.signature.name
+                && call.arguments.len()
+                    == self.state_signature_parameters(requirement.signature).len();
+        }
         let slot = self.dynamic_slot_by_symbol(call.target_symbol);
         let requirement = slot.map_or(call.target_symbol, |slot| slot.requirement);
         let mut requirements = self

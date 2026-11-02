@@ -22,6 +22,15 @@ pub(super) fn symbol_seed<'name>(
     }
 }
 
+/// A bound requirement is a child of the local evidence binder, rather than
+/// another declaration at the requirement's original source occurrence.
+/// Keep its spelling while inheriting provenance from that exact binder.
+pub(in crate::symbols::symbol_table) fn evidence_requirement_seed(
+    name: &symbol_resolved_trees::name::DiagnosticName,
+) -> SymbolSeed<'_> {
+    (SymbolKind::State, SymbolNameRef::Borrowed(name.as_str()))
+}
+
 /// The value-parameter child stream of one callable signature: every
 /// declaration kind seeds its parameter children, in order, from the same
 /// declared names.

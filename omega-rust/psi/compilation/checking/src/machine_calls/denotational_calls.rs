@@ -34,31 +34,48 @@ pub(crate) fn abstract_value_call_signature(
 ) -> Option<&typed_trees::signature::StateSignature> {
     let contract = program.retained_static_machine_contract(target)?;
     let signature = contract.signature();
-    if !matches!(
-        &signature.termination_guarantee,
-        language_semantics::TerminationGuarantee::Terminates { premises }
-            if premises.is_empty()
-    ) || !specification::signature_has_closed_value_effects(program, signature)
-    {
-        return None;
-    }
-    let proof_only = crate::proof_only_classification(program);
-    let forbidden = |reference| {
-        crate::proof_contracts::quotients::type_has_forbidden_denotational_content(
-            program,
-            &proof_only,
-            reference,
-        )
-    };
-    if program
-        .state_signature_parameters(signature)
-        .iter()
-        .any(|parameter| forbidden(parameter.type_reference))
-        || (signature.return_type.is_valid() && forbidden(signature.return_type))
-    {
+    if !signature_has_closed_value_contract(program, signature) {
         return None;
     }
     Some(signature)
+}
+
+/// Exact public promises shared by value denotation and erased law citations.
+/// Neither a Unit result nor a chosen private body's purity supplies them.
+pub(crate) fn signature_has_closed_value_contract(
+    program: &dyn crate::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+) -> bool {
+    matches!(
+        &signature.termination_guarantee,
+        language_semantics::TerminationGuarantee::Terminates { premises }
+            if premises.is_empty()
+    ) && specification::signature_has_closed_value_effects(program, signature)
+        && signature_value_content_is_observable(program, signature)
+}
+
+/// Exact logical value shapes do not identify resource occurrences. Affine
+/// checked data is observable without copying. Shared parameter views observe
+/// their checked referents; returned references remain resource occurrences.
+pub(crate) fn signature_value_content_is_observable(
+    program: &dyn crate::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+) -> bool {
+    let forbidden = |reference| {
+        crate::proof_contracts::carrier_contents::type_has_forbidden_value_observation_content(
+            program, reference,
+        )
+    };
+    !program
+        .state_signature_parameters(signature)
+        .iter()
+        .any(|parameter| {
+            crate::proof_contracts::carrier_contents::type_has_forbidden_argument_observation_content(
+                program,
+                parameter.type_reference,
+            )
+        })
+        && (!signature.return_type.is_valid() || !forbidden(signature.return_type))
 }
 
 /// A concrete value application's operational eligibility, before its checked
@@ -96,6 +113,24 @@ fn unchecked_value_call_candidate(
     operational: &flow_effects::OperationalPlan,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
 ) -> Result<(), &'static str> {
+    let forbidden = |reference| {
+        crate::proof_contracts::carrier_contents::type_has_forbidden_value_observation_content(
+            program, reference,
+        )
+    };
+    if (state.return_type.is_valid() && forbidden(state.return_type))
+        || program
+            .state_parameters(state)
+            .iter()
+            .any(|parameter| {
+                crate::proof_contracts::carrier_contents::type_has_forbidden_argument_observation_content(
+                    program,
+                    parameter.type_reference,
+                )
+            })
+    {
+        return Err("the application carries forbidden denotational content");
+    }
     if !has_pure_effect_closure(
         program,
         machine.symbol,
@@ -633,6 +668,39 @@ pub(crate) fn selected_operator_authored_body<'program>(
     (operator.return_type == entry.return_type
         && program.operator_parameters(operator) == program.state_parameters(entry))
     .then_some((machine, entry))
+}
+
+/// A closed named map already selects one checked executable entry. Its body
+/// can establish concrete denotation eligibility just as an authored operator
+/// body does. The public signature still owns all preconditions/guarantees;
+/// abstract evidence and provider spelling cannot supply a body here.
+pub(crate) fn selected_requirement_authored_body<'program>(
+    program: &'program dyn crate::CheckingInput,
+    caller: SymbolHandle,
+    call: &typed_trees::expression::TableCallExpression,
+) -> Option<(&'program Machine, &'program typed_trees::state::State)> {
+    let dispatch = call.static_requirement_dispatch.as_ref()?;
+    let caller = program
+        .machine_holding_state(caller)
+        .map_or(caller, |machine| machine.symbol);
+    let target = crate::CallSite::Expression {
+        expression: Default::default(),
+        call,
+    }
+    .target_symbol(program);
+    if !crate::closed_requirement_dispatch_is_valid(program, caller, target, dispatch) {
+        return None;
+    }
+    let (machine, entry) =
+        crate::find_state(program, target).or_else(|| crate::find_machine_head(program, target))?;
+    if machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
+        || !machine.body_is_present
+        || machine.body_status != typed_trees::machine::MachineBodyStatus::Complete
+        || program.machine_states(machine).first()?.symbol != entry.symbol
+    {
+        return None;
+    }
+    Some((machine, entry))
 }
 
 /// Closed compiler catalogs independently establish a total value meaning.
