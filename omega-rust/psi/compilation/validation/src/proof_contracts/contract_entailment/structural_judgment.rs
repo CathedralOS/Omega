@@ -996,6 +996,17 @@ impl<'program> StructuralJudge<'program> {
         Self::from_runtime_declaration_requires(program, machine, Some(state), requires)
     }
 
+    pub(super) fn from_specification_state_requires(
+        program: &'program dyn crate::CheckingInput,
+        machine: &Machine,
+        state: &State,
+        requires: &[ExpressionHandle],
+    ) -> Self {
+        let mut judge = Self::from_runtime_state_requires(program, machine, state, requires);
+        judge.specification_terms = true;
+        judge
+    }
+
     fn from_runtime_declaration_requires(
         program: &'program dyn crate::CheckingInput,
         machine: &Machine,

@@ -129,8 +129,8 @@ mod type_consequences;
 pub(crate) use operand_fits::{
     CompletedIntegerFormation, OperandFitOutcome, anonymous_comparison_operand_fits_at_occurrence,
     anonymous_value_fit_at_occurrence, exact_binary_formation_at_occurrence,
-    exact_cast_fits_at_occurrence, float_integer_conversion_fits_at_occurrence,
-    integer_operands_exclude_at_occurrence,
+    exact_binary_formation_in_specification, exact_cast_fits_at_occurrence,
+    float_integer_conversion_fits_at_occurrence, integer_operands_exclude_at_occurrence,
 };
 pub(crate) use type_consequences::{predicate_case_type_contexts, predicate_type_contexts};
 mod structural_terms;

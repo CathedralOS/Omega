@@ -157,31 +157,41 @@ pub fn retain_runtime_rank_component(
                     path,
                     entry_indexes,
                 });
-                let (application_measure, application_body, application_casts, application_calls) =
-                    match value.application {
-                        Some(application) => (
-                            application.owner(),
-                            application.body(),
-                            admitted
-                                .application_casts
-                                .insert_many(application.casts().iter().cloned()),
-                            admitted
-                                .application_calls
-                                .insert_many(application.calls().iter().copied()),
-                        ),
-                        None => (
-                            SymbolHandle::invalid(),
-                            typed_trees::expression::ExpressionHandle::invalid(),
-                            Default::default(),
-                            Default::default(),
-                        ),
-                    };
+                let (
+                    application_measure,
+                    application_body,
+                    application_casts,
+                    application_calls,
+                    application_dispatches,
+                ) = match value.application {
+                    Some(application) => (
+                        application.owner(),
+                        application.body(),
+                        admitted
+                            .application_casts
+                            .insert_many(application.casts().iter().cloned()),
+                        admitted
+                            .application_calls
+                            .insert_many(application.calls().iter().copied()),
+                        admitted
+                            .application_dispatches
+                            .insert_many(application.dispatches().iter().copied()),
+                    ),
+                    None => (
+                        SymbolHandle::invalid(),
+                        typed_trees::expression::ExpressionHandle::invalid(),
+                        Default::default(),
+                        Default::default(),
+                        Default::default(),
+                    ),
+                };
                 values.push(CheckedRuntimeIntegerRank {
                     application: checked_trees::CheckedRankApplicationFacts {
                         owner: application_measure,
                         definition_body: application_body,
                         casts: application_casts,
                         calls: application_calls,
+                        dispatches: application_dispatches,
                     },
                     application_bindings: {
                         let bindings = value
@@ -289,10 +299,16 @@ pub fn retained_runtime_natural_components(
                                             .application_calls
                                             .span(value.application.calls)?
                                             .to_vec(),
+                                        admitted
+                                            .application_dispatches
+                                            .span(value.application.dispatches)?
+                                            .to_vec(),
                                     )?)
                                 } else {
                                     if value.application.owner.is_valid()
                                         || !value.application.casts.is_empty()
+                                        || !value.application.calls.is_empty()
+                                        || !value.application.dispatches.is_empty()
                                     {
                                         return None;
                                     }

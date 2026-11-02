@@ -1,7 +1,9 @@
 //! Build the ordinary scalar evaluation graph from retained checked operations.
 //! A declaration application supplies captured formal values and its admitted
 //! call/cast receipts; it does not turn its body into a separate evaluator.
-//! Structural operands still require statement-owned loan or value captures.
+//! Structural operands require statement-owned loan/value captures or an
+//! observation's independently admitted declaration-input homes. An entry
+//! observation owns its complete operand graph and all of its call receipts.
 
 use super::call_arguments::{CallOperandCustody, ComputedCallOperands};
 use super::{boundary_calls, integers, normal_return};

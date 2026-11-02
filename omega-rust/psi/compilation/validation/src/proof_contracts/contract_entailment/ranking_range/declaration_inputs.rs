@@ -13,6 +13,9 @@ mod selectors;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeclaredInputRead {
+    /// Exact outer-to-inner call occurrences. Each callee consumes one cut;
+    /// repeated uses of the same helper keep independent supplied actuals.
+    pub calls: Vec<typed_trees::expression::ExpressionHandle>,
     pub coordinate: crate::RankSubjectCoordinate,
     pub type_reference: TypeReferenceHandle,
     pub primitive_type: PrimitiveType,
@@ -78,6 +81,7 @@ pub fn declared_input_shape(
     if let Some(primitive_type) = program.primitive_type_reference(formal.type_reference) {
         primitive_type.is_fixed_integer().then_some(())?;
         shape.reads.push(DeclaredInputRead {
+            calls: Vec::new(),
             coordinate: crate::RankSubjectCoordinate {
                 parameter: formal.symbol,
                 path: Vec::new(),

@@ -89,6 +89,9 @@ fn retain_component(
                         calls: admitted
                             .application_calls
                             .insert_many(application.calls().iter().copied()),
+                        dispatches: admitted
+                            .application_dispatches
+                            .insert_many(application.dispatches().iter().copied()),
                     },
                     bindings,
                     input_home,
