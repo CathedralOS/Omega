@@ -1,6 +1,6 @@
-//! Integer bounds of arguments already evaluated for one call. Copies keep
-//! their completion facts; views use the invocation's backing observations.
-//! Every possible captured value contributes separately to the resulting range.
+//! Check integer arguments using their values when they were evaluated.
+//! Copies keep the bounds known at that time; references use the storage
+//! observations valid at the call. Every possible value contributes to the range.
 
 use checked_trees::{FlowCallFact, FlowFacts, FlowOperandFact, FlowStateFact};
 use facts::{FactPlan, IntegerRange};
@@ -158,8 +158,8 @@ impl<'a> CapturedCallIntervals<'a> {
                     range
                 });
                 if let Some(bounds) = bounds {
-                    // These are two observations of the same captured value,
-                    // not facts pooled from different alternatives.
+                    // Both observations describe this one captured value,
+                    // so it must satisfy both bounds.
                     known = Some(match known {
                         Some(previous) => IntegerRange {
                             minimum: previous.minimum.max(bounds.minimum),

@@ -97,14 +97,14 @@ nonnegative bound on a field selected by two match arms. Its
 
 ## Baseline and remaining scope
 
-Fresh measurements at `de32436362d5406eb6d086418967be839ea6d143` pass all nine
+Fresh measurements at `feef96dc297dbd12c2185973f1a216be927c060f` pass all nine
 places and their reject twins on Linux x86-64. The focused corpus run checks
 41 programs: 18 valid programs pass and 23 controls reach their intended
-rejections. All 18 native/Terminal observations satisfy their oracles: 16 exit
+rejections. All 18 native/Terminal observations match their expected results: 16 exit
 0 and two deliberately trap. The ordinary sample path passes all 32 projects
-(18 execution oracles and 14 intended rejections). The optimized producer and
+(18 executions and 14 intended rejections). The optimized compiler and
 raw results are retained in
-[run 41533961739](https://github.com/CathedralOS/Omega/actions/runs/41533961739).
+[run 41542440751](https://github.com/CathedralOS/Omega/actions/runs/41542440751).
 These are Linux execution results; the other hosted targets remain unexecuted.
 
 At `d6cf554fd1cbf20551983d29bae26f5cf3b81664`, the local, nested call-result

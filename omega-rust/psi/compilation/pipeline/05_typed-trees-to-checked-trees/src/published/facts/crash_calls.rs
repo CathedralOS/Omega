@@ -7,9 +7,9 @@
 //! the possible crash in place.
 //!
 //! This file attaches checked crash calls and infers crash causes.
-//! `summary_predicates.rs` carries summary crash predicates and buckets,
-//! `route_substitution.rs` substitutes call arguments into published crash
-//! routes and `private_summaries.rs` solves private body summaries.
+//! `summary_predicates.rs` combines and groups possible crash conditions.
+//! `route_substitution.rs` replaces declared parameters with call arguments.
+//! `private_summaries.rs` finds crashes that can propagate through private calls.
 //! `requirement_contracts.rs` prepares each call's selected public signature.
 
 mod potential_causes;

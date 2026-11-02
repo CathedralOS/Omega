@@ -1,5 +1,6 @@
-//! Private body and target-family crash summaries share one fixed point.
-//! Family membership is a summary dependency, never an executable call site.
+//! Find crashes that can propagate through private calls and target-body groups.
+//! Repeat until callees no longer change their callers' possible crashes.
+//! Group membership determines which summaries must be considered together.
 
 use super::requirement_contracts::RequirementCrashContracts;
 use crate::flow::expressions;
