@@ -16158,7 +16158,7 @@ fail/constants/predicate_constant_generic_static_index_fence rejected 106ms unex
 	const argument for `Indexed::Value` is invalid at this index site: computed constant carrier member is not yet a closed structural type
 fail/constants/predicate_constant_nested_projection_shadow rejected 97ms expected @ccdb99ca2214
 	data `Packet` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/constants/predicate_constant_static_index_fence checked 2317ms @ccdb99ca2214
+fail/constants/predicate_constant_static_index_fence checked 7636ms @911f6617ba9e
 fail/constants/target_layout_derived_crashing_helper_reject rejected 2098ms expected @d6c89b306726
 	constant checking: scalar evaluation did not return a normal scalar: Crashed(TerminalCrash { site: Edge(EdgeId(119)), cause: Trap, site_guard: [], frontier_lower_bound: [] })
 fail/constants/target_layout_derived_demanded_crashing_helper_reject rejected 2083ms expected @d6c89b306726
