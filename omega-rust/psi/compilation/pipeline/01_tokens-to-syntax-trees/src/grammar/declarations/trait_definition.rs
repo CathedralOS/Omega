@@ -1,5 +1,4 @@
 use crate::grammar::bodies::trait_default::parse_trait_default_machine_body;
-use crate::grammar::contracts::parse_contract_clauses::retired_where_conformance;
 use crate::grammar::contracts::signature::parse_signature_clauses;
 use crate::grammar::declarations::operator::parse_operator_spelling;
 use crate::grammar::parameters::contracts::parse_machine_parameter_contracts;
@@ -55,22 +54,14 @@ pub(super) fn parse_trait_definition<'tokens, 'source>(
         parse_trait_parents(syntax_trees, input)?
     };
     input = next;
-    if refines.is_some() && input.at_contextual("where") {
+    if refines.is_some() && input.at_contextual("requires") {
         return Err(input.error_here(
-            "a transparent refinement takes no `where` clauses; bounds on its parameters belong to the base trait",
+            "a transparent refinement takes no `requires` clauses; bounds on its parameters belong to the base trait",
         ));
     }
     let ((), next) = parse_proposition_parameter_contracts(syntax_trees, type_parameters, input)?;
     input = next;
     let conformance_bounds = generic_parameters.conformance_bounds;
-    if input.at_contextual("where") {
-        let after_where = input.take_contextual("where")?;
-        let subject = after_where.take_identifier().map_or_else(
-            |_| "T".to_owned(),
-            |(subject, _)| subject.as_str(syntax_trees).to_owned(),
-        );
-        return Err(after_where.error_here(retired_where_conformance(&subject)));
-    }
     input = input.take_punctuation(PunctuationKind::LeftBrace, "{")?;
     let mut requires = crate::storage::handle_spans::HandleSpanBuilder::new();
     let mut machines = crate::storage::handle_spans::HandleSpanBuilder::new();
@@ -402,7 +393,6 @@ fn refinement_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
         || input.at_contract_continuation_keyword()
         || input.at_contextual("requires")
         || input.at_contextual("ensures")
-        || input.at_contextual("where")
 }
 
 fn parse_refinement_axis_bool<'tokens, 'source>(
@@ -423,14 +413,14 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
     mut input: Input<'tokens, 'source>,
 ) -> ParseResult<'tokens, 'source, ()> {
     loop {
-        if !input.at_contextual("where") {
+        if !input.at_contextual("requires") {
             break;
         }
-        let after_where = input.take_contextual("where")?;
-        if !after_where.at_contextual("proposition") {
+        let after_requires = input.take_contextual("requires")?;
+        if !after_requires.at_contextual("proposition") {
             break;
         }
-        let after_proposition = after_where.take_contextual("proposition")?;
+        let after_proposition = after_requires.take_contextual("proposition")?;
         let (name, after_name) = after_proposition.take_identifier()?;
         let Some(parameter_index) = syntax_trees
             .items
@@ -439,7 +429,7 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
             .position(|parameter| parameter.name.as_str(syntax_trees) == name.as_str(syntax_trees))
         else {
             return Err(after_name.error_here(format!(
-                "`where proposition {}` has no matching `<proposition {}>` parameter",
+                "`requires proposition {}` has no matching `<proposition {}>` parameter",
                 name.as_str(syntax_trees),
                 name.as_str(syntax_trees),
             )));
@@ -481,7 +471,7 @@ fn parse_proposition_parameter_contracts<'tokens, 'source>(
         })
     {
         return Err(input.error_here(format!(
-            "proposition parameter `{}` requires an authored declaration-site signature: write `where proposition {}(...)`;",
+            "proposition parameter `{}` requires an authored declaration-site signature: write `requires proposition {}(...);`",
             missing.name.as_str(syntax_trees),
             missing.name.as_str(syntax_trees),
         )));

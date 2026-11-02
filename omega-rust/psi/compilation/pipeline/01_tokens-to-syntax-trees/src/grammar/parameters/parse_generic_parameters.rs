@@ -296,7 +296,7 @@ pub(crate) fn parse_generic_parameters<'tokens, 'source>(
             && input.at_punctuation(PunctuationKind::LeftBracket)
         {
             return Err(input.error_here(
-                "a proposition parameter takes its signature in a mandatory `where proposition Name(...)` clause, not property brackets",
+                "a proposition parameter takes its signature in a mandatory `requires proposition Name(...);` clause, not property brackets",
             ));
         }
         let bounds = if input.at_punctuation(PunctuationKind::LeftBracket) {

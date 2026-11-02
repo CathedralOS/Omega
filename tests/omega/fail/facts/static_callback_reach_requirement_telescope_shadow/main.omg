@@ -7,7 +7,7 @@ proposition alternate(value: u64) = value <= 37;
 trait Anchor { machine anchor(value: u64) -> u64; }
 trait OtherAnchor { machine anchor(value: u64) -> u64; }
 public trait StepContract<proposition Predicate, machine Requirement>
-where proposition Predicate(value: u64);
+requires proposition Predicate(value: u64);
 {
     machine step(value: u64) -> u64
     reaches Console terminates
