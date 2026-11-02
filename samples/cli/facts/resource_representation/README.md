@@ -50,9 +50,29 @@ with the same Pair values, capacity three, exclusive slice, maps, failure
 custody and runtime oracle. Its twin still changes only guard three to two.
 The broader arbitrary-source metric abstraction remains open.
 
-The previous source `83369dc50b5d8be5ee8fc074c20a53a352e6a1d2` authenticated an
-opt1 Linux producer in run41468881925, cleared callback tuple/region formation,
-and then refused at the denotation and returned-loan obligations. That result
-does not qualify this corrected source. Scoped source/native/Terminal
-qualification is pending. Raw observations and frozen inputs are retained
-outside scratch under `/Users/zcanann/Omega-build/representation-resource-20261102/`.
+The frozen request-specific program and its sole guard-change twin are retained
+from `10fba736d8eb1ed0de892a360d8fb6dba4882599`. The latest scoped run,
+[41489778010](https://github.com/CathedralOS/Omega/actions/runs/41489778010), used
+`e467dbd4fb81fa33a0f79e88cf1e5e3f548dd464` and an authenticated opt1 Linux
+producer (CLI SHA256 `71afc763adfaf70b3a5b45a8f83675f157443e3418c37b2186ab8fdfd87592c9`).
+Preparation took539.390s, authentication1.340s, and checking19.484s.
+
+The lifetime-bound parsing and inherited loan/source correspondence now pass.
+The positive still refuses five `ensures result in Result::Ok` obligations:
+the two authored sufficient-output wrappers, the generic forwarding wrapper,
+and two prepared specializations. The conditional case-tag repair leaves these
+same five refusals as run41483610800; it has not established acceptance. The
+capacity-two twin reaches its intended `emit` precondition refusal. The focused
+borrowed-refinement positive checks and its wrong-region twin rejects as authored.
+Native and Terminal execution were not attempted because the positive did not
+check. No canonical success rows or completed place are claimed.
+
+[PR1461](https://github.com/CathedralOS/Omega/pull/1461) remains a draft at the
+requested session wind-down. The next source investigation is the existing
+normal-call entry/result guarantee path: distinguish preparation/entry refusal
+from exact result-case classification under preserved Request observations.
+Complete binding, source custody and region checks remain mandatory; the frozen
+program, capacity-three obligation and capacity-two twin are unchanged.
+
+Raw observations, patches and the concise continuation note are retained outside
+scratch under `/Users/zcanann/Omega-build/representation-resource-20261102/`.
