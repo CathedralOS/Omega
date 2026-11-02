@@ -460,3 +460,42 @@ impl RecordValue for target::AdmittedX86ScalarFmaProvider {
             .map_err(|reason| input.error(format!("FMA provider: {reason:?}")))
     }
 }
+
+// Preserve the wire fields/order, while checking original declaration custody
+// before this source-free record can supply a synthetic callable route.
+impl RecordValue for backend_plan::DirectBoundaryLeaf {
+    fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+        self.validate_calling_custody()
+            .map_err(|reason| output.error(reason))?;
+        let Self {
+            declaration_identity,
+            callable_identity,
+            satisfied_schema,
+            plan,
+            satisfied_requirement_identity,
+            execution,
+        } = self;
+        declaration_identity.write(output)?;
+        callable_identity.write(output)?;
+        satisfied_schema.write(output)?;
+        plan.write(output)?;
+        satisfied_requirement_identity.write(output)?;
+        execution.write(output)
+    }
+    fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
+        input.record(|input| {
+            let value = Self {
+                declaration_identity: RecordValue::read(input)?,
+                callable_identity: RecordValue::read(input)?,
+                satisfied_schema: RecordValue::read(input)?,
+                plan: RecordValue::read(input)?,
+                satisfied_requirement_identity: RecordValue::read(input)?,
+                execution: RecordValue::read(input)?,
+            };
+            value
+                .validate_calling_custody()
+                .map_err(|reason| input.error(reason))?;
+            Ok(value)
+        })
+    }
+}
