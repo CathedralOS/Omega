@@ -7,6 +7,29 @@ pub(super) fn elaborate(
     candidate: &Candidate,
     selection: &CallSelection,
 ) -> Result<(), Vec<Diagnostic>> {
+    // Replacing the query must not erase an invalid actual (and its effects)
+    // before ordinary call checking can diagnose it.
+    let operands_are_empty = match selection.site {
+        CallSite::Expression(expression) => {
+            let ExpressionNode::Call(call) = expressions_of(program).expression(expression) else {
+                return Err(error("semantic schema lost its selected call occurrence"));
+            };
+            !call.receiver.is_valid()
+                && call.arguments.is_empty()
+                && call.evidence_arguments.is_empty()
+        }
+        CallSite::Statement(statement) => {
+            let StatementNode::Call(call) = program.statement_table.statement(statement) else {
+                return Err(error("semantic schema lost its selected call occurrence"));
+            };
+            call.arguments.is_empty() && call.evidence_arguments.is_empty()
+        }
+    };
+    if !operands_are_empty {
+        return Err(error(
+            "semantic schema query accepts no runtime or evidence operands",
+        ));
+    }
     let [Some(subject)] = candidate.type_bindings.as_slice() else {
         return Err(error("semantic schema requires its exact selected subject"));
     };

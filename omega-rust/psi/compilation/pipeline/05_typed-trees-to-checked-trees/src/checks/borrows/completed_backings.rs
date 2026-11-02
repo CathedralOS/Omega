@@ -816,27 +816,21 @@ impl Resolver<'_> {
         let actual = control.operands.get(capture);
         // Loading a descriptor stored through an input pointer is distinct
         // from returning that pointer's own referent, including when both
-        // declaration-relative paths are empty. Only the actual's captured
-        // pointee inventory may supply the former; never reread its storage.
+        // declaration-relative paths are empty. Ask the completed-value owner
+        // at this actual's captured cut. Its lossless frontier distinguishes
+        // an unchanged incoming slot from a performed value. A roots-only
+        // lifetime profile is not an evaluated descriptor producer.
         if source == validation::borrow_contracts::ViewReturnInputSource::Stored
             && validation::reference_shell(self.program, actual.type_reference).is_some()
         {
-            if !control.operand_retentions.is_valid(actual.retention) {
-                return Err("the borrowed input has no captured stored-descriptor inventory");
-            }
-            let retained = control.operand_retentions.get(actual.retention);
-            let mut projection = control
-                .operand_retained_paths
-                .span(retained.stored_projection)
-                .ok_or("the borrowed input has no captured stored-descriptor projection")?
-                .to_vec();
-            projection.extend_from_slice(path);
-            return self.retained_descriptor(
-                retained.stored_value,
-                &projection,
-                ancestors,
-                forwarded_inputs,
+            let frontier = validation::completed_storage::reference_sources_at_path(
+                self.program,
+                control,
+                capture,
+                path,
+                actual.storage_snapshot,
             );
+            return self.stored_frontier(frontier, actual, ancestors, forwarded_inputs);
         }
         let resolved = self.retained_descriptor(capture, path, ancestors, forwarded_inputs)?;
         if source == validation::borrow_contracts::ViewReturnInputSource::Referent
