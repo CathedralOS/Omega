@@ -109,9 +109,10 @@ jobs:
           OMEGA_COMPILER_CHECK_SITES: '1'
         run: |
           python - <<'PYTRACE'
-          import json, subprocess
+          import json, subprocess, sys
           from pathlib import Path
-          from tools import corpus_gate
+          sys.path.insert(0, 'tools')
+          import corpus_gate
           output = Path('build/compiler-pilot')
           records = list(output.glob('producer-*/producer.json'))
           assert len(records) == 1
