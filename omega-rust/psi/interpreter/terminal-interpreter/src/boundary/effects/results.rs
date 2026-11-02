@@ -90,6 +90,13 @@ pub enum TerminalReferencePayload {
 pub struct TerminalReferenceResult {
     /// What the host reports about the referent beneath the minted carrier.
     pub referent: TerminalReferencePayload,
+    /// `&`-typed fields beneath the referent: canonical field paths select
+    /// each nested carrier; its own referent is materialized recursively.
+    /// Every `&` field the referent declares must appear exactly once.
+    pub references: Vec<(
+        Vec<semantic_vocabulary::CanonicalStructuralPathSegment>,
+        TerminalReferenceResult,
+    )>,
 }
 
 impl TerminalExecution<'_> {
@@ -210,10 +217,9 @@ impl TerminalExecution<'_> {
                             )
                             .is_ok()
                         })
-                        || terminal_semantics::zeroed_structural_leaves_with_established_erased_fields(
+                        || terminal_semantics::zeroed_structural_leaves_modulo_references(
                             self.structural_types().values(),
                             referent,
-                            &[],
                         )
                         .is_some()
                 })

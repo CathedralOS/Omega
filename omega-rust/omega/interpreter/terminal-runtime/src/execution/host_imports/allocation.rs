@@ -411,6 +411,7 @@ impl TerminalEffectHandler for AllocationImport {
                 Ok(TerminalEffectResult::Reference(
                     terminal_interpreter::TerminalReferenceResult {
                         referent: terminal_interpreter::TerminalReferencePayload::Zeroed,
+                        references: Vec::new(),
                     },
                 ))
             }

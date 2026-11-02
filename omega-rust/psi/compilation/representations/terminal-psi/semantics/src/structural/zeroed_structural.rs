@@ -145,13 +145,14 @@ pub fn zeroed_structural_fields_satisfy<'types>(
     accepts_field: impl Fn(&StructuralFieldDeclaration) -> bool,
 ) -> bool {
     let declarations: Vec<_> = types.collect();
-    zeroed_declaration_graph(&declarations, root, false, &accepts_field)
+    zeroed_declaration_graph(&declarations, root, false, false, &accepts_field)
 }
 
 fn zeroed_declaration_graph(
     declarations: &[&StructuralTypeDeclaration],
     root: StructuralTypeId,
     allow_established_fields: bool,
+    modulo_references: bool,
     accepts_field: &impl Fn(&StructuralFieldDeclaration) -> bool,
 ) -> bool {
     // Declaration-indexed DFS marks distinguish a backedge from a shared
@@ -225,6 +226,17 @@ fn zeroed_declaration_graph(
                     return false;
                 }
                 if let Some(member) = field.field_type.as_structural() {
+                    if modulo_references
+                        && declarations.iter().any(|declaration| {
+                            declaration.id == member
+                                && matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::Reference { .. }
+                                )
+                        })
+                    {
+                        continue;
+                    }
                     pending.push((member, false));
                 } else if zeroed_field_scalar(field).is_none() {
                     return false;
@@ -245,6 +257,14 @@ fn zeroed_declaration_graph(
                 return false;
             }
             if let Some(member) = field.field_type.as_structural() {
+                if modulo_references
+                    && declarations.iter().any(|declaration| {
+                        declaration.id == member
+                            && matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+                    })
+                {
+                    continue;
+                }
                 pending.push((member, false));
             } else if zeroed_field_scalar(field).is_none() && !zeroed_byte_field(field) {
                 return false;
@@ -304,10 +324,34 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
     root: StructuralTypeId,
     established_fields: &[EstablishedErasedStructuralField],
 ) -> Option<Vec<ZeroedStructuralLeaf>> {
+    zeroed_structural_leaves_impl(types, root, established_fields, false)
+}
+
+/// Enumerate the zeroed leaves of a host referent whose `&` fields are
+/// established by separately supplied reference results rather than stored
+/// cells. Reference members contribute no leaves and no descent; every other
+/// member keeps its ordinary zeroed contract.
+pub fn zeroed_structural_leaves_modulo_references<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+) -> Option<Vec<ZeroedStructuralLeaf>> {
+    zeroed_structural_leaves_impl(types, root, &[], true)
+}
+
+fn zeroed_structural_leaves_impl<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    established_fields: &[EstablishedErasedStructuralField],
+    modulo_references: bool,
+) -> Option<Vec<ZeroedStructuralLeaf>> {
     let declarations: Vec<&StructuralTypeDeclaration> = types.collect();
-    if !zeroed_declaration_graph(&declarations, root, !established_fields.is_empty(), &|_| {
-        true
-    }) {
+    if !zeroed_declaration_graph(
+        &declarations,
+        root,
+        !established_fields.is_empty(),
+        modulo_references,
+        &|_| true,
+    ) {
         return None;
     }
     let mut consumed = vec![false; established_fields.len()];
@@ -348,6 +392,17 @@ pub fn zeroed_structural_leaves_with_established_erased_fields<'types>(
                     continue;
                 }
                 if let Some(member) = field.field_type.as_structural() {
+                    if modulo_references
+                        && declarations.iter().any(|declaration| {
+                            declaration.id == member
+                                && matches!(
+                                    declaration.shape,
+                                    StructuralTypeShape::Reference { .. }
+                                )
+                        })
+                    {
+                        continue;
+                    }
                     let mut member_path = path.clone();
                     member_path.push(StructuralPathSegment::Field(field.identity));
                     pending.push((member, member_path));

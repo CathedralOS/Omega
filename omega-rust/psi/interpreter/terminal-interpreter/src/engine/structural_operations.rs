@@ -30,7 +30,7 @@ use crate::storage::reference::{AggregateViewTip, translate_aggregate_view_field
 use crate::storage::runtime_rows::RuntimeRows;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IeeeFloatFormat, IeeeFloatValue, IntegerSign, IntegerType,
-    IntegerValue, ScalarType, StructuralDomainId,
+    IntegerValue, ScalarType, StructuralDomainId, StructuralTypeId,
 };
 use terminal_psi::{
     ByteSequenceCarrier, OperationKind, StructuralAccess, StructuralArgument, StructuralFieldType,
@@ -137,46 +137,12 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let (referent, _access) = self.reference_contract(result.structural_type)?;
-        if let crate::boundary::effects::results::TerminalReferencePayload::ScalarAggregate(
-            aggregate,
-        ) = &supply.referent
-        {
-            if aggregate.structural_type != referent {
-                return Err(malformed());
-            }
-            aggregate.validate_against(
-                self.structural_declaration(referent)?,
-                |identity| self.structural_types().get(&identity),
-            )?;
-        }
         let value = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
             result.structural_type,
             result.qualifications.clone(),
         );
-        let view = TerminalStructuralValue {
-            // The referent's cells root at their own identity, not beneath the
-            // carrier's tree: storing the descriptor relocates carrier-keyed
-            // rows while the referent's identity stays pinned for the loan.
-            opaque_identity: self.local_structural_identities.allocate()?,
-            structural_type: referent,
-            qualifications: Vec::new(),
-            projected_qualifications: Vec::new(),
-            path: Vec::new(),
-        };
-        match &supply.referent {
-            crate::boundary::effects::results::TerminalReferencePayload::ScalarAggregate(
-                aggregate,
-            ) => {
-                let root = StructuralRuntimePlace::from(&view);
-                let mut storage = ConstructorStorage::new(self.account.as_ref());
-                storage.stage_scalar_aggregate(self, aggregate, &root)?;
-                storage.publish(self)?;
-            }
-            crate::boundary::effects::results::TerminalReferencePayload::Zeroed => {
-                self.materialize_zeroed_structural_storage(&view)?;
-            }
-        }
+        let view = self.stage_host_referent(referent, &supply)?;
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&value),
             crate::storage::reference::ReferenceReferent {
@@ -197,6 +163,155 @@ impl TerminalExecution<'_> {
         )?;
         self.structural_values.insert(result.place, value)?;
         self.track_affine_result(result);
+        Ok(())
+    }
+
+    /// Materialize a host-reported referent: its scalar or zeroed payload
+    /// cells root at a fresh identity beneath no carrier, and each declared
+    /// `&` field underneath selects its own recursively materialized referent
+    /// through an ordinary `reference_referents` row. The referent's identity
+    /// stays pinned when the carrier descriptor relocates.
+    fn stage_host_referent(
+        &mut self,
+        referent: StructuralTypeId,
+        supply: &crate::boundary::effects::results::TerminalReferenceResult,
+    ) -> Result<TerminalStructuralValue, TerminalInterpretError> {
+        if let crate::boundary::effects::results::TerminalReferencePayload::ScalarAggregate(
+            aggregate,
+        ) = &supply.referent
+        {
+            if aggregate.structural_type != referent {
+                return Err(malformed());
+            }
+            aggregate.validate_against(
+                self.structural_declaration(referent)?,
+                |identity| self.structural_types().get(&identity),
+            )?;
+        }
+        // The host must supply every `&` field beneath the referent exactly
+        // once; an unsupplied member would read back as an empty descriptor.
+        let mut declared = Vec::new();
+        self.referent_reference_paths(referent, &mut Vec::new(), &mut declared)?;
+        if declared.len() != supply.references.len()
+            || !declared
+                .iter()
+                .all(|path| supply.references.iter().any(|(offered, _)| offered == path))
+        {
+            return Err(malformed());
+        }
+        let view = TerminalStructuralValue {
+            opaque_identity: self.local_structural_identities.allocate()?,
+            structural_type: referent,
+            qualifications: Vec::new(),
+            projected_qualifications: Vec::new(),
+            path: Vec::new(),
+        };
+        match &supply.referent {
+            crate::boundary::effects::results::TerminalReferencePayload::ScalarAggregate(
+                aggregate,
+            ) => {
+                let root = StructuralRuntimePlace::from(&view);
+                let mut storage = ConstructorStorage::new(self.account.as_ref());
+                storage.stage_scalar_aggregate(self, aggregate, &root)?;
+                storage.publish(self)?;
+            }
+            crate::boundary::effects::results::TerminalReferencePayload::Zeroed => {
+                if supply.references.is_empty() {
+                    self.materialize_zeroed_structural_storage(&view)?;
+                } else {
+                    let leaves = terminal_semantics::zeroed_structural_leaves_modulo_references(
+                        self.structural_types().values(),
+                        referent,
+                    )
+                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "host referent's zeroed leaves cannot be materialized",
+                    ))?;
+                    self.materialize_zeroed_leaves(&view, &leaves)?;
+                }
+            }
+        }
+        for (path, nested) in &supply.references {
+            let (nested_referent, _access) = self.host_referent_field_reference(referent, path)?;
+            let nested_view = self.stage_host_referent(nested_referent, nested)?;
+            self.reference_referents.insert(
+                StructuralRuntimePlace {
+                    opaque_identity: view.opaque_identity,
+                    path: terminal_semantics::canonical_structural_storage_path(
+                        self.structural_types().values(),
+                        referent,
+                        path,
+                    )
+                    .ok_or_else(malformed)?,
+                },
+                crate::storage::reference::ReferenceReferent {
+                    view: nested_view,
+                    placed: None,
+                    primitive_loan: None,
+                    collection_loan: None,
+                    byte_owner: None,
+                    byte_region: None,
+                    aggregate_view: None,
+                },
+            )?;
+        }
+        Ok(view)
+    }
+
+    /// Resolve a canonical field path beneath a referent to the `&` carrier it
+    /// selects, yielding that descriptor's declared referent and access.
+    fn host_referent_field_reference(
+        &self,
+        referent: StructuralTypeId,
+        path: &[CanonicalStructuralPathSegment],
+    ) -> Result<(StructuralTypeId, StructuralAccess), TerminalInterpretError> {
+        let mut current = referent;
+        for segment in path {
+            let CanonicalStructuralPathSegment::Field(identity) = segment
+            else {
+                return Err(malformed());
+            };
+            let StructuralTypeShape::Record { fields, .. } =
+                &self.structural_declaration(current)?.shape
+            else {
+                return Err(malformed());
+            };
+            let field = fields
+                .iter()
+                .find(|field| &field.id == identity && !field.relevance.is_erased())
+                .ok_or_else(malformed)?;
+            current = field.field_type.as_structural().ok_or_else(malformed)?;
+        }
+        self.reference_contract(current)
+    }
+
+    /// Enumerate canonical paths to every `&` field declared beneath a
+    /// referent: record members are walked; a `&` member ends its own branch.
+    fn referent_reference_paths(
+        &self,
+        referent: StructuralTypeId,
+        prefix: &mut Vec<CanonicalStructuralPathSegment>,
+        found: &mut Vec<Vec<CanonicalStructuralPathSegment>>,
+    ) -> Result<(), TerminalInterpretError> {
+        let StructuralTypeShape::Record { fields, .. } =
+            &self.structural_declaration(referent)?.shape
+        else {
+            return Ok(());
+        };
+        for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+            let Some(member) = field.field_type.as_structural() else {
+                continue;
+            };
+            prefix.push(CanonicalStructuralPathSegment::Field(field.id));
+            if matches!(
+                self.structural_declaration(member)?.shape,
+                StructuralTypeShape::Reference { .. }
+            ) {
+                found.push(prefix.clone());
+            } else {
+                self.referent_reference_paths(member, prefix, found)?;
+            }
+            prefix.pop();
+        }
         Ok(())
     }
 
@@ -544,6 +659,16 @@ impl TerminalExecution<'_> {
         .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
             "zeroed structural backing or erased establishment cannot be materialized",
         ))?;
+        self.materialize_zeroed_leaves(value, &leaves)
+    }
+
+    /// Store each enumerated zeroed leaf beneath `value`'s runtime home:
+    /// scalar cells, empty views, array storage and case discriminators.
+    fn materialize_zeroed_leaves(
+        &mut self,
+        value: &TerminalStructuralValue,
+        leaves: &[ZeroedStructuralLeaf],
+    ) -> Result<(), TerminalInterpretError> {
         let zero = |scalar_type: ScalarType| -> Option<TerminalScalarValue> {
             match scalar_type {
                 ScalarType::Boolean => Some(TerminalScalarValue::Boolean(false)),
@@ -559,7 +684,7 @@ impl TerminalExecution<'_> {
                 }
             }
         };
-        for leaf in &leaves {
+        for leaf in leaves {
             // Descended payload subtrees retain their case namespace; a final
             // Case instead selects the direct scalar/byte cell namespace.
             let storage_path = || {

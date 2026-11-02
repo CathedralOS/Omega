@@ -234,7 +234,8 @@ pub use structural::structural_window::{
 pub use structural::zeroed_structural::{
     EstablishedErasedStructuralField, ZeroedStructuralLeaf,
     zeroed_projected_byte_qualifications_hold, zeroed_structural_fields_satisfy,
-    zeroed_structural_leaves, zeroed_structural_leaves_with_established_erased_fields,
+    zeroed_structural_leaves, zeroed_structural_leaves_modulo_references,
+    zeroed_structural_leaves_with_established_erased_fields,
     zeroed_structural_shape,
 };
 
