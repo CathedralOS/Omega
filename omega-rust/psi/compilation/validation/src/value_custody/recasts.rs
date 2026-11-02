@@ -214,6 +214,22 @@ pub fn reference_formation_source(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
+    // Typing wraps mutable-to-shared attenuation in an ordinary value cast.
+    // It changes the requested access, not the underlying loan formation.
+    // Keep that operation visible to every consumer of this source relation;
+    // a cast of an ordinary stored value still forms nothing on its own.
+    if let Some(cast) = program.expression_table.cast_node(expression)
+        && cast.form == language_core::CastForm::Value
+        && cast.semantic_domain.is_empty()
+        && let Some(target) = crate::reference_shell(program, cast.target_type)
+    {
+        let mut formation = reference_formation_source(program, cast.value)?;
+        formation.access = target.access;
+        if formation.view_type.is_valid() {
+            formation.view_type = cast.target_type;
+        }
+        return Some(formation);
+    }
     if let Some(call) = program.expression_table.call_node(expression) {
         let selected = program.machine_by_symbol(call.target_symbol).or_else(|| {
             crate::machine_calls::calls::machine_state_by_symbol(program, call.target_symbol)
