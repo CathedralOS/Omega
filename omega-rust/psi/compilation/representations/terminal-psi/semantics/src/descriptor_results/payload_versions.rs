@@ -453,6 +453,75 @@ mod tests {
     }
 
     #[test]
+    fn whole_borrowed_arrival_keeps_the_original_producer_and_invalidations() {
+        use super::super::DescriptorDefinition;
+        use crate::descriptor_lifetimes::DescriptorFlowSource;
+        use terminal_psi::StructuralAccess;
+
+        let (types, mut machine) = copy_graph();
+        let identity = machine.id;
+        let borrowed = DescriptorLocation::whole(semantic_vocabulary::PlaceId::new(2).unwrap());
+        machine.originations.insert(
+            position(2),
+            vec![(
+                payload(),
+                super::super::DescriptorCallOrigin::Argument {
+                    source: payload().root,
+                    projection: super::super::Projection::new(&[]),
+                },
+            )],
+        );
+        machine.places[1].definition = DescriptorDefinition::Arrival {
+            access: StructuralAccess::SharedBorrow,
+        };
+        machine.payload_producers.remove(&position(3));
+        let capture = machine.flow.get_mut(&position(3)).unwrap();
+        capture.definitions.clear();
+        capture.derivations.clear();
+        capture.successors[0].parameters.push(borrowed.clone());
+        capture.successors[0].bindings.push(
+            DescriptorFlowBinding::new(
+                DescriptorFlowSource::Location(payload()),
+                borrowed.clone(),
+                StructuralAccess::SharedBorrow,
+                StructuralAccess::SharedBorrow,
+            )
+            .unwrap(),
+        );
+        let query = DescriptorContentsQuery::from_location(&borrowed);
+        let mut graph = vec![machine];
+        let observe = |graph: &[DescriptorMachine]| {
+            unchanged_payload_producer(&types, graph, identity, position(5), &query)
+        };
+        assert_eq!(
+            observe(&graph).unwrap(),
+            ProducedPayloadVersion {
+                producer: position(2),
+                payload: payload()
+            },
+        );
+        // A write through this alias retires the same original observation.
+        graph[0]
+            .payload_invalidations
+            .insert(position(4), vec![Some(query.clone())]);
+        assert!(observe(&graph).is_err());
+        graph[0].payload_invalidations.clear();
+        // Owned arrival is value transport, not an alias to the old home.
+        graph[0].places[1].definition = DescriptorDefinition::Arrival {
+            access: StructuralAccess::Owned,
+        };
+        graph[0].flow.get_mut(&position(3)).unwrap().successors[0].bindings[0] =
+            DescriptorFlowBinding::new(
+                DescriptorFlowSource::Location(payload()),
+                borrowed,
+                StructuralAccess::Owned,
+                StructuralAccess::Owned,
+            )
+            .unwrap();
+        assert!(observe(&graph).is_err());
+    }
+
+    #[test]
     fn ambiguous_producers_and_unfinished_results_do_not_supply_a_version() {
         let (types, machine) = copy_graph();
         let identity = machine.id;
