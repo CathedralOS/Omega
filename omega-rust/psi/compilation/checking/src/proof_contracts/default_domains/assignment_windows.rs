@@ -243,20 +243,12 @@ pub(crate) fn handle_assignment<'program>(
     };
     let definite = origins.destinations.len() == 1;
     for origin in origins.destinations {
-        let (destination, preserves_scalar_value) = if let Some(scalar) =
-            origin.scalar_storage_coordinate(program, state)
-        {
-            (scalar.place, definite && scalar.preserves_scalar_value)
-        } else if origin.recasts.is_empty()
-            && origin.representation.is_none()
-            && origin.root.is_valid()
+        let (destination, preserves_scalar_value) = if let Some(coordinate) =
+            origin.storage_coordinate(program, state)
         {
             (
-                crate::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(origin.root),
-                    segments: origin.segments,
-                },
-                definite,
+                coordinate.place,
+                definite && coordinate.preserves_scalar_value,
             )
         } else {
             diagnostics.push(Diagnostic::error("cannot establish assignment invariants: source storage interpretation is unavailable"));

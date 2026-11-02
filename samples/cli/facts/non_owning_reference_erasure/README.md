@@ -3,7 +3,8 @@
 Fact: explicit non-owning reference erasure writes 73 to the original record
 without minting routed membership.
 
-Parent: `DOMAIN-ACCESS-AUTHORITY` in [TASKS.md](../../../../TASKS.md).
+Parents: `DOMAIN-ACCESS-AUTHORITY` and `BUILD-OWNED-TARGET-SELECTION` in
+[TASKS.md](../../../../TASKS.md).
 This isolates ordinary explicit erasure before implementing retained read/write
 policy. No access clauses are declared here, so acceptance cannot establish
 policy enforcement or establish post-mutation qualification restoration under
@@ -26,6 +27,16 @@ provenance". `omega run --both` exits 200 before either engine executes.
 The immutable producer digest is
 `0597ba558223a3f3e0cdc8929fbf357f9cac57c57e7b2030fed10f8687bd47d8`;
 build receipt, profile and raw refusal are retained under `build/`.
+
+The Build migration replaces the target-prefixed `write` family with the ordinary
+`ErasedWrite` boundary and checked `ErasedWriteCode` implementation, selected
+explicitly for each hosted target. It preserves the incoming `Issued` contract
+and the original store. The current retained baseline refuses both the original
+root and family body because it loses the source storage interpretation; the
+ordinary selected implementation additionally exposes the missing named-body
+non-observation association. These attempted checks are not engine successes.
+Current migration acceptance remains open until the repaired producer runs the
+whole row and intended controls.
 
 The nine places are `local`, `field`, `parameter`, `call_result`, `match_join`,
 `const_name`, `other_state`, `other_machine`, and `target_body`. Each contains

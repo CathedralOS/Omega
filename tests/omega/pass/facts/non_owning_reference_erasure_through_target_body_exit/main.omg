@@ -5,25 +5,18 @@ domain Storage::Issued established by issue;
 domain Storage::Reissued established by reissue;
 machine issue(value: u32) -> Storage in Issued { Storage { value: value } }
 machine reissue(value: u32) -> Storage in Reissued { Storage { value: value } }
-windows_x86_64 machine write(storage: &write Storage in Issued) {
-    let view: &write Storage = storage as &write Storage;
-    view.value = 73;
+boundary trait ErasedWrite {
+    machine write(storage: &write Storage in Issued) reaches;
 }
-linux_x86_64 machine write(storage: &write Storage in Issued) {
+ErasedWriteCode satisfies ErasedWrite {
+    machine write(storage: &write Storage in Issued) {
     let view: &write Storage = storage as &write Storage;
     view.value = 73;
-}
-macos_arm64 machine write(storage: &write Storage in Issued) {
-    let view: &write Storage = storage as &write Storage;
-    view.value = 73;
-}
-linux_arm64 machine write(storage: &write Storage in Issued) {
-    let view: &write Storage = storage as &write Storage;
-    view.value = 73;
+    }
 }
 machine main() crashes Trap {
     let mut storage: Storage in Issued = issue(0);
-    write(&write storage);
+    ErasedWrite::write(&write storage);
     transition storage.value == 73 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
