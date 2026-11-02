@@ -440,6 +440,7 @@ impl<'a> Admission<'a> {
                         let sources = self
                             .frames
                             .assignment_storage_origins(machine, statement)
+                            .ok()
                             .map(|storage| storage.destinations)
                             .or_else(|| {
                                 self.owned_destination(machine, body, ordinal, assignment.target)
@@ -527,7 +528,7 @@ impl<'a> Admission<'a> {
         }
         Some(vec![LocalWriteSource {
             invocation_output: None,
-        invocation_result: None,
+            invocation_result: None,
             is_image_storage: false,
             root,
             segments: place.segments,

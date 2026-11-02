@@ -61,7 +61,6 @@ fn prepare_target(
         context: services.context(),
         exact_toolchain_sources: inputs.exact_toolchain_sources,
         application_roots: None,
-        application_scopes: &[],
         overrides: inputs.requested,
         assumed_bindings: &[],
         independent_components: &[],

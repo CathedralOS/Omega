@@ -45,12 +45,179 @@ use facts::{
 use typed_trees::expression::{ExpressionHandle, TableCallExpression};
 use validation::{
     CanonicalPlace, canonical_place_type_reference, captured_integer_value,
-    declared_place_type_raw, effective_member_symbol,
-    has_builtin_bound_expression_meaning, indexed_operation_has_builtin_meaning,
-    owned_projection_type_reference, reference_shell,
+    declared_place_type_raw, effective_member_symbol, has_builtin_bound_expression_meaning,
+    indexed_operation_has_builtin_meaning, owned_projection_type_reference, reference_shell,
 };
 
 impl Execution<'_, '_, '_> {
+    /// Bind a prepared pointer resource to the actual completed slot read.
+    /// The access certificate precedes activation: this child permission can
+    /// never establish the read that supplies it. Owned copies and selections
+    /// retain their earlier producers rather than receiving a new namespace.
+    pub(super) fn retain_descriptor_permission(
+        &mut self,
+        capture: &mut FlowOperandFact,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
+    ) {
+        let Some((_, state)) = self
+            .borrow
+            .first_state_borrow(self.machine.symbol, self.state.symbol)
+        else {
+            return;
+        };
+        let mut resources = self.borrow.state_loans(state).filter(|(_, loan)| {
+            loan.statement_index == self.statement_index
+                && loan.storage_owner == PlaceRoot::Expression(capture.expression)
+                && loan.formation_expression == capture.expression
+                && self
+                    .borrow
+                    .incoming_references
+                    .is_valid(loan.incoming_reference)
+                && matches!(self.borrow.incoming_references.get(loan.incoming_reference).origin,
+                    checked_trees::IncomingReferenceOrigin::DescriptorLoad { expression }
+                        if expression == capture.expression)
+        });
+        let Some((handle, loan)) = resources.next() else {
+            return;
+        };
+        if resources.next().is_some() {
+            return;
+        }
+        if capture.descriptor_loan.is_valid()
+            || !matches!(
+                capture.completion,
+                checked_trees::FlowOperandCompletion::Observation
+            )
+            || validation::reference_shell(self.program, capture.type_reference).is_none()
+            || !self
+                .context
+                .control
+                .case_accesses
+                .is_valid(capture.case_access)
+        {
+            return;
+        }
+        let access = self.context.control.case_accesses.get(capture.case_access);
+        if access.machine_symbol != self.machine.symbol
+            || access.state_symbol != self.state.symbol
+            || access.statement_index != self.statement_index
+            || access.expression != capture.expression
+            || access.evaluation != self.evaluation
+            || access.places.is_empty()
+        {
+            return;
+        }
+        // Preserve produced copies and current stored suppliers. An abstract
+        // incoming slot is the one operation needing a new opaque child. Its
+        // receiver and selectors have already run at this storage snapshot.
+        if !self.context.control.operands.is_valid(capture.backing) {
+            return;
+        }
+        let receiver = self.context.control.operands.get(capture.backing);
+        let Some(source) = place_at(
+            self.program,
+            self.state.symbol,
+            self.statement_index,
+            capture.expression,
+        ) else {
+            return;
+        };
+        let Some(parent) = place_at(
+            self.program,
+            self.state.symbol,
+            self.statement_index,
+            receiver.expression,
+        ) else {
+            return;
+        };
+        if source.root != parent.root || !source.segments.starts_with(&parent.segments) {
+            return;
+        }
+        let projection = &source.segments[parent.segments.len()..];
+        let incoming = validation::completed_storage::reference_sources_at_path(
+            self.program,
+            &self.context.control,
+            capture.backing,
+            projection,
+            capture.storage_snapshot,
+        );
+        fn complete_incoming(
+            program: &dyn validation::CheckingInput,
+            state: &typed_trees::state::State,
+            source: &validation::completed_storage::StoredOperand,
+        ) -> bool {
+            use validation::completed_storage::StoredOperand;
+            match source {
+                StoredOperand::Incoming(place) => place.root.as_symbol().is_some_and(|symbol| {
+                    program.state_parameter_by_symbol(state, symbol).is_some()
+                }),
+                StoredOperand::Alternatives(alternatives) => {
+                    !alternatives.is_empty()
+                        && alternatives
+                            .iter()
+                            .all(|source| complete_incoming(program, state, source))
+                }
+                StoredOperand::Value { .. } | StoredOperand::Unavailable => false,
+            }
+        }
+        if !complete_incoming(self.program, self.state, &incoming) {
+            return;
+        }
+        if !self
+            .context
+            .control
+            .operand_retentions
+            .is_valid(capture.retention)
+        {
+            return;
+        }
+        let observations = self
+            .context
+            .control
+            .statements
+            .get(self.statement_fact)
+            .value_observations;
+        let mut reads = observations.handles().filter(|handle| {
+            let read = self.context.control.value_observations.get(*handle);
+            read.expression == capture.expression
+                && read.evaluation == self.evaluation
+                && read.receiver == capture.backing
+                && read.constraints == access.constraints
+                && !read.places.is_empty()
+        });
+        let Some(read) = reads.next() else {
+            return;
+        };
+        if reads.next().is_some() {
+            return;
+        }
+        // A prepared row is not an entry hypothesis. Only the real completed
+        // value carries its lifetime; an unavailable source keeps refusing.
+        capture.descriptor_loan = handle;
+        capture.descriptor_read = read;
+        capture.referents = self.append_referent_places(&[validation::CanonicalPlace {
+            root: loan.root,
+            segments: Vec::new(),
+        }]);
+        let formation_value = self.context.control.operands.append(*capture);
+        self.context
+            .borrow_lifetimes
+            .activations
+            .append(checked_trees::FlowBorrowActivationFact {
+                source: checked_trees::FlowInvalidationSource::Statement {
+                    statement_index: self.statement_index,
+                },
+                loan: handle,
+                formation_value,
+            });
+        crate::flow::reference_spans::append_constraint_ref(
+            &mut self.context.contexts.constraint_refs,
+            constraints,
+            checked_trees::FlowConstraintKind::BorrowLoan { loan: handle },
+        );
+        capture.constraints = *constraints;
+    }
+
     /// Observe the stored descriptors carried by one completed owned value.
     /// This is the same inventory used by selected payload copies; physical
     /// addresses are supplied by the evaluator, not recovered from an initializer.
@@ -284,9 +451,7 @@ impl Execution<'_, '_, '_> {
             .map(|(_, state)| self.program.state_parameters(state))
             .or_else(|| {
                 validation::selected_requirement_signature(self.program, entered_target)
-                    .map(|(_, signature)| {
-                        self.program.state_signature_parameters(signature)
-                    })
+                    .map(|(_, signature)| self.program.state_signature_parameters(signature))
             })
         else {
             return Some(HandleSpan::empty());
@@ -697,9 +862,7 @@ impl Execution<'_, '_, '_> {
             .map(|(_, state)| self.program.state_parameters(state))
             .or_else(|| {
                 validation::selected_requirement_signature(self.program, entered_target)
-                    .map(|(_, signature)| {
-                        self.program.state_signature_parameters(signature)
-                    })
+                    .map(|(_, signature)| self.program.state_signature_parameters(signature))
             })
         else {
             return;

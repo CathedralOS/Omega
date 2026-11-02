@@ -618,7 +618,7 @@ crashes Trap
     }
 }
 
-machine Checker::binder_terminates(syntax: &SyntaxTrees, resolution: &NameResolution, parameter: u64 in Trapping) -> bool
+public machine Checker::binder_terminates(syntax: &SyntaxTrees, resolution: &NameResolution, parameter: u64 in Trapping) -> bool
 crashes Trap
 {
     let clauses: CallClauses = Checker::call_clauses(syntax, resolution, Selection::Binder { parameter: parameter });

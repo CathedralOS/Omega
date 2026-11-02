@@ -449,6 +449,30 @@ impl<'program> Encoder<'program> {
     fn array_length(&self, length: &FixedArrayLength, frame: usize) -> Result<usize, String> {
         match length {
             FixedArrayLength::Literal(length) => Ok(*length),
+            FixedArrayLength::Expression(argument) => {
+                let TypeReference::ConstExpression(value) =
+                    self.program.child_type_reference(*argument)
+                else {
+                    return Err("materialized array extent is not a completed value".into());
+                };
+                let ExpressionNode::Integer(literal) = self
+                    .program
+                    .tables
+                    .bodies
+                    .expressions
+                    .expression(value.expression)
+                else {
+                    return Err(
+                        "materialized array extent is not a completed integer literal".into(),
+                    );
+                };
+                literal
+                    .value_u64()
+                    .and_then(|value| usize::try_from(value).ok())
+                    .ok_or_else(|| {
+                        "materialized array extent is not a nonnegative host-sized integer".into()
+                    })
+            }
             FixedArrayLength::ConstParameter { symbol, .. } => {
                 if symbol.is_valid() && self.program.symbols.get(*symbol).kind == SymbolKind::Const
                 {

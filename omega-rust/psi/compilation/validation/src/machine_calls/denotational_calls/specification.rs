@@ -46,6 +46,27 @@ pub(crate) fn validate_specification_calls(
     pending.extend(crate::mathematical_applications::scoped_expression_nodes(
         program,
     ));
+    // Ranking subjects, view arguments and ranges are specification values,
+    // with the same selected-call purity and progress debts as proof facts.
+    // Keep their exact machine telescope; executable endpoint applications
+    // later rejoin these requests rather than inventing statement calls.
+    for machine in program.machines() {
+        if let Some(custody) = program.ranking_expression_custody_for(machine.symbol) {
+            pending.extend(
+                custody
+                    .subjects
+                    .iter()
+                    .map(|value| (machine.symbol, *value)),
+            );
+            pending.extend(
+                custody
+                    .view_arguments
+                    .iter()
+                    .map(|value| (machine.symbol, *value)),
+            );
+            pending.extend(custody.rank_range.map(|value| (machine.symbol, value)));
+        }
+    }
     // Declared value bodies have the same operational admission obligations
     // as specification expressions. Application formation separately proves
     // argument requirements under the exact supplying values; a result

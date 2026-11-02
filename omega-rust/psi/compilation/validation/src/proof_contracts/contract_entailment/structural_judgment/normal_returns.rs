@@ -979,13 +979,15 @@ impl<'program> StructuralJudge<'program> {
         Some(paths)
     }
 
-    /// Complete a declaration's actuals in source order before checking its
-    /// receiving contract. Named transitions and expression calls share the
-    /// same operand scheduler; the destination's ensures are never available.
+    /// Complete operand effects in source order and retain the demanded value
+    /// observations. An authenticated referent query needs the completed cut,
+    /// not an aggregate value assembled from its scalar reads. Named transitions
+    /// and expression calls share this scheduler; callee ensures are absent.
     pub(in crate::proof_contracts::contract_entailment) fn normal_argument_entries(
         &self,
         arguments: &[ExpressionHandle],
         parameters: &[typed_trees::signature::StateParameter],
+        requested: OperationOperandDemand<'_>,
         environment: &[(String, StructuralTerm)],
         scope: ValueScope<'_>,
         invocation: Option<crate::CallSite<'_>>,
@@ -998,11 +1000,24 @@ impl<'program> StructuralJudge<'program> {
             invocation,
             OperationObservations::none(),
             &mut NormalObservationEntries::default(),
-            NormalValueDemand::Value,
+            match requested {
+                OperationOperandDemand::All => NormalValueDemand::Value,
+                OperationOperandDemand::Selected(values) => NormalValueDemand::ObserveOnly(values),
+            },
         )?;
         entries
             .iter()
-            .all(|entry| entry.arguments.iter().all(Option::is_some))
+            .all(|entry| {
+                arguments
+                    .iter()
+                    .zip(&entry.arguments)
+                    .all(|(argument, value)| match requested {
+                        OperationOperandDemand::All => value.is_some(),
+                        OperationOperandDemand::Selected(values) => {
+                            !values.contains(argument) || value.is_some()
+                        }
+                    })
+            })
             .then_some(entries)
     }
 

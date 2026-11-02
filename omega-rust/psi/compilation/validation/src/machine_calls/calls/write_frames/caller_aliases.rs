@@ -302,9 +302,10 @@ impl From<FramePlaceOrigin> for LocalWriteSource {
     fn from(origin: FramePlaceOrigin) -> Self {
         Self {
             invocation_output: origin.source.output_identity(),
-            invocation_result: origin.source.result_home().map(|(call, referent)| {
-                InvocationResultHome { call, referent }
-            }),
+            invocation_result: origin
+                .source
+                .result_home()
+                .map(|(call, referent)| InvocationResultHome { call, referent }),
             is_image_storage: origin.source.is_static(),
             recasts: origin.source.recasts,
             representation: origin.source.representation,
@@ -355,26 +356,31 @@ pub(super) fn assignment_write_paths(
     machine_symbols: &super::MachineSymbols<'_>,
     statement: &StatementNode,
     state_assignments: &StateAssignments<'_>,
+    state_prefix: &dyn Fn(&State, usize) -> Option<CollectedStatementPrefix>,
 ) -> Option<Vec<String>> {
-    let evidence = assignment_evidence(program, machine, symbols, statement, state_assignments)?;
-    match evidence.target {
-        AssignmentWriteTarget::LocalBindingReplacement { path } => Some(vec![path]),
-        AssignmentWriteTarget::Storage { .. } => {
-            let destinations = assignment_storage_origins(
-                program,
-                machine,
-                symbols,
-                machine_symbols,
-                statement,
-                state_assignments,
-            )?
-            .destinations;
-            destinations
-                .iter()
-                .map(|destination| destination.write_path(program))
-                .collect()
-        }
+    // Address capture precedes the current store's footprint. Its incoming
+    // prefix is available even when a whole-state summary stops at this store.
+    // A proved local binding replacement remains a private descriptor write.
+    if let Some(AssignmentEvidence {
+        target: AssignmentWriteTarget::LocalBindingReplacement { path },
+    }) = assignment_evidence(program, machine, symbols, statement, state_assignments)
+    {
+        return Some(vec![path]);
     }
+    assignment_storage_origins(
+        program,
+        machine,
+        symbols,
+        machine_symbols,
+        statement,
+        state_assignments,
+        state_prefix,
+    )
+    .ok()?
+    .destinations
+    .iter()
+    .map(|destination| destination.write_path(program))
+    .collect()
 }
 
 /// Address provenance of the performed store, not the contents before it.
@@ -388,29 +394,40 @@ pub(super) fn assignment_storage_origins(
     machine_symbols: &super::MachineSymbols<'_>,
     statement: &StatementNode,
     state_assignments: &StateAssignments<'_>,
-) -> Option<AssignmentStorageOrigins> {
+    state_prefix: &dyn Fn(&State, usize) -> Option<CollectedStatementPrefix>,
+) -> Result<AssignmentStorageOrigins, &'static str> {
     let (state, _, index) =
-        caller_statement_owner(program, machine, CallerWriteSite::Statement(statement))?;
+        caller_statement_owner(program, machine, CallerWriteSite::Statement(statement))
+            .ok_or("assignment has no exact caller statement owner")?;
     let assignments = state_assignments(state);
-    let evidence = assignments
+    let summary = assignments
         .iter()
         .find(|(ordinal, _)| *ordinal == index)
         .map(|(_, evidence)| evidence);
-    if evidence.is_some_and(|evidence| {
+    if summary.is_some_and(|evidence| {
         matches!(
             evidence.target,
             AssignmentWriteTarget::LocalBindingReplacement { .. }
         )
     }) {
-        return Some(AssignmentStorageOrigins {
+        return Ok(AssignmentStorageOrigins {
             destinations: Vec::new(),
             references: Some(Vec::new()),
         });
     }
-    let assignment = statement.as_assignment()?;
+    // The address is captured before the performed store. A complete incoming
+    // prefix can exist even when summarizing that very store fails; demanding
+    // its completed footprint here makes origin inference circular. The same
+    // ordinary prefix owner supplies all aliases and stored alternatives.
+    let incoming = state_prefix(state, index);
+    let evidence = incoming.as_ref();
+    let assignment = statement
+        .as_assignment()
+        .ok_or("write query is not an assignment")?;
     let receiving = super::reference_subjects::assignment_stored_value_type(
         program, machine, state, assignment,
-    )?;
+    )
+    .ok_or("assignment has no exact receiving storage type")?;
     let mut inference = FrameInference::for_state(state.symbol);
     if let Some(evidence) = evidence {
         for local in &evidence.stored {
@@ -454,13 +471,16 @@ pub(super) fn assignment_storage_origins(
     if let Some(place) =
         declared_assignment_place(program, machine, state, assignment.target, receiving)
     {
-        let root = place.root.as_symbol()?;
+        let root = place
+            .root
+            .as_symbol()
+            .ok_or("declared destination has no source root")?;
         let (path, precision) = super::place_paths::coordinate_storage_path(
             program,
             program.symbols.name(root),
             &place.segments,
         );
-        return Some(AssignmentStorageOrigins {
+        return Ok(AssignmentStorageOrigins {
             destinations: vec![LocalWriteSource {
                 invocation_output: None,
                 invocation_result: None,
@@ -483,53 +503,67 @@ pub(super) fn assignment_storage_origins(
             }),
         });
     }
-    let evidence = evidence.filter(|_| prefix_preserved)?;
-    if crate::reference_shell(program, receiving).is_some() {
-        let source =
-            super::stored_origins::binding_source(program, assignment.target, &evidence.aliases)?;
-        if !source.root.is_valid() || !source.builtin_coordinates {
-            return None;
-        }
-        let (path, precision) = super::place_paths::coordinate_storage_path(
-            program,
-            program.symbols.name(source.root),
-            &source.segments,
-        );
-        return Some(AssignmentStorageOrigins {
-            destinations: vec![LocalWriteSource {
-                invocation_output: None,
-                invocation_result: None,
-                is_image_storage: source.is_static(),
-                recasts: source.recasts,
-                representation: source.representation,
-                path,
-                collection_coarse: precision == FramePathPrecision::CollectionCoarse,
-                root: source.root,
-                segments: source.segments,
-            }],
-            references: prefix_reference_origins(
-                program,
-                Some((state, index)),
-                &evidence.stored,
-                &evidence.aliases,
-                &evidence.divergent,
-            ),
-        });
+    let evidence = evidence.ok_or("assignment has no complete incoming storage prefix")?;
+    if !prefix_preserved {
+        return Err("assignment operand does not preserve the captured storage prefix");
     }
-    let origins = super::alias_origins::stable_alias_initializer_origins(
-        program,
-        machine,
-        machine_symbols,
-        &mut inference,
-        assignment.target,
-        program.state_parameters(state),
-        &evidence.isolated_locals,
-        &evidence.aliases,
-        &evidence.divergent,
-        symbols,
-        true,
-        &evidence.stored,
-    )?;
+    let origins = if crate::reference_shell(program, receiving).is_some() {
+        // Replacing a descriptor captures its home, after loading only the
+        // ancestor descriptors. Reusing a spelling here would leave an owned
+        // carrier's field confused with storage in its borrowed referent.
+        let source = super::frame_place_path(program, assignment.target)
+            .ok_or("reference-cell destination has no exact storage source")?;
+        super::stored_origins::canonical_storage_origins(
+            program,
+            &source,
+            &evidence.aliases,
+            &evidence.stored,
+        )
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+    } else {
+        super::alias_origins::stable_alias_initializer_origins(
+            program,
+            machine,
+            machine_symbols,
+            &mut inference,
+            assignment.target,
+            program.state_parameters(state),
+            &evidence.isolated_locals,
+            &evidence.aliases,
+            &evidence.divergent,
+            symbols,
+            true,
+            &evidence.stored,
+        )
+    }
+    .ok_or_else(|| {
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            let describe = |origin: &FramePlaceOrigin| (
+                origin.source.root,
+                origin.source.segments.iter().take(16).copied().collect::<Vec<_>>(),
+                origin.source.output_identity(),
+                origin.source.is_static(),
+                origin.precision,
+            );
+            eprintln!("CHECKSITE assignment-origin-refusal receiving={:?} reference_cell={} raw={:?} aliases={:?} stored={:?}",
+                program.type_reference_table.type_reference(receiving),
+                crate::reference_shell(program, receiving).is_some(),
+                super::frame_place_path(program, assignment.target).as_ref().map(&describe),
+                evidence.aliases.iter().take(8).map(|(name, origin)| (name, describe(origin))).collect::<Vec<_>>(),
+                evidence.stored.iter().take(8).map(|local| (
+                    local.local_symbol,
+                    local.references.iter().take(12).map(|leaf| (
+                        leaf.kind,
+                        leaf.local_segments.iter().take(16).copied().collect::<Vec<_>>(),
+                        leaf.origin.as_ref().map(&describe),
+                        leaf.lifetime_dependencies.as_ref().map(|dependencies| dependencies.iter().take(8).map(|source| (source.lifetime_access, describe(&source.origin))).collect::<Vec<_>>()),
+                    )).collect::<Vec<_>>(),
+                )).collect::<Vec<_>>(),
+            );
+        }
+        "destination projection has no complete captured reference origins"
+    })?;
     // The initializer owner completed every selected load against this entry
     // inventory. These are captured addresses, not slots to read a second time.
     let mut destinations = Vec::new();
@@ -539,7 +573,7 @@ pub(super) fn assignment_storage_origins(
             destinations.push(destination);
         }
     }
-    Some(AssignmentStorageOrigins {
+    Ok(AssignmentStorageOrigins {
         destinations,
         references: prefix_reference_origins(
             program,

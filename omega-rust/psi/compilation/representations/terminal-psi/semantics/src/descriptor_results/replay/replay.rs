@@ -86,6 +86,36 @@ pub(super) struct Replay<'a> {
     pub(super) snapshots: BTreeMap<MachineId, Option<Arc<States>>>,
     pub(super) arrival_snapshots: BTreeMap<MachineId, Option<States>>,
 }
+/// One query owns the recursion guard across descriptor and contents reads.
+/// Resetting it at a pointer crossing would let mutually recursive backing
+/// expansions bypass each traversal's local bound. The guard is stack-local;
+/// branches share depth, never a total-work budget or mutable replay state.
+#[derive(Default)]
+pub(super) struct DescriptorReadDepth {
+    depth: std::cell::Cell<usize>,
+}
+
+pub(super) struct DescriptorReadGuard<'depth> {
+    depth: &'depth std::cell::Cell<usize>,
+}
+
+impl DescriptorReadDepth {
+    pub(super) fn enter(&self) -> Option<DescriptorReadGuard<'_>> {
+        let depth = self.depth.get();
+        if depth >= 128 {
+            return None;
+        }
+        self.depth.set(depth + 1);
+        Some(DescriptorReadGuard { depth: &self.depth })
+    }
+}
+
+impl Drop for DescriptorReadGuard<'_> {
+    fn drop(&mut self) {
+        self.depth.set(self.depth.get() - 1);
+    }
+}
+
 impl<'a> Replay<'a> {
     pub(super) fn new(
         types: &'a [StructuralTypeDeclaration],
@@ -162,7 +192,7 @@ impl<'a> Replay<'a> {
     /// complete representation instead of requiring a nominal leaf type.
     /// The retained origin supplies the address; this relation supplies no
     /// access, lifetime or foreign pointer footprint authority.
-    fn reference_backing_matches(
+    pub(super) fn reference_backing_matches(
         &self,
         machine: &DescriptorMachine,
         backing: &DescriptorLocation,
@@ -406,6 +436,17 @@ impl<'a> Replay<'a> {
         state: &State,
         location: &DescriptorLocation,
     ) -> Value {
+        self.read_with_depth(machine, state, location, &DescriptorReadDepth::default())
+    }
+
+    pub(super) fn read_with_depth(
+        &self,
+        machine: &DescriptorMachine,
+        state: &State,
+        location: &DescriptorLocation,
+        depth: &DescriptorReadDepth,
+    ) -> Value {
+        let _read = depth.enter()?;
         // Distinct element origins are not one address. Keep the queried path
         // and let the family below return every storage alternative.
         let location = match self.resolve_storage(machine, state, location)? {
@@ -418,7 +459,7 @@ impl<'a> Replay<'a> {
         // an Incoming slot, not an inline subtree of the containing argument.
         // A descriptor endpoint instead needs its own contents observation.
         if let Some(carrier) = self.reference_referent_carrier(machine, &location)? {
-            return self.read(machine, state, &carrier);
+            return self.read_with_depth(machine, state, &carrier, depth);
         }
         // The pointer temporary's origin is the pointee carrier. An unfilled
         // child slot on the temporary is not an invalidated owned subtree.
@@ -436,6 +477,25 @@ impl<'a> Replay<'a> {
             if value.is_some() || location.path.is_empty() || !external_pointee {
                 return value.clone();
             }
+        }
+        if self.slot_kind.tracks_references()
+            && location.path.contains(&DescriptorPathSegment::Referent)
+            && descriptor_location_type(
+                self.types,
+                *machine.place_types.get(&location.root)?,
+                &location.path,
+            )
+            .is_some_and(|endpoint| self.slot_kind.is_slot(self.types, endpoint))
+        {
+            // A descriptor behind a pointer is a current contents read. The
+            // owned-subtree fallback below would name the slot's address,
+            // while an opaque pointee is not a missing owned field.
+            return self.read_contents_with_depth(
+                machine,
+                state,
+                &DescriptorContentsQuery::from_location(&location),
+                depth,
+            );
         }
         if self.slot_kind == DescriptorSlotKind::AccessOrigins {
             // The most specific current descriptor/placed borrow supplies its
@@ -526,11 +586,30 @@ impl<'a> Replay<'a> {
             state
                 .slots_mut()
                 .insert(DescriptorLocation::whole(row.place), None);
-            let inventory = self.slot_kind.inventory(
-                self.types,
-                row.place,
-                *machine.place_types.get(&row.place)?,
-            )?;
+            // Only words contained in this carrier exist in its initial store.
+            // A reachable-type inventory crosses pointers and would install
+            // unknown local slots over the pointee observations that completed
+            // reads must obtain separately. Entry pointers retain their own
+            // values; demanded pointee contents go through the shared query.
+            let inventory = if self.slot_kind.tracks_references() {
+                DescriptorSlotInventory {
+                    slots: self.slot_kind.owned_slots(
+                        self.types,
+                        row.place,
+                        *machine.place_types.get(&row.place)?,
+                    )?,
+                    opaque_referents: Vec::new(),
+                }
+            } else {
+                // View-only and access-token replay do not retain ordinary
+                // pointer values. Their separate reachable inventories remain
+                // conservative; they cannot use the pointer-contents route.
+                self.slot_kind.inventory(
+                    self.types,
+                    row.place,
+                    *machine.place_types.get(&row.place)?,
+                )?
+            };
             for slot in inventory.slots.iter().chain(&inventory.opaque_referents) {
                 state.slots_mut().insert(slot.clone(), None);
             }
@@ -1650,6 +1729,31 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
 }
 
 impl State {
+    pub(super) fn contents_path_invalidated(&self, query: &DescriptorContentsQuery) -> bool {
+        if query
+            .exact_location()
+            .is_some_and(|location| self.slots.get(&location).is_some_and(Option::is_some))
+        {
+            return false;
+        }
+        self.slots.iter().any(|(prefix, value)| {
+            value.is_none()
+                && prefix.root == query.root
+                && !prefix.path.is_empty()
+                && prefix.path.len() <= query.steps.len()
+                && prefix.path.iter().zip(&query.steps).all(|(segment, step)| {
+                    matches!(step, DescriptorContentsStep::Address(actual) if actual == segment)
+                        || matches!(
+                            (segment, step),
+                            (
+                                DescriptorPathSegment::FixedIndex(_),
+                                DescriptorContentsStep::AnyElement { .. }
+                            )
+                        )
+                })
+        })
+    }
+
     pub(super) fn slots_mut(&mut self) -> &mut Slots {
         Arc::make_mut(&mut self.slots)
     }
@@ -1713,8 +1817,11 @@ mod snapshot_tests {
         let block = BlockId::new(1).unwrap();
         let positions = [(block, 0), (block, 1), (block, 2)];
         let parameter = location(1);
+        let replacement_parameter = location(2);
         let scalar = StructuralTypeId::new(1).unwrap();
         let carrier = StructuralTypeId::new(2).unwrap();
+        let collection = StructuralTypeId::new(3).unwrap();
+        let element = StructuralTypeId::new(4).unwrap();
         let referent = StructuralTypeDeclaration {
             quotient_carrier: None,
             id: scalar,
@@ -1732,12 +1839,30 @@ mod snapshot_tests {
             id: carrier,
             identity: TerminalIdentityIndex(2),
             shape: StructuralTypeShape::Reference {
-                referent: scalar,
+                referent: collection,
                 access: StructuralAccess::SharedBorrow,
             },
             ..referent.clone()
         };
-        let types = vec![referent, reference];
+        let pointer = StructuralTypeDeclaration {
+            id: element,
+            identity: TerminalIdentityIndex(4),
+            shape: StructuralTypeShape::Reference {
+                referent: scalar,
+                access: StructuralAccess::SharedBorrow,
+            },
+            ..reference.clone()
+        };
+        let array = StructuralTypeDeclaration {
+            id: collection,
+            identity: TerminalIdentityIndex(3),
+            shape: StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(1),
+            },
+            ..reference.clone()
+        };
+        let types = vec![referent, reference, array, pointer];
         let mut flow = BTreeMap::new();
         for (index, position) in positions.iter().copied().enumerate() {
             let mut step = DescriptorFlowStep::default();
@@ -1756,15 +1881,28 @@ mod snapshot_tests {
         let mut graph = vec![DescriptorMachine {
             id,
             returns: None,
-            places: vec![DescriptorPlace {
-                place: parameter.root,
-                definition: DescriptorDefinition::Parameter {
-                    position: 0,
-                    access: StructuralAccess::Owned,
-                    structural_type: carrier,
+            places: vec![
+                DescriptorPlace {
+                    place: parameter.root,
+                    definition: DescriptorDefinition::Parameter {
+                        position: 0,
+                        access: StructuralAccess::Owned,
+                        structural_type: carrier,
+                    },
                 },
-            }],
-            place_types: BTreeMap::from([(parameter.root, carrier)]),
+                DescriptorPlace {
+                    place: replacement_parameter.root,
+                    definition: DescriptorDefinition::Parameter {
+                        position: 1,
+                        access: StructuralAccess::Owned,
+                        structural_type: carrier,
+                    },
+                },
+            ],
+            place_types: BTreeMap::from([
+                (parameter.root, carrier),
+                (replacement_parameter.root, carrier),
+            ]),
             entry: positions[0],
             flow,
             case_constructors: BTreeMap::new(),
@@ -1812,6 +1950,37 @@ mod snapshot_tests {
             Some(&original)
         );
         assert_eq!(edited.slots.get(&parameter), Some(&None));
+
+        // A captured pointer can reveal a nested descriptor without declaring
+        // that pointee as local storage. Both read entrances must still honor
+        // a subsequent explicit ancestor invalidation at the current carrier.
+        let mut ancestor = parameter.clone();
+        ancestor.path.push(DescriptorPathSegment::Referent);
+        let mut leaf = ancestor.clone();
+        leaf.path.push(DescriptorPathSegment::FixedIndex(0));
+        let query = DescriptorContentsQuery::from_location(&leaf);
+        let mut current = completed[&positions[0]].clone();
+        let observed = replay.read(&graph[0], &current, &leaf);
+        assert!(observed.is_some());
+        assert_eq!(replay.read_contents(&graph[0], &current, &query), observed);
+        current.slots_mut().insert(ancestor, None);
+        assert!(replay.read(&graph[0], &current, &leaf).is_none());
+        assert!(replay.read_contents(&graph[0], &current, &query).is_none());
+        // An exact later producer re-establishes its own leaf, as ordinary
+        // reads already allow; the ancestor does not erase that observation.
+        let mut replacement_leaf = leaf.clone();
+        replacement_leaf.root = replacement_parameter.root;
+        let replacement = replay.read(&graph[0], &current, &replacement_leaf);
+        assert!(replacement.is_some());
+        assert_ne!(replacement, observed);
+        current
+            .slots_mut()
+            .insert(leaf.clone(), replacement.clone());
+        assert_eq!(replay.read(&graph[0], &current, &leaf), replacement);
+        assert_eq!(
+            replay.read_contents(&graph[0], &current, &query),
+            replacement
+        );
         drop(replay);
 
         let mut limited = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);

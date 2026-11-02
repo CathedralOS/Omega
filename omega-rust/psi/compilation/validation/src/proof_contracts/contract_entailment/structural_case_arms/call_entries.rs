@@ -95,6 +95,7 @@ pub(super) fn observe_statement<'program>(
             judge.normal_argument_entries(
                 crate::call_site_argument_expressions(program, &site),
                 parameters,
+                OperationOperandDemand::All,
                 environment,
                 (invocation, state, state.return_type),
                 Some(site),
