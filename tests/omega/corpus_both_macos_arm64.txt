@@ -18,6 +18,7 @@ pass/borrow/write_only_constrained_record_field checked 4397ms @8fce926f9735
 pass/borrows/aliased_descriptor_slot_after_last_use_exit built 5568ms exit:0 interpreter-exit:0 interpreter:agrees @e2e21da6e1d9
 pass/borrows/collection_metadata_descriptor_storage_exit built 5568ms exit:0 interpreter-exit:0 interpreter:agrees @e2e21da6e1d9
 pass/borrows/copied_scalar_field_with_restricted_peer built 994ms exit:0 interpreter-exit:0 interpreter:agrees @867738eb9535+wt
+pass/borrows/inline_carried_reference_exit built 13827ms exit:0 interpreter-exit:0 interpreter:agrees @6b1e6a51ea70
 pass/borrows/nested_machine_unit_output_completed_operand_exit built 6686ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_local_destination_exit built 6582ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
 pass/borrows/nested_machine_unit_output_long_cycle_exit built 7027ms exit:0 interpreter-exit:0 interpreter:agrees @1e18830ea024+wt
@@ -1002,6 +1003,9 @@ pass/facts/owned_array_field_replacement_other_machine_exit built 1088ms exit:0 
 pass/facts/owned_array_field_replacement_other_state_exit built 1037ms exit:0 interpreter-exit:0 interpreter:agrees @4ef0dddd5128
 pass/facts/owned_array_field_replacement_parameter_exit built 980ms exit:0 interpreter-exit:0 interpreter:agrees @4ef0dddd5128
 pass/facts/owned_array_field_replacement_target_body_exit built 1037ms exit:0 interpreter-exit:0 interpreter:agrees @4ef0dddd5128
+pass/facts/owned_semantic_schema_field built 20117ms exit:0 interpreter-exit:0 interpreter:agrees @6b1e6a51ea70
+pass/facts/owned_semantic_schema_local built 20067ms exit:0 interpreter-exit:0 interpreter:agrees @6b1e6a51ea70
+pass/facts/owned_semantic_schema_parameter built 20817ms exit:0 interpreter-exit:0 interpreter:agrees @6b1e6a51ea70
 pass/facts/prefix_case_identity_call_result built 1017ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
 pass/facts/prefix_case_identity_const_name built 1045ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
 pass/facts/prefix_case_identity_field built 1082ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8

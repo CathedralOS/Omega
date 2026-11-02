@@ -374,22 +374,4 @@ impl<'a> UnitBody<'a> {
             }
         }
     }
-
-    /// The erased-proof roster of one state: an ordinary body's own, or the
-    /// matching state row's inside a state graph.
-    pub(crate) fn state_erased_proof_parameters(
-        self,
-        state: symbols::SymbolHandle,
-    ) -> Result<&'a [checked_trees::CheckedErasedProofParameterPlan], LoweringError> {
-        match self {
-            Self::Ordinary(plan) if plan.state == state => Ok(&plan.erased_proof_parameters),
-            Self::Composed(plan) => plan
-                .state(state)
-                .map(|state| state.erased_proof_parameters.as_slice())
-                .ok_or(LoweringError::Unsupported(
-                    "Unit body has no published state",
-                )),
-            Self::Ordinary(_) => unsupported("Unit body has no published state"),
-        }
-    }
 }

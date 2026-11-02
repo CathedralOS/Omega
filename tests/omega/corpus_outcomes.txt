@@ -12,6 +12,9 @@ fail/borrows/collection_metadata_descriptor_slot_suspended rejected 4601ms expec
 	statement 4 reads `alias.view` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/independent_invocation_reference_result_escapes rejected 1619ms expected @c0424312ea2a+wt
 	machine `Code::reply` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/inline_carried_reference_holds_backing rejected 9683ms expected @6b1e6a51ea70
+	state `observe` receives `bytes` as both mutable and read-only
+	state `observe` receives `bytes` as both mutable and read-only
 fail/borrows/match_effectful_subject_fresh_overlap_rejected rejected 13145ms expected @5445b5af611f+wt
 	statement 2 creates local borrow `slot` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 3 and it is released at state exit)
 fail/boundary/requirement_case_precondition_unproved rejected 13880ms expected @57a69f8b8ad1
@@ -2195,6 +2198,12 @@ fail/facts/open_record_const_closed_call_target_body_rejected rejected 1839ms ex
 	generic machine `selected` cannot bind `Implementation` to conformance `Selected`: expected a complete `Reading` implementation with the instantiated trait arguments
 fail/facts/open_record_const_closed_call_wrong_carrier_rejected rejected 689ms expected @e9f492c5ccc6+wt
 	const-generic application evaluation failed: constant initializer result does not match its declared carrier
+fail/facts/owned_semantic_schema_field rejected 2609ms expected @6b1e6a51ea70
+	semantic schema cannot select the subject from its lexical author's scope
+fail/facts/owned_semantic_schema_local rejected 2565ms expected @6b1e6a51ea70
+	semantic schema cannot select the subject from its lexical author's scope
+fail/facts/owned_semantic_schema_parameter rejected 2535ms expected @6b1e6a51ea70
+	semantic schema cannot select the subject from its lexical author's scope
 fail/facts/predicate_type_formation_rejected rejected 3892ms expected @62ce026b5931+wt
 	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -2871,6 +2880,8 @@ fail/recast/pending_layout_view_mutable_escape_preserves_source_padding rejected
 	construction of `Decoded` field `value`: mutable recast target escape has no complete source-storage handback; target padding is not initialized field storage
 fail/recast/u64_open_upper_bound_is_not_signed_ceiling rejected 559ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Narrow` are not representation-compatible
+fail/reflection/schema_runtime_operand rejected 1193ms expected @6b1e6a51ea70
+	semantic schema query accepts no runtime or evidence operands
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
@@ -3286,6 +3297,7 @@ pass/borrows/guard_subject_ends_before_returning_call_exit checked 3938ms check-
 pass/borrows/incoming_reference_slot_replacement_exit checked 4353ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/indexed_record_field_replacement_exit checked 16352ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/initialized_empty_array_snapshot_replacement_exit checked 3706ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/inline_carried_reference_exit checked 13975ms check-target:macos_arm64 @6b1e6a51ea70
 pass/borrows/interleaved_parameter_field_replacement_exit checked 19013ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/later_state_reference_field_loan_exit checked 3538ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/lifetime_return_borrow checked 3542ms @ccdb99ca2214
@@ -9514,6 +9526,9 @@ pass/facts/owned_qualified_reference_carrier_exit checked 3802ms check-target:ma
 pass/facts/owned_qualified_reference_field_exit checked 3701ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/owned_qualified_reference_result_exit checked 3299ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/owned_qualified_reference_selection_exit checked 3604ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/owned_semantic_schema_field checked 18148ms check-target:macos_arm64 @6b1e6a51ea70
+pass/facts/owned_semantic_schema_local checked 17847ms check-target:macos_arm64 @6b1e6a51ea70
+pass/facts/owned_semantic_schema_parameter checked 18184ms check-target:macos_arm64 @6b1e6a51ea70
 pass/facts/placed_stable_write_through_call_result_exit checked 4939ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/placed_stable_write_through_const_name_exit checked 5627ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/placed_stable_write_through_field_exit checked 4164ms check-target:macos_arm64 @ccdb99ca2214

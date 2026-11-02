@@ -702,7 +702,9 @@ fn retained_operand_productions(
                         .map(|leaf| leaf.retention),
                 );
             }
-            checked_trees::FlowOperandCompletion::Observation => {}
+            checked_trees::FlowOperandCompletion::Observation
+            | checked_trees::FlowOperandCompletion::IncomingContents { .. }
+            | checked_trees::FlowOperandCompletion::InvocationResult { .. } => {}
         }
         retentions.push(operand.retention);
         while let Some(retention) = retentions.pop() {

@@ -12,6 +12,7 @@ use symbols::{SymbolKind, SymbolTableBuilder};
 use typed_trees::data::{DataDefinition, DataField, DataMember};
 mod active_case;
 mod expression_calls;
+mod owned_schema;
 use typed_trees::expression::{
     ExpressionHandle, ExpressionNode, TableBorrowExpression, TableMemberExpression, TableNamePath,
     TableStructLiteral, TableStructLiteralField,
@@ -56,6 +57,11 @@ pub(super) fn elaborate_calls(
         let declaration = candidate.template.template_symbol;
         if !is_reflection_declaration(program, declaration) {
             continue;
+        }
+        if program.symbols.name(declaration) == "schema" {
+            owned_schema::elaborate(program, &candidate, selection)?;
+            changed_owners.push(selection.lexical_owner);
+            return Ok(true);
         }
         let inspection = program.symbols.name(declaration) == "inspect_record_fields";
         let active = matches!(
