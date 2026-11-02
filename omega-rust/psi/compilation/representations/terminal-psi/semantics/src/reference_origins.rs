@@ -114,7 +114,7 @@ fn reference_origin_refines<'types>(
     use semantic_vocabulary::ReferenceOriginExtent::{Projected, WithinRegion};
     if actual.place != allowed.place
         || actual.access != allowed.access
-        || reference_origin_type(types.clone(), root, &actual.path).is_none()
+        || captured_reference_origin_type(types.clone(), root, &actual.path).is_none()
         || reference_origin_type(types.clone(), root, &allowed.path).is_none()
     {
         return false;
@@ -146,7 +146,7 @@ fn reference_origin_refines<'types>(
                     continue;
                 }
                 let Some(endpoint) =
-                    reference_origin_type(types.clone(), root, &actual.path[..position])
+                    captured_reference_origin_type(types.clone(), root, &actual.path[..position])
                 else {
                     return false;
                 };
@@ -176,7 +176,7 @@ fn reference_origin_refines<'types>(
             }
             if actual.extent == WithinRegion
                 && actual.path.len() > allowed.path.len()
-                && reference_origin_type(types.clone(), root, &actual.path)
+                && captured_reference_origin_type(types.clone(), root, &actual.path)
                     .and_then(|endpoint| crate::structural_declaration(types.clone(), endpoint))
                     .is_some_and(|row| descriptor_region(&row.shape))
             {
@@ -208,8 +208,9 @@ pub fn reference_origin_is_covered<'types>(
         if *projection != ReferenceOriginProjection::Element {
             continue;
         }
-        let Some(collection) = reference_origin_type(types.clone(), root, &actual.path[..position])
-            .and_then(|identity| crate::structural_declaration(types.clone(), identity))
+        let Some(collection) =
+            captured_reference_origin_type(types.clone(), root, &actual.path[..position])
+                .and_then(|identity| crate::structural_declaration(types.clone(), identity))
         else {
             return false;
         };
@@ -350,8 +351,8 @@ pub fn reference_origin_paths_may_overlap(
     true
 }
 
-/// Resolve live provenance that may still carry a captured runtime selector.
-/// Forget only its value for type geometry, never its formation or address.
+/// Resolve live provenance with captured selectors and fixed storage windows.
+/// Forget only a selector's value for geometry, never its formation or address.
 /// Declaration decoding uses the stricter `reference_origin_type` instead.
 pub fn captured_reference_origin_type<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
@@ -367,12 +368,36 @@ pub fn captured_reference_origin_type<'types>(
             _ => projection.clone(),
         })
         .collect::<Vec<_>>();
-    reference_origin_type(types, root, &geometry)
+    resolve_reference_origin_type(types, root, &geometry)
 }
 
 /// Resolve every declaration projection and collection dimension. This grants
 /// neither bounds nor residence: those belong to the captured returned loan.
 pub fn reference_origin_type<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    root: StructuralTypeId,
+    path: &[ReferenceOriginProjection],
+) -> Option<StructuralTypeId> {
+    if path.iter().any(|projection| {
+        matches!(
+            projection,
+            ReferenceOriginProjection::Exact(
+                StructuralPathSegment::RuntimeIndex { .. }
+                    | StructuralPathSegment::FixedRange { .. }
+            )
+        )
+    }) {
+        return None;
+    }
+    resolve_reference_origin_type(types, root, path)
+}
+
+/// Captured windows retain their original array followed by the admitted
+/// representation view. The shared projection walker checks fixed bounds and
+/// requires that view before entering a value namespace; it never invents an
+/// array declaration for the window. Public catalogs reject these private
+/// coordinates before reaching this geometry reader.
+fn resolve_reference_origin_type<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     mut root: StructuralTypeId,
     path: &[ReferenceOriginProjection],
@@ -393,13 +418,6 @@ pub fn reference_origin_type<'types>(
                 root = collection_element_type(types.clone(), root)?;
             }
             ReferenceOriginProjection::Exact(segment) => {
-                if matches!(
-                    segment,
-                    StructuralPathSegment::RuntimeIndex { .. }
-                        | StructuralPathSegment::FixedRange { .. }
-                ) {
-                    return None;
-                }
                 exact.push(segment.clone());
             }
             ReferenceOriginProjection::Element => {
