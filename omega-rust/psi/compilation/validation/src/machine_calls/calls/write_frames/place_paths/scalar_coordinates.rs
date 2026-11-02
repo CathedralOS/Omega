@@ -21,6 +21,15 @@ pub struct ScalarStorageCoordinate {
     pub preserves_primitive_bits: bool,
 }
 
+/// A performed destination in its original declaration namespace. A declared
+/// reference view preserves selectors without requiring physical leaf geometry;
+/// an alternate representation still needs the exact scalar translation.
+pub(crate) struct StorageCoordinate {
+    pub place: CanonicalPlace,
+    pub preserves_scalar_value: bool,
+    pub preserves_primitive_bits: bool,
+}
+
 impl ScalarStorageCoordinate {
     /// Legacy bound consumers use labels only after resolving exact symbols
     /// and fixed selectors. Runtime selectors cannot become persistent facts.
@@ -59,47 +68,79 @@ impl LocalWriteSource {
         self.scalar_storage_coordinate_result(program, state).ok()
     }
 
-    /// A performed store must explain unavailable interpretation rather than
-    /// silently dropping its destination. Other precision queries may stay coarse.
     pub(crate) fn scalar_storage_coordinate_result(
         &self,
         program: &dyn crate::CheckingInput,
         state: &State,
     ) -> Result<ScalarStorageCoordinate, &'static str> {
+        let (view, path) = match &self.representation {
+            Some((carrier, path)) => (*carrier, path.as_slice()),
+            None => (
+                source_root_type(program, state, self.root)
+                    .ok_or("source root has no exact declaration type")?,
+                self.segments.as_slice(),
+            ),
+        };
+        let view_primitive = scalar_primitive(program, view, path)
+            .ok_or("logical view path has no declared scalar type")?;
+        let coordinate = self.storage_coordinate(program, state)?;
+        let root = coordinate
+            .place
+            .root
+            .as_symbol()
+            .ok_or("translated source has no declaration root")?;
+        let carrier = source_root_type(program, state, root)
+            .ok_or("translated source root has no declared type")?;
+        let source_primitive = scalar_primitive(program, carrier, &coordinate.place.segments)
+            .ok_or("translated source path has no declared scalar type")?;
+        Ok(ScalarStorageCoordinate {
+            place: coordinate.place,
+            source_primitive,
+            view_primitive,
+            preserves_scalar_value: coordinate.preserves_scalar_value,
+            preserves_primitive_bits: coordinate.preserves_primitive_bits,
+        })
+    }
+
+    /// Keep declaration-only views in the lender's original field namespace.
+    /// This identifies a destination; it grants no read, qualification, lifetime,
+    /// or permission to perform the write.
+    pub(crate) fn storage_coordinate(
+        &self,
+        program: &dyn crate::CheckingInput,
+        state: &State,
+    ) -> Result<StorageCoordinate, &'static str> {
         if !self.root.is_valid() {
-            return Err("captured source has no declaration root");
+            return Err("source storage has no original declaration");
         }
         let mut root = self.root;
         let (mut carrier, mut path) = match &self.representation {
             Some((carrier, path)) => (*carrier, path.clone()),
             None => (
                 source_root_type(program, state, root)
-                    .ok_or("source root has no exact declaration type")?,
+                    .ok_or("source storage root has no declared type")?,
                 self.segments.clone(),
             ),
         };
-        let view_primitive = scalar_primitive(program, carrier, &path)
-            .ok_or("logical view path has no declared scalar type")?;
         let mut preserves_scalar_value = true;
         let mut preserves_primitive_bits = true;
         for recast in self.recasts.iter().rev() {
             // A accessor is an operation capability, not an ordinary
             // scalar coordinate. Failed precision retains the backing footprint.
-            if crate::reference_formation_source(program, recast.formation.expression())
-                .ok_or("retained recast has no complete authored formation")?
-                .interpretation
-                .is_access_view()
-            {
-                return Err("access capability is not an ordinary scalar interpretation");
+            let formation =
+                crate::reference_formation_source(program, recast.formation.expression())
+                    .ok_or("retained view has no exact reference formation")?;
+            if formation.interpretation.is_access_view() {
+                return Err("accessor storage is not a declaration reference view");
             }
-            if carrier != recast.target_type {
-                return Err("logical carrier differs from the retained recast target");
+            if carrier != recast.target_type || formation.view_type != recast.target_type {
+                return Err("retained view carrier does not match its exact formation target");
             }
             let (previous_carrier, mut previous_path) = match &recast.representation {
                 Some((carrier, path)) => (*carrier, path.clone()),
                 None => (
                     source_root_type(program, state, recast.root)
-                        .ok_or("recast source root has no exact declaration type")?,
+                        .ok_or("retained view predecessor has no declared root type")?,
                     recast.segments.clone(),
                 ),
             };
@@ -116,51 +157,61 @@ impl LocalWriteSource {
                 previous_carrier,
                 &previous_path[..prefix_length],
             )
-            .ok_or("recast source prefix has no declared type")?;
-            let translated = match range {
-                Some((start, end)) => {
-                    crate::value_custody::recasts::recast_scalar_source_leaf_in_array_region(
+            .ok_or("retained view predecessor has no exact declared projection")?;
+            let previous_storage =
+                crate::value_custody::places::assignment_value_type(program, previous_type);
+            if range.is_none()
+                && crate::reference_view_storage(program, previous_storage, carrier)
+                    .ok_or("retained view storage classification is unavailable")?
+                    == checked_trees::CheckedReferenceStorage::Declared
+            {
+                // Equality is the existing complete stored declaration identity,
+                // not nominal spelling or equal byte size. Original constraints
+                // remain on the lender and are checked at the receiving store.
+                previous_path.extend(path);
+            } else {
+                let translated = match range {
+                    Some((start, end)) => {
+                        crate::value_custody::recasts::recast_scalar_source_leaf_in_array_region(
+                            program,
+                            previous_storage,
+                            start,
+                            end,
+                            carrier,
+                            &path,
+                        )
+                    }
+                    None => crate::value_custody::recasts::recast_scalar_source_leaf(
                         program,
-                        crate::value_custody::places::assignment_value_type(program, previous_type),
-                        start,
-                        end,
+                        previous_type,
                         carrier,
                         &path,
-                    )
+                    ),
                 }
-                None => crate::value_custody::recasts::recast_scalar_source_leaf(
-                    program,
-                    previous_type,
-                    carrier,
-                    &path,
-                ),
+                .ok_or("physical reference view has no exact scalar storage translation")?;
+                preserves_scalar_value &= translated.preserves_scalar_value;
+                preserves_primitive_bits &= translated.preserves_primitive_bits;
+                previous_path.truncate(prefix_length);
+                previous_path.extend(translated.path.into_iter().map(|segment| match segment {
+                    crate::RecastLeafSegment::Field(symbol) => PlaceSegment::Field { symbol },
+                    crate::RecastLeafSegment::Element(index) => PlaceSegment::FixedIndex { index },
+                }));
             }
-            .ok_or("logical scalar has no unique containing source cell")?;
-            preserves_scalar_value &= translated.preserves_scalar_value;
-            preserves_primitive_bits &= translated.preserves_primitive_bits;
-            previous_path.truncate(prefix_length);
-            previous_path.extend(translated.path.into_iter().map(|segment| match segment {
-                crate::RecastLeafSegment::Field(symbol) => PlaceSegment::Field { symbol },
-                crate::RecastLeafSegment::Element(index) => PlaceSegment::FixedIndex { index },
-            }));
             root = recast.root;
             carrier = previous_carrier;
             path = previous_path;
         }
-        let source_primitive = scalar_primitive(program, carrier, &path)
-            .ok_or("translated source path has no declared scalar type")?;
-        let coordinate = ScalarStorageCoordinate {
+        if !root.is_valid() {
+            return Err("retained view resolves to no original storage declaration");
+        }
+        let coordinate = StorageCoordinate {
             place: CanonicalPlace {
                 root: PlaceRoot::Symbol(root),
                 segments: path,
             },
-            source_primitive,
-            view_primitive,
             preserves_scalar_value,
             preserves_primitive_bits,
         };
-        // Presentation labels serve legacy bound/write consumers. Typed readers
-        // keep case selectors and freeze runtime indices themselves.
         Ok(coordinate)
     }
 }

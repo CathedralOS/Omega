@@ -1,5 +1,5 @@
 //! Preserve the source classifier's type-role equations for generic body
-//! checking. Application preparation still discharges the complete where clause;
+//! checking. Application preparation still discharges every requires equation;
 //! current callers never create assumptions for a declaration's body.
 
 use crate::lowering::{expression::lower_expression_into_table, type_reference};
@@ -19,6 +19,7 @@ use syntax_trees::{SyntaxTrees, item::Machine};
 pub(super) struct MachineTypeEquations {
     pub(super) definitions: HandleSpan<DeclaredTypeEquation>,
     pub(super) requires_argument_recovery: bool,
+    pub(super) declares_equations: bool,
 }
 
 pub(super) fn lower(
@@ -27,11 +28,8 @@ pub(super) fn lower(
     machine: &Machine,
 ) -> Result<MachineTypeEquations, Diagnostic> {
     let parameters = syntax.items.type_parameters(machine.type_parameters);
-    let equations = crate::preparation::type_equations::classify_type_equations(
-        syntax,
-        parameters,
-        syntax.items.proof_facts(machine.where_facts),
-    );
+    let equations = crate::preparation::machine_equations::machine_type_equations(syntax, machine);
+    let declares_equations = !equations.is_empty();
     let requires_argument_recovery = equations
         .iter()
         .any(crate::preparation::type_equations::TypeEquation::requires_argument_recovery);
@@ -58,6 +56,7 @@ pub(super) fn lower(
             .declared_type_equations
             .insert_many(lowered),
         requires_argument_recovery,
+        declares_equations,
     })
 }
 

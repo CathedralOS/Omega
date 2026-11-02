@@ -689,7 +689,6 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
             collect(checked, plans, representation.carrier, active, selected)?;
         }
         match &plan.shape {
-            CheckedUnitStructuralTypeShape::BindingCarrier => {}
             // Pointer transport names a closed referent, not its storage.
             // Actual backing and dereference operations root concrete shapes
             // independently. Following this edge enumerates an infinite set
@@ -842,7 +841,6 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
     for plan in selected {
         let identity = plan.identity;
         let shape = match &plan.shape {
-            CheckedUnitStructuralTypeShape::BindingCarrier => StructuralTypeShape::BindingCarrier,
             CheckedUnitStructuralTypeShape::Reference {
                 referent_identity,
                 access,
@@ -899,23 +897,6 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                             .type_identity_text(*provider_type_identity)
                             .unwrap_or_default()),
                     }),
-                    CheckedUnitStructuralFieldType::BindingBacked {
-                        provider_type_identity,
-                        receipt,
-                    } => {
-                        if !receipt.requirement.is_valid()
-                        {
-                            return unsupported(
-                                "Binding carrier lacks an exact requirement receipt",
-                            );
-                        }
-                        // Retain the semantic occurrence independently of storage. A field loan
-                        // retains this exact path; the child marker prohibits record
-                        // construction and still requires entry/transfer establishment.
-                        (field.relevance, StructuralFieldType::Structural(
-                            lookup_type_id(&type_ids, provider_type_identity)?,
-                        ))
-                    }
                     field_type => (field.relevance, lower_field_type(identities, checked, field_type, &type_ids)?),
                 };
                 let declaration = StructuralFieldDeclaration {

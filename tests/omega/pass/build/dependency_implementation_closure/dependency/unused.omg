@@ -45,7 +45,7 @@ machine unused_static_endpoint(value: UnusedRange<u64>) -> u64 requires value.va
 
 // A declaration-side equation does not demand unrelated implementations.
 machine unused_capacity<Storage, const Capacity: u64>() -> u64
-where Storage == [u8; Capacity]
+requires Storage == [u8; Capacity]
 { Capacity }
 
 public data UnusedRegisters {

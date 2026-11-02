@@ -6,11 +6,11 @@ data Mode<const Count: u64> [copy] { value: u64; }
 data Flag<const Enabled: bool> [copy] { value: u64; }
 
 machine selected<Payload>() -> u64
-where Payload == Mode<Counts::FOUR>
+requires Payload == Mode<Counts::FOUR>
 { 7 }
 
 machine enabled<Payload>() -> u64
-where Payload == Flag<Counts::ENABLED>
+requires Payload == Flag<Counts::ENABLED>
 { 13 }
 
 data Recovered<Anchor [copy], Payload [copy]> [copy]

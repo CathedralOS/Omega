@@ -109,6 +109,7 @@ struct MutationWrite {
     region: StorageRegion,
     requires_exclusive_access: bool,
     destination: WriteDestination,
+    checked_write_type: TypeReferenceHandle,
 }
 
 pub(super) fn instantiate_known_call_mutation_summary_places(
@@ -149,7 +150,8 @@ pub(super) fn instantiate_known_call_mutation_summary_places(
             namespace,
             call_frames,
         )?;
-        for contribution in contributions {
+        for mut contribution in contributions {
+            contribution.checked_write_type = write.checked_write_type;
             crate::shared::collections::push_unique(&mut instantiated, contribution);
         }
     }
@@ -530,6 +532,7 @@ fn propagate_state_mutation_summaries(
                                 region,
                                 requires_exclusive_access: true,
                                 destination: WriteDestination::Referent,
+                                checked_write_type: Default::default(),
                             })
                             .collect();
                         let held = vec![writes.clone(); caller.held_writes.len()];
@@ -597,6 +600,7 @@ fn propagate_state_mutation_summaries(
                                         region: contribution.region,
                                         requires_exclusive_access: write.requires_exclusive_access,
                                         destination: write.destination,
+                                        checked_write_type: write.checked_write_type,
                                     });
                                 }
                                 continue;
@@ -628,6 +632,7 @@ fn propagate_state_mutation_summaries(
                                                 requires_exclusive_access: write
                                                     .requires_exclusive_access,
                                                 destination: write.destination,
+                                                checked_write_type: write.checked_write_type,
                                             })
                                             .collect::<Vec<_>>()
                                     });
@@ -643,6 +648,7 @@ fn propagate_state_mutation_summaries(
                                     region: item.region.clone(),
                                     requires_exclusive_access: write.requires_exclusive_access,
                                     destination: write.destination,
+                                    checked_write_type: write.checked_write_type,
                                 });
                             }
                         }
@@ -812,6 +818,7 @@ fn collect_state_mutation_summary_places(
                     region: StorageRegion::Declared(place),
                     requires_exclusive_access: false,
                     destination: WriteDestination::Referent,
+                    checked_write_type: Default::default(),
                 };
                 if state_summary_exposes_place(program, state, &write.region, call_frames)?
                     && !writes.contains(&write)
@@ -834,19 +841,22 @@ fn collect_state_mutation_summary_places(
             statement,
             call_frames,
         )?;
+        let checked_write_type = assignment_stored_value_type(program, machine, state, assignment)?;
         for region in regions {
-            let destination = assignment_stored_value_type(program, machine, state, assignment)
-                .map(|reference| {
-                    if reference_shell(program, reference).is_some() {
-                        WriteDestination::DescriptorSlot
-                    } else {
-                        WriteDestination::Referent
-                    }
-                })?;
+            let destination = if reference_shell(program, checked_write_type).is_some() {
+                WriteDestination::DescriptorSlot
+            } else {
+                WriteDestination::Referent
+            };
             let write = MutationWrite {
                 region,
                 requires_exclusive_access,
                 destination,
+                checked_write_type: if requires_exclusive_access {
+                    checked_write_type
+                } else {
+                    Default::default()
+                },
             };
             if state_summary_exposes_place(program, state, &write.region, call_frames)?
                 && !writes.contains(&write)
@@ -1030,6 +1040,7 @@ fn instantiate_call_relative_writes_pre_resolved(
             .map(|region| CallMutationWrite {
                 region,
                 source: Some(relative_region.clone()),
+                checked_write_type: Default::default(),
             })
             .collect()
     };

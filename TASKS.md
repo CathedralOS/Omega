@@ -229,20 +229,17 @@ retired-syntax deletions to completion.
   - Qualify matching-host execution for
     `samples/cli/facts/{positional_implementation_binder,open_const_implementation,open_record_const_implementation,named_conformance_dispatch,generic_calling_policy}`
     across remaining hosted targets.
-  - **STATELESS-PROVIDERS:** ensure no installation or interpretation route
-    supplies an unauthored provider value or receiver.
   - Move remaining Build facet receiver calls (such as test groups) to
     namespace-qualified calls with explicit arguments (`Build::bind`,
     `Build::select_provider`, `Build::exclude_service`,
     `Build::select_representation`, `Build::accept_boundary`,
     `Build::require_wire_compatibility`, `Build::assume_binding_contract`).
-  - Delete the remaining retired `Binding<R>` compiler paths and data shapes in
-    `declarations/trait_definition/applications/source_fields.rs`,
-    `declarations/invocations.rs`, `shape_collector.rs`,
-    `omega-rust/psi/compilation/validation/src/machine_calls/boundary_calls.rs`,
-    `omega-rust/psi/compilation/validation/src/value_custody/type_references.rs`,
-    and selected-dispatch `service_custody` with
-    `program_entry_service_requirements`.
+  - Delete the provider-backed field machinery that checking now leaves
+    unreachable: `provider_backed_field` and
+    `CheckedUnitStructuralFieldType::ProviderBacked`,
+    `checked_provider_attachment_requirements`, stage 06
+    `attached_unit/provider_attachments.rs`, and
+    `fused_service_field_matches`/`fused_service_field_carrier`.
   - Retire remaining attachment helpers in checking/lowering and complete
     checked per-value loan carry evidence for suspension production without
     restoring hidden argument insertion.
@@ -321,9 +318,9 @@ retired-syntax deletions to completion.
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
-  - Carry the facts that still refuse behind a selected implementation: `&write`
-    arguments (an opaque selected implementation requires an admitted
-    write-only boundary claim; draft #1361 carries the repair) and a `&write`
+  - Carry the facts that still refuse behind a selected implementation: opaque
+    write-only boundaries requiring an admitted claim for the selected implementation,
+    a `&write`
     slot whose referent carries a reference leaf (`write_only_reference_store`),
     evidence binders in requirement signatures (`selected_crash_formal`,
     `selected_value_application`: the requirement grammar admits none), and
@@ -724,9 +721,7 @@ helper that passes does not close an item.
   [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
   end to end and retire `where` from Omega source syntax, without a permanent
   compatibility spelling or weaker proof obligations.
-  - Implement `requires` for machine type equations (the Rust producer still
-    recovers generic arguments only from a machine header's `where` facts),
-    quotient equivalence selection (`where equivalent satisfies`),
+  - Implement quotient equivalence selection (`where equivalent satisfies`),
     `where proposition` premises, and structural/nominal `requires machine`
     contracts in both Rust and Omega producers. Preserve logical `self`, binder-kind
     inference, static/runtime distinctions, specialization and exact subjects;
@@ -984,8 +979,8 @@ defines the complete product bar.
   `omega-rust/psi/compilation/validation/src/value_custody/expression_types/{match_dispatch,result_type}.rs`,
   checked value continuations, Terminal production, and
   `omega-rust/omega/packages/review-evidence/src/capture/contracts/expressions/projection/`.
-  - Carry affine custody through branch-local calls/receivers, effectful
-    subjects, heterogeneous residual custody, and claim-bearing body plans.
+  - Carry affine custody through branch-local receivers and claim-bearing
+    body plans.
   - Extend borrowed joins in
     `omega-rust/omega/compilation/representations/abstract-operations/src/abstract_operations/control_flow/address_joins.rs`
     and `omega-rust/omega/compilation/representations/abstract-operations/optimization-unit/semantics/src/current_ownership/address_joins.rs`

@@ -86,14 +86,31 @@ fn satisfied_by_checked_implementations(
     program: &dyn crate::CheckingInput,
     requirement: symbols::SymbolHandle,
 ) -> bool {
+    // Produced applications have fresh executable symbols; authored
+    // satisfaction rows retain the exact original requirement declaration.
+    let requirement = program
+        .closed_requirement_application(requirement)
+        .map_or(requirement, |application| application.template);
     let satisfiers =
         crate::machine_calls::denotational_calls::requirement_satisfiers(program, requirement);
-    !satisfiers.is_empty()
-        && satisfiers.iter().all(|satisfier| {
-            program
-                .machine(*satisfier)
-                .is_some_and(Machine::supplies_checked_body)
-        })
+    let named = program
+        .conformances()
+        .iter()
+        .flat_map(|conformance| conformance.rows.iter())
+        .filter(|row| row.requirement == requirement);
+    let mut has_implementation = !satisfiers.is_empty();
+    let checked_machines = satisfiers.iter().all(|satisfier| {
+        program
+            .machine(*satisfier)
+            .is_some_and(Machine::supplies_checked_body)
+    });
+    let checked_named = named.into_iter().all(|row| {
+        has_implementation = true;
+        program
+            .machine(row.realization_machine)
+            .is_some_and(Machine::supplies_checked_body)
+    });
+    has_implementation && checked_machines && checked_named
 }
 
 pub(crate) fn validate_checked_write_only_slice(

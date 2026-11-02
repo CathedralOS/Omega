@@ -643,12 +643,6 @@ impl TypedTrees {
                     })
                     .collect();
             }
-            for &predicate in self
-                .expression_table
-                .expression_handles(machine.declared_type_predicates)
-            {
-                worlds = condition(self, &worlds, predicate, true);
-            }
             let mut active = Vec::new();
             for contract in self.machine_contracts(machine) {
                 for fact in self.proof_facts.span_or_empty(contract.facts) {

@@ -125,10 +125,6 @@ pub enum CheckedUnitRecordStorage {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedUnitStructuralTypeShape {
-    /// A routed binding occurrence, independent of provider selection.
-    /// This is not an empty record: construction requires establishment.
-    /// Realization determines storage only after selecting its provider.
-    BindingCarrier,
     /// An owned reference carrier, distinct from the borrowed referent shape.
     Reference {
         referent_identity: TypeIdentityId,
@@ -311,12 +307,6 @@ pub enum CheckedUnitStructuralFieldType {
     ProviderBacked {
         provider_type_identity: TypeIdentityId,
     },
-    /// An exact logical Binding carrier. The receipt identifies its declared
-    /// requirement; it does not assert erasure or grant establishment.
-    BindingBacked {
-        provider_type_identity: TypeIdentityId,
-        receipt: CheckedBindingFieldReceipt,
-    },
     /// An erased semantic field does not require an executable structural
     /// carrier. Its exact normalized type identity remains independently
     /// checkable in terminal Psi.
@@ -326,15 +316,11 @@ pub enum CheckedUnitStructuralFieldType {
 }
 
 impl CheckedUnitStructuralFieldType {
-    /// The structural type identity behind a nested-record or binding
-    /// field, the two carriers that keep a whole type inside a record.
+    /// The structural type identity behind a nested-record field, the
+    /// carrier that keeps a whole type inside a record.
     pub fn structural_type_identity(&self) -> Option<TypeIdentityId> {
         match self {
-            Self::Structural { type_identity }
-            | Self::BindingBacked {
-                provider_type_identity: type_identity,
-                ..
-            } => Some(*type_identity),
+            Self::Structural { type_identity } => Some(*type_identity),
             _ => None,
         }
     }
@@ -347,21 +333,6 @@ impl CheckedUnitStructuralFieldType {
             _ => None,
         }
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedBindingFieldReceipt {
-    pub requirement: SymbolHandle,
-}
-
-/// Exact source occurrence of a Binding parameter. The full carrier identity
-/// and requirement survive independently of its structural position. Selection
-/// and storage are realization decisions, not facts supplied by this receipt.
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedBindingParameterReceipt {
-    pub source_parameter: SymbolHandle,
-    pub carrier_type_identity: TypeIdentityId,
-    pub requirement: SymbolHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
@@ -521,9 +492,6 @@ pub struct CheckedUnitStructuralParameterPlan {
     /// Strictly ordered normalized domain identities.
     pub qualifications: Vec<SemanticDomainId>,
     pub projected_qualifications: Vec<CheckedStructuralPathQualification>,
-    /// Present for a logical Binding parameter, including its borrow shell.
-    /// Absence on a Binding is a custody error, not permission to erase it.
-    pub binding_carrier: Option<CheckedBindingParameterReceipt>,
 }
 
 /// Source-handle-free structural path retained by checked terminal plans.
@@ -658,8 +626,7 @@ pub fn is_bounded_nominal_cleanup_record(shape: &CheckedUnitStructuralTypeShape)
                     )
                 )
         }),
-        CheckedUnitStructuralTypeShape::BindingCarrier
-        | CheckedUnitStructuralTypeShape::Reference { .. }
+        CheckedUnitStructuralTypeShape::Reference { .. }
         | CheckedUnitStructuralTypeShape::PrimitiveScalar(_)
         | CheckedUnitStructuralTypeShape::ByteSequence(_)
         | CheckedUnitStructuralTypeShape::FixedArray { .. }

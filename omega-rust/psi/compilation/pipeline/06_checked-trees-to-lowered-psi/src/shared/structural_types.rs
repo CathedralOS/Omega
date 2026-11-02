@@ -110,8 +110,7 @@ pub(crate) fn lower_field_type(
         CheckedUnitStructuralFieldType::Structural { type_identity } => {
             StructuralFieldType::Structural(lookup_type_id(type_ids, type_identity)?)
         }
-        CheckedUnitStructuralFieldType::ProviderBacked { .. }
-        | CheckedUnitStructuralFieldType::BindingBacked { .. } => {
+        CheckedUnitStructuralFieldType::ProviderBacked { .. } => {
             return unsupported("provider-backed fields require attached provider erasure");
         }
         CheckedUnitStructuralFieldType::Erased { type_identity } => StructuralFieldType::Erased {

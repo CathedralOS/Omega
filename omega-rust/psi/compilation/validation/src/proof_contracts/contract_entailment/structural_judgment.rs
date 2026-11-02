@@ -1076,13 +1076,6 @@ impl<'program> StructuralJudge<'program> {
         requires: &[ExpressionHandle],
         resolve_applications: bool,
     ) -> Self {
-        let mut entry_facts = requires.to_vec();
-        if let Some(machine) = program.machine(owner) {
-            entry_facts.extend_from_slice(
-                expression_table(program).expression_handles(machine.declared_type_predicates),
-            );
-        }
-        let requires = entry_facts.as_slice();
         let licenses = crate::frozen_program::frozen_memo(
             program,
             |memos| &memos.license_candidates,

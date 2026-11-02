@@ -57,6 +57,9 @@ pub(super) enum WritePlaceNamespace {
 pub(in crate::flow) struct CallMutationWrite {
     pub region: StorageRegion,
     pub source: Option<StorageRegion>,
+    /// Exact destination presentation of the checked assignment, retained
+    /// through call projection. A may-write footprint alone proves no domain.
+    pub checked_write_type: typed_trees::types::TypeReferenceHandle,
 }
 
 /// Caller storage footprint. `None` requires full invalidation; an empty
@@ -168,6 +171,7 @@ pub(in crate::flow) fn call_mutation_writes(
             writes.push(CallMutationWrite {
                 region,
                 source: None,
+                checked_write_type: Default::default(),
             });
         }
     }
@@ -416,6 +420,7 @@ fn unattributed_writes(regions: Vec<StorageRegion>) -> Vec<CallMutationWrite> {
         .map(|region| CallMutationWrite {
             region,
             source: None,
+            checked_write_type: Default::default(),
         })
         .collect()
 }

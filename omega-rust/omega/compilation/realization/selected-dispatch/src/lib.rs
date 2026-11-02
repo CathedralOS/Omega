@@ -20,7 +20,6 @@ pub use numeric_provider::NumericProviderSelection;
 mod provider_binding;
 mod selected_dispatch;
 mod selected_execution;
-mod service_custody;
 
 pub use checked_interpreter_dispatch::{
     CheckedInterpreterDispatch, prepare_checked_interpreter_dispatch,
@@ -37,8 +36,6 @@ pub(crate) use intrinsic_review::{
 };
 pub use provider_binding::{ProviderBindingRequest, prepare_selected_execution};
 pub use selected_execution::SelectedExecution;
-
-pub use service_custody::program_entry_service_requirements;
 
 pub(crate) use selected_dispatch::derive_selected_primitive_float_binary_execution;
 pub use selected_dispatch::{

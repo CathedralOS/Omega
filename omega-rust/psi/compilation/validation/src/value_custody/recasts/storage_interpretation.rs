@@ -15,9 +15,9 @@ pub fn reference_view_storage(
     // through a byte interpretation would discard declaration-owned protocols
     // such as atomic fields even though no representation changed. Use the
     // canonical storage identity, which retains scalar receiving restrictions.
-    if crate::stored_structural_type_identity(program, source, &[], &[])
-        == crate::stored_structural_type_identity(program, referent, &[], &[])
-    {
+    let source_identity = crate::stored_structural_type_identity(program, source, &[], &[]);
+    let referent_identity = crate::stored_structural_type_identity(program, referent, &[], &[]);
+    if source_identity.is_valid() && source_identity == referent_identity {
         return Some(CheckedReferenceStorage::Declared);
     }
     // Qualification affects evidence and access, not the physical schema of

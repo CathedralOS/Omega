@@ -18,9 +18,7 @@ use crate::published::places::place_at;
 use crate::execution::terminal_unit::calls::argument_paths::{
     byte_sequence_literal_argument, checked_call_scalar_arguments,
 };
-use crate::execution::terminal_unit::calls::boundary_admission::{
-    BoundaryTraitReceiver, boundary_trait_receiver_source,
-};
+use crate::execution::terminal_unit::calls::boundary_admission::boundary_trait_receiver_is_namespace;
 use crate::execution::terminal_unit::calls::call_operations::call_value_result_matches;
 use crate::execution::terminal_unit::calls::parameter_argument_paths::{
     ParameterArgument, SourceParameter, boundary_parameter_path,
@@ -524,25 +522,15 @@ pub(super) fn build(
     if if let Some((_, qualifier)) = selected_realization {
         call.has_receiver && call.receiver_symbol != qualifier
     } else if matches!(requirement, BoundaryRequirement::Trait { .. }) {
-        let receiver = boundary_trait_receiver_source(program, state, call, call_site, owner);
-        if receiver.is_none()
+        let namespace =
+            boundary_trait_receiver_is_namespace(program, state, call, call_site, owner);
+        if !namespace
             && let Some(reason) =
                 super::boundary_authority_refusal(program, machine.symbol, state, call)
         {
             phase(reason);
         }
-        !call.has_receiver
-            || receiver.is_none_or(|receiver| match receiver {
-                BoundaryTraitReceiver::Parameters(sources) => sources.iter().any(|source| {
-                    !caller_parameters.iter().any(|parameter| {
-                        program
-                            .state_parameters(state)
-                            .get(parameter.position as usize)
-                            .is_some_and(|parameter| parameter.symbol == *source)
-                    })
-                }),
-                BoundaryTraitReceiver::Namespace => false,
-            })
+        !namespace
     } else {
         false
     } {
