@@ -1863,13 +1863,13 @@ defines the complete product bar.
   end to end (`Psi 05–08` and `Omega 00–09`):
   - Validate the Windows portable `FilesystemService` implementation natively
     (anonymous SQOS on owned path opens, HANDLE storage, explicit permissions and
-    data sync), run `file_journal` (exit 7) and `note_vault` (exit 14), and provide trusted
+    data sync), run `note_vault` (exit 14), and provide trusted
     Terminal adapters for the exact authored foreign bindings.
   - Wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
     so a proved close earns an empty authority classification (with
     `tests/omega/pass/filesystem/native_close` as the unconstrained control).
-  Acceptance: `file_journal`, `note_vault`, and the remaining Windows filesystem
+  Acceptance: `note_vault` and the remaining Windows filesystem
   fixtures pass `omega run --both` on their matching
   hosts with nested raw-provider closure checks and occurrence-bound close
   classifications, while failed acquisition, handle escape, or unproved close
