@@ -55,7 +55,8 @@ pub(crate) fn signature_has_closed_value_contract(
 }
 
 /// Exact logical value shapes do not identify resource occurrences. Affine
-/// checked data is observable without copying; unknown/borrowed authority is not.
+/// checked data is observable without copying. Shared parameter views observe
+/// their checked referents; returned references remain resource occurrences.
 pub(crate) fn signature_value_content_is_observable(
     program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
@@ -68,7 +69,12 @@ pub(crate) fn signature_value_content_is_observable(
     !program
         .state_signature_parameters(signature)
         .iter()
-        .any(|parameter| forbidden(parameter.type_reference))
+        .any(|parameter| {
+            crate::proof_contracts::carrier_contents::type_has_forbidden_argument_observation_content(
+                program,
+                parameter.type_reference,
+            )
+        })
         && (!signature.return_type.is_valid() || !forbidden(signature.return_type))
 }
 
@@ -116,7 +122,12 @@ fn unchecked_value_call_candidate(
         || program
             .state_parameters(state)
             .iter()
-            .any(|parameter| forbidden(parameter.type_reference))
+            .any(|parameter| {
+                crate::proof_contracts::carrier_contents::type_has_forbidden_argument_observation_content(
+                    program,
+                    parameter.type_reference,
+                )
+            })
     {
         return Err("the application carries forbidden denotational content");
     }
