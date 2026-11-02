@@ -72,7 +72,7 @@ pub struct NativeCompilerBuiltinSettlement<'execution> {
     /// direct leaf's callable identity replaces its selection coordinate.
     pub semantic_schema: &'execution effects::provider_plan::ServiceSchema,
     pub boundary: semantic_vocabulary::BoundaryMachineId,
-    pub settlement: crate::provider_admission::TerminalCompilerBuiltinSettlement,
+    pub settlement: crate::providers::provider_admission::TerminalCompilerBuiltinSettlement,
 }
 
 /// The inputs provider admission reads from one target realization: the

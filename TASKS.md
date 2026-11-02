@@ -1464,7 +1464,7 @@ defines the complete product bar.
     plans across activation/result/out-parameter joins to native execution via
     `omega-rust/omega/compilation/backend/plans/program-entry-plan/`,
     `omega-rust/omega/compilation/driver/terminal-production/`,
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/`,
+    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/settlement/entry_settlement/`,
     `native-artifact`'s `publish_fragment_object`, and
     `omega-rust/omega/compilation/backend/images/image-emission/src/entries/hosted_receiver.rs`.
   - **PROCESS-EXIT-CONTRACT:** remove `Never` return-type assumptions in
@@ -1836,12 +1836,12 @@ defines the complete product bar.
   - Settle demanded Linux x86-64 filesystem `BoundaryCall`s (`set_len`) in
     `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`,
     replace equality-based receiver checks in
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_permissions.rs`
+    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/terminal_authority_permissions.rs`
     with demand-based containment, and replace the broad filesystem arm in
     `omega-rust/omega/packages/review-evidence/src/capture/authority.rs` and
     `omega-rust/omega/packages/package-manager/src/review/audit/triage/` with
     exact cohort classifications from
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/source_imports.rs`
+    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/settlements/source_imports.rs`
     and `omega-rust/omega/packages/package-manager/src/review/candidate/semantic_bindings.rs`.
   Acceptance: `tests/omega/pass/host/console_exit_process_exit` (exit 70),
   Cathedral native smoke, `samples/cli/basics/cli_mvp`, and Squalr build and run
@@ -1869,7 +1869,7 @@ defines the complete product bar.
     data sync), and provide trusted
     Terminal adapters for the exact authored foreign bindings.
   - Wire the occurrence-bound close proof helpers in
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
+    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/terminal_authority_policy/filesystem.rs`
     so a proved close earns an empty authority classification (with
     `tests/omega/pass/filesystem/native_close` as the unconstrained control).
   Acceptance: the remaining Windows filesystem

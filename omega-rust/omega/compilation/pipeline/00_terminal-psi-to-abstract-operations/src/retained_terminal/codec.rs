@@ -13,7 +13,7 @@ use super::{
     RetainedTerminalArtifact, TerminalNativeProposalRequest,
     project_terminal_native_realization_proposal,
 };
-use crate::provider_admission::TerminalAuthorityPermissionPolicy;
+use crate::providers::provider_admission::TerminalAuthorityPermissionPolicy;
 use diagnostics::Diagnostic;
 use entry::EntryRecord;
 use std::sync::Arc;
@@ -105,7 +105,7 @@ fn capture(
         .without_checked_specializations()
         .write(&mut output)?;
     output.sequence(boundaries.selected_provider_provenance.len())?;
-    for crate::provider_admission::CompilerIntrinsicPlanProvenance {
+    for crate::providers::provider_admission::CompilerIntrinsicPlanProvenance {
         plan,
         semantic_schema,
         row_executions,
@@ -259,17 +259,18 @@ pub fn recover_native_derivation_inputs(
         accepted_permissions,
         accepted_identities,
     } = inputs;
-    crate::provider_admission::terminal_authority_permissions::validate_package_terminal_authority_permission_custody(
+    crate::providers::provider_admission::terminal_authority_permissions::validate_package_terminal_authority_permission_custody(
         accepted_permissions.iter(), &accepted_identities)?;
-    let accepted = crate::provider_admission::terminal_authority_permission_policy_with_rows(
-        accepted_permissions,
-        accepted_identities,
-    )
-    .map_err(|reason| {
-        error(format!(
-            "recovered accepted package permission candidates: {reason:?}"
-        ))
-    })?;
+    let accepted =
+        crate::providers::provider_admission::terminal_authority_permission_policy_with_rows(
+            accepted_permissions,
+            accepted_identities,
+        )
+        .map_err(|reason| {
+            error(format!(
+                "recovered accepted package permission candidates: {reason:?}"
+            ))
+        })?;
     let entry_adapter_requested = entry
         .as_ref()
         .is_some_and(|entry| entry.physical_adapter_requested);
@@ -284,7 +285,7 @@ pub fn recover_native_derivation_inputs(
             selected_provider_provenance: intrinsic_provenance
                 .iter()
                 .map(
-                    |row| crate::provider_admission::CompilerIntrinsicPlanProvenance {
+                    |row| crate::providers::provider_admission::CompilerIntrinsicPlanProvenance {
                         plan: &row.plan,
                         semantic_schema: &row.semantic_schema,
                         row_executions: &row.row_executions,

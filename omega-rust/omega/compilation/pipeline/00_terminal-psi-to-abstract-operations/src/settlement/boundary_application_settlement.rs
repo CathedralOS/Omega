@@ -9,7 +9,7 @@ use diagnostics::Diagnostic;
 pub struct BoundaryApplicationSettlement<'input> {
     pub selected_provider_plans: &'input effects::SelectedProviderPlanFacts,
     pub selected_provider_provenance:
-        Vec<crate::provider_admission::CompilerIntrinsicPlanProvenance<'input>>,
+        Vec<crate::providers::provider_admission::CompilerIntrinsicPlanProvenance<'input>>,
     pub calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
 }
 

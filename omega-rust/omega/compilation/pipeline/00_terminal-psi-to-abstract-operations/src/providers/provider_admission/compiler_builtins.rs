@@ -30,8 +30,8 @@ pub(crate) use external_satisfaction::validate_external_provider_owners;
 pub(crate) use retained::prepare_retained_compiler_builtins;
 pub use retained::{TerminalCompilerBuiltinProposal, TerminalCompilerBuiltinSettlement};
 
-use crate::provider_admission::AdmittedTerminalMechanism;
-use crate::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
+use crate::providers::provider_admission::AdmittedTerminalMechanism;
+use crate::providers::provider_admission::{NativeRealizationInput, ProviderAdmissionRequest};
 use crate::{AdmittedBoundaryExecution, AdmittedBoundarySettlement};
 use diagnostics::Diagnostic;
 use effects::CompilerAccessorScalarOperation;
