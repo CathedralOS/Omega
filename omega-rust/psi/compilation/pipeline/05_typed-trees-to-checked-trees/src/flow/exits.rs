@@ -60,6 +60,7 @@ pub(super) fn append_outgoing_state_fact(
     operand_entry_constraints: HandleSpan<FlowConstraintRef>,
     constraints: HandleSpan<FlowConstraintRef>,
     returned_value: arena::Handle<checked_trees::FlowOperandFact>,
+    cannot_return_normally: bool,
     copied_payloads: HandleSpan<checked_trees::FlowOperandFact>,
 ) {
     let constraints = retained_constraint_refs(&build.contexts.constraint_refs, constraints);
@@ -72,6 +73,7 @@ pub(super) fn append_outgoing_state_fact(
             statement_index,
             transition_target,
             returned_value,
+            cannot_return_normally,
             operand_entry_constraints,
             copied_payloads,
             constraints,
@@ -129,6 +131,7 @@ pub(super) fn append_state_exit_facts(
                 active_constraints,
                 active_constraints,
                 arena::Handle::invalid(),
+                false,
                 HandleSpan::empty(),
             );
         }
