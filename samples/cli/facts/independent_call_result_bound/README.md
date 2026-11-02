@@ -104,6 +104,50 @@ baseline producer (`1efc2536b3bc`, opt-level 1) accepts all nine twins. Windows 
 macOS execution of the re-expressed sources is not observed; binding a hosted
 target does not establish execution on that host.
 
+## Generic evidence production
+
+The same fact has a second production under each place's `generic_evidence/`
+folder. `forwarded<S satisfies IndependentSource>` consumes only the selected
+requirement's public guarantee. `GoodSource` independently returns 7.
+`ReservedSource` forwards to `GoodSource` in the positive and only changes that
+actual to `ReservedSource` in the reject twin. The caller, result bound, copied
+transport and subtraction remain identical; the invalid implementation is never
+selected by `main`.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| local | [program](local/generic_evidence/main.omg) | [program](local/generic_evidence/invalid/main.omg) |
+| field | [program](field/generic_evidence/main.omg) | [program](field/generic_evidence/invalid/main.omg) |
+| parameter | [program](parameter/generic_evidence/main.omg) | [program](parameter/generic_evidence/invalid/main.omg) |
+| call_result | [program](call_result/generic_evidence/main.omg) | [program](call_result/generic_evidence/invalid/main.omg) |
+| match_join | [program](match_join/generic_evidence/main.omg) | [program](match_join/generic_evidence/invalid/main.omg) |
+| const_name | [program](const_name/generic_evidence/main.omg) | [program](const_name/generic_evidence/invalid/main.omg) |
+| other_state | [program](other_state/generic_evidence/main.omg) | [program](other_state/generic_evidence/invalid/main.omg) |
+| other_machine | [program](other_machine/generic_evidence/main.omg) | [program](other_machine/generic_evidence/invalid/main.omg) |
+| target_body | [program](target_body/generic_evidence/main.omg) | [program](target_body/generic_evidence/invalid/main.omg) |
+
+The 18 Source/Build pairs are pinned under
+`tests/omega/{pass,fail}/facts/independent_call_result_bound_generic_evidence_through_<place>_{exit,rejected}`.
+Every positive binds all four hosted entries and expects exit 0; every twin
+requires rejection of an unproved exit contract. The original transport bodies
+are retained, including both match paths and ordinary Build-selected target
+implementations.
+
+The verified optimized producer `6416b0fdfbe3cd7db319e5c4803f64d3254160cd`
+checks all nine positives **and wrongly checks all nine twins** on macOS arm64,
+with its frozen 189-file SDK. An initial authored target-body formation error
+(missing explicit empty `reaches`) is retained separately and excluded; the
+corrected positive/twin both check. These are Source observations, not runtime
+claims or runs of the new candidate.
+
+The candidate dependency walk now visits each exact closed conformance map
+already retained on `MachineSpecialization`, using the same ordinary reference
+walker as captured maps. The binding application and closed evidence maps are
+separate proof-source rosters; reading only the former lost the supplied row.
+Independent Source review accepts this traversal. Fresh rejection, both-engine
+execution, preservation controls and golden recording remain pending; this
+paragraph does not close the requirement.
+
 Open: the same dropped dependency in the generic-evidence production. A binder
 `S satisfies IndependentSource` instantiated at the implementation that defines the
 caller is still accepted, because an evidence binder stands for the implementation
