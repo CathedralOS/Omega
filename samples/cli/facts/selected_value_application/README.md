@@ -7,12 +7,14 @@ independent Value and explicit evidence telescopes compose without treating
 realized Value arguments as extra public formals, losing their exact subjects,
 replacing a caller's evidence with a Build provider, or dropping returned facts.
 
-The current Build-selection migration is unfinished. The optimized source
-probe at `c83230e4576` admits the new evidence declaration but wrongly refuses
-the valid target witness's exact subtraction; its index-11 twin still refuses
-with the intended bound diagnostic. Native/Terminal qualification of this
-migration is pending. Earlier evidence for the ordinary-wrapper row does not
-qualify these changed sources.
+The Build-selection migration is unfinished. Its new source signatures carry
+explicit implementation evidence, and all nine places now select ordinary
+providers through Build. Optimized producer `42cf0d10208` enforces the unused
+provider's exact `Choose<Cell>` bound, but still refuses forwarded runtime
+operands. Producer `47518b109d6` gets past that formation failure and wrongly
+refuses the argument-order probe with `state choose expects 2 argument(s), got
+3`. The successor is under focused Source and execution validation. Earlier
+ordinary-wrapper execution does not qualify these changed sources.
 
 Fact: A selected member preserves runtime index 9 below bound 10, so exact
 10 - right yields 1, while returning the second Cell and closed left 7.
@@ -45,7 +47,7 @@ removes the subtraction and still rejects the invalid selected call.
 and [two Value binders sharing one runtime subject](probes/shared_runtime_subject/main.omg)
 challenge name-based or one-to-one-actual correspondence. Source-only formation
 controls under `tests/omega/{pass,fail}/generics/unused_selected_value_*` check
-unused member carriers, proved/unproved `where` facts and Value-to-Const refusal
+unused member carriers, proved/unproved requirement facts and Value-to-Const refusal
 even when the generic wrapper has no executable instantiation.
 
 Fresh optimized baseline `1b2dbda4df7b59894492bda731238f4338f4b3fe`
@@ -80,8 +82,14 @@ The additional producers stay in this fact folder:
   control, independently of whether the body invokes that evidence.
 - [A default body](probes/default_evidence/main.omg) preserves its declaration's
   evidence namespace through synthesis.
-- [A nominal callable](probes/nominal_evidence/main.omg) retains the same full
-  telescope through an explicitly selected callable parameter.
+- [A nominal callable](probes/nominal_evidence/main.omg) exercises the same full
+  telescope through an explicitly selected callable parameter. Its exact
+  satisfaction admission remains unqualified.
+- [Header observation order](probes/header_observation_order/main.omg) reads
+  runtime index 9 before a later ordinary argument changes its storage to 3.
+  The returned right field must retain 9, and its invalid twin changes only
+  the initial index to 11. Current recorded baselines refuse formation before
+  execution; no ordering failure or runtime repair is claimed yet.
 - [Wrong argument](probes/wrong_evidence_argument/main.omg) and
   [wrong nominal trait](probes/wrong_evidence_trait/main.omg) controls retain
   complete static admission.
@@ -124,9 +132,11 @@ this fact establishes its selected-call argument-correspondence prerequisite.
 
 ## Build-owned target-body migration
 
-The `target_body` place still spells the retired target prefix. Its family
-member is generic over an implementation map, and a boundary requirement's
-signature does not admit an evidence binder, so the place cannot yet move to
-named implementations selected by Build rows without changing the fact. The
-owner decision is
-[OWNER_QUESTIONS.md question 6](../../../../OWNER_QUESTIONS.md#6-may-a-boundary-requirements-own-signature-bind-a-generic-evidence-parameter).
+The target place declares four ordinary named implementations and selects one
+per hosted target in `build.omg`. Each has the same public runtime Value and
+explicit implementation telescope. This removes the target prefixes without
+changing the fact or replacing caller-supplied evidence with a provider choice.
+The language permits this evidence binder; the remaining work is compiler
+admission, contract preservation and runtime realization. This migration closes
+only after the nine positive places run in both engines and their bound-sensitive
+reject twins still refuse.
