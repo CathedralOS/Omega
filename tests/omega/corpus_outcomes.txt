@@ -7459,15 +7459,15 @@ pass/facts/generic_calling_policy_through_other_machine_exit checked 19931ms che
 pass/facts/generic_calling_policy_through_other_state_exit checked 19941ms check-target:macos_arm64 @6416b0fdfbe3
 pass/facts/generic_calling_policy_through_parameter_exit checked 19840ms check-target:macos_arm64 @6416b0fdfbe3
 pass/facts/generic_calling_policy_through_target_body_exit checked 20148ms check-target:macos_arm64 @6416b0fdfbe3
-pass/facts/generic_case_subject_through_call_result_exit checked 3665ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_const_name_exit checked 4218ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_field_exit checked 4066ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_local_exit checked 3886ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_match_join_exit checked 5119ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_other_machine_exit checked 3692ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_other_state_exit checked 3616ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_parameter_exit checked 4687ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/generic_case_subject_through_target_body_exit checked 4543ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/generic_case_subject_through_call_result_exit checked 8621ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_const_name_exit checked 8620ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_field_exit checked 9757ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_local_exit checked 9748ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_match_join_exit checked 8417ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_other_machine_exit checked 8414ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_other_state_exit checked 8543ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_parameter_exit checked 8519ms check-target:macos_arm64 @9ec6893f3cf3
+pass/facts/generic_case_subject_through_target_body_exit checked 7938ms check-target:macos_arm64 @9ec6893f3cf3
 pass/facts/generic_comparison_body_through_call_result_exit checked 3409ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/generic_comparison_body_through_const_name_exit checked 3784ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/generic_comparison_body_through_field_exit checked 3900ms check-target:macos_arm64 @ccdb99ca2214
@@ -23994,33 +23994,42 @@ fail/facts/generic_calling_policy_through_parameter_rejected rejected 17312ms ex
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_calling_policy_through_target_body_rejected rejected 17297ms expected @f8fd5ea66130
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_case_subject_through_call_result_rejected rejected 1886ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_const_name_rejected rejected 1719ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_field_rejected rejected 1342ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_local_rejected rejected 1360ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_match_join_rejected rejected 1916ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_other_machine_rejected rejected 1292ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_other_state_rejected rejected 1632ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `next`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_parameter_rejected rejected 2010ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
-fail/facts/generic_case_subject_through_target_body_rejected rejected 1283ms expected @ccdb99ca2214
-	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
-	case `Other::Value` has a payload; construct it with a case literal
+fail/facts/generic_case_subject_through_call_result_rejected rejected 5263ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7699, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3196, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3176, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2669, generation: 1 }, symbol: Handle { arena_index: 2669, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("__transition_subject#49", Handle { arena_index: 2669, generation: 1 }, Handle { arena_index: 2671, generation: 1 }, Handle { arena_index: 7698, generation: 1 })]
+fail/facts/generic_case_subject_through_const_name_rejected rejected 3838ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7704, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3196, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3176, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2670, generation: 1 }, symbol: Handle { arena_index: 2670, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1370, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("__transition_subject#50", Handle { arena_index: 2670, generation: 1 }, Handle { arena_index: 953, generation: 1 }, Handle { arena_index: 7703, generation: 1 })]
+fail/facts/generic_case_subject_through_field_rejected rejected 3811ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7702, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3197, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3177, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2672, generation: 1 }, symbol: Handle { arena_index: 2672, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1372, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("holder", Handle { arena_index: 2671, generation: 1 }, Handle { arena_index: 2672, generation: 1 }, Handle { arena_index: 7699, generation: 1 }), ("__transition_subject#52", Handle { arena_index: 2672, generation: 1 }, Handle { arena_index: 955, generation: 1 }, Handle { arena_index: 7701, generation: 1 })]
+fail/facts/generic_case_subject_through_local_rejected rejected 3987ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7700, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3197, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3177, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2670, generation: 1 }, symbol: Handle { arena_index: 2670, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("selected", Handle { arena_index: 2669, generation: 1 }, Handle { arena_index: 2671, generation: 1 }, Handle { arena_index: 7698, generation: 1 }), ("__transition_subject#50", Handle { arena_index: 2670, generation: 1 }, Handle { arena_index: 2674, generation: 1 }, Handle { arena_index: 7699, generation: 1 })]
+fail/facts/generic_case_subject_through_match_join_rejected rejected 3944ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7708, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3201, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3181, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2674, generation: 1 }, symbol: Handle { arena_index: 2674, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters [("input", Handle { arena_index: 1666, generation: 1 }, Handle { arena_index: 1403, generation: 1 })]; locals [("__transition_subject#60", Handle { arena_index: 2674, generation: 1 }, Handle { arena_index: 2677, generation: 1 }, Handle { arena_index: 7707, generation: 1 })]
+fail/facts/generic_case_subject_through_other_machine_rejected rejected 3787ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7701, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3197, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3177, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2672, generation: 1 }, symbol: Handle { arena_index: 2672, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("__transition_subject#52", Handle { arena_index: 2672, generation: 1 }, Handle { arena_index: 2677, generation: 1 }, Handle { arena_index: 7700, generation: 1 })]
+fail/facts/generic_case_subject_through_other_state_rejected rejected 3842ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `next` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `next::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7700, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3197, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3177, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2672, generation: 1 }, symbol: Handle { arena_index: 2672, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters [("selected", Handle { arena_index: 1665, generation: 1 }, Handle { arena_index: 1402, generation: 1 })]; locals [("__transition_subject#52", Handle { arena_index: 2672, generation: 1 }, Handle { arena_index: 2675, generation: 1 }, Handle { arena_index: 7699, generation: 1 })]
+fail/facts/generic_case_subject_through_parameter_rejected rejected 3983ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `observe` state `entry` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `observe::entry`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7699, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3197, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3177, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2670, generation: 1 }, symbol: Handle { arena_index: 2670, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters [("selected", Handle { arena_index: 1663, generation: 1 }, Handle { arena_index: 1401, generation: 1 })]; locals [("__transition_subject#48", Handle { arena_index: 2670, generation: 1 }, Handle { arena_index: 2674, generation: 1 }, Handle { arena_index: 7698, generation: 1 })]
+fail/facts/generic_case_subject_through_target_body_rejected rejected 3335ms expected @9ec6893f3cf3
+	case-membership operation lost its exact subject, carrier or case identity
+	machine `WindowsChoiceObservation::observe` state `observe` reads a nested member `value`, but data `Choice<u64>` has no field `value` (check the spelling of the field name)
+	match pattern does not select a record or case of its subject's exact carrier in `WindowsChoiceObservation::observe::observe`: selected Some(("Other::Value", Handle { arena_index: 870, generation: 1 })), subject Handle { arena_index: 7755, generation: 1 } Name(TableNamePath { members: HandleSpan { start: Handle { arena_index: 3212, generation: 1 }, count: 1 }, member_symbols: HandleSpan { start: Handle { arena_index: 3192, generation: 1 }, count: 1 }, head_symbol: Handle { arena_index: 2681, generation: 1 }, symbol: Handle { arena_index: 2681, generation: 1 } }), type Some(Named { symbol: Handle { arena_index: 1374, generation: 1 }, name: "Choice<u64>" }); parameters []; locals [("__transition_subject#69", Handle { arena_index: 2681, generation: 1 }, Handle { arena_index: 2675, generation: 1 }, Handle { arena_index: 7754, generation: 1 })]
 fail/facts/generic_comparison_body_through_call_result_rejected rejected 2167ms expected @ccdb99ca2214
 	cannot prove requires contract for call hold from main: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/generic_comparison_body_through_const_name_rejected rejected 2588ms expected @ccdb99ca2214
