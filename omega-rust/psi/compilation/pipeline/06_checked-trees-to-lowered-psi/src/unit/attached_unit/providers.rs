@@ -47,134 +47,56 @@ pub(super) fn instance_requirements(
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
     boundary_parameters: &[BoundaryParameters],
 ) -> Result<Vec<terminal_psi::ProviderInstanceRequirements>, LoweringError> {
-    let typed = &checked.typed;
     // Interface retention, not candidate presence, scopes this publication.
     // A missing uncalled candidate cannot remove its declared obligation;
     // unrelated source-only interfaces need no portable realization here.
     let mut templates = Vec::new();
-    for boundary in boundary_parameters {
-        let template = match typed.closed_requirement_application(boundary.source) {
-            Some(application) => application.template,
-            None => {
-                let template = selection_coordinates::immediate_template(checked, boundary.source)?;
-                if template.is_valid() {
-                    template
-                } else {
-                    boundary.source
-                }
-            }
-        };
-        if !templates.contains(&template) {
-            templates.push(template);
+    let publication = &checked.facts.provider_instance_publication;
+    for (_, obligation) in publication.requirements.iter() {
+        if boundary_parameters.iter().any(|boundary| {
+            boundary.source == obligation.template || boundary.source == obligation.boundary
+        }) && !templates.contains(&obligation.template)
+        {
+            templates.push(obligation.template);
         }
     }
-    let mut requirements = Vec::new();
-    for template in typed.machines().iter().filter(|machine| {
-        machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
-            && !typed.machine_type_parameters(machine).is_empty()
-            && templates.contains(&machine.symbol)
-    }) {
-        let template_identity =
-            typed
-                .machine_callable_identity_text(template)
-                .ok_or(LoweringError::Unsupported(
-                    "generic provider requirement has no template callable identity",
-                ))?;
-        let mut required = checked_trees::provider_instances::closed_requirements(typed, template)
-            .into_iter()
-            .map(|identity| typed.callable_identity_text(identity))
-            .collect::<Vec<_>>();
-        required.sort();
-        required.dedup();
-        requirements.push(terminal_psi::ProviderInstanceRequirements {
-            template: identities.intern(&template_identity),
-            package: typed.symbols.symbol_package_identity(template.symbol),
-            selecting_declaration: None,
-            source_candidate_identity: Default::default(),
-            required_instances: required
-                .iter()
-                .map(|identity| terminal_psi::RequiredProviderInstance {
-                    requirement_identity: identities.intern(identity),
-                    candidate_identity: Default::default(),
-                    receiving_application: Default::default(),
-                    receiving_region_arguments: Vec::new(),
-                })
-                .collect(),
-        });
-    }
+    let mut requirements: Vec<terminal_psi::ProviderInstanceRequirements> = Vec::new();
     // Checked satisfaction is an obligation independently of candidate/body
     // retention. Named implementations scope it to the exact choosing owner,
     // immediate body template, receiving application and public region tuple.
-    for fact in checked.facts.provider_closed_requirements.iter() {
-        if !templates.contains(&fact.template) {
+    for (_, obligation) in publication.requirements.iter() {
+        if !templates.contains(&obligation.template) {
             continue;
         }
-        if typed
-            .conformance_by_symbol(fact.selecting_declaration)
-            .is_none()
-        {
-            continue;
-        }
-        let Some((owner, signature)) = typed.trait_machine_signature(fact.template) else {
-            continue;
-        };
-        let Some(application) = typed.closed_requirement_application(fact.closed_requirement)
-        else {
-            continue;
-        };
-        let declaring = typed
-            .trait_definition_by_symbol(application.declaring_trait)
-            .ok_or(LoweringError::Unsupported(
-                "provider obligation lost its declaring trait",
-            ))?;
-        let closed_requirement =
-            typed.trait_requirement_callable_identity(declaring, application.signature);
-        let provider = typed
-            .machine(fact.provider)
-            .ok_or(LoweringError::Unsupported(
-                "provider obligation lost its checked realization",
-            ))?;
-        let immediate = selection_coordinates::immediate_template(checked, fact.provider)?;
-        let template_machine = if immediate.is_valid() {
-            typed.machine(immediate).ok_or(LoweringError::Unsupported(
-                "provider obligation lost its immediate template",
-            ))?
-        } else {
-            provider
-        };
-        let template_body = typed
-            .machine_callable_identity_text(template_machine)
-            .ok_or(LoweringError::Unsupported(
-                "provider obligation has no realization template identity",
-            ))?;
-        let closed_body =
-            typed
-                .machine_callable_identity_text(provider)
-                .ok_or(LoweringError::Unsupported(
-                    "provider obligation has no closed realization identity",
-                ))?;
-        if !closed_requirement.is_valid() {
-            return unsupported("provider obligation has no closed requirement identity");
-        }
-        let template =
-            identities.intern(&typed.trait_requirement_callable_identity_text(owner, signature));
-        let package = typed.symbols.symbol_package_identity(fact.template);
-        let selecting_declaration = Some(
-            crate::machine_lowering::declarations::nominal(
-                identities,
-                checked,
-                exact_toolchain_sources,
-                fact.selecting_declaration,
+        let declaration = obligation
+            .declaration
+            .as_ref()
+            .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.clone()))?;
+        let template = identities.intern(&declaration.template_identity);
+        let package = declaration.package;
+        let selecting_declaration = if declaration.selecting_declaration.is_valid() {
+            Some(
+                crate::machine_lowering::declarations::nominal(
+                    identities,
+                    checked,
+                    exact_toolchain_sources,
+                    declaration.selecting_declaration,
+                )
+                .map_err(|reason| LoweringError::InvalidDeclarationIdentity(reason.to_owned()))?,
             )
-            .map_err(LoweringError::Unsupported)?,
-        );
-        let source_candidate_identity = identities.intern(&template_body);
+        } else {
+            None
+        };
+        let source_candidate_identity = identities.intern(&declaration.source_candidate_identity);
         let (receiving_application, receiving_region_arguments) =
-            selection_coordinates::intern_checked_receiving_application(identities, checked, fact)?;
+            selection_coordinates::intern_prepared_receiving_application(
+                identities,
+                publication,
+                declaration.receiving,
+            )?;
         let required = terminal_psi::RequiredProviderInstance {
-            requirement_identity: identities
-                .intern(&typed.callable_identity_text(closed_requirement)),
-            candidate_identity: identities.intern(&closed_body),
+            requirement_identity: identities.intern(&declaration.requirement_identity),
+            candidate_identity: identities.intern(&declaration.candidate_identity),
             receiving_application,
             receiving_region_arguments,
         };

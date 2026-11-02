@@ -48,60 +48,48 @@ pub(super) fn intern_receiving_application(
             "provider candidate has multiple checked receiving associations",
         ));
     }
-    intern_checked_receiving_application(identities, checked, row)
+    let publication = &checked.facts.provider_instance_publication;
+    let receiving = publication
+        .receiving(row)
+        .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.to_owned()))?;
+    intern_receiving_description(identities, publication, receiving)
 }
 
 /// Both an emitted candidate and the independent obligation roster consume
 /// the checker's original receiving association, never an erased signature.
-pub(super) fn intern_checked_receiving_application(
+pub(super) fn intern_prepared_receiving_application(
     identities: &mut TerminalIdentityTableBuilder,
-    checked: &CheckedTrees,
-    row: &checked_trees::CheckedProviderClosedRequirement,
+    publication: &checked_trees::CheckedProviderInstancePublication,
+    receiving: arena::Handle<checked_trees::CheckedProviderReceivingApplication>,
 ) -> Result<(TerminalIdentityIndex, Vec<TerminalIdentityIndex>), LoweringError> {
-    let typed = &checked.typed;
-    let Some(application) = typed.closed_requirement_application(row.closed_requirement) else {
+    if !receiving.is_valid() {
         return Ok((TerminalIdentityIndex::default(), Vec::new()));
-    };
-    if row.template != application.template
-        || row.receiving_application != application.trait_application_identity
-    {
-        return Err(LoweringError::Unsupported(
-            "checked provider obligation has a different receiving application",
-        ));
     }
-    let regions = checked
-        .facts
-        .provider_closed_requirements
-        .receiving_regions(row)
-        .ok_or(LoweringError::Unsupported(
-            "provider candidate lost its checked receiving region span",
-        ))?;
-    let expected_regions = typed
-        .conformance_by_symbol(row.selecting_declaration)
-        .map_or(0, |implementation| implementation.lifetime_parameters.len());
-    if regions.len() != expected_regions {
-        return Err(LoweringError::Unsupported(
-            "provider candidate has an incomplete checked receiving region tuple",
-        ));
-    }
-    let application_text = typed
-        .type_identity_text(application.portable_trait_application_identity)
-        .filter(|text| !text.is_empty())
-        .ok_or(LoweringError::Unsupported(
-            "provider receiving application has no portable identity",
-        ))?;
-    let region_arguments = regions
-        .iter()
-        .map(|region| {
-            let text =
-                typed_trees::type_identity::portable_lifetime_parameter_identity(typed, *region)
-                    .ok_or(LoweringError::Unsupported(
-                        "provider receiving region has no portable declaration coordinate",
-                    ))?;
-            Ok(identities.intern(&text))
-        })
-        .collect::<Result<Vec<_>, LoweringError>>()?;
-    Ok((identities.intern(&application_text), region_arguments))
+    let receiving = publication.receivers.get(receiving);
+    let receiving = receiving
+        .description
+        .as_ref()
+        .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.clone()))?;
+    intern_receiving_description(identities, publication, receiving)
+}
+
+fn intern_receiving_description(
+    identities: &mut TerminalIdentityTableBuilder,
+    publication: &checked_trees::CheckedProviderInstancePublication,
+    receiving: &checked_trees::CheckedProviderReceivingDescription,
+) -> Result<(TerminalIdentityIndex, Vec<TerminalIdentityIndex>), LoweringError> {
+    let regions = publication.regions.span(receiving.regions).ok_or_else(|| {
+        LoweringError::InvalidBoundaryApplication(
+            "provider lost its checked receiving region publication".into(),
+        )
+    })?;
+    Ok((
+        identities.intern(&receiving.application),
+        regions
+            .iter()
+            .map(|region| identities.intern(region))
+            .collect(),
+    ))
 }
 
 pub(super) fn intern(
@@ -168,7 +156,7 @@ pub(super) fn intern(
     ))
 }
 
-pub(super) fn immediate_template(
+fn immediate_template(
     checked: &CheckedTrees,
     instance: symbols::SymbolHandle,
 ) -> Result<symbols::SymbolHandle, LoweringError> {

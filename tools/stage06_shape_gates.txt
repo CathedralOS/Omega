@@ -231,7 +231,7 @@
 5 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/provider_attachments.rs
 14 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/providers.rs
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/providers/named.rs
-13 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/providers/selection_coordinates.rs
+9 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/providers/selection_coordinates.rs
 16 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/quotients.rs
 11 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/reference_results.rs
 20 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/scalar_applications.rs
