@@ -2,6 +2,10 @@
 #[path = "../tests/support/fixture_package_inputs.rs"]
 mod fixture_package_inputs;
 
+use evaluation_accounting::{
+    BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationInvocationAccount,
+    EvaluationMeasurementIdentity, TerminalStorageScheduleIdentity,
+};
 use semantic_vocabulary::{
     BoundaryMachineId, CanonicalStructuralPathSegment as Path, IntegerValue,
 };
@@ -26,14 +30,19 @@ enum Mode {
     WrongPath,
     Shared,
     Opaque,
+    WrongRegion,
+    Quota,
 }
 #[derive(Default)]
 struct Observation {
     calls: usize,
     first: Option<TerminalBoundaryReferenceSelection>,
+    blocker: Option<evaluation_accounting::EvaluationStorageLease>,
 }
 struct Host {
     signature: TerminalImportSignature,
+    account: EvaluationInvocationAccount,
+    sponsor: BuildEvaluationSponsor,
     mode: Mode,
     value_path: Vec<Path>,
     observed: Rc<RefCell<Observation>>,
@@ -55,6 +64,8 @@ impl TerminalEffectHandler for Host {
         TerminalCallStorageRequirements {
             arguments: if self.mode == Mode::NoCapture {
                 &[]
+            } else if self.signature.structural_parameters.len() == 2 {
+                &[0, 1]
             } else {
                 &[0]
             },
@@ -101,7 +112,16 @@ impl TerminalEffectHandler for Host {
             Mode::WrongPath => vec![Path::FixedIndex(999)],
             _ => vec![],
         };
-        let current = buffers[0].select_reference(&path, access)?;
+        let selected_input = if self.mode == Mode::WrongRegion { 1 } else { 0 };
+        let current = buffers[selected_input].select_reference(&path, access)?;
+        assert!(
+            self.sponsor.live_storage_cells() > 0,
+            "captured storage is accounted"
+        );
+        if self.mode == Mode::Quota {
+            let remaining = 1_000_000 - self.sponsor.live_storage_cells();
+            observed.blocker = Some(self.account.reserve_storage(remaining, 0).unwrap());
+        }
         if self.mode == Mode::Opaque {
             let TerminalEffect::BoundaryCall {
                 result: terminal_psi::BoundaryMachineResult::Structural(result),
@@ -133,106 +153,190 @@ fn main() {
         println!("{}", compiler::compiler_build_profile());
         return;
     }
-    let root = fixture_package_inputs::repo_root()
-        .join("samples/cli/facts/foreign_reference_result/local/main.omg");
-    let prepared = fixture_package_inputs::reviewed_repository_fixture_package_inputs(&root, None)
-        .expect("ordinary package acceptance");
-    let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
-    request.package_inputs = prepared.package_inputs;
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .unwrap_or_else(|error| panic!("{:?}", error.into_diagnostics()));
-    let produced = psi_compiler::TerminalProductionRequest::new(
-        checked.execution().provider_source.program(),
-        psi_compiler::TerminalMachineSelection::Name("main"),
-        checked.sources().exact_toolchain_sources(),
-    )
-    .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
-    .unwrap();
-    let artifact = produced.artifact().unwrap();
-    for decoded in [false, true] {
-        let program = if decoded {
-            TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap()
-        } else {
-            TerminalProgram::borrow(artifact.view())
-        };
-        for mode in [
-            Mode::Good,
-            Mode::NoOptIn,
-            Mode::NoCapture,
-            Mode::Stale,
-            Mode::WrongType,
-            Mode::WrongPath,
-            Mode::Shared,
-            Mode::Opaque,
-        ] {
-            let observed = Rc::new(RefCell::new(Observation::default()));
-            let mut instance = program
-                .instantiate(TerminalInstantiation::default())
-                .unwrap();
-            let imports = instance.unbound_imports().collect::<Vec<_>>();
-            assert_eq!(imports.len(), 1);
-            let declaration = artifact
-                .semantic_module()
-                .boundary_machine(imports[0])
-                .unwrap();
-            assert_eq!(declaration.result_reference_regions.len(), 1);
-            let cell = artifact
-                .semantic_module()
-                .structural_types
-                .iter()
-                .find(|row| row.id == declaration.structural_parameters[0].structural_type)
-                .unwrap();
-            let terminal_psi::StructuralTypeShape::Record { fields, .. } = &cell.shape else {
-                panic!("Cell")
+    for (project, region_control) in [
+        (
+            "samples/cli/facts/foreign_reference_result/local/main.omg",
+            false,
+        ),
+        (
+            "samples/cli/facts/foreign_reference_result/controls/host_regions/main.omg",
+            true,
+        ),
+    ] {
+        let root = fixture_package_inputs::repo_root().join(project);
+        let prepared =
+            fixture_package_inputs::reviewed_repository_fixture_package_inputs(&root, None)
+                .expect("ordinary package acceptance");
+        let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
+        request.package_inputs = prepared.package_inputs;
+        let checked =
+            omega_build::check_source(&mut compiler::CompilationSession::default(), request)
+                .result
+                .unwrap_or_else(|error| panic!("{:?}", error.into_diagnostics()));
+        let produced = psi_compiler::TerminalProductionRequest::new(
+            checked.execution().provider_source.program(),
+            psi_compiler::TerminalMachineSelection::Name("main"),
+            checked.sources().exact_toolchain_sources(),
+        )
+        .produce(Default::default(), &mut psi_compiler::UnmeasuredProduction)
+        .unwrap();
+        let artifact = produced.artifact().unwrap();
+        for decoded in [false, true] {
+            let program = if decoded {
+                TerminalProgram::load_envelope(&artifact.to_bytes()).unwrap()
+            } else {
+                TerminalProgram::borrow(artifact.view())
             };
-            let value_path = vec![Path::Field(
-                fields
-                    .iter()
-                    .find(|field| {
-                        artifact.semantic_module().identities.text(field.identity) == Some("value")
-                    })
-                    .unwrap()
-                    .id,
-            )];
-            instance
-                .bind_import(
-                    imports[0],
-                    Host {
-                        signature: declaration.into(),
-                        mode,
-                        value_path,
-                        observed: Rc::clone(&observed),
-                    },
+            let modes: &[Mode] = if region_control {
+                &[Mode::Good, Mode::WrongRegion]
+            } else {
+                &[
+                    Mode::Good,
+                    Mode::NoOptIn,
+                    Mode::NoCapture,
+                    Mode::Stale,
+                    Mode::WrongType,
+                    Mode::WrongPath,
+                    Mode::Shared,
+                    Mode::Opaque,
+                    Mode::Quota,
+                ]
+            };
+            for &mode in modes {
+                let measurement = EvaluationMeasurementIdentity::TerminalPsi {
+                    fuel_schedule: terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+                    storage_schedule: TerminalStorageScheduleIdentity::CURRENT,
+                };
+                let limits = BuildEvaluationSponsorLimits::new(
+                    1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000, 1_000_000,
+                    1_000_000,
                 )
                 .unwrap();
-            let result = instance.invoke(&mut terminal_fuel::TerminalFuelMeter::unbounded());
-            if mode == Mode::Good {
-                assert_eq!(
-                    result.unwrap(),
-                    TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+                let sponsor =
+                    BuildEvaluationSponsor::new_with_measurement(limits, measurement).unwrap();
+                let account = sponsor.begin_invocation(measurement, 100_000).unwrap();
+                let observed = Rc::new(RefCell::new(Observation::default()));
+                let mut instance = program
+                    .instantiate(TerminalInstantiation {
+                        account: Some(&account),
+                        ..Default::default()
+                    })
+                    .unwrap();
+                let imports = instance.unbound_imports().collect::<Vec<_>>();
+                assert_eq!(imports.len(), 1);
+                let declaration = artifact
+                    .semantic_module()
+                    .boundary_machine(imports[0])
+                    .unwrap();
+                assert_eq!(declaration.result_reference_regions.len(), 1);
+                let cell = artifact
+                    .semantic_module()
+                    .structural_types
+                    .iter()
+                    .find(|row| row.id == declaration.structural_parameters[0].structural_type)
+                    .unwrap();
+                let terminal_psi::StructuralTypeShape::Record { fields, .. } = &cell.shape else {
+                    panic!("Cell")
+                };
+                let value_path = vec![Path::Field(
+                    fields
+                        .iter()
+                        .find(|field| {
+                            artifact.semantic_module().identities.text(field.identity)
+                                == Some("value")
+                        })
+                        .unwrap()
+                        .id,
+                )];
+                instance
+                    .bind_import(
+                        imports[0],
+                        Host {
+                            signature: declaration.into(),
+                            account: account.clone(),
+                            sponsor: sponsor.clone(),
+                            mode,
+                            value_path,
+                            observed: Rc::clone(&observed),
+                        },
+                    )
+                    .unwrap();
+                let result = instance.invoke(
+                    &mut terminal_fuel::TerminalFuelMeter::with_invocation(
+                        account.clone(),
+                        Some(100_000),
+                    )
+                    .unwrap(),
                 );
-                assert_eq!(
-                    observed.borrow().calls,
-                    2,
-                    "each authored call executes exactly once"
-                );
-            } else {
-                assert!(result.is_err(), "{mode:?} must reject, got {result:?}");
-                assert_eq!(
-                    observed.borrow().calls,
-                    match mode {
-                        Mode::NoOptIn | Mode::NoCapture => 0,
-                        Mode::Stale => 2,
-                        _ => 1,
+                if mode == Mode::Good {
+                    assert_eq!(
+                        result.unwrap(),
+                        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+                    );
+                    assert_eq!(
+                        observed.borrow().calls,
+                        2,
+                        "each authored call executes exactly once"
+                    );
+                } else {
+                    assert!(result.is_err(), "{mode:?} must reject, got {result:?}");
+                    assert_eq!(
+                        observed.borrow().calls,
+                        match mode {
+                            Mode::NoOptIn | Mode::NoCapture => 0,
+                            Mode::Stale => 2,
+                            _ => 1,
+                        }
+                    );
+                    assert!(instance.result().is_none());
+                    let error = format!("{:?}", result.unwrap_err());
+                    let expected = match mode {
+                        Mode::NoOptIn => Some("explicit captured-input interface"),
+                        Mode::NoCapture => Some("no admitted borrowed input capture"),
+                        Mode::WrongRegion => Some("exceeds its public input regions"),
+                        Mode::Quota => Some("LiveStorage"),
+                        _ => None,
+                    };
+                    if let Some(expected) = expected {
+                        assert!(error.contains(expected), "{mode:?}: {error}");
                     }
+                    println!("refusal region={region_control} mode={mode:?}: {error}");
+                    observed.borrow_mut().blocker.take();
+                    let calls = observed.borrow().calls;
+                    assert!(
+                        instance
+                            .invoke(
+                                &mut terminal_fuel::TerminalFuelMeter::with_invocation(
+                                    account.clone(),
+                                    Some(100_000)
+                                )
+                                .unwrap()
+                            )
+                            .is_err(),
+                        "completion fault stays latched"
+                    );
+                    assert_eq!(
+                        observed.borrow().calls,
+                        calls,
+                        "failed completion cannot replay host effects"
+                    );
+                }
+                drop(instance);
+                assert_eq!(
+                    sponsor.live_storage_cells(),
+                    0,
+                    "closing releases all interpreter storage"
                 );
-                assert!(instance.result().is_none());
+                assert_eq!(
+                    sponsor.live_payload_bytes(),
+                    0,
+                    "closing releases all interpreter payload"
+                );
+                println!(
+                    "host-reference region={region_control} decoded={decoded} mode={mode:?} calls={} passed",
+                    observed.borrow().calls
+                );
             }
-            println!(
-                "host-reference decoded={decoded} mode={mode:?} calls={} passed",
-                observed.borrow().calls
-            );
         }
     }
 }
