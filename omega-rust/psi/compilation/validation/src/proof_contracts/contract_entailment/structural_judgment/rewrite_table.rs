@@ -191,18 +191,27 @@ fn discriminant_key<T>(value: &T) -> u64 {
 /// compares, so equal terms always share a bucket. Different terms may share
 /// one freely; `find` still confirms every candidate with full equality.
 fn rewrite_key(term: &StructuralTerm) -> (u8, u64) {
+    rewrite_key_at(term, 0)
+}
+
+fn rewrite_key_at(term: &StructuralTerm, depth: usize) -> (u8, u64) {
     match term.semantic_value() {
         StructuralTerm::Variable(name) => (1, string_key(name)),
         StructuralTerm::BoundValue(symbol) => (2, handle_key(*symbol)),
         StructuralTerm::CapturedValue {
             expression,
             statement,
+            occurrence,
             ..
         } => (
             3,
-            handle_key(*expression) ^ handle_key(*statement).rotate_left(1),
+            handle_key(*expression)
+                ^ handle_key(*statement).rotate_left(1)
+                ^ (*occurrence as u64).rotate_left(17),
         ),
-        StructuralTerm::BoundProjection { subject, .. } => (4, handle_key(*subject)),
+        StructuralTerm::BoundProjection { subject, path } => {
+            (4, handle_key(*subject) ^ string_key(path).rotate_left(17))
+        }
         StructuralTerm::Integer(_) => (5, 0),
         StructuralTerm::RepeatedArray { length, .. } => (20, *length),
         StructuralTerm::Float(_) => (6, 0),
@@ -214,7 +223,18 @@ fn rewrite_key(term: &StructuralTerm) -> (u8, u64) {
             (9, handle_key(*target) ^ handle_key(*field).rotate_left(32))
         }
         StructuralTerm::IndexedValue { .. } => (10, 0),
-        StructuralTerm::Projection { .. } => (11, 0),
+        StructuralTerm::Projection { subject, path } => {
+            // Equality retains this path and the subject's semantic identity.
+            // Bound the key walk independently of term depth; collisions still
+            // use full equality and retain the original insertion order.
+            let subject_key = if depth < 8 {
+                let (kind, identity) = rewrite_key_at(subject, depth + 1);
+                identity.rotate_left(7) ^ u64::from(kind)
+            } else {
+                0
+            };
+            (11, string_key(path) ^ subject_key.rotate_left(17))
+        }
         StructuralTerm::ScalarBinary { operator, .. } => (12, discriminant_key(operator)),
         StructuralTerm::Opaque(text) => (13, string_key(text)),
         // `semantic_value` already unwrapped every observed layer; a stray
@@ -342,5 +362,105 @@ fn predicate_may_unwrap_to_integer_comparison(predicate: &StructuralTerm, depth:
             false
         }
         _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn integer(value: i64) -> StructuralTerm {
+        StructuralTerm::Integer(numerics::bignum::BigInt::from_i64(value))
+    }
+
+    fn captured(occurrence: usize) -> StructuralTerm {
+        StructuralTerm::CapturedValue {
+            expression: arena::Handle::from_arena_index(1),
+            statement: arena::Handle::from_arena_index(2),
+            callable: arena::Handle::from_arena_index(3),
+            occurrence,
+            result_type: arena::Handle::from_arena_index(4),
+            integer_range: None,
+        }
+    }
+
+    fn projection(subject: StructuralTerm, path: &str) -> StructuralTerm {
+        StructuralTerm::Projection {
+            subject: Box::new(subject),
+            path: path.to_owned(),
+        }
+    }
+
+    #[test]
+    fn completed_occurrences_keep_distinct_rewrites_and_first_match_order() {
+        let mut table = RewriteTable::default();
+        for occurrence in 0..128 {
+            table.push((captured(occurrence), integer(occurrence as i64)));
+        }
+        table.push((captured(0), integer(999)));
+        for occurrence in 0..128 {
+            let term = captured(occurrence);
+            assert_eq!(table.find(&term).unwrap().1, integer(occurrence as i64));
+            // Equal AST handles from repeated calls do not force deep scans
+            // over every other completed occurrence.
+            assert_eq!(
+                table.index[&rewrite_key(&term)].len(),
+                if occurrence == 0 { 2 } else { 1 }
+            );
+        }
+    }
+
+    #[test]
+    fn projection_paths_and_observation_shells_preserve_semantic_lookup() {
+        let first = projection(captured(7), "left.count");
+        let observed = StructuralTerm::ObservedValue {
+            observed_type: arena::Handle::from_arena_index(100),
+            value: Box::new(captured(7)),
+            descriptor: Some(Box::new(integer(99))),
+        };
+        let same = projection(observed, "left.count");
+        let other = projection(captured(7), "right.count");
+        assert_eq!(first, same);
+        assert_eq!(rewrite_key(&first), rewrite_key(&same));
+        assert_ne!(rewrite_key(&first), rewrite_key(&other));
+        let mut table = RewriteTable::default();
+        table.push((first, integer(1)));
+        table.push((same.clone(), integer(2)));
+        table.push((other.clone(), integer(3)));
+        assert_eq!(table.find(&same).unwrap().1, integer(1));
+        assert_eq!(table.find(&other).unwrap().1, integer(3));
+        let left = StructuralTerm::BoundProjection {
+            subject: arena::Handle::from_arena_index(8),
+            path: "left".to_owned(),
+        };
+        let right = StructuralTerm::BoundProjection {
+            subject: arena::Handle::from_arena_index(8),
+            path: "right".to_owned(),
+        };
+        assert_ne!(rewrite_key(&left), rewrite_key(&right));
+        table.push((left.clone(), integer(4)));
+        table.push((right.clone(), integer(5)));
+        assert_eq!(table.find(&left).unwrap().1, integer(4));
+        assert_eq!(table.find(&right).unwrap().1, integer(5));
+    }
+
+    #[test]
+    fn bounded_projection_keys_still_resolve_full_equality_collisions() {
+        let deep = |occurrence| {
+            (0..32).fold(captured(occurrence), |subject, _| {
+                projection(subject, "next")
+            })
+        };
+        let first = deep(1);
+        let second = deep(2);
+        assert_ne!(first, second);
+        // The bounded key intentionally cannot reach their different leaves.
+        assert_eq!(rewrite_key(&first), rewrite_key(&second));
+        let mut table = RewriteTable::default();
+        table.push((first.clone(), integer(10)));
+        table.push((second.clone(), integer(20)));
+        table.push((first.clone(), integer(30)));
+        assert_eq!(table.find(&first).unwrap().1, integer(10));
+        assert_eq!(table.find(&second).unwrap().1, integer(20));
     }
 }
