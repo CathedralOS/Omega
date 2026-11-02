@@ -266,3 +266,11 @@ retain the full read roster; exact increment-zero twins reject non-descent.
 continue the same production through an ordinary helper borrowing the complete
 owned entry input. The checked call retains its exact referent type and short
 shared window separately from the scalar proof reads.
+
+[Shared ranking calls on owned noncopyable records](local/declared_measure/computed_record/call/borrowed_input/exclusive_descriptor/README.md)
+carries this same rank/counter fact through an owned noncopyable record containing
+an exclusive reference, across all nine places. A pure, total ranking call lends
+the initialized record; completion writes through the original descriptor and
+the caller checks the write and neighboring canaries. The corresponding
+nonprogress twins, selected Copy-child and two-shared-argument compositions, and
+permission controls are pinned as `facts/nested_machine_joint_rank_exclusive_input_call_*`.
