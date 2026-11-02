@@ -100,6 +100,21 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
         run: python tools/ci/compiler_pilot.py
+      - name: Trace retained descriptor occurrence
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, pathlib, subprocess
+          root = pathlib.Path('build/compiler-pilot')
+          cli = next(root.glob('producer-*/omega'))
+          result = subprocess.run([str(cli), '--check', 'tests/omega/pass/facts/fixed_layout_byte_roundtrip_through_field_exit/main.omg'], capture_output=True, text=True, timeout=90, env=dict(os.environ, OMEGA_COMPILER_CHECK_SITES='1'))
+          (root / 'descriptor-occurrence-trace.log').write_text(result.stdout + result.stderr)
+          summary = '\n'.join(line for line in result.stderr.splitlines() if 'CHECKSITE descriptor-load' in line or 'error:' in line)
+          (root / 'descriptor-occurrence-summary.log').write_text(summary)
+          print('diagnostic exit', result.returncode)
+          print(summary)
+          PY
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"
