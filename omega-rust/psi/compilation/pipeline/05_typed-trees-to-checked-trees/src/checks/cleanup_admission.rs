@@ -136,8 +136,17 @@ pub(crate) fn validate_selected_cleanup_guarantees(
                         crash
                             .checked_call_at(state.state_symbol, statement, ordinal)
                             .is_some_and(|row| {
-                                row.target_machine() == target_machine
-                                    && row.target_state() == target_state
+                                (row.target_machine() == target_machine
+                                    && row.target_state() == target_state)
+                                    || row
+                                        .executable_contract_identity(
+                                            &facts.contract_plans,
+                                            &facts.proof,
+                                            state.machine_symbol,
+                                            target_machine,
+                                            target_state,
+                                        )
+                                        .is_ok()
                             })
                     })
             });

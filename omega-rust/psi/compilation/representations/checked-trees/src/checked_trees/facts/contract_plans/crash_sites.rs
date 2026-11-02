@@ -308,6 +308,62 @@ impl CrashContractCapsule {
 }
 
 impl CheckedCrashCallSite {
+    /// Bind the checked source condition to the function execution will enter.
+    /// A selected requirement and its implementation have different identities;
+    /// the retained call record connects them without changing either contract.
+    pub fn executable_contract_identity(
+        &self,
+        plans: &crate::MachineContractPlans,
+        proof: &crate::ProofFacts,
+        caller_machine: SymbolHandle,
+        target_machine: SymbolHandle,
+        target_state: SymbolHandle,
+    ) -> Result<crate::MachineContractIdentity, &'static str> {
+        let target = plans
+            .for_machine(target_machine)
+            .ok_or("executable call target has no checked contract plan")?;
+        let identity = crate::MachineContractIdentity {
+            report_fingerprint: target.report_fingerprint,
+            commitment: target.commitment,
+        };
+        if self.target_machine == target_machine && self.target_state == target_state {
+            if self.target_contract_report_fingerprint != identity.report_fingerprint
+                || self.target_contract_commitment != identity.commitment
+            {
+                return Err("checked call target contract identity disagrees");
+            }
+            return Ok(identity);
+        }
+
+        let mut bindings = proof.contract_calls.iter().filter(|(_, call)| {
+            call.caller_machine_symbol == caller_machine
+                && call.caller_state_symbol == self.location.state
+                && call.statement_index == self.location.statement_ordinal as usize
+                && call.call_ordinal == self.location.call_ordinal as usize
+        });
+        let (_, binding) = bindings
+            .next()
+            .ok_or("requirement call lost its checked executable binding")?;
+        if bindings.next().is_some()
+            || binding.target_machine_symbol != target_machine
+            || binding.target_state_symbol != target_state
+            || !proof.call_contract_signatures.is_valid(binding.signature)
+        {
+            return Err("requirement call has a mismatched checked executable binding");
+        }
+        let public = proof.call_contract_signatures.get(binding.signature);
+        if public.caller_machine_symbol != caller_machine
+            || public.caller_state_symbol != self.location.state
+            || public.statement_index != self.location.statement_ordinal as usize
+            || public.call_ordinal != self.location.call_ordinal as usize
+            || self.target_machine != public.declaring_trait
+            || self.target_state != public.signature.symbol
+        {
+            return Err("requirement crash check belongs to another public call");
+        }
+        Ok(identity)
+    }
+
     pub fn new(
         location: CrashCallSiteLocation,
         target_machine: SymbolHandle,
