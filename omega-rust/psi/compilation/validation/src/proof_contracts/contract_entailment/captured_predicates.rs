@@ -258,7 +258,7 @@ fn predicate_holds_on_current_storage(
         let Some(place) = predicate_field_place(program, place, definition, field.symbol) else {
             return false;
         };
-        if let Some(value) = judge.captured_place_projection(&place, ContentPlaceVersion::Current) {
+        if let Some(value) = judge.current_place_projection(&place) {
             parameters.push(StateParameter {
                 symbol: field.symbol,
                 name: field.name.clone(),
