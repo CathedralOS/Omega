@@ -126,6 +126,8 @@ fail/facts/abstract_signature_call_generic_actual_through_target_body_rejected r
 	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `observe` state `entry` value call to `apply` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
 	machine `apply$specialized$5fb3c39722e06b13$0` state `entry` value call to `witness` violates required fact `premise<T>(kept)`: the instantiated fact is structurally false
+fail/facts/aggregate_storage_address_identity_packed_array_rejected rejected 735ms expected @c0578466ca4e+wt
+	storage address_of requires exactly one ordinary storage reference and no static arguments
 fail/facts/applied_zero_establishment_field_bound_unestablished rejected 3153ms expected @911f6617ba9e
 	machine `start` state `entry` statement 1: reading `value.<whole value>` crosses an open default-domain invariant window before data `Floor` is established: the zeroed representation is not yet a `Floor` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/facts/applied_zero_establishment_open_application_unestablished rejected 2706ms expected @911f6617ba9e
@@ -4507,6 +4509,7 @@ pass/facts/affine_discard_root_cleanup_through_other_machine_exit checked 3194ms
 pass/facts/affine_discard_root_cleanup_through_other_state_exit checked 4184ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/affine_discard_root_cleanup_through_parameter_exit checked 3421ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/affine_discard_root_cleanup_through_target_body_exit checked 5289ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/aggregate_storage_address_identity_packed_array_exit checked 3551ms check-target:macos_arm64 @c0578466ca4e+wt
 pass/facts/aggregate_storage_address_identity_through_call_result_exit checked 3272ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/aggregate_storage_address_identity_through_const_name_exit checked 3306ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/aggregate_storage_address_identity_through_field_exit checked 3674ms check-target:macos_arm64 @ccdb99ca2214
@@ -10225,7 +10228,7 @@ pass/filesystem/runtime_portable_directory_names_exit rejected 29061ms check-tar
 	machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared services `DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation`
 pass/filesystem/runtime_portable_metadata_availability_exit rejected 123037ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "windows_removal_walk::windows_x86_64::next", reason: "local refinement lost its machine identity", gap: None })
-pass/filesystem/runtime_portable_metadata_exit checked 234009ms check-target:macos_arm64 @d2be883ccac9
+pass/filesystem/runtime_portable_metadata_exit checked 84785ms check-target:macos_arm64 @3cfea8f4f431
 pass/filesystem/runtime_portable_permissions_exit rejected 28123ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `Main::main` publishes service reach `Console` but its checked body reaches undeclared services `FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation`
 pass/filesystem/runtime_portable_unknown_directory_kinds_exit rejected 188939ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214

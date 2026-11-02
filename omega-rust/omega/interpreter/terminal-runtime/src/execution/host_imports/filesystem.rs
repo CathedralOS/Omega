@@ -4,6 +4,7 @@
 
 use std::{cell::RefCell, collections::BTreeMap, rc::Rc};
 
+use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{IntegerSign, IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{TerminalEffectRejection, TerminalProgram, TerminalScalarValue};
@@ -57,6 +58,13 @@ enum Formal {
     Bytes(u64, StructuralAccess),
     ByteView(StructuralAccess),
     SignedReference(u16, StructuralAccess),
+    SignedRecordArray {
+        records: u64,
+        words: usize,
+        bits: u16,
+        alignment: u16,
+        access: StructuralAccess,
+    },
 }
 
 impl FilesystemContext {
@@ -72,6 +80,7 @@ impl FilesystemContext {
         program: &TerminalProgram,
         declaration: &BoundaryMachineDeclaration,
         binding: &NormalizedForeignCallBinding,
+        layouts: &[NativeBorrowedStorageLayout],
     ) -> Result<Option<FilesystemCall>, TerminalRuntimeError> {
         let Some((locator, _)) = binding.import() else {
             return Ok(None);
@@ -187,6 +196,24 @@ impl FilesystemContext {
                 },
             ),
             (
+                b"futimens",
+                &[
+                    Signed(32),
+                    Formal::SignedRecordArray {
+                        records: 2,
+                        words: 2,
+                        bits: 64,
+                        alignment: 8,
+                        access: SharedBorrow,
+                    },
+                ],
+                Signed(32),
+                Use {
+                    scalar: 0,
+                    current_directory: false,
+                },
+            ),
+            (
                 b"fsync",
                 &[Signed(32)],
                 Signed(32),
@@ -261,9 +288,9 @@ impl FilesystemContext {
             namespace_admission
                 .map_err(|reason| TerminalRuntimeError::missing("runtime-filesystem", reason))?;
         }
-        if parameters
-            .is_some_and(|parameters| !matches_signature(program, declaration, parameters, result))
-        {
+        if parameters.is_some_and(|parameters| {
+            !matches_signature(program, declaration, parameters, result, layouts)
+        }) {
             return Err(TerminalRuntimeError::InvalidProvision(
                 "filesystem import differs from its complete OS contract",
             ));
@@ -283,7 +310,9 @@ impl FilesystemContext {
                     }
                     structural += 1;
                 }
-                ByteView(_) | SignedReference(_, _) => structural += 1,
+                ByteView(_) | SignedReference(_, _) | Formal::SignedRecordArray { .. } => {
+                    structural += 1
+                }
                 _ => {}
             }
         }
@@ -340,6 +369,7 @@ fn matches_signature(
     declaration: &BoundaryMachineDeclaration,
     expected: &[Formal],
     result: Formal,
+    layouts: &[NativeBorrowedStorageLayout],
 ) -> bool {
     fn scalar_matches(scalar: ScalarType, expected: Formal) -> bool {
         match (scalar, expected) {
@@ -376,6 +406,26 @@ fn matches_signature(
                     {
                         matches!(program.structural_type(value.structural_type).map(|row| &row.shape),
                             Some(StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))) if integer.sign() == IntegerSign::Signed && integer.bits() == *bits)
+                    }
+                    (
+                        Some(value),
+                        Formal::SignedRecordArray {
+                            records,
+                            words,
+                            bits,
+                            alignment,
+                            access,
+                        },
+                    ) if value.access == *access => {
+                        super::native_provider::matches_signed_record_array(
+                            program,
+                            layouts,
+                            value.structural_type,
+                            *records,
+                            *words,
+                            *bits,
+                            *alignment,
+                        )
                     }
                     (Some(value), Formal::Bytes(count, access)) if value.access == *access => {
                         match program
