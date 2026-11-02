@@ -113,10 +113,22 @@ The original positive was accepted by the retained optimized
 rejected for `index compatibility condition`. The initial migrated positive
 instead refused at synchronous invocation replay: `checked adapter
 MacosForwarding::forward synchronous invocation lost its exact requirement
-application`. Published PR #1344 removes that Source replay route and records
-exact canonical invocation summaries. This migration incorporates that concrete
-prerequisite before qualifying the new source; the historical producer's result
-is not a result on current main.
+application`. Published PR #1344 moves that same description into canonical
+invocation metadata. A fresh optimized `4f1712debdc105a6837bbd31ef0e2d2025ba8657`
+producer on macOS ARM64 still refused the migrated positive for that exact
+reason; both changed index twins rejected correctly. No native or Terminal
+execution ran in that failed capture.
+
+The repair reads invocation headers through the existing complete canonical
+provider-instance roster. Every selected closed body, including an uncalled
+required instance, contributes its checked calls. The open template's unavailable
+generic description is not substituted for those closed records. The join keeps
+selecting owner, requirement, receiver, package and target identities, rejects a
+missing required instance or consumed header, and preserves opaque providers'
+public invocation ceilings. The target-body pass fixture also requests the
+existing source-discard/codec-reload and consumed-summary omission controls.
+Callback body classification keeps its separate declaration-header judgment.
+Fresh execution of this repair remains pending.
 
 ## Compiler Repairs Landed
 
