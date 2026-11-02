@@ -10,6 +10,8 @@
 # context: {"incoming_observations_from": "e8e2fe90b14b2a7bad0e714ba635161d80c9f585", "integration_base": "2e9f231f798bffee7a2bd46857d02adb79de70b6", "measurement": "Historical three-way integration, not a new whole-corpus run. Keep incoming-main observations changed since 66fc7ac3c97, otherwise retain qualified ccdb99ca2214 observations. Also preserve the two additional incoming-main rows from e8e2fe90b14b; no compiler rebase or new full run.", "recorded_source": "ccdb99ca2214b93c0e2535a31cb34a3e2167d9dd", "schema": "omega-corpus-context-v1"}
 fail/borrows/independent_invocation_reference_result_escapes rejected 1619ms expected @c0424312ea2a+wt
 	machine `Code::reply` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/borrows/returned_descriptor_does_not_select_pointee rejected 966ms expected @a13bf1620976
+	machine `first` state `entry` statement 0: cannot prove selected case for payload access `values[0].value`: captured source `values[0]::Present.value` has no live case evidence: the current source does not select its required case
 fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected @3a020eca642a
 	the compiler-owned Build activation cannot be replaced as a whole value
 fail/build/activation_owned_field_refused rejected 227ms expected @3a020eca642a
@@ -1910,6 +1912,8 @@ fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected
 	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
 fail/providers/table_leaf_without_dispatch_borrow rejected 3589ms expected @bad39459725b+wt
 	selected provider plan `<selected target>::satisfies::Measure` is not fully covering: external leaf for `Measure::length` uses a table field, but its first parameter is not a readable borrow of a data declaration
+fail/recast/non_owning_erasure_mixed_write_presentations rejected 1012ms expected @a13bf1620976
+	cannot prove default-domain field requirement for return from corrupt at statement 1: holder.slot requires Storage::Issued
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
@@ -2209,7 +2213,7 @@ pass/borrow/runtime_write_only_affine_sum_exit checked 3784ms check-target:macos
 pass/borrow/runtime_write_only_aggregate_selector_snapshot_exit checked 3296ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_array_indexed_calls_exit checked 3784ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_array_selector_snapshot_exit checked 3688ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrow/runtime_write_only_boundary_satisfier_exit checked 4285ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrow/runtime_write_only_boundary_satisfier_exit checked 2175ms check-target:macos_arm64 @a13bf1620976
 pass/borrow/runtime_write_only_call_result_observation_exit checked 3829ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_captured_record_copy_exit checked 4277ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_write_only_exclusive_reference_aggregate_exit checked 3870ms check-target:macos_arm64 @ccdb99ca2214
@@ -2259,7 +2263,7 @@ pass/borrows/borrowed_window_parameter_provenance_exit checked 3456ms check-targ
 pass/borrows/boundary_scalar_slice_write_exit checked 3831ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/branch_selected_record_composed_receiver_exit checked 16605ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/branch_selected_record_receiver_exit checked 19054ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/callee_returned_shared_reborrow_chain_exit checked 3504ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/callee_returned_shared_reborrow_chain_exit checked 2172ms check-target:macos_arm64 @a13bf1620976
 pass/borrows/captured_state_shared_reborrow checked 5573ms check-target:macos_arm64 @230151eef4fe
 pass/borrows/carried_loan_replacement checked 3528ms @ccdb99ca2214
 pass/borrows/carry_permission_alias checked 3402ms @ccdb99ca2214
@@ -2283,7 +2287,7 @@ pass/borrows/copied_image_descriptor_unrelated_write checked 4402ms check-target
 pass/borrows/copied_input_descriptor_independent_mutation_exit checked 3410ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/copied_input_descriptor_local_copy_exit checked 1402ms check-target:macos_arm64 @27c558b731f4
 pass/borrows/copied_input_descriptor_return_copy_exit checked 4027ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/copied_intermediate_descriptor_snapshot_exit checked 3553ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/copied_intermediate_descriptor_snapshot_exit checked 2120ms check-target:macos_arm64 @a13bf1620976
 pass/borrows/copied_scalar_field_with_restricted_peer checked 1179ms check-target:macos_arm64 @867738eb9535+wt
 pass/borrows/data_copy_property checked 3567ms @ccdb99ca2214
 pass/borrows/disjoint_branch_closure_with_grandchild checked 3747ms check-target:macos_arm64 @ccdb99ca2214
@@ -8281,15 +8285,15 @@ pass/facts/nominal_reference_cleanup_through_other_machine_exit checked 3479ms c
 pass/facts/nominal_reference_cleanup_through_other_state_exit checked 3737ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nominal_reference_cleanup_through_parameter_exit checked 3573ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/nominal_reference_cleanup_through_target_body_exit checked 4022ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/non_owning_reference_erasure_through_call_result_exit checked 4309ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/non_owning_reference_erasure_through_const_name_exit checked 3532ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/non_owning_reference_erasure_through_field_exit checked 3556ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/non_owning_reference_erasure_through_local_exit checked 2968ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/non_owning_reference_erasure_through_match_join_exit checked 3734ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/non_owning_reference_erasure_through_other_machine_exit checked 3373ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/non_owning_reference_erasure_through_other_state_exit checked 4277ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/non_owning_reference_erasure_through_parameter_exit checked 3511ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/non_owning_reference_erasure_through_target_body_exit checked 3405ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/non_owning_reference_erasure_through_call_result_exit checked 2089ms check-target:macos_arm64 @a13bf1620976
+pass/facts/non_owning_reference_erasure_through_const_name_exit checked 2173ms check-target:macos_arm64 @a13bf1620976
+pass/facts/non_owning_reference_erasure_through_field_exit checked 2103ms check-target:macos_arm64 @a13bf1620976
+pass/facts/non_owning_reference_erasure_through_local_exit checked 2056ms check-target:macos_arm64 @a13bf1620976
+pass/facts/non_owning_reference_erasure_through_match_join_exit checked 2082ms check-target:macos_arm64 @a13bf1620976
+pass/facts/non_owning_reference_erasure_through_other_machine_exit checked 2131ms check-target:macos_arm64 @a13bf1620976
+pass/facts/non_owning_reference_erasure_through_other_state_exit checked 2093ms check-target:macos_arm64 @a13bf1620976
+pass/facts/non_owning_reference_erasure_through_parameter_exit checked 2088ms check-target:macos_arm64 @a13bf1620976
+pass/facts/non_owning_reference_erasure_through_target_body_exit checked 2066ms check-target:macos_arm64 @a13bf1620976
 pass/facts/opaque_closed_carrier_exchange_exit checked 20977ms check-target:macos_arm64 terminal-runtime.observe:unrequested terminal-inspections:match @ccdb99ca2214
 pass/facts/opaque_closed_carrier_through_call_result_exit checked 2376ms check-target:macos_arm64 @60ee163d4f0f
 pass/facts/opaque_closed_carrier_through_const_name_exit checked 2324ms check-target:macos_arm64 @60ee163d4f0f
@@ -12257,6 +12261,8 @@ pass/providers/occurrence_region_binding_forwarding_exit rejected 2737ms check-t
 	executed provider choice lost its complete static application
 pass/providers/occurrence_region_binding_projected_type_exit rejected 3125ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	executed provider choice lost its complete static application
+pass/providers/opaque_write_only_checked_alternative rejected 2152ms expected check-target:macos_arm64 native-rejection:match @a13bf1620976
+	opaque native provider for `named-callable(path(nominal\\(package-owner\\(32:022ee875fc99b747ac0df8ee125dbbfafecd3221b4839d4cc6d46242a17a5aca\\)\\,path\\(ErasedWrite::write\\)\\)),parameters(parameter\\(mutable\\(yes\\)\\,const\\(no\\)\\,ref-write\\(constrained\\(named\\(name\\(nominal\\\\\\(package-owner\\\\\\(32:022ee875fc99b747ac0df8ee125dbbfafecd3221b4839d4cc6d46242a17a5aca\\\\\\)\\\\\\,path\\\\\\(Storage\\\\\\)\\\\\\)\\)\\)\\,declared-domain\\(name\\(package:022ee875fc99b747ac0df8ee125dbbfafecd3221b4839d4cc6d46242a17a5aca:product::Storage::Issued\\)\\)\\)\\)\\)),result-dispatch())` requires an admitted write-only non-observation judgment bound to its exact selected implementation and receipt
 pass/providers/owned_array_operand_epochs_exit checked 3906ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/phantom_local_calling_applications checked 32738ms check-target:macos_arm64 @647f9c72eddf
 pass/providers/portable_contract checked 4462ms @ccdb99ca2214
@@ -12368,7 +12374,7 @@ pass/recast/boundary_postcondition_disjoint_aliased_write_exit checked 3546ms ch
 pass/recast/callee_returned_aggregate_view_exit checked 3650ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/callee_returned_interior_view_exit incomplete 3748ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::main`, statement 8
-pass/recast/callee_returned_mutable_view_exit checked 3723ms check-target:macos_arm64 @ccdb99ca2214
+pass/recast/callee_returned_mutable_view_exit checked 2072ms check-target:macos_arm64 @a13bf1620976
 pass/recast/callee_returned_scalar_interpretation_exit checked 3272ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/case_payload_member_view_compile checked 2313ms @ccdb99ca2214
 pass/recast/completed_view_preserves_independent_facts checked 3547ms check-target:macos_arm64 @ccdb99ca2214
@@ -12404,10 +12410,11 @@ pass/recast/mutable_unsigned_signed_write_compile checked 2515ms @ccdb99ca2214
 pass/recast/narrow_signed_bits_view_compile checked 2356ms @ccdb99ca2214
 pass/recast/native_bounded_array_window_exit checked 1315ms check-target:macos_arm64 @bb8f3fedf0ae
 pass/recast/nested_operand_view_compile checked 2761ms @ccdb99ca2214
-pass/recast/non_owning_erasure_additional_record_predicate_exit checked 3181ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/non_owning_erasure_authored_reestablishment_exit checked 3470ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/non_owning_erasure_retained_field_predicate_exit checked 4004ms check-target:macos_arm64 @ccdb99ca2214
-pass/recast/non_owning_erasure_unchanged_input_exit checked 3737ms check-target:macos_arm64 @ccdb99ca2214
+pass/recast/non_owning_erasure_additional_record_predicate_exit checked 2068ms check-target:macos_arm64 @a13bf1620976
+pass/recast/non_owning_erasure_authored_reestablishment_exit checked 2267ms check-target:macos_arm64 @a13bf1620976
+pass/recast/non_owning_erasure_checked_write_exit checked 2073ms check-target:macos_arm64 @a13bf1620976
+pass/recast/non_owning_erasure_retained_field_predicate_exit checked 2067ms check-target:macos_arm64 @a13bf1620976
+pass/recast/non_owning_erasure_unchanged_input_exit checked 2098ms check-target:macos_arm64 @a13bf1620976
 pass/recast/recast_view_forward_compile checked 2451ms @ccdb99ca2214
 pass/recast/reference_view_helper_backing_write_exit checked 3164ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/reference_view_shared_call_backing_exit checked 3487ms check-target:macos_arm64 @ccdb99ca2214
@@ -14222,7 +14229,7 @@ fail/borrow/nested_aggregate_result_invalidated rejected 1752ms expected @ccdb99
 fail/borrow/nested_borrow_carrying_local_escape rejected 1903ms expected @ccdb99ca2214
 	machine `bad` returns a view borrowing the local `owned`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `bad$specialized$973bc3ea132f5582$0` returns a view borrowing the local `owned`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/borrow/opaque_write_only_boundary rejected 709ms expected @ccdb99ca2214
+fail/borrow/opaque_write_only_boundary rejected 196ms expected @a13bf1620976
 	machine `write` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/borrow/opaque_write_only_satisfier rejected 656ms expected @ccdb99ca2214
 	machine `opaque_write` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
@@ -15139,7 +15146,7 @@ fail/borrows/returned_review_keeps_original_backing_loan rejected 2289ms expecte
 	statement 1 mutates `main.source.second` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/returned_shared_reference_case_write rejected 1353ms expected @ccdb99ca2214
 	machine `fill` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/borrows/returned_slice_record_reference_cannot_widen_access rejected 1233ms expected @ccdb99ca2214
+fail/borrows/returned_slice_record_reference_cannot_widen_access rejected 352ms expected @a13bf1620976
 	machine `forbid` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/returned_slice_record_reference_conflict rejected 2515ms expected @ccdb99ca2214
 	state `selected` receives `events` while local borrow `first` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -25864,36 +25871,33 @@ fail/facts/nominal_reference_cleanup_through_target_body_prerequisite rejected 2
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 1: Keeper does not establish Keeper::drop clause `keeper.code == 7`
-fail/facts/non_owning_reference_erasure_through_call_result_rejected rejected 1777ms expected @ccdb99ca2214
+fail/facts/non_owning_reference_erasure_through_call_result_rejected rejected 368ms expected @a13bf1620976
 	machine `erase` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-fail/facts/non_owning_reference_erasure_through_const_name_rejected rejected 1476ms expected @ccdb99ca2214
+fail/facts/non_owning_reference_erasure_through_const_name_rejected rejected 362ms expected @a13bf1620976
 	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-fail/facts/non_owning_reference_erasure_through_field_rejected rejected 1795ms expected @ccdb99ca2214
+fail/facts/non_owning_reference_erasure_through_field_rejected rejected 359ms expected @a13bf1620976
 	construction of `Envelope` field `view` expects reference `&write Storage`, but the source does not supply its carrier and access
 	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-fail/facts/non_owning_reference_erasure_through_local_rejected rejected 1658ms expected @ccdb99ca2214
+fail/facts/non_owning_reference_erasure_through_local_rejected rejected 375ms expected @a13bf1620976
 	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-fail/facts/non_owning_reference_erasure_through_match_join_rejected rejected 1532ms expected @ccdb99ca2214
+fail/facts/non_owning_reference_erasure_through_match_join_rejected rejected 376ms expected @a13bf1620976
 	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-fail/facts/non_owning_reference_erasure_through_other_machine_rejected rejected 1122ms expected @ccdb99ca2214
+fail/facts/non_owning_reference_erasure_through_other_machine_rejected rejected 364ms expected @a13bf1620976
 	machine `write` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `erase` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-	argument `view` for state `entry` expects `&write Storage`, got `call expression`
+	argument `view` for state `entry` expects `&write Storage`, got `call expression`; expected carrier `ref-write(named(name(nominal\\(package-owner\\(32:fca97eb682701457d043e4d644e1f0c570f4ea207d92e63cc1edada075e59fbf\\)\\,path\\(Storage\\)\\))))`, declared place carrier `named(name(nominal\\(package-owner\\(32:fca97eb682701457d043e4d644e1f0c570f4ea207d92e63cc1edada075e59fbf\\)\\,path\\(Storage\\)\\)))`
 	implicit domain weakening in argument `view` for state `entry` drops `Reissued`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/facts/non_owning_reference_erasure_through_other_state_rejected rejected 1689ms expected @ccdb99ca2214
+fail/facts/non_owning_reference_erasure_through_other_state_rejected rejected 361ms expected @a13bf1620976
 	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 	argument `view` for state `entry` expects `&write Storage`, got `cast expression`
 	implicit domain weakening in argument `view` for state `store::entry` drops `Storage::Reissued`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/facts/non_owning_reference_erasure_through_parameter_rejected rejected 3009ms expected @ccdb99ca2214
+fail/facts/non_owning_reference_erasure_through_parameter_rejected rejected 355ms expected @a13bf1620976
 	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 	argument `view` for state `entry` expects `&write Storage`, got `cast expression`
 	implicit domain weakening in argument `view` for state `entry` drops `Storage::Reissued`; semantic meaning, routed provenance, and arithmetic policy may be removed only by an explicit `as` to the intended target
-fail/facts/non_owning_reference_erasure_through_target_body_rejected rejected 1357ms expected @ccdb99ca2214
-	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
-	machine `write` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
+fail/facts/non_owning_reference_erasure_through_target_body_rejected rejected 381ms expected @a13bf1620976
+	machine `ErasedWriteCode::write` state `write`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 fail/facts/opaque_closed_carrier_through_call_result_cleanup rejected 224ms expected @60ee163d4f0f
 	opaque representation carrier graph at `AddressCarrier<AddressCarrier<AddressWord>>.payload.payload` contains independently invoked nominal cleanup; v1 carriers must be inert storage
 fail/facts/opaque_closed_carrier_through_const_name_cleanup rejected 221ms expected @60ee163d4f0f
@@ -29751,7 +29755,7 @@ fail/facts/write_only_borrow_struct_destination_through_parameter_rejected rejec
 fail/facts/write_only_borrow_struct_destination_through_target_body_rejected rejected 1339ms expected @ccdb99ca2214
 	exact arithmetic in machine `X86Probe::target_probe` state `target_probe` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmProbe::target_probe` state `target_probe` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/write_only_checked_adapter_opaque_call rejected 695ms expected @ccdb99ca2214
+fail/facts/write_only_checked_adapter_opaque_call rejected 211ms expected @a13bf1620976
 	machine `opaque` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 	machine `lend` state `entry` calls `opaque` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
 	bodyless boundary symbol `opaque` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
@@ -29851,7 +29855,7 @@ fail/facts/write_only_reference_store_through_target_body_rejected rejected 1292
 	machine `main` state `entry` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/facts/write_only_target_family_nonhost_observation rejected 707ms expected @ccdb99ca2214
 	machine `lend` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
-fail/facts/write_only_target_family_opaque_member rejected 1044ms expected @ccdb99ca2214
+fail/facts/write_only_target_family_opaque_member rejected 202ms expected @a13bf1620976
 	machine `lend` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 	machine `lend` state `entry` declares `&write`, but the current milestone proves non-observation only for checked Omega bodies; bodyless boundary, accepted, requirement, and external-provider declarations require an admitted write-only boundary claim
 fail/facts/zero_byte_erased_carrier_unproved_call_result rejected 2635ms expected @ccdb99ca2214
@@ -33116,24 +33120,26 @@ fail/recast/local_stored_byte_region_escape rejected 2671ms expected @ccdb99ca22
 	machine `escape` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/recast/native_bounded_array_window_short rejected 969ms expected @bb8f3fedf0ae
 	cannot prove requires contract for call fill from main: bytes[8..151].len >= 144 (needs fact `output.len >= 144` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/recast/non_owning_erasure_false_reestablishment rejected 2873ms expected @ccdb99ca2214
+fail/recast/non_owning_erasure_false_reestablishment rejected 1046ms expected @a13bf1620976
 	cannot prove ensures contract for exit from overwrite at statement 2: storage in Storage::Issued
-fail/recast/non_owning_erasure_joined_shared_store rejected 730ms expected @ccdb99ca2214
+fail/recast/non_owning_erasure_joined_shared_store rejected 234ms expected @a13bf1620976
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `corrupt` state `entry` at statement 1
 	machine `corrupt` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/recast/non_owning_erasure_preserves_array_element rejected 747ms expected @ccdb99ca2214
+fail/recast/non_owning_erasure_preserves_array_element rejected 204ms expected @a13bf1620976
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the recast has no complete exact lender origins
-fail/recast/non_owning_erasure_preserves_helper_field checked 20869ms @ccdb99ca2214
-fail/recast/non_owning_erasure_preserves_owned_field rejected 948ms expected @ccdb99ca2214
+fail/recast/non_owning_erasure_preserves_helper_field rejected 1015ms expected regressed-from:checked @a13bf1620976
+	cannot prove default-domain field requirement for return from corrupt at statement 1: holder.slot requires Storage::Issued
+fail/recast/non_owning_erasure_preserves_owned_field rejected 202ms expected @a13bf1620976
 	machine `main` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
-fail/recast/non_owning_erasure_preserves_projected_view rejected 774ms expected @ccdb99ca2214
+fail/recast/non_owning_erasure_preserves_projected_view rejected 203ms expected @a13bf1620976
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
-fail/recast/non_owning_erasure_preserves_reborrow_alias rejected 857ms expected @ccdb99ca2214
+fail/recast/non_owning_erasure_preserves_reborrow_alias rejected 200ms expected @a13bf1620976
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
-fail/recast/non_owning_erasure_preserves_record_field rejected 1690ms expected @ccdb99ca2214
+fail/recast/non_owning_erasure_preserves_record_field rejected 201ms expected @a13bf1620976
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
-fail/recast/non_owning_erasure_preserves_scalar_field rejected 1044ms expected @ccdb99ca2214
+fail/recast/non_owning_erasure_preserves_scalar_field rejected 217ms expected @a13bf1620976
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
-fail/recast/non_owning_erasure_preserves_stored_alias rejected 1155ms expected @ccdb99ca2214
+fail/recast/non_owning_erasure_preserves_stored_alias rejected 205ms expected @a13bf1620976
 	machine `corrupt` state `entry`: writable qualification erasure cannot preserve lender validity: the target does not preserve declared lender field/element qualifications
 fail/recast/qualified_reference_local_escape rejected 2188ms expected @ccdb99ca2214
 	machine `escape` returns a view borrowing the local `ticket`, which does not outlive the call; return a view of storage that outlives the invocation instead
