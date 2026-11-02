@@ -8,11 +8,9 @@ use selected_instructions::SelectedInstructionPlanIdentity;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 
-use crate::{
-    LegalizationError, SelectedInstructionError, StagedOptimizedCustodyCore,
-    ValidatedSelectedInstructions,
-};
+use crate::{LegalizationError, SelectedInstructionError, ValidatedSelectedInstructions};
 use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::StagedOptimizedCustodyCore;
 
 /// Opt-in selected-instruction staging with complete optimized lowering and
 /// target-register custody. This grants no liveness, allocation, emission, or
@@ -73,7 +71,7 @@ pub struct StagedOptimizedSelectionCustodyReceipt {
 }
 
 impl StagedOptimizedSelectionCustodyReceipt {
-    crate::staging_custody_core_accessors!();
+    selected_instructions::staging_custody_core_accessors!();
 
     pub const fn selected(self) -> SelectedInstructionPlanIdentity {
         self.selected

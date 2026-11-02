@@ -6,6 +6,7 @@
 //! areas own control flow, values, instructions, calls, and target effects.
 
 mod codec_bytes;
+mod staged_custody;
 
 pub(crate) use optimization_core::digest_encoder;
 #[cfg(feature = "test-support")]
@@ -70,4 +71,5 @@ pub use selected_instructions::{
     validate_isa_machine_effect_catalog, validate_machine_effect_catalog, values,
 };
 pub use selected_instructions::{BlockSlotEvent, BlockSlotSummary, SelectedBlocks};
+pub use staged_custody::StagedOptimizedCustodyCore;
 pub use terminal_psi::ByteSequencePredicate;

@@ -15,11 +15,10 @@ use optimization_core::{
     PrePhysicalOptimizationManifestIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::StagedOptimizedCustodyCore;
 use selected_instructions::{LiveRangeIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use target_operations_to_selected_instructions::{
-    StagedOptimizedCustodyCore, ValidatedSelectedInstructions,
-};
+use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 use terminal_psi::TerminalPsiIdentity;
 
 pub(crate) fn stage_optimized_live_ranges(
@@ -74,7 +73,7 @@ pub struct StagedOptimizedLiveRangeCustodyReceipt {
 }
 
 impl StagedOptimizedLiveRangeCustodyReceipt {
-    target_operations_to_selected_instructions::staging_custody_core_accessors!();
+    selected_instructions::staging_custody_core_accessors!();
 
     receipt_accessor_rows!(StagedOptimizedLiveRangeCustodyReceipt {
         selected: SelectedInstructionPlanIdentity,

@@ -15,10 +15,11 @@ use optimization_core::{
     PrePhysicalOptimizationManifestIdentity,
 };
 use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::StagedOptimizedCustodyCore;
 use selected_instructions::{LivenessIdentity, SelectedInstructionPlanIdentity};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use target_operations_to_selected_instructions::{
-    StagedOptimizedCustodyCore, StagedOptimizedSelectedInstructions, ValidatedSelectedInstructions,
+    StagedOptimizedSelectedInstructions, ValidatedSelectedInstructions,
 };
 use terminal_psi::TerminalPsiIdentity;
 
@@ -71,7 +72,7 @@ pub struct StagedOptimizedLivenessCustodyReceipt {
 }
 
 impl StagedOptimizedLivenessCustodyReceipt {
-    target_operations_to_selected_instructions::staging_custody_core_accessors!();
+    selected_instructions::staging_custody_core_accessors!();
 
     receipt_accessor_rows!(StagedOptimizedLivenessCustodyReceipt {
         selected: SelectedInstructionPlanIdentity,
