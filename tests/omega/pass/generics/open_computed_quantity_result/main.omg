@@ -9,7 +9,7 @@ domain<T, const I: u64> T::Indexed<I>;
 trait IndexAdd<Operand> {
     // The laws call this requirement in specifications; a selected body's
     // private termination summary cannot supply the abstract promise.
-    operator + add(a: Operand, b: Operand) -> Operand
+    machine + add(a: Operand, b: Operand) -> Operand
     terminates;
     machine add_comm(a: Operand, b: Operand)
     ensures add(a, b) == add(b, a);

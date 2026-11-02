@@ -76,18 +76,21 @@ fn raw_bytes_remain_rejected_in_utf16_text_sugar() {
     );
 }
 
-/// `expressions.md`'s executable-supply table spells a token-bearing
-/// requirement as the ordinary `machine + Name(...)`, and a concrete crowned
-/// declaration already uses that grammar. A trait requirement now accepts it
-/// too, so the token is not reachable only behind the `operator` introducer
-/// the board is retiring. The introducer keeps working: this is additive.
+/// `expressions.md` spells a token-bearing requirement as the ordinary
+/// `machine + Name(...)`, the grammar a concrete crowned declaration already
+/// uses. The separate `operator` introducer is retired on trait requirements:
+/// it refuses with the replacement instead of parsing as an alias.
 #[test]
 fn a_trait_requirement_carries_its_token_on_the_ordinary_machine_head() {
-    for source in [
-        "trait Ranked { machine < before(left: Self, right: Self) -> bool; }",
-        "trait Ranked { operator < before(left: Self, right: Self) -> bool; }",
-    ] {
-        let tokens = Lexer::new(source).tokenize().expect("tokenize");
-        parse_syntax_trees(&tokens).expect("a token-bearing trait requirement parses");
-    }
+    let tokens = Lexer::new("trait Ranked { machine < before(left: Self, right: Self) -> bool; }")
+        .tokenize()
+        .expect("tokenize");
+    parse_syntax_trees(&tokens).expect("a token-bearing trait requirement parses");
+
+    let message =
+        parse_error_message("trait Ranked { operator < before(left: Self, right: Self) -> bool; }");
+    assert!(
+        message.contains("the `operator` introducer is retired"),
+        "unexpected diagnostic: {message}"
+    );
 }

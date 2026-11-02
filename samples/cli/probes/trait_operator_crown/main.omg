@@ -15,7 +15,7 @@
 // provider.
 
 trait Ranked<T> {
-    operator < before(left: T, right: T) -> bool;
+    machine < before(left: T, right: T) -> bool;
 }
 
 data Card [copy] { rank: i32; }

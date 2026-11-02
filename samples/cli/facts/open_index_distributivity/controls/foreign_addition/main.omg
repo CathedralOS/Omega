@@ -9,13 +9,13 @@ domain<T, const I: u64> T::Indexed<I>;
 
 trait IndexProduct {
     machine add(a: u64, b: u64) -> u64 terminates;
-    operator * multiply(a: u64, b: u64) -> u64 terminates;
+    machine * multiply(a: u64, b: u64) -> u64 terminates;
     machine distribute(a: u64, b: u64, c: u64)
     ensures multiply(a, add(b, c)) == add(multiply(a, b), multiply(a, c));
 }
 
 trait IndexSum {
-    operator + add(a: u64, b: u64) -> u64 terminates;
+    machine + add(a: u64, b: u64) -> u64 terminates;
 }
 
 machine product_add(a: u64, b: u64) -> u64
