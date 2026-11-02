@@ -24,7 +24,8 @@ pub struct ProviderBindingRequest<'a> {
     pub provider_candidates: &'a [provider_planning::ProviderPlanCandidate],
     pub boundary_provider_demands: &'a [effects::provider_plan::ProviderPlan],
     pub provider_declarations: &'a Arc<[backend_plan::TerminalTargetProviderPlan]>,
-    pub terminal_module: &'a terminal_psi::TerminalModule,
+    pub calling_program: &'a provider_planning::calling_policy_plans::CallingProgram,
+    pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     pub root_grants: &'a [String],
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
@@ -43,6 +44,14 @@ pub fn prepare_selected_execution(
     mut settlement: ProviderBindingRequest<'_>,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
     settlement.declarations.owner.clone()?;
+    if !std::sync::Weak::ptr_eq(
+        &settlement.declarations.source_owner,
+        &settlement.calling_program.source_owner,
+    ) {
+        return Err(vec![Diagnostic::error(
+            "selected provider inventory belongs to another checked program",
+        )]);
+    }
     if settlement.selected_target_profile.is_some()
         && settlement.selected_target_profile != settlement.provider_planning_target_profile
     {
@@ -64,6 +73,16 @@ pub fn prepare_selected_execution(
         )?;
     }
     let external_providers = settlement.declarations.external.clone()?;
+    external_providers
+        .require_prepared_owner(
+            &settlement.calling_program.source_owner,
+            settlement.exact_toolchain_sources,
+        )
+        .map_err(|error| {
+            vec![Diagnostic::error(format!(
+                "external provider declarations: {error:?}"
+            ))]
+        })?;
     let declarations = provider_planning::prepare_selected_plan_declarations(
         settlement.selected_declarations,
         &settlement.selected_provider_plan_facts,
@@ -104,7 +123,7 @@ pub fn prepare_selected_execution(
             &selected_provider_plan_facts,
             &external_providers.callbacks.declarations,
             settlement.provider_declarations,
-            settlement.terminal_module,
+            settlement.calling_program.artifact.semantic_module(),
         )?;
         let selected = provider_selection::select_callback_declarations(
             &external_providers.callbacks.declarations,

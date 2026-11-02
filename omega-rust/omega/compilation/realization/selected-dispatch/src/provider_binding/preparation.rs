@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 pub struct PreparedBindingDeclarations {
     pub(super) owner: Result<(), Vec<Diagnostic>>,
+    pub(super) source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
     pub trust: Arc<language_semantics::trust_declarations::TrustDeclarations>,
     pub(super) external:
         Result<Arc<psi_terminal_production::PreparedExternalProviderDeclarations>, Vec<Diagnostic>>,
@@ -51,6 +52,7 @@ impl PreparedBindingDeclarations {
         })();
         Self {
             owner,
+            source_owner: Arc::downgrade(program),
             trust: Arc::new(inventory.trust_declarations().clone()),
             external,
             issuers: program
