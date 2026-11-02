@@ -33,6 +33,8 @@ pub fn captured_retention_profiles_at_path(
         active_copies: &mut Vec<arena::Handle<checked_trees::FlowCopiedValue>>,
         active_selections: &mut Vec<arena::HandleSpan<checked_trees::FlowOperandAlternative>>,
     ) -> Option<Vec<arena::Handle<checked_trees::FlowOperandRetention>>> {
+        let path = crate::corresponding_place_projection(program, operand.type_reference, path)?;
+        let path = path.as_slice();
         if let FlowOperandCompletion::Selected(alternatives) = operand.completion {
             if active_selections.contains(&alternatives) {
                 return None;
@@ -90,6 +92,7 @@ pub fn captured_retention_profiles_at_path(
                 program,
                 control,
                 leaf.retention,
+                leaf.type_reference,
                 &[],
                 active,
                 active_copies,
@@ -120,6 +123,7 @@ pub fn captured_retention_profiles_at_path(
                         program,
                         control,
                         leaf.retention,
+                        leaf.type_reference,
                         &[],
                         active,
                         active_copies,
@@ -179,6 +183,7 @@ pub fn captured_retention_profiles_at_path(
             program,
             control,
             operand.retention,
+            operand.type_reference,
             path,
             active,
             active_copies,
@@ -190,6 +195,7 @@ pub fn captured_retention_profiles_at_path(
         program: &dyn crate::CheckingInput,
         control: &FlowControlFacts,
         retention: arena::Handle<checked_trees::FlowOperandRetention>,
+        reference: TypeReferenceHandle,
         path: &[PlaceSegment],
         active: &mut Vec<arena::Handle<checked_trees::FlowOperandRetention>>,
         active_copies: &mut Vec<arena::Handle<checked_trees::FlowCopiedValue>>,
@@ -198,6 +204,8 @@ pub fn captured_retention_profiles_at_path(
         if !control.operand_retentions.is_valid(retention) || active.contains(&retention) {
             return None;
         }
+        let path = crate::corresponding_place_projection(program, reference, path)?;
+        let path = path.as_slice();
         let profile = control.operand_retentions.get(retention);
         if path.is_empty() && profile.stored_projection.is_empty() {
             return Some(vec![retention]);
@@ -209,7 +217,13 @@ pub fn captured_retention_profiles_at_path(
                 .span_or_empty(profile.leaves)
                 .iter()
                 .filter(|leaf| {
-                    let candidate = control.operand_retained_paths.span_or_empty(leaf.path);
+                    let Some(candidate) = crate::corresponding_place_projection(
+                        program,
+                        reference,
+                        control.operand_retained_paths.span_or_empty(leaf.path),
+                    ) else {
+                        return false;
+                    };
                     !candidate.is_empty()
                         && candidate.len() <= path.len()
                         && candidate.iter().zip(path).all(|(left, right)| {
@@ -227,6 +241,11 @@ pub fn captured_retention_profiles_at_path(
                     program,
                     control,
                     leaf.retention,
+                    crate::project_type_reference_from_segments(
+                        program,
+                        reference,
+                        &path[..length],
+                    )?,
                     &path[length..],
                     active,
                     active_copies,
@@ -240,6 +259,7 @@ pub fn captured_retention_profiles_at_path(
                         program,
                         control,
                         alternative,
+                        reference,
                         path,
                         active,
                         active_copies,
