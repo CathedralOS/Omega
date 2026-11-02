@@ -327,27 +327,31 @@ pub(super) fn assignment_write_paths(
     machine_symbols: &super::MachineSymbols<'_>,
     statement: &StatementNode,
     state_assignments: &StateAssignments<'_>,
+    state_prefix: &dyn Fn(&State, usize) -> Option<CollectedStatementPrefix>,
 ) -> Option<Vec<String>> {
-    let evidence = assignment_evidence(program, machine, symbols, statement, state_assignments)?;
-    match evidence.target {
-        AssignmentWriteTarget::LocalBindingReplacement { path } => Some(vec![path]),
-        AssignmentWriteTarget::Storage { .. } => {
-            let destinations = assignment_storage_origins(
-                program,
-                machine,
-                symbols,
-                machine_symbols,
-                statement,
-                state_assignments,
-            )
-            .ok()?
-            .destinations;
-            destinations
-                .iter()
-                .map(|destination| destination.write_path(program))
-                .collect()
-        }
+    // Address capture precedes the current store's footprint. Its incoming
+    // prefix is available even when a whole-state summary stops at this store.
+    // A proved local binding replacement remains a private descriptor write.
+    if let Some(AssignmentEvidence {
+        target: AssignmentWriteTarget::LocalBindingReplacement { path },
+    }) = assignment_evidence(program, machine, symbols, statement, state_assignments)
+    {
+        return Some(vec![path]);
     }
+    assignment_storage_origins(
+        program,
+        machine,
+        symbols,
+        machine_symbols,
+        statement,
+        state_assignments,
+        state_prefix,
+    )
+    .ok()?
+    .destinations
+    .iter()
+    .map(|destination| destination.write_path(program))
+    .collect()
 }
 
 /// Address provenance of the performed store, not the contents before it.
@@ -361,16 +365,17 @@ pub(super) fn assignment_storage_origins(
     machine_symbols: &super::MachineSymbols<'_>,
     statement: &StatementNode,
     state_assignments: &StateAssignments<'_>,
+    state_prefix: &dyn Fn(&State, usize) -> Option<CollectedStatementPrefix>,
 ) -> Result<AssignmentStorageOrigins, &'static str> {
     let (state, _, index) =
         caller_statement_owner(program, machine, CallerWriteSite::Statement(statement))
             .ok_or("assignment has no exact caller statement owner")?;
     let assignments = state_assignments(state);
-    let evidence = assignments
+    let summary = assignments
         .iter()
         .find(|(ordinal, _)| *ordinal == index)
         .map(|(_, evidence)| evidence);
-    if evidence.is_some_and(|evidence| {
+    if summary.is_some_and(|evidence| {
         matches!(
             evidence.target,
             AssignmentWriteTarget::LocalBindingReplacement { .. }
@@ -381,6 +386,12 @@ pub(super) fn assignment_storage_origins(
             references: Some(Vec::new()),
         });
     }
+    // The address is captured before the performed store. A complete incoming
+    // prefix can exist even when summarizing that very store fails; demanding
+    // its completed footprint here makes origin inference circular. The same
+    // ordinary prefix owner supplies all aliases and stored alternatives.
+    let incoming = state_prefix(state, index);
+    let evidence = incoming.as_ref();
     let assignment = statement
         .as_assignment()
         .ok_or("write query is not an assignment")?;
@@ -462,56 +473,40 @@ pub(super) fn assignment_storage_origins(
             }),
         });
     }
-    let evidence = evidence.ok_or("assignment has no recorded storage prefix")?;
+    let evidence = evidence.ok_or("assignment has no complete incoming storage prefix")?;
     if !prefix_preserved {
         return Err("assignment operand does not preserve the captured storage prefix");
     }
-    if crate::reference_shell(program, receiving).is_some() {
-        let source =
-            super::stored_origins::binding_source(program, assignment.target, &evidence.aliases)
-                .ok_or("reference-cell destination has no exact binding source")?;
-        if !source.root.is_valid() || !source.builtin_coordinates {
-            return Err("reference-cell destination lacks builtin source coordinates");
-        }
-        let (path, precision) = super::place_paths::coordinate_storage_path(
+    let origins = if crate::reference_shell(program, receiving).is_some() {
+        // Replacing a descriptor captures its home, after loading only the
+        // ancestor descriptors. Reusing a spelling here would leave an owned
+        // carrier's field confused with storage in its borrowed referent.
+        let source = super::frame_place_path(program, assignment.target)
+            .ok_or("reference-cell destination has no exact storage source")?;
+        super::stored_origins::canonical_storage_origins(
             program,
-            program.symbols.name(source.root),
-            &source.segments,
-        );
-        return Ok(AssignmentStorageOrigins {
-            destinations: vec![LocalWriteSource {
-                invocation_output: None,
-                is_image_storage: source.is_static(),
-                recasts: source.recasts,
-                representation: source.representation,
-                path,
-                collection_coarse: precision == FramePathPrecision::CollectionCoarse,
-                root: source.root,
-                segments: source.segments,
-            }],
-            references: prefix_reference_origins(
-                program,
-                Some((state, index)),
-                &evidence.stored,
-                &evidence.aliases,
-                &evidence.divergent,
-            ),
-        });
+            &source,
+            &evidence.aliases,
+            &evidence.stored,
+        )
+        .into_iter()
+        .collect::<Option<Vec<_>>>()
+    } else {
+        super::alias_origins::stable_alias_initializer_origins(
+            program,
+            machine,
+            machine_symbols,
+            &mut inference,
+            assignment.target,
+            program.state_parameters(state),
+            &evidence.isolated_locals,
+            &evidence.aliases,
+            &evidence.divergent,
+            symbols,
+            true,
+            &evidence.stored,
+        )
     }
-    let origins = super::alias_origins::stable_alias_initializer_origins(
-        program,
-        machine,
-        machine_symbols,
-        &mut inference,
-        assignment.target,
-        program.state_parameters(state),
-        &evidence.isolated_locals,
-        &evidence.aliases,
-        &evidence.divergent,
-        symbols,
-        true,
-        &evidence.stored,
-    )
     .ok_or("destination projection has no complete captured reference origins")?;
     // The initializer owner completed every selected load against this entry
     // inventory. These are captured addresses, not slots to read a second time.

@@ -1118,6 +1118,17 @@ impl<'program> CallFrameResolver<'program> {
                 .as_ref(),
             statement,
             &|state| self.state_assignments(machine, state),
+            &|state, index| {
+                super::state_write_walk::collected_prefix_at(
+                    &self.caches.state_write_collections,
+                    self.program,
+                    machine,
+                    state,
+                    &self.tables.symbols,
+                    index,
+                    false,
+                )
+            },
         )
     }
 
@@ -1182,6 +1193,17 @@ impl<'program> CallFrameResolver<'program> {
                             &machine_symbols,
                             statement,
                             &|state| self.state_assignments(current_machine, state),
+                            &|state, index| {
+                                super::state_write_walk::collected_prefix_at(
+                                    &self.caches.state_write_collections,
+                                    self.program,
+                                    current_machine,
+                                    state,
+                                    &self.tables.symbols,
+                                    index,
+                                    false,
+                                )
+                            },
                         )
                     })
                     .map_or_else(NormalizedWriteFrame::opaque, NormalizedWriteFrame::complete)
