@@ -25,6 +25,8 @@ pub use provider_installation::{
 };
 
 mod admission_source;
+mod lowering_facts;
 pub use admission_source::{
     AdmissionSource, AdmittedProgramEntryCall, ComponentCallFacts, selected_calling_boundary,
 };
+pub use lowering_facts::{AdmittedLoweringFacts, AdmittedNativeCallbackCohort, LoweringEntryCall};

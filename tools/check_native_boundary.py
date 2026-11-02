@@ -127,9 +127,9 @@ SELECTED_DISPATCH = f"{OMEGA}/compilation/realization/selected-dispatch"
 PROVIDER_PLANNING = f"{OMEGA}/compilation/realization/provider-planning"
 REPRESENTATION_PLANNING = f"{PSI}/compilation/validation/representation-planning"
 STAGE_DEBT = "Debt: stage output type lives in the producing stage crate instead of compilation/representations"
-ADMISSION_EVIDENCE = ("Sanctioned: pipeline.md:65-83 (verification placement); Omega 00's sealed "
-                      "VerifiedPsiOptimizationInput is admission evidence that stages 01-02 require "
-                      "by type, not stage output")
+ADMISSION_EVIDENCE = ("Sanctioned: pipeline.md:65-83 (verification placement); Omega 01 is Omega 00's "
+                      "immediate successor and requires its sealed VerifiedPsiOptimizationInput by "
+                      "type as admission evidence, not as stage output")
 
 # Frozen on 2026-11-01. Delete a row with the edge; never add one.
 FIREWALL_ALLOWANCES = (
@@ -149,7 +149,6 @@ FIREWALL_ALLOWANCES = (
               "Sanctioned: pipeline.md:1301-1303, the selections package \"keeps consumers free "
               "of a dependency on admission\" (OpaqueRepresentationSelection, selection_for_opaque)"),
     Allowance(stage("01"), stage("00"), ADMISSION_EVIDENCE),
-    Allowance(stage("02"), stage("00"), ADMISSION_EVIDENCE),
 )
 
 

@@ -183,14 +183,14 @@ impl ValidatedOptimizedAbstractPlan {
         &self.pre_physical_manifest
     }
 
-    /// Hand target lowering the optimized program and the verified input it
-    /// was admitted from. Target lowering reads the program's rows and keeps
-    /// the input by type; the replay evidence stays with this product.
+    /// Hand target lowering the optimized program and the admitted facts of
+    /// the verified input it was admitted from. The replay evidence stays with
+    /// this product; the input's admitted facts leave it as their own record.
     pub fn into_lowering_parts(
         self,
     ) -> (
         optimization_unit::OptimizedAbstractProgram,
-        VerifiedPsiOptimizationInput,
+        provider_admission::AdmittedLoweringFacts,
     ) {
         let program = optimization_unit::OptimizedAbstractProgram {
             plan: self.plan,
@@ -203,7 +203,7 @@ impl ValidatedOptimizedAbstractPlan {
             final_unit: self.validation.final_unit(),
             pre_physical_manifest: self.pre_physical_manifest.record().clone(),
         };
-        (program, self.replay_input)
+        (program, self.replay_input.into_lowering_facts())
     }
 }
 

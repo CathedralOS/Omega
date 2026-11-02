@@ -246,7 +246,7 @@ pub struct VerifiedPsiOptimizationInput {
     pub(crate) plan: AbstractOperationPlan,
     pub(crate) context: VerifiedPsiOptimizationContext,
     pub(crate) admitted_assumed_bindings: Vec<InstalledAssumedBindingEvidence>,
-    pub(crate) admitted_native_callbacks: Vec<crate::AdmittedNativeCallbackArgument>,
+    pub(crate) admitted_native_callbacks: provider_admission::AdmittedNativeCallbackCohort,
     pub(crate) target_machine_selections: Option<AdmittedTargetMachineSelections>,
     pub(crate) target_layout_selections: Option<AdmittedTargetLayouts>,
     pub(crate) target_family_realizations: Vec<effects::SelectedTargetFamilyRealization>,
@@ -280,7 +280,28 @@ impl VerifiedPsiOptimizationInput {
     /// }
     /// ```
     pub fn admitted_native_callbacks(&self) -> &[crate::AdmittedNativeCallbackArgument] {
-        &self.admitted_native_callbacks
+        self.admitted_native_callbacks.callbacks()
+    }
+
+    /// The admitted facts target lowering reads, handed on as their own
+    /// record: the Terminal module, the selected program entry, the sealed
+    /// assumed bindings, the target machine selections and the sealed callback
+    /// cohort. Abstract optimization, this input's only successor, hands them
+    /// on so later stages need not hold the input itself.
+    pub fn into_lowering_facts(self) -> provider_admission::AdmittedLoweringFacts {
+        provider_admission::AdmittedLoweringFacts {
+            program_entry: self.selected_program_entry_call.as_ref().map(|call| {
+                provider_admission::LoweringEntryCall {
+                    boundary: call.boundary(),
+                    entry: call.entry(),
+                    source_signature: call.source_signature(),
+                }
+            }),
+            module: self.context.module,
+            assumed_bindings: self.admitted_assumed_bindings,
+            target_machine_selections: self.target_machine_selections,
+            native_callbacks: self.admitted_native_callbacks,
+        }
     }
 
     pub const fn plan(&self) -> &AbstractOperationPlan {

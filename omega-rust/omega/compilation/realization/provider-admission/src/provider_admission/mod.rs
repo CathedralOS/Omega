@@ -74,7 +74,7 @@ pub struct AdmittedNativeProviders<'execution> {
     pub settlements: Vec<AdmittedBoundarySettlement<'execution>>,
     /// Callback arguments for the same executable occurrence scope as the
     /// settlements and checked installation, never the full retained catalog.
-    pub(crate) native_callbacks: Vec<AdmittedNativeCallbackArgument>,
+    pub(crate) native_callbacks: crate::AdmittedNativeCallbackCohort,
     pub executions: Vec<&'execution dyn ProviderExecutionEvidence>,
     pub terminal_authority_policy_identity: effects::TerminalAuthorityPolicyIdentity,
     /// `Some` only when a receiving permission policy was explicitly supplied;
@@ -86,10 +86,15 @@ pub struct AdmittedNativeProviders<'execution> {
 }
 
 impl AdmittedNativeProviders<'_> {
-    /// Hand the admitted callback arguments to the verified input they were
-    /// admitted for. They leave this admission only as admitted values.
-    pub fn take_native_callbacks(&mut self) -> Vec<AdmittedNativeCallbackArgument> {
-        std::mem::take(&mut self.native_callbacks)
+    /// Hand the admitted callback cohort to the verified input it was
+    /// admitted for. It leaves this admission only as a sealed cohort bound to
+    /// that input's Terminal program.
+    pub fn take_native_callbacks(&mut self) -> crate::AdmittedNativeCallbackCohort {
+        let psi = self.native_callbacks.psi;
+        std::mem::replace(
+            &mut self.native_callbacks,
+            crate::AdmittedNativeCallbackCohort::empty(psi),
+        )
     }
 
     pub const fn callable_authority(&self) -> &AdmittedNativeCallableAuthority {
@@ -233,12 +238,15 @@ pub fn admit_native_providers<'request>(
         })?;
     Ok(AdmittedNativeProviders {
         settlements,
-        native_callbacks: request
-            .native_callbacks
-            .iter()
-            .cloned()
-            .map(AdmittedNativeCallbackArgument::admit)
-            .collect(),
+        native_callbacks: crate::AdmittedNativeCallbackCohort {
+            psi: input.plan().psi,
+            callbacks: request
+                .native_callbacks
+                .iter()
+                .cloned()
+                .map(AdmittedNativeCallbackArgument::admit)
+                .collect(),
+        },
         executions,
         terminal_authority_policy_identity: effective_policy.identity(),
         terminal_authority_permission_policy_identity: request

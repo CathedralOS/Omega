@@ -25,6 +25,7 @@ dependencies = [
  "optimization-unit",
  "optimization-unit-semantics",
  "proof-admission",
+ "provider-admission",
  "semantic-vocabulary",
  "source-files-to-tokens",
  "symbol-resolved-trees-to-typed-trees",
@@ -50,13 +51,13 @@ dependencies = [
  "optimization-core",
  "optimization-unit",
  "optimization-unit-semantics",
+ "provider-admission",
  "runtime-abi",
  "semantic-vocabulary",
  "symbols",
  "target",
  "target-operations",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
  "terminal-semantics",
 ]
 
@@ -847,6 +848,7 @@ dependencies = [
  "optimization-core",
  "optimization-unit-semantics",
  "program-entry-plan",
+ "provider-admission",
  "register-model",
  "runtime-abi",
  "selected-instructions",
@@ -862,7 +864,6 @@ dependencies = [
  "terminal-fuel",
  "terminal-installation",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
  "terminal-semantics",
  "tokens-to-syntax-trees",
  "typed-trees-to-checked-trees",
@@ -1230,6 +1231,7 @@ dependencies = [
  "optimization-unit",
  "physical-instructions",
  "post-allocation-machine-to-selected-form-encoding",
+ "provider-admission",
  "register-environment",
  "register-homes-to-post-allocation-machine",
  "register-model",
@@ -1243,7 +1245,6 @@ dependencies = [
  "target-operations",
  "terminal-fuel",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
 ]
 
 [[package]]
@@ -1436,12 +1437,12 @@ dependencies = [
  "machine-code",
  "machine-emission",
  "optimization-core",
+ "provider-admission",
  "selected-instructions",
  "semantic-vocabulary",
  "target",
  "target-operations",
  "terminal-psi",
- "terminal-psi-to-abstract-operations",
 ]
 
 [[package]]

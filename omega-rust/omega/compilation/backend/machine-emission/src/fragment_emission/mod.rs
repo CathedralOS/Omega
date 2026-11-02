@@ -101,15 +101,13 @@ impl StagedOptimizedFunctionFragmentEmission {
         self.custody
     }
 
-    pub fn verified_input(
-        &self,
-    ) -> &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput {
-        self.source.verified_input()
+    pub fn lowering_facts(&self) -> &provider_admission::AdmittedLoweringFacts {
+        self.source.lowering_facts()
     }
 
     pub fn provider_installation(
         &self,
-    ) -> Option<&terminal_psi_to_abstract_operations::AdmittedProviderInstallation> {
+    ) -> Option<&provider_admission::AdmittedProviderInstallation> {
         self.source.provider_installation()
     }
 
