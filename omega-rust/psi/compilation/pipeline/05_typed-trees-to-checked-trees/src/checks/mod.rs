@@ -81,6 +81,7 @@ use typed_trees::types::PrimitiveType;
 
 pub(crate) use multiplicity::ClaimOutcomePreparation;
 pub(crate) use multiplicity::prepare_permission_events;
+pub(crate) use multiplicity::publish_owned_transfer_paths;
 pub(crate) use multiplicity::{
     nominal_drop_machine_symbol, owned_temporary_type, reference_access,
     type_carries_linear_obligation, type_multiplicity, type_reference_is_reference,
