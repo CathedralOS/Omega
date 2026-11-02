@@ -1072,11 +1072,29 @@ impl Invocation<'_> {
         let (value, warnings, materialized_expression) = match destination {
             Some(destination) => {
                 let (value, warnings) = self.evaluate(expression, destination)?;
-                (
-                    value,
-                    warnings,
-                    syntax_trees::expression::ExpressionHandle::invalid(),
-                )
+                // A scalar result has the same computation custody as an
+                // aggregate result. Retain both sides of materialization;
+                // replacing only the atom loses selected calls inside types.
+                let literal = match value.decode_encoding() {
+                    Some(DecodedCanonicalConstValue::Integer { value, .. }) => {
+                        let spelling = value.to_string();
+                        syntax_trees::expression::ExpressionNode::Integer(
+                            numerics::literals::IntegerLiteral::from_parts(
+                                spelling.starts_with('-'),
+                                numerics::literals::IntegerRadix::Decimal,
+                                spelling.strip_prefix('-').unwrap_or(&spelling),
+                            )
+                            .map_err(str::to_owned)?,
+                        )
+                    }
+                    Some(DecodedCanonicalConstValue::Boolean(value)) => {
+                        syntax_trees::expression::ExpressionNode::Boolean(value)
+                    }
+                    _ => return Err("scalar application has no canonical scalar value".into()),
+                };
+                let materialized = syntax.expressions.insert(literal);
+                syntax.expressions.set_source_span(materialized, reference);
+                (value, warnings, materialized)
             }
             None => {
                 // The initializer's ordinary checked invocation owns aggregate
