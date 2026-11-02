@@ -24,6 +24,12 @@ pub enum RequirementLocalArgument {
     RuntimeValue { carrier: types::TypeReferenceHandle },
 }
 
+impl Default for RequirementLocalArgument {
+    fn default() -> Self {
+        Self::Static(types::TypeReferenceHandle::invalid())
+    }
+}
+
 impl RequirementLocalArgument {
     pub fn type_reference(self) -> types::TypeReferenceHandle {
         match self {
@@ -219,7 +225,8 @@ impl TypedTrees {
                 && parameters
                     .iter()
                     .zip(arguments)
-                    .all(|(parameter, argument)| {
+                    .enumerate()
+                    .all(|(ordinal, (parameter, argument))| {
                         let mut actual = bindings
                             .iter()
                             .filter(|binding| binding.parameter == parameter.symbol);
@@ -227,13 +234,32 @@ impl TypedTrees {
                             return false;
                         };
                         actual.next().is_none()
-                            && self.static_binding_matches_argument(
+                            && match application.local_arguments.get(ordinal) {
+                                Some(RequirementLocalArgument::RuntimeValue { carrier }) => {
+                                    let static_applications::StaticMachineBindingValue::RuntimeValue {
+                                        type_reference, subject, expression,
+                                    } = binding.value else { return false; };
+                                    matches!(parameter.kind, data::TypeParameterKind::Value { .. })
+                                        && !subject.is_valid() && !expression.is_valid()
+                                        && applied_type_identity(self, *carrier, source_owner, &[])
+                                            .zip(applied_type_identity(self, type_reference, binding_owner, &[]))
+                                            .is_some_and(|(expected, actual)| expected == actual)
+                                        && self.machine_by_symbol(provider)
+                                            .and_then(|machine| self.machine_states(machine).first())
+                                            .is_some_and(|state| {
+                                                self.state_parameters(state).iter()
+                                                    .filter(|formal| self.symbols.get(formal.symbol).generated_from == parameter.symbol)
+                                                    .count() == 1
+                                            })
+                                }
+                                _ => self.static_binding_matches_argument(
                                 &parameter.kind,
                                 &binding.value,
                                 argument,
                                 source_owner,
                                 binding_owner,
-                            )
+                            ),
+                            }
                     })
         });
         let receipt = matches.next()?;
