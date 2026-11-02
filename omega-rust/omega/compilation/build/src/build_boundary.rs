@@ -176,9 +176,9 @@ fn application_depends_on_facades_not_language_stages() {
 fn source_and_package_execution_have_one_application_owner() {
     assert_absent(
         &[
-            include_str!("../../../compilation/driver/src/compiler.rs"),
-            include_str!("../../../compilation/driver/src/checked/checking.rs"),
-            include_str!("../../../compilation/driver/src/checked/compilation_session.rs"),
+            include_str!("../../../compilation/compiler/src/compiler.rs"),
+            include_str!("../../../compilation/compiler/src/checked/checking.rs"),
+            include_str!("../../../compilation/compiler/src/checked/compilation_session.rs"),
         ],
         "compiler executes Build:",
         &[".host()", "host.start(", "activation.advance("],

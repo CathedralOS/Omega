@@ -35,9 +35,9 @@ component. The former unused static harvester is removed; Build production and
 component verification remain independently responsible for their contracts.
 
 Behavior exclusions belong to Product orchestration. The
-[Product selection owner](../../driver/src/checked/checking/product_selections.rs)
+[Product selection owner](../../compiler/src/checked/checking/product_selections.rs)
 resolves executed Build requests against final source declarations. The
-[Terminal admission adapter](../../driver/src/terminal/behavior_exclusions.rs)
+[Terminal admission adapter](../../compiler/src/terminal/behavior_exclusions.rs)
 checks the selected unoptimized composition and attributes refusals without
 reopening source trees.
 

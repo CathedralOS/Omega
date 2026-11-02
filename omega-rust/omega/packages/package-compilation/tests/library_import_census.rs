@@ -20,7 +20,7 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .find(|directory| directory.join("rust-toolchain.toml").is_file())
-        .expect("compilation-inputs lives under the omega-rust workspace")
+        .expect("package-compilation lives under the omega-rust workspace")
         .to_path_buf()
 }
 

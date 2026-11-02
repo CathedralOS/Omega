@@ -40,7 +40,7 @@ pub fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(4)
-        .expect("compiler crate should live under omega-rust/omega/compilation/driver")
+        .expect("compiler crate should live under omega-rust/omega/compilation/compiler")
         .to_path_buf()
 }
 

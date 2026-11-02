@@ -55,7 +55,7 @@ owns the retained `BuildConfig` and `ComputedBuildConfig` data contracts, re-exp
 here for callers. Evaluation produces those records; consumers need not import
 the evaluator merely to retain its result.
 
-The [Build-value protocol](../../packages/compilation-inputs/src/build_execution/build_value.rs)
+The [Build-value protocol](../../packages/package-compilation/src/build_execution/build_value.rs)
 owns exact vocabulary admission, initial Build facets and normalized settings,
 including optimization counters and application/privileged-service fields.
 One admission object follows initialization through decoding. The compiler
@@ -94,7 +94,7 @@ effects. These are real fuel observations, not complete storage/result receipts.
 
 Filesystem preparation, retained captured-input views, observation identities and
 sealed-output settlement belong to
-[package compilation custody](../../packages/compilation-inputs/src/build_execution.rs).
+[package compilation custody](../../packages/package-compilation/src/build_execution.rs).
 The evaluator captures the interpreter observations, validates the returned
 Build configuration, then asks that owner to settle outputs and select generated
 sources. It does not assemble durable filesystem evidence itself.
@@ -117,12 +117,12 @@ host services and independent-component rejection.
 ## Source-stage ownership
 
 Source assembly is not an evaluator responsibility. Package compilation's
-[source assembly](../../packages/compilation-inputs/src/source/source_assembly.rs)
+[source assembly](../../packages/package-compilation/src/source/source_assembly.rs)
 prepares file frontiers through Psi 00/01. Its
-[source import owner](../../packages/compilation-inputs/src/source/source_imports.rs)
+[source import owner](../../packages/package-compilation/src/source/source_imports.rs)
 owns project roots, dependency-scope selection, generated-source collision
 checks, parsed-file ownership and exact import bindings. Its
-[toolchain library owner](../../packages/compilation-inputs/src/source/toolchain_library.rs)
+[toolchain library owner](../../packages/package-compilation/src/source/toolchain_library.rs)
 selects and validates the bundled sources.
 Psi 00 owns physical/in-memory loading, scoped load queues and ordered batch lexing; Psi 01 owns
 batch parsing into the caller's syntax arena. Their source, token and parsed-root

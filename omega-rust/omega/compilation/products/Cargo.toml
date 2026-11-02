@@ -21,7 +21,7 @@ selected-dispatch = { path = "../realization/selected-dispatch" }
 semantic-vocabulary = { path = "../../../psi/foundation/semantic-vocabulary" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
-psi-compiler = { path = "../../../psi/compilation/driver" }
+psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
 task-plans = { path = "../backend/runtime/task-plans" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
 validation = { path = "../../../psi/compilation/validation" }
@@ -32,7 +32,7 @@ image-emission = { path = "../backend/images/image-emission" }
 language-semantics = { path = "../../../psi/foundation/language-semantics" }
 native-artifact = { path = "../backend/artifacts/native-artifact" }
 optimization-core = { path = "../../foundation/optimization-core" }
-package-compilation = { path = "../../packages/compilation-inputs" }
+package-compilation = { path = "../../packages/package-compilation" }
 platform-custody = { path = "../../foundation/platform-custody" }
 target = { path = "../backend/target" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }

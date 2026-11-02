@@ -64,7 +64,7 @@ review prepares an independent candidate catalog and compares complete records,
 never substitutes the custody projection for candidate evidence.
 The optional checked-tree interpreter prepares its exact adapter and
 float-comparison bindings beside its only consumer, the driver's corpus runner
-([checked interpreter dispatch](../../driver/tests/support/checked_interpreter_dispatch/mod.rs)),
+([checked interpreter dispatch](../../compiler/tests/support/checked_interpreter_dispatch/mod.rs)),
 immediately before reference execution. Ordinary compilation neither builds nor
 retains this oracle-only table.
 It never rewrites checked arenas. Terminal/native installation consumes the

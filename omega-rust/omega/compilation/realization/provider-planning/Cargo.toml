@@ -18,7 +18,7 @@ backend-plan = { path = "../../backend/plans/backend-plan" }
 component-description = { path = "../../backend/artifacts/component-description" }
 effects = { path = "../../backend/plans/effects" }
 layout = { path = "../../backend/layout" }
-package-compilation = { path = "../../../packages/compilation-inputs" }
+package-compilation = { path = "../../../packages/package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 representation-selections = { path = "../../../../psi/compilation/validation/representation-planning/selections" }
 target = { path = "../../backend/target" }

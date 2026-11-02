@@ -22,7 +22,7 @@ optimization-core = { path = "../../foundation/optimization-core" }
 arena = { path = "../../../psi/foundation/arena" }
 symbols = { path = "../../../psi/foundation/symbols" }
 syntax-trees = { path = "../../../psi/compilation/representations/syntax-trees" }
-psi-compiler = { path = "../../../psi/compilation/driver" }
+psi-compiler = { path = "../../../psi/compilation/psi-compiler" }
 build-declarations = { path = "../build-declarations" }
 build-output = { path = "../build-output" }
 platform-custody = { path = "../../foundation/platform-custody" }

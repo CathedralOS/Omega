@@ -60,14 +60,14 @@ PSI_PIPELINE = f"{PSI}/compilation/pipeline"
 OMEGA_PIPELINE = f"{OMEGA}/compilation/pipeline"
 PACKAGES = f"{OMEGA}/packages"
 PACKAGE_MANAGER = f"{PACKAGES}/package-manager"
-PRODUCT_COORDINATOR = f"{OMEGA}/compilation/driver"
+PRODUCT_COORDINATOR = f"{OMEGA}/compilation/compiler"
 PRODUCTS = f"{OMEGA}/compilation/products"
 BUILD_EVALUATION = f"{OMEGA}/compilation/build-evaluation"
 BUILD_COORDINATOR = f"{OMEGA}/compilation/build"
 CLI_APPLICATION = f"{OMEGA}/application/cli"
 TRUST_MODEL = f"{OMEGA}/compilation/realization/trust-model"
 REVIEW_EVIDENCE = f"{PACKAGES}/review-evidence"
-PSI_FACADE = f"{PSI}/compilation/driver"
+PSI_FACADE = f"{PSI}/compilation/psi-compiler"
 TERMINAL_PRODUCTION = f"{PSI_FACADE}/terminal-production"
 SOURCE_STAGES = tuple(
     f"{PSI_PIPELINE}/{stage}"
@@ -198,7 +198,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
         "product consumers call the Psi facade and do not assemble source stages",
     ),
     (
-        (f"{PACKAGES}/compilation-inputs", f"{PACKAGES}/build-declarations", PACKAGE_MANAGER),
+        (f"{PACKAGES}/package-compilation", f"{PACKAGES}/build-declarations", PACKAGE_MANAGER),
         PARSER_STAGES,
         "package consumers receive parsed sources and do not run the lexer or parser",
     ),
