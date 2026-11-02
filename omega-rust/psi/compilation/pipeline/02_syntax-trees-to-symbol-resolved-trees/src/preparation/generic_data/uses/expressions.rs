@@ -63,6 +63,18 @@ pub(in crate::preparation) fn visit_expression_type_inputs(
     visit: &mut impl FnMut(syntax_trees::types::TypeReferenceHandle),
 ) {
     match syntax.expressions.expression(expression) {
+        ExpressionNode::StructLiteral(literal) if literal.application_type.is_valid() => {
+            visit(literal.application_type)
+        }
+        ExpressionNode::Match(dispatch) => {
+            for arm in syntax.expressions.match_arms(dispatch.arms) {
+                if let syntax_trees::expression::MatchPattern::Destructure(pattern) = arm.pattern
+                    && pattern.application_type.is_valid()
+                {
+                    visit(pattern.application_type);
+                }
+            }
+        }
         ExpressionNode::Cast(cast) => {
             visit(cast.target_type);
             for &argument in syntax_type_references(&syntax)
@@ -269,6 +281,12 @@ pub(in crate::preparation) fn collect_statement_expression_handles(
             collect_expression_handles(syntax, local.initial_value, handles)
         }
         StatementNode::Transition(transition) => {
+            for retained in syntax.statements.transition_patterns(transition.patterns) {
+                collect_expression_handles(syntax, retained.subject, handles);
+                collect_expression_handles(syntax, retained.pattern.head, handles);
+                collect_expression_handles(syntax, retained.pattern.guard, handles);
+            }
+
             if let TransitionGuardNode::When(guard) = transition.guard {
                 collect_expression_handles(syntax, guard, handles);
             }

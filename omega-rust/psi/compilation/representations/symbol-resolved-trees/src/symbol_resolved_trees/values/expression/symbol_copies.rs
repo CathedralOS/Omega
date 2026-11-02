@@ -136,11 +136,14 @@ impl SymbolCopy<'_, '_> {
                     .expression_table()
                     .match_arms(dispatch.arms)
                     .to_vec();
-                for arm in arms {
+                for (ordinal, mut arm) in arms.into_iter().enumerate() {
                     match arm.pattern {
                         MatchPattern::Value(pattern) => self.expression_payloads(pattern),
                         MatchPattern::Wildcard => {}
-                        MatchPattern::Destructure(pattern) => {
+                        MatchPattern::Destructure(mut pattern) => {
+                            pattern.application_type =
+                                self.type_reference(pattern.application_type);
+                            arm.pattern = MatchPattern::Destructure(pattern);
                             self.expression_payloads(pattern.head);
                             self.expression_payloads(pattern.guard);
                             let fields = self
@@ -162,6 +165,10 @@ impl SymbolCopy<'_, '_> {
                         }
                     }
                     self.expression_payloads(arm.value);
+                    self.program
+                        .expression_table_mut()
+                        .match_arm_mut(dispatch.arms.handle_at(ordinal as u32))
+                        .pattern = arm.pattern;
                 }
             }
             // The containing Match owns definition rebasing. An alias-only
@@ -233,6 +240,7 @@ impl SymbolCopy<'_, '_> {
                 self.expression_payloads(range.end);
             }
             ExpressionNode::StructLiteral(literal) => {
+                literal.application_type = self.type_reference(literal.application_type);
                 literal.type_symbol = self.symbol(literal.type_symbol);
                 literal.case_symbol = literal.case_symbol.map(|symbol| self.symbol(symbol));
                 let fields = self

@@ -2056,9 +2056,18 @@ fail/facts/representation_agreement_through_local_rejected rejected 9591ms expec
 fail/facts/representation_agreement_through_match_join_rejected rejected 12557ms expected @7879363aac49
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
 	cannot prove requires contract for call require_round_trip$specialized$18ed551869c98b7d$0$2950 from use_agreement$specialized$2e38d334501d0853$0$2924: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/representation_agreement_through_other_machine_rejected rejected 12686ms expected @4c1f16dc8b68
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
+	cannot prove requires contract for call require_round_trip$specialized$0caa80008d03a86d$0$2951 from use_agreement$specialized$5f7bae5784139253$0$2925: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/representation_agreement_through_other_state_rejected rejected 12355ms expected @4c1f16dc8b68
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
+	cannot prove requires contract for call require_round_trip$specialized$8548df596ee3e465$0$2954 from use_agreement$specialized$e5eb497a874fc38b$0$2928: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/representation_agreement_through_parameter_rejected rejected 8469ms expected @e97ed21415d9
 	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
 	cannot prove requires contract for call require_round_trip$specialized$1d6acb26af11fe16$0$2911 from use_agreement$specialized$c4e69be4bb704c3a$0$2885: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/representation_agreement_through_target_body_rejected rejected 12374ms expected @4c1f16dc8b68
+	cannot prove ensures contract for exit from FirstAgreement::round_trip at statement 0: ReadFirst.try_from(frame) == Result
+	cannot prove requires contract for call require_round_trip$specialized$e4a68bb91ee2e87e$0$2972 from use_agreement$specialized$7cb630d725227b52$0$2946: try_from(frame) == constructor:17:toolchain::Result8:schema:118:payload:name:value5:value (needs fact `try_from(frame) == Result` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/representation_conversion_primitive_shadow_rejected rejected 3051ms expected @dde0f3a03bcd
 	data `Int` shadows the builtin type of the same name -- references would silently bind to the builtin and this definition would never be used (its contracts would go unvalidated). Pick a different name.
 fail/facts/representation_conversion_stored_output_source_write_rejected rejected 6488ms expected @dde0f3a03bcd
@@ -2278,6 +2287,8 @@ fail/facts/target_family_contract_operand/callback_capability rejected 517ms exp
 	machine argument `bounded_matches` for `choose` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/facts/target_family_contract_operand/stronger_provider_requirement rejected 1609ms expected @b0315c8f656c
 	machine parameter `Selected` of provider machine `ArmChoice::choose` for trait requirement `Choosing::choose` does not refine `Callback`: its requires facts are not a conservative refinement
+fail/facts/transparent_alias_qualified_case_wrong_payload_rejected rejected 2003ms expected @6defc740839f
+	construction of `leaf::choices::Choice<u64>` field `value` stores a boolean into a `u64` field, which holds a numeric value
 fail/facts/transparent_alias_rhs_captured_supplier_call_result_mismatch_rejected rejected 2345ms expected @a1964f50142c
 	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
 fail/facts/transparent_alias_rhs_captured_supplier_const_name_mismatch_rejected rejected 2042ms expected @df2704cb8b18
@@ -4365,8 +4376,7 @@ pass/control_flow/runtime_string_literal_dispatch_exit checked 12244ms check-tar
 pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit rejected 6228ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	tests/omega/pass/control_flow/runtime_sum_tuple_matrix_exhaustive_exit/main.omg:1:1: call target must be a path or member access
 pass/control_flow/runtime_terminal_unit_local_cleanup_exit checked 3686ms check-target:macos_arm64 @ccdb99ca2214
-pass/control_flow/runtime_tuple_case_destructure_exit rejected 6474ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	tests/omega/pass/control_flow/runtime_tuple_case_destructure_exit/main.omg:34:26: expected `:`, found keyword `as`
+pass/control_flow/runtime_tuple_case_destructure_exit checked 57466ms check-target:macos_arm64 @7899446a0dc7
 pass/control_flow/runtime_tuple_transition_exit rejected 10834ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	tests/omega/pass/control_flow/runtime_tuple_transition_exit/main.omg:1:1: call target must be a path or member access
 pass/control_flow/runtime_two_index_state_loans_exit checked 6540ms check-target:macos_arm64 @911f6617ba9e
@@ -9376,7 +9386,10 @@ pass/facts/representation_agreement_through_const_name_exit checked 19859ms chec
 pass/facts/representation_agreement_through_field_exit checked 13390ms check-target:macos_arm64 @e97ed21415d9
 pass/facts/representation_agreement_through_local_exit checked 13984ms check-target:macos_arm64 @e97ed21415d9
 pass/facts/representation_agreement_through_match_join_exit checked 17231ms check-target:macos_arm64 @7879363aac49
+pass/facts/representation_agreement_through_other_machine_exit checked 17311ms check-target:macos_arm64 @4c1f16dc8b68
+pass/facts/representation_agreement_through_other_state_exit checked 17487ms check-target:macos_arm64 @4c1f16dc8b68
 pass/facts/representation_agreement_through_parameter_exit checked 13340ms check-target:macos_arm64 @e97ed21415d9
+pass/facts/representation_agreement_through_target_body_exit checked 17248ms check-target:macos_arm64 @4c1f16dc8b68
 pass/facts/representation_conversion_through_call_result_exit checked 9102ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_const_name_exit checked 9493ms check-target:macos_arm64 @1763580d3498
 pass/facts/representation_conversion_through_field_exit checked 9828ms check-target:macos_arm64 @dde0f3a03bcd
@@ -10423,6 +10436,7 @@ pass/facts/thirtytwo_arg_stack_calling_plan_through_other_machine_exit checked 4
 pass/facts/thirtytwo_arg_stack_calling_plan_through_other_state_exit checked 3591ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_parameter_exit checked 4669ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/thirtytwo_arg_stack_calling_plan_through_target_body_exit checked 3568ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/transparent_alias_qualified_cases_exit checked 6791ms check-target:macos_arm64 @6defc740839f
 pass/facts/transparent_alias_rhs_captured_supplier_call_result_exit checked 7568ms check-target:macos_arm64 @a1964f50142c
 pass/facts/transparent_alias_rhs_captured_supplier_const_name_exit checked 7750ms check-target:macos_arm64 @df2704cb8b18
 pass/facts/transparent_alias_rhs_captured_supplier_exit checked 5439ms check-target:macos_arm64 @24d35f3b86c4

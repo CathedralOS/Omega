@@ -249,6 +249,8 @@ pub(crate) fn test_program_with_guarded_transition()
         ));
     let statements = program.declarations_mut().state_statements.insert_many([
         crate::statement::Statement::Transition(crate::statement::Transition {
+            source_guard: None,
+            patterns: Default::default(),
             target: crate::statement::TransitionTarget::Terminal,
             continuation: None,
             guard: crate::statement::TransitionGuard::When(guard),

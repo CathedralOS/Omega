@@ -815,6 +815,9 @@ helper that passes does not close an item.
     and conformance selection, lifetime/value-subject preservation, public
     exposure, acyclic expansion and canonical type/ABI identity through both
     compiler producers and retained artifacts.
+    The Rust reference [qualified-case local witness](samples/cli/facts/transparent_generic_aliases/qualified_cases/README.md)
+    preserves imported alias applications through construction and matching;
+    the remaining eight places and broader pattern inference remain open.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
     expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
     [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md),
@@ -831,10 +834,8 @@ helper that passes does not close an item.
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete remaining schema/case composition support and platform ABI
     migrations; retain explicit named policies for sparse views.
-  - Finish nested-machine, other-machine and selected-target transports of the concrete
-    [selected representation agreement](samples/cli/facts/representation_agreement/README.md).
-    Generalize the fixed-owned agreement bundle to ordinary resource-backed
-    Representation contracts and reflection-specialized library adapters with
+  - Generalize the [fixed-owned agreement bundle](samples/cli/facts/representation_agreement/README.md)
+    to ordinary resource-backed Representation contracts and reflection-specialized library adapters with
     explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
     forwarding. Demonstrate a separately authored encoded format family and

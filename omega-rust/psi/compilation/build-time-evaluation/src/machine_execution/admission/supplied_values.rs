@@ -305,6 +305,7 @@ fn literal(
                     });
                 }
                 ExpressionNode::StructLiteral(TableStructLiteral {
+                    application_type: Default::default(),
                     type_name: definition.name,
                     type_symbol: symbol,
                     case_name,

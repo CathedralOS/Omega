@@ -36,7 +36,7 @@ mod domain_membership;
 mod name_paths;
 pub(crate) mod native_code_layout;
 mod operators;
-mod table;
+pub(crate) mod table;
 pub(crate) use table::declared_receiver_method_target;
 
 pub(crate) fn lower_expression_handle(
