@@ -783,3 +783,46 @@ fn review_records_dynamic_slot_origin_and_qualification() {
         view.parameter_qualification_preconditions()
     );
 }
+
+#[test]
+fn completed_scalar_call_preserves_wrapping_index_guard() {
+    let target = "linux_x86_64";
+    let mut failures = Vec::new();
+    for (fixture, accepted) in [
+        (
+            "pass/facts/compound_index_guard_through_call_result_exit",
+            true,
+        ),
+        (
+            "fail/facts/compound_index_guard_through_call_result_rejected",
+            false,
+        ),
+    ] {
+        let source = fixture_package_inputs::repo_root()
+            .join("tests/omega")
+            .join(fixture)
+            .join("main.omg");
+        let result = fixture_package_inputs::reviewed_repository_fixture_package_inputs(
+            &source,
+            Some(target),
+        )
+        .and_then(|mut prepared| {
+            fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
+        });
+        match result {
+            Ok(_) if accepted => eprintln!("SOURCE_CHECK {fixture}: accepted"),
+            Err(diagnostics)
+                if !accepted
+                    && diagnostics.iter().any(|diagnostic| {
+                        diagnostic.message.contains("cannot prove index")
+                            && diagnostic.message.contains("within length 200")
+                    }) =>
+            {
+                eprintln!("SOURCE_CHECK {fixture}: intended bound refusal {diagnostics:?}")
+            }
+            Ok(_) => failures.push(format!("{fixture}: invalid upperless source accepted")),
+            Err(diagnostics) => failures.push(format!("{fixture}: {diagnostics:?}")),
+        }
+    }
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
