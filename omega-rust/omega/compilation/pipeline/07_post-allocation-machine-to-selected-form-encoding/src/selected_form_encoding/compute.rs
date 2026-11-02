@@ -1,33 +1,31 @@
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions::CurrentSelectedProgram;
 
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use physical_instructions::PostAllocationMachinePlan;
 
 use crate::{OptimizedSelectedFormEncodingError, row_encoding::encode_row};
 use machine_code::{
     SelectedFormEncodedRowStore, SelectedFormEncoding, SelectedFormEncodingIdentity,
 };
 
-pub(super) fn compute<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    staged: &StagedOptimizedPostAllocationMachinePlan,
+pub(super) fn compute(
+    selected: CurrentSelectedProgram<'_>,
+    machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     frame: Option<&machine_code::TargetFrameLayoutPlan>,
 ) -> Result<SelectedFormEncoding, OptimizedSelectedFormEncodingError> {
-    let machine = staged.machine().plan();
     crate::frame_address::validate_frame_root(machine, frame)?;
-    if machine.selected != selected.selected_identity() {
+    if machine.selected != selected.identity {
         return Err(OptimizedSelectedFormEncodingError::SelectedRootMismatch);
     }
     if machine.physical_register_model != physical.identity() {
         return Err(OptimizedSelectedFormEncodingError::PhysicalModelMismatch);
     }
-    let target = selected.selected_plan().target;
-    // The admitted machine receipt already owns this complete instruction
-    // roster. Reserve its capacity once instead of temporarily doubling a
-    // large row table. This is no coverage limit: the same full paired walk
-    // below still produces and checks every instruction.
-    let row_count = staged.machine().receipt().instruction_count();
+    let target = selected.plan.target;
+    // Reserve the machine plan's complete instruction roster once instead of
+    // temporarily doubling a large row table. This is no coverage limit: the
+    // same full paired walk below still produces and checks every instruction.
+    let row_count = machine.instructions().count();
     let mut rows = Vec::with_capacity(row_count);
     // Every row's bytes and footprint land in these two buffers; a row keeps
     // only its span and handle into them.
@@ -49,8 +47,8 @@ pub(super) fn compute<S: ValidatedSelectedAnalysis>(
         },
     )?;
     let counts = crate::rows::counts_of(&rows)?;
-    let selected_root = selected.selected_identity();
-    let machine_root = staged.machine().receipt().identity();
+    let selected_root = selected.identity;
+    let machine_root = machine.identity;
     let mut program = SelectedFormEncoding {
         selected: selected_root,
         machine: machine_root,

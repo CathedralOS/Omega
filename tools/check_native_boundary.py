@@ -162,8 +162,6 @@ FIREWALL_ALLOWANCES = (
               f"{STAGE_DEBT} (SelectedProgramRef, ValidatedSelectedAnalysis, allocation legality)"),
     Allowance(stage("06"), stage("05"),
               f"{STAGE_DEBT} (ValidatedRegisterHomes, ValidatedPreAllocationMachineEffects)"),
-    Allowance(stage("07"), stage("05"), f"{STAGE_DEBT} (ValidatedSelectedAnalysis)"),
-    Allowance(stage("07"), stage("06"), f"{STAGE_DEBT} (StagedOptimizedPostAllocationMachinePlan)"),
 )
 
 
