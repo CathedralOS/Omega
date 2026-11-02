@@ -1177,10 +1177,7 @@ impl<'program> ShapeCollector<'program> {
     /// application view that borrows the authored declaration's symbol beside
     /// the generated carrier; an origin whose `base_symbol` is still the
     /// candidate's own symbol marks that borrowed view, never the carrier.
-    fn canonical_closed_carrier(
-        &mut self,
-        identity: TypeIdentityId,
-    ) -> Option<DataDefinition> {
+    fn canonical_closed_carrier(&mut self, identity: TypeIdentityId) -> Option<DataDefinition> {
         if self.canonical_carriers.is_none() {
             let typed = self.program.typed_program();
             let mut carriers = BTreeMap::new();
@@ -1595,10 +1592,19 @@ impl<'program> ShapeCollector<'program> {
                         plan.native_data_identity(program.typed_program(), &data, policy)
                             .ok()
                     }),
+                    // Application views may borrow the declaration's symbol
+                    // while carrying occurrence-local specialization metadata.
+                    // Native provenance belongs to the symbol-owning declaration,
+                    // just as it does when a field first demands this shape.
                     None => program
                         .typed_program()
-                        .native_data_declaration_identity(&data)
-                        .ok(),
+                        .unique_data_definition_by_symbol(data.symbol)
+                        .and_then(|declaration| {
+                            program
+                                .typed_program()
+                                .native_data_declaration_identity(declaration)
+                                .ok()
+                        }),
                 },
                 scalar_restriction: None,
                 owns_linear_claim,

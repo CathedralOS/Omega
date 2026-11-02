@@ -97,9 +97,20 @@ and their neighbors. Existing counterfeit-local controls remain unchanged.
 
 Producer identities, commands, raw diagnostics and actual engine outcomes are
 retained in the change's validation record. The parent outcome remains open:
-remaining Build operations, live-storage accounting, admitted host loan returns,
+remaining Build operations, live-storage accounting, opaque-provider loan returns,
 staged dependency/provider preparation and the other matching-host acceptance
 are broader than this borrowed-configuration repair.
+
+At the fixed continuation baseline `c689405c35345f81eab2f7dab1b0ad2010b74150`,
+the unchanged field place runs with native/Terminal exit 0, while six other
+places reject a conflicting `Configuration` structural roster and the constant
+and match places lose their setting-write destinations. The roster differs only
+in native declaration provenance: a per-occurrence application view must use
+its original symbol-owning declaration. Assignment-origin queries use the same
+complete descriptor-transfer and exposure checks as other origin consumers;
+unrelated content writes need no representable whole-state physical summary.
+The assignment itself still captures and records its actual destination.
+These are compiler defects exposed by the complete row, not weakened witnesses.
 
 ## Host entry-result loans
 
