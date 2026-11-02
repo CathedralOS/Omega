@@ -8,6 +8,9 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/borrows/collection_metadata_descriptor_storage_exit built 14682ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
+pass/borrows/runtime_byte_case_partial_cleanup_exit built 15056ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
+pass/borrows/runtime_exclusive_byte_field_cleanup_exit built 15242ms exit:0 interpreter-exit:0 interpreter:agrees @60b8f1171d45
 pass/facts/build_activation_borrow_entry_return_exit built 11951ms exit:0 interpreter-exit:0 interpreter:agrees @b208ceef9bc2
 pass/facts/domain_selected_cleanup_enclosing_generic_telescope_exit built 14212ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
 pass/facts/domain_selected_cleanup_erased_interface_exit built 13801ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
@@ -309,8 +312,7 @@ pass/borrow/runtime_write_only_exclusive_reference_projected_exit built 4099ms e
 pass/borrow/runtime_write_only_exclusive_reference_returned_view_exit built 4177ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/borrow/runtime_write_only_indexed_record_copy_exit built 4062ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/borrow/runtime_write_only_local_affine_aggregate_exit built 3828ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/borrow/runtime_write_only_qualified_array_element_exit rejected 3351ms interpreter:unchecked @a92f16431042
-	cleanup effect dependency in `main` has no exact structural residual disposition in state `entry` at statement 17
+pass/borrow/runtime_write_only_qualified_array_element_exit built 14856ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
 pass/borrow/runtime_write_only_record_array_argument_exit built 4159ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/borrow/runtime_write_only_reference_aggregate_alias_exit built 14613ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/borrow/runtime_write_only_reference_aggregate_array_alias_exit built 14754ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -4338,6 +4340,15 @@ pass/facts/replaced_field_loan_through_other_machine_exit built 2587ms exit:0 in
 pass/facts/replaced_field_loan_through_other_state_exit built 2525ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/replaced_field_loan_through_parameter_exit built 2262ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/replaced_field_loan_through_target_body_exit built 1793ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/resource_representation_buffered_call_result_exit built 17426ms exit:0 interpreter-exit:0 interpreter:agrees @6b941db428c6
+pass/facts/resource_representation_buffered_const_name_exit built 17427ms exit:0 interpreter-exit:0 interpreter:agrees @6b941db428c6
+pass/facts/resource_representation_buffered_field_exit built 18494ms exit:0 interpreter-exit:0 interpreter:agrees @6b941db428c6
+pass/facts/resource_representation_buffered_local_exit built 15887ms exit:0 interpreter-exit:0 interpreter:agrees @60b8f1171d45
+pass/facts/resource_representation_buffered_match_join_exit built 18482ms exit:0 interpreter-exit:0 interpreter:agrees @6b941db428c6
+pass/facts/resource_representation_buffered_other_machine_exit built 18232ms exit:0 interpreter-exit:0 interpreter:agrees @6b941db428c6
+pass/facts/resource_representation_buffered_other_state_exit built 18195ms exit:0 interpreter-exit:0 interpreter:agrees @6b941db428c6
+pass/facts/resource_representation_buffered_parameter_exit built 17445ms exit:0 interpreter-exit:0 interpreter:agrees @6b941db428c6
+pass/facts/resource_representation_buffered_target_body_exit built 17415ms exit:0 interpreter-exit:0 interpreter:agrees @6b941db428c6
 pass/facts/result_cleanup_guarantees_through_call_result_exit built 5424ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/result_cleanup_guarantees_through_const_name_exit built 5386ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/result_cleanup_guarantees_through_field_exit built 4510ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -7519,6 +7530,7 @@ pass/text/runtime_owned_string_byte_view_exit built 5983ms exit:70 interpreter-e
 pass/text/runtime_param_domain_forward_exit built 5683ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/text/runtime_param_domain_literal_read_exit built 5779ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/text/runtime_qualified_byte_array_storage_exit built 2770ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/text/runtime_qualified_byte_field_cleanup_exit built 15394ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
 pass/text/runtime_qualified_owner_view_open_exit built 2006ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/text/runtime_slice_indexed_string_guard_exit built 5961ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/text/runtime_stdin_command_branch_exit built 6484ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @a92f16431042
@@ -7609,6 +7621,7 @@ pass/traits/operator_machine_add checked 2201ms @a92f16431042
 pass/traits/prepared_callable_nested_borrow_paths_exit incomplete 1962ms interpreter:unchecked @a92f16431042
 	`check_byte_views` has no executable body: this compiler does not lower a state of it yet (normal-exit cleanup); in state `check_byte_views::inspect`
 pass/traits/public_nested_machine_contract_scopes built 2330ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/traits/refined_borrowed_implementation_exit built 13251ms exit:0 interpreter-exit:0 interpreter:agrees @60b8f1171d45
 pass/traits/renamed_invocation_contract_binders checked 1668ms @a92f16431042
 pass/traits/ring_requirement_satisfies_exit built 5611ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/traits/runtime_dyn_array_result_exit built 2056ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

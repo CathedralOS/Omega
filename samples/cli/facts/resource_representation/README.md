@@ -61,39 +61,70 @@ arm twice makes the program trap. This row does not claim that a borrowed
 request can be stored in a constant or that the request itself crosses every
 listed boundary.
 
-## Current result
+## Requirement evidence
 
-The original local program now exits 0 natively. Terminal execution still
-stops while constructing a mutable byte field, so this place and the complete
-row remain unfinished. The other eight places and their reject twins are
-authored and await execution.
+The caller supplies the buffer and the three-byte capacity requirement. The
+selected public method establishes success for every `Pair` before the caller
+uses its result. Exact lifetime arguments and the returned occurrence survive
+the inherited conversion interface; a parameter named `result` keeps its own
+meaning. The capacity-only twins fail at the unchanged write helper's
+requirement, rather than at a caller guard.
 
-[Run 41515819925](https://github.com/CathedralOS/Omega/actions/runs/41515819925)
-used source `3139db74cf0d37dcb6ba4cbb2c61bc74ded684ce` and an authenticated,
-optimized Linux x86-64 compiler. All eleven source outcomes matched: six
-positives checked and five invalid controls rejected for their expected reasons.
-All six positives exited 0 natively. Four agreed with Terminal at exit 0; the
-original program and exclusive byte-field control stopped with
-`VerifiedOperationMalformed` during Terminal execution. Sample execution was
-not reached.
+Requests, frames and failures retain the same exclusive buffer access. Both
+formats run for unequal 17/42 and endpoint 0/255 inputs. Short output and a
+malformed tag return distinct failures without writing the buffer. The caller
+reads storage after each call and checks nonzero neighbors. Wrong tags, swapped
+fields, incorrect extents, lost writes or damaged neighboring bytes make the
+program trap. Both match arms are exercised with different expected bytes.
+The selected provider returns its marker in the same call as the semantic
+input, so selecting the wrong body also traps.
 
-Compiler preparation took 662 seconds, source checks 75 seconds and native/
-Terminal observations 47 seconds. The next repair uses the existing descriptor
-transfer check when a canonical descriptor value moves into a stored field.
-The operand's actual multiplicity, mutable backing, predicates, extent and
-ownership transfer remain mandatory.
+Checked lowering retains the slice's current pointer, length and access when
+constructing requests and results. Cleanup uses the stored descriptor type and
+the exact moved field. Indexed stores capture their view before later operands
+run. Native lowering checks the full projected source, including owned records;
+Terminal construction uses the same descriptor-transfer rule while checking the
+operand's declared type, multiplicity, backing, predicates and extent. Runtime
+custody stays explicit in every place.
 
-The frozen program, Build files and guard-only twin remain unchanged from
-`10fba736d8eb1ed0de892a360d8fb6dba4882599`. The earlier baseline
-[41489778010](https://github.com/CathedralOS/Omega/actions/runs/41489778010)
-rejected the five success proofs; the subsequent return-binding repair removed
-those refusals. Raw reports and compiler identities are retained outside git in
+## Accepted results
+
+All nine places return **native 0 and Terminal 0 with agreement** on Linux
+x86-64. All nine capacity-only twins reject for their intended `emit` requirement.
+The eighteen sample projects meet their authored runtime or rejection oracles.
+The programs and twins are mirrored under
+`tests/omega/{pass,fail}/facts/resource_representation_buffered_*`, with actual
+records in `corpus_outcomes.txt` and `corpus_both_linux_x86_64.txt`.
+
+[Run 41520174252](https://github.com/CathedralOS/Omega/actions/runs/41520174252)
+observed the frozen local place, exclusive byte-field control and
+borrowed-refinement pair using optimized source
+`60b8f1171d451eed48cc168832ccfc6275ae2ee2`. It passed five source outcomes,
+three native/Terminal agreements and the original two sample projects.
+[Run 41522299500](https://github.com/CathedralOS/Omega/actions/runs/41522299500)
+observed the remaining eight places and twins using
+`6b941db428c6e25d7b2556df3930f8e25d315697`. It passed sixteen source outcomes,
+eight native/Terminal agreements and sixteen sample projects. Preparation took
+361 seconds, source checking 135 seconds, both engines 73 seconds and samples
+181 seconds. Formatter output and removal of temporary workflow diagnostics
+do not change these consumers. Final cleanup also removes a redundant
+missing-declaration refusal; the successful catalog path is unchanged. Records
+retain the producer revisions actually observed.
+
+Four unchanged controls retain their applicable native/Terminal agreements from
+[run 41515819925](https://github.com/CathedralOS/Omega/actions/runs/41515819925):
+shared partial-case cleanup, qualified bytes, outer references and write-only
+arrays. Its historical Terminal declines are superseded by the repaired local
+and exclusive-byte observations. Capacity, lifetime, shared-access and stored
+backing controls retain their actual rejection diagnostics. Together these
+records cover 29 source outcomes and 15 native/Terminal agreements; earlier
+result-shadowing controls retain their applicable source observations separately.
+
+The original program, Build files and guard-only twin remain unchanged from
+`10fba736d8eb1ed0de892a360d8fb6dba4882599`. The initial baseline refused five
+success postconditions. Raw reports, compiler profiles, source bundles and the
+evidence ledger remain outside git in
 `/Users/zcanann/Omega-build/representation-resource-20261102/`.
-
-[PR #1461](https://github.com/CathedralOS/Omega/pull/1461) remains a draft. Its
-next step is to finish Terminal execution for the unchanged encoder and run the local
-program with both engines, then complete the nine-place row and invalid twins.
-No completed place or canonical success record is claimed.
 
 The broader resource-backed `Representation` interface remains open, including
 its agreement laws, reflection-based adapters, other resources and formats,

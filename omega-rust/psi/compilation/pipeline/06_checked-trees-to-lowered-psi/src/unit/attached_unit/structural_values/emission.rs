@@ -217,14 +217,15 @@ pub(crate) fn emit<'source>(
             access: StructuralAccess::Owned,
         })
         .collect::<Vec<_>>();
-    let declaration = terminal_psi::find_structural_type(structural_types, structural_type).ok_or(
-        LoweringError::Unsupported("produced value has no structural declaration"),
-    )?;
-    let stored_descriptor_value =
-        terminal_semantics::stored_reference_access(&declaration.shape).is_some();
+    let declaration = terminal_psi::find_structural_type(structural_types, structural_type);
+    let stored_descriptor_value = declaration.is_some_and(|declaration| {
+        terminal_semantics::stored_reference_access(&declaration.shape).is_some()
+    });
     let stored_view_value = stored_descriptor_value
-        && (declaration.shape.is_borrowed_byte_carrier()
-            || matches!(declaration.shape, StructuralTypeShape::ElementView { .. }));
+        && declaration.is_some_and(|declaration| {
+            declaration.shape.is_borrowed_byte_carrier()
+                || matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+        });
     // A stored view returns its pointer and length as a value. Equal source
     // and destination types do not make that value a borrow of its old slot.
     // An outer Reference can still name a slot; keep its existing alias rule.
@@ -244,7 +245,9 @@ pub(crate) fn emit<'source>(
     // Canonical view occurrences retain their direct descriptor role. Stored
     // descriptor values instead own the arriving words, with their own copy or
     // affine lifetime. Their backing remains borrowed in either representation.
-    let view_loan = borrowed_view_join_access(&declaration.shape, production.multiplicity);
+    let view_loan = declaration.and_then(|declaration| {
+        borrowed_view_join_access(&declaration.shape, production.multiplicity)
+    });
     let result_access = if let Some(access) = borrowed_alias {
         // Equal source/destination carriers transport the existing loan. They
         // do not acquire owned custody merely because mutable access is affine.
