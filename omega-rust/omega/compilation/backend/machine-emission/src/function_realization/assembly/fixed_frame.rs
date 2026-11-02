@@ -28,6 +28,7 @@ use selected_instructions_to_register_homes::{
 #[allow(clippy::too_many_arguments)]
 pub(in crate::function_realization) fn expected_fixed_frame_manifest(
     allocation: &AllocationOutput<'_>,
+    target_input: &abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
     baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
@@ -109,8 +110,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
         ),
         _ => (OptimizationSelections::default().identity(), None),
     };
-    let pre_physical = allocation
-        .target_input()
+    let pre_physical = target_input
         .optimized()
         .pre_physical_manifest()
         .record()
@@ -170,7 +170,7 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
         pre_physical_manifest: pre_physical,
         post_allocation_manifest: post.identity,
         selected,
-        pre_allocation_machine_effects: machine.effects().receipt().identity(),
+        pre_allocation_machine_effects: machine.effects().identity,
         post_allocation_machine: machine.machine().receipt().identity(),
         baseline_pre_layout: encoding.identity(),
         pre_layout: encoding.identity(),

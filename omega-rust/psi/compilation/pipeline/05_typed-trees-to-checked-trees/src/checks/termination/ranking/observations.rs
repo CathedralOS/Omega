@@ -137,7 +137,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     .collect::<Option<Vec<_>>>()?;
                 let bindings = admitted.bindings.insert_many(bindings);
                 let formation = if application_facts.definition_body.is_valid() {
-                    if application_facts.measure != *measure
+                    if application_facts.owner != *measure
                         || program
                             .expression_table
                             .expression_handles(declaration.body)
@@ -147,8 +147,8 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                     }
                     let whole_input =
                         retain_observed_coordinate(admitted, destination.clone(), values.as_ref())?;
-                    let owned_input = declaration.parameter.as_ref().and_then(|formal| {
-                        super::super::application_inputs::owned_input(
+                    let input_home = declaration.parameter.as_ref().and_then(|formal| {
+                        super::super::application_inputs::input_home(
                             program,
                             admitted,
                             state,
@@ -163,7 +163,7 @@ pub(in crate::checks::termination) fn prepare_natural_observations(
                             state: state.symbol,
                             application: application_facts,
                             bindings,
-                            owned_input,
+                            input_home,
                         },
                     )
                 } else {
@@ -263,6 +263,7 @@ fn exact_distance_measure(
             state,
             expression: lower,
             primitive_type: lower_type,
+            formation: Default::default(),
         });
     let upper = admitted
         .rank_operands
@@ -270,6 +271,7 @@ fn exact_distance_measure(
             state,
             expression: upper,
             primitive_type: upper_type,
+            formation: Default::default(),
         });
     Some(RankMeasure::Distance { lower, upper })
 }

@@ -109,13 +109,22 @@ impl Execution<'_, '_, '_> {
         self.capture_stored_suppliers(parameters, &effects, inputs, call, binding_writes)
     }
 
-    pub(super) fn install_call_stores(&mut self, stores: Vec<CallStore>) {
+    /// Install the call's normal-return stores, then mark the storage version
+    /// at which the call is complete: after its writes and its own stores.
+    pub(super) fn install_call_stores(
+        &mut self,
+        call: Handle<checked_trees::FlowCallFact>,
+        stores: Vec<CallStore>,
+    ) {
         for store in stores {
             self.storage_snapshot = self.install_call_stored_value(
                 self.storage_snapshot,
                 &store.destination,
                 store.value,
             );
+        }
+        if call.is_valid() {
+            self.context.control.calls.get_mut(call).completed_storage = self.storage_snapshot;
         }
     }
 

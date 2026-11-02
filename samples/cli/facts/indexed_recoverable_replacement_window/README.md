@@ -65,6 +65,19 @@ pinned under `tests/omega/{pass,fail}/facts/`. These Linux observations do not
 claim other-host execution, physical suspension/cancellation, or effectful range
 endpoint coverage. The parent TASKS.md item remains open.
 
+## Selector coordinate through lowering
+
+`main()` disposes `holder.tokens[first_slot()]` and then `holder.tokens[1]`.
+At base `91bb6f0e1cf` all nine places refused in Psi 06 with
+`OverlappingProjectedCustody`: the moved element kept an unknown runtime
+index, which overlaps element 1. The checker had already proved the selector's
+single value. Lowering now carries that proved coordinate on a call operand's
+completed selector as an evaluated fixed index: the call still runs at its
+operand slot, and custody, overlap and restoration name element 0. All nine
+positives observe native 0 and Terminal 0 on macOS arm64; all nine twins still
+reject the `holder.tokens[index]` restoration debt, as do the three
+`pass/ownership/runtime_indexed_*` witnesses (now exit 0 in both engines).
+
 ## Build-owned target-body migration
 
 The `target_body` place and its twin carry no source target prefix.

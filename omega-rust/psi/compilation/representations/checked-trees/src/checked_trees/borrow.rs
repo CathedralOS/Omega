@@ -56,6 +56,11 @@ pub enum IncomingReferenceOrigin {
     /// A descriptor stored in an input carrier. Replacement retires this
     /// occurrence independently of any root loan permitting the write.
     Parameter { symbol: SymbolHandle },
+    /// A descriptor actually read from unchanged invocation-entry storage.
+    /// Every completed source must retain that input origin. Its pointer is
+    /// opaque; the receiver authorizes the slot read, not this pointer's
+    /// pointee. The completion certificate owns activation.
+    DescriptorLoad { expression: ExpressionHandle },
     Invocation {
         expression: ExpressionHandle,
         target: SymbolHandle,
@@ -80,7 +85,8 @@ impl IncomingReferenceIdentity {
         match self.origin {
             IncomingReferenceOrigin::Parameter { symbol }
             | IncomingReferenceOrigin::ParameterReferent { symbol } => Symbol(symbol),
-            IncomingReferenceOrigin::Invocation { expression, .. } => Expression(expression),
+            IncomingReferenceOrigin::Invocation { expression, .. }
+            | IncomingReferenceOrigin::DescriptorLoad { expression } => Expression(expression),
             IncomingReferenceOrigin::Output { identity } => InvocationOutput(identity),
         }
     }
@@ -89,9 +95,9 @@ impl IncomingReferenceIdentity {
         match self.origin {
             IncomingReferenceOrigin::Parameter { symbol }
             | IncomingReferenceOrigin::ParameterReferent { symbol } => symbol,
-            IncomingReferenceOrigin::Invocation { .. } | IncomingReferenceOrigin::Output { .. } => {
-                SymbolHandle::invalid()
-            }
+            IncomingReferenceOrigin::Invocation { .. }
+            | IncomingReferenceOrigin::DescriptorLoad { .. }
+            | IncomingReferenceOrigin::Output { .. } => SymbolHandle::invalid(),
         }
     }
 }

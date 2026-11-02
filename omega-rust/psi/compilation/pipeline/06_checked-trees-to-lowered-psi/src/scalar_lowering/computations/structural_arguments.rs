@@ -39,8 +39,8 @@ pub(super) fn lower(
             let checked_trees::CheckedScalarComputationStructuralArgument::Place(argument) = argument else {
                 return unsupported("computed constructor did not retain its structural value");
             };
-            // Declaration inputs are authenticated whole entry copies. Their
-            // checked call plan may copy or temporarily share that initialized
+            // Declaration inputs retain authenticated initialized entry homes. Their
+            // checked call plan may copy owned storage or temporarily share a readable
             // home; neither route acquires a statement's loan or an anonymous
             // temporary reservation. Exclusive authority is not implied.
             if source_call.is_none() && (!matches!(argument.access, checked_trees::CheckedStructuralAccess::Owned | checked_trees::CheckedStructuralAccess::SharedBorrow)

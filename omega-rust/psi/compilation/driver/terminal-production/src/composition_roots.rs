@@ -1,18 +1,14 @@
-//! Source-issued application descriptions, attached after code publication.
+//! Retained application descriptions, attached after code publication.
 //!
-//! Preparation closes source entry and adapter identities. Attachment reads
+//! Preparation receives closed entry and adapter identities. Attachment reads
 //! those descriptions, the callback declaration roster and the sealed program;
 //! it neither reopens source nor executes product admission policy.
 
 use crate::observation::{PsiCompilationObserver, PsiCompilationStage};
 use crate::{ProducedTerminalApplication, TerminalArtifactProductionError};
-use checked_trees::CheckedTrees;
-use checked_trees_to_lowered_psi::select_terminal_machine;
 use diagnostics::Diagnostic;
-use lowered_psi_to_terminal_psi::{
-    PreparedNominalRoot, prepare_nominal_root, prepare_program_entry_receipt,
-};
-use terminal_psi::TerminalMachineProvenance;
+use lowered_psi_to_terminal_psi::prepare_program_entry_receipt;
+use terminal_psi::{PreparedNominalRoot, TerminalMachineProvenance};
 
 #[derive(Debug, PartialEq, Eq, compiler_storage::Record)]
 pub struct TerminalAdmissionRoot {
@@ -20,19 +16,19 @@ pub struct TerminalAdmissionRoot {
     pub provenance: TerminalMachineProvenance,
 }
 
-/// Source inputs consumed during application preparation, not code publication.
+/// Already-closed root descriptions; none interprets a source coordinate.
 #[derive(Clone, Copy, Default)]
 pub struct TerminalCompositionRoots<'a> {
     pub callbacks: Option<&'a crate::PreparedTerminalRoots>,
-    pub physical_adapter: symbols::SymbolHandle,
+    pub physical_adapter: Option<&'a PreparedNominalRoot>,
 }
 
 struct PreparedComposition<'a> {
     callbacks: Option<&'a crate::PreparedTerminalRoots>,
-    adapter: Option<Result<PreparedNominalRoot, Vec<Diagnostic>>>,
+    adapter: Option<&'a PreparedNominalRoot>,
 }
 
-/// Source-issued descriptions of one application's requested judgments.
+/// Declaration descriptions of one application's requested judgments.
 /// These private records contain no checked trees, source handles or lowering
 /// products. Failed preparation remains data until the application is reached.
 pub struct TerminalApplicationCustody<'a> {
@@ -43,12 +39,9 @@ pub struct TerminalApplicationCustody<'a> {
 
 impl<'a> TerminalApplicationCustody<'a> {
     pub fn prepare(
-        checked: &CheckedTrees,
-        machine: crate::TerminalMachineSelection<'_>,
+        entry: Result<PreparedNominalRoot, Vec<Diagnostic>>,
         entry_identity: Option<[u8; 32]>,
         composition: Option<TerminalCompositionRoots<'a>>,
-        sources: &[(source::SourceId, [u8; 32])],
-        observer: &mut impl PsiCompilationObserver,
     ) -> Self {
         if entry_identity.is_none() && composition.is_none() {
             return Self {
@@ -57,27 +50,9 @@ impl<'a> TerminalApplicationCustody<'a> {
                 composition: None,
             };
         }
-        let entry = observer
-            .record_result(PsiCompilationStage::MachineSelection, || {
-                select_terminal_machine(checked, machine)
-            })
-            .map_err(|error| TerminalArtifactProductionError::Lowering(error).diagnostics())
-            .and_then(|selection| {
-                prepare_nominal_root(checked, selection.machine, &selection.name, sources).map_err(
-                    |error| TerminalArtifactProductionError::EntryReceipt(error).diagnostics(),
-                )
-            });
         let composition = composition.map(|composition| PreparedComposition {
             callbacks: composition.callbacks,
-            adapter: composition.physical_adapter.is_valid().then(|| {
-                let name = checked
-                    .typed
-                    .machine(composition.physical_adapter)
-                    .map_or("", |body| body.name.as_str());
-                prepare_nominal_root(checked, composition.physical_adapter, name, sources).map_err(
-                    |error| TerminalArtifactProductionError::EntryReceipt(error).diagnostics(),
-                )
-            }),
+            adapter: composition.physical_adapter,
         });
         Self {
             entry: Some(entry),
@@ -127,10 +102,7 @@ impl<'a> TerminalApplicationCustody<'a> {
                 }));
             }
             if let Some(adapter) = &composition.adapter {
-                roots.push(match adapter {
-                    Ok(adapter) => project_root(module, provenance, adapter),
-                    Err(errors) => Err(errors.clone()),
-                });
+                roots.push(project_root(module, provenance, adapter));
             }
         }
         let receipt = match self.entry_identity {
@@ -154,11 +126,17 @@ fn project_root(
     provenance: &TerminalMachineProvenance,
     declaration: &PreparedNominalRoot,
 ) -> Result<TerminalAdmissionRoot, Vec<Diagnostic>> {
-    let entry = declaration
-        .resolve(module)
-        .map_err(|error| TerminalArtifactProductionError::EntryReceipt(error).diagnostics())?;
+    let entry = declaration.resolve(module).map_err(|reason| {
+        TerminalArtifactProductionError::EntryReceipt(reason.into()).diagnostics()
+    })?;
     Ok(TerminalAdmissionRoot {
         machine: entry.id,
-        provenance: provenance.for_root(module, entry.id, declaration.diagnostic_name()),
+        provenance: provenance.for_root(
+            module,
+            entry.id,
+            declaration
+                .diagnostic_name()
+                .map(|(name, span)| (name, span.or_else(|| provenance.source_span(entry.id)))),
+        ),
     })
 }

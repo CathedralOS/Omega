@@ -1,38 +1,86 @@
 """Observe an explicitly selected normal-exit fixture through the product CLI.
 
-The corpus remains the owner of private harness/stream/inspection oracles. This
-consumer covers ordinary package review and an authored numeric exit on both
-engines, with the CLI's explicit host environment and unchanged input bytes.
+The corpus owns private harness, stream and inspection-control oracles. This
+consumer covers ordinary package review, plain named inspection/reload, and an
+authored numeric exit on both engines with unchanged input bytes.
 """
 
 import hashlib
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import re
 import shutil
 import subprocess
 import time
 
 from sample_native_gate import DECISION, fixture_oracles, oracle
+from sample_projects import project_at
+
+
+def relative_project(root, selector):
+    path = PurePosixPath(selector)
+    if (path.as_posix() != selector or "\\" in selector
+            or any(part in (".", "..") for part in path.parts)):
+        raise ValueError(f"ordinary CLI project is not a normalized path: {selector}")
+    if len(path.parts) >= 3 and path.parts[0] == "pass":
+        relative = Path("tests/omega") / selector
+    elif len(path.parts) >= 3 and path.parts[:2] == ("samples", "cli"):
+        relative = Path(selector)
+    else:
+        raise ValueError("ordinary CLI projects must be exact pass/... or samples/cli/... paths")
+    project = root.resolve() / relative
+    if project.resolve() != project or not (project / "build.omg").is_file():
+        raise ValueError(f"ordinary CLI project lacks its own tracked directory/build: {selector}")
+    if path.parts[0] == "samples":
+        declared = project_at(project, root)
+        if declared.role not in ("program", "example", "library-consumer") or declared.entry != project / "main.omg":
+            raise ValueError("ordinary CLI samples require a normal program with main.omg entry")
+    return relative
 
 
 def expected_exit(root, fixture, target):
-    project = root / "tests" / "omega" / fixture
+    relative = relative_project(root, fixture)
+    project = root / relative
     if not (project / "build.omg").is_file():
         raise ValueError(f"ordinary CLI fixture has no build.omg: {fixture}")
     oracles = fixture_oracles(project, target)
     extra = [path.name for path in project.glob("expected_*")
-             if not (path.name == "expected_native_exit.txt"
+             if not (path.name in ("expected_native_exit.txt", "expected_terminal_inspections.txt")
                      or (path.name.startswith("expected_native_exit.") and path.suffix == ".txt"))]
     if extra or any(project.glob("entry_ram*")) or oracle(project)[1] is not None:
         raise ValueError("ordinary CLI exit fixtures cannot omit authored stream/inspection oracles")
+    inspection_machines(project)
+    if not oracles["exit"] and relative.parts[:2] == ("samples", "cli"):
+        declared_exit, _ = oracle(project)
+        if declared_exit is not None:
+            return declared_exit
     if not oracles["exit"]:
         raise ValueError(f"ordinary CLI fixture has no {target} numeric exit oracle: {fixture}")
     text = Path(oracles["exit"]).read_text(encoding="utf-8").strip()
     if not re.fullmatch(r"-?\d+", text):
         raise ValueError("ordinary CLI fixture requires an authored numeric exit oracle")
     return int(text)
+
+
+def inspection_machines(project):
+    path = project / "expected_terminal_inspections.txt"
+    if not path.is_file():
+        return ()
+    rows = [line.split() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if not rows or any(len(row) != 1 for row in rows):
+        raise ValueError("ordinary CLI inspection requires plain machine names; debug/runtime/control oracles remain with the corpus")
+    return tuple(row[0] for row in rows)
+
+
+def validate_inspection(machine, source, reloaded):
+    selected = re.findall(r"^terminal selected_machine=(\S+) entry=", source, re.MULTILINE)
+    identity = re.findall(r"^terminal program_fingerprint=([0-9a-f]{64})$", source, re.MULTILINE)
+    restored = re.findall(r"^terminal program_fingerprint=([0-9a-f]{64})$", reloaded, re.MULTILINE)
+    restored_selection = re.findall(r"^terminal selected_machine=(\S+) entry=", reloaded, re.MULTILINE)
+    if selected != [machine] or restored_selection != ["artifact"] or len(identity) != 1 or restored != identity:
+        raise ValueError("named inspection lost its selected machine or canonical artifact identity")
+    return identity[0]
 
 
 def validate_exits(code, stderr, expected):
@@ -49,10 +97,12 @@ def observe(root, producer, fixture, output):
     expected = expected_exit(root, fixture, producer.target)
     output.mkdir(parents=True, exist_ok=False)
     workspace = output / "workspace"
-    relative_project = Path("tests/omega") / fixture
+    project_relative = relative_project(root, fixture)
     paths = subprocess.check_output(
-        ["git", "ls-files", "source/library", relative_project.as_posix()],
+        ["git", "ls-files", "source/library", project_relative.as_posix()],
         cwd=root, text=True).splitlines()
+    if not {(project_relative / "main.omg").as_posix(), (project_relative / "build.omg").as_posix()}.issubset(paths):
+        raise ValueError("ordinary CLI project entry and build must retain tracked source custody")
     inputs = {}
     for relative in paths:
         source, copied = root / relative, workspace / relative
@@ -64,7 +114,7 @@ def observe(root, producer, fixture, output):
     record = dict(fixture=fixture, target=producer.target, producer=producer.record(),
                   expected_exit=expected, passed=False, inputs=inputs, stages=[])
     env = dict(os.environ, OMEGA_LIBRARY_ROOT=str(workspace / "source/library"))
-    project = workspace / relative_project
+    project = workspace / project_relative
 
     def verify():
         producer.verify()
@@ -84,7 +134,8 @@ def observe(root, producer, fixture, output):
         stdin = input_file if input_file is not None else subprocess.DEVNULL
         try:
             with (output / f"{stage}.stdout").open("wb") as out, (output / f"{stage}.stderr").open("wb") as err:
-                result = subprocess.run(arguments, cwd=cwd, env=env, stdin=stdin,
+                command_env = dict(env, OMEGA_REVIEW_TIMINGS="1") if stage in ("update", "resume") else env
+                result = subprocess.run(arguments, cwd=cwd, env=command_env, stdin=stdin,
                                         stdout=out, stderr=err, timeout=timeout)
             event["exit_code"] = result.returncode
             return result.returncode
@@ -116,6 +167,26 @@ def observe(root, producer, fixture, output):
         if code != 0 or not (project / "omega.lock").is_file():
             raise ValueError(f"ordinary CLI package admission refused ({code})")
         (output / "accepted.omega.lock").write_bytes((project / "omega.lock").read_bytes())
+        record["inspection_machines"] = inspection_machines(project)
+        record["inspections"] = []
+        for index, machine in enumerate(record["inspection_machines"]):
+            artifact = output / "inspections" / f"{index}.oterm"
+            artifact.parent.mkdir(exist_ok=True)
+            stage = f"inspection-{index}-source"
+            code = command(stage, [producer.cli, "inspect-terminal", "--machine", machine,
+                                   "--target", producer.target, "--output", artifact,
+                                   project / "main.omg"], workspace, 600)
+            if code != 0 or not artifact.is_file():
+                raise ValueError(f"authored named inspection refused: {machine} ({code})")
+            reloaded = f"inspection-{index}-reload"
+            code = command(reloaded, [producer.cli, "inspect-terminal", "--artifact", artifact], workspace, 240)
+            if code != 0:
+                raise ValueError(f"named inspection canonical reload refused: {machine} ({code})")
+            identity = validate_inspection(machine,
+                (output / f"{stage}.stdout").read_text(encoding="utf-8"),
+                (output / f"{reloaded}.stdout").read_text(encoding="utf-8"))
+            record["inspections"].append(dict(machine=machine, passed=True, program_fingerprint=identity,
+                                             artifact_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest()))
         runtime = output / "runtime"
         runtime.mkdir()
         code = command("both", [producer.cli, "run", "--both", "--keep", project / "main.omg"],

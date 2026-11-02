@@ -31,53 +31,53 @@ machine Main::main(main: &mut Main)
 reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let untouched: WindowsMetadataResult;
     transition untouched {
-        WindowsMetadataResult::Error { code } -> invalid(main, code)
+        WindowsMetadataResult::Error { code } -> block invalid(main, code)
         _ -> bad(71)
     }
     machine invalid(main: &mut Main, code: u32) {
-        transition code == 0 { true -> query_invalid(main) _ -> bad(71) }
+        transition code == 0 { true -> block query_invalid(main) _ -> bad(71) }
     }
     machine query_invalid(main: &mut Main) {
         let outcome: WindowsMetadataResult = block WindowsFilesystemHost::metadata(0);
         transition outcome {
-            WindowsMetadataResult::Error { code } -> refused(main, code)
+            WindowsMetadataResult::Error { code } -> block refused(main, code)
             _ -> bad(72)
         }
     }
     machine refused(main: &mut Main, code: u32) {
-        transition code == 6 { true -> pipe(main) _ -> bad(72) }
+        transition code == 6 { true -> block pipe(main) _ -> bad(72) }
     }
     machine pipe(main: &mut Main) {
         let succeeded: i32 = block FixturePipe::create(&mut main.pipe_read, &mut main.pipe_write, 0, 0);
-        transition succeeded != 0 { true -> inspect_pipe(main) _ -> bad(87) }
+        transition succeeded != 0 { true -> block inspect_pipe(main) _ -> bad(87) }
     }
     machine inspect_pipe(main: &mut Main) {
         let outcome: WindowsMetadataResult = block WindowsFilesystemHost::metadata(main.pipe_read);
         transition outcome {
-            WindowsMetadataResult::Error { code } -> refused_pipe(main, code)
+            WindowsMetadataResult::Error { code } -> block refused_pipe(main, code)
             _ -> bad(88)
         }
     }
     machine refused_pipe(main: &mut Main, code: u32) {
-        transition code == 50 { true -> close_pipe(main) _ -> bad(88) }
+        transition code == 50 { true -> block close_pipe(main) _ -> bad(88) }
     }
     machine close_pipe(main: &mut Main) {
         let read_closed: i32 = block WindowsFilesystemHost::close_handle(main.pipe_read);
         let write_closed: i32 = block WindowsFilesystemHost::close_handle(main.pipe_write);
-        transition read_closed == 0 && write_closed == 0 { true -> create(main) _ -> bad(89) }
+        transition read_closed == 0 && write_closed == 0 { true -> block create(main) _ -> bad(89) }
     }
     machine create(main: &mut Main) {
         main.handle = block WindowsFilesystemHost::create_file("omega_raw_metadata.txt", 3221225472, 7, 2, 128);
-        transition main.handle != 0 { true -> write(main) _ -> bad(73) }
+        transition main.handle != 0 { true -> block write(main) _ -> bad(73) }
     }
     machine write(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::write_file(main.handle, "metadata");
-        transition count == 8 { true -> inspect(main) _ -> bad(74) }
+        transition count == 8 { true -> block inspect(main) _ -> bad(74) }
     }
     machine inspect(main: &mut Main) {
         let outcome: WindowsMetadataResult = block WindowsFilesystemHost::metadata(main.handle);
         transition outcome {
-            WindowsMetadataResult::Value { metadata } -> checked(main, metadata)
+            WindowsMetadataResult::Value { metadata } -> block checked(main, metadata)
             _ -> bad(75)
         }
     }
@@ -85,75 +85,75 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
         transition metadata.length == 8 && metadata.links > 0
             && (metadata.attributes & 16) == 0 && metadata.creation_ticks > 0
             && metadata.write_ticks > 0 && metadata.change_ticks > 0 {
-            true -> cursor(main)
+            true -> block cursor(main)
             _ -> bad(76)
         }
     }
     machine cursor(main: &mut Main) {
         let position: i64 = block WindowsFilesystemHost::set_file_pointer(main.handle, 0, 1);
-        transition position == 8 { true -> rewind(main) _ -> bad(77) }
+        transition position == 8 { true -> block rewind(main) _ -> bad(77) }
     }
     machine rewind(main: &mut Main) {
         let position: i64 = block WindowsFilesystemHost::set_file_pointer(main.handle, 0, 0);
         let count: i64 = block WindowsFilesystemHost::read_file(main.handle, &mut main.buffer, 8);
         transition position == 0 && count == 8 && main.buffer[0] == 109 && main.buffer[7] == 97 {
-            true -> close_file(main)
+            true -> block close_file(main)
             _ -> bad(78)
         }
     }
     machine close_file(main: &mut Main) {
         main.status = block WindowsFilesystemHost::close_handle(main.handle);
-        transition main.status == 0 { true -> inspect_path(main) _ -> bad(79) }
+        transition main.status == 0 { true -> block inspect_path(main) _ -> bad(79) }
     }
     machine inspect_path(main: &mut Main) {
         let outcome: WindowsMetadataResult = block WindowsFilesystemHost::read_metadata("omega_raw_metadata.txt", false);
         transition outcome {
-            WindowsMetadataResult::Value { metadata } -> checked_path(main, metadata)
+            WindowsMetadataResult::Value { metadata } -> block checked_path(main, metadata)
             _ -> bad(90)
         }
     }
     machine checked_path(main: &mut Main, metadata: WindowsFileMetadata) {
         transition metadata.length == 8 && (metadata.attributes & 16) == 0 {
-            true -> missing_path(main)
+            true -> block missing_path(main)
             _ -> bad(90)
         }
     }
     machine missing_path(main: &mut Main) {
         let outcome: WindowsMetadataResult = block WindowsFilesystemHost::read_metadata("omega_raw_metadata_missing.txt", false);
         transition outcome {
-            WindowsMetadataResult::Error { code } -> refused_missing(main, code)
+            WindowsMetadataResult::Error { code } -> block refused_missing(main, code)
             _ -> bad(91)
         }
     }
     machine refused_missing(main: &mut Main, code: u32) {
-        transition code == 2 { true -> directory(main) _ -> bad(91) }
+        transition code == 2 { true -> block directory(main) _ -> bad(91) }
     }
     machine directory(main: &mut Main) {
         main.status = block WindowsFilesystemHost::create_directory("omega_raw_metadata_dir");
-        transition main.status == 0 { true -> open_directory(main) _ -> bad(80) }
+        transition main.status == 0 { true -> block open_directory(main) _ -> bad(80) }
     }
     machine open_directory(main: &mut Main) {
         // FILE_READ_ATTRIBUTES; FILE_FLAG_BACKUP_SEMANTICS opens a directory.
         main.handle = block WindowsFilesystemHost::create_file("omega_raw_metadata_dir", 128, 7, 3, 33554432);
-        transition main.handle != 0 { true -> inspect_directory(main) _ -> bad(81) }
+        transition main.handle != 0 { true -> block inspect_directory(main) _ -> bad(81) }
     }
     machine inspect_directory(main: &mut Main) {
         let outcome: WindowsMetadataResult = block WindowsFilesystemHost::metadata(main.handle);
         transition outcome {
-            WindowsMetadataResult::Value { metadata } -> checked_directory(main, metadata)
+            WindowsMetadataResult::Value { metadata } -> block checked_directory(main, metadata)
             _ -> bad(82)
         }
     }
     machine checked_directory(main: &mut Main, metadata: WindowsFileMetadata) {
-        transition (metadata.attributes & 16) != 0 { true -> cleanup(main) _ -> bad(83) }
+        transition (metadata.attributes & 16) != 0 { true -> block cleanup(main) _ -> bad(83) }
     }
     machine cleanup(main: &mut Main) {
         main.status = block WindowsFilesystemHost::close_handle(main.handle);
-        transition main.status == 0 { true -> remove_file(main) _ -> bad(84) }
+        transition main.status == 0 { true -> block remove_file(main) _ -> bad(84) }
     }
     machine remove_file(main: &mut Main) {
         main.status = block WindowsFilesystemHost::delete_file("omega_raw_metadata.txt");
-        transition main.status == 0 { true -> remove_directory(main) _ -> bad(85) }
+        transition main.status == 0 { true -> block remove_directory(main) _ -> bad(85) }
     }
     machine remove_directory(main: &mut Main) {
         main.status = block WindowsFilesystemHost::remove_directory("omega_raw_metadata_dir");

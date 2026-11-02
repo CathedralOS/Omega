@@ -299,7 +299,7 @@ pub(crate) fn validate(
         &prepared,
         authority.clone(),
         &probe_symbols,
-        &domain.accounting,
+        domain,
         selected.operators,
     )?;
     let program = checked.typed();

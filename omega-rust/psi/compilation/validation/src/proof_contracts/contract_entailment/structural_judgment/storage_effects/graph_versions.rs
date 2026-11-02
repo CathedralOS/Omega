@@ -1,0 +1,578 @@
+//! Storage validity read from the program's one storage graph.
+//!
+//! A recorded storage term names the storage versions it was established at.
+//! It still describes the current contents at a later version exactly when
+//! every path from those versions preserves the place's contents
+//! (`fact_validity.md`: a read may equal an exact reaching stored value, and
+//! every predecessor must supply it). A term established at incoming storage
+//! holds while the place still reads that incoming storage. Versions are per
+//! state: a state's first statement starts at its incoming storage, which the
+//! invalid snapshot denotes.
+
+use super::super::StructuralJudge;
+use super::{CapturedStorageCoordinate, CapturedStorageSegment, CapturedStorageValue};
+use crate::CanonicalPlace;
+use arena::Handle;
+use checked_trees::{FlowControlFacts, FlowStateFact, FlowStorageSnapshot};
+use facts::PlaceSegment;
+use symbols::SymbolHandle;
+use typed_trees::expression::ExpressionHandle;
+use typed_trees::state::State;
+
+/// One position in the storage graph: a state's history and the version after
+/// the last effect observed there. The invalid snapshot is incoming storage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::proof_contracts::contract_entailment) struct StorageVersion {
+    pub(in crate::proof_contracts::contract_entailment) state: SymbolHandle,
+    pub(in crate::proof_contracts::contract_entailment) snapshot: Handle<FlowStorageSnapshot>,
+}
+
+impl StorageVersion {
+    pub(in crate::proof_contracts::contract_entailment) fn incoming(state: SymbolHandle) -> Self {
+        Self {
+            state,
+            snapshot: Handle::invalid(),
+        }
+    }
+}
+
+impl<'program> StructuralJudge<'program> {
+    pub(super) fn storage_graph(&self) -> Option<&'program FlowControlFacts> {
+        self.program.storage_graph()
+    }
+
+    fn flow_state(&self, state: SymbolHandle) -> Option<&'program FlowStateFact> {
+        let graph = self.storage_graph()?;
+        let (machine, _) = crate::find_state(self.program, state)?;
+        graph.unique_state(machine.symbol, state)
+    }
+
+    /// Incoming storage of `state`, for a runtime body whose state the graph
+    /// records. Proof-only bodies and graph-less programs have no version.
+    pub(in crate::proof_contracts::contract_entailment) fn incoming_storage_version(
+        &self,
+        state: &State,
+    ) -> Option<StorageVersion> {
+        (self.requires_value_preservation() && self.flow_state(state.symbol).is_some())
+            .then(|| StorageVersion::incoming(state.symbol))
+    }
+
+    /// The version after statement `statement_index` of `state` completes.
+    pub(in crate::proof_contracts::contract_entailment) fn statement_storage_version(
+        &self,
+        state: &State,
+        statement_index: usize,
+    ) -> Option<StorageVersion> {
+        let graph = self.storage_graph()?;
+        let row = self.flow_state(state.symbol)?;
+        let statement = graph
+            .statements
+            .span(row.statements)?
+            .iter()
+            .find(|statement| statement.statement_index == statement_index)?;
+        Some(StorageVersion {
+            state: state.symbol,
+            snapshot: statement.storage_snapshot,
+        })
+    }
+
+    /// The version after `statement` of `state` completes, found by identity.
+    pub(in crate::proof_contracts::contract_entailment) fn statement_node_storage_version(
+        &self,
+        state: &State,
+        statement: &typed_trees::statement::StatementNode,
+    ) -> Option<StorageVersion> {
+        let index = self
+            .program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .position(|candidate| std::ptr::eq(candidate, statement))?;
+        self.statement_storage_version(state, index)
+    }
+
+    /// The version after the call at `expression` returns normally.
+    pub(in crate::proof_contracts::contract_entailment) fn call_storage_version(
+        &self,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> Option<StorageVersion> {
+        let graph = self.storage_graph()?;
+        let row = self.flow_state(state.symbol)?;
+        let mut calls = graph
+            .calls
+            .span(row.calls)?
+            .iter()
+            .filter(|call| call.authored_expression == expression);
+        let call = calls.next()?;
+        calls.next().is_none().then_some(StorageVersion {
+            state: state.symbol,
+            snapshot: call.completed_storage,
+        })
+    }
+
+    /// The version a read observed: its own completed operand's snapshot.
+    pub(in crate::proof_contracts::contract_entailment) fn read_storage_version(
+        &self,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> Option<StorageVersion> {
+        let graph = self.storage_graph()?;
+        graph.with_expression_operands(expression, |rows| {
+            let mut matching = rows
+                .iter()
+                .map(|handle| graph.operands.get(*handle))
+                .filter(|operand| operand.state_symbol == state.symbol);
+            let operand = matching.next()?;
+            matching
+                .all(|other| other.storage_snapshot == operand.storage_snapshot)
+                .then_some(StorageVersion {
+                    state: state.symbol,
+                    snapshot: operand.storage_snapshot,
+                })
+        })
+    }
+
+    /// The coordinate's graph place up to its first selector captured as a value.
+    fn coordinate_prefix_place(coordinate: &CapturedStorageCoordinate) -> CanonicalPlace {
+        let mut segments = Vec::new();
+        for segment in &coordinate.segments {
+            match segment {
+                CapturedStorageSegment::Place(segment) => segments.push(*segment),
+                CapturedStorageSegment::Index(super::super::StructuralTerm::Integer(index)) => {
+                    match index.to_i64().and_then(|index| usize::try_from(index).ok()) {
+                        Some(index) => segments.push(PlaceSegment::FixedIndex { index }),
+                        None => break,
+                    }
+                }
+                CapturedStorageSegment::Index(_) => break,
+            }
+        }
+        CanonicalPlace {
+            root: coordinate.root,
+            segments,
+        }
+    }
+
+    /// The graph place a coordinate names. A selector captured as a value
+    /// other than a known index has no graph place; such a term is only valid
+    /// at the version it was established at.
+    pub(super) fn coordinate_place(
+        coordinate: &CapturedStorageCoordinate,
+    ) -> Option<CanonicalPlace> {
+        let segments = coordinate
+            .segments
+            .iter()
+            .map(|segment| match segment {
+                CapturedStorageSegment::Place(segment) => Some(*segment),
+                CapturedStorageSegment::Index(super::super::StructuralTerm::Integer(index)) => {
+                    usize::try_from(index.to_i64()?)
+                        .ok()
+                        .map(|index| PlaceSegment::FixedIndex { index })
+                }
+                CapturedStorageSegment::Index(_) => None,
+            })
+            .collect::<Option<Vec<_>>>()?;
+        Some(CanonicalPlace {
+            root: coordinate.root,
+            segments,
+        })
+    }
+
+    /// Move to `version` when the effect site supplies one. Terms returned by a
+    /// call being completed are anchored at its post-call version.
+    pub(in crate::proof_contracts::contract_entailment) fn advance_storage_version(
+        &mut self,
+        version: Option<StorageVersion>,
+    ) {
+        let Some(version) = version else {
+            return;
+        };
+        let previous = self.storage_version.replace(version);
+        if let Some(previous) = previous
+            && previous.state == version.state
+            && previous.snapshot != version.snapshot
+        {
+            self.rejoin_followed_path(previous, version);
+        }
+        if self
+            .stored_values
+            .iter()
+            .any(|stored| stored.current_anchors.contains(&StorageAnchor::CallReturn))
+        {
+            for stored in std::sync::Arc::make_mut(&mut self.stored_values) {
+                if stored.current_anchors.contains(&StorageAnchor::CallReturn) {
+                    for anchor in &mut stored.current_anchors {
+                        if *anchor == StorageAnchor::CallReturn {
+                            *anchor = StorageAnchor::After(version.snapshot);
+                        }
+                    }
+                    stored.anchor_state = version.state;
+                }
+            }
+        }
+    }
+
+    /// A judge follows one path. When it advances across a join, the other
+    /// predecessors are paths it did not take: a value current at `from` stays
+    /// current at `to` when no event on the followed path writes its place.
+    fn rejoin_followed_path(&mut self, from: StorageVersion, to: StorageVersion) {
+        let Some(graph) = self.storage_graph() else {
+            return;
+        };
+        let Some(path) = Self::followed_path(graph, from.snapshot, to.snapshot) else {
+            return;
+        };
+        let retained = self
+            .stored_values
+            .iter()
+            .map(|stored| {
+                stored.current.is_some()
+                    && self.current_value_valid(stored, &stored.coordinate, from)
+                    && Self::coordinate_place(&stored.coordinate)
+                        .or_else(|| Some(Self::coordinate_prefix_place(&stored.coordinate)))
+                        .is_some_and(|place| {
+                            path.iter().all(|(event, before)| {
+                                crate::completed_storage::contents_preserved_from(
+                                    self.program,
+                                    graph,
+                                    *event,
+                                    &place,
+                                    &[*before],
+                                )
+                            })
+                        })
+            })
+            .collect::<Vec<_>>();
+        for (stored, retained) in std::sync::Arc::make_mut(&mut self.stored_values)
+            .iter_mut()
+            .zip(retained)
+        {
+            if retained {
+                stored.current_anchors = vec![StorageAnchor::After(to.snapshot)];
+                stored.anchor_state = to.state;
+            }
+        }
+    }
+
+    /// The events from `to` back to `from` along the path through each join's
+    /// one predecessor that reaches `from`, as (event, its predecessor on the
+    /// path) pairs. None unless the walk crosses such a join and reaches
+    /// `from`, or when a join has several predecessors reaching `from`.
+    fn followed_path(
+        graph: &FlowControlFacts,
+        from: Handle<FlowStorageSnapshot>,
+        to: Handle<FlowStorageSnapshot>,
+    ) -> Option<Vec<(Handle<FlowStorageSnapshot>, Handle<FlowStorageSnapshot>)>> {
+        let mut path = Vec::new();
+        let mut crossed_join = false;
+        let mut current = to;
+        while current != from {
+            if !current.is_valid() || !graph.storage_snapshots.is_valid(current) {
+                return None;
+            }
+            let event = graph.storage_snapshots.get(current);
+            let previous = match event.operation {
+                checked_trees::FlowStorageOperation::Join { predecessors } => {
+                    // Only a join this judge's path enters through exactly one
+                    // predecessor is a path choice. Value alternatives of one
+                    // call all descend from `from` and choose nothing.
+                    let mut reaching = graph
+                        .storage_predecessors
+                        .span_or_empty(predecessors)
+                        .iter()
+                        .filter(|predecessor| Self::reaches(graph, **predecessor, from));
+                    let predecessor = *reaching.next()?;
+                    if reaching.next().is_some() {
+                        return None;
+                    }
+                    crossed_join = true;
+                    predecessor
+                }
+                _ => {
+                    // A preservation query needs a valid cut below the event.
+                    if !event.previous.is_valid() && from.is_valid() {
+                        return None;
+                    }
+                    path.push((current, event.previous));
+                    event.previous
+                }
+            };
+            current = previous;
+        }
+        (crossed_join && path.iter().all(|(_, before)| before.is_valid())).then_some(path)
+    }
+
+    /// Whether `target` lies on some path back from `start`.
+    fn reaches(
+        graph: &FlowControlFacts,
+        start: Handle<FlowStorageSnapshot>,
+        target: Handle<FlowStorageSnapshot>,
+    ) -> bool {
+        let mut visited = std::collections::BTreeSet::new();
+        let mut pending = vec![start];
+        while let Some(current) = pending.pop() {
+            if current == target {
+                return true;
+            }
+            if !current.is_valid()
+                || !graph.storage_snapshots.is_valid(current)
+                || !visited.insert(current.arena_index())
+            {
+                continue;
+            }
+            let event = graph.storage_snapshots.get(current);
+            match event.operation {
+                checked_trees::FlowStorageOperation::Join { predecessors } => {
+                    pending.extend(graph.storage_predecessors.span_or_empty(predecessors));
+                }
+                _ => pending.push(event.previous),
+            }
+        }
+        false
+    }
+
+    /// Whether this judge reads storage validity from the graph.
+    pub(in crate::proof_contracts::contract_entailment) fn graph_storage_mode(&self) -> bool {
+        self.storage_version.is_some()
+    }
+
+    /// Whether incoming storage of `place`'s root no longer reaches `place`
+    /// at this judge's version. Immutable scalar bindings have no writer.
+    fn graph_place_invalidated(&self, place: &CanonicalPlace) -> bool {
+        let (Some(graph), Some(at)) = (self.storage_graph(), self.storage_version) else {
+            return false;
+        };
+        if place.segments.is_empty()
+            && place
+                .root
+                .as_symbol()
+                .is_some_and(|symbol| self.immutable_scalar_binding(symbol))
+        {
+            return false;
+        }
+        if !at.snapshot.is_valid() {
+            return false;
+        }
+        // A local's own initializer establishes it; only a later store or an
+        // unknown write invalidates what was observed of it.
+        let initializer = place
+            .root
+            .as_symbol()
+            .and_then(|symbol| self.local_initializer(at.state, symbol));
+        let invalidates = |reaching: &crate::completed_storage::StoredOperand| match reaching {
+            crate::completed_storage::StoredOperand::Incoming(_) => false,
+            crate::completed_storage::StoredOperand::Value { capture, .. } => {
+                initializer != Some(graph.operands.get(*capture).expression)
+            }
+            _ => true,
+        };
+        match crate::completed_storage::at_snapshot(
+            self.program,
+            graph,
+            at.snapshot,
+            place,
+            crate::completed_storage::StoredObservation::Contents,
+        ) {
+            None => false,
+            Some(crate::completed_storage::StoredOperand::Alternatives(alternatives)) => {
+                alternatives.iter().any(invalidates)
+            }
+            Some(reaching) => invalidates(&reaching),
+        }
+    }
+
+    /// The initializer of a local declared in `state`, if `symbol` is one.
+    fn local_initializer(
+        &self,
+        state: SymbolHandle,
+        symbol: SymbolHandle,
+    ) -> Option<ExpressionHandle> {
+        let (_, state) = crate::find_state(self.program, state)?;
+        self.program
+            .statement_table
+            .statements(state.statement_nodes)
+            .iter()
+            .filter_map(|statement| statement.as_local_data())
+            .find(|local| local.symbol == symbol)
+            .map(|local| local.initial_value)
+    }
+
+    pub(super) fn graph_observation_invalidated(&self, expression: ExpressionHandle) -> bool {
+        let Some(place) = crate::canonical_place_from_expression(self.program, expression) else {
+            return false;
+        };
+        self.graph_place_invalidated(&place)
+    }
+
+    pub(super) fn graph_binding_invalidated(&self, symbol: SymbolHandle) -> bool {
+        self.graph_place_invalidated(&CanonicalPlace {
+            root: facts::PlaceRoot::Symbol(symbol),
+            segments: Vec::new(),
+        })
+    }
+
+    /// The anchor a value captured by a completed read receives: the store
+    /// or incoming storage that read reached, or the read's own version.
+    pub(super) fn read_anchor(
+        &self,
+        state: &State,
+        expression: ExpressionHandle,
+        coordinate: &CapturedStorageCoordinate,
+    ) -> Option<StorageAnchor> {
+        let graph = self.storage_graph()?;
+        let version = self.read_storage_version(state, expression)?;
+        let Some(place) = Self::coordinate_place(coordinate) else {
+            return Some(StorageAnchor::After(version.snapshot));
+        };
+        if !version.snapshot.is_valid() {
+            return Some(StorageAnchor::Incoming);
+        }
+        Some(
+            match crate::completed_storage::at_snapshot(
+                self.program,
+                graph,
+                version.snapshot,
+                &place,
+                crate::completed_storage::StoredObservation::Contents,
+            ) {
+                None | Some(crate::completed_storage::StoredOperand::Incoming(_)) => {
+                    StorageAnchor::Incoming
+                }
+                Some(crate::completed_storage::StoredOperand::Value { capture, .. }) => {
+                    StorageAnchor::Store(graph.operands.get(capture).expression)
+                }
+                _ => StorageAnchor::After(version.snapshot),
+            },
+        )
+    }
+
+    /// Whether `stored`'s current term still describes `coordinate`, a place at
+    /// or below its own, at `at`: the place's reaching value there is a store
+    /// or incoming storage the term was established from, or its contents are
+    /// preserved from an anchored version. A write to one field of an
+    /// aggregate retires only the values read through that field.
+    pub(super) fn current_value_valid(
+        &self,
+        stored: &CapturedStorageValue,
+        coordinate: &CapturedStorageCoordinate,
+        at: StorageVersion,
+    ) -> bool {
+        let Some(graph) = self.storage_graph() else {
+            return true;
+        };
+        if stored.current_anchors.is_empty() || stored.anchor_state != at.state {
+            return false;
+        }
+        // A whole immutable scalar binding has no write authority: no effect,
+        // known or unknown, can replace it after it was established.
+        if coordinate.segments.is_empty()
+            && coordinate
+                .root
+                .as_symbol()
+                .is_some_and(|symbol| self.immutable_scalar_binding(symbol))
+        {
+            return true;
+        }
+        let Some(place) = Self::coordinate_place(coordinate) else {
+            // A selector captured as a value: the element is unchanged when no
+            // write touched the place up to that selector since the anchor.
+            let prefix = Self::coordinate_prefix_place(coordinate);
+            return stored.current_anchors.iter().all(|anchor| match anchor {
+                StorageAnchor::Incoming => {
+                    !at.snapshot.is_valid()
+                        || matches!(
+                            crate::completed_storage::at_snapshot(
+                                self.program,
+                                graph,
+                                at.snapshot,
+                                &prefix,
+                                crate::completed_storage::StoredObservation::Contents,
+                            ),
+                            None | Some(crate::completed_storage::StoredOperand::Incoming(_))
+                        )
+                }
+                StorageAnchor::After(cut) => {
+                    *cut == at.snapshot
+                        || (cut.is_valid()
+                            && at.snapshot.is_valid()
+                            && crate::completed_storage::contents_preserved_from(
+                                self.program,
+                                graph,
+                                at.snapshot,
+                                &prefix,
+                                &[*cut],
+                            ))
+                }
+                StorageAnchor::Store(_) | StorageAnchor::CallReturn => false,
+            });
+        };
+        let preserved = |cut: Handle<FlowStorageSnapshot>| {
+            cut == at.snapshot
+                || (cut.is_valid()
+                    && at.snapshot.is_valid()
+                    && crate::completed_storage::contents_preserved_from(
+                        self.program,
+                        graph,
+                        at.snapshot,
+                        &place,
+                        &[cut],
+                    ))
+        };
+        let reached = |reaching: &crate::completed_storage::StoredOperand| match reaching {
+            crate::completed_storage::StoredOperand::Incoming(_) => stored
+                .current_anchors
+                .iter()
+                .any(|anchor| matches!(anchor, StorageAnchor::Incoming)),
+            crate::completed_storage::StoredOperand::Value { capture, .. } => {
+                let expression = graph.operands.get(*capture).expression;
+                stored.current_anchors.iter().any(|anchor| match anchor {
+                    StorageAnchor::Store(stored_expression) => *stored_expression == expression,
+                    StorageAnchor::After(cut) => preserved(*cut),
+                    StorageAnchor::Incoming | StorageAnchor::CallReturn => false,
+                })
+            }
+            _ => false,
+        };
+        if !at.snapshot.is_valid() {
+            return stored
+                .current_anchors
+                .iter()
+                .any(|anchor| matches!(anchor, StorageAnchor::Incoming));
+        }
+        let reaching = crate::completed_storage::at_snapshot(
+            self.program,
+            graph,
+            at.snapshot,
+            &place,
+            crate::completed_storage::StoredObservation::Contents,
+        );
+        match reaching {
+            None => reached(&crate::completed_storage::StoredOperand::Incoming(
+                place.clone(),
+            )),
+            Some(crate::completed_storage::StoredOperand::Alternatives(alternatives)) => {
+                alternatives.iter().all(reached)
+            }
+            Some(crate::completed_storage::StoredOperand::Unavailable) => stored
+                .current_anchors
+                .iter()
+                .any(|anchor| matches!(anchor, StorageAnchor::After(cut) if preserved(*cut))),
+            Some(reaching) => reached(&reaching),
+        }
+    }
+}
+
+/// Where a recorded storage term was established.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(in crate::proof_contracts::contract_entailment) enum StorageAnchor {
+    /// The state's incoming storage.
+    Incoming,
+    /// The completed store whose stored value is this expression's operand.
+    Store(ExpressionHandle),
+    /// Storage as it stands at this version, until a later write retires it.
+    After(Handle<FlowStorageSnapshot>),
+    /// The version after the call this judge is completing, resolved when the
+    /// call's own normal-return writes have been observed.
+    CallReturn,
+}

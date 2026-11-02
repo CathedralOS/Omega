@@ -131,19 +131,6 @@ impl RuntimeSpillSource {
 
     admitted_stage_accessors!(fn pub(crate), legality_stage);
 
-    /// The optimized-target product the emission stages read, shared by
-    /// handle.
-    pub(crate) fn optimized_target_owner(
-        &self,
-    ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
-    {
-        self.legality_stage()
-            .live_range_stage()
-            .liveness_stage()
-            .selected_stage()
-            .optimized_target_owner()
-    }
-
     /// The declared allocation-recovery selection this recovery's recorded
     /// prefix ran under: a shared-entry prefix binds the shared-entry
     /// selection and an active-resident sweep binds the rematerialization

@@ -211,7 +211,7 @@ impl Expansion<'_> {
                     site.state,
                 )
                 .map_err(LoweringError::Unsupported)?;
-            if formation.owned_input.is_none() {
+            if formation.input_home.is_none() {
                 return unsupported(
                     "declaration structural call has no retained initialized input home",
                 );

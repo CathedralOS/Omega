@@ -3,17 +3,16 @@
 //! only resources acquired by this instance; process pseudo-handles, asynchronous
 //! requests and pointer-valued optional parameters cannot borrow its internals.
 
-use calling_conventions::{CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use runtime_abi::NativeBorrowedStorageLayout;
-use semantic_vocabulary::{IntegerSign, IntegerValue};
+use semantic_vocabulary::IntegerValue;
 use std::collections::BTreeMap;
 use target_operations::NormalizedForeignCallBinding;
-use terminal_interpreter::{
-    TerminalEffectRejection, TerminalImportSignature, TerminalProgram, TerminalScalarValue,
-};
-use terminal_psi::{BoundaryMachineDeclaration, StructuralAccess};
+use terminal_interpreter::{TerminalEffectRejection, TerminalProgram, TerminalScalarValue};
+use terminal_psi::BoundaryMachineDeclaration;
 
-use super::{FilesystemContext, Formal, TerminalRuntimeError, matches_signature, rejection};
+use super::{FilesystemContext, Formal, TerminalRuntimeError, rejection};
+
+mod contracts;
 
 #[derive(Default)]
 pub(super) struct Handles {
@@ -57,7 +56,9 @@ enum Effect {
     Use,
     Close,
     Duplicate,
-    Path,
+    Path { count: usize },
+    Pipe,
+    Query { class: u32, bytes: u32 },
 }
 
 pub(in super::super) struct Call {
@@ -81,209 +82,20 @@ pub(super) fn admit(
     {
         return Ok(None);
     }
-    use Formal::{ByteView, IntegerRecord, IntegerReference, Signed, Unsigned, UnsignedArray};
-    use StructuralAccess::{MutableBorrow, SharedBorrow};
-    let path = UnsignedArray(4096, 16, SharedBorrow);
-    let rows: &[(&[u8], &[u8], &[Formal], Formal, Effect)] = &[
-        (
-            b"kernel32.dll",
-            b"CreateFileW",
-            &[
-                path,
-                Unsigned(32),
-                Unsigned(32),
-                Unsigned(64),
-                Unsigned(32),
-                Unsigned(32),
-                Unsigned(64),
-            ],
-            Signed(64),
-            Effect::Acquire,
-        ),
-        (
-            b"kernel32.dll",
-            b"CloseHandle",
-            &[Signed(64)],
-            Signed(32),
-            Effect::Close,
-        ),
-        (
-            b"kernel32.dll",
-            b"DuplicateHandle",
-            &[
-                Signed(64),
-                Signed(64),
-                Signed(64),
-                IntegerReference(IntegerSign::Signed, 64, MutableBorrow),
-                Unsigned(32),
-                Signed(32),
-                Unsigned(32),
-            ],
-            Signed(32),
-            Effect::Duplicate,
-        ),
-        (
-            b"kernel32.dll",
-            b"WriteFile",
-            &[
-                Signed(64),
-                ByteView(SharedBorrow),
-                IntegerReference(IntegerSign::Unsigned, 32, MutableBorrow),
-                Unsigned(64),
-            ],
-            Signed(32),
-            Effect::Use,
-        ),
-        (
-            b"ntdll.dll",
-            b"NtQueryInformationFile",
-            &[
-                Signed(64),
-                IntegerRecord {
-                    fields: &[(IntegerSign::Signed, 64), (IntegerSign::Unsigned, 64)],
-                    access: MutableBorrow,
-                },
-                IntegerReference(IntegerSign::Unsigned, 32, MutableBorrow),
-                Unsigned(32),
-                Unsigned(32),
-            ],
-            Signed(32),
-            Effect::Use,
-        ),
-        (
-            b"kernel32.dll",
-            b"SetFileTime",
-            &[
-                Signed(64),
-                Unsigned(64),
-                UnsignedArray(2, 32, SharedBorrow),
-                UnsignedArray(2, 32, SharedBorrow),
-            ],
-            Signed(32),
-            Effect::Use,
-        ),
-        (
-            b"kernel32.dll",
-            b"GetFileTime",
-            &[
-                Signed(64),
-                Unsigned(64),
-                IntegerReference(IntegerSign::Unsigned, 64, MutableBorrow),
-                IntegerReference(IntegerSign::Unsigned, 64, MutableBorrow),
-            ],
-            Signed(32),
-            Effect::Use,
-        ),
-        (
-            b"kernel32.dll",
-            b"DeleteFileW",
-            &[path],
-            Signed(32),
-            Effect::Path,
-        ),
-    ];
-    for &(library, symbol, parameters, result, effect) in rows {
-        if !super::super::matches_platform_c_symbol(binding, symbol, &[], Some(library))? {
-            continue;
-        }
-        if !matches_signature(program, declaration, parameters, result, layouts) {
-            return Err(TerminalRuntimeError::missing(
-                "runtime-filesystem",
-                format!(
-                    "Windows {} differs from its exact semantic/storage contract {:?}",
-                    String::from_utf8_lossy(symbol),
-                    parameters
-                ),
-            ));
-        }
-        validate_entry(declaration, binding, parameters, result, symbol)?;
-        let namespace = if context.supplied {
-            context.admit_services(program, declaration)
-        } else {
-            Err("no explicit host filesystem namespace was supplied")
-        };
-        return Ok(Some(Call {
-            context: context.clone(),
-            effect,
-            symbol,
-            namespace,
-        }));
-    }
-    Ok(None)
-}
-
-fn validate_entry(
-    declaration: &BoundaryMachineDeclaration,
-    binding: &NormalizedForeignCallBinding,
-    parameters: &[Formal],
-    result: Formal,
-    symbol: &[u8],
-) -> Result<(), TerminalRuntimeError> {
-    let shape = |formal: Formal| match formal {
-        Formal::Signed(bits) | Formal::Unsigned(bits) => {
-            ValueShape::integer(u32::from(bits / 8), bits / 8)
-        }
-        Formal::ByteView(_) => ValueShape::integer(16, 8),
-        _ => ValueShape::integer(8, 8),
+    let Some(contract) = contracts::select(program, declaration, binding, layouts)? else {
+        return Ok(None);
     };
-    let signature = CallSignature {
-        parameters: parameters.iter().copied().map(shape).collect(),
-        result: Some(shape(result)),
-    };
-    // One semantic view carries two complete words. The real C API consumes
-    // the low DWORD of the count register; its source requirement proves that
-    // the full live length fits. Other C operands retain their ordinary slots.
-    let mut expected = if symbol == b"WriteFile" {
-        let physical = CallSignature {
-            parameters: vec![ValueShape::integer(8, 8); 5],
-            result: signature.result,
-        };
-        let mut plan = evaluate_call_plan(CallingPolicy::MicrosoftX64, &physical);
-        if let Ok(plan) = &mut plan {
-            let count = plan.parameters.remove(2);
-            plan.parameters[1].shape = ValueShape::integer(16, 8);
-            plan.parameters[1]
-                .locations
-                .extend(count.locations.into_iter().map(|mut location| {
-                    match &mut location {
-                        calling_conventions::ValueLocation::Register {
-                            value_byte_offset, ..
-                        } => *value_byte_offset += 8,
-                        _ => unreachable!("Microsoft second and third words are registers"),
-                    }
-                    location
-                }));
-        }
-        plan
+    let namespace = if context.supplied {
+        context.admit_services(program, declaration)
     } else {
-        evaluate_call_plan(CallingPolicy::MicrosoftX64, &signature)
-    }
-    .map_err(|error| {
-        TerminalRuntimeError::missing(
-            "runtime-filesystem",
-            format!("Windows entry geometry: {error}"),
-        )
-    })?;
-    // The source's final OVERLAPPED word is eight bytes; the count-output
-    // pointer occupies the fourth register after the expanded view.
-    if symbol == b"WriteFile" {
-        expected.parameters[2].shape = ValueShape::integer(8, 8);
-    }
-    if binding.boundary_entry_plan.call != expected {
-        return Err(TerminalRuntimeError::missing(
-            "runtime-filesystem",
-            format!(
-                "Windows {} selected calling plan differs from its exact C word placement",
-                String::from_utf8_lossy(symbol)
-            ),
-        ));
-    }
-    super::super::admit_exact_foreign_call(
-        &TerminalImportSignature::from(declaration),
-        declaration,
-        binding,
-        &signature,
-    )
+        Err("no explicit host filesystem namespace was supplied")
+    };
+    Ok(Some(Call {
+        context: context.clone(),
+        effect: contract.effect,
+        symbol: contract.symbol,
+        namespace,
+    }))
 }
 
 fn signed(value: TerminalScalarValue) -> Result<i64, TerminalEffectRejection> {
@@ -297,6 +109,19 @@ fn signed(value: TerminalScalarValue) -> Result<i64, TerminalEffectRejection> {
         _ => Err(rejection("Windows handle lost its signed scalar carrier")),
     }
 }
+// Preserve opaque pointer bits before mapping to a small guest identity.
+fn handle_bits(value: TerminalScalarValue) -> Result<i64, TerminalEffectRejection> {
+    match value {
+        TerminalScalarValue::Integer {
+            value: IntegerValue::Unsigned(value),
+            ..
+        } => u64::try_from(value)
+            .map(|value| value as i64)
+            .map_err(|_| rejection("Windows output HANDLE exceeds its 64-bit carrier")),
+        _ => signed(value),
+    }
+}
+
 fn scalar(value: TerminalScalarValue, expected: i128) -> bool {
     match value {
         TerminalScalarValue::Integer {
@@ -310,7 +135,7 @@ fn scalar(value: TerminalScalarValue, expected: i128) -> bool {
         _ => false,
     }
 }
-fn replace_signed(
+fn replace_handle(
     mut value: TerminalScalarValue,
     replacement: i64,
 ) -> Result<TerminalScalarValue, TerminalEffectRejection> {
@@ -321,7 +146,10 @@ fn replace_signed(
     else {
         return Err(rejection("Windows result is not a scalar handle"));
     };
-    let replacement = IntegerValue::Signed(i128::from(replacement));
+    let replacement = match contents {
+        IntegerValue::Signed(_) => IntegerValue::Signed(i128::from(replacement)),
+        IntegerValue::Unsigned(_) => IntegerValue::Unsigned(u128::from(replacement as u64)),
+    };
     if !scalar_type.admits(replacement) {
         return Err(rejection(
             "guest Windows handle exceeds its declared carrier",
@@ -333,7 +161,11 @@ fn replace_signed(
 
 impl Call {
     pub(super) fn path_argument(&self, index: usize) -> bool {
-        index == 0 && matches!(self.effect, Effect::Acquire | Effect::Path)
+        match self.effect {
+            Effect::Acquire => index == 0,
+            Effect::Path { count } => index < count,
+            _ => false,
+        }
     }
     pub(super) fn validate_path(
         &self,
@@ -355,9 +187,10 @@ impl Call {
     ) -> Result<Vec<TerminalScalarValue>, TerminalEffectRejection> {
         self.namespace.map_err(rejection)?;
         let invalid = || {
-            rejection(
-                "Windows file operation requires its exact synchronous/null/current-process inputs",
-            )
+            rejection(format!(
+                "Windows {} requires its exact synchronous/null/current-process inputs",
+                String::from_utf8_lossy(self.symbol)
+            ))
         };
         let safe = match self.symbol {
             b"CreateFileW" => {
@@ -374,21 +207,48 @@ impl Call {
                     && scalar(arguments[4], 0)
                     && scalar(arguments[5], 2)
             }
-            b"WriteFile" | b"SetFileTime" | b"GetFileTime" => {
+            b"ReadFile" | b"WriteFile" | b"SetFileTime" | b"GetFileTime" => {
                 arguments.len() == 2 && scalar(arguments[1], 0)
             }
             b"NtQueryInformationFile" => {
                 arguments.len() == 3 && scalar(arguments[1], 4) && scalar(arguments[2], 16)
             }
-            b"CloseHandle" => arguments.len() == 1,
-            b"DeleteFileW" => arguments.is_empty(),
+            b"CreatePipe" => {
+                arguments.len() == 2 && scalar(arguments[0], 0) && scalar(arguments[1], 0)
+            }
+            b"GetFileInformationByHandleEx" => matches!(self.effect, Effect::Query { class, bytes }
+                if arguments.len() == 3 && scalar(arguments[1], i128::from(class)) && scalar(arguments[2], i128::from(bytes))),
+            b"SetFilePointerEx" => {
+                arguments.len() == 3 && (0..=2).any(|method| scalar(arguments[2], method))
+            }
+            b"GetFinalPathNameByHandleW" => {
+                // Capacity counts UTF-16 code units, including room for NUL.
+                // The complete captured array is the destination; zero flags
+                // request the normalized DOS spelling. Query the owned object
+                // without replacing its handle or manufacturing a path.
+                arguments.len() == 3 && scalar(arguments[1], 4096) && scalar(arguments[2], 0)
+            }
+            b"CloseHandle" | b"GetFileType" | b"FlushFileBuffers" => arguments.len() == 1,
+            b"CreateDirectoryW" => arguments.len() == 1 && scalar(arguments[0], 0),
+            b"SetFileAttributesW" => arguments.len() == 1,
+            b"MoveFileExW" => {
+                // Replace/copy/write-through/tracking are synchronous file
+                // operations. Deferred reboot registration is a different
+                // effect; reserved/unknown flags have no admitted contract.
+                // https://learn.microsoft.com/windows/win32/api/winbase/nf-winbase-movefileexw
+                arguments.len() == 1
+                    && matches!(arguments[0], TerminalScalarValue::Integer {
+                    value: IntegerValue::Unsigned(flags), ..
+                } if flags & !0x2b == 0)
+            }
+            b"DeleteFileW" | b"RemoveDirectoryW" => arguments.is_empty(),
             _ => false,
         };
         if !safe {
             return Err(invalid());
         }
         let index = match self.effect {
-            Effect::Acquire | Effect::Path => return Ok(arguments.to_vec()),
+            Effect::Acquire | Effect::Path { .. } | Effect::Pipe => return Ok(arguments.to_vec()),
             Effect::Duplicate => 1,
             _ => 0,
         };
@@ -398,7 +258,7 @@ impl Call {
             .windows
             .borrow()
             .translate(signed(result[index])?)?;
-        result[index] = replace_signed(result[index], native)?;
+        result[index] = replace_handle(result[index], native)?;
         Ok(result)
     }
     pub(super) fn result(
@@ -407,7 +267,7 @@ impl Call {
         value: TerminalScalarValue,
     ) -> Result<TerminalScalarValue, TerminalEffectRejection> {
         match self.effect {
-            Effect::Acquire => replace_signed(
+            Effect::Acquire => replace_handle(
                 value,
                 self.context.windows.borrow_mut().acquire(signed(value)?)?,
             ),
@@ -438,19 +298,20 @@ impl Call {
         value: TerminalScalarValue,
         result: Option<TerminalScalarValue>,
     ) -> Result<Option<TerminalScalarValue>, TerminalEffectRejection> {
-        if matches!(self.effect, Effect::Duplicate) && argument == 0 {
-            let status =
-                signed(result.ok_or_else(|| {
-                    rejection("duplicate HANDLE lost its native completion status")
-                })?)?;
+        if (matches!(self.effect, Effect::Duplicate) && argument == 0)
+            || (matches!(self.effect, Effect::Pipe) && argument < 2)
+        {
+            let status = signed(result.ok_or_else(|| {
+                rejection("HANDLE acquisition lost its native completion status")
+            })?)?;
             if status != 0 {
-                let native = signed(value)?;
+                let native = handle_bits(value)?;
                 if native == 0 || native == -1 {
                     return Err(rejection(
-                        "successful duplicate returned no owned native HANDLE",
+                        "successful acquisition returned no owned native HANDLE",
                     ));
                 }
-                return replace_signed(value, self.context.windows.borrow_mut().acquire(native)?)
+                return replace_handle(value, self.context.windows.borrow_mut().acquire(native)?)
                     .map(Some);
             }
         }

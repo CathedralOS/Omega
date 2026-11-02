@@ -1,6 +1,7 @@
 //! Projecting a build declaration from source or syntax trees: locating the
 //! canonical build entry, reading the role call, and rejecting every shape
-//! that would need evaluation.
+//! that would need evaluation. This serves conservative edits and diagnostic
+//! suggestions, never package source binding or historical recovery.
 
 use crate::build_declaration::{
     APPLICATION_MACHINE_NAME, ARTIFACT_ONLY_MACHINE_NAME, BUILD_MACHINE_NAME, BUILD_TYPE_NAME,
@@ -9,12 +10,9 @@ use crate::build_declaration::{
 use crate::dependencies::is_dependency_call_name;
 use crate::direct_build_call::{DirectBuildCallError, direct_build_call_operands};
 use crate::{
-    ApplicationDeclaration, BUILD_FILE_NAME, BuildDeclaration, BuildDeclarationError,
-    BuildDeclarationKind, PackageDeclaration, ProjectName, WorkspaceDeclaration,
-    WorkspaceMemberPath,
+    ApplicationDeclaration, BuildDeclaration, BuildDeclarationError, BuildDeclarationKind,
+    PackageDeclaration, ProjectName, WorkspaceDeclaration, WorkspaceMemberPath,
 };
-use std::fs;
-use std::path::{Path, PathBuf};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{ExpressionHandle, ExpressionNode};
 use syntax_trees::item::{Item, StateHandle, StateParameterHandle};
@@ -67,41 +65,7 @@ impl BuildEntrySyntaxProjection {
     }
 }
 
-/// Read and project the authoritative declaration from a root `build.omg`.
-/// Read `<root>/build.omg` as UTF-8 source, mapping each IO failure to the
-/// caller's error vocabulary.
-pub fn read_build_file_source<E>(
-    root: impl AsRef<Path>,
-    missing: impl Fn(PathBuf) -> E,
-    read: impl Fn(PathBuf, String) -> E,
-    encoding: impl Fn(PathBuf) -> E,
-) -> Result<String, E> {
-    let build_path = root.as_ref().join(BUILD_FILE_NAME);
-    let source_bytes = match fs::read(&build_path) {
-        Ok(source) => source,
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-            return Err(missing(build_path));
-        }
-        Err(error) => return Err(read(build_path, error.to_string())),
-    };
-    std::str::from_utf8(&source_bytes)
-        .map(|source| source.to_owned())
-        .map_err(|_| encoding(build_path))
-}
-
-pub fn extract_build_declaration(
-    root: impl AsRef<Path>,
-) -> Result<BuildDeclaration, BuildDeclarationError> {
-    let source = read_build_file_source(
-        root,
-        |path| BuildDeclarationError::MissingBuildFile { path },
-        |path, message| BuildDeclarationError::ReadBuildFile { path, message },
-        |path| BuildDeclarationError::InvalidBuildFileEncoding { path },
-    )?;
-    project_build_declaration_from_source(&source)
-}
-
-/// Parse source and project its authoritative role without evaluating it.
+/// Parse source and project its literal role without evaluating it.
 pub fn project_build_declaration_from_source(
     source: &str,
 ) -> Result<BuildDeclaration, BuildDeclarationError> {

@@ -5,6 +5,7 @@ use crate::frame_layout::{
     ValidatedTargetFrameLayout,
 };
 use crate::frame_protocol::ValidatedTargetFrameProtocolEncoding;
+use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 use machine_code::{
     ResolvedMachineLayout, TargetFrameLayoutIdentity, TargetFrameProtocolEncodingIdentity,
     WholeFunctionExitContractIdentity,
@@ -20,6 +21,7 @@ use selected_instructions_to_register_homes::{
     AllocatedCalleeSavedRequirementIdentity, ValidatedAllocatedCalleeSavedRequirements,
 };
 use selected_instructions_to_register_homes::{AllocationEvidence, RetainedAllocation};
+use std::sync::Arc;
 
 /// Direct ordinary realization whose call, preservation, and return effects
 /// are discharged by one exact canonical target frame. Frame requirements,
@@ -28,6 +30,9 @@ use selected_instructions_to_register_homes::{AllocationEvidence, RetainedAlloca
 #[derive(Debug)]
 pub struct StagedFixedFrameFunctionRelativeRealization {
     pub(super) allocation: RetainedAllocation,
+    /// The optimized-target product the pipeline lowered, supplied by the
+    /// compiler beside the allocation rather than carried through it.
+    pub(super) target_input: Arc<ValidatedOptimizedTargetOperations>,
     pub(super) machine: StagedOptimizedPostAllocationMachinePlan,
     pub(super) encoding: StagedOptimizedSelectedFormEncoding,
     pub(super) baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
@@ -42,6 +47,7 @@ optimization_core::record_views! {
     record StagedFixedFrameFunctionRelativeRealization;
     borrowed {
         allocation: RetainedAllocation,
+        target_input: Arc<ValidatedOptimizedTargetOperations>,
         machine: StagedOptimizedPostAllocationMachinePlan,
         encoding: StagedOptimizedSelectedFormEncoding,
         baseline_layout: StagedOptimizedResolvedSelectedFormLayout,

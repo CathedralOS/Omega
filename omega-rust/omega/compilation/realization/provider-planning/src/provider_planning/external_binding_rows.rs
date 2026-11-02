@@ -1,5 +1,4 @@
 use crate::provider_planning::trait_name_text;
-use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 
 mod table_dispatch;
@@ -11,33 +10,28 @@ mod table_dispatch;
 /// policy and provider settlements remain independently required.
 /// Other selected provider mechanisms retain their existing specialized
 /// lowering and must not be forced through host-ABI compatibility planning.
-pub(crate) fn extract_native_external_binding_rows(
+pub fn extract_native_external_binding_rows(
     selected_target: Option<&str>,
     native_target: target::NativeTarget,
-    sources: &[&crate::DerivedProviderPlan],
+    plans: &[&effects::provider_plan::ProviderPlan],
     boundary_calling_plan_realizations: &[
         crate::calling_policy_plans::BoundaryCallingPlanRealization
     ],
-    services: ServiceCatalog<'_>,
     calling_program: &crate::calling_policy_plans::CallingProgram,
-    opaque_representation_selections: &[representation_selections::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     let context = ExternalBindingContext {
         selected_target,
         native_target,
         boundary_calling_plan_realizations,
-        services,
         calling_program,
-        opaque_representation_selections,
     };
     let mut rows = Vec::new();
-    // Each complete source retains its plan and original row coordinates.
+    // Each complete plan retains its original row coordinates.
     // A direct-call projection borrows this same operation before changing
     // its demand identity; no loose plan rediscovers its source owner.
-    for source in sources {
-        let plan = &source.plan;
+    for plan in plans {
         for row_index in 0..plan.rows.len() {
-            if let Some(row) = context.row(plan, row_index, &source.provenance)? {
+            if let Some(row) = context.row(plan, row_index)? {
                 rows.push(row);
             }
         }
@@ -45,17 +39,14 @@ pub(crate) fn extract_native_external_binding_rows(
     Ok(rows)
 }
 
-/// Shared source/layout inputs for preparing physical rows. Preparation retains
+/// Shared canonical inputs for preparing physical rows. Preparation retains
 /// either the complete ABI result or its refusal; it grants no execution.
 pub(crate) struct ExternalBindingContext<'a> {
     pub selected_target: Option<&'a str>,
     pub native_target: target::NativeTarget,
     pub boundary_calling_plan_realizations:
         &'a [crate::calling_policy_plans::BoundaryCallingPlanRealization],
-    pub services: ServiceCatalog<'a>,
     pub calling_program: &'a crate::calling_policy_plans::CallingProgram,
-    pub opaque_representation_selections:
-        &'a [representation_selections::OpaqueRepresentationSelection],
 }
 
 impl ExternalBindingContext<'_> {
@@ -100,7 +91,6 @@ impl ExternalBindingContext<'_> {
         &self,
         plan: &effects::provider_plan::ProviderPlan,
         row_index: usize,
-        provenance: &crate::ProviderPlanProvenance,
     ) -> Result<Option<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
         use crate::calling_policy_plans::selected_calling_applications;
         use calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
@@ -109,43 +99,60 @@ impl ExternalBindingContext<'_> {
             selected_target,
             native_target,
             boundary_calling_plan_realizations,
-            services,
             calling_program,
-            opaque_representation_selections,
         } = *self;
-        let typed = services.context().typed;
         let row = plan.rows.get(row_index).ok_or_else(|| {
             vec![Diagnostic::error(
                 "external binding lost its original provider row",
             )]
         })?;
-        let (binding, target_profile) = match &row.binding {
-            ProviderBinding::Import { evaluated } => (
+        if matches!(
+            row.binding,
+            ProviderBinding::CompilerIntrinsic { .. }
+                | ProviderBinding::VtableSlot { .. }
+                | ProviderBinding::CheckedAdapter { .. }
+        ) {
+            return Ok(None);
+        }
+        let target_profile = self.target_profile(plan)?;
+        let selected = selected_calling_applications(
+            calling_program.artifact.semantic_module(),
+            boundary_calling_plan_realizations,
+            plan,
+            row_index,
+        )
+        .map_err(|diagnostic| vec![diagnostic])?;
+        let binding = match &row.binding {
+            ProviderBinding::Import { evaluated } => {
                 ExternalBindingKind::Import {
                     // The selected plan already commits the atomic evaluation
                     // receipt; this ABI-facing row owns only physical locator
                     // coordinates.
                     locator: evaluated.locator().clone(),
-                },
-                self.target_profile(plan)?,
-            ),
-            ProviderBinding::Syscall { number } => (
-                ExternalBindingKind::Syscall { number: *number },
-                self.target_profile(plan)?,
-            ),
-            ProviderBinding::VtableField { table, field }
-            | ProviderBinding::TableFunction { table, field } => {
-                let target_profile = self.target_profile(plan)?;
-                let layout_target = layout::LayoutTarget::for_profile(target_profile)
-                    .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                }
+            }
+            ProviderBinding::Syscall { number } => ExternalBindingKind::Syscall { number: *number },
+            ProviderBinding::VtableField { field, storage, .. }
+            | ProviderBinding::TableFunction { field, storage, .. } => {
+                let applications = if selected.applications.is_empty() {
+                    selected
+                        .default_abis
+                        .as_ref()
+                        .map_err(|error| vec![error.clone()])?
+                        .iter()
+                        .collect::<Vec<_>>()
+                } else {
+                    selected
+                        .applications
+                        .iter()
+                        .map(|application| &application.abi)
+                        .collect()
+                };
                 let byte_offset = table_dispatch::field_offset(
-                    typed,
-                    layout_target,
-                    provenance,
-                    row_index,
-                    table,
-                    field,
-                    opaque_representation_selections,
+                    calling_program,
+                    target_profile,
+                    &applications,
+                    storage,
                 )
                 .map_err(|reason| {
                     vec![Diagnostic::error(format!(
@@ -163,19 +170,12 @@ impl ExternalBindingContext<'_> {
                         byte_offset,
                     },
                 };
-                (binding, target_profile)
+                binding
             }
             ProviderBinding::CompilerIntrinsic { .. }
             | ProviderBinding::VtableSlot { .. }
             | ProviderBinding::CheckedAdapter { .. } => return Ok(None),
         };
-        let selected = selected_calling_applications(
-            calling_program.artifact.semantic_module(),
-            boundary_calling_plan_realizations,
-            plan,
-            row_index,
-        )
-        .map_err(|diagnostic| vec![diagnostic])?;
         let mut calling_applications = selected.applications;
         let compatibility_policy = match &binding {
             ExternalBindingKind::Syscall { .. } => {

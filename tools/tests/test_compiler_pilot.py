@@ -16,6 +16,92 @@ import compiler_retained_foreign as retained
 
 
 class CompilerPilotTests(unittest.TestCase):
+    def test_ordinary_cli_copy_loop_retains_the_actual_project_directory(self):
+        sample = "samples/cli/systems/journal"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample)
+            library = root / "source/library/std/last.omg"
+            library.parent.mkdir(parents=True)
+            library.write_text("data Last {}")
+            paths = [sample + "/main.omg", sample + "/build.omg", "source/library/std/last.omg"]
+            output = root / "observation"
+            producer = Mock(cli=Path("/retained/omega"), target="windows_x86_64")
+            producer.record.return_value = {"revision": "a" * 40}
+            expected_project = output / "workspace" / sample
+
+            def refuse_update(arguments, **kwargs):
+                self.assertEqual(arguments[1:4], ["update", "--project", expected_project])
+                self.assertTrue((expected_project / "build.omg").is_file())
+                self.assertTrue((output / "workspace/source/library/std/last.omg").is_file())
+                return Mock(returncode=1)
+
+            with patch.object(pilot.ordinary_cli_fixture.subprocess, "check_output", return_value="\n".join(paths)), \
+                    patch.object(pilot.ordinary_cli_fixture.subprocess, "run", side_effect=refuse_update) as run:
+                row = pilot.ordinary_cli_fixture.observe(root, producer, sample, output)
+                run.assert_called_once()
+                self.assertEqual(row["stages"][0]["arguments"][3], str(expected_project))
+                self.assertFalse(row["passed"])
+
+    def test_ordinary_cli_uses_exact_product_sample_and_its_authored_exit(self):
+        sample = "samples/cli/systems/journal"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample, sample + "/nested")
+            project = root / sample
+            (project / "main.omg").write_text("// Expected exit: 7.\nmachine main() {}")
+            with patch.object(pilot, "ROOT", root):
+                self.assertEqual(pilot.select_cli_fixtures(sample), (sample,))
+                self.assertEqual(pilot.ordinary_cli_fixture.expected_exit(root, sample, "windows_x86_64"), 7)
+                self.assertEqual(pilot.ordinary_cli_fixture.relative_project(root, sample), Path(sample))
+                for invalid in (sample + "/../journal", sample + "," + sample,
+                                "/" + sample, sample.replace("/", "\\")):
+                    with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                        pilot.select_cli_fixtures(invalid)
+
+    def test_ordinary_cli_product_samples_refuse_nonruntime_roles_and_extra_oracles(self):
+        sample = "samples/cli/systems/journal"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample)
+            project = root / sample
+            with patch.object(pilot, "ROOT", root):
+                for role in ("intended-invalid", "library", "check-only"):
+                    (project / "sample.json").write_text(json.dumps({"role": role}))
+                    with self.subTest(role=role), self.assertRaises(ValueError):
+                        pilot.select_cli_fixtures(sample)
+                (project / "other.omg").write_text("machine other() {}")
+                (project / "sample.json").write_text(json.dumps({"entry": "other.omg"}))
+                with self.assertRaises(ValueError):
+                    pilot.select_cli_fixtures(sample)
+                (project / "sample.json").unlink()
+                (project / "expected_stdout.txt").write_text("must be checked")
+                with self.assertRaises(ValueError):
+                    pilot.select_cli_fixtures(sample)
+                (project / "expected_stdout.txt").unlink()
+                (project / "main.omg").write_text("machine main() {}")
+                with self.assertRaises(ValueError):
+                    pilot.select_cli_fixtures(sample)
+
+    def test_checking_only_retains_exact_roster_without_execution_defaults(self):
+        positive, negative = "pass/copy/value", "fail/copy/value"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, positive, negative)
+            with patch.object(pilot, "ROOT", root), patch.object(pilot, "execute") as execute:
+                request = positive + "," + negative
+                self.assertEqual(pilot.run_suite("checks", pilot.POSITIVES, pilot.NEGATIVES,
+                                                fixtures=request, check_only=True), 0)
+                self.assertEqual(execute.call_args.kwargs["positives"], ())
+                self.assertEqual(execute.call_args.kwargs["checking_only"], (positive,))
+                self.assertEqual(execute.call_args.kwargs["negatives"], (negative,))
+                for selectors in ({}, {"fixtures": request, "samples": "samples/cli/facts/copy"},
+                                  {"fixtures": request, "cli_fixtures": positive}):
+                    execute.reset_mock()
+                    self.assertEqual(pilot.run_suite("refused", pilot.POSITIVES, pilot.NEGATIVES,
+                                                    check_only=True, **selectors), 1)
+                    execute.assert_not_called()
+
     def fixture_root(self, root, *fixtures):
         for fixture in fixtures:
             directory = root / "tests" / "omega" / fixture
@@ -47,6 +133,31 @@ class CompilerPilotTests(unittest.TestCase):
                 self.assertEqual(pilot.run_suite("bad", pilot.POSITIVES, pilot.NEGATIVES,
                                                 cli_fixtures=fixture), 1)
                 execute.assert_not_called()
+
+    def test_ordinary_cli_inspection_oracles_are_preserved_or_refused_before_build(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            oracle = project / "expected_terminal_inspections.txt"
+            oracle.write_text("Main::main\nOther::read\n")
+            self.assertEqual(pilot.ordinary_cli_fixture.inspection_machines(project),
+                             ("Main::main", "Other::read"))
+            for unsupported in ("", "Main::main debug", "Main::main runtime portable filesystem",
+                                "Main::main native-layout-controls"):
+                oracle.write_text(unsupported)
+                with self.subTest(oracle=unsupported), self.assertRaises(ValueError):
+                    pilot.ordinary_cli_fixture.inspection_machines(project)
+
+    def test_named_inspection_requires_machine_and_same_reloaded_identity(self):
+        validate = pilot.ordinary_cli_fixture.validate_inspection
+        identity = "a" * 64
+        source = f"terminal selected_machine=Main::main entry=MachineId(1)\nterminal program_fingerprint={identity}\n"
+        restored = f"terminal selected_machine=artifact entry=MachineId(1)\nterminal program_fingerprint={identity}\n"
+        self.assertEqual(validate("Main::main", source, restored), identity)
+        for wrong_source, wrong_artifact in ((source.replace("Main::main", "Other::main"), restored),
+                                            (source, restored.replace(identity, "b" * 64)),
+                                            (source, ""), (source + source, restored), (source, source)):
+            with self.subTest(source=wrong_source, artifact=wrong_artifact), self.assertRaises(ValueError):
+                validate("Main::main", wrong_source, wrong_artifact)
 
     def test_ordinary_cli_requires_explicit_terminal_exit_including_nonzero_oracles(self):
         validate = pilot.ordinary_cli_fixture.validate_exits
