@@ -234,7 +234,18 @@ impl Execution<'_, '_, '_> {
             }
             let members = self.captured_owned_value_observations(&[], destination, &completed);
             if let Some(shared) = &mut shared_members {
-                shared.retain(|member| members.contains(member));
+                shared.retain_mut(|(path, observation)| {
+                    let common = members
+                        .iter()
+                        .find(|(incoming_path, _)| incoming_path == path)
+                        .and_then(|(_, incoming)| observation.common_consequence(incoming));
+                    if let Some(common) = common {
+                        *observation = common;
+                        true
+                    } else {
+                        false
+                    }
+                });
             } else {
                 shared_members = Some(members);
             }

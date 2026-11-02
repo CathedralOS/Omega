@@ -24,8 +24,8 @@ pub(crate) fn lower_machine_entry_crash_contract_expression(
     expression: ExpressionHandle,
     _exact_integer_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<CheckedBooleanExpression> {
-    // Unread static/evidence binders do not erase concrete entry clauses.
-    // Reader rejoins every observed leaf to its exact formal type and meaning.
+    // Unused generic parameters do not prevent checking a concrete condition.
+    // The reader still checks each value's declared type and operator.
     let parameters = super::authored_entry_parameters(program, machine)?;
     let predicate = Reader {
         program,
@@ -207,9 +207,8 @@ struct Reader<'program> {
     logical_captures: Vec<LogicalMatchBinding>,
 }
 
-/// Bodyless requirements have an exact signature namespace, not a synthetic
-/// machine body. Scalar and structural leaves retain that signature's exact
-/// authored formal namespace.
+/// Check a requirement's crash condition against its own declared parameters.
+/// Bodyless requirements do not need a synthetic machine body.
 pub(crate) fn lower_signature_crash_contract_expression(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,
@@ -228,8 +227,8 @@ pub(crate) fn lower_signature_crash_contract_expression(
     )
 }
 
-/// Read the declaration's actual formals. Unread generic parameters do not
-/// erase a concrete condition; an observed unsupported type still refuses.
+/// Read the declaration's parameters. Unused generic parameters do not prevent
+/// checking a concrete condition; reading an unsupported type still rejects.
 fn lower_declaration_crash_contract_expression(
     program: &dyn ::validation::CheckingInput,
     operators: &CheckedOperatorFacts,

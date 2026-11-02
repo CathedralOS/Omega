@@ -1,6 +1,6 @@
 //! A requirement call uses the complete signature retained for that call.
-//! Different applications may share a declaration symbol, so that symbol
-//! cannot recover the selected arguments or their crash conditions.
+//! Calls with different arguments can name the same declaration, so its symbol
+//! alone cannot recover those arguments or their crash conditions.
 
 use checked_trees::{CallContractSignature, CrashContractCapsule, ProofFacts};
 use diagnostics::Diagnostic;

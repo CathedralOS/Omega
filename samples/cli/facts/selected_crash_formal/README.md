@@ -85,6 +85,14 @@ condition through a private helper after its implementation is chosen. Its
 nonnegative-input requirement. The harmless implementation must not make that
 broader promise pass.
 
+[argument_snapshot](probes/argument_snapshot/main.omg) copies the first argument
+before evaluating a second argument that clears its source. The original value
+and its bound must survive. Its [twin](probes/argument_snapshot/invalid/main.omg)
+allows an initially negative value; the later clear cannot make the earlier
+argument safe. [match_record](probes/match_record/main.omg) checks the same
+nonnegative bound on a field selected by two match arms. Its
+[twin](probes/match_record/invalid/main.omg) permits a crash at zero.
+
 ## Baseline and remaining scope
 
 At `d6cf554fd1cbf20551983d29bae26f5cf3b81664`, the local, nested call-result
