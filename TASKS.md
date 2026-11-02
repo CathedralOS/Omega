@@ -597,7 +597,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   layout/wire/proof-value queries) through one shared Terminal program/instance
   lifecycle (`TerminalProgram::load`) and the shared Psi 06-08 production
   operation end to end (`omega run --both`).
-  Owners: `omega-rust/psi/interpreter/terminal-interpreter/src/{program,instance,execution,adapters}.rs`,
+  Owners: `omega-rust/psi/interpreter/terminal-interpreter/src/{embedding/{program,instance,adapters},engine/execution}.rs`,
   `omega-rust/psi/compilation/compile-time/src/{machine_execution,const_evaluation,layouts}/`,
   and `omega-rust/psi/compilation/driver/terminal-production/src/`.
   - **INTERPRETER-CORE-ENTRY:** expose one interpreter facade accepting the
@@ -1195,7 +1195,7 @@ defines the complete product bar.
   `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/ranking_range/`,
   `omega-rust/psi/compilation/checking/src/machine_calls/call_cycles/runtime_ranking/`,
   Psi 06 `src/unit/attached_unit/`, and
-  `omega-rust/psi/interpreter/terminal-interpreter/src/terminators/`.
+  `omega-rust/psi/interpreter/terminal-interpreter/src/engine/terminators/`.
   - Re-run the external-result and `std`-loop execution controls
     (`external_result_ranked_arrival_compile` currently refuses with `provider
     candidate requires beyond its boundary's declared obligations`) once
