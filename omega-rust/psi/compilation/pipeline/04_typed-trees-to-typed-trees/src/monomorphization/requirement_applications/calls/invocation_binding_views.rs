@@ -130,7 +130,8 @@ pub(super) fn complete_arguments(
     }
     let declaration = source.binding_declaration;
     let machine = program.machine_by_symbol(declaration)?;
-    let private_parameters = program.machine_type_parameters(machine);
+    let private_parameters = program
+        .requirement_callable_parameters(signature, &program.machine_callable_parameters(machine));
     if private_parameters.len() != parameters.len() || bindings.len() != parameters.len() {
         return None;
     }

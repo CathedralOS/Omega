@@ -134,6 +134,11 @@ pub(in crate::encoding) fn machine_contract(
             encoder.field("type_parameters", |encoder| {
                 encoder.sequence(&signature.type_parameters, type_parameter)
             })?;
+            encoder.sequence_field(
+                "conformance_bounds",
+                &signature.conformance_bounds,
+                super::super::declarations::encode_conformance_bound,
+            )?;
             encode_callable_shape!(
                 encoder,
                 &signature.parameters,

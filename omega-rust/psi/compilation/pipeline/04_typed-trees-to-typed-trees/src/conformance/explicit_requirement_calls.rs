@@ -67,22 +67,16 @@ struct ExplicitRequirementRewrite {
 pub(crate) fn route_explicit_requirement_calls(
     program: &mut TypedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
-    let requirements = program
-        .traits()
-        .iter()
-        .flat_map(|definition| {
-            program
-                .trait_machine_signatures(definition)
-                .iter()
-                .map(move |signature| {
-                    (
-                        signature.symbol,
-                        definition.symbol,
-                        program.state_signature_type_parameters(signature),
-                    )
-                })
-        })
-        .collect::<Vec<_>>();
+    let mut requirements = Vec::new();
+    for definition in program.traits() {
+        for signature in program.trait_machine_signatures(definition) {
+            requirements.push((
+                signature.symbol,
+                definition.symbol,
+                program.state_signature_type_parameters(signature),
+            ));
+        }
+    }
     if requirements.is_empty() {
         return Ok(());
     }

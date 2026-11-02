@@ -84,6 +84,12 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
+      - name: Check selected requirement evidence from authored Source
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          CARGO_PROFILE_TEST_OPT_LEVEL: '1'
+          CARGO_PROFILE_TEST_DEBUG: '0'
+        run: cargo test --locked -p compiler --test package_review selected_requirement_evidence -- --nocapture
       - name: Optional executable smoke, exact fixtures, or fact samples
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '')
         env:

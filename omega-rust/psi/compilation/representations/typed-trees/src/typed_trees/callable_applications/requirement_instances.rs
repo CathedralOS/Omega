@@ -164,9 +164,15 @@ impl TypedTrees {
             {
                 return false;
             }
-            let parameters = self
-                .data_type_parameters
-                .span_or_empty(receipt.template_parameters);
+            let Some(declaration) = self
+                .machine_declaration_for_lexical_scope(realization)
+                .filter(|declaration| declaration.type_parameters == receipt.template_parameters)
+            else {
+                return false;
+            };
+            let declared_parameters = self.machine_callable_parameters(declaration);
+            let parameters =
+                self.requirement_callable_parameters(application.signature, &declared_parameters);
             let bindings = self.static_machine_application_bindings(receipt.binding_application);
             let binding_owner = self
                 .static_machine_application(receipt.binding_application)

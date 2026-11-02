@@ -32,7 +32,7 @@ impl TypedTrees {
             .iter()
             .filter(|parameter| parameter.kind == TypeParameterKind::Implementation);
         let mut aligned = Vec::with_capacity(provider.len());
-        for required in self.state_signature_type_parameters(requirement) {
+        for required in self.requirement_invocation_contract_parameters(requirement) {
             let selected = if required.kind == TypeParameterKind::Implementation {
                 evidence.next()
             } else {

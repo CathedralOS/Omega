@@ -215,11 +215,19 @@ pub(crate) fn project_trait_requirement(
     let slot_metadata =
         project_requirement_slot_metadata(compilation, trait_symbol, requirement.symbol)?;
     Ok(PackageReviewTraitRequirement {
-        identity,
         spelling: requirement.spelling,
         has_default_realization: requirement.is_default,
         lifetime_parameter_count: requirement.lifetime_parameters.len(),
         type_parameters,
+        conformance_bounds: project_conformance_bounds(
+            compilation,
+            &requirement.conformance_bounds,
+            &binders,
+            &lifetime_binders,
+            "public trait requirement",
+            &identity.path,
+        )?,
+        identity,
         parameters: project_signature_parameters(
             compilation,
             compilation.state_signature_parameters(requirement),

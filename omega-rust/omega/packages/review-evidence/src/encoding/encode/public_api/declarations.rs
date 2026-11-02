@@ -56,6 +56,11 @@ pub(in crate::encoding::encode) fn trait_shape(
             encoder.field("type_parameters", |encoder| {
                 encoder.sequence(&requirement.type_parameters, type_parameter)
             })?;
+            encoder.sequence_field(
+                "conformance_bounds",
+                &requirement.conformance_bounds,
+                encode_conformance_bound,
+            )?;
             encode_callable_shape!(
                 encoder,
                 &requirement.parameters,

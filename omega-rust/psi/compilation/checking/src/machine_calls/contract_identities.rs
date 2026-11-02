@@ -883,6 +883,40 @@ fn encode_state_signature(
 ) -> Result<(), Diagnostic> {
     let generic_binders =
         type_parameter_binders(program.state_signature_type_parameters(signature), binders);
+    if !signature.conformance_bounds.is_empty() {
+        output.push(0xe7);
+        output.extend((signature.conformance_bounds.len() as u64).to_le_bytes());
+        for bound in &signature.conformance_bounds {
+            let ordinal = program
+                .state_signature_type_parameters(signature)
+                .iter()
+                .position(|parameter| {
+                    parameter.symbol == bound.binder
+                        && parameter.kind == TypeParameterKind::Implementation
+                })
+                .ok_or_else(|| {
+                    Diagnostic::error("callable evidence bound has no exact implementation slot")
+                })?;
+            output.extend((ordinal as u64).to_le_bytes());
+            let identity = program
+                .normalized_nominal_type_identity(bound.trait_symbol)
+                .and_then(|identity| program.type_identity_text(identity))
+                .ok_or_else(|| {
+                    Diagnostic::error("callable evidence bound has no exact trait identity")
+                })?;
+            encode_identity_text(&identity, output);
+            output.extend((bound.arguments.len() as u64).to_le_bytes());
+            for argument in &bound.arguments {
+                encode_identity_text(
+                    &program.type_identity_request_text(TypeIdentityRequest {
+                        binders: &generic_binders,
+                        ..TypeIdentityRequest::ordinary(*argument)
+                    }),
+                    output,
+                );
+            }
+        }
+    }
     let parameters = program.state_signature_parameters(signature);
     let contract_binders = formal_parameter_binders(parameters, &generic_binders);
     output.extend((parameters.len() as u64).to_le_bytes());
