@@ -12286,8 +12286,7 @@ pass/generics/runtime_machine_equation_nested_boolean_exit checked 9392ms check-
 pass/generics/runtime_machine_equation_nested_const_exit checked 6670ms check-target:macos_arm64 @b23365ced206+wt
 pass/generics/runtime_machine_equation_selected_boolean_exit checked 7845ms check-target:macos_arm64 @b23365ced206+wt
 pass/generics/runtime_machine_equation_selected_const_exit checked 7732ms check-target:macos_arm64 @b23365ced206+wt
-pass/generics/runtime_mixed_generic_erased_sum_exit rejected 8349ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	construction of erased generic data `Mixed` is unsupported in this context; use a closed generic record in an explicitly typed local initializer
+pass/generics/runtime_mixed_generic_erased_sum_exit checked 74057ms check-target:macos_arm64 @7c07b4e017d9
 pass/generics/runtime_nested_array_extent_binder_exit checked 9732ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_nested_generic_instantiations_exit checked 11978ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_qualified_closed_equation_exit checked 7733ms check-target:macos_arm64 @b23365ced206+wt
