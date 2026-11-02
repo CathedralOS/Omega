@@ -295,6 +295,20 @@ pub(super) fn establishment(
         }
     } else {
         match storage {
+            Some(storage)
+                if matches!(
+                    source.path.last(),
+                    Some(StructuralPathSegment::FixedRange { .. })
+                ) =>
+            {
+                terminal_semantics::reference_storage_region_source_compatible(
+                    declarations.iter(),
+                    root,
+                    &source.path,
+                    result.structural_type,
+                    storage.stored_scalar,
+                )
+            }
             Some(storage) => actual.is_some_and(|actual| {
                 terminal_semantics::reference_storage_source_compatible(
                     declarations.iter(),

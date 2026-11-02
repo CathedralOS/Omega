@@ -39,7 +39,7 @@ The target-body variant checks the same repair body for all four hosted targets.
 4. **Soundness:** the missing-repair twins cannot use returned ownership as proof
    that absent storage is established. Loan exclusion, exact type, linear
    disposal and caller debt remain independent obligations.
-5. **Psi 05–07:** extraction and establishing store retain exact opening/result
+5. **Psi 06–08:** extraction and establishing store retain exact opening/result
    coordinates into Terminal Psi. The caller's home is used directly; no staged
    caller copy or rollback is introduced.
 6. **Omega 00–02:** ordinary Build entry bindings and structural call/return plans

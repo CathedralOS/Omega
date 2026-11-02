@@ -259,7 +259,7 @@ pub(super) trait StructuralPrefixVisitor {
         if self.is_complete() {
             return;
         }
-        let _arm_guard = phase_profile::guard("05.num.visit.1_arm_judge");
+        let _arm_guard = phase_profile::guard("psi.05.numeric.visit.arm_judge");
         let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
         if judge.hypotheses_contradictory {
             return;
@@ -270,7 +270,7 @@ pub(super) trait StructuralPrefixVisitor {
         // even when their constructor hypotheses are consistent. Refute only
         // from admitted prefix premises, before observing the requested value;
         // failed goal formation must never become evidence of unreachability.
-        if phase_profile::scope("05.num.visit.2_contra", || {
+        if phase_profile::scope("psi.05.numeric.visit.contra", || {
             judge.integer_premises_contradictory()
         }) {
             return;
@@ -297,7 +297,7 @@ pub(super) trait StructuralPrefixVisitor {
         if self.is_complete() {
             return;
         }
-        let _arm_guard = phase_profile::guard("05.num.visit.1_arm_judge");
+        let _arm_guard = phase_profile::guard("psi.05.numeric.visit.arm_judge");
         let mut judge = structural_arm_judge(program, judge, hypotheses, equations);
         if judge.hypotheses_contradictory {
             return;

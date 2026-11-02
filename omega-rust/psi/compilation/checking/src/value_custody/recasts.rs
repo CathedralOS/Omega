@@ -65,6 +65,7 @@ mod recast_judgments;
 mod record_eligibility;
 mod record_representation;
 mod slice_views;
+mod source_regions;
 use language_core::ReferenceAccess;
 pub(crate) use record_representation::recast_representations_equivalent;
 pub use record_representation::{

@@ -46,10 +46,10 @@ pub(crate) fn realize_native_artifact(
         input,
         mut providers,
         boundary_application_coverage,
-    } = phase_profile::scope("06.1.c3_admit_prepared_native_realization", || {
+    } = phase_profile::scope("omega.native.admit_prepared_native_realization", || {
         admit_prepared_native_realization(input, &artifact, &request.admission)
     })?;
-    let entry_settlement = phase_profile::scope("06.1.c4_admit_executable_entry", || {
+    let entry_settlement = phase_profile::scope("omega.native.admit_executable_entry", || {
         native_artifact::admit_executable_entry(
             &input,
             &artifact,
@@ -60,7 +60,7 @@ pub(crate) fn realize_native_artifact(
     // Capture before emission takes the installation. These are the admitted
     // rows of this same image request, not reconstructed provider-name hints.
     let entry = request.program_entry;
-    let runtime_provisions = phase_profile::scope("06.1.c5_capture_native_admission", || {
+    let runtime_provisions = phase_profile::scope("omega.native.capture_native_admission", || {
         entry
             .checked_entry
             .map(|_| {
@@ -87,7 +87,7 @@ pub(crate) fn realize_native_artifact(
             .map_err(|message| vec![Diagnostic::error(message)])
     })?;
     let private_entry_ram = input.private_entry_ram().to_vec();
-    let emitted = phase_profile::scope("06.1.d_emit_realization_object", || {
+    let emitted = phase_profile::scope("omega.native.emit_realization_object", || {
         emit_realization_object(
             input,
             providers.installation.take(),
@@ -110,7 +110,7 @@ pub(crate) fn realize_native_artifact(
         .clone()
         .settle_elf_loader(&emitted.object, request.elf_interpreter)
         .map_err(|error| vec![error.diagnostic().clone()])?;
-    let artifact = phase_profile::scope("06.1.e_emit_admitted_image", || {
+    let artifact = phase_profile::scope("omega.native.emit_admitted_image", || {
         request
             .observation
             .enter(crate::observations::NativePipelineStage::ImageEmission);

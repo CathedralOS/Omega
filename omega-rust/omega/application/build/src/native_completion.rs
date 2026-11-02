@@ -59,7 +59,7 @@ fn complete_native(
         subsystem,
         mut settlement,
     } = product;
-    let produced = phase_profile::scope("06.0.e_produce_native_product", || {
+    let produced = phase_profile::scope("omega.product.produce_native_product", || {
         let selected = components
             .as_ref()
             .map_err(|reason| vec![Diagnostic::error(reason.clone())])?;
@@ -113,7 +113,7 @@ fn complete_native(
     };
     let accounting = settlement.source_completion_accounting_mut().clone();
     let report = phase_profile::scope(
-        "06.0.f_settlement_finish_native",
+        "omega.product.settlement_finish_native",
         || -> Result<_, CompilationProductError> {
             Ok(settlement
                 .finish_native(produced.artifact, rollback.into_receipt())?

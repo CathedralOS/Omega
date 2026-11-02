@@ -26,6 +26,65 @@ pub use service_reach::{
     infer_service_reaches,
 };
 
+/// The published contract of one requirement an opaque realizer satisfies.
+struct GoverningCeiling {
+    suspends: bool,
+    blocks: bool,
+    service_reach_row: language_semantics::ServiceReachRowId,
+    service_reach_is_installation_bound: bool,
+}
+
+/// A bodyless external realization (`satisfies Requirement via binding`)
+/// inherits each governing requirement's admitted contract, not an inferred
+/// native-body summary (language/effects.md, "Opaque supplies inherit").
+/// Providers call such a leaf directly when calling the trait member would add
+/// an invocation edge their public requirement does not publish, so the leaf's
+/// own omitted clauses must not read as an empty reach or a non-blocking call.
+fn opaque_governing_ceilings(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> Vec<GoverningCeiling> {
+    if machine.body_is_present
+        || !matches!(
+            machine.supply_mode,
+            language_semantics::MachineSupplyMode::ExternalRealization { .. }
+        )
+    {
+        return Vec::new();
+    }
+    program
+        .machine_trait_conformances(machine)
+        .iter()
+        .filter_map(|conformance| {
+            match typed_trees::machine::resolve_satisfied_declaration(
+                program.typed_program(),
+                machine,
+                conformance,
+            )? {
+                typed_trees::machine::SatisfiedDeclaration::Trait { requirement, .. } => {
+                    Some(GoverningCeiling {
+                        suspends: requirement.suspends,
+                        blocks: requirement.blocks,
+                        service_reach_row: requirement.service_reach_row,
+                        service_reach_is_installation_bound: requirement
+                            .service_reach_is_installation_bound,
+                    })
+                }
+                typed_trees::machine::SatisfiedDeclaration::TopLevelRequirement(requirement) => {
+                    Some(GoverningCeiling {
+                        suspends: requirement.suspends,
+                        blocks: requirement.blocks,
+                        service_reach_row: requirement.service_reach_row,
+                        service_reach_is_installation_bound: requirement
+                            .service_reach_is_installation_bound,
+                    })
+                }
+                typed_trees::machine::SatisfiedDeclaration::Operator(_) => None,
+            }
+        })
+        .collect()
+}
+
 /// Family interfaces derive effects from every member without adding executable
 /// call edges. Build families still have an ordinary canonical body.
 fn family_interface_members<'program>(

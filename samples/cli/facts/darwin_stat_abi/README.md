@@ -23,8 +23,8 @@ implementation. All four hosted entry bindings remain explicit. Field values
 are established by a mutable C exchange; the compiler cannot substitute stale
 zero initializer facts or assume the foreign checker succeeds.
 
-Psi 00–04 retains the exact public std type, selected child plans and policy
-identity; borrowed inputs retain source backing and copy obligations. Psi 05–07
+Psi 00–05 retains the exact public std type, selected child plans and policy
+identity; borrowed inputs retain source backing and copy obligations. Psi 06–08
 and Omega 00–02 must preserve the complete selected C field geometry and ABI
 pointer lane. Omega 03–09 must emit the stores, copies, projections and foreign
 calls so any wrong offset, signed carrier, omitted timestamp half, wrong branch

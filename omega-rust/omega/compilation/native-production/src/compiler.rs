@@ -50,11 +50,11 @@ pub fn compile(
             .iter()
             .map(crate::components::EmittedComponent::admit_call)
             .collect::<Result<Vec<_>, _>>()?;
-        let (input, execution) = phase_profile::scope("06.1.c1_prepare_native_execution", || {
+        let (input, execution) = phase_profile::scope("omega.native.prepare_native_execution", || {
             observation.enter(NativePipelineStage::TerminalToAbstract);
             work.lower(scalar_input)
         })?;
-        let prepared = phase_profile::scope("06.1.c2_prepare_native_providers", || {
+        let prepared = phase_profile::scope("omega.native.prepare_native_providers", || {
             proposal.prepare_native_providers(
                 &artifact,
                 RetainedNativeProviderInputs {

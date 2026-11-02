@@ -44,7 +44,7 @@ are bound; actual execution evidence currently covers macOS ARM64 only.
 - Soundness: every twin removes write permission. Additional fixtures under
   `tests/omega/{pass,fail}/layouts/placed_primitive_*` cover wrong value/accessor
   types, shared mutation, generic forwarding, static callbacks and private issuance.
-- Psi 05–07: the selected catalog target becomes the existing placed boundary
+- Psi 06–08: the selected catalog target becomes the existing placed boundary
   operation. Loan transport and retirement survive lowering into Terminal Psi;
   both-engine execution must agree on the original-storage result.
 - Omega 00–02: the exact plan and actual backing determine provider admission,

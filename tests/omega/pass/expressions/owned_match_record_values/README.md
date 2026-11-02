@@ -6,7 +6,7 @@ payload; an unrelated record remains live and is observed afterward. This is not
 a test of direct nested local field reads.
 
 The source and canonical Terminal replay controls live in
-[`value_dispatch/owned_results.rs`](../../../../../omega-rust/psi/compilation/pipeline/05_checked-trees-to-lowered-psi/tests/value_dispatch/owned_results.rs).
+[`value_dispatch/owned_results.rs`](../../../../../omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/tests/value_dispatch/owned_results.rs).
 The corpus native leg records this case's host build outcome; it is not an
 `*_exit` case, so the leg does not execute it.
 

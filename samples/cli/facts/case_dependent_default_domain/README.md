@@ -64,7 +64,7 @@ four ordinary named implementations through its entry roots.
   and [stale snapshot](controls/stale_snapshot_restore/main.omg) controls reject.
   The last changes the lower endpoint to 31: restoring the saved upper 21
   cannot borrow the old ordered relation. Unknown tags/fields supply no proof.
-- **Psi 05–07:** source proof discharges restoration and scalar consumption
+- **Psi 06–08:** source proof discharges restoration and scalar consumption
   before erasure. Ordinary tagged values, scalar copies, stores and calls lower
   to Terminal Psi and must execute under `--both`.
 - **Omega 00–02:** Build entries, Bundle/interval layouts and ordinary calling

@@ -56,7 +56,7 @@ Applicable requirements:
 - Soundness boundaries: the established integer engine supplies contradiction;
   neither an unavailable premise nor failed operation admission proves one.
   The formation, mutation and weakened-bound controls remain refusals.
-- Psi 05–07: actual Terminal execution retains the selected guard paths,
+- Psi 06–08: actual Terminal execution retains the selected guard paths,
   operand schedule and helper result through the existing lowering. This row
   introduces no proof erasure or cleanup disposition.
 - Omega 00–02: existing scalar/record layouts, explicit call arguments and

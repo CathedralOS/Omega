@@ -240,7 +240,15 @@ impl TerminalModule {
             .calling_signatures
             .iter()
             .find(|row| row.boundary == boundary)
-            .ok_or("boundary has no Terminal calling declaration")?;
+            .ok_or_else(|| {
+                let name = self
+                    .boundary_machines
+                    .iter()
+                    .find(|declaration| declaration.id == boundary)
+                    .and_then(|declaration| self.identities.text(declaration.identity))
+                    .unwrap_or("<unknown>");
+                format!("boundary `{name}` has no Terminal calling declaration")
+            })?;
         self.calling_abi_signature(*declaration.application.as_ref().map_err(Clone::clone)?)
             .ok_or("boundary lost its exact declaration ABI")?
             .identity(&self.identities)

@@ -621,7 +621,7 @@ fn validate_reference_origin_path(
             (StructuralPathSegment::Case(_), _) => {
                 return malformed("structural case path requires its payload field");
             }
-            (StructuralPathSegment::FixedByteRange { .. }, _) => {
+            (StructuralPathSegment::FixedRange { .. }, _) => {
                 return malformed("fixed byte ranges require call-scoped byte-view custody");
             }
             (StructuralPathSegment::Referent, StructuralTypeShape::Reference { referent, .. }) => {

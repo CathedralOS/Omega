@@ -457,11 +457,11 @@ impl Checker<'_> {
         region: terminal_psi::ElementViewRegion,
         access: terminal_psi::StructuralAccess,
     ) -> bool {
-        // A borrowed byte view carries a `FixedByteRange` window over the
+        // A borrowed byte view carries a `FixedRange` window over the
         // fixed array its collection path names: the window bounds the array and
         // its width is the descriptor's extent.
         let (collection_path, byte_window) = match path.last() {
-            Some(terminal_psi::StructuralPathSegment::FixedByteRange { start, end }) => {
+            Some(terminal_psi::StructuralPathSegment::FixedRange { start, end }) => {
                 (&path[..path.len() - 1], Some((*start, *end)))
             }
             _ => (path, None),

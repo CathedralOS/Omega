@@ -37,7 +37,7 @@
 //!   row, so it reaches the named leaf only while that leaf's family is the
 //!   selected realization, the same premise the intrinsic route carries.
 //! - A machine holding provider fields cannot yet make a projected leaf call:
-//!   stage 05 and Terminal verification count every signature-directed
+//!   stage 06 and Terminal verification count every signature-directed
 //!   boundary call there as a provider-field obligation.
 
 use language_semantics::MachineSupplyMode;

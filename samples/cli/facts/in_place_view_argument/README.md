@@ -68,7 +68,7 @@ local owns a statement loan.
   still rejects (`receives packet as both mutable and read-only`).
 - **Composition:** the requirement is proved at the call from the constructed
   argument's field; match arms each establish their own backing.
-- **Psi 05–07 / Omega 00–09:** each positive executes through Terminal Psi and
+- **Psi 06–08 / Omega 00–09:** each positive executes through Terminal Psi and
   the Linux x86-64 native image with exit 0 (`omega run --both`).
 
 All four hosted `ProgramEntry` rows are authored; executions were observed on

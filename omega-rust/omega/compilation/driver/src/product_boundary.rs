@@ -313,7 +313,7 @@ fn checked_operator_choice_consumes_retained_candidates() {
 #[test]
 fn issuer_identities_precede_occurrence_production() {
     let preparation = include_str!(
-        "../../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees/src/semantic/facts.rs"
+        "../../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/semantic/facts.rs"
     );
     assert_in_order(
         preparation,
@@ -840,7 +840,7 @@ fn selected_callback_custody_carries_declarations_not_source_symbols() {
         &["checked_trees", "typed_trees", "psi_terminal_production"],
     );
     let declarations = include_str!(
-        "../../../../psi/compilation/pipeline/05_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
+        "../../../../psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/external_provider_declarations/callbacks.rs"
     );
     assert!(declarations.contains("checked.callback_declaration(usage)"));
     assert!(declarations.contains("declarations::identity("));

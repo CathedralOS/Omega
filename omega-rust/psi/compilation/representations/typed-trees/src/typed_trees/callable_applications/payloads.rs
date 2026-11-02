@@ -252,6 +252,15 @@ impl CallableApplication {
                             }
                         }
                     }
+                    // Computed extents retain a typed ConstExpression graph.
+                    // Apply the same simultaneous type/expression substitution
+                    // as an ordinary const payload; copying only the array node
+                    // left its captured declaration binders unapplied.
+                    types::FixedArrayLength::Expression(reference) => {
+                        types::FixedArrayLength::Expression(
+                            self.type_reference(program, reference)?,
+                        )
+                    }
                     length => length,
                 };
                 types::TypeReferenceNode::FixedArray {

@@ -48,7 +48,7 @@ or wrong cases, unformed subtraction, and cycles without strict descent.
   Exact arithmetic requires observed operands before adding their bare-carrier
   bounds. Unknown origins and unmatched further reference loads remain unknown.
   Formation, effects, loans, case classification and termination stay separate.
-- Psi 05–07: source checking preserves the active payload and explicit reference
+- Psi 06–08: source checking preserves the active payload and explicit reference
   crossing into canonical Terminal Psi; both interpretable counter paths and
   all canary/writeback checks use the original program.
 - Omega 00–02: ordinary variant layout, explicit reference carriers and calling

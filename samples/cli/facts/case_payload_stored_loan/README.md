@@ -117,7 +117,7 @@ arm's constructed or unresolved origin.
   permission. Descriptor replacement retires its own current carrier, not its
   referent or independent copies. No erased mathematics or new proof rule is
   introduced.
-- **Psi 05–07:** the admitted programs must publish canonical Terminal Psi and
+- **Psi 06–08:** the admitted programs must publish canonical Terminal Psi and
   execute its actual loan, call, state and cleanup operations through `--both`.
   A source check or native-only result is not acceptance.
 - **Omega 00–02:** Build entry settlement, tagged payload/record/array layouts

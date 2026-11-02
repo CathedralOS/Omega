@@ -1,7 +1,7 @@
-# Route coverage witnesses for stage 04 exit `ensures` (tools/architecture_signals.py --coverage).
+# Route coverage witnesses for stage 05 exit `ensures` (tools/architecture_signals.py --coverage).
 # 91 pass fixtures. Chosen from the 2026-11-01 reverse-sweep trace at 931b262696f, which evaluated
-# every stage-04 exit route on 2,742 accepted fixtures: for each route set that was the only
-# stage-04 proof of some fact (result_domain, semantic, cyclic_header, collection_premises,
+# every stage-05 exit route on 2,742 accepted fixtures: for each route set that was the only
+# stage-05 proof of some fact (result_domain, semantic, cyclic_header, collection_premises,
 # transparent_proposition, content_preservation, scalars and their combinations), the first
 # fixtures in name order; then the provider_contract_endpoint fixtures that publish recipe
 # obligations and six saved_observation_snapshot places. Paths are relative to tests/omega.

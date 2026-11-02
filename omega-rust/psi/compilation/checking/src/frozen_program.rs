@@ -1,6 +1,6 @@
 //! Invocation-owned memos over the immutable program being checked.
 //!
-//! Stage 04 borrows its prepared typed program in CheckingContext at the frozen
+//! Stage 05 borrows its prepared typed program in CheckingContext at the frozen
 //! boundary. Read-only checking inputs carry that context through every query;
 //! neither a thread's current scope nor a program address finds it. Queries on
 //! bare TypedTrees remain one-shot, so mutation passes cannot borrow frozen

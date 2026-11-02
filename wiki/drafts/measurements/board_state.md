@@ -192,7 +192,7 @@ reason to restore a Rust test target.
 
 | cited path | recoverable from a worktree |
 | --- | --- |
-| `05_checked-trees-to-lowered-psi/tests/non_byte_borrowed_view_admission.rs` | NO — nowhere |
+| `06_checked-trees-to-lowered-psi/tests/non_byte_borrowed_view_admission.rs` | NO — nowhere |
 | `calling_policy_plans/opaque_boundaries.rs` | yes |
 | `canary_suite/inline_asm.rs` | yes |
 | `compiler/tests/access_plans/source_access_policies.rs` | yes |

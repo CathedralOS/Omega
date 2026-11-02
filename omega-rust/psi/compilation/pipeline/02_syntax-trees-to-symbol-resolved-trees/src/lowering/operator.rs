@@ -41,26 +41,19 @@ pub(crate) fn lower_operator_definition(
 }
 
 /// Whether a `machine` item is a top-level token-bearing boundary signature
-/// (`boundary machine + Owner::name(...);`): bodyless, boundary, tokened, and
-/// not the explicit `boundary requirement` form.
+/// (`boundary machine + Owner::name(...);`): bodyless, boundary and tokened.
 pub(crate) fn is_token_bearing_boundary_signature(machine: &syntax::item::Machine) -> bool {
-    machine.boundary
-        && machine.bodyless
-        && machine.spelling.is_some()
-        && !machine.is_top_level_boundary_requirement
+    machine.boundary && machine.bodyless && machine.spelling.is_some()
 }
 
 /// Whether a `machine` item is a bare bodyless signature: no body, not
-/// boundary, no `satisfies`/`via`, and not the explicit `boundary requirement`
-/// form, with or without a fixed token. The item parser admits the shape;
+/// boundary, no `satisfies`/`via`, with or without a fixed
+/// token. The item parser admits the shape;
 /// only an exact compiler-catalog primitive may own it, so a token-bearing
 /// declaration (`machine + Owner::name(...);`) rejects here with the same
 /// missing-body guidance rather than lowering as an unsupplied checked body.
 pub(crate) fn is_bare_bodyless_signature(machine: &syntax::item::Machine) -> bool {
-    machine.bodyless
-        && !machine.boundary
-        && machine.satisfies.is_empty()
-        && !machine.is_top_level_boundary_requirement
+    machine.bodyless && !machine.boundary && machine.satisfies.is_empty()
 }
 
 /// The compiler catalog's exact identity for a bare bodyless signature, or

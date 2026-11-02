@@ -734,7 +734,7 @@ pub fn prove_ranking_range_entry_with_formation(
     measure: RankingRangeMeasure,
 ) -> Option<RankingRangeEntryProof> {
     // Without an authored range, a bounded distance produces the saturating
-    // natural distance (stage 05 emits `MAX - lower`), so an entry whose
+    // natural distance (stage 06 emits `MAX - lower`), so an entry whose
     // cursor already passed its bound is still a member: such a loop exits on
     // its first guard. The raw `upper - lower >= 0` test is the clamped tier's
     // job, not an entry obligation. Formation still has to succeed, and every

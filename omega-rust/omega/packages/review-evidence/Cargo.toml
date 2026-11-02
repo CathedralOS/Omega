@@ -32,6 +32,6 @@ numerics = { path = "../../../psi/foundation/numerics" }
 source = { path = "../../../psi/foundation/source" }
 symbols = { path = "../../../psi/foundation/symbols" }
 typed-trees = { path = "../../../psi/compilation/representations/typed-trees" }
-typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/04_typed-trees-to-checked-trees" }
+typed-trees-to-checked-trees = { path = "../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees" }
 validation = { path = "../../../psi/compilation/checking" }
 

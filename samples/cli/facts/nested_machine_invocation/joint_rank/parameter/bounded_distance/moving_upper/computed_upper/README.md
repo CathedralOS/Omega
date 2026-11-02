@@ -45,7 +45,7 @@ handling in the whole-expression builder is removed.
   complete values and retain their own entry/call/cast receipts.
 - Soundness: missing, ambiguous or incompatible bound inputs cannot select an
   ordinary parameter as a fallback. Geometry supplies no dynamic-index receipt.
-- Psi 05–07: the ordinary scalar graph produces the actual computed upper and
+- Psi 06–08: the ordinary scalar graph produces the actual computed upper and
   its exact difference, preserving the retained rank inputs through Terminal.
 - Omega 00–02: every positive binds the four hosted entries and follows the
   existing explicit-argument calling plans; this repair changes no ABI schema.

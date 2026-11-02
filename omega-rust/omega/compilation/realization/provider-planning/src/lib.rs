@@ -78,7 +78,6 @@ pub use provider_planning::{
 };
 pub(crate) use provider_planning::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
-    selected_provider_plan_facts_with_independent_components,
 };
 pub(crate) use provider_planning::{
     extract_native_external_binding_rows, validate_selected_synchronous_invocation_cycles,

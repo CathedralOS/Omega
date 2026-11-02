@@ -466,6 +466,11 @@ impl Equality<'_, '_> {
 
     fn reference(&mut self, left: &TypeReference, right: &TypeReference) -> bool {
         match (left, right) {
+            // An alias retains its original application for independent
+            // argument formation, but the generated carrier rejoins its
+            // already-expanded type rather than a nominal alias identity.
+            (TypeReference::AliasUse { expansion, .. }, right) => self.reference(expansion, right),
+            (left, TypeReference::AliasUse { expansion, .. }) => self.reference(left, expansion),
             (
                 TypeReference::Named {
                     symbol: left,
@@ -517,6 +522,9 @@ impl Equality<'_, '_> {
                         FixedArrayLength::ConstParameter { symbol: left, .. },
                         FixedArrayLength::ConstParameter { symbol: right, .. },
                     ) => self.live(*left) && left == right,
+                    (FixedArrayLength::Expression(left), FixedArrayLength::Expression(right)) => {
+                        self.child(*left, *right)
+                    }
                     _ => false,
                 };
                 length && self.child(left.element_type, right.element_type)

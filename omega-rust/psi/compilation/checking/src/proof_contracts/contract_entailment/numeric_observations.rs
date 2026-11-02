@@ -246,7 +246,7 @@ fn collect_state_numeric_observations_batch(
     let mut statement_results = vec![Vec::new(); statements.len()];
     let mut state_candidates = Vec::new();
 
-    let _scan_guard = phase_profile::guard("05.num.1_scan");
+    let _scan_guard = phase_profile::guard("psi.05.numeric.scan");
     let mut statement_has_integer_read = vec![false; statements.len()];
     for (index, statement) in statements.iter().enumerate() {
         if !demand.scalar_values.requested() && !needs_relations {
@@ -376,7 +376,7 @@ fn collect_state_numeric_observations_batch(
     if visitors.is_empty() {
         return results;
     }
-    let valid = phase_profile::scope("05.num.2_observe_prefixes", || {
+    let valid = phase_profile::scope("psi.05.numeric.observe_prefixes", || {
         let mut refs: Vec<&mut dyn StructuralPrefixVisitor> = visitors
             .iter_mut()
             .map(|visitor| visitor as &mut dyn StructuralPrefixVisitor)
@@ -699,7 +699,7 @@ impl Observations {
         {
             return;
         }
-        let _reads_guard = phase_profile::guard("05.num.assoc.1_reads");
+        let _reads_guard = phase_profile::guard("psi.05.numeric.assoc.reads");
         let mut current_reads = Vec::new();
         for (read, value) in judge.current_scalar_reads() {
             let Some(carrier) =
@@ -723,7 +723,7 @@ impl Observations {
             }
             return;
         }
-        let _build_guard = phase_profile::guard("05.num.assoc.2_build_preds");
+        let _build_guard = phase_profile::guard("psi.05.numeric.assoc.build_preds");
         let has_no_rewrites_or_subs = judge.has_no_rewrites_or_substitutions();
         let mut consistent_premise_atoms: Option<Option<Vec<StructuralTerm>>> = None;
         let is_simple_leaf = |term: &StructuralTerm| {
@@ -829,7 +829,7 @@ impl Observations {
         }
         drop(_build_guard);
         if !predicates.is_empty() {
-            let proven_list = phase_profile::scope("05.num.assoc.3_prove", || {
+            let proven_list = phase_profile::scope("psi.05.numeric.assoc.prove", || {
                 judge.prove_observed_predicates(&predicates, 0)
             });
             for ((position, read_index), proven) in destinations.into_iter().zip(proven_list) {

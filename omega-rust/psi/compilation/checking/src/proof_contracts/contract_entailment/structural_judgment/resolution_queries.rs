@@ -295,11 +295,11 @@ impl<'program> StructuralJudge<'program> {
             }
             phase_profile::count(
                 match kind {
-                    StructuralQueryKind::Resolution => "05.resolution.completed.hit",
+                    StructuralQueryKind::Resolution => "psi.05.resolution.completed.hit",
                     StructuralQueryKind::IntegerProjection => {
-                        "05.resolution.integer_projection.hit"
+                        "psi.05.resolution.integer_projection.hit"
                     }
-                    StructuralQueryKind::Predicate => "05.resolution.predicate.hit",
+                    StructuralQueryKind::Predicate => "psi.05.resolution.predicate.hit",
                 },
                 1,
             );
@@ -307,9 +307,9 @@ impl<'program> StructuralJudge<'program> {
         }
         phase_profile::count(
             match kind {
-                StructuralQueryKind::Resolution => "05.resolution.completed.miss",
-                StructuralQueryKind::IntegerProjection => "05.resolution.integer_projection.miss",
-                StructuralQueryKind::Predicate => "05.resolution.predicate.miss",
+                StructuralQueryKind::Resolution => "psi.05.resolution.completed.miss",
+                StructuralQueryKind::IntegerProjection => "psi.05.resolution.integer_projection.miss",
+                StructuralQueryKind::Predicate => "psi.05.resolution.predicate.miss",
             },
             1,
         );
@@ -331,7 +331,7 @@ impl<'program> StructuralJudge<'program> {
             .ok()
             .and_then(|reads| reads.clone());
         if let Some(reads) = reads {
-            phase_profile::count("05.resolution.dependencies.retained", reads.len() as u64);
+            phase_profile::count("psi.05.resolution.dependencies.retained", reads.len() as u64);
             if let Ok(mut cache) = cache.lock() {
                 cache.insert(CompletedResolution {
                     fingerprint,
@@ -345,7 +345,7 @@ impl<'program> StructuralJudge<'program> {
                 });
             }
         } else {
-            phase_profile::count("05.resolution.dependencies.unavailable", 1);
+            phase_profile::count("psi.05.resolution.dependencies.unavailable", 1);
         }
         value
     }

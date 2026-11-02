@@ -41,7 +41,7 @@ the match place checks both selector arms, the field place checks neighbors
 - **Identity and lifetime:** exact captured ordinary operands substitute the public formals, independently of private binder spelling or selected implementation.
 - **Composition:** the same selector and arithmetic implication survive local/field/parameter storage, call result, both joins, constant, nested machine, forwarding machine and Build-selected target.
 - **Soundness:** widening the caller admits a counterexample; the selected requirement remains mandatory even for the actual valid entry.
-- **Psi 05–07:** precondition arithmetic erases after proof; selector/data lanes, addition and consuming subtraction reach executable Terminal Psi.
+- **Psi 06–08:** precondition arithmetic erases after proof; selector/data lanes, addition and consuming subtraction reach executable Terminal Psi.
 - **Omega 00–02:** ordinary u64 arguments/results, two-row selector tables, record neighbors and four hosted entry plans retain their layouts and call shapes.
 - **Omega 03–06:** dynamic calls, integer register homes and live marker/neighbor values must preserve 100 and the selected marker.
 - **Omega 07–09 and emission:** complete images and row relocations must execute with matching native and Terminal exit/crash oracles.

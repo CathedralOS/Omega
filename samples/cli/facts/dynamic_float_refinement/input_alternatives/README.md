@@ -64,7 +64,7 @@ strictly below that endpoint and must reject the admitted `0.25`.
 - **Identity and lifetime:** exact completed operands and IEEE formats survive definition unfolding, selector forwarding and storage; no branch supplies a new observation authority.
 - **Composition:** local, field, parameter, call result, both joins, constant, nested machine, forwarding machine and Build-selected target carry the same selector and contract.
 - **Soundness:** one outside alternative, NaN, false order, format rounding and strict endpoints retain their own refusal boundaries; wanted conclusions do not form operands.
-- **Psi 05–07:** proof worlds erase; ordinary float operands and separate selector lanes produce executable Terminal Psi.
+- **Psi 06–08:** proof worlds erase; ordinary float operands and separate selector lanes produce executable Terminal Psi.
 - **Omega 00–02:** existing row, float argument/result, record and calling plans realize the same public shape on each authored hosted entry.
 - **Omega 03–06:** selected calls, float registers, live selectors and neighbor storage must preserve the observed quarter and marker.
 - **Omega 07–09 and emission:** image encoding and dispatch relocations must execute with matching native and Terminal crash/exit oracles.

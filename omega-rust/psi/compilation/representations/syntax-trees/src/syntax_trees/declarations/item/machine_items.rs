@@ -44,11 +44,6 @@ pub struct Machine {
     /// is a callable surface the platform (or a foreign caller) invokes; its
     /// parameters are the boundary-trusted shape over the arrival bytes.
     pub boundary: bool,
-    /// The explicit carrier-owned required-body declaration
-    /// (`boundary requirement Package::operation(...);`). This is distinct
-    /// from `boundary machine`: it declares a selectable requirement slot,
-    /// not an exported callable or admission-bearing bodyless claim.
-    pub is_top_level_boundary_requirement: bool,
     /// Erased borrow-region parameters declared in the shared `<>` list.
     pub lifetime_parameters: Vec<Identifier>,
     pub type_parameters: HandleSpan<TypeParameter>,

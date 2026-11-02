@@ -165,7 +165,7 @@ base read 46 fixtures with 0 structural moves.
    host presentation agreement. The mixed-format control fails closed at
    checking, so the route cannot silently absorb an operand outside its
    declared format.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** The declared comparison
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The declared comparison
    lowers without loss to target-neutral Terminal Psi (`PSITERM\0`) as
    `IeeeFloatCompare { comparison: Equal }` in every place, proof-only float
    meaning terms are erased, and the Terminal Psi interpreter executes every
