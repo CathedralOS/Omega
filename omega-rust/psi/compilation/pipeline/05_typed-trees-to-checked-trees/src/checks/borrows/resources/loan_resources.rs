@@ -182,15 +182,8 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                                     validation::find_state(program, state.state_symbol)
                                 {
                                     drift.message.push_str(&format!(
-                                        "; source scope {}::{}; transition statements {:?}",
-                                        machine.name,
-                                        source_state.name,
-                                        program
-                                            .statement_table
-                                            .statements(source_state.statement_nodes)
-                                            .iter()
-                                            .map(|statement| statement.as_transition().is_some())
-                                            .collect::<Vec<_>>()
+                                        "; source scope {}::{}",
+                                        machine.name, source_state.name
                                     ));
                                 }
                                 diagnostics.push(drift);
@@ -251,15 +244,8 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                                     validation::find_state(program, state.state_symbol)
                                 {
                                     drift.message.push_str(&format!(
-                                        "; source scope {}::{}; transition statements {:?}",
-                                        machine.name,
-                                        source_state.name,
-                                        program
-                                            .statement_table
-                                            .statements(source_state.statement_nodes)
-                                            .iter()
-                                            .map(|statement| statement.as_transition().is_some())
-                                            .collect::<Vec<_>>()
+                                        "; source scope {}::{}",
+                                        machine.name, source_state.name
                                     ));
                                 }
                                 diagnostics.push(drift);

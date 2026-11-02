@@ -129,62 +129,22 @@ pub(crate) fn exact_loan_lifecycle_rows(
         .filter_map(|(offset, _)| span_handle(flow_state.borrow_weakenings, offset))
         .collect::<Vec<_>>();
     let ([activation], [weakening]) = (activations.as_slice(), weakenings.as_slice()) else {
-        let held = |constraints| {
-            flow.contexts
-                .constraint_refs
-                .span_or_empty(constraints)
-                .iter()
-                .any(|reference| {
-                    matches!(reference.kind, checked_trees::FlowConstraintKind::BorrowLoan { loan: candidate } if candidate == loan)
-                })
-        };
-        let statement_cuts = flow
-            .control
-            .statements
-            .span_or_empty(flow_state.statements)
-            .iter()
-            .map(|statement| {
-                (
-                    statement.statement_index,
-                    held(statement.entry_constraints),
-                    held(statement.pre_store_constraints),
-                )
-            })
-            .collect::<Vec<_>>();
-        let call_cuts = flow
-            .control
-            .calls
-            .span_or_empty(flow_state.calls)
-            .iter()
-            .map(|call| {
-                (
-                    call.statement_index,
-                    call.target_symbol,
-                    held(call.entry_constraints),
-                    held(call.exit_constraints),
-                )
-            })
-            .collect::<Vec<_>>();
-        let exit_cuts = flow
-            .control
-            .exits
-            .span_or_empty(flow_state.exits)
-            .iter()
-            .map(|exit| (exit.statement_index, held(exit.entry_constraints)))
-            .collect::<Vec<_>>();
         return Err(Diagnostic::error(format!(
             "checked borrow resource requires exactly one activation and one weakening \
              (state {:?}, loan {:?}, formation statement {formation_statement}, \
-             activations {}, weakenings {}; loan facts {loan_fact:?}; incoming {:?}; \
-             statement cuts {statement_cuts:?}; call cuts {call_cuts:?}; exit cuts {exit_cuts:?})",
+             last use {}, activations {}, weakenings {}, origin {:?})",
             flow_state.state_symbol,
             loan,
+            loan_fact.last_use_statement_index,
             activations.len(),
             weakenings.len(),
             borrow
                 .incoming_references
                 .is_valid(loan_fact.incoming_reference)
-                .then(|| borrow.incoming_references.get(loan_fact.incoming_reference)),
+                .then(|| borrow
+                    .incoming_references
+                    .get(loan_fact.incoming_reference)
+                    .origin),
         )));
     };
     if flow.borrow_lifetimes.activations.get(*activation).source
