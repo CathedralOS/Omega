@@ -1,4 +1,5 @@
-//! A state edge may retain a local home through a stored reference. Follow the
+//! A completing invocation may retain a local home through a stored reference.
+//! Follow the
 //! exact carried source through every successor slot/copy until replacement or
 //! last transfer. A normal exit cannot export it, and a loop cannot establish
 //! the same home again while an earlier generation is still carried.
@@ -7,6 +8,7 @@ use super::*;
 
 #[derive(Clone, PartialEq, Eq)]
 struct Arrival {
+    machine: SymbolHandle,
     state: SymbolHandle,
     slots: Vec<FrameSourcePlace>,
 }
@@ -38,7 +40,7 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         .statement_table
         .statements(source.statement_nodes)
         .get(statement_index)?;
-    let completed = expression_effects::completed_targets(
+    let completed = expression_effects::prepare_normal_exits(
         program,
         machine,
         source,
@@ -48,13 +50,9 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         &mut inference,
     )?;
     let mut arrivals = completed.iter().filter(|completed| {
-        super::super::transition_topology::named_transition_target_state(
-            program,
-            machine,
-            source,
-            completed.target,
-        )
-        .is_some_and(|candidate| candidate.symbol == target.symbol)
+        completed
+            .arrival
+            .is_some_and(|(_, candidate)| candidate.symbol == target.symbol)
             && completed.arguments.len() == arguments.len()
             && completed
                 .arguments
@@ -66,6 +64,7 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
     if arrivals.next().is_some() {
         return None;
     }
+    let (target_machine, target) = arrival.arrival?;
     let slots = transferred_slots(
         program,
         machine,
@@ -76,6 +75,7 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         symbols,
     )?;
     let mut pending = vec![Arrival {
+        machine: target_machine.symbol,
         state: target.symbol,
         slots,
     }];
@@ -86,6 +86,9 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         if arrival.slots.is_empty() {
             continue;
         }
+        // Lexical nesting does not put the callee in its caller's state table.
+        // Follow the same concrete invocation graph used by normal-exit frames.
+        let machine = program.machine_by_symbol(arrival.machine)?;
         let state = program.state_in_machine(machine, arrival.state)?;
         let (last, prefixes) =
             stored_reference_transfer(program, machine, state, symbols, &mut inference)?;
@@ -109,7 +112,7 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
             if transition.exit != TransitionExit::Ordinary {
                 continue;
             }
-            let completed = expression_effects::completed_targets(
+            let completed = expression_effects::prepare_normal_exits(
                 program,
                 machine,
                 state,
@@ -118,44 +121,20 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
                 symbols,
                 &mut inference,
             )?;
-            for edge in transition.targets() {
-                let edge_value = completed
-                    .iter()
-                    .find(|completed| completed.target == edge)?;
-                let (target, arguments) = match program.statement_table.transition_target(edge) {
-                    TransitionTargetNode::Named { arguments, .. } => {
-                        if super::super::terminal_calls::target(program, machine, edge).is_valid() {
-                            return None;
-                        }
-                        (
-                            super::super::transition_topology::named_transition_target_state(
-                                program, machine, state, edge,
-                            )?,
-                            program.statement_table.expression_handles(*arguments),
-                        )
-                    }
-                    TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
-                        check_exit(program, state, &prefix.stored, &arrival.slots)?;
-                        continue;
-                    }
+            for exit in completed {
+                let Some((target_machine, target)) = exit.arrival else {
+                    check_exit(program, state, &exit.context.stored, &arrival.slots)?;
+                    continue;
                 };
-                if edge_value.arguments.len() != arguments.len()
-                    || edge_value
-                        .arguments
-                        .iter()
-                        .zip(arguments)
-                        .any(|(captured, expression)| captured.expression != *expression)
-                {
-                    return None;
-                }
                 let next = Arrival {
+                    machine: target_machine.symbol,
                     state: target.symbol,
                     slots: transferred_slots(
                         program,
                         machine,
                         target,
-                        &edge_value.arguments,
-                        &edge_value.context,
+                        &exit.arguments,
+                        &exit.context,
                         &arrival.slots,
                         symbols,
                     )?,
