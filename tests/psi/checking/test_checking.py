@@ -1083,7 +1083,7 @@ def main() -> None:
     # facts and derives the crash causes the contract declares; whatever its
     # exclusive arguments reach may change. A static machine argument
     # refines the contract: its published crash causes lie within the
-    # contract's, and premises of its own reject as unsupported.
+    # contract's, and its premises must follow from the contract's.
     accepted(
         program,
         "binder-call-proves-its-contract",
@@ -1152,11 +1152,11 @@ def main() -> None:
     )
     rejected(
         program,
-        "static-machine-argument-premises-are-unsupported",
+        "static-machine-argument-premises-are-not-implied",
         b"machine positive(x: u64) -> u64\nrequires x > 0\n{ x }\n"
         b"machine apply<machine F>(x: u64) -> u64\nrequires machine F(value: u64) -> u64;\n{ F(x) }\n"
         b"machine outer(x: u64) -> u64 { apply<positive>(x) }",
-        "UnsupportedFact",
+        "RefinementUnproven",
         b"positive!2",
     )
 
@@ -1179,10 +1179,10 @@ def main() -> None:
     )
     rejected(
         program,
-        "requirement-facts-are-unsupported",
+        "requirement-guarantees-are-not-implied",
         b"trait Positive { machine get() -> u64 ensures result > 0; }\n"
         b"machine one() -> u64 satisfies Positive::get { 1 }",
-        "UnsupportedFact",
+        "RefinementUnproven",
         b"satisfies Positive::get",
     )
     # A declared domain's predicates hold of a qualified parameter and are

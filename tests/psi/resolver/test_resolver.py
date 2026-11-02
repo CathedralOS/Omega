@@ -114,10 +114,6 @@ def contract_returned_value(contract: int) -> tuple[int, int, int]:
     return (19, contract, 0)
 
 
-def data_subject(item: int) -> tuple[int, int, int]:
-    return (20, item, 0)
-
-
 def domain_subject(handle: int) -> tuple[int, int, int]:
     """A domain's subject binder in its predicates."""
     return (16, handle, 0)

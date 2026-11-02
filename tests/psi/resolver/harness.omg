@@ -601,7 +601,6 @@ crashes Trap
             ValueBinding::Field { field } -> value_tag(resolver_harness, output, index, 12, field, 0)
             ValueBinding::ReturnedValue { machine } -> value_tag(resolver_harness, output, index, 13, machine, 0)
             ValueBinding::ContractReturnedValue { contract } -> value_tag(resolver_harness, output, index, 19, contract, 0)
-            ValueBinding::DataSubject { item } -> value_tag(resolver_harness, output, index, 20, item, 0)
             ValueBinding::Proposition { proposition } -> value_tag(resolver_harness, output, index, 14, proposition, 0)
             ValueBinding::PayloadField { field } -> value_tag(resolver_harness, output, index, 15, field, 0)
             ValueBinding::DomainSubject { domain } -> value_tag(resolver_harness, output, index, 16, domain, 0)

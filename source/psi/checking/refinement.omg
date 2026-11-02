@@ -171,7 +171,7 @@ crashes Trap
 }
 
 // Retire live mutable subjects through the same settled write-frame owners
-// as ordinary calls. Owned scalar/record inputs remain immutable snapshots;
+// as ordinary calls. Owned scalar fields remain immutable snapshots;
 // an opaque forwarded supplier can change each exclusive referent whole.
 machine Checker::retire_refinement_arguments(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: &ArgumentValues)
 crashes Trap
@@ -192,8 +192,12 @@ crashes Trap
         let value: Value = arguments.values[offset];
         transition row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared && value.place > 0 {
             true -> exclusive(checker, syntax, typing, required, given, selected, arguments, offset, value.place)
-            _ -> next(checker, syntax, typing, required, given, selected, arguments, offset + 1)
+            _ -> embedded(checker, syntax, typing, required, given, selected, arguments, offset, value.place)
         }
+    }
+    machine embedded(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: &ArgumentValues, offset: u64 in Trapping, place: u64 in Trapping) {
+        Checker::retire_refinement_referents(checker, typing, place);
+        transition { _ -> next(checker, syntax, typing, required, given, selected, arguments, offset + 1) }
     }
     machine exclusive(checker: &mut Checker, syntax: &SyntaxTrees, typing: &Typing, required: CallClauses, given: CallClauses, selected: Selection, arguments: &ArgumentValues, offset: u64 in Trapping, place: u64 in Trapping) {
         Checker::retire_refinement_value(checker, typing, given, selected, offset, place);
@@ -224,3 +228,33 @@ crashes Trap
     }
 }
 
+
+// Ownership of a container does not freeze the storage its reference fields
+// reach. Retire each materialized exclusive descendant through the existing
+// place/forget owner; scalar siblings keep their incoming snapshot facts.
+// Entry facts already materialized every live subject they described. A
+// postcondition-only projection will be created with fresh carrier evidence.
+machine Checker::retire_refinement_referents(checker: &mut Checker, typing: &Typing, root: u64 in Trapping)
+crashes Trap
+{
+    transition { _ -> next(checker, typing, root, 0) }
+    machine next(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, index: u64 in Trapping) {
+        transition root > 0 && index < checker.place_count {
+            true -> candidate(checker, typing, root, index)
+            false -> {}
+        }
+    }
+    machine candidate(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, index: u64 in Trapping) {
+        let place: Place = Checker::place_at(checker, index);
+        let row: TypeRow = TypeTable::row(&typing.types, place.type_handle);
+        let contained: bool = index + 1 != root && Checker::within(checker, index + 1, root);
+        transition contained && row.kind == TypeKind::Reference && row.access != ReferenceAccess::Shared {
+            true -> forgotten(checker, typing, root, index)
+            false -> next(checker, typing, root, index + 1)
+        }
+    }
+    machine forgotten(checker: &mut Checker, typing: &Typing, root: u64 in Trapping, index: u64 in Trapping) {
+        Checker::forget_place(checker, typing, index + 1);
+        transition { _ -> next(checker, typing, root, index + 1) }
+    }
+}

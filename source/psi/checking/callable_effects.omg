@@ -153,7 +153,7 @@ crashes Trap
     }
     machine clause(syntax: &SyntaxTrees, given: CallClauses, suspends: bool, blocks: bool, offset: u64 in Trapping) -> bool {
         let row: Clause = SyntaxTrees::clause(syntax, given.first_clause + offset);
-        transition (row.kind == ClauseKind::Suspends && !suspends) || (row.kind == ClauseKind::Blocks && !blocks) || ((row.kind == ClauseKind::Reaches || row.kind == ClauseKind::Invokes) && row.argument_count > 0) {
+        transition (row.kind == ClauseKind::Suspends && !suspends) || (row.kind == ClauseKind::Blocks && !blocks) || ((row.kind == ClauseKind::Reaches || row.kind == ClauseKind::Invokes) && row.member_count > 0) {
             true -> false
             false -> next(syntax, given, suspends, blocks, offset + 1)
         }
