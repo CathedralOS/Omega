@@ -28,7 +28,7 @@ pub(super) fn prepare(
         return Ok(Vec::new());
     }
     let values = std::fs::read_to_string(&oracle).map_err(|error| error.to_string())?;
-    let program = checked.execution().provider_source.program();
+    let program = checked.source_inspection().program();
     let typed = &program.typed;
     let mut expected = Vec::new();
     for line in values.lines().filter(|line| !line.trim().is_empty()) {

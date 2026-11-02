@@ -1,8 +1,7 @@
-//! Produce one checked program with all authored roots, then admit each use.
-//!
-//! Entry selection belongs to an application, not portable production identity.
-//! The shared artifact retains every Build root independently of the requested
-//! targets. Signatures, exclusion judgments and native proposals stay per use.
+//! Reuse the published Terminal program for every target application.
+//! Each target checks its own entry, permissions and native plan. Named
+//! inspection has a separate source-producing entrance because it may request
+//! different functions from the executable program.
 
 use super::behavior_exclusions::TerminalBehaviorExclusions;
 use super::product_code::ProductCodeSource;
@@ -26,12 +25,10 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
 /// Review descriptions and new product selections supply this same view; the
 /// producer does not branch on the caller's installation history.
 pub(crate) struct TerminalProductionView<'a> {
-    program: &'a Arc<checked_trees::CheckedTrees>,
-    provider_inventory: &'a checked_trees::PreparedProviderInventory,
+    source_identity: compilation_products::ProductSourceIdentity,
     publication: &'a compilation_products::ProductTerminalPublication,
     sources: &'a package_compilation::CheckedSourceCustody,
     build: &'a compilation_products::ComputedBuildConfig,
-    provider_defaults: &'a [build_time_evaluation::provider_declarations::TargetProviderDefaults],
     provider_settlement: &'a provider_planning::ProviderSettlement,
     selected_target_profile: Option<target::TargetProfile>,
     entry: Option<&'a provider_planning::program_entry::SelectedCompilerProgramEntry>,
@@ -46,7 +43,7 @@ pub(crate) struct TerminalProductionView<'a> {
 
 impl<'a> TerminalProductionView<'a> {
     fn shares_source(&self, other: &Self) -> bool {
-        Arc::ptr_eq(self.program, other.program) && self.sources == other.sources
+        self.source_identity.same_source(&other.source_identity) && self.sources == other.sources
     }
 
     pub(crate) fn selection(
@@ -56,17 +53,17 @@ impl<'a> TerminalProductionView<'a> {
         >,
     ) -> Self {
         Self {
-            program: selection.execution.provider_source.program(),
-            provider_inventory: selection.execution.provider_source.inventory(),
+            source_identity: compilation_products::ProductSourceIdentity::new(
+                selection.source_inspection.program(),
+            ),
             publication: &selection.terminal_publication,
             sources: &selection.sources,
             build: &selection.build,
-            provider_defaults: &selection.provider_defaults,
             provider_settlement: &selection.settlement,
             selected_target_profile: selection.execution.selected_target_profile,
             entry: selection.execution.selected_program_entry.as_ref(),
             provenance: &selection.execution.selected_provider_provenance,
-            plan_facts: selection.execution.provider_source.plans(),
+            plan_facts: selection.execution.plans(),
             native_sources: &selection.execution.native_provider_sources,
             callbacks: &selection.execution.callback_roots,
             timings: &mut selection.timings,
@@ -79,32 +76,21 @@ impl<'a> TerminalProductionView<'a> {
         timings: &'a mut CompileTimings,
     ) -> Self {
         Self {
-            program: checked.execution().provider_source.program(),
-            provider_inventory: checked.execution().provider_source.inventory(),
+            source_identity: compilation_products::ProductSourceIdentity::new(
+                checked.source_inspection().program(),
+            ),
             publication: checked.terminal_publication(),
             sources: checked.sources(),
             build: checked.build(),
-            provider_defaults: checked.provider_defaults(),
             provider_settlement: checked.providers(),
             selected_target_profile: checked.execution().selected_target_profile,
             entry: checked.execution().selected_program_entry.as_ref(),
             provenance: &checked.execution().selected_provider_provenance,
-            plan_facts: checked.execution().provider_source.plans(),
+            plan_facts: checked.execution().plans(),
             native_sources: &checked.execution().native_provider_sources,
             callbacks: &checked.execution().callback_roots,
             timings,
             native_components: None,
-        }
-    }
-
-    fn code_source(&self) -> ProductCodeSource<'_> {
-        ProductCodeSource {
-            program: self.program,
-            inventory: self.provider_inventory,
-            sources: self.sources,
-            build: self.build,
-            defaults: self.provider_defaults,
-            publication: self.publication,
         }
     }
 }
@@ -115,11 +101,70 @@ pub(crate) struct TerminalProductRequest<'a> {
     pub use_kind: TerminalProductUse<'a>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy)]
 pub(crate) enum TerminalProductUse<'a> {
     Declarations,
-    Inspection(&'a str),
+    Inspection {
+        name: &'a str,
+        source: ProductCodeSource<'a>,
+    },
     Application,
+}
+
+impl PartialEq for TerminalProductUse<'_> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Declarations, Self::Declarations) | (Self::Application, Self::Application) => {
+                true
+            }
+            (Self::Inspection { name: left, .. }, Self::Inspection { name: right, .. }) => {
+                left == right
+            }
+            _ => false,
+        }
+    }
+}
+impl Eq for TerminalProductUse<'_> {}
+
+impl<'a> TerminalProductRequest<'a> {
+    /// Named inspection may choose different roots. Keep its source-producing
+    /// entrance explicit; ordinary target requests can only read published code.
+    pub(crate) fn inspection(
+        selection: &'a mut SelectedProviderCustody,
+        name: &'a str,
+        selections: &'a OptimizationSelections,
+    ) -> Self {
+        let source = ProductCodeSource {
+            program: selection.source_inspection.program(),
+            inventory: selection.source_inspection.inventory(),
+            sources: &selection.sources,
+            build: &selection.build,
+            defaults: &selection.provider_defaults,
+            publication: &selection.terminal_publication,
+        };
+        let view = TerminalProductionView {
+            source_identity: compilation_products::ProductSourceIdentity::new(
+                selection.source_inspection.program(),
+            ),
+            publication: &selection.terminal_publication,
+            sources: &selection.sources,
+            build: &selection.build,
+            provider_settlement: &selection.settlement,
+            selected_target_profile: selection.execution.selected_target_profile,
+            entry: selection.execution.selected_program_entry.as_ref(),
+            provenance: &selection.execution.selected_provider_provenance,
+            plan_facts: selection.execution.plans(),
+            native_sources: &selection.execution.native_provider_sources,
+            callbacks: &selection.execution.callback_roots,
+            timings: &mut selection.timings,
+            native_components: None,
+        };
+        Self {
+            view,
+            selections,
+            use_kind: TerminalProductUse::Inspection { name, source },
+        }
+    }
 }
 
 pub(crate) enum ProducedTerminalProduct {
@@ -449,10 +494,9 @@ fn produce_shared_terminal(
 ) -> Result<Arc<psi_compiler::PortableTerminalProgram>, Vec<Diagnostic>> {
     let first = &cohort[0];
     let view = &first.request.view;
-    let code = view.code_source();
-    let mut observer = PsiStageTimings::new(timings);
-    if let TerminalProductUse::Inspection(name) = first.request.use_kind {
-        return code.inspect(name, first.request.selections, &mut observer);
+    if let TerminalProductUse::Inspection { name, source } = first.request.use_kind {
+        let mut observer = PsiStageTimings::new(timings);
+        return source.inspect(name, first.request.selections, &mut observer);
     }
     if first.request.use_kind == TerminalProductUse::Application
         && view.build.config.program_roots().is_empty()
@@ -461,7 +505,7 @@ fn produce_shared_terminal(
             "executable Terminal production has no authored ProgramEntry root",
         )]);
     }
-    code.publish(first.request.selections, &mut observer)
+    view.publication.require_published(first.request.selections)
 }
 
 /// Bare Terminal publication still has no component process carrier. A native
@@ -502,7 +546,7 @@ fn prepare_target_provider_publication(
     requested_scopes: &[String],
 ) -> provider_planning::target_machines::PreparedTargetProviderPublication {
     let selected = match use_kind {
-        TerminalProductUse::Inspection(_) => None,
+        TerminalProductUse::Inspection { .. } => None,
         _ => Some(&source.provider_settlement.selected_provider_publication),
     };
     source.provider_settlement.provider_publication.prepare(
@@ -518,14 +562,7 @@ fn prepare_target_provider_publication(
 pub(crate) fn check_terminal_conditions(
     selection: &mut SelectedProviderCustody,
 ) -> Result<Option<ProducedTerminalProduct>, Vec<Diagnostic>> {
-    if !selection
-        .execution
-        .provider_source
-        .program()
-        .facts
-        .proof_applications
-        .has_obligations
-    {
+    if !selection.execution.has_proof_obligations {
         return Ok(None);
     }
     let selections = selection.terminal_publication.optimizations().clone();

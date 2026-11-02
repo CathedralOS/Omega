@@ -34,6 +34,7 @@ pub(crate) struct SelectedProviderCustody {
     pub(crate) terminal_publication: Arc<compilation_products::ProductTerminalPublication>,
     pub(crate) source_completion_accounting: build_time_evaluation::SourceCompletionAccounting,
     pub(crate) execution: SelectedExecution,
+    pub(crate) source_inspection: Arc<provider_planning::SelectedProviderSource>,
     pub(crate) settlement: provider_planning::ProviderSettlement,
     pub(crate) build: Arc<compilation_products::ComputedBuildConfig>,
     pub(crate) build_admission: BuildAdmission,
@@ -132,7 +133,7 @@ impl SelectedProductTarget {
         }
 
         let execution = &self.custody.execution;
-        let facts = execution.provider_source.plans();
+        let facts = execution.plans();
         let mut receiving_identities = None;
         let mut selected_components = Vec::new();
         let mut unavailable = None;
@@ -249,35 +250,21 @@ impl SelectedProductTarget {
         &self,
         terminal: Option<&terminal_psi::TerminalModule>,
     ) -> Result<(), Vec<Diagnostic>> {
-        // A source-only stop owes selected-instance coverage without native
-        // realization. Executable products obtain it from Terminal instead.
+        // Selection already published Terminal, even when no proof condition
+        // needed evaluation. Read its task demands instead of lowering source again.
         let execution = &self.custody.execution;
-        match terminal {
-            Some(module) => check_terminal_task_activations(
-                module,
-                execution.provider_source.plans(),
-                execution.selected_target_profile,
-            ),
-            None => {
-                // A declaration-only stop may deliberately avoid publication.
-                // Project only there; every published product already carries
-                // this complete source obligation bundle, including inert uses.
-                let mut identities = terminal_psi::TerminalIdentityTableBuilder::default();
-                let demands = psi_compiler::lower_task_activation_demands(
-                    execution.provider_source.program(),
-                    &mut identities,
-                )?;
-                task_plans::realize_task_activations(
-                    &demands,
-                    &identities.build(),
-                    execution.provider_source.plans(),
-                    execution
-                        .selected_target_profile
-                        .unwrap_or_else(target::TargetProfile::host),
-                )?;
-                Ok(())
-            }
-        }
+        let module = terminal.unwrap_or_else(|| {
+            self.custody
+                .settlement
+                .calling_program
+                .artifact
+                .semantic_module()
+        });
+        check_terminal_task_activations(
+            module,
+            execution.plans(),
+            execution.selected_target_profile,
+        )
     }
 
     /// Assemble the already-prepared result. Executable products discharge task
@@ -332,6 +319,13 @@ fn select_checked_providers(
     package_inputs: Option<&PackageCompilationInputs>,
     declarations: Result<PreparedTargetDeclarations, Vec<Diagnostic>>,
     deployment: Result<(), Vec<Diagnostic>>,
+    binding_declarations: &selected_dispatch::PreparedBindingDeclarations,
+    direct_calls: Result<
+        std::sync::Arc<
+            language_semantics::direct_calls::DirectCallDeclarations<symbols::SymbolHandle>,
+        >,
+        Diagnostic,
+    >,
     timings: &mut CompileTimings,
 ) -> Result<(SelectedExecution, provider_planning::ProviderSettlement), Vec<Diagnostic>> {
     let build_config = &source.computed_build_config.config;
@@ -343,11 +337,14 @@ fn select_checked_providers(
     let PreparedTargetDeclarations {
         entry,
         providers: prepared_providers,
+        entry_service_requirements,
     } = declarations?;
     let provider_planning::CheckedProviderSelection {
         settlement: providers,
         selected_provider_plan_facts,
         selected_provider_provenance,
+        selected_declarations,
+        native_provider_sources,
     } = prepare_target_provider_selection(
         source,
         selected_target_profile,
@@ -367,7 +364,7 @@ fn select_checked_providers(
         )?;
     }
     provider_planning::target_machines::reject_reached_inert_sibling_calls(
-        one_refusal(source.provider_inventory.direct_calls_for(&source.program))?,
+        one_refusal(direct_calls)?.as_ref(),
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
         selected_program_entry
             .as_ref()
@@ -376,28 +373,26 @@ fn select_checked_providers(
     )?;
     let root_grants = build_config.root_grant_selectors();
     let providers = providers.finish_row_declarations()?;
-    let execution = prepare_selected_execution(
-        Arc::clone(&source.program),
-        ProviderBindingRequest {
-            provider_inventory: &source.provider_inventory,
-            external_declarations: source.external_declarations.as_ref(),
-            exact_toolchain_sources: source.sources.exact_toolchain_sources(),
-            package_inputs,
-            boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
-            provider_candidates: &providers.provider_candidates,
-            boundary_provider_demands: &providers.boundary_provider_demands,
-            provider_declarations: &providers.provider_declarations,
-            terminal_module: providers.calling_program.artifact.semantic_module(),
-            selected_provider_plan_facts,
-            selected_provider_provenance,
-            root_grants: &root_grants,
-            authored_root_grants: &build_config.grants,
-            provider_planning_target_profile: providers.planning_target_profile,
-            selected_target_profile,
-            selected_program_entry,
-            x86_scalar_fma_provider,
-        },
-    )?;
+    let execution = prepare_selected_execution(ProviderBindingRequest {
+        declarations: binding_declarations,
+        selected_declarations,
+        native_provider_sources,
+        entry_service_requirements,
+        package_inputs,
+        boundary_calling_plan_realizations: &providers.boundary_calling_plan_realizations,
+        provider_candidates: &providers.provider_candidates,
+        boundary_provider_demands: &providers.boundary_provider_demands,
+        provider_declarations: &providers.provider_declarations,
+        terminal_module: providers.calling_program.artifact.semantic_module(),
+        selected_provider_plan_facts,
+        selected_provider_provenance,
+        root_grants: &root_grants,
+        authored_root_grants: &build_config.grants,
+        provider_planning_target_profile: providers.planning_target_profile,
+        selected_target_profile,
+        selected_program_entry,
+        x86_scalar_fma_provider,
+    })?;
     Ok((execution, providers))
 }
 
@@ -422,7 +417,6 @@ fn prepare_target_provider_selection(
     let boundary_calling_plan_realizations = calling.evaluate(&code)?;
     deployment?;
     provider_planning::settle_checked_providers(
-        &source.program,
         selected_target_profile,
         package_inputs,
         prepared_providers,
@@ -444,6 +438,8 @@ fn select_product_providers(
         declarations,
         deployment,
         timings: preparation_timings,
+        binding_declarations,
+        direct_calls,
     } = prepared;
     let package_inputs = package_inputs.as_ref();
     let mut timings = source.timings.clone();
@@ -455,6 +451,8 @@ fn select_product_providers(
             package_inputs,
             declarations,
             deployment,
+            &binding_declarations,
+            direct_calls,
             timings,
         )
     });
@@ -465,7 +463,12 @@ fn select_product_providers(
         diagnostics
     })?;
     let (execution, settlement) = selection;
+    let source_inspection = Arc::new(provider_planning::SelectedProviderSource::new(
+        Arc::clone(&source.provider_inventory),
+        Arc::clone(&execution.selected_provider_plan_facts),
+    ));
     Ok(SelectedProviderCustody {
+        source_inspection,
         terminal_publication: Arc::clone(&source.terminal_publication),
         source_completion_accounting: source.source_completion_accounting.clone(),
         execution,
@@ -490,6 +493,7 @@ fn checked_compilation(
         terminal_publication,
         source_completion_accounting,
         execution,
+        source_inspection,
         settlement,
         build,
         build_admission,
@@ -501,6 +505,7 @@ fn checked_compilation(
     CheckedCompilation::from_settled_execution(
         CheckedCompilationInputs {
             settled: execution,
+            source_inspection,
             build,
             build_admission,
             provider_defaults,

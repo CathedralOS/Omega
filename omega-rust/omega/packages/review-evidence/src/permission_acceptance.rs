@@ -45,12 +45,7 @@ impl TerminalPermissionAcceptance {
             .selected_target_profile
             .or_evidence("assumed binding risk rows require an exact product target")?;
         let evaluated = checked.build().config.assumed_bindings.len();
-        let installed = checked
-            .execution()
-            .provider_source
-            .plans()
-            .assumed_bindings()
-            .len();
+        let installed = checked.execution().plans().assumed_bindings().len();
         if evaluated == 0 || evaluated != installed {
             return Err(vec![Diagnostic::error(
                 "assumed binding risk rows do not match the public Build evaluation",
@@ -93,13 +88,7 @@ impl TerminalPermissionAcceptance {
                 "accepted runtime policy uses an obsolete schema; run omega update",
             )]);
         }
-        let (rows, _) = if checked
-            .execution()
-            .provider_source
-            .plans()
-            .assumed_bindings()
-            .is_empty()
-        {
+        let (rows, _) = if checked.execution().plans().assumed_bindings().is_empty() {
             crate::project_checked_terminal_permission_policy(checked, self.target, self.package)?
                 .acceptance_rows_with_limits(PackagePolicyRowLimits::default())
         } else {
