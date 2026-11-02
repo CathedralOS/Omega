@@ -3449,7 +3449,7 @@ pass/cases/match_guard_slice_index checked 3285ms @ccdb99ca2214
 pass/cases/match_record_field checked 3214ms @ccdb99ca2214
 pass/cases/match_reference_local checked 4167ms @ccdb99ca2214
 pass/cases/mid_arm_value_return checked 3543ms @ccdb99ca2214
-pass/cases/mixed_record_cases checked 6959ms @911f6617ba9e
+pass/cases/mixed_record_cases checked 7107ms @7c07b4e017d9
 pass/cases/ordered_underscore_arms checked 3417ms @ccdb99ca2214
 pass/cases/param_case_payload_return checked 3064ms @ccdb99ca2214
 pass/cases/runtime_borrowed_case_subject_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
@@ -4090,7 +4090,7 @@ pass/data/case_membership_union_guard_exit checked 10221ms check-target:macos_ar
 pass/data/closed_literal_nested_predicates checked 3872ms @911f6617ba9e
 pass/data/match_exhaustive_by_case_union_domain incomplete 11200ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`entry_start` calls `Main::main`; `Main::main` has no executable body: this compiler does not lower a state of it yet (state graph: terminator: guarded jump successors: roster); in state `Main::main::main`
-pass/data/mixed_record_common_field_and_payload_dispatch_exit checked 60186ms check-target:macos_arm64 @911f6617ba9e
+pass/data/mixed_record_common_field_and_payload_dispatch_exit checked 74016ms check-target:macos_arm64 @7c07b4e017d9
 pass/data/opaque_copy_selected checked 3382ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/opaque_nested_field_selected checked 3677ms check-target:macos_arm64 @ccdb99ca2214
 pass/data/payload_less_case_equality checked 2058ms @ccdb99ca2214
@@ -4122,7 +4122,7 @@ pass/dependent/case_where_generic_type_bound_coverage rejected 95ms regressed-fr
 pass/dependent/case_where_match_contributes rejected 2233ms regressed-from:checked @ccdb99ca2214
 	cannot prove requires contract for call take from Main::main: main.interval.lo <= main.interval.hi (needs fact `lo <= hi` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 pass/dependent/case_where_zero_decided_first_case checked 3019ms @ccdb99ca2214
-pass/dependent/closed_case_common_and_active_payload_projection checked 3161ms @ccdb99ca2214
+pass/dependent/closed_case_common_and_active_payload_projection checked 5312ms @7c07b4e017d9
 pass/dependent/collection_predicate_element_store_restored checked 14982ms @911f6617ba9e
 pass/dependent/collection_predicate_helper_theorem_bounds_sum checked 6476ms @911f6617ba9e
 pass/dependent/collection_predicate_proved_element_store checked 62916ms @911f6617ba9e
@@ -11564,8 +11564,7 @@ pass/generics/runtime_machine_equation_nested_boolean_exit checked 3838ms check-
 pass/generics/runtime_machine_equation_nested_const_exit checked 3567ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_machine_equation_selected_boolean_exit checked 3905ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_machine_equation_selected_const_exit checked 4254ms check-target:macos_arm64 @ccdb99ca2214
-pass/generics/runtime_mixed_generic_erased_sum_exit rejected 8349ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	construction of erased generic data `Mixed` is unsupported in this context; use a closed generic record in an explicitly typed local initializer
+pass/generics/runtime_mixed_generic_erased_sum_exit checked 74057ms check-target:macos_arm64 @7c07b4e017d9
 pass/generics/runtime_nested_array_extent_binder_exit checked 9732ms check-target:macos_arm64 @911f6617ba9e
 pass/generics/runtime_nested_generic_instantiations_exit checked 11978ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/runtime_qualified_closed_equation_exit checked 8545ms check-target:macos_arm64 @911f6617ba9e
@@ -13172,7 +13171,7 @@ pass/storage/forwarded_context_byte_field_read_store_exit rejected 10390ms check
 	cannot prove default-domain field requirement for call step from shift::entry: parameter main.out requires [u8; N]::Utf8
 	cannot prove index `main.i` is within length 5 in shift::entry
 	cannot prove index `main.i` is within length 5 in shift::entry
-pass/storage/large_zero_initialized_local_exit checked 55594ms check-target:macos_arm64 @911f6617ba9e
+pass/storage/large_zero_initialized_local_exit checked 71995ms check-target:macos_arm64 @7c07b4e017d9
 pass/storage/runtime_alias_field_binary checked 2264ms @ccdb99ca2214
 pass/storage/runtime_alias_integer_write checked 2754ms @ccdb99ca2214
 pass/storage/runtime_bounded_effectful_initializer_exit checked 3056ms check-target:macos_arm64 @ccdb99ca2214
@@ -13594,9 +13593,8 @@ pass/text/runtime_chained_string_append_exit checked 75688ms check-target:macos_
 pass/text/runtime_decimal_scalar_across_output_alternate_exit checked 12353ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/runtime_decimal_scalar_across_output_exit checked 11243ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/runtime_element_guard_bounds_parse_exit checked 12284ms check-target:macos_arm64 @ccdb99ca2214
-pass/text/runtime_inline_byte_case_payload_variants_exit checked 3203ms check-target:macos_arm64 @ccdb99ca2214
-pass/text/runtime_inline_byte_case_values_exit rejected 7029ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	native artifact native artifact lowering failed: Lowering(InvalidStructuralLeafCopy { machine: MachineId(9), operation: OperationId(101), reason: "copy path does not select a readable declared leaf" })
+pass/text/runtime_inline_byte_case_payload_variants_exit checked 7963ms check-target:macos_arm64 @7c07b4e017d9
+pass/text/runtime_inline_byte_case_values_exit checked 8453ms check-target:macos_arm64 @7c07b4e017d9
 pass/text/runtime_later_arm_guard_reads_exit checked 12524ms check-target:macos_arm64 @ccdb99ca2214
 pass/text/runtime_mixed_byte_field_equality_exit rejected 75378ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
 	native artifact identity physical pipeline failed: common physical staging failed: Selection(Selection(SourceCustodyMismatch { machine: Some(MachineId(356)), operation: None, site: withheld; set OMEGA_COMPILER_CHECK_SITES to reveal it, reason: Some("structural edge argument has no transport from its retained source storage") }))
