@@ -95,25 +95,9 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Restore exact case-where baseline producer and source
+      - name: Temporary exact case-where nominal-admission qualification
         if: github.event_name == 'workflow_dispatch'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh run download 41399107774 --name compiler-pilot-linux_x86_64-08b7c22717e58f422e770c848287927ac9099f64-1 --dir build/case-retained-input
-          git fetch --depth=1 origin 08b7c22717e58f422e770c848287927ac9099f64
-          git worktree add --detach build/case-source 08b7c22717e58f422e770c848287927ac9099f64
-      - name: Temporary case-where admission trace on exact retained producer
-        if: github.event_name == 'workflow_dispatch'
-        env:
-          OMEGA_CASE_REPLAY_ROOT: ${{ github.workspace }}/build/case-source
-          OMEGA_CASE_RETAINED_INPUT: ${{ github.workspace }}/build/case-retained-input
-        run: |
-          case_probe_status=0
-          python tools/ci/case_where_trace.py || case_probe_status=$?
-          mkdir -p build/compiler-pilot
-          cp -R build/case-source/build/compiler-pilot/. build/compiler-pilot/
-          exit "$case_probe_status"
+        run: python tools/ci/case_where_repair.py
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
@@ -135,7 +119,7 @@ jobs:
       # A source/runtime fixture failure does not invalidate compiled Cargo
       # objects. Retain them for the next correction; check outcomes stay red.
       - name: Save build cache after fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        if: always() && !cancelled() && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |

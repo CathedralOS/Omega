@@ -50,7 +50,7 @@ impl StructuralJudge<'_> {
             .value_anchor;
         let identity = self.program.normalized_type_identity(reference);
         identity.is_valid()
-            && self.completed_nominal_captures.iter().any(|row| {
+            && self.completed_nominal_values.iter().any(|row| {
                 row.anchor == anchor
                     && row.value.observation_identity_key().as_ref() == Some(&key)
                     && self.program.normalized_type_identity(row.reference) == identity
@@ -108,8 +108,8 @@ impl StructuralJudge<'_> {
         std::sync::Arc::make_mut(&mut self.normal_results)
             .push((capture.value_anchor, completed.clone()));
         if admitted {
-            std::sync::Arc::make_mut(&mut self.completed_nominal_captures).push(
-                super::super::CompletedNominalCapture {
+            std::sync::Arc::make_mut(&mut self.completed_nominal_values).push(
+                super::super::CompletedNominalValue {
                     anchor: capture.value_anchor,
                     reference,
                     value: completed.clone(),
@@ -118,33 +118,6 @@ impl StructuralJudge<'_> {
             );
         }
         Some(completed)
-    }
-
-    /// A tag observation follows the exact owned value captured by this Match.
-    /// This receipt is produced by subject evaluation, not by value-equation
-    /// rewriting. Storage fences still govern obtaining the source observation.
-    pub(in crate::proof_contracts::contract_entailment) fn completed_match_case_observation(
-        &self,
-        value: &StructuralTerm,
-    ) -> StructuralTerm {
-        let mut observed = value.clone();
-        for _ in 0..self.completed_nominal_captures.len() {
-            let Some(identity) = observed.observation_identity_key() else {
-                break;
-            };
-            let Some(capture) = self
-                .completed_nominal_captures
-                .iter()
-                .rev()
-                .find(|capture| {
-                    capture.value.observation_identity_key().as_ref() == Some(&identity)
-                })
-            else {
-                break;
-            };
-            observed = capture.observed_value.clone();
-        }
-        observed
     }
 
     pub(super) fn retire_match_subject(&mut self, dispatch: &TableMatchExpression) {
@@ -156,7 +129,7 @@ impl StructuralJudge<'_> {
             .value_anchor;
         std::sync::Arc::make_mut(&mut self.normal_results)
             .retain(|(candidate, _)| *candidate != anchor);
-        std::sync::Arc::make_mut(&mut self.completed_nominal_captures)
+        std::sync::Arc::make_mut(&mut self.completed_nominal_values)
             .retain(|row| row.anchor != anchor);
     }
 }

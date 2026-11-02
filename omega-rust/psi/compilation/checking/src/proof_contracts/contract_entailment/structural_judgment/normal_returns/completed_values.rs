@@ -269,6 +269,27 @@ impl<'program> StructuralJudge<'program> {
                 }
                 None => return None,
             };
+            if judge.runtime_body_values
+                && let Some(reference) =
+                    crate::expression_result_type_reference(program, scope.0, scope.1, expression)
+                && crate::field_domains::owned_nominal_data_definition(program, reference).is_some()
+            {
+                // This operation has completed: its children and the complete
+                // construction obligation precede this cut. Retain validity
+                // on a fresh value, never on a reconstructed constructor with
+                // equal fields. Before-operation judgment cannot see this row.
+                let observed = value;
+                value = judge.capture_unknown_value(expression, scope)?;
+                judge.assume_normal_equation(value.clone(), observed.clone());
+                std::sync::Arc::make_mut(&mut judge.completed_nominal_values).push(
+                    super::super::CompletedNominalValue {
+                        anchor: expression,
+                        reference,
+                        value: value.clone(),
+                        observed_value: observed,
+                    },
+                );
+            }
         }
         if let ExpressionNode::Cast(cast) = node {
             let [(_, operand)] = inputs else {

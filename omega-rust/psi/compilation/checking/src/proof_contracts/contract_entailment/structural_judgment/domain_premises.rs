@@ -39,7 +39,7 @@ impl StructuralJudge<'_> {
             return None;
         }
         let mut trial = self.clone();
-        for subject in [self.completed_match_case_observation(value), value.clone()] {
+        for subject in [self.completed_nominal_observation(value), value.clone()] {
             trial.intake_case_guarantee(&super::CaseGuarantee {
                 subject,
                 data,
@@ -83,7 +83,7 @@ impl StructuralJudge<'_> {
         data: SymbolHandle,
         case: SymbolHandle,
     ) -> super::StructuralJudgment {
-        let observed = self.completed_match_case_observation(value);
+        let observed = self.completed_nominal_observation(value);
         let judgment = self.judge_case(observed.clone(), data, case);
         if !matches!(judgment, super::StructuralJudgment::Unknown)
             || !self.has_admitted_nominal_subject(expression, value, reference)
@@ -441,6 +441,30 @@ impl StructuralJudge<'_> {
             candidate_identity.is_valid()
                 && candidate_identity == program.normalized_type_identity(reference)
         };
+        if self.completed_nominal_values.iter().any(|completed| {
+            same_application(completed.reference)
+                && completed.value.observation_identity_key().as_ref() == Some(&identity)
+        }) {
+            return true;
+        }
+        // Const and Value header operands are admitted by the application just
+        // like ordinary entry values. Bind the declared carrier to this exact
+        // telescope coordinate; a local annotation or equal literal is not an
+        // entry operand and cannot supply its nominal predicate.
+        if self.body_type_parameters.iter().any(|parameter| {
+            let candidate = match parameter.kind {
+                typed_trees::data::TypeParameterKind::Const { type_reference }
+                | typed_trees::data::TypeParameterKind::Value { type_reference } => type_reference,
+                _ => return false,
+            };
+            same_application(candidate)
+                && StructuralTerm::BoundValue(parameter.symbol)
+                    .observation_identity_key()
+                    .as_ref()
+                    == Some(&identity)
+        }) {
+            return true;
+        }
         // An owned local may carry the exact entry value under another storage
         // name (including a transition's saved subject). Its receiving type
         // supplies no premise: join the observed identity to an independently
@@ -469,6 +493,42 @@ impl StructuralJudge<'_> {
         }
         let place =
             crate::value_custody::places::canonical_place_from_expression(program, expression);
+        // A direct readable formal already names its admitted entry referent.
+        // Case guards can be synthesized expressions with no source-read site
+        // for origin lookup. Authenticate this declaration coordinate itself;
+        // aliases, interior reference crossings and changed cells still need
+        // their ordinary backing/current-value proof below.
+        if !self.storage_observation_invalidated(expression)
+            && let Some(place) = &place
+            && let Some(root) = place.root.as_symbol()
+            && let Some((_, state)) = self.runtime_declaration_scope()
+            && let Some(parameter) = program
+                .state_parameters(state)
+                .iter()
+                .find(|parameter| parameter.symbol == root)
+            && let Some(shell) = crate::reference_shell(program, parameter.type_reference)
+            && shell.access.is_readable()
+            && let Some(projected_type) =
+                crate::value_custody::places::owned_projection_type_reference(
+                    program,
+                    shell.referee,
+                    &place.segments,
+                )
+            && same_application(projected_type)
+            && let Some(projected) = super::super::observed_projections::project_observed_value(
+                program,
+                shell.referee,
+                super::super::structural_terms::owned_projection_observation(
+                    program,
+                    shell.referee,
+                    StructuralTerm::Variable(parameter.name.to_string()),
+                ),
+                &place.segments,
+            )
+            && projected.observation_identity_key().as_ref() == Some(&identity)
+        {
+            return true;
+        }
         // A descriptor home is not its referent. Resolve the completed read's
         // exact backing before asking which entry contract admitted it. This
         // is the ordinary origin join, including aliases introduced by matches;

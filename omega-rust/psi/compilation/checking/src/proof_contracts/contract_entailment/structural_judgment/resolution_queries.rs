@@ -312,7 +312,9 @@ impl<'program> StructuralJudge<'program> {
         phase_profile::count(
             match kind {
                 StructuralQueryKind::Resolution => "psi.05.resolution.completed.miss",
-                StructuralQueryKind::IntegerProjection => "psi.05.resolution.integer_projection.miss",
+                StructuralQueryKind::IntegerProjection => {
+                    "psi.05.resolution.integer_projection.miss"
+                }
                 StructuralQueryKind::Predicate => "psi.05.resolution.predicate.miss",
             },
             1,
@@ -335,7 +337,10 @@ impl<'program> StructuralJudge<'program> {
             .ok()
             .and_then(|reads| reads.clone());
         if let Some(reads) = reads {
-            phase_profile::count("psi.05.resolution.dependencies.retained", reads.len() as u64);
+            phase_profile::count(
+                "psi.05.resolution.dependencies.retained",
+                reads.len() as u64,
+            );
             if let Ok(mut cache) = cache.lock() {
                 cache.insert(CompletedResolution {
                     fingerprint,
@@ -595,7 +600,7 @@ impl<'program> StructuralJudge<'program> {
             address(&*self.entry_machines),
             address(&*self.declaration_parameters),
             address(&*self.normal_results),
-            address(&*self.completed_nominal_captures),
+            address(&*self.completed_nominal_values),
             address(&*self.returned_field_owners),
             address(&*self.body_invocations),
             address(&*self.normal_memberships),
@@ -640,8 +645,8 @@ impl<'program> StructuralJudge<'program> {
             && self.premise_facts == other.premise_facts
             && Arc::ptr_eq(&self.normal_results, &other.normal_results)
             && Arc::ptr_eq(
-                &self.completed_nominal_captures,
-                &other.completed_nominal_captures,
+                &self.completed_nominal_values,
+                &other.completed_nominal_values,
             )
             && Arc::ptr_eq(&self.returned_field_owners, &other.returned_field_owners)
             && Arc::ptr_eq(&self.body_invocations, &other.body_invocations)

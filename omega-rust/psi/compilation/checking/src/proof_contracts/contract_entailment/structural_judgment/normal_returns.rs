@@ -23,6 +23,7 @@ pub(super) use completed_scalar_calls::CapturedResultEquation;
 pub(in crate::proof_contracts::contract_entailment) use statement_completion::CompletedStatement;
 mod match_captures;
 mod match_composition;
+mod nominal_values;
 mod operand_types;
 mod owned_arguments;
 
