@@ -90,12 +90,13 @@ use write_frames::boundary_trait_call_signature;
 pub(crate) use write_frames::machine_state_by_symbol;
 pub use write_frames::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
-    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
-    ReferenceResultTransport, ReferenceSlotContract, ReferenceViewFormation,
-    ScalarStorageCoordinate, StoredReferenceCallContext, StoredReferenceDestinationKind,
-    StoredReferenceEffect, StoredReferenceRelationRefusal, assignment_stored_value_type,
-    frame_coordinate_path, frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
-    state_reference_parameter_binding_is_stable, storage_origin_types_match,
+    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource,
+    ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceSlotContract,
+    ReferenceViewFormation, ScalarStorageCoordinate, StoredReferenceCallContext,
+    StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
+    assignment_stored_value_type, frame_coordinate_path, frame_length_coordinate_path,
+    frame_paths_overlap, operand_call_plans, state_reference_parameter_binding_is_stable,
+    storage_origin_types_match,
 };
 pub(crate) use write_frames::{CallFrameCaches, InvocationEntrySubject};
 pub(crate) use write_frames::{
@@ -424,6 +425,11 @@ pub(crate) fn callee_entry_contract(
             .map(|application| application.signature)
             .or_else(|| {
                 selected_requirement_signature(program, target).map(|(_, signature)| signature)
+            })
+            .or_else(|| {
+                program
+                    .retained_static_machine_contract(target)
+                    .map(|contract| contract.signature())
             })?;
         return Some(CalleeContract {
             callable: requirement.symbol,
@@ -474,6 +480,11 @@ fn requirement_call_result_type(
     }
     if let Some(application) = program.closed_requirement_application(target) {
         let signature = application.signature;
+        return (signature.type_parameters.is_empty() && signature.return_type.is_valid())
+            .then_some(signature.return_type);
+    }
+    if let Some(contract) = program.retained_static_machine_contract(target) {
+        let signature = contract.signature();
         return (signature.type_parameters.is_empty() && signature.return_type.is_valid())
             .then_some(signature.return_type);
     }
