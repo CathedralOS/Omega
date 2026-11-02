@@ -33,7 +33,7 @@ pub struct SelectedConstantEvaluation {
     selection: typed_trees::references::DeclarationSelection,
     /// The opaque representation selections the layout authority consults for
     /// the same fold; Build admission has none and supplies an empty set.
-    opaque_representation_selections: Vec<representation_planning::OpaqueRepresentationSelection>,
+    opaque_representation_selections: Vec<representation_selections::OpaqueRepresentationSelection>,
 }
 
 impl SelectedConstantEvaluation {
@@ -80,7 +80,7 @@ impl SelectedConstantEvaluation {
     pub fn prepare(
         services: typed_trees::service_declarations::ServiceCatalog<'_>,
         target_profile: target::TargetProfile,
-        opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
+        opaque_representation_selections: &[representation_selections::OpaqueRepresentationSelection],
         facts: &checked_trees::CheckedOperatorFacts,
         plans: &SelectedProviderPlanFacts,
     ) -> Result<Self, Vec<Diagnostic>> {
