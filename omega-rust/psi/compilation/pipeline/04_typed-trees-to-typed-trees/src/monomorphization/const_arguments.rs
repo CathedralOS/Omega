@@ -18,6 +18,10 @@ pub(super) fn is_runtime_value_argument(
     program.static_const_argument_identity(argument).is_none()
         && (is_runtime_value_subject(program, argument)
             || is_runtime_value_expression(program, argument)
+            // The parser also retains `value.field` in this shared payload.
+            // A selected Value slot uses the ordinary runtime operand owner
+            // to resolve its receiver/field; this classification grants none.
+            || argument.evidence_projection.is_some()
             || argument.symbol.is_valid()
                 && program
                     .data_type_parameter_by_symbol(argument.symbol)
