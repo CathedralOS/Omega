@@ -128,7 +128,19 @@ missing required instance or consumed header, and preserves opaque providers'
 public invocation ceilings. The target-body pass fixture also requests the
 existing source-discard/codec-reload and consumed-summary omission controls.
 Callback body classification keeps its separate declaration-header judgment.
-Fresh execution of this repair remains pending.
+The repaired optimized `283bf8fab936bf63c77dd26af3e283a896118ac1`
+producer was measured on macOS ARM64 in [the focused hosted run](https://github.com/CathedralOS/Omega/actions/runs/41383731448).
+The sample gate passed the root and all nine positive places through both
+engines and matched all nine index reject twins. The corpus recorded four
+source accepts, five intended rejections and four native/Terminal executions
+at exit `0`, including the changed target/match witnesses and two existing
+synchronous-provider controls. The target witness and both existing controls
+also passed source-discard, codec-reload and consumed-summary omission checks.
+Nine focused backend-plan unit tests, production checking and both scoped
+Clippy commands passed. Runtime observations keep that producer's identity;
+the later golden/documentation changes and restored pilot orchestration do not
+change the compiler, SDK or witness bytes. Other matching hosts remain
+unmeasured by this capture. The broader target-prefix migration remains open.
 
 ## Compiler Repairs Landed
 
