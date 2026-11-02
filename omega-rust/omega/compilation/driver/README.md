@@ -512,7 +512,7 @@ complete the separate task of installing providers behind Terminal Psi.
 
 Boundary calls remain canonical in checked trees. Only the optional checked-tree
 oracle prepares its reference dispatch table through
-[checked interpreter dispatch](../realization/selected-dispatch/src/checked_interpreter_dispatch.rs)
+[checked interpreter dispatch](tests/support/checked_interpreter_dispatch/mod.rs)
 immediately before execution. Ordinary compilation does not build or retain
 those receiver/requirement/entry-state associations. Neither selection nor
 evaluation fabricates replacement source calls. Terminal

@@ -2,11 +2,17 @@
 //!
 //! Product compilation does not execute this source oracle and retains no such
 //! table. Terminal/native admission consumes its own portable demand catalog.
-//! The reference consumer requests these bindings immediately before execution.
+//! The corpus runner's `--checked-interpreter` leg is the only consumer and
+//! requests these bindings immediately before execution. The oracle runs
+//! checked source, so its bindings are prepared here rather than in Omega's
+//! selected dispatch.
 
 mod boundary_dispatch;
+mod checked_body;
 
-use crate::SelectedExecution;
+pub(crate) use checked_body::exact_checked_body_entry;
+
+use selected_dispatch::SelectedExecution;
 use boundary_dispatch::settle_selected_boundary_adapter_dispatch;
 use diagnostics::Diagnostic;
 
@@ -37,7 +43,7 @@ pub fn prepare_checked_interpreter_dispatch(
     }
     let boundary_adapters =
         settle_selected_boundary_adapter_dispatch(checked, selected_provider_plans)?;
-    let float_comparisons = crate::selected_dispatch::float_comparisons::selected_executions(
+    let float_comparisons = selected_dispatch::selected_float_comparison_executions(
         checked,
         source::DependencyScope::Product,
         selected_provider_provenance,
