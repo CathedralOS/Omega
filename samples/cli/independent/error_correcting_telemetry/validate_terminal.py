@@ -92,7 +92,7 @@ def main():
     dependencies = {'compiler': 'omega-rust/omega/compilation/compiler',
                     'terminal-runtime': 'omega-rust/omega/interpreter/terminal-runtime',
                     'package-manager': 'omega-rust/omega/packages/package-manager',
-    'omega-build': 'omega-rust/omega/compilation/build',
+    'omega-build': 'omega-rust/omega/build-system/omega-build',
                     'target': 'omega-rust/omega/compilation/backend/target',
                     'terminal-interpreter': 'omega-rust/psi/interpreter/terminal-interpreter'}
     manifest = '[package]\nname="new084-terminal-host"\nversion="0.1.0"\nedition="2024"\n[workspace]\nresolver="3"\n[dependencies]\n'

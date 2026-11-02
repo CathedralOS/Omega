@@ -24,5 +24,5 @@ calling-conventions = { path = "../../compilation/backend/calling-conventions" }
 native-artifact = { path = "../../compilation/backend/artifacts/native-artifact" }
 
 [dev-dependencies]
-omega-build = { path = "../../compilation/build" }
+omega-build = { path = "../../build-system/omega-build" }
 platform-custody = { path = "../../foundation/platform-custody" }
