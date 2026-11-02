@@ -122,6 +122,7 @@ jobs:
         if: always() && github.event_name == 'workflow_dispatch' && inputs.samples != '' && steps.compiler-check.outcome == 'success'
         env:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
+          OMEGA_STRUCT_TRACE: '1'
         run: |
           python - <<'PYTHON'
           import hashlib, json, os, re, shutil, subprocess, sys
