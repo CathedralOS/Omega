@@ -2488,9 +2488,11 @@ fail/facts/resident_backing_call_result_missing_vacancy rejected 5482ms expected
 fail/facts/resident_backing_const_name_missing_vacancy rejected 5911ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_field_missing_vacancy rejected 20810ms expected @6354c5ce000b+wt
+fail/facts/resident_backing_field_missing_vacancy rejected 23260ms expected @e7c12b127bc8+wt
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
+fail/facts/resident_backing_field_unrestored rejected 17423ms expected @e7c12b127bc8+wt
+	data `Held`'s default domain is still FALSE at state exit: the invariant window opened on `held` must close first -- restore the `where` facts before this consumption point (ch11)
 fail/facts/resident_backing_local_missing_vacancy rejected 5376ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
@@ -9966,7 +9968,7 @@ pass/facts/required_output_path/target_body checked 22634ms check-target:macos_a
 pass/facts/resident_backing_call_result_exit checked 9137ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_coexisting_exit checked 9180ms check-target:macos_arm64 @2f26bec1b1f6+wt
 pass/facts/resident_backing_const_name_exit checked 8977ms check-target:macos_arm64 @b3876048c0a2
-pass/facts/resident_backing_field_exit checked 25638ms check-target:macos_arm64 @6354c5ce000b+wt
+pass/facts/resident_backing_field_exit checked 26870ms check-target:macos_arm64 @e7c12b127bc8+wt
 pass/facts/resident_backing_local_exit checked 9208ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_match_join_exit checked 9155ms check-target:macos_arm64 @b3876048c0a2
 pass/facts/resident_backing_other_machine_exit checked 9156ms check-target:macos_arm64 @b3876048c0a2

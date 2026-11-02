@@ -151,17 +151,6 @@ fn project_captured_value_by(
     ) -> Option<super::StructuralTerm>,
 ) -> Option<(TypeReferenceHandle, super::StructuralTerm)> {
     for segment in path {
-        // Invocation entry may already have observed the exact referent of an
-        // incoming reference. That owned snapshot is not a raw descriptor to
-        // dereference again. Preserve its independently checked carrier.
-        if let Some(observed) =
-            super::super::structural_terms::owned_observation_type(program, &value)
-            && let Some(shell) = crate::reference_shell(program, reference)
-            && shell.access.is_readable()
-            && crate::declared_carriers_match(program, shell.referee, observed)
-        {
-            reference = observed;
-        }
         let projected = segment.projected_type(program, reference)?;
         value = match segment {
             CapturedStorageSegment::Place(segment) => project_place(reference, value, segment)?,
