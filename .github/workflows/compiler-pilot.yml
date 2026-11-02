@@ -91,6 +91,22 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_STRUCT_TRACE: '1'
         run: python tools/ci/compiler_pilot.py
+      - name: Retain single decoder capture trace
+        if: always() && github.event_name == 'workflow_dispatch' && inputs.native_host == 'linux_x86_64' && inputs.fixtures == 'pass/facts/fixed_layout_byte_roundtrip_through_local_exit'
+        env:
+          OMEGA_STRUCT_TRACE: '1'
+        run: |
+          python - <<'PYTRACE'
+          import glob, os, pathlib, subprocess
+          root = pathlib.Path.cwd()
+          images = glob.glob('build/compiler-pilot/producer-*/omega')
+          assert len(images) == 1, images
+          program = root / 'tests/omega/pass/facts/fixed_layout_byte_roundtrip_through_local_exit/main.omg'
+          env = dict(os.environ, OMEGA_LIBRARY_ROOT=str(root / 'source/library'))
+          with open('build/compiler-pilot/decoder-trace.log', 'w') as output:
+              result = subprocess.run([str(root / images[0]), '--check', str(program)], cwd=program.parent, env=env, stdout=output, stderr=subprocess.STDOUT, timeout=90)
+          print('diagnostic CLI exit:', result.returncode)
+          PYTRACE
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json') if (root / name).is_file()]"
