@@ -85,7 +85,8 @@ impl TerminalExecution<'_> {
                 .structural_parameter(argument.place)
                 .map(|parameter| (parameter.structural_type, parameter.multiplicity))
                 .or_else(|| {
-                    let (operation, structural_type) = machine.producing_operation(argument.place)?;
+                    let (operation, structural_type) =
+                        machine.producing_operation(argument.place)?;
                     let result = operation.result.structural()?;
                     (result.place == argument.place && result.structural_type == structural_type)
                         .then_some((structural_type, result.multiplicity))
@@ -112,8 +113,7 @@ impl TerminalExecution<'_> {
             if matches!(
                 binding,
                 ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_)
-            )
-                || !child.projected_qualifications.is_empty()
+            ) || !child.projected_qualifications.is_empty()
                 || !terminal_semantics::byte_qualification_predicates_in(
                     self.program.catalogs.structural_domains.iter(),
                     child.structural_type,

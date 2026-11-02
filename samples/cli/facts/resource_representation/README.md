@@ -63,24 +63,25 @@ listed boundary.
 
 ## Current result
 
-The row is unfinished. The compiler now proves the original program's five
-success postconditions, retains its incoming slice in the request and gets past
-the original cleanup failure. Native lowering then refuses a descriptor
-operation. Two existing byte-field controls also reject at borrowed state
-transfers; those regressions must be repaired before this change can land.
-Native and Terminal execution have not run.
+The original local program now exits 0 natively. Terminal execution still
+stops while constructing a mutable byte field, so this place and the complete
+row remain unfinished. The other eight places and their reject twins are
+authored and await execution.
 
-[Run 41509361186](https://github.com/CathedralOS/Omega/actions/runs/41509361186)
-used source `0f31e145c578f03d0c6b807a586cbe06888ba640` and an authenticated,
-optimized Linux x86-64 compiler. Rust checking and the byte-field contract unit
-test passed. The qualified-byte positive checked. All three invalid controls
-rejected for their expected reasons: the short-buffer guard, shared access and
-writing to backing storage while a stored view remains live.
+[Run 41515819925](https://github.com/CathedralOS/Omega/actions/runs/41515819925)
+used source `3139db74cf0d37dcb6ba4cbb2c61bc74ded684ce` and an authenticated,
+optimized Linux x86-64 compiler. All eleven source outcomes matched: six
+positives checked and five invalid controls rejected for their expected reasons.
+All six positives exited 0 natively. Four agreed with Terminal at exit 0; the
+original program and exclusive byte-field control stopped with
+`VerifiedOperationMalformed` during Terminal execution. Sample execution was
+not reached.
 
-Compiler preparation took 982 seconds; the seven fixture checks took 57 seconds.
-[Run 41512897493](https://github.com/CathedralOS/Omega/actions/runs/41512897493)
-reuses unchanged Rust inputs to trace the native refusal. The eight new places
-and their twins are authored and remain unverified.
+Compiler preparation took 662 seconds, source checks 75 seconds and native/
+Terminal observations 47 seconds. The next repair uses the existing descriptor
+transfer check when a canonical descriptor value moves into a stored field.
+The operand's actual multiplicity, mutable backing, predicates, extent and
+ownership transfer remain mandatory.
 
 The frozen program, Build files and guard-only twin remain unchanged from
 `10fba736d8eb1ed0de892a360d8fb6dba4882599`. The earlier baseline
@@ -90,7 +91,7 @@ those refusals. Raw reports and compiler identities are retained outside git in
 `/Users/zcanann/Omega-build/representation-resource-20261102/`.
 
 [PR #1461](https://github.com/CathedralOS/Omega/pull/1461) remains a draft. Its
-next step is to finish cleanup for the unchanged encoder and run the local
+next step is to finish Terminal execution for the unchanged encoder and run the local
 program with both engines, then complete the nine-place row and invalid twins.
 No completed place or canonical success record is claimed.
 

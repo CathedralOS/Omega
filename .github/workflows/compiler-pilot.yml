@@ -97,9 +97,6 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Check stored byte field contracts
-        if: github.event_name == 'workflow_dispatch' && contains(inputs.fixtures, 'resource_representation_buffered_local_exit')
-        run: cargo test --locked -p terminal-semantics inline_carriers::tests::byte_field_keeps_exact_carrier_access_and_extent
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
@@ -108,65 +105,6 @@ jobs:
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
         run: python tools/ci/compiler_pilot.py
-      - name: Format the changed Rust owners for inspection
-        if: always() && github.event_name == 'workflow_dispatch' && contains(inputs.fixtures, 'resource_representation_buffered_local_exit')
-        shell: python
-        run: |
-          import difflib, json, shutil, subprocess
-          from pathlib import Path
-          output = Path('build/compiler-pilot/rustfmt')
-          rows = []
-          patches = []
-          for name in (
-              'omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment.rs',
-              'omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/normal_returns.rs',
-              'omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/scalar_computations/reference_captures.rs',
-              'omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/values/reference_sources.rs',
-              'omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/types/shape_collector.rs',
-              'omega-rust/psi/compilation/representations/terminal-psi/semantics/src/primitive_place.rs',
-              'omega-rust/psi/compilation/representations/terminal-psi/semantics/src/inline_carriers.rs',
-              'omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations/src/lowering/scalar/element_views/establishment.rs',
-              'omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/completed_place.rs',
-              'omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame.rs',
-              'omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/borrowed_window.rs',
-              'omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission.rs',
-              'omega-rust/psi/interpreter/terminal-interpreter/src/storage/record/byte_fields.rs',
-          ):
-              source = Path(name)
-              destination = output / name
-              destination.parent.mkdir(parents=True, exist_ok=True)
-              shutil.copyfile(source, destination)
-              result = subprocess.run(['rustfmt', '--edition', '2024', '--config', 'skip_children=true', str(destination)])
-              before, after = source.read_text(), destination.read_text()
-              rows.append(dict(path=name, exit=result.returncode, formatted=before == after))
-              patches.extend(difflib.unified_diff(before.splitlines(True), after.splitlines(True), fromfile=name, tofile=name))
-          output.mkdir(parents=True, exist_ok=True)
-          (output / 'report.json').write_text(json.dumps(rows, indent=2))
-          (output / 'format.patch').write_text(''.join(patches))
-          print(json.dumps(rows, indent=2))
-      - name: Trace the frozen buffered conversion proof
-        if: always() && github.event_name == 'workflow_dispatch' && contains(inputs.fixtures, 'resource_representation_buffered_local_exit')
-        shell: python
-        run: |
-          import json, os, subprocess
-          from pathlib import Path
-          output = Path('build/compiler-pilot')
-          summary = json.loads((output / 'summary.json').read_text())
-          producer = summary.get('producer', {})
-          runner = producer.get('runner')
-          if runner:
-              environment = dict(os.environ, OMEGA_STRUCT_TRACE='1', OMEGA_COMPILER_CHECK_SITES='1',
-                  OMEGA_CORPUS_FIXTURE_FILTER='pass/facts/resource_representation_buffered_local_exit',
-                  OMEGA_CORPUS_JOBS='1', OMEGA_CORPUS_ROOT=str(Path.cwd()),
-                  OMEGA_LIBRARY_ROOT=str(Path('source/library').resolve()),
-                  OMEGA_CORPUS_RECORDS=str((output / 'trace-records.txt').resolve()))
-              with (output / 'buffered-proof-trace.log').open('w') as log:
-                  result = subprocess.run([runner], env=environment, stdin=subprocess.DEVNULL,
-                      stdout=log, stderr=subprocess.STDOUT, timeout=180)
-              print('Frozen buffered proof trace runner exit:', result.returncode)
-              trace = (output / 'buffered-proof-trace.log').read_text()
-              for line in [line for line in trace.splitlines() if line.startswith(('LOWER ', 'descriptor lowering refusal'))][-120:]:
-                  print(line)
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"
