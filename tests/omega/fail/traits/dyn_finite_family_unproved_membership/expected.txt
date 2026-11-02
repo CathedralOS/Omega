@@ -1,1 +1,1 @@
-cannot prove declared where facts for static application of requirement `Shape::code` under its complete applied telescope
+cannot prove requires contract for call dyn Shape<1 argument>::code from scan: Width == 16 || Width == 32 || Width == 64

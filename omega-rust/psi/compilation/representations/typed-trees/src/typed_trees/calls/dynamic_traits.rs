@@ -151,7 +151,7 @@ impl TypedTrees {
     }
 
     /// Contract privacy: the requirement's public contract — its requires,
-    /// ensures, crash routes, and `where` facts — must name no identity a
+    /// ensures and crash routes — must name no identity a
     /// dynamic caller cannot see. Contract-local binders carry no independent
     /// visibility and are not declarations, so only symbols that resolve to
     /// an unexported declaration count against the surface.
@@ -161,9 +161,6 @@ impl TypedTrees {
             for fact in self.proof_facts.span_or_empty(contract.facts) {
                 self.collect_proof_fact_symbols(fact, &mut symbols);
             }
-        }
-        for fact in self.proof_facts.span_or_empty(requirement.where_facts) {
-            self.collect_proof_fact_symbols(fact, &mut symbols);
         }
         symbols
             .iter()
