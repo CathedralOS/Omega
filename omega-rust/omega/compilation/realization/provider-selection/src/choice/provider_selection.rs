@@ -4,8 +4,8 @@
 //! The chosen records own the exact candidates and declaration choices, so the
 //! later admission cannot reinterpret indices against a different population.
 
-use crate::declarations::same_declaration;
-use crate::independent_components::IndependentComponentJoin;
+use crate::choice::declarations::same_declaration;
+use crate::choice::independent_components::IndependentComponentJoin;
 use crate::{
     CompositionMode, ProviderCandidate, ProviderDeclaration, ProviderSubject, SelectedProvider,
     SelectionProvenance,
@@ -18,8 +18,12 @@ pub fn choose<Declaration: Clone + Eq, Owner, Origin: Clone + Eq>(
     defaults: &[ProviderDeclaration<Declaration, Origin>],
     overrides: &[ProviderDeclaration<Declaration, Origin>],
 ) -> Result<Vec<SelectedProvider<Declaration, Owner, Origin>>, Vec<Diagnostic>> {
-    let selected =
-        crate::selection::select_provider_plan_indices(&candidates, target, defaults, overrides)?;
+    let selected = crate::choice::selection::select_provider_plan_indices(
+        &candidates,
+        target,
+        defaults,
+        overrides,
+    )?;
     let mut candidates = candidates.into_iter().map(Some).collect::<Vec<_>>();
     let mut chosen = Vec::with_capacity(selected.len());
     for selected in selected {

@@ -148,7 +148,7 @@ impl BoundaryProviderAdmission<'_> {
     ) -> Result<(), Diagnostic> {
         let join = || -> Result<(), String> {
             let nominal = requirement.numeric_requirement?;
-            crate::external_execution::selected_execution_for_identity(
+            crate::bodies::external_execution::selected_execution_for_identity(
                 self.external_providers,
                 self.identities,
                 nominal,

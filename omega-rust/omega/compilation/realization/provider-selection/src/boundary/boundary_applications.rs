@@ -103,9 +103,10 @@ pub fn select_boundary_applications(
                 }
             }
             ProviderBinding::CheckedAdapter { .. } => {
-                let body =
-                    crate::checked_bodies::select_terminal_checked_body(module, demand, plan, row)
-                        .map_err(|diagnostic| vec![diagnostic])?;
+                let body = crate::bodies::checked_bodies::select_terminal_checked_body(
+                    module, demand, plan, row,
+                )
+                .map_err(|diagnostic| vec![diagnostic])?;
                 match &body.specialization {
                     Some(specialization) => Realization::SpecializedCheckedBody {
                         realization_template: specialization.template.clone(),

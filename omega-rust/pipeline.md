@@ -1115,7 +1115,7 @@ separate admissions file.
 
 [`omega/compilation/realization/provider-planning/`](omega/compilation/realization/provider-planning/README.md)
 owns source provider derivation, declaration preparation, and calling/component
-planning. [`provider-selection/src/provider_selection.rs`](omega/compilation/realization/provider-selection/src/provider_selection.rs)
+planning. [`provider-selection/src/choice/provider_selection.rs`](omega/compilation/realization/provider-selection/src/choice/provider_selection.rs)
 owns shared whole-provider choice and admission; its `publication.rs` selects
 canonical companions against Terminal demand without source dependencies.
 Psi projects checked task activation requirements, exact specialization and
