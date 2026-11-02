@@ -549,7 +549,7 @@ fn resolve_specialized_top_level_requirement_adapter_rows(
                 "selected specialization row `{instance_identity}` does not name one retained specialization instance of checked adapter `{machine_identity}`",
             )));
         }
-        let instance_entry = crate::exact_checked_body_entry(
+        let instance_entry = crate::checked_interpreter_dispatch::exact_checked_body_entry(
             typed,
             plan,
             row,
@@ -711,7 +711,7 @@ fn resolve_family_adapter_row(
                 tuple.display.join(", "),
             )));
         };
-        let entry = crate::exact_checked_body_entry(
+        let entry = crate::checked_interpreter_dispatch::exact_checked_body_entry(
             typed,
             plan,
             row,
@@ -775,7 +775,7 @@ fn planned_checked_adapter<'typed>(
         plan,
         row,
     )?;
-    let entry = crate::exact_checked_body_entry(
+    let entry = crate::checked_interpreter_dispatch::exact_checked_body_entry(
         typed,
         plan,
         row,

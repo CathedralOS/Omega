@@ -3,15 +3,12 @@
 //! Checked-Psi dispatch settlement for exact build-selected realizations.
 //!
 //! Start at `provider_binding.rs` for complete source-dependent preparation;
-//! `selected_execution.rs` is its retained result, not another phase. Optional
-//! checked-tree execution prepares its own bindings in `checked_interpreter_dispatch.rs`.
+//! `selected_execution.rs` is its retained result, not another phase. The
+//! optional checked-tree oracle prepares its own bindings beside its only
+//! consumer, the driver's corpus runner.
 //! Psi owns source checking and execution plans. This crate owns realization
 //! associations, not another entrance into source checking.
 
-mod checked_body;
-mod checked_interpreter_dispatch;
-
-pub(crate) use checked_body::exact_checked_body_entry;
 mod compiler_intrinsic;
 mod intrinsic_review;
 mod numeric_provider;
@@ -19,10 +16,6 @@ pub use numeric_provider::NumericProviderSelection;
 mod provider_binding;
 mod selected_dispatch;
 mod selected_execution;
-
-pub use checked_interpreter_dispatch::{
-    CheckedInterpreterDispatch, prepare_checked_interpreter_dispatch,
-};
 
 pub use compiler_intrinsic::{
     SelectedCompilerIntrinsicExecutionIdentity,
@@ -36,6 +29,7 @@ pub use provider_binding::{ProviderBindingRequest, prepare_selected_execution};
 pub use selected_execution::SelectedExecution;
 
 pub use selected_dispatch::derive_selected_primitive_float_binary_execution;
+pub use selected_dispatch::float_comparisons::selected_executions as selected_float_comparison_executions;
 pub use selected_dispatch::{
     CheckedOperatorAuthoredUseKind, derive_checked_nongeneric_operator_application_realizations,
     derive_checked_specialized_operator_application_realizations,
