@@ -125,7 +125,7 @@ enum Formal {
     ByteView(StructuralAccess),
     IntegerReference(IntegerSign, u16, StructuralAccess),
     IntegerRecord {
-        fields: &'static [(IntegerSign, u16)],
+        fields: &'static [super::native_provider::IntegerRecordField],
         access: StructuralAccess,
     },
     SignedRecordArray {

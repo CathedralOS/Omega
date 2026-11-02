@@ -14,7 +14,9 @@ mod record_shape;
 mod reference_outputs;
 mod values;
 pub(super) use original_homes::{NativeContext, rejection};
-pub(super) use record_shape::{matches_integer_record, matches_signed_record_array};
+pub(super) use record_shape::{
+    IntegerRecordField, matches_integer_record, matches_signed_record_array,
+};
 use values::StorageCodec;
 
 use super::super::TerminalRuntimeError;
