@@ -2302,6 +2302,25 @@ fail/facts/stored_shared_byte_view_element_lend_through_parameter_rejected rejec
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/stored_shared_byte_view_element_lend_through_target_body_rejected rejected 1937ms expected @0fb500fb9d4b
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/suspension_transported_loan_through_call_result_rejected rejected 16145ms expected @3db1f7baaded+wt
+	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_through_const_name_rejected rejected 19539ms expected @3db1f7baaded+wt
+	call to `park` may suspend while `cells` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_through_field_rejected rejected 20375ms expected @3db1f7baaded+wt
+	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_through_local_rejected rejected 23783ms expected @3db1f7baaded+wt
+	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_through_match_join_rejected rejected 16390ms expected @3db1f7baaded+wt
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_through_other_machine_rejected rejected 19354ms expected @3db1f7baaded+wt
+	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_through_other_state_rejected rejected 21023ms expected @3db1f7baaded+wt
+	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_through_parameter_rejected rejected 16580ms expected @3db1f7baaded+wt
+	call to `entry` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_transported_loan_through_target_body_rejected rejected 16565ms expected @3db1f7baaded+wt
+	call to `park` may suspend while `cell` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/facts/target_family_callback_guarantee/bare_interleaved rejected 1496ms expected @45fb2a705c96
 	machine argument `identity` for `apply` does not refine `Selected`: its ensures facts are not a conservative refinement
 fail/facts/target_family_callback_guarantee/evaluation_once rejected 973ms expected @45fb2a705c96
@@ -10366,6 +10385,15 @@ pass/facts/structural_issuer_forwarding_other_state checked 3373ms check-target:
 pass/facts/structural_issuer_forwarding_parameter checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/structural_issuer_forwarding_target_body checked 3943ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/subslice_state_extent_after_write_exit checked 3696ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/suspension_transported_loan_through_call_result_exit checked 25020ms check-target:macos_arm64 @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_const_name_exit checked 24195ms check-target:macos_arm64 @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_field_exit checked 23956ms check-target:macos_arm64 @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_local_exit checked 24021ms check-target:macos_arm64 @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_match_join_exit checked 29651ms check-target:macos_arm64 @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_other_machine_exit checked 18844ms check-target:macos_arm64 @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_other_state_exit checked 21978ms check-target:macos_arm64 @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_parameter_exit checked 21999ms check-target:macos_arm64 @3db1f7baaded+wt
+pass/facts/suspension_transported_loan_through_target_body_exit checked 21386ms check-target:macos_arm64 @3db1f7baaded+wt
 pass/facts/target_family_callback_guarantee/bare_interleaved checked 2806ms check-target:macos_arm64 @45fb2a705c96
 pass/facts/target_family_callback_guarantee/call_result checked 3041ms check-target:macos_arm64 @45fb2a705c96
 pass/facts/target_family_callback_guarantee/const_name checked 3887ms check-target:macos_arm64 @45fb2a705c96
