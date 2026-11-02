@@ -2464,19 +2464,11 @@ impl Emission<'_, '_, '_> {
                 }
             }
             CheckedStructuralValueKind::Case(construction) => {
-                let source = validation::scalar_case_constructor(
-                    &self.checked.typed,
-                    construction.expression,
-                )
-                .ok_or(LoweringError::Unsupported(
-                    "structural case lost its authored constructor",
-                ))?;
                 let place = place_id(allocate_dense(self.environment.next_place)?);
                 let slot = crate::scalar_lowering::computations::cases::reserve(
                     identities,
                     self.checked,
-                    construction.expression,
-                    &source,
+                    &construction,
                     self.structural_types,
                     place,
                 )?;
