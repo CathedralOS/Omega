@@ -5,8 +5,10 @@
 //! behind the closed normalized-plan validator.
 //!
 //! `boundary_signatures.rs` associates geometry with Source review coordinates.
-//! `plan_computation.rs` retains request/review correspondence and publishes
-//! plans from canonical storage. `selected_providers.rs` applies the one
+//! `source_preparation.rs` captures original request/review correspondence and
+//! target helper candidates once beside the shared Terminal publication.
+//! `plan_computation.rs` publishes per-target plans from that owned preparation
+//! and canonical storage, without reopening Source. `selected_providers.rs` applies the one
 //! canonical invocation-scoped provider choice. `calling_program.rs` owns
 //! finite invocation accounting and carries Build evaluation's executor.
 //! `policy_invocation.rs` forms its source-free, single-use admitted request;
