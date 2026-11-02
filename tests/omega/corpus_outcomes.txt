@@ -10392,16 +10392,15 @@ pass/facts/selected_scalar_initializer_through_other_machine_exit checked 3450ms
 pass/facts/selected_scalar_initializer_through_other_state_exit checked 3331ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/selected_scalar_initializer_through_parameter_exit checked 3602ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/selected_scalar_initializer_through_target_body_exit checked 5265ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/selected_value_application_through_call_result_exit checked 3804ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_value_application_through_const_name_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_value_application_through_field_exit rejected 1476ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-pass/facts/selected_value_application_through_local_exit checked 4055ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_value_application_through_match_join_exit checked 3646ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_value_application_through_other_machine_exit checked 3825ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_value_application_through_other_state_exit checked 3611ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_value_application_through_parameter_exit checked 3689ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/selected_value_application_through_target_body_exit checked 4134ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/selected_value_application_through_call_result_exit checked 13240ms check-target:macos_arm64 @a3f86a99de08
+pass/facts/selected_value_application_through_const_name_exit checked 13244ms check-target:macos_arm64 @a3f86a99de08
+pass/facts/selected_value_application_through_field_exit checked 11946ms check-target:macos_arm64 @a3f86a99de08
+pass/facts/selected_value_application_through_local_exit checked 11928ms check-target:macos_arm64 @a3f86a99de08
+pass/facts/selected_value_application_through_match_join_exit checked 11841ms check-target:macos_arm64 @a3f86a99de08
+pass/facts/selected_value_application_through_other_machine_exit checked 11822ms check-target:macos_arm64 @a3f86a99de08
+pass/facts/selected_value_application_through_other_state_exit checked 11912ms check-target:macos_arm64 @a3f86a99de08
+pass/facts/selected_value_application_through_parameter_exit checked 11922ms check-target:macos_arm64 @a3f86a99de08
+pass/facts/selected_value_application_through_target_body_exit checked 12048ms check-target:macos_arm64 @a3f86a99de08
 pass/facts/shared_borrow_field_projection_through_call_result_exit checked 7883ms check-target:macos_arm64 @13fd04e63afe+wt
 pass/facts/shared_borrow_field_projection_through_const_name_exit checked 6389ms check-target:macos_arm64 @13fd04e63afe+wt
 pass/facts/shared_borrow_field_projection_through_field_exit checked 6387ms check-target:macos_arm64 @13fd04e63afe+wt
@@ -14790,9 +14789,10 @@ fail/arithmetic/collection_result_endpoint_effect rejected 4995ms expected @ccdb
 	cannot prove subslice range ordering `__hoist_1..__hoist_2` is within slice length 3
 fail/arithmetic/collection_result_false_loop_bound rejected 2181ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from count at statement 0: result < values.len
-fail/arithmetic/collection_result_rebound_descriptor rejected 2280ms unexpected @ccdb99ca2214
+fail/arithmetic/collection_result_rebound_descriptor rejected 13450ms expected @5a72d03b2a48
 	cannot prove index `count` is within length 2 in rejected::entry
-fail/arithmetic/collection_result_rebound_descriptor_in_later_state checked 2655ms @ccdb99ca2214
+fail/arithmetic/collection_result_rebound_descriptor_in_later_state rejected 13258ms expected regressed-from:checked @5a72d03b2a48
+	cannot prove ensures contract for exit from count at statement 0: result <= values.len
 fail/arithmetic/collection_result_window_metadata rejected 2381ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from rejected at statement 3: result <= 1
 fail/arithmetic/collection_result_wrong_argument rejected 1134ms expected @ccdb99ca2214
@@ -28761,23 +28761,23 @@ fail/facts/selected_scalar_initializer_through_parameter_rejected rejected 1837m
 	array literal element is not proven in domain `i32::Selected` in exercise state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/facts/selected_scalar_initializer_through_target_body_rejected rejected 1940ms expected @ccdb99ca2214
 	array literal element is not proven in domain `i32::Selected` in X86Probe::exercise state `exercise` at statement 1; a construction value must establish the domain's predicates and any required provenance
-fail/facts/selected_value_application_through_call_result_rejected rejected 1471ms expected @ccdb99ca2214
+fail/facts/selected_value_application_through_call_result_rejected rejected 5649ms expected @a3f86a99de08
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/selected_value_application_through_const_name_rejected rejected 1635ms expected @ccdb99ca2214
+fail/facts/selected_value_application_through_const_name_rejected rejected 5569ms expected @a3f86a99de08
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/selected_value_application_through_field_rejected rejected 1994ms expected @ccdb99ca2214
+fail/facts/selected_value_application_through_field_rejected rejected 5810ms expected @a3f86a99de08
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/selected_value_application_through_local_rejected rejected 1569ms expected @ccdb99ca2214
+fail/facts/selected_value_application_through_local_rejected rejected 5810ms expected @a3f86a99de08
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/selected_value_application_through_match_join_rejected rejected 1686ms expected @ccdb99ca2214
+fail/facts/selected_value_application_through_match_join_rejected rejected 5663ms expected @a3f86a99de08
 	exact arithmetic in machine `exercise` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/selected_value_application_through_other_machine_rejected rejected 3120ms expected @ccdb99ca2214
+fail/facts/selected_value_application_through_other_machine_rejected rejected 10425ms expected @a3f86a99de08
 	cannot prove requires contract for call relay from main: incoming <= 10 (needs fact `input <= 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/selected_value_application_through_other_state_rejected rejected 2902ms expected @ccdb99ca2214
+fail/facts/selected_value_application_through_other_state_rejected rejected 10842ms expected @a3f86a99de08
 	cannot prove requires contract for call exercise from main: incoming <= 10 (needs fact `index <= 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/selected_value_application_through_parameter_rejected rejected 3177ms expected @ccdb99ca2214
+fail/facts/selected_value_application_through_parameter_rejected rejected 10055ms expected @a3f86a99de08
 	cannot prove requires contract for call exercise from main: 11 <= 10 (needs fact `index <= 10` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/selected_value_application_through_target_body_rejected rejected 1646ms expected @ccdb99ca2214
+fail/facts/selected_value_application_through_target_body_rejected rejected 5181ms expected @a3f86a99de08
 	exact arithmetic in machine `main` state `entry` local `difference` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/shared_borrow_field_projection_through_call_result_rejected rejected 1633ms expected regressed-from:checked @13fd04e63afe+wt
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).

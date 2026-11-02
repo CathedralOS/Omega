@@ -9,6 +9,7 @@ use checked_trees::expression::ExpressionHandle;
 pub(super) struct CallSource<'a> {
     pub(super) expression: ExpressionHandle,
     pub(super) arguments: &'a [ExpressionHandle],
+    pub(super) evaluation_order: Vec<usize>,
     pub(super) coordinate: SourceInvocation,
 }
 
@@ -45,6 +46,7 @@ impl<'a> Expansion<'a> {
                 }
                 Ok(CallSource {
                     expression,
+                    evaluation_order: control.call_argument_evaluation_order(call),
                     arguments: control.call_arguments.span(call.authored_arguments).ok_or(
                         LoweringError::Unsupported(
                             "scalar invocation lost its authored argument roster",
@@ -70,6 +72,7 @@ impl<'a> Expansion<'a> {
                         ))?;
                 Ok(CallSource {
                     expression,
+                    evaluation_order: (0..retained.checked_arguments.len() as usize).collect(),
                     arguments: plan
                         .application_call_arguments
                         .span(retained.checked_arguments)

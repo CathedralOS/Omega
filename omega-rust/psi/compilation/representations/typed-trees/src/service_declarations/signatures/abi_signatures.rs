@@ -94,9 +94,10 @@ pub(super) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTre
                 );
             }
             let mut operands = Vec::new();
-            for (ordinal, (parameter, identity)) in parameters
+            for (ordinal, ((parameter, identity), argument)) in parameters
                 .iter()
                 .zip(closed.portable_local_arguments)
+                .zip(closed.local_arguments)
                 .enumerate()
             {
                 if callback_binder(declaration, parameter).is_some() {
@@ -107,7 +108,7 @@ pub(super) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTre
                         .map_err(|_| "declaration ABI has too many static operands")?,
                     kind: operand_kind(&parameter.kind),
                     identity: typed
-                        .type_identity_text(*identity)
+                        .requirement_argument_identity_text(*argument, *identity)
                         .filter(|identity| !identity.is_empty())
                         .ok_or("declaration ABI lost a portable static operand")?
                         .to_owned(),
@@ -129,13 +130,20 @@ pub(super) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTre
                 .iter()
                 .zip(closed.local_arguments)
                 .filter(|(parameter, _)| callback_binder(declaration, parameter).is_none())
+                .filter_map(|(parameter, actual)| {
+                    actual.static_operand().map(|actual| (parameter, actual))
+                })
                 .map(|(parameter, actual)| {
                     let formal = typed
                         .applied_signature_parameter(signature, logical, parameter.symbol)
                         .ok_or("declaration ABI lost a non-callback formal correspondence")?;
-                    Ok((formal, *actual))
+                    Ok((formal, actual))
                 })
                 .collect::<Result<Vec<_>, &str>>()?;
+            let runtime_projection = closed
+                .local_arguments
+                .iter()
+                .any(|argument| argument.static_operand().is_none());
             Ok(insert(
                 typed,
                 &mut rows,
@@ -144,12 +152,24 @@ pub(super) fn prepare(catalog: &mut PreparedBoundarySignatures, typed: &TypedTre
                 operands,
                 Ok(PreparedAbiStorage {
                     parameters: typed
-                        .state_signature_parameters(logical)
+                        .state_signature_parameters(if runtime_projection {
+                            closed.signature
+                        } else {
+                            logical
+                        })
                         .iter()
                         .map(|parameter| parameter.type_reference)
                         .collect(),
-                    result: logical.return_type,
-                    substitutions,
+                    result: if runtime_projection {
+                        closed.signature.return_type
+                    } else {
+                        logical.return_type
+                    },
+                    substitutions: if runtime_projection {
+                        Vec::new()
+                    } else {
+                        substitutions
+                    },
                 }),
             ))
         })();

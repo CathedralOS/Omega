@@ -31,21 +31,10 @@ pub(crate) fn lower_trait_definition(
 
     typed_trait.type_parameters = lower_type_parameters(lowerer, trait_definition.type_parameters)?;
 
-    for bound in &trait_definition.conformance_bounds {
-        let mut arguments = Vec::new();
-        for argument in lowerer.source_trees.child_type_references(bound.arguments) {
-            arguments.push(lower_type_reference_into_table(lowerer, argument)?);
-        }
-        typed_trait
-            .conformance_bounds
-            .push(typed::machine::GenericConformanceBound {
-                binder: bound.binder,
-                binder_name: lower_name(&bound.binder_name),
-                trait_symbol: bound.trait_symbol,
-                trait_name: lower_name(&bound.trait_name),
-                arguments,
-            });
-    }
+    typed_trait.conformance_bounds = crate::signatures::evidence::lower_conformance_bounds(
+        lowerer,
+        &trait_definition.conformance_bounds,
+    )?;
 
     for requirement in lowerer
         .source_trees

@@ -25,6 +25,7 @@ impl PackagePolicyTraitRequirement {
     field_projection_accessors!(copied spelling: Option<language_core::OperatorSpelling>);
     field_projection_accessors!(copied lifetime_parameter_count: usize);
     field_projection_accessors!(sliced type_parameters: &[PackagePolicyTypeParameter]);
+    field_projection_accessors!(sliced conformance_bounds: &[crate::record::PackageReviewConformanceBound]);
     field_projection_accessors!(sliced parameters: &[PackageReviewSignatureParameter]);
     field_projection_accessors!(copied has_default_realization: bool);
 

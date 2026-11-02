@@ -45,6 +45,7 @@ pub(super) fn project_observed_value(
         value,
         path,
         |_| None,
+        |value| value,
         |value, _, variant| {
             matches!(value.semantic_value(), StructuralTerm::Constructor { case, .. }
             if case.as_str() == program.symbols.name(variant))
@@ -68,6 +69,7 @@ pub(super) fn project_observed_value_in_scope(
         value,
         path,
         |_| None,
+        |value| judge.completed_nominal_observation(&value),
         |value, data, variant| {
             matches!(
                 judge.judge_case(value.clone(), data, variant),
@@ -93,6 +95,7 @@ pub(super) fn project_observed_value_with_selectors(
         value,
         path,
         selector,
+        |value| judge.completed_nominal_observation(&value),
         |value, data, variant| {
             matches!(
                 judge.judge_case(value.clone(), data, variant),
@@ -108,6 +111,7 @@ fn project_observed_value_under_cases(
     mut value: StructuralTerm,
     path: &[PlaceSegment],
     mut selector: impl FnMut(typed_trees::expression::ExpressionHandle) -> Option<StructuralTerm>,
+    mut completed: impl FnMut(StructuralTerm) -> StructuralTerm,
     mut case_is_proved: impl FnMut(&StructuralTerm, SymbolHandle, SymbolHandle) -> bool,
 ) -> Option<StructuralTerm> {
     for segment in path {
@@ -140,14 +144,18 @@ fn project_observed_value_under_cases(
             PlaceSegment::Field { symbol }
                 if symbol.is_valid() && program.any_field_owner(*symbol).is_some() =>
             {
-                value = project_field(
-                    if owned {
-                        value.into_semantic_value()
-                    } else {
-                        value
-                    },
-                    program.symbols.name(*symbol),
-                )?;
+                // Scalar/payload projections keep the completed value's exact
+                // identity, including its admitted predicates. Only a reference
+                // child reads the producer's separately retained descriptor;
+                // unfolding the whole aggregate here can replay retired cells.
+                let source = if owned && crate::reference_shell(program, projected).is_some() {
+                    completed(value).into_semantic_value()
+                } else if owned {
+                    value.into_semantic_value()
+                } else {
+                    value
+                };
+                value = project_field(source, program.symbols.name(*symbol))?;
                 if owned {
                     value = super::structural_terms::owned_projection_observation(
                         program, projected, value,

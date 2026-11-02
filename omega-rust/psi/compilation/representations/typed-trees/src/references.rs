@@ -1218,12 +1218,13 @@ fn visit_callable_symbol(
     visit_symbol(retained, application.declaring_trait);
     visit_symbol(retained, application.template);
     application.trait_scope.visit_references(program, retained);
-    for reference in application
-        .trait_arguments
-        .iter()
-        .chain(application.local_arguments)
-    {
-        visit_type_reference(program, retained, *reference);
+    for reference in application.trait_arguments.iter().copied().chain(
+        application
+            .local_arguments
+            .iter()
+            .map(|argument| argument.type_reference()),
+    ) {
+        visit_type_reference(program, retained, reference);
     }
     let source = program.static_machine_application(application.application);
     visit_symbol(retained, source.binding_declaration);
@@ -1966,6 +1967,13 @@ pub fn visit_signature(
     retained.enter_lexical_scope(signature.symbol);
     visit_constant_evaluation_entries(program, retained, signature.symbol);
     visit_type_parameters(program, retained, signature.type_parameters);
+    for bound in &signature.conformance_bounds {
+        visit_symbol(retained, bound.binder);
+        visit_symbol(retained, bound.trait_symbol);
+        for argument in &bound.arguments {
+            visit_type_reference(program, retained, *argument);
+        }
+    }
     for parameter in program
         .tables
         .state_parameters

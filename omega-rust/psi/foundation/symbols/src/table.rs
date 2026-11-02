@@ -246,6 +246,9 @@ fn child_symbol(
 /// while extending one retained hierarchy. Both routes preserve contiguous
 /// child ranges; only top-level insertion differs.
 pub trait SymbolTableAppender {
+    /// Source custody used while inserting explicit declaration namespaces.
+    fn source_map(&self) -> Option<Arc<SourceMap>>;
+
     fn insert_children<'name>(
         &mut self,
         parent: SymbolHandle,
@@ -254,6 +257,10 @@ pub trait SymbolTableAppender {
 }
 
 impl SymbolTableAppender for SymbolTableBuilder {
+    fn source_map(&self) -> Option<Arc<SourceMap>> {
+        self.sources.clone()
+    }
+
     fn insert_children<'name>(
         &mut self,
         parent: SymbolHandle,
@@ -1557,6 +1564,10 @@ impl SymbolTableExtension {
 }
 
 impl SymbolTableAppender for SymbolTableExtension {
+    fn source_map(&self) -> Option<Arc<SourceMap>> {
+        self.table.source_map()
+    }
+
     fn insert_children<'name>(
         &mut self,
         parent: SymbolHandle,

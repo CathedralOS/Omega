@@ -46,7 +46,7 @@ impl<'program> StaticDeclaration<'program> {
                 parameters: program
                     .requirement_invocation_contract_parameters(application.signature),
                 lifetime_parameters: &source.lifetime_parameters,
-                conformance_bounds: &[],
+                conformance_bounds: &application.signature.conformance_bounds,
             });
         }
         if let Some(machine) = program.machine_by_symbol(symbol) {
@@ -89,7 +89,7 @@ impl<'program> StaticDeclaration<'program> {
             name: &signature.name,
             parameters: program.state_signature_type_parameters(signature),
             lifetime_parameters: &signature.lifetime_parameters,
-            conformance_bounds: &[],
+            conformance_bounds: &signature.conformance_bounds,
         })
     }
 }

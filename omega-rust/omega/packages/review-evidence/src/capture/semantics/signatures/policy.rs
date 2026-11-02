@@ -256,6 +256,7 @@ fn machine(
                     value.type_parameters,
                     depth,
                 )?,
+                conformance_bounds: value.conformance_bounds,
                 parameters: value.parameters,
                 return_type: source.return_type.is_valid().then_some(value.return_type),
                 contracts: value.contracts,

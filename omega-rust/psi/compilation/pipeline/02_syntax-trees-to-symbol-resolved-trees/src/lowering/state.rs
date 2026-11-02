@@ -192,6 +192,7 @@ pub(crate) fn lower_state_signature_node(
 spelling: signature.spelling,
 lifetime_parameters: &signature.lifetime_parameters,
 type_parameters: signature.type_parameters,
+conformance_bounds: &signature.conformance_bounds,
 parameters: signature.parameters,
 native_callback_parameters: &signature.native_callback_parameters,
 return_type_handle: signature.return_type,
@@ -219,6 +220,7 @@ pub(crate) struct StateSignatureParts<'a> {
     pub(crate) spelling: Option<OperatorSpelling>,
     pub(crate) lifetime_parameters: &'a [Identifier],
     pub(crate) type_parameters: HandleSpan<TypeParameter>,
+    pub(crate) conformance_bounds: &'a [syntax::item::GenericConformanceBound],
     pub(crate) parameters: HandleSpan<StateParameterHandle>,
     pub(crate) native_callback_parameters: &'a [NativeCallbackParameterNode],
     pub(crate) return_type_handle: TypeReferenceHandle,
@@ -245,6 +247,7 @@ pub(crate) fn lower_state_signature_parts(
         spelling,
         lifetime_parameters,
         type_parameters,
+        conformance_bounds,
         parameters,
         native_callback_parameters,
         return_type_handle,
@@ -262,6 +265,11 @@ pub(crate) fn lower_state_signature_parts(
     } = inputs;
     let type_parameters =
         crate::lowering::data::lower_type_parameters(lowerer, syntax_trees, type_parameters)?;
+    let conformance_bounds = crate::lowering::machine::lower_generic_conformance_bounds(
+        lowerer,
+        syntax_trees,
+        conformance_bounds,
+    )?;
     let parameters = lower_state_parameters(lowerer, syntax_trees, parameters)?;
     let return_type = return_type_handle
         .is_valid()
@@ -279,6 +287,7 @@ pub(crate) fn lower_state_signature_parts(
                 spelling,
                 lifetime_parameters: lower_names(syntax_trees, &lifetime_parameters),
                 type_parameters,
+                conformance_bounds,
                 is_default,
                 parameters,
                 native_callback_parameters: native_callback_parameters

@@ -8,6 +8,7 @@
 //! area directly.
 
 pub(crate) mod callable_signature;
+pub(crate) mod evidence;
 pub(crate) mod lexical_context;
 pub(crate) mod parameters;
 pub(crate) mod type_parameters;

@@ -199,7 +199,7 @@ pub fn validate_authored_static_arguments(
             requirement.name.as_str(),
             program.state_signature_type_parameters(&signature),
             arguments,
-            None,
+            ArgumentScope::ClosedRequirement(application.local_arguments),
         ) {
             diagnostics.push(error);
         }
@@ -478,7 +478,13 @@ fn validate_call(
     {
         let state = call_state(call, context, expression_states);
         let ordinary = ordinary_arguments(program, call);
-        if let Err(error) = validate_arguments(program, name, parameters, &ordinary, state) {
+        if let Err(error) = validate_arguments(
+            program,
+            name,
+            parameters,
+            &ordinary,
+            ArgumentScope::Caller(state),
+        ) {
             diagnostics.push(error);
         }
         if let Some(state) = state
@@ -674,12 +680,20 @@ pub(crate) fn validate_structural_type_operand(
     Ok(())
 }
 
+#[derive(Clone, Copy)]
+enum ArgumentScope<'scope> {
+    Caller(Option<&'scope State>),
+    /// A shared executable instance closes carriers, not caller storage.
+    /// Each source call independently owes its actual's formation and bounds.
+    ClosedRequirement(&'scope [typed_trees::typed_trees::RequirementLocalArgument]),
+}
+
 fn validate_arguments(
     program: &dyn CheckingInput,
     name: &str,
     parameters: &[typed_trees::data::TypeParameter],
     arguments: &[StaticMachineArgument],
-    state: Option<&State>,
+    scope: ArgumentScope<'_>,
 ) -> Result<(), Diagnostic> {
     let has_types = parameters
         .iter()
@@ -693,6 +707,42 @@ fn validate_arguments(
         // binders and retained expressions: a kind-specific cursor silently
         // accepts permutations when their carriers happen to match.
         let parameter = parameters.get(ordinal);
+        if let ArgumentScope::ClosedRequirement(coordinates) = &scope
+            && let Some(typed_trees::typed_trees::RequirementLocalArgument::RuntimeValue {
+                carrier,
+            }) = coordinates.get(ordinal)
+        {
+            let Some(typed_trees::data::TypeParameter {
+                kind: TypeParameterKind::Value { type_reference },
+                ..
+            }) = parameter
+            else {
+                return Err(Diagnostic::error(
+                    "closed requirement has a runtime carrier outside a Value slot",
+                ));
+            };
+            if !carrier.is_valid()
+                || !program
+                    .type_reference_table
+                    .contains_type_reference(*carrier)
+                || !type_reference.is_valid()
+                || !program
+                    .type_reference_table
+                    .contains_type_reference(*type_reference)
+            {
+                return Err(Diagnostic::error(
+                    "closed requirement runtime carrier differs from its declared Value carrier",
+                ));
+            }
+            let actual = program.normalized_type_identity(*carrier);
+            let required = program.normalized_type_identity(*type_reference);
+            if !actual.is_valid() || !required.is_valid() || actual != required {
+                return Err(Diagnostic::error(
+                    "closed requirement runtime carrier differs from its declared Value carrier",
+                ));
+            }
+            continue;
+        }
         if let Some(parameter) = parameter
             && matches!(parameter.kind, TypeParameterKind::Const { .. })
             && program
@@ -741,6 +791,10 @@ fn validate_arguments(
         let value_parameter = parameter
             .is_some_and(|parameter| matches!(parameter.kind, TypeParameterKind::Value { .. }));
         let runtime_expression = is_runtime_value_expression(program, argument);
+        let state = match scope {
+            ArgumentScope::Caller(state) => state,
+            ArgumentScope::ClosedRequirement(_) => None,
+        };
         let runtime_field = state.is_some_and(|state| {
             argument
                 .evidence_projection

@@ -251,29 +251,25 @@ fn append(
         return unsupported("nested argument schedule has no exact positional signature");
     }
     active.push(index);
-    let mut scalar_ordinal = 0;
-    // Walk both lanes in authored evaluation order; a retained receiver can
-    // consume a structural slot without an explicit argument expression.
-    let mut structural_ordinal = 0;
-    for position in 0..parameters.len() {
-        if scalar_positions.get(scalar_ordinal) == Some(&position) {
+    // The retained source permutation chooses evaluation, while each dense
+    // lane ordinal still identifies its callee parameter and completed value.
+    for position in authored.evaluation_order.iter().copied() {
+        if let Some(scalar_ordinal) = scalar_positions
+            .iter()
+            .position(|scalar| *scalar == position)
+        {
             steps.push(Step::Argument {
                 operation: index,
                 ordinal: scalar_ordinal,
             });
-            scalar_ordinal += 1;
             continue;
         }
-        if structural_positions
-            .get(structural_ordinal)
-            .copied()
-            .map(|position| position as usize)
-            != Some(position)
-        {
+        let Some(argument_ordinal) = structural_positions
+            .iter()
+            .position(|structural| *structural as usize == position)
+        else {
             continue;
-        }
-        let argument_ordinal = structural_ordinal;
-        structural_ordinal += 1;
+        };
         if byte_subslices::arguments(&operations[index])
             .get(argument_ordinal)
             .is_some_and(|argument| byte_subslices::range(argument).is_some())

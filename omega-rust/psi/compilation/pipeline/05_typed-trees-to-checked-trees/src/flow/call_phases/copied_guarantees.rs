@@ -204,8 +204,16 @@ impl<'program, 'writes> ArgumentSources<'program, 'writes> {
             return None;
         }
         let mut captures = Vec::new();
-        if let Some(invocation) = captured_operands.last() {
-            let offset = usize::from(receiver.is_some());
+        let offset = usize::from(receiver.is_some());
+        let completed_position = site
+            .argument_evaluation_order(program)
+            .ok()?
+            .last()
+            .map(|position| position + offset)
+            .or_else(|| receiver.map(|_| 0));
+        if let Some(invocation) =
+            completed_position.and_then(|position| captured_operands.get(position))
+        {
             for (position, parameter) in parameters.iter().enumerate() {
                 retain_capture(
                     program,

@@ -16,6 +16,35 @@ use arena::HandleSpan;
 use symbols::SymbolHandle;
 use type_identity::applied_type_identity;
 
+/// A reusable public invocation closes static operands but transports runtime
+/// Values through ordinary parameters. A carrier is never a closed value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum RequirementLocalArgument {
+    Static(types::TypeReferenceHandle),
+    RuntimeValue { carrier: types::TypeReferenceHandle },
+}
+
+impl Default for RequirementLocalArgument {
+    fn default() -> Self {
+        Self::Static(types::TypeReferenceHandle::invalid())
+    }
+}
+
+impl RequirementLocalArgument {
+    pub fn type_reference(self) -> types::TypeReferenceHandle {
+        match self {
+            Self::Static(reference) | Self::RuntimeValue { carrier: reference } => reference,
+        }
+    }
+
+    pub fn static_operand(self) -> Option<types::TypeReferenceHandle> {
+        match self {
+            Self::Static(reference) => Some(reference),
+            Self::RuntimeValue { .. } => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy)]
 pub struct ClosedRequirementApplication<'program> {
     pub declaring_trait: SymbolHandle,
@@ -26,7 +55,7 @@ pub struct ClosedRequirementApplication<'program> {
     pub portable_local_arguments: &'program [type_identity::NormalizedTypeIdentity],
     pub trait_scope: crate::trait_definition::RetainedTraitScope,
     pub trait_arguments: &'program [types::TypeReferenceHandle],
-    pub local_arguments: &'program [types::TypeReferenceHandle],
+    pub local_arguments: &'program [RequirementLocalArgument],
     /// Substituted admission binders, distinct from the closed executable arity.
     /// Their exact source symbols join the retained application bindings.
     pub invocation_contract_parameters: &'program [data::TypeParameter],
@@ -113,7 +142,7 @@ impl TypedTrees {
                 .span_or_empty(portable_local_arguments),
             trait_scope,
             trait_arguments: self.type_reference_handles(trait_arguments),
-            local_arguments: self.type_reference_handles(local_arguments),
+            local_arguments: self.callable_arguments.span_or_empty(local_arguments),
             invocation_contract_parameters: self
                 .data_type_parameters
                 .span_or_empty(invocation_contract_parameters),
@@ -164,9 +193,15 @@ impl TypedTrees {
             {
                 return false;
             }
-            let parameters = self
-                .data_type_parameters
-                .span_or_empty(receipt.template_parameters);
+            let Some(declaration) = self
+                .machine_declaration_for_lexical_scope(realization)
+                .filter(|declaration| declaration.type_parameters == receipt.template_parameters)
+            else {
+                return false;
+            };
+            let declared_parameters = self.machine_callable_parameters(declaration);
+            let parameters =
+                self.requirement_callable_parameters(application.signature, &declared_parameters);
             let bindings = self.static_machine_application_bindings(receipt.binding_application);
             let binding_owner = self
                 .static_machine_application(receipt.binding_application)
@@ -190,7 +225,8 @@ impl TypedTrees {
                 && parameters
                     .iter()
                     .zip(arguments)
-                    .all(|(parameter, argument)| {
+                    .enumerate()
+                    .all(|(ordinal, (parameter, argument))| {
                         let mut actual = bindings
                             .iter()
                             .filter(|binding| binding.parameter == parameter.symbol);
@@ -198,13 +234,32 @@ impl TypedTrees {
                             return false;
                         };
                         actual.next().is_none()
-                            && self.static_binding_matches_argument(
+                            && match application.local_arguments.get(ordinal) {
+                                Some(RequirementLocalArgument::RuntimeValue { carrier }) => {
+                                    let static_applications::StaticMachineBindingValue::RuntimeValue {
+                                        type_reference, subject, expression,
+                                    } = binding.value else { return false; };
+                                    matches!(parameter.kind, data::TypeParameterKind::Value { .. })
+                                        && !subject.is_valid() && !expression.is_valid()
+                                        && applied_type_identity(self, *carrier, source_owner, &[])
+                                            .zip(applied_type_identity(self, type_reference, binding_owner, &[]))
+                                            .is_some_and(|(expected, actual)| expected == actual)
+                                        && self.machine_by_symbol(provider)
+                                            .and_then(|machine| self.machine_states(machine).first())
+                                            .is_some_and(|state| {
+                                                self.state_parameters(state).iter()
+                                                    .filter(|formal| self.symbols.get(formal.symbol).generated_from == parameter.symbol)
+                                                    .count() == 1
+                                            })
+                                }
+                                _ => self.static_binding_matches_argument(
                                 &parameter.kind,
                                 &binding.value,
                                 argument,
                                 source_owner,
                                 binding_owner,
-                            )
+                            ),
+                            }
                     })
         });
         let receipt = matches.next()?;
@@ -296,14 +351,18 @@ impl TypedTrees {
                             ..Default::default()
                         },
                         lexical_owner,
-                    ),
+                    )
+                    .map(RequirementLocalArgument::Static),
                 static_applications::StaticMachineBindingValue::Machine(actual)
-                | static_applications::StaticMachineBindingValue::Conformance(actual) => {
-                    self.static_operand_type_reference_in_scope(actual, lexical_owner)
-                }
-                static_applications::StaticMachineBindingValue::RuntimeValue { .. } => {
-                    Err("runtime operand does not close a requirement instance")
-                }
+                | static_applications::StaticMachineBindingValue::Conformance(actual) => self
+                    .static_operand_type_reference_in_scope(actual, lexical_owner)
+                    .map(RequirementLocalArgument::Static),
+                static_applications::StaticMachineBindingValue::RuntimeValue {
+                    type_reference,
+                    ..
+                } => Ok(RequirementLocalArgument::RuntimeValue {
+                    carrier: *type_reference,
+                }),
             })
             .collect::<Result<Vec<_>, _>>()?;
         let receiving_scope = environment
@@ -314,7 +373,13 @@ impl TypedTrees {
         // Discarding it here either rejects retained regions or licenses a
         // later consumer to rebuild a different application from erased types.
         self.require_receiving_trait_operands(&receiving_scope)?;
-        self.require_owned_application_operands(&local_arguments, lexical_owner)?;
+        self.require_owned_application_operands(
+            &local_arguments
+                .iter()
+                .map(|argument| argument.type_reference())
+                .collect::<Vec<_>>(),
+            lexical_owner,
+        )?;
         let trait_application_identity = receiving_scope
             .application_identity(self)
             .ok_or("closed requirement has no complete declaring application identity")?;
@@ -324,8 +389,13 @@ impl TypedTrees {
         let portable_local_arguments = local_arguments
             .iter()
             .map(|argument| {
-                type_identity::portable_applied_type_identity(self, *argument, lexical_owner, &[])
-                    .ok_or("closed requirement has no complete portable local operand")
+                type_identity::portable_applied_type_identity(
+                    self,
+                    argument.type_reference(),
+                    lexical_owner,
+                    &[],
+                )
+                .ok_or("closed requirement has no complete portable local operand")
             })
             .collect::<Result<Vec<_>, _>>()?;
         // Signature and ABI equality are insufficient cache coordinates. The
@@ -339,6 +409,13 @@ impl TypedTrees {
                 && existing.portable_trait_application_identity
                     == portable_trait_application_identity
                 && existing.portable_local_arguments == portable_local_arguments
+                && existing
+                    .local_arguments
+                    .iter()
+                    .zip(&local_arguments)
+                    .all(|(left, right)| {
+                        std::mem::discriminant(left) == std::mem::discriminant(right)
+                    })
                 && self
                     .static_machine_application(existing.application)
                     .lifetime_binding_declaration
@@ -385,6 +462,18 @@ impl TypedTrees {
                                         ))
                                         .is_some_and(|(left, right)| left == right)
                                 }
+                                (
+                                    static_applications::StaticMachineBindingValue::RuntimeValue {
+                                        type_reference: left,
+                                        ..
+                                    },
+                                    static_applications::StaticMachineBindingValue::RuntimeValue {
+                                        type_reference: right,
+                                        ..
+                                    },
+                                ) => applied_type_identity(self, *left, lexical_owner, &[])
+                                    .zip(applied_type_identity(self, *right, lexical_owner, &[]))
+                                    .is_some_and(|(left, right)| left == right),
                                 (left, right) => left == right,
                             }
                     })
@@ -452,6 +541,10 @@ impl TypedTrees {
                         .static_arguments
                         .push((parameter.symbol, actual.clone()));
                 }
+                (
+                    data::TypeParameterKind::Value { .. },
+                    static_applications::StaticMachineBindingValue::RuntimeValue { .. },
+                ) => substitutions.runtime_values.push(parameter.symbol),
                 _ => {
                     return Err(
                         "closed requirement binding has no represented complete static operand",
@@ -476,9 +569,7 @@ impl TypedTrees {
         let trait_arguments = self
             .type_reference_table
             .insert_type_reference_handles(trait_arguments.iter().copied());
-        let local_arguments = self
-            .type_reference_table
-            .insert_type_reference_handles(local_arguments);
+        let local_arguments = self.callable_arguments.insert_many(local_arguments);
         let trait_scope = environment.retain(self)?;
         let portable_local_arguments = self
             .callable_argument_identities

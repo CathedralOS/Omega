@@ -9,6 +9,30 @@ pub(super) use validation::static_arguments::{
     forwarded_type, is_runtime_value_expression, is_runtime_value_subject, spelling,
 };
 
+/// A Value application transports an executable subject rather than closing a
+/// static operand. Forwarded Value binders retain that same runtime role.
+pub(super) fn is_runtime_value_argument(
+    program: &dyn validation::CheckingInput,
+    argument: &StaticMachineArgument,
+) -> bool {
+    program.static_const_argument_identity(argument).is_none()
+        && (is_runtime_value_subject(program, argument)
+            || is_runtime_value_expression(program, argument)
+            // The parser also retains `value.field` in this shared payload.
+            // A selected Value slot uses the ordinary runtime operand owner
+            // to resolve its receiver/field; this classification grants none.
+            || argument.evidence_projection.is_some()
+            || argument.symbol.is_valid()
+                && program
+                    .data_type_parameter_by_symbol(argument.symbol)
+                    .is_some_and(|parameter| {
+                        matches!(
+                            parameter.kind,
+                            typed_trees::data::TypeParameterKind::Value { .. }
+                        )
+                    }))
+}
+
 /// The ordinary expression stored as this argument's const-expression
 /// payload. Field projections spelled `name.member` are not in that payload;
 /// they stay on `evidence_projection` until the value-binder slot reads them.
@@ -53,6 +77,18 @@ pub(super) fn resolve_runtime_subject(
         // local. A resolved local re-derives its nearest binding by scope
         // below, since the symbol alone cannot order shadowed `let`s.
         if kind == SymbolKind::Parameter {
+            return Some(argument.symbol);
+        }
+        if kind == SymbolKind::TypeParameter
+            && program
+                .data_type_parameter_by_symbol(argument.symbol)
+                .is_some_and(|parameter| {
+                    matches!(
+                        parameter.kind,
+                        typed_trees::data::TypeParameterKind::Value { .. }
+                    )
+                })
+        {
             return Some(argument.symbol);
         }
         if kind != SymbolKind::Local {

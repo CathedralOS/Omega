@@ -1145,6 +1145,7 @@ fn syntax_signature_copy_preserves_operational_keyword_sources() {
         spelling: None,
         lifetime_parameters: Vec::new(),
         type_parameters: HandleSpan::empty(),
+        conformance_bounds: Vec::new(),
         is_default: true,
         parameters: HandleSpan::empty(),
         native_callback_parameters: Vec::new(),
