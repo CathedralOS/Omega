@@ -16,10 +16,11 @@ This is another production of the existing `provider_contract_endpoint` fact,
 owned by **CANONICALIZE-SCALAR-RANGE-CONTRACTS**. The generic-wrapper customer,
 `tests/omega/pass/generics/folded_range_endpoint_selection_custody`, originally
 exposed the call-checking failure in the standard library's generic macOS window
-function. Its individual Objective-C calls supply constant counts. Main now
-contains the call-contract repair. The remaining field case needs its bound
-evaluated in the data declaration where it was written; the field value itself
-still belongs to the constructing caller.
+function. Its individual Objective-C calls supply constant counts. Main already
+provides generic-call argument mapping. This change also makes statement calls
+use their complete checked contract and evaluates field bounds in the data
+declaration where they were written. The field value itself still belongs to
+the constructing caller.
 
 | Place | Program | Provider returns six instead of seven |
 | --- | --- | --- |
@@ -43,7 +44,10 @@ The field program also checks neighboring values 31 and 47. The match program
 uses both branches, carrying seven and three, and checks subtraction results
 zero and four. Taking the same branch twice or overwriting a neighbor therefore
 fails at runtime. The selected-implementation program retains the existing
-architecture tags, 17 and 29.
+architecture tags, 17 and 29. Companion mutation controls call `set<7>(target)`
+from a generic function, verify the written value and neighboring fields, and
+reject a claim that the old zero survived the write. They also retain wrong-type
+and false-bound generic arguments as rejection controls.
 
 The requirement checks cover:
 
