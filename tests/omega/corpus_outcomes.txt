@@ -1837,6 +1837,35 @@ fail/facts/typed_reflection_active_case_selected_layout_alias_rejected rejected 
 	machine `field` requires type predicate does not hold for the supplied arguments
 fail/facts/typed_reflection_active_case_selected_layout_rejected rejected 792ms expected @dd3a6c22f839
 	machine `field` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_mutation_completion_call_result_rejected rejected 1008ms expected @f0eff27c64cd
+	machine `increment` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_mutation_completion_const_name_rejected rejected 1001ms expected @f0eff27c64cd
+	machine `increment` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_mutation_completion_field_rejected rejected 1094ms expected @f0eff27c64cd
+	machine `increment` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_mutation_completion_foreign_query_rejected rejected 2053ms expected @f0eff27c64cd
+	typed field visitation requires its subject owner; delegate an owning operation instead of reflecting a foreign carrier
+fail/facts/typed_reflection_mutation_completion_loan_escape_rejected rejected 4757ms expected @f0eff27c64cd
+	machine `escape` stores a borrowed value without a complete normal-exit backing relation
+	machine `main` state `entry` statement 2: call stores a borrowed value without a complete destination/backing relation
+fail/facts/typed_reflection_mutation_completion_local_rejected rejected 865ms expected @f0eff27c64cd
+	machine `increment` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_mutation_completion_match_join_rejected rejected 843ms expected @f0eff27c64cd
+	machine `increment` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_mutation_completion_other_machine_rejected rejected 859ms expected @f0eff27c64cd
+	machine `increment` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_mutation_completion_other_state_rejected rejected 872ms expected @f0eff27c64cd
+	machine `increment` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_mutation_completion_parameter_rejected rejected 864ms expected @f0eff27c64cd
+	machine `increment` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_mutation_completion_shared_generic_rejected rejected 877ms expected @f0eff27c64cd
+	machine `member` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_mutation_completion_target_body_rejected rejected 920ms expected @f0eff27c64cd
+	machine `increment` requires type predicate does not hold for the supplied arguments
+fail/facts/typed_reflection_mutation_completion_unit_value_rejected rejected 1356ms expected @f0eff27c64cd
+	machine `maybe` state `entry`: `entry(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
+	machine `maybe` state `entry`: `done(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
+	machine `maybe` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
 fail/facts/write_only_scalar_entry_observation rejected 5920ms expected @3bd254ac6193
 	machine `read` state `entry` reads write-only parameter `value`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/float/constructor_case_invalid_narrow_widen_rejected rejected 3180ms expected @f9df9c1404e3
@@ -9788,6 +9817,19 @@ pass/facts/transparent_alias_rhs_const_expression_exit checked 7601ms check-targ
 pass/facts/transparent_alias_rhs_declaration_scope_exit checked 4008ms check-target:macos_arm64 @8436ab6a7742
 pass/facts/typed_reflection_active_case_selected_layout_alias_exit checked 11634ms check-target:macos_arm64 @9d8ac725f3d8
 pass/facts/typed_reflection_active_case_selected_layout_exit checked 12161ms check-target:macos_arm64 @dd3a6c22f839
+pass/facts/typed_reflection_mutation_completion_active_case_exit checked 6187ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_call_result_exit checked 6870ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_conditional_exit checked 8138ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_const_name_exit checked 8850ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_declaration_const_exit checked 10503ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_field_exit checked 9322ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_local_exit checked 9359ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_match_join_exit checked 6693ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_other_machine_exit checked 9936ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_other_state_exit checked 7915ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_parameter_exit checked 7517ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_shared_generic_exit checked 7226ms check-target:macos_arm64 @f0eff27c64cd
+pass/facts/typed_reflection_mutation_completion_target_body_exit checked 9156ms check-target:macos_arm64 @f0eff27c64cd
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 3750ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 3450ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unannotated_direct_boundary_call_through_field_exit checked 3654ms check-target:macos_arm64 @ccdb99ca2214
