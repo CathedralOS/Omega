@@ -1,64 +1,110 @@
 # Write-only representation views
 
+A program can write a record through another data type with the same representation
+without gaining permission to read it. Each example writes 73 through a `Viewed`
+view, then checks that the original `Original` record contains 73.
+
 Fact: a write-only representation view writes 73 to the original record without
-granting observation. Parent: `DOMAIN-ACCESS-AUTHORITY` in `TASKS.md`, whose
-controlled writer needs an explicitly erased write-only reference view before
-delegating to a bare helper. This row establishes ordinary view formation and
-transport, not domain-policy retention or routed-membership preservation.
+granting observation. `&write` is a borrow that permits writing but forbids reading
+stored content. `Original` and `Viewed` each contain one unrestricted `u32`, so
+their layouts and valid representations match in both directions. The recast
+(`storage as &write Viewed`) changes the stated shape of the same storage; it
+does not copy the record or grant readable access.
 
-`Original` and `Viewed` have the same one-field `u32` representation. Every
-positive writes 73 through the view and then observes 73 in the original backing.
-The access-escalation twin changes only the target-view access from `&write`
-to `&mut`, consistently at the recast and receiving types; its source remains
-`&write Original`. No caller guard supplies access or representation evidence.
+This row supports `DOMAIN-ACCESS-AUTHORITY` and the remaining source migration in
+`BUILD-OWNED-TARGET-SELECTION` in `TASKS.md`. The target-body example uses one
+`SelectedOverwrite` requirement and four ordinary checked implementations.
+Explicit Build rows choose an implementation for each target. The selected body
+performs the same recast and store as before; selection grants no extra access.
+The public requirement promises no particular written value. The runtime check
+observes the actual write after the call returns.
 
-Acceptance is `omega run --both <place>/main.omg` with native/Terminal exit 0,
-plus refusal of each `invalid/main.omg` for attempted readable access. All four
-hosted `ProgramEntry` bindings are present. Places: local, field, parameter,
-call_result, match_join, const_name, other_state, other_machine, target_body.
-The const-name place supplies the same 73 from `WRITTEN`; runtime-exclusive
-references are not fabricated as constants.
+The returned-view and match examples exposed a safe-write refusal: the compiler
+kept the borrow but lost the field address below the returned view. It now
+retains the field or index chosen when the receiver is evaluated. A containing
+storage region stays conservative when the new representation has different
+field names, and a copied match subject keeps its own storage. Missing backing
+or borrow permission still refuses; no source spelling grants a new address.
 
-## Evidence and remaining scope
+| Place | Positive | Reject twin | How the view travels |
+| --- | --- | --- | --- |
+| Root | [main.omg](main.omg) | — | Direct recast and write |
+| Local | [local/main.omg](local/main.omg) | [invalid](local/invalid/main.omg) | Local binding |
+| Field | [field/main.omg](field/main.omg) | [invalid](field/invalid/main.omg) | Record field |
+| Parameter | [parameter/main.omg](parameter/main.omg) | [invalid](parameter/invalid/main.omg) | Helper argument |
+| Call result | [call_result/main.omg](call_result/main.omg) | [invalid](call_result/invalid/main.omg) | Returned view |
+| Match join | [match_join/main.omg](match_join/main.omg) | [invalid](match_join/invalid/main.omg) | Two branches, one with a marked helper call |
+| Const name | [const_name/main.omg](const_name/main.omg) | [invalid](const_name/invalid/main.omg) | Store uses the same named value 73 |
+| Nested machine | [other_state/main.omg](other_state/main.omg) | [invalid](other_state/invalid/main.omg) | Transition argument |
+| Other machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) | Forwarding helper |
+| Selected implementation | [target_body/main.omg](target_body/main.omg) | [invalid](target_body/invalid/main.omg) | Build-selected checked body |
 
-Optimized main `05580b16504` refused the formed positive at `as &write Viewed`.
-The repair keeps the reference-access axis through the common recast operation,
-retains write-only local referent types, binds returned pointers through the
-ordinary stored-loan classifier, and keeps arm-private offset operands out of
-the scalar join roster. All nine unchanged positives execute with native and
-Terminal exit 0 on macOS ARM64; their nine readable-view twins reject. Exact
-producer identities and raw runs are retained in the owning qualification.
+Every positive, including the root, declares `Expected exit: 0` and binds
+`ProgramEntry` for all four hosted targets. Every invalid program keeps the same
+caller and store, but requests a readable `&mut` view from write-only storage.
+That access increase must reject. Each invalid project's `sample.json` records
+its intended diagnostic; the nine positive and negative programs are pinned
+under `tests/omega/{pass,fail}/facts/write_only_recast_through_*`.
 
-The row is pinned under
-`tests/omega/{pass,fail}/facts/write_only_recast_through_<place>_{exit,rejected}`.
-Additional controls under `tests/omega/fail/recast/write_only_*` refuse shared
-access escalation, direct observation, stored-pointer observation, loss of
-source validity, overlapping exclusive loans and escape of local backing.
-Package codec units pin distinct access tags and bounded recovery. No execution
-on the other three hosted targets is claimed.
+The match example executes both choices. Only its helper branch writes a separate
+marker, and the helper's explicit result lifetime keeps the returned view tied to
+`storage`. A reversed branch, omitted helper, or wrong backing fails the marker
+or original-record check. The store and its bound remain the same in both branches.
 
-This closes ordinary write-only representation-view transport, not the parent
-domain-access policy. Policy retention under erasure, actual operation demands,
-scoped helper grants and qualification restoration under the existing
-[invariant-window rules](../../../../wiki/spec/language/dependent_values.md#invariant-windows)
-remain separate implementation work.
+## Requirements and evidence
 
-## Required evidence
+The governing rules are [representation-compatible recasts](../../../../wiki/spec/layouts/recasts.md),
+[write-only authority](../../../../wiki/spec/terminal-psi/structural_access.md#write-only-authority),
+[checked providers](../../../../wiki/spec/terminal-psi/boundary_calls.md#checked-providers),
+and [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
 
-- Establishment: source and target ordinary validity, equal geometry and both
-  directions of writable representation compatibility; no unchecked conversion.
-- Identity/lifetime: retain the original backing and complete footprint across
-  constructed fields, helper arguments/results, joins and state transitions.
-- Composition: use the same write and observed result through all nine places;
-  preserve exact reference access rather than collapsing it to exclusivity.
-- Soundness: refuse read/escalation, invalid source restoration, overlapping
-  loans and escaping returned views; retain atomic/Access restrictions.
-- Psi lowering: preserve `WriteOnlyBorrow` through canonical Terminal Psi and
-  execute its actual store without loading old content.
-- Layout/provider/ABI: ordinary one-field record geometry and pointer calls;
-  four hosted entry bindings, with execution claims only for observed hosts.
-- Instructions/frames: ordinary store, calls and preserved backing addresses.
-- Encoding/native: actual native exit 0 agrees with Terminal; package-review
-  encoding/recovery must distinguish write-only from readable mutable access.
+- Establishment: both ordinary records have the same geometry and unrestricted
+  `u32` contents. Writable compatibility holds in both directions without a
+  deferred validity window or a caller assertion.
+- Identity and lifetime: the view keeps the original backing and full one-field
+  footprint through fields, arguments, returned views, joins and transitions.
+- Composition: every place performs the same store and checks the original
+  backing afterward. The twin changes only the requested view access and its
+  receiving types, never an unrelated caller guard.
+- Soundness: readable access cannot arise from `&write`. The six
+  `tests/omega/fail/recast/write_only_*` controls separately cover shared/readable
+  access, stored-pointer observation, source validity, overlap and local escape.
+  Checked provider bodies prove that their calls never observe the write-only
+  data. An implementation whose body is unavailable still needs a separately
+  admitted proof tied to the selected implementation.
+- Psi lowering: preserve write-only access in Terminal Psi and execute the
+  store without observing the old contents.
+- Layout, provider and calling plans: retain the one-field record geometry and
+  pointer call arguments. Build selects four exact named implementations; the
+  caller keeps the same requirement on each target.
+- Instructions and frames: preserve backing addresses through calls and joins,
+  then store to the original record. The runtime oracle detects a missing store
+  or a write to temporary storage.
+- Encoding and native execution: actual native and Terminal observations must
+  both report exit 0. Target bindings alone do not establish execution.
 
-Return to `domain_access_authority` and Cathedral after this prerequisite.
+[Fresh Linux x86-64 validation](https://github.com/CathedralOS/Omega/actions/runs/41543965070)
+observed source `1d21edf56bc4916bfc33876810fc9ff4f5eaab86` with optimized
+CLI and corpus producers (`opt_level = 1`). All nine places and their twins
+passed their intended runtime or refusal checks. The root plus all 18 place
+projects also passed the ordinary public sample commands: ten native/Terminal
+successes and nine intended rejections.
+
+The full focused replay checked 27 positives and rejected 32 controls for their
+intended reasons; all 27 positives executed with native exit 0, Terminal exit 0,
+and agreement. This includes the previous reference-store row and controls for
+active child borrows, intermediate pointer reads, opaque boundaries, captured
+copies and slice-window coordinates. These are actual observations on Linux;
+execution of this repair on the other three hosted targets remains unverified.
+
+The local-escape control keeps its forbidden return and expected lifetime
+refusal, but leaves the returned view unused. Its earlier caller also wrote
+through that invalid result, correctly failing a preceding backing obligation.
+The isolated control now reports that local `original` does not outlive the
+call. The original source, refusal and exact producer records remain in the
+owning claim evidence; the compiler check order is unchanged.
+
+This row establishes ordinary write-only representation-view transport. It does
+not close domain-policy retention under erasure, operation demands, helper grants,
+qualification restoration, or opaque write-only provider admission. Those remain
+on the owning task board.

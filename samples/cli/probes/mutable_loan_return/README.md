@@ -7,7 +7,7 @@ Compile-scope probe. No standard-library dependency.
   proposition alias forwarding, proposition instances in
   requires/ensures, typed literal args, `127u64 as u8` literal
   narrowing. Proposition facts are evidence-borne (decl surface).
-- trait_operator_crown: `trait Ranked<T> { operator < before }`
+- trait_operator_crown: `trait Ranked<T> { machine < before }`
   crowned token, generic evidence binder `Order satisfies`,
   `Ascending::before` named call, concrete `machine <` crown.
 - mutable_loan_return: `-> &mut Room` transition-selected loan

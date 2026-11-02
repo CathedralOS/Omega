@@ -356,6 +356,24 @@ pass/facts/domain_selected_cleanup_indexed_inherited_computed_exit rejected 699m
 	cannot prove automatic cleanup requires at selected edge from consume state entry after statement 0: keeper does not establish release_keeper$specialized$9346d865f1ff1699$0 clause `keeper.code == 7`
 	cannot prove requires contract for call consume from main: Keeper in Keeper::Label in state `entry`
 pass/facts/domain_selected_cleanup_through_field_exit built 1069ms exit:0 interpreter-exit:0 interpreter:agrees @55a5fd4e07f8
+pass/facts/dyn_dispatch_payload_alias_through_call_result_exit built 9688ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_const_name_exit built 9688ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_field_exit built 10222ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_local_exit built 8909ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_match_join_exit built 8537ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_other_machine_exit built 10467ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_other_state_exit built 9494ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_parameter_exit built 9718ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_payload_alias_through_target_body_exit built 8304ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit built 8724ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit built 8127ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit built 8109ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_local_exit built 7826ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_match_join_exit built 8299ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit built 8797ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit built 8569ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit built 7600ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
+pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit built 7262ms exit:0 interpreter-exit:0 interpreter:agrees @dbde2a0eb0ce
 pass/facts/exclusive_observation_exposure_through_float_call_result_exit built 4455ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/exclusive_observation_exposure_through_float_other_machine_exit built 4152ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/exclusive_observation_exposure_through_float_target_body_exit built 3981ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
@@ -1485,6 +1503,7 @@ pass/layouts/fixed_layout_unmentioned_valid_policy_exit built 2006ms exit:0 inte
 pass/layouts/nested_reference_carrier_geometry_exit built 1527ms exit:0 interpreter-exit:0 interpreter:agrees @8b519ca647cd+wt
 pass/layouts/runtime_layout_arithmetic_value_flow_exit built 2009ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @8b519ca647cd+wt
 pass/machines/cyclic_private_arrival_guard_context_exit built 1858ms exit:0 interpreter-exit:0 interpreter:agrees @f58fe154c6f3
+pass/modules/package_qualified_scalar_access_exit built 10962ms exit:0 interpreter-exit:0 interpreter:agrees @97115d9cab54
 pass/ownership/runtime_borrowed_match_repeated_repair_exit built 13066ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
 pass/ownership/runtime_match_expression_moves_selected_payload_exit built 6772ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
 pass/ownership/runtime_nonreturning_claim_alternative_exit built 3365ms exit:0 interpreter-exit:0 interpreter:agrees @f2a7605fca26
@@ -4507,10 +4526,10 @@ pass/layouts/placed_primitive_aligned_backing built 60162ms exit:0 interpreter-e
 pass/layouts/placed_primitive_authored_name built 19716ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_callback built 50141ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_primitive_generic_concrete built 46236ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
-pass/layouts/placed_primitive_mixed_backing_rejected rejected 39846ms expected native-rejection:match @3b18b32f7117+wt
-	native artifact fragment object publication failed: placed backing geometry at MachineId(2)/OperationId(22): actual backing does not meet the placed schema, extent or base congruence
-pass/layouts/placed_primitive_returned_backing built 34156ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
-pass/layouts/placed_primitive_stored_backing built 33875ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
+pass/layouts/placed_primitive_mixed_backing_rejected rejected 10871ms expected native-rejection:match @97115d9cab54
+	native artifact fragment object publication failed: placed backing geometry at MachineId(24)/OperationId(234): actual backing does not meet the placed schema, extent or base congruence
+pass/layouts/placed_primitive_returned_backing built 9363ms exit:0 interpreter-exit:0 interpreter:agrees @97115d9cab54
+pass/layouts/placed_primitive_stored_backing built 7991ms exit:0 interpreter-exit:0 interpreter:agrees @97115d9cab54
 pass/layouts/placed_primitive_unused_valid built 33913ms exit:0 interpreter-exit:0 interpreter:agrees @3b18b32f7117+wt
 pass/layouts/placed_reference_results/forwarded built 16783ms exit:0 interpreter-exit:0 interpreter:agrees @ca1b6be3f607
 pass/layouts/placed_reference_results/nested built 16311ms exit:0 interpreter-exit:0 interpreter:agrees @ca1b6be3f607

@@ -25,6 +25,25 @@ impl Replay<'_> {
     ) -> Value {
         let _read = depth.enter()?;
         query.validate(self.types, *machine.place_types.get(&query.root)?)?;
+        // A view's creation record can cross a reference without supplying a
+        // physical address. Preserve every captured formation alternative;
+        // incoming pointer contents still use the invalidation checks below.
+        if self.slot_kind == DescriptorSlotKind::AccessOrigins {
+            if state.contents_path_invalidated(query) {
+                return None;
+            }
+            if let Some(location) = query.exact_location()
+                && let Some(origins) = self.read_with_depth(machine, state, &location, depth)
+                && origins.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        Origin::Backing(DescriptorCallOrigin::AccessFormation { .. })
+                    )
+                })
+            {
+                return Some(origins);
+            }
+        }
         if self.slot_kind.tracks_references()
             && let Some(location) = query.exact_location()
             && let Some(location) = self.canonical_storage(machine, state, &location)

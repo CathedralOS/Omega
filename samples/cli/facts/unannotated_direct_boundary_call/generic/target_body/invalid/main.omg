@@ -13,20 +13,49 @@ machine call_mark<machine Read>() -> u64
 requires machine Read satisfies ReadContract::read;
 { Read() }
 
-linux_x86_64 machine read_mark() -> u64 reaches {
-    call_mark<read_service>()
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_arm64 machine read_mark() -> u64 reaches {
-    call_mark<read_service>()
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine read_mark() -> u64 reaches {
-    call_mark<read_service>()
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-windows_x86_64 machine read_mark() -> u64 reaches {
-    call_mark<read_service>()
+boundary trait SelectedReadMark {
+    machine read_mark() -> u64
+        reaches Mark, SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
+}
+X86ReadMark satisfies SelectedReadMark {
+    machine read_mark() -> u64 reaches {
+        SelectedBodyCheck::require_tag(17u64);
+        call_mark<read_service>()
+    }
+}
+ArmReadMark satisfies SelectedReadMark {
+    machine read_mark() -> u64 reaches {
+        SelectedBodyCheck::require_tag(29u64);
+        call_mark<read_service>()
+    }
 }
 machine main() crashes Trap {
-    transition read_mark() == 7 { true -> done() _ -> bad() }
+    transition SelectedReadMark::read_mark() == 7 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

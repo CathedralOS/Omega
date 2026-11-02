@@ -5,7 +5,7 @@ data IndexSpace {}
 domain<T, const I: i32> T::Indexed<I>;
 
 trait IndexAdd<Operand> {
-    operator + add(a: Operand, b: Operand) -> Operand;
+    machine + add(a: Operand, b: Operand) -> Operand;
     machine add_comm(a: Operand, b: Operand)
     ensures add(a, b) == add(b, a);
     machine add_assoc(a: Operand, b: Operand, c: Operand)

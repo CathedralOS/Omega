@@ -8,9 +8,9 @@
 //! argument, and only the operands after it are matched against the
 //! requirement's parameters
 //! ([dynamic dispatch](../../../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)).
-//! A requirement that a dynamic caller cannot reach (a boundary requirement,
-//! open requirement-local generics, a private contract identity or an
-//! unfittable envelope) rejects here, at the call that would need it.
+//! Boundary requirements use their ordinary call route, even when an argument
+//! carries a dynamic selector. Local requirements with open generics, private
+//! contract identities or an unfittable envelope reject at the selector call.
 
 use super::{
     Diagnostic, ExpressionHandle, ExpressionNode, Machine, State, TypeReferenceHandle,
@@ -59,6 +59,16 @@ pub(crate) fn dynamic_selector_call<'program>(
         .as_ref()
         .map_or(target, |application| application.template);
     if !receiver.is_valid() || program.symbols.get(receiver).kind != symbols::SymbolKind::Trait {
+        return Ok(None);
+    }
+    // A boundary call forwards every written argument to its implementation.
+    // A dyn-valued argument may select a later call, but does not dispatch this
+    // one. Read the exact requirement owner before inspecting operand types;
+    // an inherited requirement need not belong to the receiver's trait.
+    if program
+        .trait_machine_signature(target)
+        .is_some_and(|(declaring, _)| declaring.is_boundary)
+    {
         return Ok(None);
     }
     let Some(selector_type) = selector_type(program, machine, state, selector) else {

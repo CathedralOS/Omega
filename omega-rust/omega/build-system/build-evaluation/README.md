@@ -50,7 +50,7 @@ in order, against its original declaration selection and admitted target context
 The preliminary check covers the selected Build source and its helpers;
 Product roots remain deferred until the activation returns and its requested
 sources join.
-[Compilation products](../products/src/evaluated_build.rs)
+[Compilation products](../../compilation/products/src/evaluated_build.rs)
 owns the retained `BuildConfig` and `ComputedBuildConfig` data contracts, re-exported
 here for callers. Evaluation produces those records; consumers need not import
 the evaluator merely to retain its result.
@@ -100,14 +100,14 @@ Build configuration, then asks that owner to settle outputs and select generated
 sources. It does not assemble durable filesystem evidence itself.
 
 Authored trust grants, component-assumption acceptances, and executed exclusion
-receipts are checked by [realization trust](../realization/trust-model/README.md).
+receipts are checked by [realization trust](../../compilation/realization/trust-model/README.md).
 Build evaluation decodes wire demands; Psi's
 [typed-to-checked stage](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checking.rs)
 checks their meaning before publishing checked trees. Package review reconstructs grants through
 the same trust owner without calling the Build evaluator.
 
 Target-declaration preparation, provider-selection decoding and settlement belong to
-[provider planning](../realization/provider-planning/README.md), not this
+[provider planning](../../compilation/realization/provider-planning/README.md), not this
 evaluator. The provider planner retains target-declaration custody and consumes
 it into exact typed defaults and origins. Build execution supplies executed
 selection receipts to that owner, and package review uses its replay. The integration
