@@ -199,3 +199,15 @@ The [named-contract production](alias_contract/README.md) preserves this same
 fact, bound and subtraction through all nine places when the public result
 guarantee is expressed by a typed mathematical alias. Its separate reject twins
 weaken only that public bound and retain the implementation's stronger guarantee.
+
+## Target migration acceptance
+
+`BUILD-OWNED-TARGET-SELECTION` owns replacing the remaining target-prefixed
+`compute_target` bodies with ordinary named implementations chosen in Build.
+The migration keeps the public `result <= 88u64` guarantee and the consuming
+`88u64 - result` operation in both this production and `alias_contract`.
+Validation must exercise the lawful 38 and 48 implementations, check differences
+50 and 40, and reject each twin after only its public guarantee changes to 89.
+All nine places in both productions remain required. The initial focused
+baseline covers 36 corpus fixtures and all 38 discovered sample projects; no
+new execution result is claimed in this planning checkpoint.
