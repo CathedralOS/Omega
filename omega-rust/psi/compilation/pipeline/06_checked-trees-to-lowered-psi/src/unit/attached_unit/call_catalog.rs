@@ -117,7 +117,8 @@ pub(super) fn discover(
         for conformance in checked.typed.machine_trait_conformances(machine) {
             if plans.boundary_machines().iter().any(|boundary| {
                 boundary.machine == conformance.requirement_symbol
-                    && boundary.owning_service.is_some()
+                    && (boundary.kind != semantic_vocabulary::BoundaryRequirementKind::Trait
+                        || boundary.owning_service.is_some())
             }) && !retained_boundary_roots.contains(&conformance.requirement_symbol)
             {
                 retained_boundary_roots.push(conformance.requirement_symbol);
