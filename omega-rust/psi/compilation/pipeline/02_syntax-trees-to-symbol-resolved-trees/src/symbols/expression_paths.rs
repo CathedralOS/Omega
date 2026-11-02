@@ -24,7 +24,7 @@ mod stamping;
 pub(super) use calls::resolve_expression_table_call_target_symbol;
 pub(super) use projected_receivers::{needs_declared_projection, receiver_data};
 pub(super) use receivers::{
-    assign_pattern_field_symbols, pattern_head_symbol, resolve_expression_table_member_symbol,
+    assign_pattern_field_symbols, pattern_field_symbol, pattern_head_symbol, resolve_expression_table_member_symbol,
     resolve_expression_table_receiver_path_symbols,
 };
 pub(super) use stamping::stamp_receiver_path_symbols_in_table;

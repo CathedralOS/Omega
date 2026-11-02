@@ -8,7 +8,7 @@ use super::references::{
 use crate::symbols::scope::MachineScope;
 use symbol_resolved_trees::expression::ExpressionHandle;
 use symbol_resolved_trees::expression::ExpressionNode;
-use symbol_resolved_trees::expression::ExpressionTable;
+use symbol_resolved_trees::expression::{ExpressionTable, MatchPattern};
 use symbol_resolved_trees::expression::StaticMachineArgument;
 use symbol_resolved_trees::expression::TableMatchArm;
 use symbol_resolved_trees::expression::TableMatchExpression;
