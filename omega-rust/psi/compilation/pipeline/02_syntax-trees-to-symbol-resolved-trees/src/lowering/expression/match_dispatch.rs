@@ -168,7 +168,7 @@ pub(crate) fn lower_destructure_pattern(
         capture,
         pattern_head: head,
     }));
-    let mut condition = expression_table(lowerer).insert(ExpressionNode::Boolean(true));
+    let mut condition = ExpressionHandle::invalid();
     for field in &fields {
         if let MatchFieldAction::Equal(expected) = field.action {
             let projected =
@@ -184,21 +184,30 @@ pub(crate) fn lower_destructure_pattern(
                     operator: BinaryOperator::Equal,
                     right: expected,
                 }));
-            condition =
+            condition = if condition.is_valid() {
                 expression_table(lowerer).insert(ExpressionNode::Binary(TableBinaryExpression {
                     left: condition,
                     operator: BinaryOperator::And,
                     right: equality,
-                }));
+                }))
+            } else {
+                equality
+            };
         }
     }
     if guard.is_valid() {
-        condition =
+        condition = if condition.is_valid() {
             expression_table(lowerer).insert(ExpressionNode::Binary(TableBinaryExpression {
                 left: condition,
                 operator: BinaryOperator::And,
                 right: guard,
-            }));
+            }))
+        } else {
+            guard
+        };
+    }
+    if !condition.is_valid() {
+        condition = expression_table(lowerer).insert(ExpressionNode::Boolean(true));
     }
     let fields = expression_table(lowerer).insert_match_fields(fields);
     Ok(MatchPattern::Destructure(TableDestructurePattern {

@@ -3,7 +3,7 @@ use symbols::{SymbolHandle, SymbolTable};
 
 use super::references::{
     assign_call_symbol, assign_member_symbol, assign_membership_symbol, assign_name_symbol,
-    assign_struct_literal_symbols,
+    assign_pattern_head_symbol, assign_struct_literal_symbols,
 };
 use crate::symbols::expression_paths::pattern_field_symbol;
 use crate::symbols::scope::MachineScope;
@@ -42,6 +42,10 @@ macro_rules! context_wrapped {
             .$method($parameter);
         }
     };
+}
+
+context_wrapped! {
+    assign_pattern_head_symbols(expression: ExpressionHandle) => assign_pattern_head
 }
 
 context_wrapped! {
@@ -194,6 +198,41 @@ impl ExpressionSymbolContext<'_, '_> {
         }
     }
 
+    fn assign_pattern_head(&mut self, expression: ExpressionHandle) {
+        if !expression.is_valid() {
+            return;
+        }
+        if let ExpressionNode::Name(path) = self.expression_table.expression(expression).clone() {
+            if self
+                .declaration_references
+                .contains(&self.expression_table.source_span(expression))
+            {
+                let declaration = self.machine.declaration_scope(SymbolHandle::invalid(), &[]);
+                assign_pattern_head_symbol(
+                    self.symbols,
+                    &declaration,
+                    &[],
+                    SymbolHandle::invalid(),
+                    self.expression_table,
+                    &path,
+                    expression,
+                );
+                return;
+            }
+            assign_pattern_head_symbol(
+                self.symbols,
+                self.machine,
+                self.parameters,
+                self.state_symbol,
+                self.expression_table,
+                &path,
+                expression,
+            );
+        } else {
+            self.assign_expression_table_symbols(expression);
+        }
+    }
+
     fn assign_expression_table_symbols(&mut self, expression: ExpressionHandle) {
         if !expression.is_valid() {
             return;
@@ -208,8 +247,17 @@ impl ExpressionSymbolContext<'_, '_> {
                         .expression_table
                         .match_pattern_dependencies(arm.pattern)
                         .collect::<Vec<_>>();
+                    let head = match arm.pattern {
+                        MatchPattern::Value(head) => head,
+                        MatchPattern::Destructure(pattern) => pattern.head,
+                        MatchPattern::Wildcard => Default::default(),
+                    };
                     for pattern in dependencies {
-                        self.assign_expression_table_symbols(pattern);
+                        if pattern == head {
+                            self.assign_pattern_head(pattern);
+                        } else {
+                            self.assign_expression_table_symbols(pattern);
+                        }
                     }
                     self.normalize_domain_pattern(&mut dispatch, &mut arm);
                     self.expression_table
@@ -244,7 +292,7 @@ impl ExpressionSymbolContext<'_, '_> {
                 {
                     let subject = self.expression_table.match_subject(saved.capture).subject;
                     self.assign_expression_table_symbols(subject);
-                    self.assign_expression_table_symbols(saved.pattern_head);
+                    self.assign_pattern_head(saved.pattern_head);
                 }
             }
             ExpressionNode::Atomic(atomic) => {

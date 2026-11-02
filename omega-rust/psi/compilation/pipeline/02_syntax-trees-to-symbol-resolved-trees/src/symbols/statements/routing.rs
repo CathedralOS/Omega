@@ -245,7 +245,15 @@ pub(super) fn assign_statement_symbols(
                     );
                 }
                 assign_expr!(retained.subject);
-                assign_expr!(retained.pattern.head);
+                crate::symbols::expressions::assign_pattern_head_symbols(
+                    symbols,
+                    machine,
+                    parameters,
+                    state_symbol,
+                    expression_table,
+                    child_type_references,
+                    retained.pattern.head,
+                );
                 let head = expression_table
                     .name_path_node(retained.pattern.head)
                     .cloned();
@@ -302,11 +310,18 @@ pub(super) fn assign_statement_symbols(
                     None
                 };
                 let axis = if let Some(test) = test {
-                    expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
-                        left: test,
-                        operator: BinaryOperator::And,
-                        right: retained.pattern.condition,
-                    }))
+                    if matches!(
+                        expression_table.expression(retained.pattern.condition),
+                        ExpressionNode::Boolean(true)
+                    ) {
+                        test
+                    } else {
+                        expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                            left: test,
+                            operator: BinaryOperator::And,
+                            right: retained.pattern.condition,
+                        }))
+                    }
                 } else {
                     retained.pattern.condition
                 };

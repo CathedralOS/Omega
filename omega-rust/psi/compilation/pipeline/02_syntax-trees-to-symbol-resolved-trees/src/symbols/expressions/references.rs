@@ -376,6 +376,57 @@ pub(in crate::symbols) fn assign_name_symbol(
     path: &TableNamePath,
     expression: ExpressionHandle,
 ) {
+    assign_name_in_role(
+        symbols,
+        machine,
+        parameters,
+        state_symbol,
+        expression_table,
+        path,
+        expression,
+        NameRole::Value,
+    );
+}
+
+pub(in crate::symbols) fn assign_pattern_head_symbol(
+    symbols: &SymbolTable,
+    machine: &MachineScope<'_>,
+    parameters: &[StateParameter],
+    state_symbol: SymbolHandle,
+    expression_table: &mut ExpressionTable,
+    path: &TableNamePath,
+    expression: ExpressionHandle,
+) {
+    assign_name_in_role(
+        symbols,
+        machine,
+        parameters,
+        state_symbol,
+        expression_table,
+        path,
+        expression,
+        NameRole::PatternHead,
+    );
+}
+
+/// A selector keeps declaration identity; a value use may construct a
+/// payload-free case. Namespace and lexical-supplier resolution is shared.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NameRole {
+    Value,
+    PatternHead,
+}
+
+fn assign_name_in_role(
+    symbols: &SymbolTable,
+    machine: &MachineScope<'_>,
+    parameters: &[StateParameter],
+    state_symbol: SymbolHandle,
+    expression_table: &mut ExpressionTable,
+    path: &TableNamePath,
+    expression: ExpressionHandle,
+    role: NameRole,
+) {
     let mut lookup_state = state_symbol;
     if let [member, suffix @ ..] = expression_table.name_path_members(path.members) {
         let symbol = lexical_value_head(machine, parameters, member.as_str(), !suffix.is_empty());
@@ -412,11 +463,12 @@ pub(in crate::symbols) fn assign_name_symbol(
     // Fields, named states, and conformance binders are scoped machine children,
     // not entries in the local/type-parameter frontier above. Select their heads
     // before constructor normalization so a module cannot capture their names.
-    if (!head_symbol.is_valid()
-        || matches!(
-            symbols.get(head_symbol).kind,
-            SymbolKind::Data | SymbolKind::Module
-        ))
+    if role == NameRole::Value
+        && (!head_symbol.is_valid()
+            || matches!(
+                symbols.get(head_symbol).kind,
+                SymbolKind::Data | SymbolKind::Module
+            ))
         && normalize_qualified_case_value(symbols, expression_table, path, expression)
     {
         return;
