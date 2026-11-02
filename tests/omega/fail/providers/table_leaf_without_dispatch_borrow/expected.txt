@@ -1,1 +1,1 @@
-table leaf's first parameter must borrow its dispatch table
+its first parameter is not a readable borrow of a data declaration

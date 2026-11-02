@@ -569,8 +569,8 @@ fn external_realization_row_binding(
         clause.requirement.as_ref().map_or("", |name| name.as_str()),
     )?;
     // A table binding names the record its leaf borrows first. A leaf without
-    // a readable table borrow leaves the name empty; layout realization then
-    // reports the exact reason from the leaf's signature.
+    // a readable table borrow leaves the name empty, and plan validation
+    // rejects the row before layout realization reads the table.
     let dispatch_table = match binding {
         language_semantics::ExternalBindingIdentity::VtableField { .. }
         | language_semantics::ExternalBindingIdentity::TableFunction { .. } => {

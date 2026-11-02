@@ -974,7 +974,7 @@ impl ProviderPlan {
                     // nor a data declaration qualifying the leaf supplies it.
                     if table.is_empty() {
                         errors.push(format!(
-                            "external leaf for `{}::{}` uses a table field, but its first parameter does not borrow the dispatch table",
+                            "external leaf for `{}::{}` uses a table field, but its first parameter is not a readable borrow of a data declaration",
                             self.schema.identity_text(self.schema.declaration.trait_name),
                             row.method,
                         ));
