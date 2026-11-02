@@ -326,10 +326,8 @@ retired-syntax deletions to completion.
     write-only boundaries requiring an admitted claim for the selected implementation,
     a `&write`
     slot whose referent carries a reference leaf (`write_only_reference_store`),
-    evidence binders in requirement signatures (`selected_crash_formal`,
-    `selected_value_application`: the requirement grammar admits none), and
-    effectful performed writes (`narrowed_integer_write`: IntegerAt fit is
-    judged only from a body, so a requirement call has none). Their
+    and evidence binders in requirement signatures (`selected_crash_formal`,
+    `selected_value_application`: the requirement grammar admits none). Their
     `target_body` places keep the retired prefix until then. A requirement
     publishes `invokes` for each boundary trait its implementations invoke, and
     a public caller with an explicit ceiling names the requirement; migrated
@@ -644,8 +642,8 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   `omega-rust/omega/packages/{build-declarations,compilation-inputs,source-acquisition,build-output,package-manager}/`,
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
-    remaining host operations (including an admitted loan-carrier interface for
-    explicit host loan returns), and the staged dependency preparation/provider
+    remaining host operations (including admitted carriers for reference results from
+    opaque host providers), and the staged dependency preparation/provider
     park/resume contract to the production Build scheduler, replacing checked-tree Build
     evaluation and the live-source/Git static syntax projections in
     `omega-rust/omega/packages/build-declarations`.
@@ -821,8 +819,9 @@ helper that passes does not close an item.
     compiler producers and retained artifacts.
     The Rust reference [qualified-case row](samples/cli/facts/transparent_generic_aliases/qualified_cases/README.md)
     preserves imported alias applications through construction and matching in
-    local, field, parameter and call-result places; the remaining five places
-    and broader pattern inference remain open.
+    local, field, parameter, call-result, match-join, const-name and nested-machine
+    places; other-machine/selected-target transport and broader pattern inference
+    remain open.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
     expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
     [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md),

@@ -295,6 +295,7 @@ pub use crate::machine_calls::calls::{
     frame_paths_overlap, operand_call_plans, state_reference_parameter_binding_is_stable,
     storage_origin_types_match,
 };
+pub use crate::machine_calls::call_cycles::requirement_backing_machines;
 pub use crate::machine_calls::denotational_calls::{
     SpecificationCallRequest, admit_specification_calls, checked_value_call_candidate,
     expression_values_have_call_identity, normal_return_call_candidate, requirement_satisfiers,

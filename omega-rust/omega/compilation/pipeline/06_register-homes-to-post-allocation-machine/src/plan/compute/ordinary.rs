@@ -1,21 +1,22 @@
 //! Ordinary function and block construction in source order.
 
+use register_homes::RegisterHomePlan;
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions::{SelectedBlock, SelectedInstruction, SelectedInstructionPlan};
-use selected_instructions_to_register_homes::ValidatedRegisterHomes;
+use selected_instructions::{
+    PreAllocationMachineEffectPlan, SelectedBlock, SelectedInstruction, SelectedInstructionPlan,
+};
 
 use crate::PostAllocationMachineError;
 use physical_instructions::{PostAllocationMachineBlock, PostAllocationMachineFunction};
 use selected_instructions::BlockMachineEffects;
-use selected_instructions_to_register_homes::ValidatedPreAllocationMachineEffects;
 
 use super::homes::PreparedHomes;
 use super::instruction;
 
 pub(super) fn build_functions(
     selected: &SelectedInstructionPlan,
-    effects: &ValidatedPreAllocationMachineEffects,
-    homes: &ValidatedRegisterHomes,
+    effects: &PreAllocationMachineEffectPlan,
+    homes: &RegisterHomePlan,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<Vec<PostAllocationMachineFunction>, PostAllocationMachineError> {
     selected
@@ -24,7 +25,6 @@ pub(super) fn build_functions(
         .enumerate()
         .map(|(function_index, function)| {
             let effect_function = effects
-                .plan()
                 .functions
                 .get(function_index)
                 .filter(|effects| effects.machine == function.machine)
@@ -32,11 +32,10 @@ pub(super) fn build_functions(
                     function: function_index,
                 })?;
             let home_function = homes
-                .plan()
                 .functions
                 .get(function_index)
                 .filter(|home| home.machine == function.machine)
-                .or_else(|| homes.plan().function(function.machine))
+                .or_else(|| homes.function(function.machine))
                 .ok_or(PostAllocationMachineError::FunctionMismatch {
                     function: function_index,
                 })?;

@@ -9,14 +9,47 @@ use crate::{
     SelectedStageRuleRows, run_pre_allocation_optimizations, run_selected_lowering_optimizations,
     stage_optimized_live_ranges, stage_optimized_liveness,
 };
-use optimization_core::{OptimizationExecutionPhase, OptimizationSelections};
-use target_operations_to_selected_instructions::StagedOptimizedSelectedInstructions;
+use optimization_core::{
+    OptimizationExecutionPhase, OptimizationSelections, OptimizationWorkBudget,
+};
+use register_environment::ValidatedTargetRegisterEnvironment;
+use selected_instructions::{SelectedProgram, StagedOptimizedCustodyCore};
+
+/// What instruction selection hands this stage: the selected program, the
+/// custody core its receipt carries, and the register environment, optimizer
+/// selections and per-pass budget admitted with it.
+#[derive(Debug)]
+pub struct SelectedOptimizationInput {
+    pub program: SelectedProgram,
+    pub custody: StagedOptimizedCustodyCore,
+    pub register_environment: ValidatedTargetRegisterEnvironment,
+    pub selections: OptimizationSelections,
+    pub budget_per_pass: OptimizationWorkBudget,
+}
+
+impl SelectedOptimizationInput {
+    pub const fn selected(&self) -> &SelectedProgram {
+        &self.program
+    }
+
+    pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
+        &self.register_environment
+    }
+
+    pub const fn selections(&self) -> &OptimizationSelections {
+        &self.selections
+    }
+
+    pub const fn budget_per_pass(&self) -> OptimizationWorkBudget {
+        self.budget_per_pass
+    }
+}
 
 /// Stage liveness and live ranges over the selected program, then execute
 /// the catalog slice this stage owns. Identity and nonempty selections both
 /// publish the same current-program carrier.
 pub fn optimize_selected_instructions(
-    selected: StagedOptimizedSelectedInstructions,
+    selected: SelectedOptimizationInput,
 ) -> Result<SelectedInstructionOptimizationOutput, SelectedInstructionOptimizationError> {
     let liveness = stage_optimized_liveness(selected)
         .map_err(SelectedInstructionOptimizationError::Liveness)?;

@@ -77,7 +77,7 @@ impl FunctionFragmentReplayInputs {
         &self,
     ) -> &std::sync::Arc<abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations>
     {
-        self.allocation().current().target_input_owner()
+        self.realization.target_input()
     }
 
     pub fn encoding(
