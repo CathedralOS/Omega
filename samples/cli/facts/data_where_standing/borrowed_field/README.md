@@ -27,9 +27,9 @@ must prove the exact addition independently of the entry's concrete values.
 The match place executes both choices: 60 yields 130 and -17 yields 53. Returning
 one arm for both choices traps. Entries also check neighboring fields, markers
 and the unchanged backing scalars. Target-body bindings retain independent
-x86/ARM tags, so selecting the wrong provider traps. The const-name place names
-the unchanged arithmetic operand 70; it does not give a reference constant an
-address or lifetime. All positive entries declare exit 0 and bind all four
+x86/ARM tags, so selecting the wrong provider traps. The const-name place materializes named bounded `Backing` values, then an
+independently checked bridge borrows each local copy into `Counter`. The
+constant declaration itself supplies neither an address nor a lifetime. All positive entries declare exit 0 and bind all four
 hosted targets. Exact source copies and rejection/engine oracles are pinned
 under `tests/omega/{pass,fail}/facts/data_where_standing_borrowed_field_*`.
 
