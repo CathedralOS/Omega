@@ -13,10 +13,10 @@
 //! of independently compiled components still follow their usual checks.
 
 pub(crate) mod assumed_bindings;
-mod completion;
+pub(crate) mod completion;
 mod composition_modes;
 mod independent_components;
-mod semantic_roles;
+pub(crate) mod semantic_roles;
 
 pub use composition_modes::verify_selected_compositions_are_realized;
 
@@ -57,8 +57,8 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     pub selected_provider_publication:
         std::sync::Arc<provider_selection::SelectedTargetProviderPublication>,
     pub boundary_provider_demands: Vec<ProviderPlan>,
-    /// Complete execution declarations, including compiler-settled leaf plans.
-    /// Callback projection and native handoff share this same closed roster.
+    /// Every selected implementation, including external operations. Callback
+    /// generation and native emission use this same complete list.
     pub provider_declarations: std::sync::Arc<[backend_plan::TerminalTargetProviderPlan]>,
     /// Source-closed authored choices, separate from the actual selected
     /// native-augmented receipt. Publication borrows no Source context.
@@ -73,8 +73,8 @@ pub struct ProviderSettlement<Rows = crate::PreparedProviderRows> {
     /// Complete applications for explicitly Independent checked boundaries.
     /// These are neither foreign binding rows nor fused internal-call ABIs.
     pub component_calling_applications: Vec<calling_conventions::BoundaryCallingApplication>,
-    /// Every derived candidate plan plus toolchain-settled plans; trust
-    /// replays each selected plan against exactly one of these.
+    /// Every possible implementation. Package review checks that each selected
+    /// implementation matches exactly one entry in this list.
     pub provider_candidates: Vec<crate::ProviderPlanCandidate<Rows>>,
     /// Complete authored native candidates, including private/unselected rows.
     /// Package output and audit use this inventory, never runtime demand as an
@@ -199,7 +199,6 @@ pub fn settle_checked_providers(
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
-    let typed = &checked.typed;
     // Every Product body has already been checked. This target chooses only
     // realization rows; it never narrows the source program.
     let planning_target = selected_target_profile.or_else(target::TargetProfile::host_if_supported);
@@ -222,6 +221,7 @@ pub fn settle_checked_providers(
         .map(|candidate| candidate.source.clone())
         .collect();
     let provider_publication = prepared.publication;
+    let completion_roles = prepared.completion_roles;
     let independent_components = independent_components::verify_independent_components(
         package_inputs,
         accepted_component_assumptions,
@@ -248,20 +248,7 @@ pub fn settle_checked_providers(
         &assumptions,
     )?;
     let provider_declarations = canonical_selection.plans.clone();
-    let selected_provider_plans = choices
-        .into_iter()
-        .map(
-            |selected| crate::provider_planning::SelectedProviderPlanWithProvenance {
-                derived: crate::DerivedProviderPlan {
-                    plan: selected.candidate.plan,
-                    provenance: selected.candidate.owner,
-                },
-                selected_by: crate::provider_planning::selection_declarations::restore_provenance(
-                    selected.selected_by,
-                ),
-            },
-        )
-        .collect::<Vec<_>>();
+    let selected_provider_plans = choices;
     let direct_context = crate::provider_planning::external_binding_rows::ExternalBindingContext {
         calling_program: &calling_program,
         selected_target: target_name,
@@ -286,39 +273,39 @@ pub fn settle_checked_providers(
         provider_selection_target,
         &selected_provider_plans
             .iter()
-            .map(|selected| &selected.derived.plan)
+            .map(|selected| &selected.candidate.plan)
             .collect::<Vec<_>>(),
         &boundary_calling_plan_realizations,
         &calling_program,
     )?;
-    // Component-closure join. The verified components come only from the
-    // descriptions attached to this compilation's package inputs, each
-    // re-verified under the build's profile; every `Independent` selection
-    // must be realized by exactly one of them and every component must
-    // realize one selection, so a build that supplies none, several, an
-    // unmatched extra, or a mismatched realization rejects here.
-    let mut selected_provider_provenance = selected_provider_plans
+    // Only a selected implementation must keep its promise to exit. Report
+    // its saved result here, after the same binding and cycle checks as before.
+    let completed_providers = selected_provider_plans
         .into_iter()
-        .map(|selected| SelectedProviderReviewProvenance {
-            plan: selected.derived.plan,
-            provider: selected.derived.provenance,
-            selected_by: selected.selected_by,
-            row_compiler_intrinsic_executions: Vec::new(),
-            row_external_completion_leaves: Vec::new(),
+        .map(|selected| {
+            let review = selected.candidate.owner;
+            Ok((
+                SelectedProviderReviewProvenance {
+                    plan: selected.candidate.plan,
+                    provider: review.provenance,
+                    selected_by:
+                        crate::provider_planning::selection_declarations::restore_provenance(
+                            selected.selected_by,
+                        ),
+                    row_compiler_intrinsic_executions: Vec::new(),
+                    row_external_completion_leaves: review.completion?,
+                },
+                review.role,
+            ))
         })
-        .collect::<Vec<_>>();
-    completion::retain_completions(
-        checked,
-        &mut selected_provider_provenance,
-        target_name,
-        &provider_candidates
-            .iter()
-            .map(crate::ProviderPlanCandidate::derived)
-            .collect::<Vec<_>>(),
-    )?;
+        .collect::<Result<Vec<_>, Vec<Diagnostic>>>()?;
     if package_inputs.is_some_and(PackageCompilationInputs::semantic_role_discovery) {
-        semantic_roles::validate_proposed(typed, &selected_provider_provenance)?;
+        completion_roles.validate(&completed_providers)?;
     }
+    let selected_provider_provenance = completed_providers
+        .into_iter()
+        .map(|(provider, _)| provider)
+        .collect::<Vec<_>>();
     for assumption in prepared_assumptions.rows {
         assumption.validate_calling(&boundary_calling_plan_realizations)?;
     }
