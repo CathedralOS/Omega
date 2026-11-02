@@ -11,7 +11,7 @@ fn prepare(relative: &str) -> fixture_package_inputs::ReviewedFixtureCompilation
         &fixture_package_inputs::repo_root().join(relative),
         Some("macos_arm64"),
     )
-    .expect("fixture admission")
+    .unwrap_or_else(|diagnostics| panic!("fixture admission for {relative}: {diagnostics:?}"))
 }
 
 #[test]

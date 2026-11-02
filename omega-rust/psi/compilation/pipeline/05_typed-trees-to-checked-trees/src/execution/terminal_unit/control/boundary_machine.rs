@@ -310,11 +310,11 @@ pub(crate) fn build_static_boundary_requirements(
     shapes: &mut ShapeCollector<'_>,
 ) -> Vec<CheckedBoundaryMachinePlan> {
     let mut plans = Vec::new();
-    for definition in program
-        .traits()
-        .iter()
-        .filter(|definition| definition.is_boundary)
-    {
+    // A selected service may inherit an ordinary requirement. Its logical
+    // contract still needs a portable invocation plan, even though its
+    // declaring owner cannot authorize a physical boundary ABI. Calling's
+    // separately retained owner judgment owns that latter distinction.
+    for definition in program.traits().iter() {
         for signature in program.executable_trait_machine_instances(definition) {
             // The declaration's outer telescope remains authored and open.
             // Prepared instances retain its exact application and substituted
