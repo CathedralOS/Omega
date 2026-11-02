@@ -1396,8 +1396,8 @@ bound strictly ordered.
 | 11 | retired | former routed `Binding<R>` carrier; reject |
 
 Tags 9 and 11 are retired: a decoder rejects them rather than reinterpreting
-them. A provider-backed attached field is an erased field, never a structural
-child, so no structural declaration carries a supplied provider.
+them. Checking rejects a boundary trait in every runtime value position, so no
+structural declaration carries a supplied provider.
 
 <!-- byte-sequence-carrier-tags -->
 

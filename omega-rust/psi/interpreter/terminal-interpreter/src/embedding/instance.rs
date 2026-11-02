@@ -112,8 +112,8 @@ impl TerminalProcessExitAdmission {
 }
 
 /// One established boundary-requirement binding: an exact import slot joined
-/// at establishment to the checked host adapter that answers it. The instance roster owns it; it cannot
-/// migrate, copy, or rebind into another instance.
+/// at establishment to the checked host adapter that answers it. The instance
+/// roster owns it; it cannot migrate, copy, or rebind into another instance.
 struct TerminalImportBinding<'host> {
     adapter: Box<dyn TerminalImportAdapter + 'host>,
 }

@@ -2382,6 +2382,8 @@ fail/providers/implicit_method_unused_const_count rejected 468ms expected @33b18
 	static method application requires its complete invocation telescope for `UnusedCount::read` (found 0, expected 1)
 fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected @959aa53558d2
 	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
+fail/providers/provider_receiver_applied_trait_rejected rejected 418ms expected @777723466586+wt
+	data `Holder` field `identity` uses boundary trait `Identity` as a value type; call a `Identity` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
 fail/providers/selected_parent_and_descendant_overlap rejected 1846ms expected @002791b61f14
 	selected whole provider maps `<selected target>::ParentMap::satisfies::Parent` and `<selected target>::ChildMap::satisfies::Child` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 fail/providers/provider_receiver_field_rejected rejected 1203ms expected @5d5ae6099032+wt

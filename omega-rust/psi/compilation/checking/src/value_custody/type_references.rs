@@ -536,7 +536,18 @@ fn validate_boundary_trait_value_placement(
         | TypeReferenceNode::Slice { element_type } => {
             validate_boundary_trait_value_placement(program, *element_type, owner, diagnostics);
         }
-        TypeReferenceNode::Generic { arguments, .. } => {
+        TypeReferenceNode::Generic {
+            base_symbol,
+            base_name,
+            arguments,
+            ..
+        } => {
+            // An applied boundary trait such as `Console<Interactive>` is still
+            // a requirement, not a value its arguments could make runtime data.
+            if owner.is_runtime_value_position() && is_boundary_trait(program, *base_symbol) {
+                push_boundary_trait_value_diagnostic(owner, base_name, diagnostics);
+                return;
+            }
             for argument in program
                 .type_reference_table
                 .type_reference_handles(*arguments)
@@ -555,15 +566,8 @@ fn validate_boundary_trait_value_placement(
             // the surviving vocabulary: call the requirement directly, or
             // carry an ordinary handle, session, or `dyn` value when runtime
             // multiplicity is what the program needs.
-            if owner.is_runtime_value_position()
-                && program
-                    .traits()
-                    .iter()
-                    .any(|definition| definition.symbol == *symbol && definition.is_boundary)
-            {
-                diagnostics.push(Diagnostic::error(format!(
-                    "{owner} uses boundary trait `{name}` as a value type; call a `{name}` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity"
-                )));
+            if owner.is_runtime_value_position() && is_boundary_trait(program, *symbol) {
+                push_boundary_trait_value_diagnostic(owner, name, diagnostics);
                 return;
             }
             if let Some(origin) =
@@ -582,6 +586,23 @@ fn validate_boundary_trait_value_placement(
         | TypeReferenceNode::ConstExpression(_)
         | TypeReferenceNode::Unit => {}
     }
+}
+
+fn is_boundary_trait(program: &dyn crate::CheckingInput, symbol: symbols::SymbolHandle) -> bool {
+    program
+        .traits()
+        .iter()
+        .any(|definition| definition.symbol == symbol && definition.is_boundary)
+}
+
+fn push_boundary_trait_value_diagnostic(
+    owner: TypeReferenceOwner<'_>,
+    name: impl std::fmt::Display,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    diagnostics.push(Diagnostic::error(format!(
+        "{owner} uses boundary trait `{name}` as a value type; call a `{name}` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity"
+    )));
 }
 
 pub(crate) fn validate_generic_instance_argument_bounds(
