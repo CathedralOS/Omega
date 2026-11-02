@@ -23,7 +23,7 @@ empty ceiling rejects that hidden direct service. It does not close the item.
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | the comparison uses the named constant the provider returns |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the call result |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | another machine returns the boundary result to the checker |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each of the four hosted target bodies performs the call |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target's Build row selects an ordinary implementation that performs the call |
 
 ## Execution
 
@@ -156,7 +156,8 @@ exact nominal machine requirement and substitutes the selected callable's
 published contract. `dynamic/` carries the call through a selection whose
 implementation calls `Mark`; a dynamic call contributes its selected
 conformance's reach ([selected dynamic reach](../dynamic_selected_reach/README.md)). The
-`target_body` place also carries the call through the portable target family.
+`target_body` place also carries the call through an ordinary implementation
+selected by a target-keyed Build row.
 These are productions of the same reach summary, not new fact folders.
 
 Each positive binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`,
@@ -485,4 +486,21 @@ attributed product-pipeline limitations, before the changed parser branch.
 
 ## Build-owned target-body migration
 
-The `target_body` place and its twins carry no source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement publishes `reaches Mark`; each implementation's own body stays unannotated, and the twin's empty implementation ceiling still rejects for the hidden `Mark` reach. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.
+The `target_body` places of the direct, `transitive`, `generic`, `dynamic`,
+`provider`, `imported` and `recursive` productions and their twins carry no
+source target prefix. `BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected by explicit target-keyed Build rows. The operation, inputs, contracts and exit oracle are unchanged. The entry wrapper and each implementation check a tag (17 for x86-64, 29 for AArch64), so a wrong Build row traps. The requirement publishes `reaches Mark`; each implementation's own body stays unannotated, and the twin's empty implementation ceiling still rejects for the hidden `Mark` reach. Observed on macOS x86-64 with optimized producers for base 4f87c9e08b1 and for the #1378 head: the migrated positive exits 0 under `omega run --both` (native and Terminal Psi agree) and every twin and control in the place still rejects with its authored fragment. No compiler change was needed. The other hosted targets keep their authored rows, unexecuted here.
+
+The six non-direct productions moved in a second step with the same shape:
+each implementation calls `SelectedBodyCheck::require_tag` and then performs
+its production's original call (`call_mark()`, `call_mark<read_service>()`,
+`call_mark(Selected as dyn ReadContract)`, `Mark::read()`, `fetch_mark()` or
+`first(2)`). Their twins still change only the implementation ceilings to an
+empty `reaches`, except `provider`, whose twin still changes only `MarkerMark`
+to call `Forbidden`. Observed with the optimized producer at `11bdd2fe41f` on
+macOS x86-64: all six migrated positives exit 0 under `omega run --both`
+(native and Terminal Psi agree); five twins reject because
+`X86ReadMark::read_mark` and `ArmReadMark::read_mark` publish no service reach
+but reach `Mark`, and the `provider` twin rejects because service `Forbidden`
+is not allowed by the trait requirement. A probe that selected the AArch64
+implementation on the x86-64 host trapped in both engines. No compiler change
+was needed. The other hosted targets were not executed here.
