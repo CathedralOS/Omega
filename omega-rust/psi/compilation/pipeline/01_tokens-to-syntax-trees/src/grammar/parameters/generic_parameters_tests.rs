@@ -163,3 +163,36 @@ fn callable_binders_distinguish_identity_defaults_from_authored_contracts() {
         }
     }
 }
+
+#[test]
+fn evidence_bounds_retain_explicit_trait_lifetimes_separately_from_static_slots() {
+    for syntax in [
+        GenericParameterSyntax::MachineDeclaration,
+        GenericParameterSyntax::DataDeclaration,
+        GenericParameterSyntax::TraitRequirements,
+    ] {
+        let (trees, parameters) = parse_parameters(
+            "<'held, Value, Selected satisfies Buffered<'held, Value, 3u64>>",
+            syntax,
+        )
+        .unwrap();
+        assert_eq!(parameters.lifetime_parameters.len(), 1);
+        let [bound] = parameters.conformance_bounds.as_slice() else {
+            panic!("one bound");
+        };
+        assert_eq!(bound.trait_name.as_str(&trees), "Buffered");
+        assert_eq!(bound.lifetime_arguments.len(), 1);
+        assert_eq!(bound.lifetime_arguments[0].as_str(&trees), "held");
+        assert_eq!(
+            trees
+                .type_references
+                .type_reference_handles(bound.arguments)
+                .len(),
+            2
+        );
+        assert!(
+            parse_parameters("<'held, Selected satisfies Buffered<Value, 'held>>", syntax,)
+                .is_err()
+        );
+    }
+}

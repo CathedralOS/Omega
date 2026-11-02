@@ -25,7 +25,7 @@ pub(super) fn materialize(
             lexical_owner: receiving_owner,
             enclosing_data_applications: &[],
             arguments: &bound.arguments,
-            lifetimes: &[],
+            lifetimes: &bound.lifetime_arguments,
         },
     )
     .ok_or("evidence bound lost its complete application")?;

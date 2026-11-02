@@ -23,7 +23,7 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNod
 
 mod forwarding;
 pub(crate) use forwarding::{
-    applied_bound_argument_identities, applied_trait_argument_identities,
+    applied_bound_argument_identities, applied_scope_argument_identities,
     validate_forwarded_argument,
 };
 

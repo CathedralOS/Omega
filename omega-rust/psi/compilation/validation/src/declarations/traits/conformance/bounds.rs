@@ -112,7 +112,7 @@ pub(crate) fn validate_conformance_bounds(
             program,
             trait_definition,
             &bound.arguments,
-            &[],
+            &bound.lifetime_arguments,
             &format!(
                 "{owner_kind} `{owner_name}` evidence binder `{} satisfies {}`",
                 bound.binder_name, bound.trait_name

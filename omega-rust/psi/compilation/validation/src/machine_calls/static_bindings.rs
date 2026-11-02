@@ -922,35 +922,12 @@ fn conformance_arguments_match(
             conformance,
         )?
         .declaring_scope(program.typed_program(), carrier.base)?;
-        scope.with_identity_scopes(program.typed_program(), |inherited| {
-            program
-                .trait_type_parameters(scope.declaration)
-                .iter()
-                .map(|parameter| {
-                    let (argument, prefix) = scope.parameter_application(parameter.symbol)?;
-                    let mut scopes = vec![actual_scope];
-                    scopes.extend_from_slice(&inherited[..prefix]);
-                    match parameter.kind {
-                        typed_trees::data::TypeParameterKind::Const { .. }
-                        | typed_trees::data::TypeParameterKind::Value { .. } => {
-                            typed_trees::type_identity::applied_index_identity(
-                                program.typed_program(),
-                                IndexIdentityArgument::TypeReference(argument),
-                                lexical_owner,
-                                &scopes,
-                            )
-                        }
-                        _ => typed_trees::type_identity::applied_type_identity_in_scope(
-                            program.typed_program(),
-                            argument,
-                            conformance.symbol,
-                            lexical_owner,
-                            &scopes,
-                        ),
-                    }
-                })
-                .collect::<Option<Vec<_>>>()
-        })
+        crate::conformance_applications::applied_scope_argument_identities(
+            program,
+            &scope,
+            lexical_owner,
+            &[actual_scope],
+        )
     })();
     required
         .zip(actual)

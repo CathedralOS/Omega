@@ -221,7 +221,10 @@ impl TypedTrees {
         let [bound] = constructor.conformance_bounds.as_slice() else {
             return None;
         };
-        if bound.binder != policy.symbol || bound.arguments.len() != 1 {
+        if bound.binder != policy.symbol
+            || !bound.lifetime_arguments.is_empty()
+            || bound.arguments.len() != 1
+        {
             return None;
         }
         let contract = self.trait_definition_by_symbol(bound.trait_symbol)?;

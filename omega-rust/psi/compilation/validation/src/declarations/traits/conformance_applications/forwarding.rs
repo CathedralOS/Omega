@@ -74,97 +74,69 @@ pub(crate) fn applied_bound_argument_identities(
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<Vec<NormalizedTypeIdentity>> {
     let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
-    let identity = |arguments: &[typed_trees::types::TypeReferenceHandle],
-                    scopes: &[AppliedTypeIdentityScope<'_>]| {
-        applied_trait_argument_identities(
-            program,
-            carrier.base,
-            arguments,
-            receiving_owner,
-            argument_owner,
-            scopes,
-        )
-    };
-    if let Some((refinement, base)) = carrier
-        .refinement
-        .and_then(|refinement| refinement.refines.as_ref().map(|base| (refinement, base)))
-    {
-        if program.trait_type_parameters(refinement).len() != bound.arguments.len() {
-            return None;
-        }
-        let head = program
-            .trait_type_parameters(refinement)
-            .iter()
-            .zip(&bound.arguments)
-            .map(|(parameter, argument)| {
-                (
-                    parameter.symbol,
-                    if parameter.kind == TypeParameterKind::Type {
-                        IndexIdentityArgument::TypeArgument(*argument)
-                    } else {
-                        IndexIdentityArgument::TypeReference(*argument)
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
-        let mut scopes = scopes.to_vec();
-        scopes.push(AppliedTypeIdentityScope {
-            declaration: refinement.symbol,
-            arguments: &head,
-            lifetimes: &[],
-        });
-        applied_trait_argument_identities(
-            program,
-            carrier.base,
-            program
-                .type_reference_table
-                .type_reference_handles(base.arguments),
-            refinement.symbol,
-            argument_owner,
-            &scopes,
-        )
-    } else {
-        identity(&bound.arguments, scopes)
-    }
+    let root = typed_trees::trait_definition::AppliedTraitScope::new(
+        program.typed_program(),
+        program.trait_definition_by_symbol(bound.trait_symbol)?,
+        typed_trees::trait_definition::TraitApplicationArguments {
+            lexical_owner: receiving_owner,
+            enclosing_data_applications: &[],
+            arguments: &bound.arguments,
+            lifetimes: &bound.lifetime_arguments,
+        },
+    )?;
+    let scope = root.declaring_scope(program.typed_program(), carrier.base)?;
+    applied_scope_argument_identities(program, &scope, argument_owner, scopes)
 }
 
-/// The receiving telescope decides whether syntax denotes a type or a value.
-/// Both required and selected applications must use that same role before
-/// comparison, including a const supplied through a named implementation map.
-pub(crate) fn applied_trait_argument_identities(
+/// Static operands and explicit region slots belong to one complete inherited
+/// application. A lifetime unused by a method still distinguishes its promise.
+/// Reuse each parameter's preceding simultaneous scopes; never borrow a
+/// selected provider's region merely because its spelling matches a receiver.
+pub(crate) fn applied_scope_argument_identities(
     program: &dyn crate::CheckingInput,
-    declaration: symbols::SymbolHandle,
-    arguments: &[typed_trees::types::TypeReferenceHandle],
-    receiving_owner: symbols::SymbolHandle,
+    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
     argument_owner: symbols::SymbolHandle,
-    scopes: &[AppliedTypeIdentityScope<'_>],
+    outer: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<Vec<NormalizedTypeIdentity>> {
-    let definition = program.trait_definition_by_symbol(declaration)?;
-    let parameters = program.trait_type_parameters(definition);
-    if parameters.len() != arguments.len() {
-        return None;
-    }
-    parameters
-        .iter()
-        .zip(arguments)
-        .map(|(parameter, argument)| match parameter.kind {
-            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
-                applied_index_identity(
-                    program.typed_program(),
-                    IndexIdentityArgument::TypeReference(*argument),
-                    argument_owner,
-                    scopes,
-                )
-            }
-            _ => applied_type_identity_in_scope(
+    application.with_identity_scopes(program.typed_program(), |inner| {
+        let mut identities = program
+            .trait_type_parameters(application.declaration)
+            .iter()
+            .map(|parameter| {
+                let (argument, prefix) = application.parameter_application(parameter.symbol)?;
+                let mut scopes = outer.to_vec();
+                scopes.extend_from_slice(&inner[..prefix]);
+                match parameter.kind {
+                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
+                        applied_index_identity(
+                            program.typed_program(),
+                            IndexIdentityArgument::TypeReference(argument),
+                            argument_owner,
+                            &scopes,
+                        )
+                    }
+                    _ => applied_type_identity_in_scope(
+                        program.typed_program(),
+                        argument,
+                        application.argument_owner,
+                        argument_owner,
+                        &scopes,
+                    ),
+                }
+            })
+            .collect::<Option<Vec<_>>>()?;
+        let mut scopes = outer.to_vec();
+        scopes.extend_from_slice(inner);
+        for parameter in &application.declaration.lifetime_parameters {
+            identities.push(typed_trees::type_identity::applied_lifetime_identity(
                 program.typed_program(),
-                *argument,
-                receiving_owner,
+                parameter.as_str(),
                 argument_owner,
-                scopes,
-            ),
-        })
-        .collect()
+                &scopes,
+            )?);
+        }
+        Some(identities)
+    })
 }
 
 #[cfg(test)]
@@ -200,6 +172,7 @@ mod tests {
                 binder_name: Identifier::generated("Policy"),
                 trait_symbol: required_trait,
                 trait_name: Identifier::generated("Required"),
+                lifetime_arguments: Vec::new(),
                 arguments: Vec::new(),
             };
             if kind == SymbolKind::TypeAlias {

@@ -134,6 +134,7 @@ fn lower_data_definition_contents(
                 binder_name: lower_name(&bound.binder_name),
                 trait_symbol: bound.trait_symbol,
                 trait_name: lower_name(&bound.trait_name),
+                lifetime_arguments: bound.lifetime_arguments.iter().map(lower_name).collect(),
                 arguments,
             });
     }

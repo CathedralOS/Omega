@@ -91,6 +91,8 @@ pub struct GenericConformanceBoundSnapshot {
     pub binder_symbol: u32,
     pub trait_name: String,
     pub trait_symbol: u32,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub lifetime_arguments: Vec<String>,
     pub arguments: Vec<TypeReferenceSnapshot>,
 }
 
@@ -597,6 +599,11 @@ pub(super) fn conformance_bound_snapshot(
         binder_symbol: bound.binder.arena_index(),
         trait_name: bound.trait_name.to_string(),
         trait_symbol: bound.trait_symbol.arena_index(),
+        lifetime_arguments: bound
+            .lifetime_arguments
+            .iter()
+            .map(ToString::to_string)
+            .collect(),
         arguments: bound
             .arguments
             .iter()
