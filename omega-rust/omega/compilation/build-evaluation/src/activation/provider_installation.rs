@@ -1,6 +1,6 @@
 //! Join a source-selected implementation to the waiting activation's static slots.
 
-use crate::terminal_bindings::BuildProviderRequest;
+use crate::host::bindings::BuildProviderRequest;
 use build_time_evaluation::{ScalarScopeEvaluation, SourceCompletionAccounting};
 use psi_compiler::ProducedBuildProvider;
 use target::TargetProfile;

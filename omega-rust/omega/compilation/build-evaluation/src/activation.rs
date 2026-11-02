@@ -5,8 +5,11 @@
 //! them before publishing a product. Protocol adapters retain one activation's state;
 //! a pause never reconstructs the instance or replays earlier effects.
 
+pub(crate) mod completed_pure_build;
+pub(crate) mod preparation;
 mod project;
 mod provider_installation;
+pub mod scalar_completion;
 mod source_join;
 pub use source_join::BuildDependencySelection;
 
@@ -26,8 +29,8 @@ use terminal_interpreter::{
     TerminalProgram, TerminalStructuralInputs, TerminalStructuralValue,
 };
 
-use crate::terminal_bindings::TerminalBuildBindingHost;
-use crate::terminal_requests::{IssuedBuildRequest, TerminalBuildRequestHost};
+use crate::host::bindings::TerminalBuildBindingHost;
+use crate::host::requests::{IssuedBuildRequest, TerminalBuildRequestHost};
 
 pub(crate) fn measurement() -> evaluation_accounting::EvaluationMeasurementIdentity {
     evaluation_accounting::EvaluationMeasurementIdentity::TerminalPsi {
@@ -52,7 +55,7 @@ pub struct ReturnedBuild {
     pub(crate) native_bindings: Vec<ExecutedNativeBinding>,
     pub(crate) exclusions: Vec<ExecutedEnumExclusion>,
     pub(crate) declared_product_selections: Vec<Arc<ProductDeclarationRequest>>,
-    pub(crate) log: crate::terminal_requests::BuildLog,
+    pub(crate) log: crate::host::requests::BuildLog,
     pub(crate) filesystem: Option<package_compilation::build_execution::BuildFilesystemEffects>,
 }
 
@@ -86,7 +89,7 @@ pub struct TerminalBuildHost {
     original: TerminalStructuralValue,
     requests: Arc<TerminalBuildRequestHost>,
     bindings: Arc<TerminalBuildBindingHost>,
-    filesystem: Arc<crate::terminal_filesystem::TerminalBuildFilesystemHost>,
+    filesystem: Arc<crate::host::filesystem::TerminalBuildFilesystemHost>,
     started: std::sync::atomic::AtomicBool,
     execution_profile: Option<target::TargetProfile>,
     value_admission: BuildValueAdmission,
@@ -125,7 +128,7 @@ impl TerminalBuildHost {
             original.clone(),
             Some(account),
         )?;
-        let filesystem = crate::terminal_filesystem::TerminalBuildFilesystemHost::new(
+        let filesystem = crate::host::filesystem::TerminalBuildFilesystemHost::new(
             &produced,
             &original,
             account,
@@ -287,8 +290,8 @@ pub struct TerminalBuildActivation {
 pub struct TerminalBuildStep<'step> {
     pub requests: &'step [IssuedBuildRequest],
     pub returned: bool,
-    pub awaiting_provider: Option<crate::terminal_bindings::BuildProviderRequest>,
-    pub awaiting_query: Option<Arc<crate::terminal_bindings::BuildProductQuery>>,
+    pub awaiting_provider: Option<crate::host::bindings::BuildProviderRequest>,
+    pub awaiting_query: Option<Arc<crate::host::bindings::BuildProductQuery>>,
 }
 
 impl TerminalBuildActivation {
@@ -305,8 +308,8 @@ impl TerminalBuildActivation {
     /// poisons it rather than allowing later effects to conceal query failure.
     pub fn answer_query(
         &mut self,
-        request: &crate::terminal_bindings::BuildProductQuery,
-        answer: crate::terminal_bindings::BuildProductDescription,
+        request: &crate::host::bindings::BuildProductQuery,
+        answer: crate::host::bindings::BuildProductDescription,
         dependencies: &[BuildDependencySelection],
     ) -> Result<(), String> {
         if !matches!(self.state, ActivationState::Running) {
@@ -470,7 +473,7 @@ impl TerminalBuildActivation {
         if !matches!(self.state, ActivationState::Returned) {
             return Err("Build completion requires its normal interpreter return".into());
         }
-        let (settings, optimization_report) = crate::terminal_settings::extract(
+        let (settings, optimization_report) = crate::settings::extract(
             &self.instance,
             self.host.value_admission,
             &self.host.machine.initial_build,

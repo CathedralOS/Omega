@@ -77,9 +77,9 @@ impl TerminalBuildFilesystemHost {
                 None
             } else {
                 Some(FilesystemFacets {
-                    source: crate::terminal_requests::build_facet(artifact, original, "source")?,
-                    inputs: crate::terminal_requests::build_facet(artifact, original, "inputs")?,
-                    output: crate::terminal_requests::build_facet(artifact, original, "output")?,
+                    source: crate::host::requests::build_facet(artifact, original, "source")?,
+                    inputs: crate::host::requests::build_facet(artifact, original, "inputs")?,
+                    output: crate::host::requests::build_facet(artifact, original, "output")?,
                 })
             },
             account: account.clone(),

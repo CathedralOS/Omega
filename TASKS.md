@@ -1767,7 +1767,7 @@ defines the complete product bar.
     (`omega-rust/omega/packages/compilation-inputs/src/build_execution/build_value/configuration.rs`),
     with package-local satisfaction discovery, separate runner roots, and
     Terminal Psi + native execution in `omega-rust/omega/compilation/driver/`.
-  - Extend `omega-rust/omega/compilation/build-evaluation/src/admitted_build_program.rs`
+  - Extend `omega-rust/omega/compilation/build-evaluation/src/admission/program.rs`
     and `omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`
     to carry group-scoped providers, ordinary fixture storage, fresh mock state,
     and lock-reviewed test authority without automatic mutable context

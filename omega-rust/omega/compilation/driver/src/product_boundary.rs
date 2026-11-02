@@ -178,7 +178,7 @@ fn reused_product_selection_shares_the_checked_program() {
 
 #[test]
 fn canonical_proof_completion_has_no_source_rewrite_api() {
-    let coordinator = include_str!("../../build-evaluation/src/scalar_completion.rs");
+    let coordinator = include_str!("../../build-evaluation/src/activation/scalar_completion.rs");
     assert_absent(
         &[coordinator],
         "coordinator owns",
