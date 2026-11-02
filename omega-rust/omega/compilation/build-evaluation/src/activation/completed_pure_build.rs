@@ -30,6 +30,7 @@ pub(crate) struct CompletedPureBuildInputs {
     activation: package_compilation::BuildActivation,
     captured_inventory: Option<package_compilation::BuildCapturedSourceInventory>,
     artifact_only: bool,
+    default_source: bool,
 }
 
 /// The consumer's import scope and the producer's checked purpose can differ:
@@ -56,6 +57,7 @@ impl CompletedPureBuildInputs {
         snapshot: Option<&package_compilation::BuildSnapshotRequest>,
         scope: &package_compilation::BuildMachineFilesystemScope,
         artifact_only: bool,
+        default_source: bool,
         measurement_identity: evaluation_accounting::EvaluationMeasurementIdentity,
         sponsor: Option<&build_time_evaluation::BuildEvaluationSponsor>,
     ) -> Option<Self> {
@@ -90,6 +92,7 @@ impl CompletedPureBuildInputs {
             activation,
             captured_inventory: scope.captured_source_inventory(),
             artifact_only,
+            default_source,
         })
     }
 
@@ -105,6 +108,7 @@ impl CompletedPureBuildInputs {
             && self.activation == other.activation
             && self.captured_inventory == other.captured_inventory
             && self.artifact_only == other.artifact_only
+            && self.default_source == other.default_source
     }
 }
 

@@ -1,9 +1,9 @@
 //! Assemble one source forest with exact package, import and generated-source custody.
 //!
 //! `ImmutableSourceParseCheckpoint::prepare` consumes an acquired capture or
-//! captures sources, then parses the authored Build's import closure, or the
-//! Product roots for a default Build.
-//! `assemble` admits the selected scope's inputs and prelude. An authored Build
+//! captures sources, then parses the authored Build's import closure or the
+//! ordinary compiler-supplied default. Product roots stay deferred in both cases.
+//! `assemble` admits the selected scope's inputs and prelude. Every selected Build
 //! retains `DeferredProductSources`: after its dependency join, Product imports
 //! and target entry contracts join the same captured namespace and parse prefix.
 //! Product imports cannot supply names to the initial Build context. Each source
@@ -14,6 +14,9 @@
 //! `GeneratedSourceExtension::parse` consumes the activation's admitted output
 //! through that same facade, preserving separate generated-unit forests.
 //! No Build machine executes here; resolution and typing consume the result.
+
+mod build_source;
+pub use build_source::BuildSourceSelection;
 
 use crate::PackageCompilationInputs;
 use crate::source_imports::{
@@ -41,13 +44,13 @@ pub struct AssembledSyntax {
     /// Anonymous ownership inputs. Initial Build leaves these unbound; the
     /// joined Product context establishes ownership before resolution/typing.
     pub anonymous_owner: Option<crate::AnonymousSourceCapture>,
-    /// Product roots remain unopened until the authored Build has returned and
+    /// Product roots remain unopened until the selected Build has returned and
     /// its dependencies have joined. Both phases retain the same captured bytes.
     pub product_sources: Option<DeferredProductSources>,
-    /// Exact companion `build.omg` selected during project discovery. Build
-    /// authority is attached to this source, never reconstructed from a leaf
-    /// filename after imports have expanded the source frontier.
-    pub build_source_id: Option<source::SourceId>,
+    /// Exact authored or compiler-default source selected during discovery.
+    /// Its private origin survives source rejoins; a filename or absent named
+    /// role never grants default semantics.
+    pub build_source: Option<BuildSourceSelection>,
     pub source_scoped_top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     /// Sources the build scope owns: the selected build entry, the
@@ -68,7 +71,7 @@ pub struct AssembledSyntax {
 pub struct ImmutableSourceParseCheckpoint {
     root_path: PathBuf,
     source_storage: Arc<SourceStorage>,
-    build_source_id: Option<source::SourceId>,
+    build_source: Option<BuildSourceSelection>,
     package_imports: Arc<[PendingPackageImport]>,
     package_source_inputs: Option<Arc<crate::PackageCompilationSourceInputs>>,
     product_roots: Option<Arc<[PathBuf]>>,
@@ -104,13 +107,14 @@ impl DeferredProductSources {
         let mut storage = checkpoint.source_storage.as_ref().clone();
         let loaded = storage.reselect_current_sources(catalogue)?;
         inputs.mount(&mut storage)?;
-        let build_source_id = checkpoint
-            .build_source_id
+        let build_source = checkpoint
+            .build_source
             .map(|original| {
                 storage
                     .sources
-                    .get(original)
+                    .get(original.source_id())
                     .and_then(|file| storage.sources.rejoined_source_id(file))
+                    .map(|source_id| original.rejoined(source_id))
                     .ok_or_else(|| {
                         vec![Diagnostic::error(
                             "Product query lost its authored Build correspondence",
@@ -169,7 +173,7 @@ impl DeferredProductSources {
             timings,
             catalogue,
         )?;
-        let mut bindings = append_build_prelude(&mut storage, build_source_id, timings, catalogue)?;
+        let mut bindings = append_build_prelude(&mut storage, build_source, timings, catalogue)?;
         bindings.extend(crate::source_imports::retain_module_import_bindings(
             &storage,
         )?);
@@ -192,7 +196,7 @@ impl DeferredProductSources {
             sources: Arc::new(storage.sources),
             anonymous_owner: None,
             product_sources: None,
-            build_source_id,
+            build_source,
             source_scoped_top_level_bindings: bindings,
             generated_source_custody: Vec::new(),
             build_scope_sources,
@@ -308,6 +312,22 @@ impl ImmutableSourceParseCheckpoint {
         };
         self.admit_product_inputs(Some(inputs))?;
         let storage = Arc::make_mut(&mut self.source_storage);
+        let default_source = self
+            .build_source
+            .filter(|choice| choice.is_default())
+            .map(|choice| {
+                storage
+                    .sources
+                    .get(choice.source_id())
+                    .cloned()
+                    .map(|file| (choice, file))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "default Build source disappeared before package join",
+                        )]
+                    })
+            })
+            .transpose()?;
         let loaded = storage.reselect_current_sources(catalogue)?;
         storage
             .sources
@@ -337,9 +357,18 @@ impl ImmutableSourceParseCheckpoint {
             timings,
             catalogue,
         )?);
-        self.build_source_id =
-            ProjectSourceSelection::prepare(&self.root_path, &storage.filesystem)?
-                .build_source_id(storage)?;
+        self.build_source = match default_source {
+            Some((choice, file)) => Some(choice.rejoined(
+                storage.sources.rejoined_source_id(&file).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "default Build source lost its package-join correspondence",
+                    )]
+                })?,
+            )),
+            None => ProjectSourceSelection::prepare(&self.root_path, &storage.filesystem)?
+                .build_source_id(storage)?
+                .map(BuildSourceSelection::authored),
+        };
         self.package_imports = requests.into();
         Ok(())
     }
@@ -357,7 +386,7 @@ impl ImmutableSourceParseCheckpoint {
         Self {
             root_path: self.root_path.clone(),
             source_storage: self.source_storage.clone(),
-            build_source_id: self.build_source_id,
+            build_source: self.build_source,
             package_imports: self.package_imports.clone(),
             package_source_inputs: self.package_source_inputs.clone(),
             product_roots: self.product_roots.clone(),
@@ -407,13 +436,11 @@ impl ImmutableSourceParseCheckpoint {
             SourceStorage::prepare(root_path, package_inputs, source_capture, catalogue)?;
         let project = ProjectSourceSelection::prepare(root_path, &source_storage.filesystem)?;
         let mut imports = ImportQueue::default();
-        let has_build = project
-            .sources()
-            .iter()
-            .any(|(_, scope)| *scope == source::DependencyScope::Build);
+        // Every project executes an authored or compiler-supplied Build before
+        // opening Product roots. Default source has no ambient Product names.
         let mut product_roots = Vec::new();
         for (path, scope) in project.sources() {
-            if has_build && *scope == source::DependencyScope::Product {
+            if *scope == source::DependencyScope::Product {
                 product_roots.push(path.clone());
             } else {
                 imports.seed(path.clone(), *scope);
@@ -428,14 +455,17 @@ impl ImmutableSourceParseCheckpoint {
             timings,
             catalogue,
         )?;
-        let build_source_id = project.build_source_id(&source_storage)?;
+        let build_source = Some(match project.build_source_id(&source_storage)? {
+            Some(source_id) => BuildSourceSelection::authored(source_id),
+            None => append_default_build(&mut source_storage, timings, catalogue)?,
+        });
         Ok(Self {
             root_path: root_path.to_path_buf(),
             source_storage: Arc::new(source_storage),
-            build_source_id,
+            build_source,
             package_imports: package_imports.into(),
             package_source_inputs: package_inputs.map(PackageCompilationInputs::source_inputs),
-            product_roots: has_build.then(|| product_roots.into()),
+            product_roots: Some(product_roots.into()),
         })
     }
 
@@ -585,19 +615,23 @@ impl ImmutableSourceParseCheckpoint {
         source_storage.attach_parsed(parsed);
         imports.enqueue(discovered)?;
         load_phase!(PackageImportPhase::ExactTarget(None))?;
-        if let Some(original) = self.build_source_id {
-            let file = source_storage.sources.get(original).ok_or_else(|| {
-                vec![Diagnostic::error(
-                    "source preparation lost its authored Build source",
-                )]
-            })?;
-            self.build_source_id = Some(
+        if let Some(original) = self.build_source {
+            let file = source_storage
+                .sources
+                .get(original.source_id())
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "source preparation lost its authored Build source",
+                    )]
+                })?;
+            self.build_source = Some(
                 source_storage
                     .sources
                     .rejoined_source_id(file)
+                    .map(|source_id| original.rejoined(source_id))
                     .ok_or_else(|| {
                         vec![Diagnostic::error(
-                            "authored Build source has no admitted consumer correspondence",
+                            "selected Build source has no admitted consumer correspondence",
                         )]
                     })?,
             );
@@ -613,12 +647,8 @@ impl ImmutableSourceParseCheckpoint {
                 Ok::<_, Vec<Diagnostic>>(DeferredProductSources { checkpoint })
             })
             .transpose()?;
-        let mut source_scoped_top_level_bindings = append_build_prelude(
-            &mut source_storage,
-            self.build_source_id,
-            timings,
-            catalogue,
-        )?;
+        let mut source_scoped_top_level_bindings =
+            append_build_prelude(&mut source_storage, self.build_source, timings, catalogue)?;
         source_scoped_top_level_bindings.extend(
             crate::source_imports::retain_module_import_bindings(&source_storage)?,
         );
@@ -649,7 +679,7 @@ impl ImmutableSourceParseCheckpoint {
             sources,
             anonymous_owner,
             product_sources,
-            build_source_id: self.build_source_id,
+            build_source: self.build_source,
             source_scoped_top_level_bindings,
             generated_source_custody,
             build_scope_sources,
@@ -686,11 +716,12 @@ impl ImmutableSourceParseCheckpoint {
                     "deferred Product parser lost its primary source correspondence",
                 )]
             })?;
-        if let Some(build) = self.build_source_id {
-            self.build_source_id = Some(
+        if let Some(build) = self.build_source {
+            self.build_source = Some(
                 previous
-                    .get(build)
+                    .get(build.source_id())
                     .and_then(|file| current.rejoined_source_id(file))
+                    .map(|source_id| build.rejoined(source_id))
                     .ok_or_else(|| {
                         vec![Diagnostic::error(
                             "deferred Product lost its authored Build source correspondence",
@@ -977,13 +1008,40 @@ fn load_source_frontiers(
     Ok(retained_requests)
 }
 
+/// Admit ordinary toolchain-owned source without adding a physical file to the
+/// captured project. Only this source owner can mint default-role selection.
+fn append_default_build(
+    storage: &mut SourceStorage,
+    timings: &mut CompileTimings,
+    catalogue: &mut source::SourceCatalogue,
+) -> Result<BuildSourceSelection, Vec<Diagnostic>> {
+    let admitted = storage.admit_source(
+        SourceContents {
+            path: PathBuf::from("<default-build>"),
+            source: Arc::from(build_declarations::default_build_source()),
+            scope: source::DependencyScope::Build,
+        },
+        Some(SourceOrigin::Toolchain),
+        SourceResolutionStratum::Base,
+        catalogue,
+    )?;
+    let selection = BuildSourceSelection::compiler_default(admitted.source_id);
+    let parsed = SourceInput([admitted].into_iter().collect())
+        .append(&mut storage.syntax_trees, &mut ParsingTimings(timings))?;
+    storage.attach_parsed(parsed);
+    Ok(selection)
+}
+
 fn append_build_prelude(
     storage: &mut SourceStorage,
-    build_source: Option<source::SourceId>,
+    build_source: Option<BuildSourceSelection>,
     timings: &mut CompileTimings,
     catalogue: &mut source::SourceCatalogue,
 ) -> Result<Vec<symbols::SourceScopedTopLevelBinding>, Vec<Diagnostic>> {
-    let Some(prelude) = crate::source_imports::prepare_build_prelude(storage, build_source) else {
+    let Some(prelude) = crate::source_imports::prepare_build_prelude(
+        storage,
+        build_source.map(BuildSourceSelection::source_id),
+    ) else {
         return Ok(Vec::new());
     };
     let admitted = storage.admit_source(

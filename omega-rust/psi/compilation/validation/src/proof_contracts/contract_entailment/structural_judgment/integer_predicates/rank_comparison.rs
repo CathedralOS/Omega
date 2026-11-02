@@ -30,7 +30,7 @@ pub(in crate::proof_contracts::contract_entailment) enum CapturedIntegerInput {
     Record {
         type_reference: typed_trees::types::TypeReferenceHandle,
         snapshot: Option<crate::CapturedOwnedSnapshot>,
-        reads: Vec<(crate::ScopedReadCoordinate, StructuralTerm, PrimitiveType)>,
+        reads: Vec<(crate::DeclaredInputRead, StructuralTerm, PrimitiveType)>,
     },
 }
 

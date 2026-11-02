@@ -107,6 +107,9 @@ pub(crate) struct Expansion<'a> {
     /// `push`ed while this is set inherits it, so `Formal` positions in its
     /// edge terms stay in scope on the emitted block.
     erased_proof_formals: Vec<terminal_psi::ErasedProofFormal>,
+    /// The same checked scope owns forwarded proof terms. A fused state's
+    /// authored machine need not own a standalone executable body.
+    erased_proof_parameters: &'a [checked_trees::CheckedErasedProofParameterPlan],
     states: Vec<LoweredScalarBranchState>,
     claim_edges: Vec<PreparedClaimEdge>,
     calls: Vec<SourceInvocation>,
@@ -157,6 +160,7 @@ impl<'a> Expansion<'a> {
             machine,
             base,
             erased_proof_formals: Vec::new(),
+            erased_proof_parameters: &[],
             states: Vec::new(),
             claim_edges: Vec::new(),
             calls: Vec::new(),
@@ -187,8 +191,9 @@ impl<'a> Expansion<'a> {
     pub(crate) fn enter_proof_scope(
         mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
-        roster: &[checked_trees::CheckedErasedProofParameterPlan],
+        roster: &'a [checked_trees::CheckedErasedProofParameterPlan],
     ) -> Self {
+        self.erased_proof_parameters = roster;
         self.erased_proof_formals =
             erased_proof_formal_declarations(identities, self.checked, roster);
         self

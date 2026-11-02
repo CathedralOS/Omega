@@ -213,17 +213,10 @@ fn with_arguments<Output>(
                 ));
                 engine
                     .formal_read_arguments
-                    .extend(reads.iter().map(|(coordinate, value)| {
-                        (
-                            crate::ScopedReadCoordinate {
-                                coordinate: crate::RankSubjectCoordinate {
-                                    parameter: formal.symbol,
-                                    path: coordinate.coordinate.path.clone(),
-                                },
-                                calls: coordinate.calls.clone(),
-                            },
-                            value.clone(),
-                        )
+                    .extend(reads.iter().map(|(read, value)| {
+                        let mut read = read.clone();
+                        read.coordinate.parameter = formal.symbol;
+                        (read, value.clone())
                     }));
             }
         }

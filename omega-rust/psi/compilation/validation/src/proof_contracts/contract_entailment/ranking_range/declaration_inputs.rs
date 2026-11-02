@@ -13,6 +13,8 @@ mod selectors;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeclaredInputRead {
+    /// Exact outer-to-inner call occurrences. Each callee consumes one cut;
+    /// repeated uses of the same helper keep independent supplied actuals.
     pub calls: Vec<typed_trees::expression::ExpressionHandle>,
     pub coordinate: crate::RankSubjectCoordinate,
     pub type_reference: TypeReferenceHandle,
@@ -100,13 +102,4 @@ pub fn declared_input_shape(
     program.closed_data_definition(observed)?;
     reads::collect(program, measure, &mut shape)?;
     Some(shape)
-}
-
-impl DeclaredInputRead {
-    pub fn binding(&self) -> crate::ScopedReadCoordinate {
-        crate::ScopedReadCoordinate {
-            coordinate: self.coordinate.clone(),
-            calls: self.calls.clone(),
-        }
-    }
 }

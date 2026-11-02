@@ -5,7 +5,7 @@
 //! commitment and requested authority beside the evaluated configuration.
 
 use crate::activation::completed_pure_build::CompletedPureBuildInputs;
-use crate::{BuildConfig, ComputedBuildConfig, PreparedBuildExecution, PureBuildCompilation};
+use crate::{ComputedBuildConfig, PreparedBuildExecution, PureBuildCompilation};
 use artifacts::compile_timings::CompileTimings;
 use compilation_products::CompileFailure;
 use diagnostics::Diagnostic;
@@ -25,7 +25,7 @@ pub struct BuildEvaluationRequest<'request> {
     pub root_path: &'request Path,
     pub typed: &'request mut TypedTrees,
     pub pre_checks: &'request mut Vec<build_time_evaluation::PreCheckEvaluation>,
-    pub build_source_id: Option<source::SourceId>,
+    pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub sources: &'request source::SourceMap,
     pub package_inputs: Option<&'request PackageCompilationInputs>,
     pub anonymous_source: Option<&'request package_compilation::AnonymousSourceCapture>,
@@ -75,7 +75,7 @@ impl PreparedBuildEvaluation {
             .into()),
         }
     }
-    /// Defaults and freshly charged Pure reuse need no new activation.
+    /// Freshly charged Pure reuse needs no new activation.
     pub fn execution(&mut self) -> Option<&mut PreparedBuildExecution> {
         match &mut self.state {
             BuildEvaluationState::Complete(_) => None,
@@ -140,7 +140,7 @@ pub fn prepare_build_evaluation(
         root_path,
         typed,
         pre_checks,
-        build_source_id,
+        build_source,
         sources,
         package_inputs,
         anonymous_source,
@@ -161,15 +161,16 @@ pub fn prepare_build_evaluation(
     let build_directory = build_directory.as_deref();
     let snapshot = snapshot.as_ref();
     // Source-owned entry selection requires no interpreter or host resources.
-    // A package without an entry has nothing to admit or execute: its ordinary
-    // declarations are checked by the final product pass, just once.
+    // Source assembly supplies an ordinary default when no Build file exists;
+    // a selected authored file must contain its own one free entry.
     let selected_machine =
-        select_build_machine(typed, build_source_id)?.map(|machine| machine.symbol);
-    if selected_machine.is_none() && artifact_only {
+        select_build_machine(typed, build_source.map(|source| source.source_id()))?
+            .map(|machine| machine.symbol);
+    if build_source.is_some_and(|source| source.is_default()) && artifact_only {
         return Err(vec![Diagnostic::error(
             "an artifact-only application requires a build machine that completes at least one required output",
         )].into());
-    } else if selected_machine.is_none()
+    } else if build_source.is_some_and(|source| source.is_default())
         && snapshot.is_some_and(|snapshot| !snapshot.required_outputs().is_empty())
     {
         return Err(vec![Diagnostic::error(
@@ -189,31 +190,16 @@ pub fn prepare_build_evaluation(
             .map(|subject| subject.source_consumption_commitment())
         })
         .transpose()?;
-    let Some(selected_machine) = selected_machine else {
-        return Ok(PreparedBuildEvaluation {
-            state: BuildEvaluationState::Complete(Arc::new(ComputedBuildConfig {
-                config: BuildConfig::default(),
-                root_binding_requests: Vec::new(),
-                declared_product_selections: Vec::new(),
-                product_selection_requests: Vec::new(),
-                native_binding_requests: Vec::new(),
-                native_formations: Vec::new(),
-                behavior_exclusion_requests: Vec::new(),
-                project_declaration: None,
-                optimization_report_request:
-                    optimization_core::OptimizationReportRequest::Suppressed,
-                evaluation_usage: None,
-                observation_summary: None,
-                selected_build_machine_symbol: None,
-                generated_sources: Vec::new(),
-            })),
-            restricted_build_requests: Vec::new(),
-            base_source_consumption_commitment,
-            retained_check: None,
-            pure_retention: None,
-            restricted_build_grants,
-        });
-    };
+    let selected_machine = selected_machine.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "selected Build source requires exactly one free build entry",
+        )]
+    })?;
+    let build_source = build_source.ok_or_else(|| {
+        vec![Diagnostic::error(
+            "Build execution requires its source-owned selection",
+        )]
+    })?;
     // Every activation checks its helpers before snapshot capture or effects.
     // Package authority adds to that semantic floor; standalone source cannot
     // bypass it. Admission below consumes this exact checked program.
@@ -244,6 +230,8 @@ pub fn prepare_build_evaluation(
         evaluation_sponsor.as_ref(),
         execution_profile,
         artifact_only,
+        build_source,
+        package_inputs,
     )?;
     let restricted_build_requests = admitted.restricted_build_requests();
     if let Some(grants) = restricted_build_grants.as_mut() {

@@ -17,6 +17,7 @@
 
 mod graph_construction;
 mod graph_replay;
+mod runtime_image;
 mod schema_nodes;
 
 pub use graph_construction::construct_semantic_schema_graph;

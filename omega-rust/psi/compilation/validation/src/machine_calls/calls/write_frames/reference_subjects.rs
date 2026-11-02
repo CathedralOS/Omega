@@ -1123,6 +1123,30 @@ pub(super) fn source_root_type(
         .map(|(_, local)| local.type_reference)
 }
 
+/// A returned outer pointer may select an owned span in a carrier containing
+/// other descriptors. Only the selected path matters: an interior reference
+/// crossing still needs captured-load evidence, and a nonempty reference-valued
+/// endpoint cannot stand for its loaded backing. Whole-pointer forwarding does
+/// not load that endpoint. Bounds, access and lifetime admission remain with
+/// the actual formation; this query supplies geometry and origin substitution.
+pub(super) fn validate_referent_projection(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    segments: &[PlaceSegment],
+    bindings: &super::type_instantiation::TypeBindings,
+) -> Option<()> {
+    let mut cursor = stored_origins::StorageProjectionCursor::with_bindings(
+        program,
+        reference,
+        bindings.clone(),
+    );
+    for segment in segments {
+        cursor.advance(segment)?;
+    }
+    let selected = cursor.finish()?;
+    (segments.is_empty() || !type_reference_is_reference(program, selected)).then_some(())
+}
+
 pub(super) fn validate_owned_projection(
     program: &dyn crate::CheckingInput,
     mut reference: TypeReferenceHandle,

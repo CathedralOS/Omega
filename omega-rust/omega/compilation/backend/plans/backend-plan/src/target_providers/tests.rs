@@ -145,6 +145,7 @@ fn invocation_fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
                 source_target: Some("macos_arm64".into()),
                 product_eligible: true,
                 supplies_checked_body: true,
+                type_parameter_count: 0,
                 synchronous_invocations: Ok(Vec::new()),
                 compiler_evaluation: Err("not an evaluation fixture".into()),
             });
@@ -160,6 +161,7 @@ fn invocation_fixture() -> (TerminalTargetProviderPlan, TerminalModule) {
             source_target: None,
             product_eligible: true,
             supplies_checked_body: true,
+            type_parameter_count: 1,
             synchronous_invocations: Err("open template invocation".into()),
             compiler_evaluation: Err("not an evaluation fixture".into()),
         });

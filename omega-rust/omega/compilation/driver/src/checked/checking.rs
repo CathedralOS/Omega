@@ -163,7 +163,11 @@ impl PreparedPackageInvocation {
         })?;
         Ok(super::package_compilation::SourceBuildDeclaration::new(
             capture.clone(),
-            returned.declaration().clone(),
+            returned.declaration().cloned().ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "default Build has no authored named project declaration",
+                )]
+            })?,
         ))
     }
     pub(super) fn join_product_context(
@@ -444,8 +448,11 @@ pub(super) fn select_completed_build(
     }) {
         Ok(source) => crate::execution_settlement::select_product_target(
             &source,
-            selected_target_profile,
-            package_inputs,
+            crate::checked::PreparedProductTarget::capture(
+                &source,
+                selected_target_profile,
+                package_inputs,
+            ),
         ),
         Err(diagnostics) => SelectedCompileOutcome {
             result: Err(CompileFailure::from(diagnostics)),

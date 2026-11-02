@@ -80,7 +80,6 @@ pub(super) fn prepare(
         .map_err(|errors| format!("provider choice deployment inputs: {errors:?}"))?;
     let publication = TargetProviderPreparationRequest {
         application_roots: deployment.roots.as_deref(),
-        application_scopes: &deployment.scopes,
         context,
         exact_toolchain_sources: checked.sources().exact_toolchain_sources(),
         overrides: &checked.build().config.provider_selections,
@@ -182,9 +181,15 @@ pub(super) fn inspect(
             }
         }
         callback_bodies.inspect(artifact.module())?;
-        let actual = publication
-            .clone()
-            .publish(artifact, original.optimization_selection);
+        let actual = publication.clone().publish(
+            artifact,
+            original.optimization_selection,
+            if original.application_required {
+                std::slice::from_ref(&original.target)
+            } else {
+                &[]
+            },
+        );
         if actual.as_slice() != std::slice::from_ref(original) {
             return Err(format!(
                 "source-free provider choice changed its complete proposal: {actual:?}"
@@ -220,9 +225,15 @@ pub(super) fn inspect(
                 .map_err(|error| format!("missing-instance artifact: {error:?}"))?;
             let omitted = CanonicalTerminalArtifact::from_bytes(&omitted.to_bytes())
                 .map_err(|error| format!("missing-instance external ingress: {error:?}"))?;
-            let outcomes = publication
-                .clone()
-                .publish(omitted.view(), original.optimization_selection);
+            let outcomes = publication.clone().publish(
+                omitted.view(),
+                original.optimization_selection,
+                if original.application_required {
+                    std::slice::from_ref(&original.target)
+                } else {
+                    &[]
+                },
+            );
             let [outcome] = outcomes.as_slice() else {
                 return Err("missing-instance control lost its one target".into());
             };

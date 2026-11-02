@@ -318,7 +318,7 @@ pub(super) struct Engine<'program> {
     /// A callee telescope denotes completed caller values before any operation
     /// simplifies. This overlays symbol identity, not arithmetic capabilities.
     formal_arguments: Option<Vec<(SymbolHandle, Polynomial)>>,
-    formal_read_arguments: Vec<(crate::ScopedReadCoordinate, Polynomial)>,
+    formal_read_arguments: Vec<(crate::DeclaredInputRead, Polynomial)>,
     owned_arguments: Vec<(crate::ScopedArithmeticBinder, crate::CapturedOwnedSnapshot)>,
     strict_symbol_bindings_valid: bool,
     /// Only the exact-meaning call adapter licenses widening while capturing
@@ -1607,8 +1607,9 @@ impl<'program> Engine<'program> {
                         &call,
                     )?;
                     let target = super::specification_calls::owner_symbol(&owner);
-                    let arguments = expression_table(self.program)
-                        .expression_handles(call.arguments)
+                    let supplied_arguments =
+                        expression_table(self.program).expression_handles(call.arguments);
+                    let arguments = supplied_arguments
                         .iter()
                         .map(|argument| {
                             if self

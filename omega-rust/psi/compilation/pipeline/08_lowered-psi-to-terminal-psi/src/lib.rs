@@ -16,6 +16,5 @@ pub use publish_artifact::finalize_terminal_program;
 pub use result_policy_verification::verify_boundary_result_policies;
 
 pub use entry_receipt::{
-    PreparedNominalRoot, ProgramEntryTerminalReceiptError, prepare_nominal_root,
-    prepare_program_entry_receipt, rejoin_program_entry_receipt,
+    ProgramEntryTerminalReceiptError, prepare_program_entry_receipt, rejoin_program_entry_receipt,
 };

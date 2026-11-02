@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 235 even when every table
+order below. This layout uses semantic format marker 236 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -792,7 +792,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 235 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 236 + `u16` vocabulary
 marker 130 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -904,6 +904,14 @@ Older markers are rejected before their payload is read.
 | 43 | callback applications | counted checked registrar occurrences |
 | 44 | boundary application candidates | counted checked bodies for closed applications |
 | 45 | task activation demands | counted task activation demand rows |
+
+Marker 236 additionally retains the remaining source type-parameter count in
+each callable header, as a `u32` after the checked-body flag and before the
+compiler-evaluation presence flag. This is declaration arity, not invocation
+arity: captured generic parameters are still counted, and emitting a closed
+specialization does not establish that its original declaration is nongeneric.
+The count carries no execution authority. Marker 235 has no such field and is
+not wire-compatible.
 
 Marker 235 combines the physical declaration-owner eligibility and complete
 logical ABI census with retained compiler-evaluation facts. Its bytes are not

@@ -130,7 +130,7 @@ pub(crate) fn prove_captured_rank_call(
                     component.subject,
                     &path,
                 )?;
-                reads.push((read.binding(), value, read.primitive_type));
+                reads.push((read.clone(), value, read.primitive_type));
             }
             let snapshot = crate::canonical_place_from_expression(program, component.subject)
                 .and_then(|mut place| {

@@ -15,7 +15,6 @@ use super::{
     FramePathPrecision, FramePlaceOrigin, ReferenceLeaf, State, TopLevelSymbols,
     TypeReferenceHandle, instantiate_edge_origins, state_equation,
 };
-use crate::machine_calls::graph_components::component_ids;
 
 pub(super) struct Edge<'program> {
     pub(super) target: &'program State,
@@ -317,10 +316,55 @@ fn instantiate(
     )
 }
 
+/// Seed the backwards substitution walk from actual returned origins. A
+/// whole moved carrier demands its entire declared inventory; fields are never
+/// selected from a type as proof of presence. Unknown/independent origins stay
+/// in the result relation and retain all of their ordinary checking fences.
+fn returned_parameters(
+    program: &dyn crate::CheckingInput,
+    equations: &[Equation<'_>],
+) -> Vec<(usize, symbols::SymbolHandle)> {
+    let mut demanded = Vec::new();
+    for (index, equation) in equations.iter().enumerate() {
+        let Some(direct) = &equation.direct else {
+            continue;
+        };
+        let mut retain = |source: &super::super::FrameSourcePlace| {
+            if source.is_static() {
+                return;
+            }
+            if program
+                .state_parameters(equation.state)
+                .iter()
+                .any(|parameter| parameter.symbol == source.root)
+            {
+                let required = (index, source.root);
+                if !demanded.contains(&required) {
+                    demanded.push(required);
+                }
+            }
+        };
+        for leaf in &direct.references {
+            if let Some(origin) = &leaf.origin {
+                retain(&origin.place().source);
+            }
+            for dependency in leaf.lifetime_dependencies.as_deref().unwrap_or_default() {
+                retain(&dependency.origin.source);
+                retain(&dependency.carrier);
+            }
+        }
+        for moved in &direct.moves {
+            retain(&moved.source);
+        }
+    }
+    demanded
+}
+
 /// Only substitutions inside a cyclic component can grow without bound.
-/// Prove their full reference/owned-origin inventory before iteration. This
-/// uses the same edge substitution as returned leaves, including captured
-/// stored references and moved aggregates; writes provide no origin authority.
+/// Prove the complete demanded reference/owned-origin inventory before
+/// iteration. The backwards walk uses the same captured edge substitution as
+/// returned leaves, including whole moved carriers, and retains every growing
+/// cycle that can reach an output. Writes provide no origin authority.
 #[allow(clippy::too_many_arguments)]
 fn finite_substitutions(
     program: &dyn crate::CheckingInput,
@@ -330,14 +374,25 @@ fn finite_substitutions(
     inference: &mut FrameInference,
     include_shared: bool,
 ) -> Option<()> {
-    let components = component_ids(successors);
+    // Only values that can contribute a real normal result need a finite
+    // returned-origin relation. Guards and discarded inputs still undergo the
+    // complete chronological effect/exposure walk in state_equation, but an
+    // unrelated cursor's shrinking window is not a returned address.
+    let mut demanded = returned_parameters(program, equations);
+    let mut next = 0;
     let mut substitutions = Substitutions::default();
-    for (index, equation) in equations.iter().enumerate() {
-        for (edge, target) in equation.edges.iter().zip(&successors[index]) {
-            if components[index] != components[*target] {
-                continue;
-            }
-            for parameter in program.state_parameters(edge.target) {
+    while next < demanded.len() {
+        let (wanted_state, wanted_parameter) = demanded[next];
+        next += 1;
+        for (index, equation) in equations.iter().enumerate() {
+            for (edge, target) in equation.edges.iter().zip(&successors[index]) {
+                if *target != wanted_state {
+                    continue;
+                }
+                let parameter = program
+                    .state_parameters(edge.target)
+                    .iter()
+                    .find(|parameter| parameter.symbol == wanted_parameter)?;
                 if program
                     .primitive_type_reference(parameter.type_reference)
                     .is_some()
@@ -424,6 +479,10 @@ fn finite_substitutions(
                         .state_parameters(equation.state)
                         .iter()
                         .find(|candidate| candidate.symbol == source.root)?;
+                    let required = (index, source_parameter.symbol);
+                    if !demanded.contains(&required) {
+                        demanded.push(required);
+                    }
                     // The first reference frontier is a descriptor value, not
                     // a projection into its referent. Keep leaf-to-leaf cycles
                     // finite while retaining every suffix that can grow.

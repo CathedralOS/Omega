@@ -384,8 +384,10 @@ pub fn settle_checked_providers(
     settled_target_machines: SettledTargetMachineDeclarations,
     selected_target_profile: Option<target::TargetProfile>,
     package_inputs: Option<&PackageCompilationInputs>,
+    evaluated_bindings: Result<EvaluatedViaBindingTable, Vec<Diagnostic>>,
     build_provider_selections: &[ProviderSelection],
     application_roots: Option<&[(String, SymbolHandle)]>,
+    native_bindings: &crate::native_bindings::PreparedNativeBuildBindings,
     native_supplies: &[crate::native_bindings::NativeBuildSupply],
     assumed_bindings: &[build_time_evaluation::assumed_bindings::AssumedBindingContract],
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
@@ -410,12 +412,7 @@ pub fn settle_checked_providers(
     // PRV4 provider selection mirrors the native pipeline: candidates remain
     // separate by provider type and only the uniquely covering candidate may
     // rewrite adapter calls in the interpreter program.
-    let mut evaluated_via_bindings = crate::evaluated_via_bindings::evaluate_checked_via_bindings(
-        checked,
-        source::DependencyScope::Product,
-        planning_target,
-        package_inputs,
-    )?;
+    let mut evaluated_via_bindings = evaluated_bindings?;
     let authored_providers =
         std::sync::Arc::new(crate::target_machines::AuthoredTargetProviders::derive(
             services,
@@ -427,10 +424,9 @@ pub fn settle_checked_providers(
         )?);
     let mut derived_provider_plans = authored_providers.candidates().to_vec();
     let mut identities = evaluated_via_bindings.identities().clone().into_builder();
-    let native_build_plans = crate::native_bindings::derive(
-        services,
-        &boundary_calling_plan_realizations,
+    let native_build_plans = native_bindings.derive(
         native_supplies,
+        &boundary_calling_plan_realizations,
         planning_target,
         &mut identities,
     )?;
@@ -449,7 +445,6 @@ pub fn settle_checked_providers(
         context: crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product),
         exact_toolchain_sources,
         application_roots,
-        application_scopes: &[],
         overrides: build_provider_selections,
         assumed_bindings: &assumptions,
         independent_components: &independent_components,

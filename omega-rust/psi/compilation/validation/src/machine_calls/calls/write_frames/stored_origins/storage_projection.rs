@@ -4,7 +4,7 @@
 //! that boundary, authenticate the current descriptor elsewhere, then continue
 //! through its referee without losing generic substitutions or a case selector.
 
-use super::super::type_instantiation::DeclarationScopes;
+use super::super::type_instantiation::{DeclarationScopes, TypeBindings};
 use crate::frozen_program::expression_table;
 use facts::PlaceSegment;
 use symbols::SymbolKind;
@@ -25,11 +25,20 @@ impl<'program> StorageProjectionCursor<'program> {
         program: &'program dyn crate::CheckingInput,
         reference: TypeReferenceHandle,
     ) -> Self {
+        Self::with_bindings(program, reference, Vec::new())
+    }
+
+    pub(in crate::machine_calls::calls::write_frames) fn with_bindings(
+        program: &'program dyn crate::CheckingInput,
+        reference: TypeReferenceHandle,
+        bindings: TypeBindings,
+    ) -> Self {
+        let (scopes, scope) = DeclarationScopes::from_bindings(bindings);
         Self {
             program,
             reference,
-            scopes: DeclarationScopes::default(),
-            scope: 0,
+            scopes,
+            scope,
             selected_case: None,
         }
     }
@@ -172,6 +181,30 @@ impl<'program> StorageProjectionCursor<'program> {
             _ => return None,
         }
         Some(())
+    }
+
+    /// A fixed declaration coordinate can refine a conservative write label.
+    /// A slice index still needs descriptor extent evidence and cannot enter
+    /// this declaration-only judgment, even when its selector is a literal.
+    pub(in crate::machine_calls::calls::write_frames) fn advance_fixed(
+        &mut self,
+        segment: &PlaceSegment,
+    ) -> Option<()> {
+        match segment {
+            PlaceSegment::Field { .. } | PlaceSegment::Case { .. } => {}
+            PlaceSegment::FixedIndex { index } => {
+                let reference = self.normalize()?;
+                match self.program.type_reference_table.type_reference(reference) {
+                    TypeReferenceNode::FixedArray {
+                        length: FixedArrayLength::Literal(length),
+                        ..
+                    } if index < length => {}
+                    _ => return None,
+                }
+            }
+            _ => return None,
+        }
+        self.advance(segment)
     }
 
     /// Authenticate a final collection window without inventing an owned

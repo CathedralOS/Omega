@@ -28,6 +28,9 @@ impl ReturnedBuild {
         if self.source_join.is_some() {
             return self.validate_source_join(Some(inputs), false);
         }
+        if self.declaration.is_none() {
+            return Err("unbound default Build cannot adopt a package source graph".into());
+        }
         if inputs.dependency_acquisitions().is_empty() {
             return if self
                 .requests
@@ -70,7 +73,11 @@ impl ReturnedBuild {
         if self.source_join.is_some() {
             return Err("Build source requests were already joined".into());
         }
-        let name = match &self.declaration {
+        let declaration = self
+            .declaration
+            .as_ref()
+            .ok_or("default Build cannot acquire a new source graph")?;
+        let name = match declaration {
             BuildDeclaration::Package(package) => package.name.as_str(),
             BuildDeclaration::Application(application) => application.name.as_str(),
             BuildDeclaration::Workspace(_) => {
@@ -78,7 +85,7 @@ impl ReturnedBuild {
             }
         };
         if inputs.package_name(inputs.root()) != Some(name)
-            || inputs.root_role() != self.declaration.kind()
+            || inputs.root_role() != declaration.kind()
         {
             return Err("source join does not match the executed Build declaration".into());
         }
@@ -196,6 +203,8 @@ impl ReturnedBuild {
                     "Build completion source graph differs from its executed request join".into(),
                 );
             }
+        } else if self.declaration.is_none() && inputs.is_some() {
+            return Err("unbound default Build cannot adopt a package source graph".into());
         } else if initially_unbound
             && inputs.is_some_and(|inputs| {
                 inputs.packages().count() != 1

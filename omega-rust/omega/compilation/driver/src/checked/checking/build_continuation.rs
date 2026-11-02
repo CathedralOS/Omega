@@ -52,7 +52,7 @@ pub(super) fn prepare_build_invocation(
         mut source,
         anonymous_source,
         product_sources,
-        build_source_id,
+        build_source,
         source_file_count,
         generated_source_custody,
         base_sources,
@@ -64,7 +64,7 @@ pub(super) fn prepare_build_invocation(
             root_path,
             typed: build_input.typed,
             pre_checks: build_input.pre_checks,
-            build_source_id,
+            build_source,
             sources: &base_sources,
             package_inputs,
             anonymous_source: anonymous_source.as_ref(),
@@ -90,7 +90,7 @@ pub(super) fn prepare_build_invocation(
             source,
             anonymous_source,
             product_sources,
-            build_source_id,
+            build_source,
             source_file_count,
             generated_source_custody,
             base_sources,
@@ -295,7 +295,7 @@ fn complete_build_source(
         mut source,
         anonymous_source: _,
         product_sources,
-        build_source_id: _,
+        build_source: _,
         mut source_file_count,
         mut generated_source_custody,
         mut base_sources,
@@ -433,7 +433,7 @@ pub(super) fn lower_typed_frontier(
         execution,
         &build_scope_sources,
     );
-    let build_source_id = syntax.build_source_id;
+    let build_source = syntax.build_source;
     let request = psi_compiler::SourceCompilationRequest {
         source_items: syntax.source_items,
         root_sources: syntax.root_sources,
@@ -454,7 +454,7 @@ pub(super) fn lower_typed_frontier(
         product_sources: syntax
             .product_sources
             .map(compilation_products::DeferredProductCompilation::new),
-        build_source_id,
+        build_source,
         source_file_count,
         generated_source_custody,
         base_sources,

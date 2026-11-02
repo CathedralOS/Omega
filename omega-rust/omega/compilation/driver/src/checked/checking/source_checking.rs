@@ -136,10 +136,19 @@ pub(crate) fn check_product_source(
             .effective()
             .clone(),
     ));
+    let native_bindings = Arc::new(
+        provider_planning::native_bindings::PreparedNativeBuildBindings::capture(
+            provider_inventory
+                .services_for(&program)
+                .map_err(|error| vec![error])?,
+            &computed_build_config.config.native_bindings,
+        ),
+    );
     Ok(CheckedProductSource {
         source_completion_accounting,
         program,
         provider_inventory,
+        native_bindings,
         terminal_publication,
         calling_program: Arc::default(),
         external_declarations: Arc::default(),

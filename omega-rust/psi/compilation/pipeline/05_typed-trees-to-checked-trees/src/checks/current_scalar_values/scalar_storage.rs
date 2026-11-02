@@ -162,7 +162,7 @@ impl CurrentScalarValues<'_> {
         {
             return Vec::new();
         }
-        let Some(origins) = frames.assignment_storage_origins(self.machine, statement) else {
+        let Ok(origins) = frames.assignment_storage_origins(self.machine, statement) else {
             return Vec::new();
         };
         let [destination] = origins.destinations.as_slice() else {

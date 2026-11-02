@@ -13,6 +13,8 @@ pub use copies::TypeExpressionCopy;
 #[cfg(test)]
 mod alias_tests;
 mod display;
+#[cfg(test)]
+mod extent_custody_tests;
 mod substitution;
 
 pub type TypeReferenceHandle = Handle<TypeReferenceNode>;
@@ -48,6 +50,10 @@ pub struct TypeReferenceTable {
     constraints: Arena<TypeConstraintNode>,
     constant_origin_spans: Arena<HandleSpan<TypeConstantOrigin>>,
     constant_origins: Arena<TypeConstantOrigin>,
+    /// A completed extent keeps its original value/computation child after
+    /// its geometry becomes a literal. This edge retains source custody only;
+    /// the numeric layout cannot authenticate the child's selected calls.
+    array_extent_arguments: Arena<TypeReferenceHandle>,
     /// A substituted operand retains its original lifetime environment after
     /// copying into a private declaration. Zero means ordinary lexical lookup.
     operand_lifetime_owners: Arena<SymbolHandle>,
@@ -73,6 +79,7 @@ impl std::fmt::Debug for TypeReferenceTable {
             .field("constraints", &self.constraints)
             .field("constant_origin_spans", &self.constant_origin_spans)
             .field("constant_origins", &self.constant_origins)
+            .field("array_extent_arguments", &self.array_extent_arguments)
             .field("operand_lifetime_owners", &self.operand_lifetime_owners)
             .field("operand_lifetime_spans", &self.operand_lifetime_spans)
             .field("operand_lifetimes", &self.operand_lifetimes)
@@ -148,6 +155,7 @@ impl TypeReferenceTable {
             constraints: Arena::new(),
             constant_origin_spans: Arena::new(),
             constant_origins: Arena::new(),
+            array_extent_arguments: Arena::new(),
             operand_lifetime_owners: Arena::new(),
             operand_lifetime_spans: Arena::new(),
             operand_lifetimes: Arena::new(),
@@ -168,6 +176,7 @@ impl TypeReferenceTable {
             .wrapping_add(self.constraints.revision())
             .wrapping_add(self.constant_origins.revision())
             .wrapping_add(self.constant_origin_spans.revision())
+            .wrapping_add(self.array_extent_arguments.revision())
             .wrapping_add(self.operand_lifetime_owners.revision())
             .wrapping_add(self.operand_lifetime_spans.revision())
             .wrapping_add(self.operand_lifetimes.revision())
@@ -183,6 +192,11 @@ impl TypeReferenceTable {
         };
         let handle = self.type_references.insert(type_reference);
         let origins = self.constant_origin_spans.insert(HandleSpan::empty());
+        let extent_argument = self
+            .array_extent_arguments
+            .insert(TypeReferenceHandle::invalid());
+        debug_assert_eq!(handle.arena_index(), extent_argument.arena_index());
+        debug_assert_eq!(handle.generation(), extent_argument.generation());
         let lifetime_owner = self.operand_lifetime_owners.insert(SymbolHandle::invalid());
         let lifetime_span = self.operand_lifetime_spans.insert(HandleSpan::empty());
         debug_assert_eq!(handle.arena_index(), lifetime_span.arena_index());
@@ -230,6 +244,10 @@ impl TypeReferenceTable {
         let source = Handle::from_parts(reference.arena_index(), reference.generation());
         let target = Handle::from_parts(fresh.arena_index(), fresh.generation());
         *self.constant_origin_spans.get_mut(target) = *self.constant_origin_spans.get(source);
+        *self
+            .array_extent_arguments
+            .get_mut(Handle::from_parts(fresh.arena_index(), fresh.generation())) =
+            self.array_extent_argument(reference);
         *self
             .operand_lifetime_owners
             .get_mut(Handle::from_parts(fresh.arena_index(), fresh.generation())) =
@@ -652,7 +670,50 @@ impl TypeReferenceTable {
     /// When the replacement comes from another retained row, use
     /// `substitute_from` to preserve that row's origins as well.
 
+    /// Retained value child of a completed array extent. Missing geometry or
+    /// custody is never reconstructed from another equal-sized array.
+    pub fn array_extent_argument(&self, reference: TypeReferenceHandle) -> TypeReferenceHandle {
+        if !self.contains_type_reference(reference) {
+            return TypeReferenceHandle::invalid();
+        }
+        *self.array_extent_arguments.get(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        ))
+    }
+
+    pub fn retain_array_extent_argument(
+        &mut self,
+        reference: TypeReferenceHandle,
+        argument: TypeReferenceHandle,
+    ) -> Result<(), &'static str> {
+        if !self.contains_type_reference(reference)
+            || !self.contains_type_reference(argument)
+            || reference == argument
+            || !matches!(
+                self.type_reference(reference),
+                TypeReferenceNode::FixedArray { .. }
+            )
+        {
+            return Err("array extent custody has no exact array and argument rows");
+        }
+        *self.array_extent_arguments.get_mut(Handle::from_parts(
+            reference.arena_index(),
+            reference.generation(),
+        )) = argument;
+        Ok(())
+    }
+
     pub fn set_fixed_array_length(&mut self, handle: TypeReferenceHandle, value: usize) {
+        if let TypeReferenceNode::FixedArray {
+            length: FixedArrayLength::Expression(argument),
+            ..
+        } = self.type_reference(handle)
+        {
+            let argument = *argument;
+            self.retain_array_extent_argument(handle, argument)
+                .expect("existing array extent child");
+        }
         let TypeReferenceNode::FixedArray { length, .. } = self.type_references.get_mut(handle)
         else {
             panic!("set_fixed_array_length called on a non-fixed-array type reference");

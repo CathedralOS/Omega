@@ -64,3 +64,24 @@ All nine places have Rust-reference Linux x86_64 observations at the recorded
 producer epochs above. Earlier places retain their original accepted records;
 this run adds only the final four. Other hosted execution, the Omega-written
 producer and the broader representation-family requirements remain open.
+
+[Run 41442508227](https://github.com/CathedralOS/Omega/actions/runs/41442508227)
+qualifies all nine places and the rejected-payload control on matching Mac
+ARM64 with optimized Rust producer `fddd05d57572`. All ten canonical positives
+agree at native/Terminal exit 0; all nineteen source checks and nineteen
+ordinary sample observations meet their original oracles. The named ARM decoder
+reports marker29, exercising the selected body and ARM calling convention with
+the unchanged backing, fields and canaries.
+
+[Run 41450602544](https://github.com/CathedralOS/Omega/actions/runs/41450602544)
+qualifies the same nine places and rejected-payload control on matching Linux
+ARM64 with optimized Rust producer `463f7229129b`. Ten native/Terminal exit-0
+agreements and nine guard-only refusals meet the original oracles. The exact
+canonical inputs match the previously qualified ordinary samples, so this host
+run does not repeat the sample sweep. Producer preparation took 1,095.736 seconds;
+the selected source checks and native/Terminal executions took 182.139 seconds.
+
+Linux x86_64, Linux ARM64 and Mac ARM64 records retain their actual producer
+epochs. Windows x86_64, the product producer and broader representation-family
+acceptance remain open. This run selects this single fact row on one additional
+host.

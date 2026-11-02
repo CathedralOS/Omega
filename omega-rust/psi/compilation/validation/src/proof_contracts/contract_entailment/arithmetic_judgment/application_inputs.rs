@@ -1,6 +1,8 @@
 //! A record argument retains its complete value separately from its typed
-//! scalar read roster. Neither its identity nor those reads authorize a copy,
-//! storage access or application formation.
+//! scalar read roster. Each read keeps the supplying telescope discovered from
+//! the public contracts: projection syntax alone cannot distinguish two calls
+//! of the same helper with different actual selectors. Neither value identity
+//! nor the read roster authorizes copying, storage access or call formation.
 
 use super::Polynomial;
 use typed_trees::types::TypeReferenceHandle;
@@ -11,7 +13,7 @@ pub(in crate::proof_contracts::contract_entailment) enum IntegerApplicationInput
     Record {
         type_reference: TypeReferenceHandle,
         snapshot: Option<crate::CapturedOwnedSnapshot>,
-        reads: Vec<(crate::ScopedReadCoordinate, Polynomial)>,
+        reads: Vec<(crate::DeclaredInputRead, Polynomial)>,
     },
 }
 
@@ -55,15 +57,11 @@ impl IntegerApplicationInput {
                     binder: Binder::Symbol(formal),
                     value: Value::OwnedSnapshot(snapshot.clone()?),
                 }];
-                for (coordinate, value) in reads {
+                for (read, value) in reads {
+                    let mut read = read.clone();
+                    read.coordinate.parameter = formal;
                     bindings.push(Binding {
-                        binder: Binder::Coordinate(crate::ScopedReadCoordinate {
-                            coordinate: crate::RankSubjectCoordinate {
-                                parameter: formal,
-                                path: coordinate.coordinate.path.clone(),
-                            },
-                            calls: coordinate.calls.clone(),
-                        }),
+                        binder: Binder::DeclaredRead(read),
                         value: scalar(value)?,
                     });
                 }
@@ -102,7 +100,7 @@ impl IntegerApplicationInput {
         let reads = shape
             .reads
             .iter()
-            .map(|read| Some((read.binding(), engine.coordinate_value(&read.binding())?)))
+            .map(|read| Some((read.clone(), engine.declared_read_value(read)?)))
             .collect::<Option<Vec<_>>>()?;
         Some(Self::Record {
             type_reference: input_type,
@@ -226,32 +224,26 @@ impl super::Engine<'_> {
         ) {
             return None;
         }
-        // Consume one exact call cut. Other calls may use the same authored
-        // projection with different actual selectors; their observations cannot
-        // enter this callee. Nested demands retain the rest of their path.
         let reads = self
             .formal_read_arguments
             .iter()
-            .filter_map(|(coordinate, value)| {
-                (coordinate.coordinate.parameter == root).then_some(())?;
-                let [supplying_call, context @ ..] = coordinate.calls.as_slice() else {
-                    return None;
-                };
-                (*supplying_call == call).then_some(())?;
-                let path = coordinate
+            .filter_map(|(read, value)| {
+                (read.coordinate.parameter == root).then_some(())?;
+                let path = read
                     .coordinate
                     .path
                     .strip_prefix(place.segments.as_slice())?;
-                Some((
-                    crate::ScopedReadCoordinate {
-                        coordinate: crate::RankSubjectCoordinate {
-                            parameter: root,
-                            path: path.to_vec(),
-                        },
-                        calls: context.to_vec(),
-                    },
-                    value.clone(),
-                ))
+                // Exact call cuts distinguish equal projection syntax under
+                // different supplied actuals. Preserve the full typed telescope
+                // and the remaining nested call path for the next consumer.
+                let [supplying_call, context @ ..] = read.calls.as_slice() else {
+                    return None;
+                };
+                (*supplying_call == call).then_some(())?;
+                let mut read = read.clone();
+                read.coordinate.path = path.to_vec();
+                read.calls = context.to_vec();
+                Some((read, value.clone()))
             })
             .collect();
         Some(IntegerApplicationInput::Record {
