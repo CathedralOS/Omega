@@ -3,7 +3,6 @@
 //! These forms retain ABI and ownership information without inventing scalar
 //! virtual registers for structural values.
 
-pub mod allocation_transport;
 pub mod constraints;
 pub mod normalized_foreign;
 pub mod ordinary;

@@ -1333,9 +1333,8 @@ fn scalar_shape(scalar_type: ScalarType) -> Option<calling_conventions::ValueSha
 }
 
 /// The emitted interval one integer-immediate argument occupies: the register
-/// copy whose result feeds the call operand, or the outgoing-slot address and
-/// store with only admitted private allocation steps between them. The complete
-/// emitted interval is contiguous and the store retains the exact scalar value.
+/// copy whose result feeds the call operand, or the contiguous outgoing-slot
+/// `FrameAddress`/`Store` pair this call's argument transport owns.
 #[allow(clippy::too_many_arguments)]
 pub fn scalar_immediate_span<F>(
     function: &selected_instructions::SelectedFunction,
@@ -1418,15 +1417,7 @@ where
                 ) && candidate.provenance.values.as_slice() == [source_value]
             })?;
             let address = &block.instructions[address_index];
-            let mut store_index = address_index.checked_add(1)?;
-            while selected_instructions::calls::allocation_transport::is_private_step(
-                function,
-                block,
-                store_index,
-            ) {
-                store_index = store_index.checked_add(1)?;
-            }
-            let store = block.instructions.get(store_index)?;
+            let store = block.instructions.get(address_index + 1)?;
             let selected_instructions::SelectedInstructionKind::Store {
                 byte_offset: 0,
                 byte_size: stored_bytes,
@@ -1452,20 +1443,12 @@ where
             {
                 return None;
             }
-            let stored_value =
-                function.virtual_register(store.operands.get(1)?.virtual_register)?;
-            if stored_value.scalar_type != argument.source.scalar_type()
-                || !matches!(stored_value.origin,
-                    selected_instructions::VirtualRegisterOrigin::InstructionResult {
-                        source_value: actual, ..
-                    } if actual == source_value)
-            {
+            let (address_offset, address_bytes) = fragment_instruction_span(fragment, address.id)?;
+            let (store_offset, store_bytes) = fragment_instruction_span(fragment, store.id)?;
+            if store_offset != address_offset + address_bytes {
                 return None;
             }
-            let (address_offset, _) = fragment_instruction_span(fragment, address.id)?;
-            let end =
-                transported_span_end(fragment, block, address_index, store_index.checked_add(1)?)?;
-            Some((address_offset, end.checked_sub(address_offset)?))
+            Some((address_offset, address_bytes + store_bytes))
         }
         _ => None,
     }
