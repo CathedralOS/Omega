@@ -99,9 +99,16 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Qualify the exact private-arrival repair and original copied-case row
+      - name: Restore the repaired CLI for copied-case migration preflight
         if: github.event_name == 'workflow_dispatch'
-        run: python tools/build_slot.py -- python tools/ci/copied_case_repair1.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41442499446 --name compiler-pilot-linux_x86_64-df5f7139ef5fbeb8a6e068a863853ff65aade2c0-1 --dir build/copied-retained-input
+          git fetch --depth=1 origin df5f7139ef5fbeb8a6e068a863853ff65aade2c0
+      - name: Probe the reviewed copied-case scaffold without Rust
+        if: github.event_name == 'workflow_dispatch'
+        run: python tools/build_slot.py -- python tools/ci/copied_case_migration_probe1.py
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
@@ -124,7 +131,7 @@ jobs:
       # A source/runtime fixture failure does not invalidate compiled Cargo
       # objects. Retain them for the next correction; check outcomes stay red.
       - name: Save build cache after fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
+        if: always() && !cancelled() && steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
         with:
           path: |
