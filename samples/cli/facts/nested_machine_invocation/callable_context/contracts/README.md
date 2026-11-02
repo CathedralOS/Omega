@@ -25,7 +25,7 @@ The [owned-reference carrier](owned_reference/main.omg) and its
 through an owned record containing an exclusive reference. Owning the record
 does not freeze its referent; post-state proof must retire that referent's entry
 facts. The Rust reference already runs the positive in both engines and rejects
-the twin; new product observations remain pending.
+the twin. The native product checker also accepts it and rejects the stale-entry twin.
 The [changed owned referent](owned_reference/changes/main.omg) observes nine
 from an initial five; its [weaker-public-guarantee twin](owned_reference/changes/invalid/main.omg)
 keeps the write but removes the promised equality. The
@@ -52,10 +52,23 @@ both, without asserting equality to every possible backing.
 All positive programs retain four hosted Build entries and an exit-0 oracle.
 These are contract-operation controls, not another nine-place matrix.
 
-The frozen Rust reference checks accept the positives and reject the intended
-contract refinements. The pre-repair native product checker exits 248 during
-resolution because callable Ensures are unsupported; it emits no checking
-observation. Candidate native/Terminal and product-checker qualification is
-pending. The enclosing nine-place row retains its earlier Rust-only evidence;
-this extension does not establish product parity for that entire row or close
-NESTED-MACHINE-UNIFICATION.
+On macOS ARM64, nine positive programs run with exit zero in both native and
+Terminal Psi execution; ten controls reject the intended obligations. The
+Omega-written native checker at source `1572c6217fd7` accepts those nine and
+rejects those ten with the exact diagnostic spans. It now rejects the frozen
+stale returned-reference controls that the earlier checker accepted. Its image
+SHA256 is `422e4f58c7c29f2b4f81699a07cbdf353253d57376b71144740124b75abf5c23`.
+
+The corresponding corpus pins are sibling leaf fixtures under
+`tests/omega/{pass,fail}/facts/nested_machine_invocation/callable_contracts/`,
+so a containing fixture does not hide their discovery. The pre-repair product
+baseline refused callable Ensures during resolution (exit 248, no checking
+observation). Qualification uses the optimized Rust producer `4b1bca34060d`
+and its unchanged SDK; project acceptance for this run is not an audit claim.
+
+Opaque reference-bearing actuals without complete published backing still
+refuse result writes. The enclosing nine-place row retains its earlier
+Rust-only evidence; this extension establishes neither whole-row product
+parity nor NESTED-MACHINE-UNIFICATION closure. A separate returned-view call
+postcondition remains an unqualified Rust-reference witness; it is not part
+of these nine qualified positives.
