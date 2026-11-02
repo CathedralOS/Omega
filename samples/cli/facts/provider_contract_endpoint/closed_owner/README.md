@@ -70,6 +70,12 @@ The optimized `3009cab5a41` producer rejected the `upper` call in `selected_limi
 in all nine initial inputs. The selected-implementation input also omitted
 `invokes SelectedTransfer`; that source declaration was corrected before final
 validation. The claim record retains both source versions, the initial
-diagnostics, and the later execution results. The broader
-migration, temporary invariant violations, filesystem tests, and removal of the
-old range parser remain unfinished.
+diagnostics, and the later execution results.
+
+On macOS ARM64, all nine programs run with native and Terminal exit zero using
+the final optimized compiler. All nine twins reject the false input bound.
+Their sample and corpus sources match exactly. The claim record identifies
+the producer and each run; it also retains the earlier failed attempts.
+
+The broader migration, temporary invariant violations, filesystem tests, and
+removal of the old range parser remain unfinished.

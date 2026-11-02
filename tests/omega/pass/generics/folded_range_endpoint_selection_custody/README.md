@@ -25,5 +25,6 @@ declarations, rather than claiming completion of the full historical audit.
 The pre-migration source failed with compiler `3009cab5a41` while checking
 constant arguments in the standard library's generic macOS function. With the
 call-checking repairs, that same source runs with native and Terminal exit 70.
-The migrated source retains exit 70 as its runtime oracle. The claim record
-identifies the source and compiler used for each run.
+The migrated source also runs with native and Terminal exit 70 using the final
+optimized compiler on macOS ARM64. The claim record identifies the source and
+compiler used for each run.
