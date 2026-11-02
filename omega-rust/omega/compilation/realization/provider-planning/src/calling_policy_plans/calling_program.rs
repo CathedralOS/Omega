@@ -156,6 +156,7 @@ impl CallingProgram {
                 "default calling application is outside the Product declaration census".into(),
             );
         }
+        row.physical_owner.as_ref().map_err(Clone::clone)?;
         self.materialize_storage(declaration, target, CallingStorageScope::Description, &[])
     }
 

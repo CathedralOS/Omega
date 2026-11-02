@@ -1,3 +1,19 @@
+//! `#[derive(Record)]`: a compiler record's `write` and `read` from its fields.
+//!
+//! The generated `compiler_storage::Record` impl writes a struct's fields in
+//! declaration order and reads them back the same way; an enum writes its
+//! variant's position as a `u32` tag, then that variant's fields. Position is
+//! the tag, so reordering or inserting variants changes the encoding of every
+//! record that holds one: records are compiler-private and re-derived with the
+//! compiler, which is why that is acceptable here and would not be for a wire
+//! format. A field marked `#[record(skip)]` is derived, nonsemantic state: it is
+//! not written, and `read` fills it with `Default::default()`. Unions are
+//! refused. Generic parameters each gain a `Record` bound.
+//!
+//! The whole body of `write` and `read` runs inside the writer's and reader's
+//! `record` scope, so the field framing and bounds the storage crate enforces
+//! apply to derived records exactly as to hand-written ones.
+
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{Data, DeriveInput, Fields, GenericParam, parse_macro_input, parse_quote};

@@ -313,6 +313,14 @@ impl PreparedBoundaryCallingPlans {
                 boundary_plan_application_identity(&signature, &validated).map_err(&diagnostic)?;
             evaluated.push(BoundaryCallingPlanRealization {
                 declaration: policy.signature,
+                calling_owner_application: module
+                    .identities
+                    .text(instance.declaring_application)
+                    .filter(|identity| !identity.is_empty())
+                    .ok_or_else(|| {
+                        diagnostic("calling instance lost its complete owner application".into())
+                    })?
+                    .to_owned(),
                 boundary_trait: policy.boundary_trait,
                 boundary_arguments: policy.boundary_arguments,
                 argument_owner: policy.argument_owner,

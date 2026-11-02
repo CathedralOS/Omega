@@ -697,6 +697,8 @@ fail/facts/generic_calling_policy/missing_policy_provider rejected 16068ms expec
 	slot `ValuePlan` has 3 covering provider plans for the selected target: `<selected target>::SysVValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::MicrosoftValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::AapcsValuePlan::satisfies::ValuePlan` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<ValuePlan, ProviderType>(b);`
 fail/facts/generic_calling_policy/ranked_helper_unproved rejected 17499ms expected @f8fd5ea66130
 	machine `GenericPolicy::plan$specialized$1b2458e575151a48$1$18190` is not build-time admissible: recursive machine-call cycle has no ordinary termination proof for its exact selected application edges; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
+fail/facts/generic_calling_policy/shared_parent_roots_rejected rejected 29645ms expected @27df46d55c29
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_calling_policy/unused_descendant_rejected rejected 16345ms expected @f8fd5ea66130
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_nonempty_array_changed_to_zero rejected 619ms expected @a889c2d8b84c
@@ -6958,7 +6960,9 @@ pass/facts/generic_calling_policy/literal_arguments_exit checked 21185ms check-t
 pass/facts/generic_calling_policy/nested_argument_exit rejected 17926ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	executed provider choice lost its complete static application
 pass/facts/generic_calling_policy/nested_data_const_exit checked 19027ms check-target:linux_x86_64 @ccdb99ca2214
+pass/facts/generic_calling_policy/ordinary_parent_fused_exit checked 31930ms check-target:macos_arm64 @89b79a0458c8
 pass/facts/generic_calling_policy/ranked_helper_exit checked 21801ms check-target:macos_arm64 @f8fd5ea66130
+pass/facts/generic_calling_policy/shared_parent_roots_exit checked 29706ms check-target:macos_arm64 @89b79a0458c8
 pass/facts/generic_calling_policy/unused_descendant_exit checked 22124ms check-target:macos_arm64 @002791b61f14
 pass/facts/generic_calling_policy_through_call_result_exit checked 22159ms check-target:macos_arm64 @6416b0fdfbe3
 pass/facts/generic_calling_policy_through_const_name_exit checked 19953ms check-target:macos_arm64 @6416b0fdfbe3
@@ -12096,6 +12100,7 @@ pass/modules/computed_nominal_constants checked 2435ms @ccdb99ca2214
 pass/modules/conformance_reference_scope checked 3734ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/constant_argument_projected_record_dependency checked 2657ms @ccdb99ca2214
 pass/modules/continued_domain_membership checked 3250ms check-target:macos_arm64 @ccdb99ca2214
+pass/modules/direct_file_import_exit checked 70526ms check-target:macos_arm64 @c79bb8268163+wt
 pass/modules/direct_file_import_process_exit checked 11490ms check-target:macos_arm64 @ccdb99ca2214
 pass/modules/direct_file_imports checked 2669ms @ccdb99ca2214
 pass/modules/domain_constant_indices checked 2497ms @ccdb99ca2214

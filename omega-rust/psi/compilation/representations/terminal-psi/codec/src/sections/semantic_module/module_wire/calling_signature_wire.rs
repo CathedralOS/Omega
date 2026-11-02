@@ -19,6 +19,7 @@ wire_record! {
         operands: List<StaticOperand>,
         formals: List<GenericFormal>,
         default_eligible: Flag,
+        physical_owner: ResultField<DeclarationOwner, Text>,
         storage: ResultField<AbiStorage, Text>,
     }
     AbiStorage: CallingAbiStorage {
@@ -62,6 +63,34 @@ wire_record! {
         native_ordinal: U32,
         binder: BinderId,
         requirement: Requirement,
+    }
+}
+
+struct DeclarationOwner;
+impl Field<semantic_vocabulary::CallingDeclarationOwner> for DeclarationOwner {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::CallingDeclarationOwner,
+    ) -> Result<(), CodecError> {
+        use semantic_vocabulary::CallingDeclarationOwner;
+        writer.u8(match value {
+            CallingDeclarationOwner::BoundaryTrait => 0,
+            CallingDeclarationOwner::TopLevelRequirement => 1,
+        });
+        Ok(())
+    }
+
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<semantic_vocabulary::CallingDeclarationOwner, CodecError> {
+        use semantic_vocabulary::CallingDeclarationOwner;
+        match reader.u8()? {
+            0 => Ok(CallingDeclarationOwner::BoundaryTrait),
+            1 => Ok(CallingDeclarationOwner::TopLevelRequirement),
+            _ => Err(CodecError::MalformedStructuralFoundation(
+                "unknown physical calling owner",
+            )),
+        }
     }
 }
 

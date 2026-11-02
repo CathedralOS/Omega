@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 234 even when every table
+order below. This layout uses semantic format marker 235 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -792,7 +792,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 234 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 235 + `u16` vocabulary
 marker 130 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -905,7 +905,11 @@ Older markers are rejected before their payload is read.
 | 44 | boundary application candidates | counted checked bodies for closed applications |
 | 45 | task activation demands | counted task activation demand rows |
 
-Marker 234 retains checked compiler-evaluation facts independently of executable
+Marker 235 combines the physical declaration-owner eligibility and complete
+logical ABI census with retained compiler-evaluation facts. Its bytes are not
+compatible with either standalone marker 233 or standalone marker 234.
+
+The compiler-evaluation facts are retained independently of executable
 signature availability. Each callable header contains either a deferred refusal
 or its declaration custody, effective service reach, suspension/blocking flags,
 body-local termination judgment, entry-premise flag, linear/static closure

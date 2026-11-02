@@ -24,8 +24,8 @@ pub struct PreparedAbiStorage {
 pub struct PreparedBoundaryAbiSignature {
     pub id: CallingSignatureId,
     pub template: SymbolHandle,
-    /// Original declaration occurrences which contributed this exact key.
-    /// Equal checked Build/Product copies may share its portable storage.
+    /// Original declarations used by Source publication to close direct-call
+    /// associations. Per-target ABI consumers use the portable key instead.
     pub source_templates: Vec<SymbolHandle>,
     pub requirement_identity: String,
     /// Empty only on a deferred open declaration, never a complete application.
@@ -33,6 +33,7 @@ pub struct PreparedBoundaryAbiSignature {
     pub operands: Vec<CallingStaticOperand>,
     pub formals: Vec<CallingGenericFormal>,
     pub default_eligible: bool,
+    pub physical_owner: Result<semantic_vocabulary::CallingDeclarationOwner, String>,
     pub telescope: Result<BoundaryTelescope, String>,
     pub projections: Vec<Result<PreparedAbiStorage, String>>,
 }
@@ -406,6 +407,7 @@ fn insert(
     operands: Vec<CallingStaticOperand>,
     projection: Result<PreparedAbiStorage, String>,
 ) -> CallingSignatureId {
+    let physical_owner = physical_owner(typed, declaration);
     let id = CallingSignatureId::for_application(
         &declaration.requirement_identity,
         &declaring_application,
@@ -424,6 +426,10 @@ fn insert(
         }
         row.projections.push(projection);
         row.default_eligible |= declaration.default_eligible;
+        if row.physical_owner != physical_owner {
+            row.physical_owner =
+                Err("declaration ABI copies disagree on their physical calling owner".into());
+        }
         return id;
     }
     let formals = typed
@@ -451,6 +457,7 @@ fn insert(
         operands,
         formals,
         default_eligible: declaration.default_eligible,
+        physical_owner,
         telescope: declaration
             .projection
             .as_ref()
@@ -459,4 +466,32 @@ fn insert(
         projections: vec![projection],
     });
     id
+}
+
+/// Retain the declaring owner's semantic class, not the descendant schema's
+/// class or a target's selected supply. Unused refusals remain descriptive.
+fn physical_owner(
+    typed: &TypedTrees,
+    declaration: &BoundarySignatureDeclaration,
+) -> Result<semantic_vocabulary::CallingDeclarationOwner, String> {
+    use semantic_vocabulary::CallingDeclarationOwner;
+    if let Some((owner, _)) = typed.trait_machine_signature(declaration.symbol) {
+        return if owner.is_boundary {
+            Ok(CallingDeclarationOwner::BoundaryTrait)
+        } else {
+            Err(format!(
+                "selected boundary entry requirement owner `{}` is not an exact boundary trait",
+                typed.trait_declaration_path(owner)
+            ))
+        };
+    }
+    if typed
+        .machine_by_symbol(declaration.symbol)
+        .is_some_and(|machine| {
+            machine.supply_mode == language_semantics::MachineSupplyMode::TopLevelRequirement
+        })
+    {
+        return Ok(CallingDeclarationOwner::TopLevelRequirement);
+    }
+    Err("declaration ABI has no exact physical calling owner".into())
 }

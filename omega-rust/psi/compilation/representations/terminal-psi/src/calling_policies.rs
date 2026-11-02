@@ -19,6 +19,9 @@ pub struct CallingAbiDeclaration {
     pub operands: Vec<CallingStaticOperand>,
     pub formals: Vec<semantic_vocabulary::CallingGenericFormal>,
     pub default_eligible: bool,
+    /// Frozen declaring-owner eligibility, independently of ABI storage or
+    /// selected policy results. Refuse only when this declaration is consumed.
+    pub physical_owner: Result<semantic_vocabulary::CallingDeclarationOwner, String>,
     pub storage: Result<CallingAbiStorage, String>,
 }
 
