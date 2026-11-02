@@ -32,31 +32,12 @@ pub(in crate::proof_contracts::contract_entailment) fn has_identity_equality_mea
     // This entrance consumes formed fact operands. Id of complete data is
     // independent of executable Equatable selection and can retain symbolic
     // fields. Known IEEE comparisons keep their separate relation fence.
-    if !super::is_case_observation(program, expression) {
-        let identities = [binary.left, binary.right]
+    if let Some(references) =
+        data_identity_operand_references(program, scope, parameters, expression)
+    {
+        return references
             .into_iter()
-            .zip(types)
-            .map(|(operand, reference)| {
-                crate::contextual_identity_subject_type(
-                    program,
-                    reference?,
-                    matches!(
-                        program.expression_table.expression(operand),
-                        typed_trees::expression::ExpressionNode::Name(_)
-                            | typed_trees::expression::ExpressionNode::Borrow(_)
-                    ),
-                )
-            })
-            .collect::<Vec<_>>();
-        if identities[0].is_some_and(|identity| identity.is_valid())
-            && identities[0] == identities[1]
-        {
-            return types.into_iter().all(|reference| {
-                reference.is_some_and(|reference| {
-                    identity_carrier(program, reference, &mut Vec::new(), 0, true)
-                })
-            });
-        }
+            .all(|reference| identity_carrier(program, reference, &mut Vec::new(), 0, true));
     }
     // Select with complete declaration types before interpreting a builtin
     // scalar read. A reference overload still sees its descriptor type;
@@ -81,6 +62,42 @@ pub(in crate::proof_contracts::contract_entailment) fn has_identity_equality_mea
             identity_carrier(program, reference, &mut Vec::new(), 0, false)
         }
     })
+}
+
+/// The exact complete data carriers of a formed Id question. This supplies
+/// neither operand observations nor equality truth; consumers still owe both.
+pub(in crate::proof_contracts::contract_entailment) fn data_identity_operand_references(
+    program: &dyn crate::CheckingInput,
+    scope: SymbolHandle,
+    parameters: &[StateParameter],
+    expression: ExpressionHandle,
+) -> Option<[TypeReferenceHandle; 2]> {
+    let binary = program.expression_table.binary_node(expression)?;
+    if !matches!(
+        binary.operator,
+        BinaryOperator::Equal | BinaryOperator::NotEqual
+    ) || super::is_case_observation(program, expression)
+    {
+        return None;
+    }
+    let [Some(left), Some(right)] = [binary.left, binary.right].map(|operand| {
+        crate::parameter_expression_result_type_reference(program, scope, parameters, operand)
+    }) else {
+        return None;
+    };
+    let identities = [(binary.left, left), (binary.right, right)].map(|(operand, reference)| {
+        crate::contextual_identity_subject_type(
+            program,
+            reference,
+            matches!(
+                program.expression_table.expression(operand),
+                typed_trees::expression::ExpressionNode::Name(_)
+                    | typed_trees::expression::ExpressionNode::Borrow(_)
+            ),
+        )
+    });
+    (identities[0].is_some_and(|identity| identity.is_valid()) && identities[0] == identities[1])
+        .then_some([left, right])
 }
 
 fn identity_carrier(

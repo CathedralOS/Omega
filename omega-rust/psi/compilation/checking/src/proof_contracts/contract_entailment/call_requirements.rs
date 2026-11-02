@@ -840,6 +840,19 @@ fn runtime_fact_for_parameters(
     {
         return false;
     }
+    if let ExpressionNode::Call(call) = expression_table(program).expression(expression)
+        && let Some(super::specification_calls::SelectedCallContract::Signature(signature)) =
+            super::specification_calls::selected_call_contract_for_parameters(
+                program, call, owner, parameters,
+            )
+        && crate::machine_calls::denotational_calls::signature_has_closed_value_contract(
+            program, signature,
+        )
+    {
+        // The occurrence owns its refined public promise. Its abstract child
+        // target alone cannot recover that namespace's applied signature.
+        return true;
+    }
     match term {
         Some(StructuralTerm::ScalarBinary { .. } | StructuralTerm::Constructor { .. }) => true,
         Some(StructuralTerm::Application {
