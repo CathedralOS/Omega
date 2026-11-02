@@ -339,7 +339,8 @@ pub(super) fn assignment_write_paths(
                 machine_symbols,
                 statement,
                 state_assignments,
-            )?
+            )
+            .ok()?
             .destinations;
             destinations
                 .iter()
@@ -360,9 +361,10 @@ pub(super) fn assignment_storage_origins(
     machine_symbols: &super::MachineSymbols<'_>,
     statement: &StatementNode,
     state_assignments: &StateAssignments<'_>,
-) -> Option<AssignmentStorageOrigins> {
+) -> Result<AssignmentStorageOrigins, &'static str> {
     let (state, _, index) =
-        caller_statement_owner(program, machine, CallerWriteSite::Statement(statement))?;
+        caller_statement_owner(program, machine, CallerWriteSite::Statement(statement))
+            .ok_or("assignment has no exact caller statement owner")?;
     let assignments = state_assignments(state);
     let evidence = assignments
         .iter()
@@ -374,15 +376,18 @@ pub(super) fn assignment_storage_origins(
             AssignmentWriteTarget::LocalBindingReplacement { .. }
         )
     }) {
-        return Some(AssignmentStorageOrigins {
+        return Ok(AssignmentStorageOrigins {
             destinations: Vec::new(),
             references: Some(Vec::new()),
         });
     }
-    let assignment = statement.as_assignment()?;
+    let assignment = statement
+        .as_assignment()
+        .ok_or("write query is not an assignment")?;
     let receiving = super::reference_subjects::assignment_stored_value_type(
         program, machine, state, assignment,
-    )?;
+    )
+    .ok_or("assignment has no exact receiving storage type")?;
     let mut inference = FrameInference::for_state(state.symbol);
     if let Some(evidence) = evidence {
         for local in &evidence.stored {
@@ -426,13 +431,16 @@ pub(super) fn assignment_storage_origins(
     if let Some(place) =
         declared_assignment_place(program, machine, state, assignment.target, receiving)
     {
-        let root = place.root.as_symbol()?;
+        let root = place
+            .root
+            .as_symbol()
+            .ok_or("declared destination has no source root")?;
         let (path, precision) = super::place_paths::coordinate_storage_path(
             program,
             program.symbols.name(root),
             &place.segments,
         );
-        return Some(AssignmentStorageOrigins {
+        return Ok(AssignmentStorageOrigins {
             destinations: vec![LocalWriteSource {
                 invocation_output: None,
                 is_image_storage: false,
@@ -454,19 +462,23 @@ pub(super) fn assignment_storage_origins(
             }),
         });
     }
-    let evidence = evidence.filter(|_| prefix_preserved)?;
+    let evidence = evidence.ok_or("assignment has no recorded storage prefix")?;
+    if !prefix_preserved {
+        return Err("assignment operand does not preserve the captured storage prefix");
+    }
     if crate::reference_shell(program, receiving).is_some() {
         let source =
-            super::stored_origins::binding_source(program, assignment.target, &evidence.aliases)?;
+            super::stored_origins::binding_source(program, assignment.target, &evidence.aliases)
+                .ok_or("reference-cell destination has no exact binding source")?;
         if !source.root.is_valid() || !source.builtin_coordinates {
-            return None;
+            return Err("reference-cell destination lacks builtin source coordinates");
         }
         let (path, precision) = super::place_paths::coordinate_storage_path(
             program,
             program.symbols.name(source.root),
             &source.segments,
         );
-        return Some(AssignmentStorageOrigins {
+        return Ok(AssignmentStorageOrigins {
             destinations: vec![LocalWriteSource {
                 invocation_output: None,
                 is_image_storage: source.is_static(),
@@ -499,7 +511,8 @@ pub(super) fn assignment_storage_origins(
         symbols,
         true,
         &evidence.stored,
-    )?;
+    )
+    .ok_or("destination projection has no complete captured reference origins")?;
     // The initializer owner completed every selected load against this entry
     // inventory. These are captured addresses, not slots to read a second time.
     let mut destinations = Vec::new();
@@ -509,7 +522,7 @@ pub(super) fn assignment_storage_origins(
             destinations.push(destination);
         }
     }
-    Some(AssignmentStorageOrigins {
+    Ok(AssignmentStorageOrigins {
         destinations,
         references: prefix_reference_origins(
             program,

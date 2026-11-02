@@ -1108,12 +1108,14 @@ impl<'program> CallFrameResolver<'program> {
         &self,
         machine: &Machine,
         statement: &StatementNode,
-    ) -> Option<super::caller_aliases::AssignmentStorageOrigins> {
+    ) -> Result<super::caller_aliases::AssignmentStorageOrigins, &'static str> {
         super::caller_aliases::assignment_storage_origins(
             self.program,
             machine,
             &self.tables.symbols,
-            self.machine_symbols(machine)?.as_ref(),
+            self.machine_symbols(machine)
+                .ok_or("assignment machine has no retained symbol inventory")?
+                .as_ref(),
             statement,
             &|state| self.state_assignments(machine, state),
         )

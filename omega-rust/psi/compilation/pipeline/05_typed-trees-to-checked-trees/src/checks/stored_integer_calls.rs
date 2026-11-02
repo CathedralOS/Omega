@@ -416,6 +416,7 @@ impl<'a> Admission<'a> {
                         let sources = self
                             .frames
                             .assignment_storage_origins(machine, statement)
+                            .ok()
                             .map(|storage| storage.destinations)
                             .or_else(|| {
                                 self.owned_destination(machine, body, ordinal, assignment.target)
