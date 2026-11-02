@@ -316,8 +316,7 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 38 `samples/cli/facts/*/target_body` places still spell the
-    prefix.
+    Inventory: `rg -l --glob '**/target_body/main.omg' '^[[:space:]]*(windows_x86_64|linux_x86_64|macos_arm64|linux_arm64)[[:space:]]' samples/cli/facts` lists the remaining target-prefixed places.
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
