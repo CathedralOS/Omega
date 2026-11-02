@@ -1,5 +1,5 @@
 //! Semantic cast custody is independent of the pure scalar payload grammar.
-use crate::facts::domain_is_vacuous;
+use crate::published::facts::domain_is_vacuous;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::types::TypeReferenceHandle;

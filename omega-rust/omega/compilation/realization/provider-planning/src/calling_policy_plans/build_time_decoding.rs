@@ -25,9 +25,7 @@ pub(crate) const CALLBACK_MATERIALIZATION_CAPACITY: usize = 32;
 
 pub(crate) const CALLBACK_FIELD_PATH_CAPACITY: usize = 16;
 
-pub(crate) fn decode_boundary_plan_result(
-    value: &BuildTimeValue,
-) -> Result<BoundaryPlanResult, String> {
+pub fn decode_boundary_plan_result(value: &BuildTimeValue) -> Result<BoundaryPlanResult, String> {
     let (variant, payload) = case_parts(value, "BoundaryPlanResult")?;
     match variant {
         "Accepted" => Ok(BoundaryPlanResult::Accepted(decode_boundary_entry_plan(

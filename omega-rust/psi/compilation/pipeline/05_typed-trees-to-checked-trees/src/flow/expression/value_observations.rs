@@ -178,12 +178,12 @@ impl Execution<'_, '_, '_> {
             }) {
                 continue;
             }
-            let place = crate::semantic::places::append_place(
+            let place = crate::published::semantic::places::append_place(
                 self.semantic,
                 facts::PlaceRoot::Expression(parent),
                 destination,
             );
-            let context = crate::semantic::facts::append_observation_context(
+            let context = crate::published::semantic::facts::append_observation_context(
                 self.semantic,
                 Fact {
                     place: FactPlace::Place(place),
@@ -193,7 +193,9 @@ impl Execution<'_, '_, '_> {
                         statement_index: self.statement_index,
                     },
                     origin: FactOrigin::StatementTransfer,
-                    evidence: crate::facts::checked_validation_evidence(self.state.symbol),
+                    evidence: crate::published::facts::checked_validation_evidence(
+                        self.state.symbol,
+                    ),
                     payload: FactPayload::DomainMembership {
                         value: parent,
                         domain: HandleSpan::empty(),
@@ -231,9 +233,12 @@ impl Execution<'_, '_, '_> {
         ) else {
             return;
         };
-        let source =
-            crate::semantic::places::append_place(self.semantic, source.root, &source.segments);
-        let destination = crate::semantic::places::append_place(
+        let source = crate::published::semantic::places::append_place(
+            self.semantic,
+            source.root,
+            &source.segments,
+        );
+        let destination = crate::published::semantic::places::append_place(
             self.semantic,
             facts::PlaceRoot::Expression(parent),
             destination,
@@ -620,7 +625,7 @@ impl Execution<'_, '_, '_> {
             place: FactPlace::Place(place),
             point,
             origin: FactOrigin::StatementTransfer,
-            evidence: crate::facts::propagated_evidence(self.state.symbol),
+            evidence: crate::published::facts::propagated_evidence(self.state.symbol),
             payload,
         });
         self.semantic.append_ref(&mut references, fact);

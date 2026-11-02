@@ -20,8 +20,8 @@ use crate::execution::terminal_unit::calls::{ExpectedCallValueResult, build_call
 use crate::execution::terminal_unit::types::{
     ShapeCollector, machine_binders, parameter_qualifications, state_flow,
 };
-use crate::places::place_at;
-use crate::semantic::calls::shared_argument_referent;
+use crate::published::places::place_at;
+use crate::published::semantic::calls::shared_argument_referent;
 use crate::values::nested_structural_call_return_type;
 use crate::values::reference_sources::formed_reference_type;
 use crate::values::reference_sources::transported_value_type;

@@ -40,7 +40,7 @@ pub(crate) fn plan_reborrow_disposition_events(
                 .map(|resource| (resource.machine_symbol, resource.state_symbol)),
         )
     {
-        crate::collections::push_unique(&mut states, (machine, state));
+        crate::shared::collections::push_unique(&mut states, (machine, state));
     }
 
     let mut statuses = EphemeralStatuses::new(direct.len(), reborrows.len());

@@ -16,7 +16,7 @@ use super::super::stored_values::StoredOperand;
 use super::super::stored_views::capture_at_snapshot;
 use super::super::stored_views::reference_places_at_snapshot;
 use super::reference_projection::ReferenceProjection;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use typed_trees::signature::StateParameter;
 use typed_trees::types::TypeReferenceHandle;
 use validation::borrow_contracts::borrow_carrying_owner_paths;
@@ -374,7 +374,7 @@ impl Execution<'_, '_, '_> {
                     break;
                 }
                 for place in projected.places {
-                    crate::collections::push_unique(&mut places, place);
+                    crate::shared::collections::push_unique(&mut places, place);
                 }
             }
             let referents = if complete && matched {
@@ -673,7 +673,7 @@ impl Execution<'_, '_, '_> {
             };
             let places = projected.places;
             for place in places {
-                crate::collections::push_unique(&mut origins, place);
+                crate::shared::collections::push_unique(&mut origins, place);
             }
         }
         *referents = Some(self.append_captured_references(&origins));

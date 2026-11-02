@@ -9,8 +9,8 @@ use terminal_psi::{
     TerminalReborrowSharedCohortMember,
 };
 
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::lowering_error::unsupported;
 use checked_trees::CheckedTrees;
 use lowered_psi::LoweredSourceCallOccurrence;
 

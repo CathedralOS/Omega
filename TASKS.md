@@ -316,18 +316,23 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 46 `samples/cli/facts/*/target_body` places still spell the
-    prefix.
+    Inventory: `rg -l --glob '**/target_body/main.omg' '^[[:space:]]*(windows_x86_64|linux_x86_64|macos_arm64|linux_arm64)[[:space:]]' samples/cli/facts` lists the remaining target-prefixed places.
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
   - Carry the facts that still refuse behind a selected implementation: `&write`
     arguments (an opaque selected implementation requires an admitted
-    write-only boundary claim), evidence binders in requirement generics, the
-    invocation ceiling of boundary traits a body calls, and effectful performed
-    writes (`IntegerAt`). Their `target_body` places keep the retired prefix
-    until then.
+    write-only boundary claim; draft #1361 carries the repair) and a `&write`
+    slot whose referent carries a reference leaf (`write_only_reference_store`),
+    evidence binders in requirement signatures (`selected_crash_formal`,
+    `selected_value_application`: the requirement grammar admits none), and
+    effectful performed writes (`narrowed_integer_write`: IntegerAt fit is
+    judged only from a body, so a requirement call has none). Their
+    `target_body` places keep the retired prefix until then. A requirement
+    publishes `invokes` for each boundary trait its implementations invoke, and
+    a public caller with an explicit ceiling names the requirement; migrated
+    places follow that rule.
   - Pin missing/duplicate provider rows, incompatible selected ABI/import/ISA
     supply, invalid unselected implementations, and retired-prefix rejection;
     applicability is checked on the selected closure, not by accepting untyped
@@ -658,11 +663,9 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     (`pass/build/artifact_only_required_output_completion` and
     `fail/build/artifact_only_{rollback_overlay,unsealed_output}_refused`).
   Acceptance: on Windows, macOS, and Linux, `mbx check -p omega`, valid seed
-  check, rejection of
-  `tests/omega/fail/arithmetic/array_constructor_divisor_requires_nonzero/main.omg`,
-  and package-aware
-  `omega run tests/omega/pass/float/named_provider_directed_divide_exit/main.omg`
-  (exit 70) succeed through the Terminal core; helper/conditional dependency
+  check, and rejection of
+  `tests/omega/fail/arithmetic/array_constructor_divisor_requires_nonzero/main.omg`
+  succeed through the Terminal core; helper/conditional dependency
   requests, `await_provider` park/resume, recursive dependency Builds, product
   description queries, restricted-request stop/resume, and generator-package
   snapshot outputs pass their positive and negative controls without executing
@@ -833,8 +836,12 @@ helper that passes does not close an item.
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete remaining schema/case composition support and platform ABI
     migrations; retain explicit named policies for sparse views.
-  - Supply ordinary Representation agreement contracts and reflection-specialized
-    library adapters with explicit resources, failures, full supported-value
+  - Finish call-result, match-join, const-name, nested-machine, other-machine and
+    selected-target transports of the concrete
+    [selected representation agreement](samples/cli/facts/representation_agreement/README.md).
+    Generalize the fixed-owned agreement bundle to ordinary resource-backed
+    Representation contracts and reflection-specialized library adapters with
+    explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
     forwarding. Demonstrate a separately authored encoded format family and
     composed cross-representation conversion without compiler format recognition.
@@ -915,13 +922,6 @@ helper that passes does not close an item.
     cyclic/opaque/provider/dependent result composition with exact guard and
     operand completion cuts, and runtime-dispatched value construction on the
     common `EstablishStructuralValue` route through ordinary argument evaluation.
-  - Repair const-argument recipe boundary (red on main since `#91`,
-    `a600523a236`): Psi 01 retains generic value arguments as `ConstExpression`
-    recipes until `omega/compilation/driver/src/execution_settlement/constant_recipe_closure.rs`
-    rewrites application sites to canonical literal spellings, so the layout
-    crate's two `full_width_*_rejects_placement_instead_of_panicking` tests built
-    from raw 01→04 output degrade generic-capacity fields to `Unit` and must be
-    migrated to the closed representation or have their contract restated.
   - **REFERENCE-LOCAL-BINDING-ROUTES:** qualify reference-valued local routes on
     Linux x86-64 and Windows x86-64 and carry
     `samples/cli/facts/scalar_tag_field_loan` through remaining matching hosts,
@@ -930,7 +930,7 @@ helper that passes does not close an item.
   - **TRANSITION-TAIL-CALL-TO-MACHINE:** validate matching-host native trap and
     normal-return oracles for `calls/runtime_guarded_reference_return_crash` and
     `pass/calls/runtime_guarded_reference_return_before_crash_exit` on Linux
-    ARM64, macOS ARM64, and Windows x86-64.
+    ARM64 and Windows x86-64.
   - Complete remaining runtime aggregate construction and opaque-provider
     result replacement through opaque incoming referents.
   - Complete generic body-checking compositions, byte-predicate observations, and
@@ -1023,7 +1023,7 @@ defines the complete product bar.
     array/case and whole-aggregate subjects, open applications, and
     abstract-carrier constraints over explicit named subjects.
   - Carry constant-invocation crash premises through
-    `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/facts/crash_entry_values.rs`.
+    `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published/facts/crash_entry_values.rs`.
   Acceptance: `python3 tools/corpus_gate.py --both --filter modules/`,
   `samples/cli/facts/{nominal_declaration_owner,computed_constant_array_extent}`,
   and fixtures for nonempty anonymous `Build` owners and new constant forms pass
@@ -1098,7 +1098,7 @@ defines the complete product bar.
   [representation-erased domain qualification](wiki/spec/language/domains.md)
   end to end under
   [mutable arguments and declared field domains](wiki/spec/language/dependent_values.md#mutable-arguments-and-declared-field-domains).
-  Owner: `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/semantic/facts/field_domains.rs`
+  Owner: `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published/semantic/facts/field_domains.rs`
   and `src/flow/state_values/`.
   - Restore representation-erased domain qualification (`[u8; N] in D` is the
     same exact-length fixed array as `[u8; N]`, with `.len == N`), delete the
@@ -1219,7 +1219,7 @@ defines the complete product bar.
   Complete invocation-specific crash obligations and outcome-specific call
   evidence through selected operators, nested values, calls, cycles, and package
   review end to end (`omega run --both`).
-  Owners: Psi 05 `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/facts/{operator_crashes,crash_entry_values}.rs`,
+  Owners: Psi 05 `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published/facts/{operator_crashes,crash_entry_values}.rs`,
   `src/values/scalar/contract_entry.rs`, `src/flow/expression.rs`, Psi 06
   lowering of crash routes, and the native consumers.
   - Extend selected-use joins for remaining intrinsic spellings, generic
@@ -2085,7 +2085,7 @@ defines the complete product bar.
   `package-source`, and `resolver-execution` at the release commit, and pin
   end-to-end corpus/package witnesses for:
   - Package and selection identity in
-    `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/authored_selections/finalization.rs`
+    `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/shared/authored_selections/finalization.rs`
     (`allow_unresolved_toolchain`).
   - Private progress premises in Psi 05 `checks/contracts/calls.rs` and
     `checks/termination/progress/components.rs`.

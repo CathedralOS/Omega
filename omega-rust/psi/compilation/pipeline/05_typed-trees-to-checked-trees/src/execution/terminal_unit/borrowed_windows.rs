@@ -66,7 +66,7 @@ use super::{
 use crate::execution::terminal_unit::structural_scalar_store::TargetSelectors;
 use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use checked_trees::{
     CapturedPlaceContainment, CheckFacts, CheckedNormalCleanupAction, CheckedStoreLeaf,

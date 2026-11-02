@@ -54,9 +54,10 @@ pub(super) fn proves(
     }
     let goal_operand = |expression| {
         let (expression, meaning) = observation(program, callee, callee_state, expression)?;
-        let (actual, suffix) = crate::semantic::places::call_contract_argument_projection(
-            program, parameters, arguments, expression,
-        )?;
+        let (actual, suffix) =
+            crate::published::semantic::places::call_contract_argument_projection(
+                program, parameters, arguments, expression,
+            )?;
         // This proof preserves values, not merely storage identities. Reject
         // projected formal coercions and policy-bearing scalar shells here.
         if !suffix.is_empty() || !has_builtin_operators(program, &facts.operators, actual) {

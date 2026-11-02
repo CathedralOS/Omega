@@ -1,4 +1,4 @@
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
 use symbols::SymbolHandle;
 

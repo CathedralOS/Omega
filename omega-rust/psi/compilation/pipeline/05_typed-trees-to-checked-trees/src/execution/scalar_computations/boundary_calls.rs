@@ -23,7 +23,7 @@ use super::{
     ExpressionNode, PrimitiveType,
 };
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 impl Builder<'_, '_> {
     pub(super) fn is_bodyless_boundary_call(&self, mut expression: ExpressionHandle) -> bool {

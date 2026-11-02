@@ -48,7 +48,7 @@ use crate::execution::terminal_unit::types::{
     parameter_qualifications, supports_primitive_storage,
 };
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 /// The sequence state a `let` statement reads and extends.
 pub(super) struct Planner<'a, 'program, 'shapes> {

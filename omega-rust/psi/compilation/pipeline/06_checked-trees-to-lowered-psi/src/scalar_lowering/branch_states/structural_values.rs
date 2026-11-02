@@ -4,12 +4,12 @@
 
 use super::super::StructuralTypeId;
 use super::{CheckedTrees, LoweringError};
-use crate::checked_facts::{flow_facts, value_facts};
 use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarEffect,
 };
 use crate::scalar_lowering::computations::Expansion;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::checked_facts::{flow_facts, value_facts};
+use crate::shared::terminal_identities::stored_structural_identity;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct ValueRequest {
@@ -32,7 +32,7 @@ impl ValueRequest {
                 "computed value lost its complete checked root",
             ))?;
         let identity = stored_structural_identity(checked, root.type_reference);
-        let declaration = crate::terminal_identities::structural_declaration_by_identity(
+        let declaration = crate::shared::terminal_identities::structural_declaration_by_identity(
             types,
             identities,
             checked,

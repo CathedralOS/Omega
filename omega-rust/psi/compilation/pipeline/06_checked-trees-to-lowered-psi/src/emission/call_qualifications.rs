@@ -6,7 +6,7 @@ use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
 
 use crate::emission::operation_emission::buffer::SourceCallCoordinate;
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 
 pub(crate) fn for_call<'a>(
     checked: &'a CheckedTrees,
@@ -155,7 +155,7 @@ pub(crate) fn declaration_represents(
     ) else {
         return Ok(false);
     };
-    let required = crate::structural_types::lower_field_type(
+    let required = crate::shared::structural_types::lower_field_type(
         identities,
         checked,
         &checked_trees::CheckedUnitStructuralFieldType::RefinedScalar {
@@ -165,7 +165,7 @@ pub(crate) fn declaration_represents(
         &[],
     )?;
     let declared =
-        crate::structural_types::lower_field_type(identities, checked, restriction, &[])?;
+        crate::shared::structural_types::lower_field_type(identities, checked, restriction, &[])?;
     Ok(terminal_semantics::scalar_field_entails(
         &declared, &required,
     ))

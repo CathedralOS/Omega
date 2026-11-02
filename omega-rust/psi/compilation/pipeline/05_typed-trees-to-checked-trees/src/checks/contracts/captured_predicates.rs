@@ -3,7 +3,7 @@
 //! contexts never mix: selection coverage decides which transported conclusions
 //! hold for the whole observed value.
 
-use crate::facts::boolean_predicates::{BoundObservation, BoundPredicate};
+use crate::published::facts::boolean_predicates::{BoundObservation, BoundPredicate};
 use checked_trees::{CheckFacts, FlowOperandFact, FlowStateFact};
 use validation::CanonicalPlace;
 

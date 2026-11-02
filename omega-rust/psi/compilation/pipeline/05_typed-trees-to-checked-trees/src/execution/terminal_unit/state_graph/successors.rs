@@ -20,7 +20,7 @@ use super::{
 use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::control;
 use crate::execution::terminal_unit::types::ShapeCollector;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use crate::values::scalar_expression_type;
 use checked_trees::expression::ExpressionHandle;
 
@@ -220,11 +220,12 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
     // tested subject's canonical place and the selected case once; the
     // transfer walk reuses them for every structural argument.
     let case_test = match transition.guard {
-        TransitionGuardNode::When(guard) => crate::proof::exact_outcome_case_test(program, guard)
-            .and_then(|(subject, case)| {
-                place_at(program, source.symbol, ordinal as usize, subject)
-                    .map(|place| (place, case))
-            }),
+        TransitionGuardNode::When(guard) => crate::published::proof::exact_outcome_case_test(
+            program, guard,
+        )
+        .and_then(|(subject, case)| {
+            place_at(program, source.symbol, ordinal as usize, subject).map(|place| (place, case))
+        }),
         _ => None,
     };
     let argument_at = |position: u32| arguments.get(position as usize).copied();

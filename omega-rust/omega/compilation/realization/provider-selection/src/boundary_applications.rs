@@ -64,12 +64,15 @@ pub fn select_boundary_applications(
                 && plan.schema.declaration.trait_package_identity == requirement.package()
                 && plan.identities.text(row.requirement_identity) == requirement.overload()
         });
-        let (Some((plan, row, execution, external_realization)), None) =
-            (matching.next(), matching.next())
-        else {
-            return Err(error(
-                "Terminal boundary application has no unique exact selected row",
-            ));
+        let first = matching.next();
+        let second = matching.next();
+        let (Some((plan, row, execution, external_realization)), None) = (first, second) else {
+            return Err(error(&format!(
+                "Terminal boundary application has no unique exact selected row: requirement `{}` at operation {:?}, {} selected matches",
+                requirement.overload(),
+                demand.terminal_operation(),
+                if first.is_none() { "no" } else { "multiple" },
+            )));
         };
         let realization = match &row.binding {
             ProviderBinding::CompilerIntrinsic { .. } => {

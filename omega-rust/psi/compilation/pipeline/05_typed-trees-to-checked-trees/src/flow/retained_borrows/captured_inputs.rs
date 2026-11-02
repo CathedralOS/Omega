@@ -2,7 +2,7 @@
 //! Selections meet their possible inputs; strict evaluations retain call order.
 
 use super::{RetainedBorrowHandback, RetainedBorrowSupply};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowFacts, FlowConstraintRef, FlowControlFacts, FlowOperandCompletion, FlowOperandFact,

@@ -43,6 +43,8 @@ pass/calls/converted_call_value_private_arrival_exit built 1448ms exit:0 interpr
 pass/calls/requires_machine_explicit_operational_closers_exit built 1338ms exit:0 interpreter-exit:0 interpreter:agrees @45fb2a705c96
 pass/calls/returned_nested_record_disjoint_field_move_exit built 1382ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
 pass/calls/returned_nested_record_newer_child_exit built 1292ms exit:0 interpreter-exit:0 interpreter:agrees @1e127a84987a
+pass/calls/runtime_guarded_reference_return_crash built 6701ms exit:signal signal:5 stdout:match stderr:match interpreter:trapped interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
+pass/calls/runtime_guarded_reference_return_machine_crash built 6678ms exit:signal signal:5 stdout:match stderr:match interpreter:trapped interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:trap terminal-target.linux_arm64:trap terminal-target.macos_arm64:trap terminal-target.windows_x86_64:trap terminal-target-artifact:unchanged terminal-targets:match @c79bb8268163+wt
 pass/calls/runtime_nested_case_borrowed_terminal_cycle_exit built 1389ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
 pass/calls/runtime_owned_state_scalar_field_store_exit built 13934ms exit:70 interpreter-exit:70 interpreter:agrees @33b180036351
 pass/calls/static_machine_required_input_crash_refinement_exit built 1270ms exit:0 interpreter-exit:0 interpreter:agrees @ce5134a3542d
@@ -976,6 +978,15 @@ pass/facts/recast_parent_restoration_through_other_machine_exit built 4244ms exi
 pass/facts/recast_parent_restoration_through_other_state_exit built 4505ms exit:0 interpreter-exit:0 interpreter:agrees @0a3a759c64e3
 pass/facts/recast_parent_restoration_through_parameter_exit built 3952ms exit:0 interpreter-exit:0 interpreter:agrees @0a3a759c64e3
 pass/facts/recast_parent_restoration_through_target_body_exit built 3902ms exit:0 interpreter-exit:0 interpreter:agrees @0a3a759c64e3
+pass/facts/recoverable_replacement_window_through_call_result_exit built 13062ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_const_name_exit built 16261ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_field_exit built 16289ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_local_exit built 10855ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_match_join_exit built 10905ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_other_machine_exit built 14347ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_other_state_exit built 13066ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_parameter_exit built 14320ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/facts/recoverable_replacement_window_through_target_body_exit built 16329ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
 pass/facts/reference_recast_backing_footprint_through_local_exit built 962ms exit:0 interpreter-exit:0 interpreter:agrees @cdaaea7fffc3
 pass/facts/register_stack_arg_calling_plan_through_call_result_exit built 11461ms exit:0 interpreter-exit:0 interpreter:agrees @53cd41cc760e
 pass/facts/register_stack_arg_calling_plan_through_const_name_exit built 12058ms exit:0 interpreter-exit:0 interpreter:agrees @53cd41cc760e
@@ -1331,6 +1342,8 @@ pass/layouts/fixed_layout_unmentioned_valid_policy_exit built 2006ms exit:0 inte
 pass/layouts/nested_reference_carrier_geometry_exit built 1527ms exit:0 interpreter-exit:0 interpreter:agrees @8b519ca647cd+wt
 pass/layouts/runtime_layout_arithmetic_value_flow_exit built 2009ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @8b519ca647cd+wt
 pass/machines/cyclic_private_arrival_guard_context_exit built 1858ms exit:0 interpreter-exit:0 interpreter:agrees @f58fe154c6f3
+pass/ownership/runtime_borrowed_match_repeated_repair_exit built 13066ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
+pass/ownership/runtime_match_expression_moves_selected_payload_exit built 6772ms exit:0 interpreter-exit:0 interpreter:agrees @c79bb8268163+wt
 pass/proofs/completed_guard_converted_snapshot built 2954ms exit:0 interpreter-exit:0 interpreter:agrees @2cede9e14eca
 pass/proofs/completed_guard_private_boolean built 3165ms exit:0 interpreter-exit:0 interpreter:agrees @2cede9e14eca
 pass/proofs/completed_guard_two_call_identities built 2863ms exit:0 interpreter-exit:0 interpreter:agrees @2cede9e14eca
@@ -1753,7 +1766,7 @@ pass/calls/runtime_cyclic_state_reference_result_exit built 8642ms exit:0 interp
 pass/calls/runtime_explicit_reference_alias_argument_exit built 800ms exit:0 interpreter-exit:0 interpreter:agrees @bf12cd0f89bb+wt
 pass/calls/runtime_fused_child_computed_borrow_exit built 1152ms exit:0 interpreter-exit:0 interpreter:agrees @bc368540ef79
 pass/calls/runtime_guarded_boundary_tail_call_exit built 1559ms exit:70 interpreter-exit:70 interpreter:agrees @107e79a608d59bd9eb5a38b5570d124edf1e1114+wt
-pass/calls/runtime_guarded_reference_return_before_crash_exit built 1303ms exit:0 interpreter-exit:0 interpreter:agrees @73ef9378f1a6
+pass/calls/runtime_guarded_reference_return_before_crash_exit built 6750ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @c79bb8268163+wt
 pass/calls/runtime_guarded_terminal_array_operands_exit built 1322ms exit:0 interpreter-exit:0 interpreter:agrees @db3378f05a303f15e6de9c2597a21c18e3d9fa78
 pass/calls/runtime_guarded_terminal_guard_order_exit built 1144ms exit:0 interpreter-exit:0 interpreter:agrees @9384bb69f1d480980ed1e7a4d01c0f9327e873ad
 pass/calls/runtime_guarded_terminal_mutable_reference_result_exit built 2048ms exit:0 interpreter-exit:0 interpreter:agrees @23ad5028e896

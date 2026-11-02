@@ -9,7 +9,7 @@ use super::{
     FlowStateFact, Handle, ResourceDraft,
 };
 use crate::borrow::{owner_path_from_place_segments, owner_place_segments};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{
     CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource, CheckedDirectBorrowParentLifetime,
 };

@@ -117,7 +117,7 @@ fn checking_does_not_reopen_typed_preparation() {
 
     // Product pruning is a consuming transform, not permission to reopen the
     // embedded source in an already constructed checked result.
-    let pruning = include_str!("product_pruning/rewrite.rs");
+    let pruning = include_str!("products/product_pruning/rewrite.rs");
     for forbidden in [
         "&mut checked.typed",
         "checked.typed =",

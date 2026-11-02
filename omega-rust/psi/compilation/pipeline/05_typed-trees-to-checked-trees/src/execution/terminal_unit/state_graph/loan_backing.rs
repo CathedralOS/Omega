@@ -7,8 +7,8 @@
 //! operand resources and their stored dependencies, not producer spellings or
 //! lexical last-use indices. Unresolved coverage retains the stable-home route.
 
-use crate::collections::push_unique;
 use crate::flow::literal_value_path_is_inactive;
+use crate::shared::collections::push_unique;
 use arena::{Handle, HandleSpan};
 use checked_trees::{
     BorrowLoanFact, CheckFacts, CheckedCallBorrowLoanSource as LoanSource,
@@ -20,7 +20,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 
 use crate::borrow::accesses::is_image_storage_root;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 mod record_selections;
 pub(in crate::execution::terminal_unit) use record_selections::RetainedBorrowRecords;

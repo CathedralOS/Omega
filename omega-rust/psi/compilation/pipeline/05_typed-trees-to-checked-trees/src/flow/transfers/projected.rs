@@ -334,7 +334,7 @@ pub(super) fn bound_reference_referent_place(
     if precision != flow::OriginPrecision::Exact {
         return None;
     }
-    Some(crate::semantic::places::append_place(
+    Some(crate::published::semantic::places::append_place(
         semantic,
         place.root,
         &place.segments,

@@ -44,7 +44,7 @@ impl OperationFrame<'_, '_> {
         // Borrow the current published home through the same join used by
         // ordinary observations. A stored descriptor remains in the path;
         // neither its initializer nor a same-typed parameter supplies it.
-        let (_, state) = crate::declarations::state_declaration(self.checked, self.state)?;
+        let (_, state) = crate::shared::declarations::state_declaration(self.checked, self.state)?;
         let bindings = self
             .evaluation
             .completed_bindings(self.operations, std::iter::empty())
@@ -185,7 +185,7 @@ impl OperationFrame<'_, '_> {
                 self.operations,
                 self.next_place,
                 structural_type,
-                crate::terminal_identities::structural_multiplicity(result.multiplicity),
+                crate::shared::terminal_identities::structural_multiplicity(result.multiplicity),
                 Vec::new(),
                 OperationKind::AtomicAccess {
                     place,

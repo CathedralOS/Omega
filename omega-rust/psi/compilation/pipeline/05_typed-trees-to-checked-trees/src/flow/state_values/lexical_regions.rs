@@ -185,7 +185,7 @@ pub(in crate::flow) fn record<'plans>(
             fields,
             qualifications,
             predicates: Vec::new(),
-            entry_paths: crate::facts::boolean_predicates::EntryPaths::unknown(),
+            entry_paths: crate::published::facts::boolean_predicates::EntryPaths::unknown(),
             argument_edges: ArgumentInputs::Edges(Vec::new()),
             cases: Vec::new(),
         },

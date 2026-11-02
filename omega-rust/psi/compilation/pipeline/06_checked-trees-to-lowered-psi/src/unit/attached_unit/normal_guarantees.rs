@@ -6,10 +6,10 @@
 //! terms retain their own checked owners rather than becoming builtin scalars.
 //! Crashes and incomplete calls establish neither a result nor these facts.
 
-use crate::checked_facts::value_facts;
-use crate::lowering_error::LoweringError;
 use crate::proofs::contract_predicates::connective;
 use crate::scalar_lowering::contracts::{self, ContractStructuralResult, ContractViewNamespace};
+use crate::shared::checked_facts::value_facts;
+use crate::shared::lowering_error::LoweringError;
 use crate::unit::ContractClause;
 use checked_trees::CheckedTrees;
 use symbols::SymbolHandle;
@@ -25,7 +25,7 @@ pub(crate) fn lower(
     views: &ContractViewNamespace<'_>,
     next_obligation: &mut u64,
 ) -> Result<Vec<ContractClause>, LoweringError> {
-    let (source, source_state) = crate::declarations::state_declaration(checked, state)?;
+    let (source, source_state) = crate::shared::declarations::state_declaration(checked, state)?;
     let contract = checked
         .facts
         .contract_plans
@@ -133,8 +133,8 @@ pub(crate) fn lower(
         .into_iter()
         .map(|proposition| {
             Ok(ContractClause {
-                obligation: crate::terminal_identities::obligation_id(
-                    crate::terminal_identities::allocate_dense(next_obligation)?,
+                obligation: crate::shared::terminal_identities::obligation_id(
+                    crate::shared::terminal_identities::allocate_dense(next_obligation)?,
                 ),
                 proposition,
             })

@@ -12,7 +12,7 @@ use super::captures::integer_value_identity;
 use super::{ExpressionDependencies, reads};
 use crate::checks::ranges::RangeFacts;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use facts::PlaceRoot;
 use facts::PlaceSegment;
 use symbols::SymbolHandle;

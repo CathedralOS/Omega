@@ -6,7 +6,7 @@
 //! reaches through here rather than reading checked expressions directly.
 
 use crate::emission::scalar_types::terminal_scalar_type;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::types::PrimitiveType;
 use checked_trees::{
     CheckedBooleanExpression, CheckedIntegerBinaryKind, CheckedIntegerComparisonKind,

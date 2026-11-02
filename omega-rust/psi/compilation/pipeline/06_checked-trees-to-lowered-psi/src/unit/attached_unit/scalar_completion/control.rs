@@ -3,7 +3,7 @@
 //! exit roster the completion has no route for, such as an ordered arm that
 //! transfers or crashes instead of returning.
 use super::{CheckedTrees, LoweringError, unsupported};
-use crate::checked_facts::flow_facts;
+use crate::shared::checked_facts::flow_facts;
 use checked_trees::CheckedScalarBranchDestination;
 
 /// The ordered guarded exits of a returning scalar tail, as Psi 05 planned

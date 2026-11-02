@@ -1,6 +1,6 @@
 //! Scalar types and integer values for primitives.
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::types::PrimitiveType;
 use semantic_vocabulary::{IeeeFloatFormat, IntegerSign, IntegerType, IntegerValue, ScalarType};
 

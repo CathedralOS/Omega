@@ -13,7 +13,7 @@ use super::{
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan, LoweringError,
     byte_subslices, unsupported,
 };
-use crate::checked_facts::value_facts;
+use crate::shared::checked_facts::value_facts;
 pub(crate) enum Step {
     CaptureBefore(u32),
     Ordinary(usize),
@@ -234,8 +234,9 @@ fn append(
         call.scalar_operands(),
         call.structural_arguments.as_slice(),
     );
-    let authored = crate::call_sites::locate(checked, state, coordinate)?;
-    let target = crate::declarations::target_signature(checked, machine, authored.source_target)?;
+    let authored = crate::shared::call_sites::locate(checked, state, coordinate)?;
+    let target =
+        crate::shared::declarations::target_signature(checked, machine, authored.source_target)?;
     let parameters = target.parameters;
     // Authored positions and retained argument slots are different namespaces.
     // The callee's checked signature decides which structural formals survive;

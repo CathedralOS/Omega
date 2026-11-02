@@ -98,7 +98,7 @@ impl<'a> UnitPlans<'a> {
                 UnitBody::Composed(plan) => {
                     for state in &plan.states {
                         let (owner, _) =
-                            crate::declarations::state_declaration(checked, state.state)?;
+                            crate::shared::declarations::state_declaration(checked, state.state)?;
                         if !sources.contains(&owner.symbol) {
                             sources.push(owner.symbol);
                         }
@@ -235,7 +235,7 @@ impl<'a> UnitBody<'a> {
         checked: &checked_trees::CheckedTrees,
         state: symbols::SymbolHandle,
     ) -> Result<Vec<facts::PlaceRoot>, LoweringError> {
-        let (_, declaration) = crate::declarations::state_declaration(checked, state)?;
+        let (_, declaration) = crate::shared::declarations::state_declaration(checked, state)?;
         let (parameters, scalar_parameters, storage) = match self {
             Self::Ordinary(plan) if plan.state == state => (
                 plan.structural_parameters.as_slice(),

@@ -6,10 +6,10 @@
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::LoweredDirectExpression;
-use crate::lowering_error::LoweringError;
 use crate::scalar_lowering::computations;
 use crate::scalar_lowering::computations::parameters;
 use crate::scalar_lowering::contracts::LoweredProofTerm;
+use crate::shared::lowering_error::LoweringError;
 use checked_trees::CheckedBooleanExpression;
 use semantic_vocabulary::{
     ClaimId, PlaceId, QualifiedScalarType, StructuralCaseId, StructuralFieldId, StructuralTypeId,

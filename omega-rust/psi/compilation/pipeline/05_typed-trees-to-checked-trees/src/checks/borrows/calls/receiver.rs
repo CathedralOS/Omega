@@ -1,7 +1,7 @@
 //! Exclusive-place operations and explicit state-jump subject access.
 //! Ordinary machine arguments use the shared call compatibility checks.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{BorrowAccessKind, CapturedPlace, CheckFacts, FlowStateFact};
 use diagnostics::Diagnostic;
 use typed_trees::types::TypeReferenceNode;

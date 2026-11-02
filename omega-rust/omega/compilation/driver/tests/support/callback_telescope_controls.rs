@@ -264,13 +264,12 @@ fn execute_policy(
     signature: &provider_planning::calling_policy_plans::CallingPolicySignature,
     application: &calling_conventions::BoundaryCallingApplication,
 ) -> Result<(), String> {
+    use build_evaluation::evaluate_terminal_calling_policy;
     use evaluation_accounting::{
         BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
         TerminalStorageScheduleIdentity,
     };
-    use provider_planning::calling_policy_plans::{
-        TerminalCallingPolicyInvocation, evaluate_terminal_calling_policy,
-    };
+    use provider_planning::calling_policy_plans::TerminalCallingPolicyInvocation;
     use terminal_psi::TargetMachineCallable;
     let module = artifact.semantic_module();
     // This selector is authored inspection data, not production policy lookup.

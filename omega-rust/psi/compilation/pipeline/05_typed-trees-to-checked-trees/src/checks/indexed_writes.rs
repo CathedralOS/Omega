@@ -4,7 +4,7 @@
 //! statement's live contexts, never a historical fact or a later restoration.
 //! Finite reference choices require that judgment for every captured backing,
 //! independently of whether one candidate already had the desired byte class.
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::CheckFacts;
 use facts::{FactOrigin, FactPayload};
 

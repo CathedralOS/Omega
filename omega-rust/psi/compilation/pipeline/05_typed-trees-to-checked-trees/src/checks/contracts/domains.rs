@@ -1,5 +1,5 @@
-use crate::facts::boolean_predicates::CasePremiseAvailability;
 use crate::flow::canonical_place_from_semantic_place;
+use crate::published::facts::boolean_predicates::CasePremiseAvailability;
 use facts::FactPayload;
 use symbols::SymbolHandle;
 

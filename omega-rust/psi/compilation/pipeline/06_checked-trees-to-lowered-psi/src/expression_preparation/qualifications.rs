@@ -4,10 +4,10 @@
 //! Catalog membership names a theory; it never substitutes for a cast's checked
 //! introduction evidence. Preparation freezes identities before any machine emits.
 
-use crate::checked_facts::{flow_facts, value_facts};
 use crate::emission::scalar_types::terminal_scalar_type;
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
+use crate::shared::checked_facts::{flow_facts, value_facts};
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::lowering_error::unsupported;
 use checked_trees::types::{
     DomainConstraintSubject, PrimitiveType, TypeConstraintNode, TypeReferenceHandle,
     TypeReferenceNode,
@@ -140,8 +140,11 @@ impl PreparedScalarQualifications {
             }
         }
         for boundary in boundaries {
-            let signature =
-                crate::declarations::target_signature(checked, boundary.machine, boundary.machine)?;
+            let signature = crate::shared::declarations::target_signature(
+                checked,
+                boundary.machine,
+                boundary.machine,
+            )?;
             if carries_scalar_qualifications(checked, signature.return_type) {
                 references.push(signature.return_type);
             }
@@ -438,14 +441,15 @@ fn retain_domain(
     let semantic_domain = DomainSemanticId::new(u64::from(semantic_id.0)).ok_or(
         LoweringError::Unsupported("scalar qualification has an invalid semantic identity"),
     )?;
-    let establishment_routes = match catalog.domains.iter().find(|domain| {
-        domain.semantic_domain == semantic_domain && domain.carrier == scalar_type
-    }) {
-        // The checked declaration and its return decisions are immutable.
-        // Repeated occurrences reuse this catalog, not another source census.
-        Some(domain) => domain.establishment_routes.clone(),
-        None => scalar_domain_establishment_routes(identities, checked, symbol, semantic_id)?,
-    };
+    let establishment_routes =
+        match catalog.domains.iter().find(|domain| {
+            domain.semantic_domain == semantic_domain && domain.carrier == scalar_type
+        }) {
+            // The checked declaration and its return decisions are immutable.
+            // Repeated occurrences reuse this catalog, not another source census.
+            Some(domain) => domain.establishment_routes.clone(),
+            None => scalar_domain_establishment_routes(identities, checked, symbol, semantic_id)?,
+        };
     let definition = checked
         .typed
         .domain_definition_for_instance(symbol, semantic_id)
@@ -595,7 +599,7 @@ fn retained_domain_predicate(
     predicate: &checked_trees::CheckedBooleanExpression,
     carrier: semantic_vocabulary::ScalarType,
 ) -> Result<terminal_psi::ScalarDomainPredicate, LoweringError> {
-    let subject = crate::terminal_identities::value_id(1);
+    let subject = crate::shared::terminal_identities::value_id(1);
     let proposition = crate::scalar_lowering::contracts::proposition(
         identities,
         predicate,
@@ -773,7 +777,7 @@ fn domain_predicate(
             .ok_or(LoweringError::Unsupported(
                 "routed scalar domain has no complete predicate",
             ))?;
-            let subject = crate::terminal_identities::value_id(1);
+            let subject = crate::shared::terminal_identities::value_id(1);
             let proposition = crate::scalar_lowering::contracts::proposition(
                 identities,
                 &predicate,

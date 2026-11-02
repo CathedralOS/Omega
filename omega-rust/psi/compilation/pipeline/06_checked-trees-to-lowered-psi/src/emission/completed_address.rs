@@ -6,8 +6,8 @@
 //! observing its old value, moving its owner or widening its existing access.
 
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::lowering_error::LoweringError;
-use crate::terminal_identities::{allocate_dense, block_id, edge_id, place_id, value_id};
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::terminal_identities::{allocate_dense, block_id, edge_id, place_id, value_id};
 use crate::unit::attached_unit::argument_evaluation::Evaluation;
 use semantic_vocabulary::{PlaceId, StructuralPlaceKind, StructuralTypeId};
 use terminal_psi::{

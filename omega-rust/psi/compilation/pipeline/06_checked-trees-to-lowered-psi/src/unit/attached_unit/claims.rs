@@ -112,7 +112,9 @@ pub(super) fn lower_return_claims(
             }
             if binding.structural_type() != structural_type
                 || binding.multiplicity()
-                    != crate::terminal_identities::structural_multiplicity(result.multiplicity)
+                    != crate::shared::terminal_identities::structural_multiplicity(
+                        result.multiplicity,
+                    )
             {
                 return unsupported("return materialized custody has another carrier");
             }

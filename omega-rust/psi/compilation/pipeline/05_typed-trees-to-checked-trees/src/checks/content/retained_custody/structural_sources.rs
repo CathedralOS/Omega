@@ -136,7 +136,7 @@ pub(super) fn parameter_sources(
                     nested: !path.is_empty(),
                     path,
                 };
-                crate::collections::push_unique(&mut sources, source);
+                crate::shared::collections::push_unique(&mut sources, source);
             }
         }
     }

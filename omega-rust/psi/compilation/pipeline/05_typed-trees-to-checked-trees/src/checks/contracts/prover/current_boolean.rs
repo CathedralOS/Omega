@@ -4,11 +4,11 @@
 //! The caller supplies current contexts and owns operand freshness; this query
 //! neither recovers an old initializer nor grants immutable entry identity.
 
-use crate::facts::boolean_predicates::inferred_boolean_at_place;
-use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::flow::canonical_place_from_semantic_place;
-use crate::places::place_at;
-use crate::semantic::places::call_contract_argument_projection;
+use crate::published::facts::boolean_predicates::inferred_boolean_at_place;
+use crate::published::facts::contract_occurrences::append_expression_occurrences;
+use crate::published::places::place_at;
+use crate::published::semantic::places::call_contract_argument_projection;
 use validation::CanonicalPlace;
 
 use facts::{FactOrigin, FactPayload, FactPlan, ProgramPoint, ScalarValue};
@@ -77,8 +77,9 @@ pub(crate) fn boolean_value_at_place(
     if let Some(value) = ordinary_boolean_value_at_place(program, semantic, contexts, actual) {
         return Some(value);
     }
-    let predicates =
-        crate::facts::boolean_predicates::retained(program, operators, semantic, contexts, point);
+    let predicates = crate::published::facts::boolean_predicates::retained(
+        program, operators, semantic, contexts, point,
+    );
     inferred_boolean_at_place(&predicates, actual, |place| {
         ordinary_boolean_value_at_place(program, semantic, contexts, place)
             .map(ScalarValue::Boolean)

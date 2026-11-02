@@ -22,9 +22,9 @@ use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::expression_preparation::qualifications::signature_value_type;
 use crate::retention::conformance_applications::checked_method_arguments;
 use crate::scalar_lowering::contracts::proposition;
-use crate::terminal_identities::lookup_service_id;
-use crate::terminal_identities::value_id;
-use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
+use crate::shared::terminal_identities::lookup_service_id;
+use crate::shared::terminal_identities::value_id;
+use crate::shared::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 use crate::unit::attached_unit::catalog::lower_program_local_root_introductions;
 use crate::unit::{Proposition, ScalarType, ValueDeclaration};
@@ -115,7 +115,7 @@ pub(crate) fn lower_declarations(
         // it is not an extra formal or permission to erase malformed clauses.
         let result = if plan.result.structural_identity().is_some() {
             let signature =
-                crate::declarations::target_signature(checked, plan.machine, plan.machine)?;
+                crate::shared::declarations::target_signature(checked, plan.machine, plan.machine)?;
             let position = u32::try_from(signature.parameters.len()).map_err(|_| {
                 LoweringError::Unsupported(
                     "boundary result coordinate exceeds the contract namespace",
@@ -522,7 +522,7 @@ pub(crate) fn lower_boundary_result(
     Ok(match result {
         CheckedBoundaryMachineResultPlan::Unit => BoundaryMachineResult::Unit,
         CheckedBoundaryMachineResultPlan::Scalar(_) => {
-            let signature = crate::declarations::target_signature(checked, source, source)?;
+            let signature = crate::shared::declarations::target_signature(checked, source, source)?;
             BoundaryMachineResult::Scalar(signature_value_type(
                 checked,
                 scalar_qualifications,

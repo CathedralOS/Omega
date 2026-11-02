@@ -48,22 +48,29 @@ pub(crate) struct CallSite<'a> {
     pub(crate) argument_count: usize,
 }
 
-/// Visit every call site reachable from `machine`'s states, contracts and `via`
-/// expressions and replace the target of each one `decide` answers.
+/// Headers are refreshed even when a different body's completion caused the
+/// global contract reference walk. Only selected bodies and explicitly supplied
+/// preparation inputs belong to the executable work frontier.
 pub(crate) fn retarget_machine_calls(
     program: &mut SymbolResolvedTrees,
     machine: SymbolHandle,
     inputs: &[CallSelectionInput],
+    include_body: bool,
     decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
 ) {
     let Some((state_spans, declaration_expressions)) = program.machine(machine).map(|machine| {
         let state_spans = program
             .machine_state_handles(machine.states)
             .iter()
+            .filter(|_| include_body)
             .map(|handle| program.machine_state(*handle).statement_nodes)
             .collect::<Vec<_>>();
         let mut declaration_expressions = Vec::new();
-        append_contract_expressions(program, machine.contracts, &mut declaration_expressions);
+        append_contract_expressions(
+            program,
+            program.signature_contracts(machine.contracts),
+            &mut declaration_expressions,
+        );
         // A bodyless external leaf still owns executable compile-time
         // expressions. Rebind their calls by the same exact-family rule
         // as body calls, before typing commits their producer identities.
@@ -78,7 +85,11 @@ pub(crate) fn retarget_machine_calls(
             .iter()
             .map(|handle| program.machine_state(*handle))
         {
-            append_contract_expressions(program, state.contracts, &mut declaration_expressions);
+            append_contract_expressions(
+                program,
+                program.signature_contracts(state.contracts),
+                &mut declaration_expressions,
+            );
         }
         (state_spans, declaration_expressions)
     }) else {
@@ -96,12 +107,35 @@ pub(crate) fn retarget_machine_calls(
     }
 }
 
-fn append_contract_expressions(
-    program: &SymbolResolvedTrees,
-    contracts: arena::HandleSpan<SignatureContract>,
+/// Named qualifiers do not depend on an executable owner. Trait, operator and
+/// structural callable headers need the same exact row after reference refresh.
+pub(crate) fn retarget_signature_contract_calls(
+    program: &mut SymbolResolvedTrees,
+    decide: &mut dyn FnMut(&CallSite<'_>) -> Option<SymbolHandle>,
+) {
+    let mut expressions = Vec::new();
+    append_contract_expressions(
+        program,
+        program
+            .tables
+            .declarations
+            .signature_contracts
+            .iter()
+            .map(|(_, contract)| contract),
+        &mut expressions,
+    );
+    let mut visited = Vec::new();
+    for expression in expressions {
+        retarget_expression(program, expression, decide, &mut visited);
+    }
+}
+
+fn append_contract_expressions<'program>(
+    program: &'program SymbolResolvedTrees,
+    contracts: impl IntoIterator<Item = &'program SignatureContract>,
     expressions: &mut Vec<ExpressionHandle>,
 ) {
-    for contract in program.signature_contracts(contracts) {
+    for contract in contracts {
         for fact in program.proof_facts(contract.facts) {
             match fact {
                 ProofFact::Expression(expression) => {
