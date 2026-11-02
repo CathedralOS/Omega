@@ -217,10 +217,9 @@ pub(crate) fn emit<'source>(
             access: StructuralAccess::Owned,
         })
         .collect::<Vec<_>>();
-    let declaration = terminal_psi::find_structural_type(structural_types, structural_type)
-        .ok_or(LoweringError::Unsupported(
-            "produced value has no structural declaration",
-        ))?;
+    let declaration = terminal_psi::find_structural_type(structural_types, structural_type).ok_or(
+        LoweringError::Unsupported("produced value has no structural declaration"),
+    )?;
     let stored_descriptor_value =
         terminal_semantics::stored_reference_access(&declaration.shape).is_some();
     let stored_view_value = stored_descriptor_value

@@ -130,6 +130,7 @@ jobs:
               'omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/operation_frame.rs',
               'omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/emission/borrowed_window.rs',
               'omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/structural_values/emission.rs',
+              'omega-rust/psi/interpreter/terminal-interpreter/src/storage/record/byte_fields.rs',
           ):
               source = Path(name)
               destination = output / name
