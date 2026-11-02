@@ -7,6 +7,11 @@ Owning task: **CANONICALIZE-SCALAR-RANGE-CONTRACTS**, specifically the retained
 contract-expression work root and fold-publication route for provider-dependent
 clause endpoints. No endpoint-only nominal domain substitutes for the clause.
 
+The [generic-function production](closed_owner/README.md) carries the same fact
+when the selected provider call supplies constants inside a function that still
+has its own generic parameter. It also checks both match outcomes and field
+neighbors at runtime.
+
 The frozen [local positive](local/main.omg) is the discovery program. Its public
 acceptance command is:
 

@@ -1,3 +1,4 @@
+// Expected exit: 70
 use omega_language_std::console;
 
 machine endpoint(value: u64) -> u64 { value }
@@ -6,9 +7,10 @@ machine nested_difference(value: u64) -> u64 requires value < 10 - 2 - 3 { value
 machine nested_call(value: u64) -> u64 requires value <= endpoint(endpoint(256) + 1) { value }
 data Holder [copy] requires value <= 4 * 8 - 2 { value: u64; }
 data Wrap<T [copy]> [copy] { value: T; }
-domain u64::Bound requires self <= 2 * 64 + 128;
-machine wrapped() -> u64 {
-    let held: Wrap<u64 in Bound> = Wrap { value: 7 };
+machine wrapped() -> u64
+ensures result <= 2 * 64 + 128
+{
+    let held: Wrap<u64> = Wrap { value: 7 };
     held.value
 }
 

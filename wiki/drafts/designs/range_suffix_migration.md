@@ -447,10 +447,20 @@ selected constant versus a later same-spelled local) and
 `fail/modules/same_name_record_field_extent` (distinct owners with same-spelled
 fields); actual owner-predicate store controls remain in `data_where_standing`.
 
-These declarations do not complete the historical audit. The same migration's
-`Bound` domain in `pass/generics/folded_range_endpoint_selection_custody`,
-remaining storage/reference propositions, customer runtime qualification and
-suffix retirement retain their owning acceptance.
+These declarations do not complete the historical audit. Remaining
+storage/reference propositions, customer runtime qualification and suffix
+retirement retain their owning acceptance.
+
+## Audited computed contract bounds
+
+The [computed-bound inventory](../../../tests/omega/pass/generics/folded_range_endpoint_selection_custody/README.md)
+reconciles five declarations before `818f643f12d`: three machine inputs, one
+common field, and one constrained scalar nested inside a generic local type.
+The inputs and field keep their ordinary `requires` clauses. The local becomes
+`Wrap<u64>` with initializer seven; the private `wrapped` helper states the
+computed upper bound `2 * 64 + 128` in `ensures`. The domain `Bound`, introduced
+only for that old annotation, is removed. The program still combines its results
+into 275 and exits 70.
 
 ## Audited ranked borrowed-field customers
 

@@ -99,7 +99,10 @@ pub(super) fn construction_conditions(
             }
             _ => return None,
         };
-        let endpoint = checked_trees::IntegerRangeRecipe::observation(bound, machine.symbol);
+        // The bound belongs to the data declaration; the field snapshot and
+        // construction obligation belong to the caller. Keep those owners
+        // separate so lowering finds the declaration's checked evaluation.
+        let endpoint = checked_trees::IntegerRangeRecipe::observation(bound, owner);
         let difference = snapshot.binary(BinaryOperator::Subtract, &endpoint)?;
         let span = carrier.maximum.sub(&carrier.minimum);
         let (minimum, maximum) = match operator {
