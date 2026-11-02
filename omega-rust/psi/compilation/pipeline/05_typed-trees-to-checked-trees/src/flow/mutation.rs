@@ -57,6 +57,9 @@ pub(super) enum WritePlaceNamespace {
 pub(in crate::flow) struct CallMutationWrite {
     pub region: StorageRegion,
     pub source: Option<StorageRegion>,
+    /// Exact destination presentation of the checked assignment, retained
+    /// through call projection. A may-write footprint alone proves no domain.
+    pub checked_write_type: typed_trees::types::TypeReferenceHandle,
 }
 
 /// Caller storage footprint. `None` requires full invalidation; an empty
@@ -168,6 +171,7 @@ pub(in crate::flow) fn call_mutation_writes(
             writes.push(CallMutationWrite {
                 region,
                 source: None,
+                checked_write_type: Default::default(),
             });
         }
     }
@@ -264,19 +268,20 @@ fn call_write_places(
         return Some(Vec::new());
     }
 
-    let summarized_places = phase_profile::scope("psi.05.build_check_facts.flow.mutation.summary", || {
-        instantiate_known_call_mutation_summary_places(
-            program,
-            caller_machine_symbol,
-            caller_state_symbol,
-            borrow,
-            borrow_call,
-            state_mutation_summaries,
-            namespace,
-            call_frames,
-            loan,
-        )
-    });
+    let summarized_places =
+        phase_profile::scope("psi.05.build_check_facts.flow.mutation.summary", || {
+            instantiate_known_call_mutation_summary_places(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                borrow,
+                borrow_call,
+                state_mutation_summaries,
+                namespace,
+                call_frames,
+                loan,
+            )
+        });
     if summarized_places.is_none() && matches!(namespace, WritePlaceNamespace::Storage) {
         let boundary_target = program.traits().iter().any(|definition| {
             definition.is_boundary
@@ -415,6 +420,7 @@ fn unattributed_writes(regions: Vec<StorageRegion>) -> Vec<CallMutationWrite> {
         .map(|region| CallMutationWrite {
             region,
             source: None,
+            checked_write_type: Default::default(),
         })
         .collect()
 }

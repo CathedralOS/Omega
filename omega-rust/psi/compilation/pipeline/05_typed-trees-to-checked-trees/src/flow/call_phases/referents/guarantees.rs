@@ -19,7 +19,8 @@ pub(super) struct ReturnedGuarantee {
     /// declared child obligations and authored ensures hold on every exit of
     /// a callable callee. `false` marks the referent's own declared root
     /// constraints, which no callee exit re-proves; they restore a caller row
-    /// only under a write region covering that row's exact place.
+    /// only through a checked destination carrying that exact constraint and
+    /// a write region covering that row's exact place.
     pub proven_at_exit: bool,
 }
 
@@ -91,14 +92,22 @@ impl PreparedGuarantees {
         domain: SymbolHandle,
         identity: SemanticDomainId,
         write_region: Option<&CanonicalPlace>,
+        checked_write_type: typed_trees::types::TypeReferenceHandle,
     ) -> bool {
+        let checked_write_domains = if checked_write_type.is_valid() {
+            validation::field_domains::domain_constraint_identities(program, checked_write_type)
+        } else {
+            Vec::new()
+        };
         let matches_contract = |row: &ReturnedGuarantee| {
             parameter == Some(row.parameter)
                 && domain == row.domain
                 && identity == row.identity
                 && (row.proven_at_exit
-                    || write_region
-                        .is_some_and(|region| same_occurrence_covered(program, region, concrete)))
+                    || (checked_write_domains.contains(&(domain, identity))
+                        && write_region.is_some_and(|region| {
+                            same_occurrence_covered(program, region, concrete)
+                        })))
         };
         let key = facts::places::place_bucket_hash(concrete.root, &concrete.segments);
         self.exact_positions.candidates(key).any(|position| {
