@@ -94,6 +94,9 @@ The repaired optimized CLI is SHA-256
 `4b3fd797891dbfde52a8bf4a16a742f0ba5b12158bfd2da113d13d5a234a9425`,
 built from the fixed base plus the owning PR's compiler patch; receipts retain
 those original identities rather than relabeling them as a later checkpoint.
+The focused corpus check observes 11 positives and 19 intended rejects; its
+`--both` leg executes the 11 positives with native/Terminal exit 0. This includes
+literal case restoration, ordinary record snapshots and write-only boundaries.
 
 Existing guard-effects, literal restoration, named coverage, zero, invalid-case
 and stale-type controls remain under [controls/](controls/). The parent retains
