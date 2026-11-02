@@ -12,6 +12,12 @@ fail/borrows/independent_invocation_reference_result_escapes rejected 1619ms exp
 	machine `Code::reply` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected @3a020eca642a
 	the compiler-owned Build activation cannot be replaced as a whole value
+fail/build/activation_descriptor_forwarded_write_readonly rejected 309ms expected @8f7188b97d7a
+	machine `configure` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/build/activation_descriptor_generic_forwarded_write_readonly rejected 266ms expected @8f7188b97d7a
+	machine `configure` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/build/activation_descriptor_write_observed_readonly rejected 247ms expected @8f7188b97d7a
+	machine `configure` state `entry` assignment requires mutable source access through every reference crossed by its destination
 fail/build/activation_owned_field_refused rejected 227ms expected @3a020eca642a
 	the compiler-owned Build activation cannot be stored in field `builder`
 fail/build/component_borrowed_access_refused rejected 1375ms expected @017c32ace00f
@@ -26,6 +32,14 @@ fail/build/native_locator_wrong_owner rejected 258ms expected @b852a38544d0
 	native binding requires the exact compiler-owned `ForeignBinding` declaration
 fail/build/package_owned_callable_identity rejected 1474ms @946b56944a1b
 	build selects provider `other_clock::clock::DependencyClock` for slot `clock::Clock`, but no candidate exists in the loaded dependency closure
+fail/build/private_extent_exclusive_temporary rejected 1719ms expected @8f7188b97d7a
+	array constant projection currently requires unborrowed literal integer selectors; dynamic indexing, borrowing and slicing require value-based array projection
+fail/build/private_extent_temporary_escape rejected 4965ms expected @8f7188b97d7a
+	machine `escape` returns a view borrowing temporary storage, which does not outlive the call; return a view of storage that outlives the invocation instead
+fail/build/private_extent_unproved_call rejected 225ms expected @8f7188b97d7a
+	fixed-array length `[u64; build_extent()]`: const evaluation of `build_extent` failed: machine `@array-extent-2-11` state `@array-extent-2-11` value call to `build_extent` violates required fact `input == 1`: the instantiated fact is structurally false (`2 == 1`)
+fail/build/private_extent_unproved_member rejected 1338ms expected @8f7188b97d7a
+	const-generic application evaluation failed: constant invocation of `checked_extent` failed checking: machine `@const-invocation` state `@const-invocation` value call to `checked_extent` violates required fact `input == 1`: the instantiated fact is structurally false (`2 == 1`)
 fail/build/retained_behavior_selected_trap rejected 1408ms expected @a0939f4833eb
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in machine `Trapping::check` (Terminal machine 3) at crash terminator in block 3
@@ -52,7 +66,7 @@ fail/cases/constructor_subject_range_unsigned_to_signed_unproved rejected 1007ms
 	Exact integer cast in machine `make` state `entry` from `u64` to `i64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/constants/target_layout_derived_ground_guarantee_reject rejected 1261ms expected @d6c89b306726
 	cannot prove ensures contract for exit from incorrect at statement 1: result >= 5
-fail/contracts/assignment_destination_cannot_use_rhs_call_guarantee rejected 1464ms expected @d2f3e99f1e08
+fail/contracts/assignment_destination_cannot_use_rhs_call_guarantee rejected 7105ms expected @8f7188b97d7a
 	cannot prove index `index` is within length 1 in exercise::entry
 fail/contracts/assignment_destination_cannot_use_rhs_match_guard rejected 1464ms expected @d2f3e99f1e08
 	cannot prove index `index` is within length 1 in exercise::entry
@@ -208,13 +222,13 @@ fail/facts/borrowed_scalar_entry_write_invalidation rejected 13559ms expected @3
 	cannot prove ensures contract for exit from preserve at statement 1: value == 4
 fail/facts/build_activation_borrow/call_result rejected 2029ms expected @3a020eca642a
 	root binding requires a compiler-issued &mut Build receiver
-fail/facts/build_activation_borrow/const_name rejected 338ms expected @3a020eca642a
+fail/facts/build_activation_borrow/const_name rejected 255ms expected @8f7188b97d7a
 	machine `build` state `entry` assignment requires mutable source access through every reference crossed by its destination
 fail/facts/build_activation_borrow/field rejected 1113ms expected @3a020eca642a
 	root binding requires a compiler-issued &mut Build receiver
 fail/facts/build_activation_borrow/local rejected 860ms expected @3a020eca642a
 	root binding requires a compiler-issued &mut Build receiver
-fail/facts/build_activation_borrow/match_join rejected 265ms expected @3a020eca642a
+fail/facts/build_activation_borrow/match_join rejected 207ms expected @8f7188b97d7a
 	machine `join` state `entry` assignment requires mutable source access through every reference crossed by its destination
 fail/facts/build_activation_borrow/other_machine rejected 666ms expected @3a020eca642a
 	root binding requires a compiler-issued &mut Build receiver
@@ -1680,6 +1694,29 @@ fail/facts/predicate_type_formation_through_target_body_rejected rejected 1882ms
 	data `Value<bool>` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	data `Value<bool>` case `Integer` literal cannot prove the case constraint: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/private_computed_constant_array_extent_through_call_result_rejected rejected 9877ms expected @8f7188b97d7a
+	cannot prove index `1` is within length 1
+fail/facts/private_computed_constant_array_extent_through_const_name_rejected rejected 9672ms expected @8f7188b97d7a
+	cannot prove index `1` is within length 1
+fail/facts/private_computed_constant_array_extent_through_field_rejected rejected 11470ms expected @8f7188b97d7a
+	cannot prove index `1` is within length 1
+fail/facts/private_computed_constant_array_extent_through_local_rejected rejected 12727ms expected @8f7188b97d7a
+	cannot prove index `1` is within length 1
+fail/facts/private_computed_constant_array_extent_through_match_join_rejected rejected 13512ms expected @8f7188b97d7a
+	cannot prove index `1` is within length 1
+fail/facts/private_computed_constant_array_extent_through_other_machine_rejected rejected 14765ms expected @8f7188b97d7a
+	cannot prove index `1` is within length 1
+fail/facts/private_computed_constant_array_extent_through_other_state_rejected rejected 9702ms expected @8f7188b97d7a
+	cannot prove index `1` is within length 1
+fail/facts/private_computed_constant_array_extent_through_parameter_rejected rejected 9781ms expected @8f7188b97d7a
+	cannot prove index `1` is within length 1
+fail/facts/private_computed_constant_array_extent_through_target_body_rejected rejected 8976ms expected @8f7188b97d7a
+	cannot prove index `1` is within length 1
+	cannot prove index `1` is within length 1
+fail/facts/private_constant_positive_signed_argument_rejected rejected 1298ms expected @8f7188b97d7a
+	const-generic application evaluation failed: constant expression differs from its destination carrier
+fail/facts/private_constant_signed_argument_rejected rejected 1480ms expected @8f7188b97d7a
+	const-generic application evaluation failed: constant invocation of `small` failed checking: machine `@const-invocation` state `@const-invocation` value call to `small` violates required fact `input == -7`: the instantiated fact is structurally false (`-6 == -7`)
 fail/facts/projection_receiver_call_through_call_result_rejected rejected 1669ms expected @73c70115c79e+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/projection_receiver_call_through_const_name_rejected rejected 2261ms expected @73c70115c79e+wt
@@ -2853,6 +2890,9 @@ pass/boundary/static_foreign_scalar_result_locals_exit checked 17698ms check-tar
 pass/boundary/static_opaque_qualifier_exit checked 4171ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/acquired_generator_completed_output_set checked 15684ms check-target:macos_arm64 published:files/companion.txt,files/generated.omg @ccdb99ca2214
 pass/build/activation_borrowed_field_rebind_exit checked 19378ms check-target:macos_arm64 @3a020eca642a
+pass/build/activation_descriptor_forwarded_write_exit checked 13115ms check-target:macos_arm64 @8f7188b97d7a
+pass/build/activation_descriptor_generic_forwarded_write_exit checked 13126ms check-target:macos_arm64 @8f7188b97d7a
+pass/build/activation_descriptor_write_observed_exit checked 9454ms check-target:macos_arm64 @8f7188b97d7a
 pass/build/activation_yields_without_replay checked 3967ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/artifact_only_output checked 3216ms @ccdb99ca2214
 pass/build/artifact_only_required_output_completion checked 7179ms published:files/manifest.txt @ccdb99ca2214
@@ -5095,10 +5135,10 @@ pass/facts/bounded_scalar_sums_through_other_state_exit checked 3459ms check-tar
 pass/facts/bounded_scalar_sums_through_parameter_exit checked 3157ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/bounded_scalar_sums_through_target_body_exit checked 3537ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/build_activation_borrow/call_result checked 17839ms check-target:macos_arm64 @3a020eca642a
-pass/facts/build_activation_borrow/const_name checked 19597ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/const_name checked 9503ms check-target:macos_arm64 @8f7188b97d7a
 pass/facts/build_activation_borrow/field checked 21101ms check-target:macos_arm64 @3a020eca642a
 pass/facts/build_activation_borrow/local checked 15838ms check-target:macos_arm64 @3a020eca642a
-pass/facts/build_activation_borrow/match_join checked 24050ms check-target:macos_arm64 @3a020eca642a
+pass/facts/build_activation_borrow/match_join checked 11708ms check-target:macos_arm64 @8f7188b97d7a
 pass/facts/build_activation_borrow/other_machine checked 18694ms check-target:macos_arm64 @3a020eca642a
 pass/facts/build_activation_borrow/other_state checked 25421ms check-target:macos_arm64 @3a020eca642a
 pass/facts/build_activation_borrow/parameter checked 15952ms check-target:macos_arm64 @3a020eca642a
@@ -8659,6 +8699,17 @@ pass/facts/predicate_type_formation_through_other_machine_exit checked 6122ms ch
 pass/facts/predicate_type_formation_through_other_state_exit checked 7660ms check-target:macos_arm64 @62ce026b5931+wt
 pass/facts/predicate_type_formation_through_parameter_exit checked 5004ms check-target:macos_arm64 @62ce026b5931+wt
 pass/facts/predicate_type_formation_through_target_body_exit checked 6145ms check-target:macos_arm64 @62ce026b5931+wt
+pass/facts/private_computed_constant_array_extent_through_call_result_exit checked 14269ms check-target:macos_arm64 @8f7188b97d7a
+pass/facts/private_computed_constant_array_extent_through_const_name_exit checked 12228ms check-target:macos_arm64 @8f7188b97d7a
+pass/facts/private_computed_constant_array_extent_through_field_exit checked 11520ms check-target:macos_arm64 @8f7188b97d7a
+pass/facts/private_computed_constant_array_extent_through_local_exit checked 11673ms check-target:macos_arm64 @8f7188b97d7a
+pass/facts/private_computed_constant_array_extent_through_match_join_exit checked 12507ms check-target:macos_arm64 @8f7188b97d7a
+pass/facts/private_computed_constant_array_extent_through_other_machine_exit checked 16257ms check-target:macos_arm64 @8f7188b97d7a
+pass/facts/private_computed_constant_array_extent_through_other_state_exit checked 14903ms check-target:macos_arm64 @8f7188b97d7a
+pass/facts/private_computed_constant_array_extent_through_parameter_exit checked 12724ms check-target:macos_arm64 @8f7188b97d7a
+pass/facts/private_computed_constant_array_extent_through_target_body_exit checked 13724ms check-target:macos_arm64 @8f7188b97d7a
+pass/facts/private_constant_positive_signed_argument_exit checked 12012ms check-target:macos_arm64 @8f7188b97d7a
+pass/facts/private_constant_signed_argument_exit checked 11270ms check-target:macos_arm64 @8f7188b97d7a
 pass/facts/progress_selector_nested_arrival_through_call_result_exit rejected 2873ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
 pass/facts/progress_selector_nested_arrival_through_const_name_exit rejected 2633ms check-target:macos_arm64 @ccdb99ca2214
@@ -15417,7 +15468,7 @@ fail/borrows/returned_review_keeps_original_backing_loan rejected 2289ms expecte
 	statement 1 mutates `main.source.second` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 fail/borrows/returned_shared_reference_case_write rejected 1353ms expected @ccdb99ca2214
 	machine `fill` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/borrows/returned_slice_record_reference_cannot_widen_access rejected 1233ms expected @ccdb99ca2214
+fail/borrows/returned_slice_record_reference_cannot_widen_access rejected 1770ms expected @8f7188b97d7a
 	machine `forbid` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
 fail/borrows/returned_slice_record_reference_conflict rejected 2515ms expected @ccdb99ca2214
 	state `selected` receives `events` while local borrow `first` is still active (borrowed at statement 2; its last use is at statement 4)
@@ -16782,7 +16833,7 @@ fail/contracts/indexed_store_destination_cannot_use_rhs_guarantee rejected 2874m
 	cannot prove requires contract for call select from main: flag == 1 (needs fact `flag == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/indexed_store_retires_old_element_observation rejected 2008ms expected @ccdb99ca2214
 	cannot prove requires contract for call equal from main: before == bytes[0] (needs fact `before == after` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/contracts/indexed_store_selector_write_retires_rhs_fact rejected 1779ms expected @ccdb99ca2214
+fail/contracts/indexed_store_selector_write_retires_rhs_fact rejected 5003ms expected @8f7188b97d7a
 	cannot prove requires contract for call replacement from main: flag == 1 (needs fact `flag == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/indexed_store_unknown_call_retires_entry_postcondition rejected 2099ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from preserve at statement 1: counter == 0
@@ -31415,8 +31466,8 @@ fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 2392ms e
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_multi_origin_reference_requires_fit rejected 2038ms expected @ccdb99ca2214
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
-fail/layouts/callee_integer_at_rhs_exposes_origin rejected 672ms expected @fc1b208d9402
-	cannot establish assignment invariants: performed write has unknown destination origins in machine `Main::main` state `main` at statement 3
+fail/layouts/callee_integer_at_rhs_exposes_origin rejected 2530ms expected @8f7188b97d7a
+	cannot establish assignment invariants: performed write has unknown destination origins in machine `Main::main` state `main` at statement 3: assignment operand does not preserve the captured storage prefix
 fail/layouts/callee_integer_at_stored_returned_reference_requires_fit rejected 2724ms expected @ccdb99ca2214
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_write_requires_fit rejected 1937ms expected @ccdb99ca2214
