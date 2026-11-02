@@ -102,11 +102,12 @@ jobs:
           root = pathlib.Path('build/compiler-pilot')
           cli = next(root.glob('producer-*/omega'))
           artifact = next(root.glob('artifacts-*/both/pass/facts/fixed_layout_byte_roundtrip_through_local_exit/linux_x86_64/terminal.psi'))
-          result = subprocess.run([str(cli), 'inspect-terminal', '--machine', 'main', '--target', 'linux_x86_64', 'tests/omega/pass/facts/fixed_layout_byte_roundtrip_through_local_exit/main.omg'], capture_output=True, text=True, timeout=60)
+          result = subprocess.run([str(cli), 'inspect-terminal', '--artifact', str(artifact)], capture_output=True, text=True, timeout=60)
           (root / 'decoder-operations.txt').write_text(result.stdout + result.stderr)
           print('inspection exit', result.returncode)
           print(result.stderr)
           print('\n'.join(line for line in result.stdout.splitlines() if 'machine:25' in line or 'operation:291' in line))
+          raise SystemExit(result.returncode)
           PY
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '')

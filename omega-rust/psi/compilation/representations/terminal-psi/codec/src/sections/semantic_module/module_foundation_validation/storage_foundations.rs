@@ -338,15 +338,19 @@ pub(super) fn validate_establish_reference(
                 source_path,
             )
         });
-    if !ancestors_preserved
-        || result.multiplicity != StructuralMultiplicity::Affine
+    if !ancestors_preserved {
+        return malformed("reference establishment cannot preserve source ancestor obligations");
+    }
+    if !compatible {
+        return malformed("reference establishment has incompatible source storage geometry");
+    }
+    if result.multiplicity != StructuralMultiplicity::Affine
         || !result.qualifications.is_empty()
         || !result.claims.is_empty()
         || *access != source.access
         || source.access == StructuralAccess::Owned
-        || !compatible
     {
-        return malformed("reference establishment has inconsistent custody");
+        return malformed("reference establishment has inconsistent carrier ownership or access");
     }
     Ok(())
 }
@@ -533,7 +537,7 @@ fn validate_reference_membership(
         || *access != StructuralAccess::SharedBorrow)
         && !memberships_match
     {
-        return malformed("reference establishment has inconsistent custody");
+        return malformed("reference establishment cannot retain source membership obligations");
     }
     Ok(())
 }
