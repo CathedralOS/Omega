@@ -4,11 +4,11 @@
 data Packet<'bytes> [copy] { bytes: &'bytes [u8]; }
 trait Windowing {
     machine window<Width: u32>(source: &Packet) -> Packet
-    where Width == 16 || Width == 32;
+    requires Width == 16 || Width == 32;
 }
 Header satisfies Windowing {
     machine window<Width: u32>(source: &Packet) -> Packet
-    where Width == 16 || Width == 32 {
+    requires Width == 16 || Width == 32 {
         let local: [u8; 3] = [11, 22, 33];
         Packet { bytes: &local[..] }
     }

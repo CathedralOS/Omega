@@ -1,0 +1,1 @@
+machine `distance` state `entry` assignment cannot write `value` because it is not mutable in this state

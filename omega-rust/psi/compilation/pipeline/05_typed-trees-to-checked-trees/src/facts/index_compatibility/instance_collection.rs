@@ -440,6 +440,51 @@ pub(super) fn instance_from_constraint(
     }
 }
 
+/// The laws each distinct selected operation in `arguments` records, one clause
+/// per requirement. A rejected compatibility names what licensed normalization
+/// could have consumed, so a missing law reads as one instead of leaving the
+/// reader to guess which of commutativity, associativity or distributivity the
+/// two expressions needed.
+pub(super) fn selected_operation_licenses(
+    program: &dyn ::validation::CheckingInput,
+    arguments: impl Iterator<Item = TypeReferenceHandle>,
+) -> Vec<String> {
+    let mut licenses = Vec::new();
+    for argument in arguments {
+        let TypeReferenceNode::ConstExpression(expression) =
+            program.type_reference_table.type_reference(argument)
+        else {
+            continue;
+        };
+        for operation in expressions(program).open_index_operations(*expression) {
+            let mut laws = Vec::new();
+            if operation.commutativity_licensed {
+                laws.push("commutativity".to_owned());
+            }
+            if operation.associativity_licensed {
+                laws.push("associativity".to_owned());
+            }
+            for addition in &operation.distributes_over {
+                laws.push(format!("distributivity over `{addition}`"));
+            }
+            let clause = format!(
+                "`{}` of `{}` licenses {}",
+                operation.algebra_requirement,
+                program.symbols.display_path(operation.algebra_trait, "::"),
+                if laws.is_empty() {
+                    "no law".to_owned()
+                } else {
+                    laws.join(", ")
+                }
+            );
+            if !licenses.contains(&clause) {
+                licenses.push(clause);
+            }
+        }
+    }
+    licenses
+}
+
 pub(super) fn selected_operation_count(
     program: &dyn ::validation::CheckingInput,
     arguments: impl Iterator<Item = TypeReferenceHandle>,

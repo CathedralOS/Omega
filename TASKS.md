@@ -315,7 +315,7 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 58 `samples/cli/facts/*/target_body` places still spell the
+    Frontier: 57 `samples/cli/facts/*/target_body` places still spell the
     prefix.
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
@@ -402,10 +402,13 @@ retired-syntax deletions to completion.
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
   [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
   [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-  - Extend `OpenIndexOperationSelection` in
-    `omega-rust/psi/compilation/checking/src/value_custody/type_references/open_index_expressions.rs`
-    with distributivity and zero/one law evidence surviving
-    `monomorphization::finalize_domain_instance_identities`.
+  - Record zero/one identity law evidence on `OpenIndexOperationSelection`
+    (`omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/values/expression/index_authority.rs`),
+    normalize `N + 0` and `N * 1` under it, and carry it through
+    `monomorphization::finalize_domain_instance_identities`. The law shape
+    waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 4; question 5
+    asks whether the landed distributivity expansion advances the normalizer
+    version.
   - Migrate library/corpus/embedded declarations off the `operator` introducer
     ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
@@ -717,8 +720,9 @@ helper that passes does not close an item.
   [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
   end to end and retire `where` from Omega source syntax, without a permanent
   compatibility spelling or weaker proof obligations.
-  - Implement `requires` for generic predicates and type equations on machines
-    and traits, quotient equivalence selection (`where equivalent satisfies`),
+  - Implement `requires` for machine type equations (the Rust producer still
+    recovers generic arguments only from a machine header's `where` facts),
+    quotient equivalence selection (`where equivalent satisfies`),
     `where proposition` premises, and structural/nominal `requires machine`
     contracts in both Rust and Omega producers. Preserve logical `self`, binder-kind
     inference, static/runtime distinctions, specialization and exact subjects;
@@ -1767,7 +1771,7 @@ defines the complete product bar.
     (`omega-rust/omega/packages/compilation-inputs/src/build_execution/build_value/configuration.rs`),
     with package-local satisfaction discovery, separate runner roots, and
     Terminal Psi + native execution in `omega-rust/omega/compilation/driver/`.
-  - Extend `omega-rust/omega/compilation/build-evaluation/src/admitted_build_program.rs`
+  - Extend `omega-rust/omega/compilation/build-evaluation/src/admission/program.rs`
     and `omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`
     to carry group-scoped providers, ordinary fixture storage, fresh mock state,
     and lock-reviewed test authority without automatic mutable context

@@ -20,7 +20,7 @@ machine issue(value: u64 in Wrapping) -> Token in Token::Issued {
 }
 
 trait Shape<T> {
-    machine code<Width: u32>(subject: &mut T, packet: Packet) where Width == 16 || Width == 32 || Width == 64;
+    machine code<Width: u32>(subject: &mut T, packet: Packet) requires Width == 16 || Width == 32 || Width == 64;
     machine poke(subject: &mut T, packet: Packet);
 }
 
@@ -42,12 +42,12 @@ machine Item::lifted_code<Width: u32>(item: &mut Item, packet: Packet) satisfies
 }
 
 Primary satisfies Shape<Item> {
-    machine code<Width: u32>(subject: &mut Item, packet: Packet) where Width == 16 || Width == 32 || Width == 64 { Item::code<Width>(subject, packet) }
+    machine code<Width: u32>(subject: &mut Item, packet: Packet) requires Width == 16 || Width == 32 || Width == 64 { Item::code<Width>(subject, packet) }
     machine poke(subject: &mut Item, packet: Packet) { Item::poke(subject, packet) }
 }
 
 Bumped satisfies Shape<Item> {
-    machine code<Width: u32>(subject: &mut Item, packet: Packet) where Width == 16 || Width == 32 || Width == 64 { Item::lifted_code<Width>(subject, packet) }
+    machine code<Width: u32>(subject: &mut Item, packet: Packet) requires Width == 16 || Width == 32 || Width == 64 { Item::lifted_code<Width>(subject, packet) }
     machine poke(subject: &mut Item, packet: Packet) { Item::poke(subject, packet) }
 }
 

@@ -139,3 +139,15 @@ pub struct SelectedInstructionPlan {
     pub entry: MachineId,
     pub functions: SelectedFunctions,
 }
+
+/// The current selected program as the stages after register allocation read
+/// it: the plan and the identities its producing stage admitted it under. The
+/// selected-optimization stage hands this out from its sealed analysis
+/// surface; later stages read this representation, not that surface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CurrentSelectedProgram<'plan> {
+    pub plan: &'plan SelectedInstructionPlan,
+    pub identity: SelectedInstructionPlanIdentity,
+    pub optimization_unit: optimization_core::OptimizationUnitIdentity,
+    pub fuel_schedule: FuelScheduleIdentity,
+}
