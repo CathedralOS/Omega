@@ -130,13 +130,7 @@ impl ComponentPublication {
         accounting: &mut build_time_evaluation::SourceCompletionAccounting,
     ) -> Result<(), Vec<Diagnostic>> {
         let execution = self.checked.execution();
-        if execution
-            .provider_source
-            .program()
-            .facts
-            .proof_applications
-            .has_obligations
-        {
+        if execution.has_proof_obligations {
             let profile = execution
                 .selected_target_profile
                 .unwrap_or_else(target::TargetProfile::host);
@@ -151,7 +145,7 @@ impl ComponentPublication {
         }
         crate::execution_settlement::check_terminal_task_activations(
             produced.artifact.view().module(),
-            execution.provider_source.plans(),
+            execution.plans(),
             execution.selected_target_profile,
         )
     }
@@ -223,7 +217,7 @@ fn describe_component(
     // separate native description once image emission supplies those facts.
     let (expected_subject, description) = publish_component_description(ComponentDescriptionFacts {
         artifact,
-        selected_provider_plans: checked.execution().provider_source.plans(),
+        selected_provider_plans: checked.execution().plans(),
         stack_demand: None,
         realization_identity: None,
     })

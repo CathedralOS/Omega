@@ -244,26 +244,6 @@ pub(super) fn reference_local_borrow_loans(
         .collect()
 }
 
-/// Finds only an explicit borrow possibly wrapped in reference-carrier casts.
-/// Typed trees normalize the implicit mutable-to-shared attenuation cast to
-/// `Value`, so the stable discriminator here is its reference target and lack
-/// of a semantic-domain retag. Numeric/domain casts and helper-returned views
-/// remain derived and unretained.
-pub(super) fn direct_reborrow_target(
-    program: &dyn ::validation::CheckingInput,
-    expression: ExpressionHandle,
-) -> Option<ExpressionHandle> {
-    match program.expression_table.expression(expression) {
-        checked_trees::expression::ExpressionNode::Borrow(inner) => Some(inner.target),
-        checked_trees::expression::ExpressionNode::Cast(cast)
-            if is_reference_type(program, cast.target_type) && cast.semantic_domain.is_empty() =>
-        {
-            direct_reborrow_target(program, cast.value)
-        }
-        _ => None,
-    }
-}
-
 /// The sealed placed factory forms a borrow from its captured source; it does
 /// not return a descriptor whose parent was lost at an ordinary call boundary.
 pub(super) fn is_access_formation(

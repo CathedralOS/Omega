@@ -4,7 +4,7 @@ use super::evidence::{
 };
 use super::memberships::require_declaration_membership;
 use crate::capture::EvidenceOption;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::expressions::projection::project_contract_expression;
 use crate::capture::contracts::propositions::application::project_contract_proposition;
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
@@ -72,7 +72,7 @@ pub(crate) fn trait_contract_exposure(
 }
 
 pub(crate) fn project_callable_contracts(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     machine: &typed_trees::machine::Machine,
     entry: &typed_trees::state::State,
     binders: &[(SymbolHandle, String)],
@@ -104,7 +104,7 @@ pub(crate) fn project_callable_contracts(
 }
 
 pub(crate) fn project_trait_requirement_contracts(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     requirement: &typed_trees::signature::StateSignature,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
@@ -121,20 +121,16 @@ pub(crate) fn project_trait_requirement_contracts(
 /// source set without one cannot name the package its facts belong to, so the
 /// refusal is one owner instead of a copy at each projection site.
 pub(crate) fn reviewed_package(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     subject: &str,
 ) -> Result<PackageKeyIdentity, Vec<Diagnostic>> {
-    compilation
-        .custody
-        .sources()
-        .package_identity()
-        .or_evidence(format!(
-            "{subject} review requires package-aware checked compilation"
-        ))
+    compilation.package.or_evidence(format!(
+        "{subject} review requires package-aware checked compilation"
+    ))
 }
 
 pub(crate) fn project_contracts(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     contracts: &[typed_trees::signature::SignatureContract],
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],

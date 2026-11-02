@@ -1,6 +1,6 @@
 //! Exact authored crash guards in policy-only nested static signatures.
 
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::facts::exactly_one;
 use crate::record::{
@@ -12,7 +12,7 @@ use typed_trees::signature::StateSignature;
 use typed_trees_to_checked_trees::derive_authored_signature_crash_buckets;
 
 pub(crate) fn project(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     owner: SymbolHandle,
     signature: &StateSignature,
     context: &ContractProjectionContext<'_>,

@@ -22,15 +22,6 @@ pub(crate) fn parse_machine_parameter_contracts<'tokens, 'source>(
 ) -> ParseResult<'tokens, 'source, ()> {
     let mut input = input;
     loop {
-        if input.at_contextual("where")
-            && input
-                .take_contextual("where")?
-                .at_keyword(KeywordKind::Machine)
-        {
-            return Err(input.error_here(
-                "`where machine` is retired; write `requires machine` with its complete contract and terminating semicolon",
-            ));
-        }
         if !input.at_contextual("requires") {
             break;
         }

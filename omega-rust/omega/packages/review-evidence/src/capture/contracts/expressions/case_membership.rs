@@ -7,7 +7,7 @@
 //! structural equality in proof facts retains its authored operator and does not
 //! require exporting a generated Boolean expansion into the review format.
 
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::declarations::nominal_identity;
 use crate::capture::semantics::facts::exactly_one;
@@ -21,7 +21,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, TableBinaryExpre
 use validation::has_exact_data_case_membership_meaning;
 
 pub(super) fn is_case_membership(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     expression: ExpressionHandle,
     binary: &TableBinaryExpression,
 ) -> bool {
@@ -43,7 +43,7 @@ pub(super) fn is_case_membership(
 }
 
 pub(super) fn checked_case_classifier(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: ExpressionHandle,
     binary: &TableBinaryExpression,

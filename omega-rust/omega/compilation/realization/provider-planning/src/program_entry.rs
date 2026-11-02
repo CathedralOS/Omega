@@ -272,6 +272,28 @@ pub struct PreparedCompilerProgramEntry {
 }
 
 impl PreparedCompilerProgramEntry {
+    /// Save the services this entry can call before target binding drops source.
+    pub fn service_requirements(
+        &self,
+        checked: &checked_trees::CheckedTrees,
+    ) -> Vec<symbols::SymbolHandle> {
+        let reaches = &checked.facts.service_reaches;
+        let Some(reach) = reaches.for_machine(self.declaration.machine) else {
+            return Vec::new();
+        };
+        let published = match reach.interface {
+            language_semantics::ServiceReachInterface::PublishedCeiling(row) => Some(row),
+            language_semantics::ServiceReachInterface::InternalInferred => None,
+        };
+        published
+            .into_iter()
+            .chain([reach.inferred_transitive, reach.concrete_transitive])
+            .flat_map(|row| reaches.rows.services(row))
+            .filter_map(|&service| reaches.services.definition(service))
+            .map(|definition| definition.symbol)
+            .collect()
+    }
+
     pub fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
         &self.declaration.signature
     }

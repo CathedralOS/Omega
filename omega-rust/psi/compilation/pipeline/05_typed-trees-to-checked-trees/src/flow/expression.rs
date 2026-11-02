@@ -1139,7 +1139,12 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 },
             );
         }
-        self.retain_descriptor_permission(&mut capture, constraints);
+        // Replacing the final reference cell locates its storage without
+        // reading its old pointer. Receivers crossed to reach that cell, and
+        // ordinary value captures, still retain their pointer-read permission.
+        if expression != self.reference_slot_target {
+            self.retain_descriptor_permission(&mut capture, constraints);
+        }
         capture
     }
 

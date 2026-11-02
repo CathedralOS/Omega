@@ -35,7 +35,7 @@ fn assert_in_order(source: &str, owner: &str, operations: &[&str]) {
 
 #[test]
 fn readiness_retains_live_jobs_without_recursive_source_execution() {
-    let source = include_str!("build_execution/source_resolution/readiness.rs");
+    let source = include_str!("compile/build_execution/source_resolution/readiness.rs");
     let scheduler = source
         .split_once("fn drive_work(")
         .unwrap()
@@ -57,7 +57,7 @@ fn readiness_retains_live_jobs_without_recursive_source_execution() {
 
 #[test]
 fn readiness_prepares_helper_products_without_recursive_dependency_calls() {
-    let source = include_str!("build_execution/source_resolution/readiness.rs");
+    let source = include_str!("compile/build_execution/source_resolution/readiness.rs");
     let preparation = source
         .split_once("fn prepare_product(")
         .expect("helper Product entrance")
@@ -75,7 +75,7 @@ fn readiness_prepares_helper_products_without_recursive_dependency_calls() {
 #[test]
 fn package_audit_owns_session_and_target_execution_in_build() {
     assert_in_order(
-        include_str!("package_inspection.rs"),
+        include_str!("package/package_inspection.rs"),
         "package audit",
         &[
             "PackageInspectionTransaction::open(options)",
@@ -117,7 +117,7 @@ fn review_policy_admits_work_and_application_executes_it() {
             "PendingReviewBuild",
         ],
     );
-    let execution = include_str!("package_review.rs");
+    let execution = include_str!("package/package_review.rs");
     assert_absent(
         &[execution],
         "application bypasses the review round:",
@@ -134,7 +134,7 @@ fn review_policy_admits_work_and_application_executes_it() {
 #[test]
 fn package_commands_schedule_work_outside_package_policy() {
     assert_in_order(
-        include_str!("package_commands.rs"),
+        include_str!("package/package_commands.rs"),
         "package commands",
         &[
             "PackageCommandTransaction::open(options)",
@@ -156,17 +156,23 @@ fn package_commands_schedule_work_outside_package_policy() {
 #[test]
 fn application_depends_on_facades_not_language_stages() {
     assert_absent(
-        &[include_str!("../../../application/cli/src/cli/compilation.rs")],
+        &[include_str!(
+            "../../../application/cli/src/cli/compilation.rs"
+        )],
         "CLI reaches behind Build:",
         &["publish_compilation("],
     );
     assert_absent(
-        &[include_str!("../../../application/cli/src/execution/compilation.rs")],
+        &[include_str!(
+            "../../../application/cli/src/execution/compilation.rs"
+        )],
         "CLI reaches behind Build:",
         &["compiler::compile("],
     );
     assert_absent(
-        &[include_str!("../../../application/cli/src/inspection/mod.rs")],
+        &[include_str!(
+            "../../../application/cli/src/inspection/mod.rs"
+        )],
         "CLI reaches behind Build:",
         &["CompilationSession::default()"],
     );
@@ -176,7 +182,7 @@ fn application_depends_on_facades_not_language_stages() {
 fn source_and_package_execution_have_one_application_owner() {
     assert_absent(
         &[
-            include_str!("../../../compilation/compiler/src/compiler.rs"),
+            include_str!("../../../compilation/compiler/src/target_batch.rs"),
             include_str!("../../../compilation/compiler/src/checked/checking.rs"),
             include_str!("../../../compilation/compiler/src/checked/compilation_session.rs"),
         ],
@@ -187,7 +193,7 @@ fn source_and_package_execution_have_one_application_owner() {
 
 #[test]
 fn application_completes_native_products_without_source_continuations() {
-    let completion = include_str!("native_completion.rs");
+    let completion = include_str!("compile/native_completion.rs");
     assert_in_order(
         completion,
         "native completion",
@@ -225,13 +231,13 @@ fn build_entrance_shows_the_ordered_project_lifecycle() {
 
 #[test]
 fn ordinary_package_operations_admit_instead_of_execute() {
-    let execution = include_str!("project_compilation.rs");
+    let execution = include_str!("project/project_compilation.rs");
     assert_in_order(
         execution,
         "project compilation",
         &[
             "package_manager::operations::admit_project_products(",
-            "crate::package_compilation::compile_packages(",
+            "crate::package::package_compilation::compile_packages(",
             ".complete(products, &mut session.packages)",
         ],
     );
@@ -247,10 +253,10 @@ fn application_owns_the_compiler_separately_from_package_resources() {
     );
     assert_absent(
         &[
-            include_str!("package_commands.rs"),
-            include_str!("package_inspection.rs"),
-            include_str!("project_compilation.rs"),
-            include_str!("build_execution/source_resolution.rs"),
+            include_str!("package/package_commands.rs"),
+            include_str!("package/package_inspection.rs"),
+            include_str!("project/project_compilation.rs"),
+            include_str!("compile/build_execution/source_resolution.rs"),
         ],
         "application entrance builds its own compiler:",
         &["CompilationSession::default()"],
@@ -261,10 +267,10 @@ fn application_owns_the_compiler_separately_from_package_resources() {
 fn application_schedules_dependencies_without_opening_source_continuations() {
     assert_absent(
         &[
-            include_str!("build_execution.rs"),
-            include_str!("package_compilation.rs"),
-            include_str!("build_execution/source_resolution.rs"),
-            include_str!("build_execution/source_resolution/readiness.rs"),
+            include_str!("compile/build_execution.rs"),
+            include_str!("package/package_compilation.rs"),
+            include_str!("compile/build_execution/source_resolution.rs"),
+            include_str!("compile/build_execution/source_resolution/readiness.rs"),
         ],
         "application opens source:",
         &[

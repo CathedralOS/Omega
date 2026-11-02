@@ -119,4 +119,4 @@ pub(super) fn resolve_services<'a>(
     Ok(services)
 }
 
-refusal!(pub(super) reason, "terminal permission review rejects {reason}");
+refusal!(pub(crate) reason, "terminal permission review rejects {reason}");

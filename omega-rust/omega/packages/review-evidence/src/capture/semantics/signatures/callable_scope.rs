@@ -1,7 +1,7 @@
 //! Attached owner hooks use their data declaration's telescope. Independent
 //! selected cleanup machines retain their own ordinary declaration scope.
 
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use diagnostics::Diagnostic;
 use std::borrow::Cow;
 use typed_trees::{data::TypeParameter, machine::Machine, name::Identifier};
@@ -10,11 +10,11 @@ pub(crate) struct CallableDeclarationScope<'a> {
     pub(crate) type_parameters: Cow<'a, [TypeParameter]>,
     pub(crate) lifetime_parameters: Cow<'a, [Identifier]>,
     /// The table and source owner of handles inside this telescope.
-    pub(crate) source: PackageReviewInput<'a>,
+    pub(crate) source: SourceDeclarationInput<'a>,
 }
 
 pub(crate) fn callable_declaration_scope<'a>(
-    compilation: &'a PackageReviewInput<'_>,
+    compilation: &'a SourceDeclarationInput<'_>,
     machine: &'a Machine,
 ) -> Result<CallableDeclarationScope<'a>, Vec<Diagnostic>> {
     let rejected = |reason| {
@@ -24,7 +24,8 @@ pub(crate) fn callable_declaration_scope<'a>(
         ))]
     };
     let owner = validation::nominal_cleanup_owner(compilation.checking_input, machine.symbol);
-    let checked_owner = validation::nominal_cleanup_owner(&**compilation.custody, machine.symbol);
+    let checked_owner =
+        validation::nominal_cleanup_owner(compilation.original_program, machine.symbol);
     if owner != checked_owner {
         return Err(rejected(
             "a nominal cleanup owner differing from checked declaration custody",
@@ -45,14 +46,14 @@ pub(crate) fn callable_declaration_scope<'a>(
         });
     };
     let checked_machine = compilation
-        .custody
+        .original_program
         .machine(machine.symbol)
         .ok_or_else(|| rejected("a nominal cleanup hook absent from checked custody"))?;
     if !machine.lifetime_parameters.is_empty()
         || !compilation.machine_type_parameters(machine).is_empty()
         || !checked_machine.lifetime_parameters.is_empty()
         || !compilation
-            .custody
+            .original_program
             .machine_type_parameters(checked_machine)
             .is_empty()
     {
@@ -62,10 +63,12 @@ pub(crate) fn callable_declaration_scope<'a>(
         .unique_data_definition_by_symbol(owner)
         .ok_or_else(|| rejected("a missing or ambiguous nominal cleanup data owner"))?;
     let checked_definition = compilation
-        .custody
+        .original_program
         .unique_data_definition_by_symbol(owner)
         .ok_or_else(|| rejected("a nominal cleanup data owner absent from checked custody"))?;
-    let checked_parameters = compilation.custody.data_type_parameters(checked_definition);
+    let checked_parameters = compilation
+        .original_program
+        .data_type_parameters(checked_definition);
     if definition.lifetime_parameters != checked_definition.lifetime_parameters
         || compilation.data_type_parameters(definition) != checked_parameters
     {
@@ -79,6 +82,6 @@ pub(crate) fn callable_declaration_scope<'a>(
     Ok(CallableDeclarationScope {
         type_parameters: Cow::Borrowed(checked_parameters),
         lifetime_parameters: Cow::Borrowed(&checked_definition.lifetime_parameters),
-        source: compilation.custody.into(),
+        source: compilation.original(),
     })
 }

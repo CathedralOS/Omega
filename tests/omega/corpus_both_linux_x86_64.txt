@@ -8,6 +8,7 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/borrows/borrowed_reference_field_read_and_write_exit built 8133ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 pass/borrows/collection_metadata_descriptor_storage_exit built 14682ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
 pass/borrows/runtime_byte_case_partial_cleanup_exit built 15056ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
 pass/borrows/runtime_exclusive_byte_field_cleanup_exit built 15242ms exit:0 interpreter-exit:0 interpreter:agrees @60b8f1171d45
@@ -5535,6 +5536,15 @@ pass/facts/write_only_recast_through_other_machine_exit built 3140ms exit:0 inte
 pass/facts/write_only_recast_through_other_state_exit built 2979ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/write_only_recast_through_parameter_exit built 2571ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/write_only_recast_through_target_body_exit built 3254ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/facts/write_only_reference_store_through_call_result_exit built 8216ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_const_name_exit built 8172ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_field_exit built 8128ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_local_exit built 7980ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_match_join_exit built 8014ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_other_machine_exit built 8367ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_other_state_exit built 8331ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_parameter_exit built 8298ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
+pass/facts/write_only_reference_store_through_target_body_exit built 8294ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 pass/facts/zero_byte_erased_carrier_through_call_result_exit built 3468ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/zero_byte_erased_carrier_through_const_name_exit built 3448ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/facts/zero_byte_erased_carrier_through_field_exit built 3389ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

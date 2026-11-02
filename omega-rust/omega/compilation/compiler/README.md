@@ -2,7 +2,7 @@
 
 [lib.rs](src/lib.rs) exposes opaque source preparation and exact-return completion
 for any supplied target count. Application
-[`compile_sources`](../../compilation/build/src/source_compilation.rs) owns the
+[`compile_sources`](../../compilation/build/src/compile/source_compilation.rs) owns the
 one-shot `CompileRequest` lifecycle and executes Build between those calls.
 The coordinator sequences typed owner results; it does
 not implement package loading, build evaluation, transformation algorithms or
@@ -24,7 +24,7 @@ for those contracts. Reports and publication come from `compilation-products`;
 there is no compiler-owned `report` or `artifact_publication` module. Root-level
 request/result exports remain conveniences for the compilation entrypoints.
 
-[compiler.rs](src/compiler.rs) prepares request admission and one pending
+[target_batch.rs](src/target_batch.rs) prepares request admission and one pending
 source/Build prefix; completion joins its actual return before Check / Terminal /
 Native product dispatch. It settles all
 targets before producing Terminal. Targets with the same checked source owner,
@@ -38,7 +38,7 @@ outputs. It is not a second public entrypoint for compiling an existing Terminal
 artifact. That source-free operation is
 [`native_production::prepare`](../native-production/src/preparation.rs), followed
 by canonical scalar completion and
-[`native_production::compile`](../native-production/src/compiler.rs). Preparation
+[`native_production::compile`](../native-production/src/compile.rs). Preparation
 retains the Terminal artifact and explicit realization inputs; compilation consumes
 that same prepared work after its scalar demands have been completed. The native
 compiler does not call an interpreter or reopen source.
@@ -100,9 +100,9 @@ reports belong to their product owners.
 
 Application Build requests package admission, then schedules dependency-ordered
 `PackageCompilationRequest`s in
-[`compile_packages`](../../compilation/build/src/package_compilation.rs), with the
+[`compile_packages`](../../compilation/build/src/package/package_compilation.rs), with the
 requested product and root permission consent supplied up front. Its
-[Build execution owner](../../compilation/build/src/build_execution.rs) advances
+[Build execution owner](../../compilation/build/src/compile/build_execution.rs) advances
 dependency frontiers, joins generated outputs and waits for demanded independent
 components before their consumers advance. The compiler no longer schedules that
 dependency loop. Its [package facade](src/checked/package_compilation.rs) prepares
@@ -112,7 +112,7 @@ component/product batches. Application code cannot extract the source continuati
 component executable custody remains in this session. Package management supplies
 custody, consent and staging, not compiler calls or continuation tables.
 Independent-component requests, including lazy review descriptions, enter the
-same [product sequence](src/compiler.rs) as root products. The
+same [product sequence](src/target_batch.rs) as root products. The
 [component owner](src/product_execution/component.rs) prepares its existing
 checked custody and completes its description and permission evidence after
 shared Terminal production; it owns no separate batch loop or compiler entry.
@@ -291,7 +291,7 @@ so equal checked programs produce Terminal Psi once before native realization.
 
 [Product completion](src/product_execution.rs) finishes the retained Terminal
 application and supplies explicit component, permission and image inputs to
-[`native_production::compile`](../native-production/src/compiler.rs). That
+[`native_production::compile`](../native-production/src/compile.rs). That
 source-free entrance owns component emission, exact receiver-call admission,
 root emission and component runtime retention. Product coordination does not
 emit components or join native call settlements itself.
@@ -538,7 +538,7 @@ The [native compiler](../native-production/README.md) consumes canonical Termina
 inputs. Its public contracts are [boundary realization](../../../../wiki/spec/terminal-psi/boundary_calls.md),
 [private callbacks](../../../../wiki/spec/build/private_callbacks.md), and
 [component publication](../../../../wiki/spec/build/component_publication.md).
-Start at [compiler.rs](../native-production/src/compiler.rs):
+Start at [compile.rs](../native-production/src/compile.rs):
 validate scope and entry, obtain the abstract input, admit providers, emit the
 object, and assemble the image. One `NativeCompileRequest` carries the image
 request, optimization selections, admitted imports, component calls and authority policies.

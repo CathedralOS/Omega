@@ -3,7 +3,7 @@
 Start at [`src/package_manager.rs`](src/package_manager.rs): recover the project
 transaction, admit install/update/resume requests, resolve the candidate,
 and reconcile findings for publication. Application Build's
-[`package_commands.rs`](../../compilation/build/src/package_commands.rs) runs
+[`package_commands.rs`](../../compilation/build/src/package/package_commands.rs) runs
 the target-review loop. Compiler preparation and read-only inspection have
 separate entrances in [`operations`](src/operations/mod.rs).
 
@@ -205,7 +205,7 @@ lock meaning is distinct from actual invocation grants.
 
 The top-level invocation owns one `PackageBuildSession` across its review
 targets and rounds. Application Build's
-[`package_inspection.rs`](../../compilation/build/src/package_inspection.rs)
+[`package_inspection.rs`](../../compilation/build/src/package/package_inspection.rs)
 creates and disposes the audit's owner and executes its ordered target roster.
 The CLI's
 [`packages::run`](../../application/cli/src/cli/packages/mod.rs) retains the
@@ -232,7 +232,7 @@ progress, not an accepted root-wide review.
 Its [`occurrences.rs`](src/review/candidate/passes/occurrences.rs) admits each
 build/product occurrence and joins compiler evidence, using the same roster as
 lock comparison and reconstruction. Application Build's
-[`package_review.rs`](../../compilation/build/src/package_review.rs) owns the
+[`package_review.rs`](../../compilation/build/src/package/package_review.rs) owns the
 dependency loop, compiler calls and cache-miss recovery. Acquisition and parsed
 source are shared; checked targets,
 generated bundles, bindings, component descriptions and reviews are not.

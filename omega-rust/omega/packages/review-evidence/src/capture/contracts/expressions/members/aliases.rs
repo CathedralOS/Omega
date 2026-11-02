@@ -1,12 +1,12 @@
 //! Rejoin resolver-seeded attached field aliases to their exact declarations.
 
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use checked_trees::ContractProofFactOwner;
 use symbols::{SymbolHandle, SymbolKind};
 
 pub(super) fn attached_field(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     expected: SymbolHandle,
     selected: SymbolHandle,

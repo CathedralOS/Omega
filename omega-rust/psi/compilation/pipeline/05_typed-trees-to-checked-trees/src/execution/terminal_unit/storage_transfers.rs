@@ -28,7 +28,9 @@ type Results = [(CheckedUnitStructuralResultBindingPlan, PlaceRoot)];
 use checked_trees::{BorrowLoanOwnerSegment as OwnerSegment, CheckedStructuralValueHandle};
 use typed_trees::data::DataMember;
 
+mod completion;
 mod computations;
+pub(in crate::execution::terminal_unit) use completion::{ScalarCompletion, at_completion};
 
 type Path = Vec<CheckedUnitStructuralPathSegment>;
 
@@ -219,6 +221,28 @@ pub(in crate::execution::terminal_unit) fn from_storage(
     selection: &[CheckedUnitStructuralPathSegment],
     operations: &[CheckedUnitEffectOperationPlan],
 ) -> Option<Transfers> {
+    query_for_storage(
+        program,
+        facts,
+        prepared_calls,
+        results,
+        source,
+        formation,
+        operations,
+    )
+    .through_prefix(selection)
+    .map(|(transfers, _)| transfers)
+}
+
+fn query_for_storage<'a>(
+    program: &'a dyn ::validation::CheckingInput,
+    facts: &'a CheckFacts,
+    prepared_calls: &'a super::structural_value_calls::PreparedCalls,
+    results: &'a Results,
+    source: CheckedUnitStructuralArgumentSourcePlan,
+    formation: u32,
+    operations: &'a [CheckedUnitEffectOperationPlan],
+) -> Query<'a> {
     // Owned access selects a by-value operand; the producing declaration still
     // decides whether that operand copies or transfers its storage. All aliases
     // of a registered copyable home retain the original descriptor occurrence.
@@ -239,7 +263,7 @@ pub(in crate::execution::terminal_unit) fn from_storage(
         result.multiplicity == Multiplicity::Unrestricted
             && bindings.all(|(other, _)| other.multiplicity == Multiplicity::Unrestricted)
     });
-    let query = Query {
+    Query {
         program,
         facts,
         results,
@@ -250,32 +274,43 @@ pub(in crate::execution::terminal_unit) fn from_storage(
         prepared_calls,
         established_values: Vec::new(),
         completed_computations: Vec::new(),
-    };
-    let mut output = Transfers::default();
-    for operation in operations {
-        if operation
-            .source_statement_index()
-            .is_some_and(|statement| statement < query.formation)
-        {
-            continue;
-        }
-        output.append(query.operation(operation, &mut Vec::new())?);
-        // A receiving overwrite starts another occurrence at this slot. Its
-        // RHS still sees the old value; later moves belong to the new value.
-        // For a leaf query, unrelated sibling replacements do not end it.
-        if let CheckedUnitEffectOperationPlan::Store(store) = operation
-            && store.statement_index > formation
-            && store.installed_value().is_some()
-            && query.owner().is_some_and(|symbol| {
-                store.destination.root == (CheckedStoreRoot::Local { symbol })
-            })
-            && query.local_store_owns_destination(store)?
-            && selection.starts_with(&store.destination.path)
-        {
-            break;
-        }
     }
-    Some(output)
+}
+
+impl Query<'_> {
+    /// An assignment uses the old value before installing the new one. Track
+    /// that boundary so the final expression cannot use a move recorded for
+    /// an earlier value that occupied the same storage.
+    fn through_prefix(
+        &self,
+        selection: &[CheckedUnitStructuralPathSegment],
+    ) -> Option<(Transfers, bool)> {
+        let mut output = Transfers::default();
+        for operation in self.operations {
+            if operation
+                .source_statement_index()
+                .is_some_and(|statement| statement < self.formation)
+            {
+                continue;
+            }
+            output.append(self.operation(operation, &mut Vec::new())?);
+            // A receiving overwrite starts another occurrence at this slot. Its
+            // RHS still sees the old value; later moves belong to the new value.
+            // For a leaf query, unrelated sibling replacements do not end it.
+            if let CheckedUnitEffectOperationPlan::Store(store) = operation
+                && store.statement_index > self.formation
+                && store.installed_value().is_some()
+                && self.owner().is_some_and(|symbol| {
+                    store.destination.root == (CheckedStoreRoot::Local { symbol })
+                })
+                && self.local_store_owns_destination(store)?
+                && selection.starts_with(&store.destination.path)
+            {
+                return Some((output, false));
+            }
+        }
+        Some((output, true))
+    }
 }
 
 /// Retained computations include selected exits not yet appended to the body.

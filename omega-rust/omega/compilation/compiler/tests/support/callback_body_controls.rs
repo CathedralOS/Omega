@@ -56,7 +56,7 @@ pub(super) fn prepare(
         false
     };
     let execution = checked.execution();
-    let program = execution.provider_source.program();
+    let program = checked.source_inspection().program();
     let typed = &program.typed;
     let mut headers = Vec::new();
     let mut unavailable_bodies = Vec::new();
@@ -96,7 +96,7 @@ pub(super) fn prepare(
             .filter(|realization| realization.boundary_arguments.is_empty())
             .map(|realization| (realization.boundary_trait, realization.requirement_machine)),
     );
-    let selected = execution.provider_source.plans().clone();
+    let selected = execution.plans().clone();
     let roots = if declarations.uses.is_empty() {
         Vec::new()
     } else {
@@ -124,8 +124,8 @@ pub(super) fn prepare(
                 });
             }
         }
-        let instances = execution
-            .provider_source
+        let instances = checked
+            .source_inspection()
             .project_instances()
             .map_err(|errors| format!("reference callback instances: {errors:?}"))?;
         let providers = provider_selection::CallbackProviderDeclarations::prepared(instances, rows);

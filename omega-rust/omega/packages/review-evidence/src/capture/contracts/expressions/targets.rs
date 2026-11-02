@@ -7,7 +7,7 @@
 //! declaration that declares the target, so this join is the single owner of
 //! that enumeration; callers project the half they need.
 
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use symbols::SymbolHandle;
 
 /// One candidate declaration for a contract call target, retaining both of its
@@ -23,7 +23,7 @@ pub(crate) struct ContractCallTargetTelescopes<'a> {
 /// declaration-species order. A well-formed call target is declared exactly
 /// once here; callers decide how an empty or ambiguous join is refused.
 pub(crate) fn contract_call_target_telescopes<'a>(
-    compilation: &'a PackageReviewInput<'_>,
+    compilation: &'a SourceDeclarationInput<'_>,
     target: SymbolHandle,
 ) -> Vec<ContractCallTargetTelescopes<'a>> {
     let mut candidates = Vec::new();
