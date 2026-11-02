@@ -77,6 +77,16 @@ fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected 
 	data `ByteRead` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/effects/opaque_leaf_inherited_reach_exceeds_ceiling rejected 1453ms @409a3e82132d+wt
 	machine `pause_once` publishes service reach `<none>` but its checked body reaches undeclared service `Wait`
+fail/expressions/declared_operator_private_helper_selected_rejected rejected 3679ms expected @630d0f945fc2
+	package `declared_operator_private_helper_selected` (b69400d42d6e3528fc64712b2751571d9b0c0750ce44514f0fcd89a1e362c3f4) selects private machine `ops::widen::entry`
+fail/expressions/declared_operator_result_loan_write_rejected rejected 3101ms expected @630d0f945fc2
+	statement 3 mutates `right.second` while local borrow `chosen` is still active (borrowed at statement 2; its last use is at statement 4)
+fail/expressions/declared_operator_result_qualification_unclaimed_rejected rejected 3096ms expected @630d0f945fc2
+	cannot prove requires contract for call decode from combine: add(left, right) in u64::Large in state `entry`
+fail/expressions/token_bound_machine_missing_body_rejected rejected 231ms expected @630d0f945fc2
+	`Wrapped::add` has no body and is neither a boundary signature nor a compiler-catalog primitive; a nonboundary direct machine must own a checked body (`machine + Wrapped::add(...) { ... }`), a boundary contract is spelled `boundary machine + ...;`, and an external leaf `satisfies Requirement via <Binding>;`
+fail/expressions/token_bound_machine_unproved_premise_rejected rejected 3821ms expected @630d0f945fc2
+	cannot prove requires contract for call add from combine: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/abstract_signature_call_applied_callback_computed_const_premise_rejected rejected 847ms expected @d4295d67990d
 	constant initializer: demanded premise closure checking failed: machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
 fail/facts/abstract_signature_call_applied_callback_const_premise_rejected rejected 894ms expected @d4295d67990d
@@ -4284,6 +4294,10 @@ pass/expressions/call_result_comparison_operands_exit checked 12546ms check-targ
 pass/expressions/comparison_result_integer_conversion_exit checked 12906ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/dead_trapping_let_traps checked 12357ms check-target:macos_arm64 @ccdb99ca2214
 pass/expressions/declared_operator_match_result checked 11997ms check-target:macos_arm64 @ccdb99ca2214
+pass/expressions/declared_operator_private_helper_exit checked 5149ms check-target:macos_arm64 @630d0f945fc2
+pass/expressions/declared_operator_result_loan_exit checked 5144ms check-target:macos_arm64 @630d0f945fc2
+pass/expressions/declared_operator_result_qualification_exit checked 5144ms check-target:macos_arm64 @630d0f945fc2
+pass/expressions/declared_operator_stateful_body_exit checked 5145ms check-target:macos_arm64 @630d0f945fc2
 pass/expressions/deep_paren_nesting checked 3837ms @ccdb99ca2214
 pass/expressions/derives_helper_return checked 4046ms @ccdb99ca2214
 pass/expressions/entry_mut_scalar_param checked 3591ms @ccdb99ca2214
