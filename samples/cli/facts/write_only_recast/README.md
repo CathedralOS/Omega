@@ -19,6 +19,13 @@ performs the same recast and store as before; selection grants no extra access.
 The public requirement promises no particular written value. The runtime check
 observes the actual write after the call returns.
 
+The returned-view and match examples exposed a safe-write refusal: the compiler
+kept the borrow but lost the field address below the returned view. It now
+retains the field or index chosen when the receiver is evaluated. A containing
+storage region stays conservative when the new representation has different
+field names, and a copied match subject keeps its own storage. Missing backing
+or borrow permission still refuses; no source spelling grants a new address.
+
 | Place | Positive | Reject twin | How the view travels |
 | --- | --- | --- | --- |
 | Root | [main.omg](main.omg) | — | Direct recast and write |
@@ -62,8 +69,9 @@ and [Build-owned target selection](../../../../wiki/spec/build/provider_selectio
 - Soundness: readable access cannot arise from `&write`. The six
   `tests/omega/fail/recast/write_only_*` controls separately cover shared/readable
   access, stored-pointer observation, source validity, overlap and local escape.
-  Checked provider bodies establish non-observation through their call closure;
-  opaque alternatives still need their independently admitted judgment.
+  Checked provider bodies prove that their calls never observe the write-only
+  data. An implementation whose body is unavailable still needs a separately
+  admitted proof tied to the selected implementation.
 - Psi lowering: preserve write-only access in Terminal Psi and execute the
   store without observing the old contents.
 - Layout, provider and calling plans: retain the one-field record geometry and
@@ -75,19 +83,26 @@ and [Build-owned target selection](../../../../wiki/spec/build/provider_selectio
 - Encoding and native execution: actual native and Terminal observations must
   both report exit 0. Target bindings alone do not establish execution.
 
-Historical validation before this target migration ran all nine original places
-and their twins on macOS ARM64 after repairing a refusal at `as &write Viewed`
-on optimized main `05580b16504`. Those records do not validate the newly selected
-provider route or the stronger match example. The first Linux replay ran seven places successfully, including the migrated
-selected implementation, but the unchanged returned-view place and the stronger
-match place refused because assignment checking lost their relative field
-address. The local-escape control also refused before its intended lifetime
-check: its caller tried to write through the already-invalid returned view.
-That earlier backing obligation remains mandatory. The control now leaves the
-result unused so it isolates the unchanged forbidden return of local storage;
-its original source and baseline refusal remain in the validation records.
-The address repair and this focused control are under validation; the first
-replay is not row acceptance.
+[Fresh Linux x86-64 validation](https://github.com/CathedralOS/Omega/actions/runs/41543965070)
+observed source `1d21edf56bc4916bfc33876810fc9ff4f5eaab86` with optimized
+CLI and corpus producers (`opt_level = 1`). All nine places and their twins
+passed their intended runtime or refusal checks. The root plus all 18 place
+projects also passed the ordinary public sample commands: ten native/Terminal
+successes and nine intended rejections.
+
+The full focused replay checked 27 positives and rejected 32 controls for their
+intended reasons; all 27 positives executed with native exit 0, Terminal exit 0,
+and agreement. This includes the previous reference-store row and controls for
+active child borrows, intermediate pointer reads, opaque boundaries, captured
+copies and slice-window coordinates. These are actual observations on Linux;
+execution of this repair on the other three hosted targets remains unverified.
+
+The local-escape control keeps its forbidden return and expected lifetime
+refusal, but leaves the returned view unused. Its earlier caller also wrote
+through that invalid result, correctly failing a preceding backing obligation.
+The isolated control now reports that local `original` does not outlive the
+call. The original source, refusal and exact producer records remain in the
+owning claim evidence; the compiler check order is unchanged.
 
 This row establishes ordinary write-only representation-view transport. It does
 not close domain-policy retention under erasure, operation demands, helper grants,

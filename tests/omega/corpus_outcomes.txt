@@ -11733,11 +11733,11 @@ pass/facts/write_only_recast_through_call_result_exit checked 3577ms check-targe
 pass/facts/write_only_recast_through_const_name_exit checked 3884ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_recast_through_field_exit checked 10064ms check-target:macos_arm64 @8fce926f9735
 pass/facts/write_only_recast_through_local_exit checked 3139ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_recast_through_match_join_exit checked 3613ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/write_only_recast_through_match_join_exit checked 6425ms check-target:macos_arm64 @1d21edf56bc4916bfc33876810fc9ff4f5eaab86
 pass/facts/write_only_recast_through_other_machine_exit checked 3267ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_recast_through_other_state_exit checked 2853ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/write_only_recast_through_parameter_exit checked 3843ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/write_only_recast_through_target_body_exit checked 3827ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/write_only_recast_through_target_body_exit checked 6125ms check-target:macos_arm64 @1d21edf56bc4916bfc33876810fc9ff4f5eaab86
 pass/facts/write_only_reference_store_through_call_result_exit checked 8249ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 pass/facts/write_only_reference_store_through_const_name_exit checked 8125ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 pass/facts/write_only_reference_store_through_field_exit checked 8090ms check-target:macos_arm64 @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
@@ -31413,9 +31413,10 @@ fail/facts/write_only_recast_through_field_rejected rejected 1648ms expected @cc
 fail/facts/write_only_recast_through_local_rejected rejected 871ms expected @ccdb99ca2214
 	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
-fail/facts/write_only_recast_through_match_join_rejected rejected 1741ms expected @ccdb99ca2214
+fail/facts/write_only_recast_through_match_join_rejected rejected 1254ms expected @1d21edf56bc4916bfc33876810fc9ff4f5eaab86
+	machine `marked` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
-	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `marked` state `entry` return value requires mutable source access; shared or immutable storage cannot supply it
 	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/facts/write_only_recast_through_other_machine_rejected rejected 1260ms expected @ccdb99ca2214
 	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
@@ -31426,15 +31427,15 @@ fail/facts/write_only_recast_through_other_state_rejected rejected 1539ms expect
 fail/facts/write_only_recast_through_parameter_rejected rejected 1438ms expected @ccdb99ca2214
 	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
 	mutable argument `storage` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/facts/write_only_recast_through_target_body_rejected rejected 1507ms expected @ccdb99ca2214
-	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
-	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
-	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
-	machine `overwrite` state `entry` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
-	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
-	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
-	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
-	machine `overwrite` state `entry` local `view` requires mutable source access; shared or immutable storage cannot supply it
+fail/facts/write_only_recast_through_target_body_rejected rejected 1264ms expected @1d21edf56bc4916bfc33876810fc9ff4f5eaab86
+	machine `WindowsOverwrite::overwrite` state `overwrite` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `LinuxX86Overwrite::overwrite` state `overwrite` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `MacosOverwrite::overwrite` state `overwrite` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `LinuxArmOverwrite::overwrite` state `overwrite` reads write-only parameter `storage`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `WindowsOverwrite::overwrite` state `overwrite` local `view` requires mutable source access; shared or immutable storage cannot supply it
+	machine `LinuxX86Overwrite::overwrite` state `overwrite` local `view` requires mutable source access; shared or immutable storage cannot supply it
+	machine `MacosOverwrite::overwrite` state `overwrite` local `view` requires mutable source access; shared or immutable storage cannot supply it
+	machine `LinuxArmOverwrite::overwrite` state `overwrite` local `view` requires mutable source access; shared or immutable storage cannot supply it
 fail/facts/write_only_reference_store_through_call_result_rejected rejected 1614ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 	machine `main` state `entry` reads field `target` from write-only parameter `slot`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/facts/write_only_reference_store_through_const_name_rejected rejected 1610ms expected @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
@@ -34857,7 +34858,7 @@ fail/recast/write_footprint/local rejected 2480ms expected @ccdb99ca2214
 	cannot prove requires contract for call require_seventeen from inspect: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/recast/write_footprint/state rejected 2842ms expected @ccdb99ca2214
 	cannot prove requires contract for call require_seventeen from inspect: value.number == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/recast/write_only_local_escape rejected 2574ms expected @ccdb99ca2214
+fail/recast/write_only_local_escape rejected 5249ms expected @1d21edf56bc4916bfc33876810fc9ff4f5eaab86
 	machine `escape` returns a view borrowing the local `original`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/recast/write_only_overlap rejected 2501ms expected @ccdb99ca2214
 	statement 1 creates local borrow `second` while local borrow `first` is still active (borrowed at statement 0; its last use is at statement 2)
