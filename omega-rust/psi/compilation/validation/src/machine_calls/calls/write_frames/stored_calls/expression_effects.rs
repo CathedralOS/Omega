@@ -10,9 +10,7 @@ use super::{
 };
 use crate::frozen_program::expression_table;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern};
-use typed_trees::statement::{
-    StatementNode, TransitionGuardNode, TransitionTargetNode,
-};
+use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 /// One value and its evaluated operands. For Calls, context is the call-entry
 /// inventory after all actuals and before its own invocation effects, so the
