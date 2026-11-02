@@ -1,4 +1,5 @@
-//! A state edge may retain a local home through a stored reference. Follow the
+//! A completing invocation may retain a local home through a stored reference.
+//! Follow the
 //! exact carried source through every successor slot/copy until replacement or
 //! last transfer. A normal exit cannot export it, and a loop cannot establish
 //! the same home again while an earlier generation is still carried.
@@ -7,6 +8,7 @@ use super::*;
 
 #[derive(Clone, PartialEq, Eq)]
 struct Arrival {
+    machine: SymbolHandle,
     state: SymbolHandle,
     slots: Vec<FrameSourcePlace>,
 }
@@ -21,38 +23,11 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
     backing: SymbolHandle,
     symbols: &TopLevelSymbols<'_>,
 ) -> Option<()> {
-    // A failed spatial/lifetime relation is not an empty retained-home set.
-    // Keep the refused join visible through the existing query diagnostics.
-    macro_rules! required_home {
-        ($value:expr, $phase:literal) => {
-            match $value {
-                Some(value) => value,
-                None => {
-                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                        eprintln!(
-                            "CHECKSITE retained-home-refusal source={} target={} statement={} backing={} phase={}",
-                            source.name, target.name, statement_index,
-                            program.symbols.name(backing), $phase,
-                        );
-                    }
-                    return None;
-                }
-            }
-        };
-    }
-    required_home!(
-        program.state_local_declaration(source, backing),
-        "local-declaration"
-    );
+    program.state_local_declaration(source, backing)?;
     let mut inference = FrameInference::default();
-    let (_, prefixes) = required_home!(
-        stored_reference_transfer(program, machine, source, symbols, &mut inference),
-        "source-transfer"
-    );
-    let prefix = required_home!(
-        prefixes.get(statement_index).and_then(Option::as_ref),
-        "source-prefix"
-    );
+    let (_, prefixes) =
+        stored_reference_transfer(program, machine, source, symbols, &mut inference)?;
+    let prefix = prefixes.get(statement_index)?.as_ref()?;
     let initial = vec![FrameSourcePlace {
         recasts: Vec::new(),
         representation: None,
@@ -65,26 +40,19 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         .statement_table
         .statements(source.statement_nodes)
         .get(statement_index)?;
-    let completed = required_home!(
-        expression_effects::completed_targets(
-            program,
-            machine,
-            source,
-            statement,
-            prefix,
-            symbols,
-            &mut inference,
-        ),
-        "completed-targets"
-    );
+    let completed = expression_effects::prepare_normal_exits(
+        program,
+        machine,
+        source,
+        statement,
+        prefix,
+        symbols,
+        &mut inference,
+    )?;
     let mut arrivals = completed.iter().filter(|completed| {
-        super::super::transition_topology::named_transition_target_state(
-            program,
-            machine,
-            source,
-            completed.target,
-        )
-        .is_some_and(|candidate| candidate.symbol == target.symbol)
+        completed
+            .arrival
+            .is_some_and(|(_, candidate)| candidate.symbol == target.symbol)
             && completed.arguments.len() == arguments.len()
             && completed
                 .arguments
@@ -92,23 +60,22 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
                 .zip(arguments)
                 .all(|(captured, expression)| captured.expression == *expression)
     });
-    let arrival = required_home!(arrivals.next(), "completed-arrival");
+    let arrival = arrivals.next()?;
     if arrivals.next().is_some() {
         return None;
     }
-    let slots = required_home!(
-        transferred_slots(
-            program,
-            machine,
-            target,
-            &arrival.arguments,
-            &arrival.context,
-            &initial,
-            symbols,
-        ),
-        "arrival-slots"
-    );
+    let (target_machine, target) = arrival.arrival?;
+    let slots = transferred_slots(
+        program,
+        machine,
+        target,
+        &arrival.arguments,
+        &arrival.context,
+        &initial,
+        symbols,
+    )?;
     let mut pending = vec![Arrival {
+        machine: target_machine.symbol,
         state: target.symbol,
         slots,
     }];
@@ -119,14 +86,12 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
         if arrival.slots.is_empty() {
             continue;
         }
-        let state = required_home!(
-            program.state_in_machine(machine, arrival.state),
-            "successor-state"
-        );
-        let (last, prefixes) = required_home!(
-            stored_reference_transfer(program, machine, state, symbols, &mut inference),
-            "successor-transfer"
-        );
+        // Lexical nesting does not put the callee in its caller's state table.
+        // Follow the same concrete invocation graph used by normal-exit frames.
+        let machine = program.machine_by_symbol(arrival.machine)?;
+        let state = program.state_in_machine(machine, arrival.state)?;
+        let (last, prefixes) =
+            stored_reference_transfer(program, machine, state, symbols, &mut inference)?;
         let mut has_transition = false;
         for (index, statement) in program
             .statement_table
@@ -147,56 +112,29 @@ pub(in crate::machine_calls::calls::write_frames) fn local_backing_survives_jump
             if transition.exit != TransitionExit::Ordinary {
                 continue;
             }
-            let completed = required_home!(
-                expression_effects::completed_targets(
-                    program,
-                    machine,
-                    state,
-                    statement,
-                    prefix,
-                    symbols,
-                    &mut inference,
-                ),
-                "completed-targets"
-            );
-            for edge in transition.targets() {
-                let edge_value = completed
-                    .iter()
-                    .find(|completed| completed.target == edge)?;
-                let (target, arguments) = match program.statement_table.transition_target(edge) {
-                    TransitionTargetNode::Named { arguments, .. } => {
-                        if super::super::terminal_calls::target(program, machine, edge).is_valid() {
-                            return None;
-                        }
-                        (
-                            super::super::transition_topology::named_transition_target_state(
-                                program, machine, state, edge,
-                            )?,
-                            program.statement_table.expression_handles(*arguments),
-                        )
-                    }
-                    TransitionTargetNode::Terminal | TransitionTargetNode::Value(_) => {
-                        check_exit(program, state, &prefix.stored, &arrival.slots)?;
-                        continue;
-                    }
+            let completed = expression_effects::prepare_normal_exits(
+                program,
+                machine,
+                state,
+                statement,
+                prefix,
+                symbols,
+                &mut inference,
+            )?;
+            for exit in completed {
+                let Some((target_machine, target)) = exit.arrival else {
+                    check_exit(program, state, &exit.context.stored, &arrival.slots)?;
+                    continue;
                 };
-                if edge_value.arguments.len() != arguments.len()
-                    || edge_value
-                        .arguments
-                        .iter()
-                        .zip(arguments)
-                        .any(|(captured, expression)| captured.expression != *expression)
-                {
-                    return None;
-                }
                 let next = Arrival {
+                    machine: target_machine.symbol,
                     state: target.symbol,
                     slots: transferred_slots(
                         program,
                         machine,
                         target,
-                        &edge_value.arguments,
-                        &edge_value.context,
+                        &exit.arguments,
+                        &exit.context,
                         &arrival.slots,
                         symbols,
                     )?,
