@@ -1546,7 +1546,19 @@ class ReasonFreeRecord(unittest.TestCase):
         self.output.seek(0)
         self.output.truncate()
         self.assertEqual(self.run_gate(rows, golden_records=rows), 0)
-        self.assertIn("measured at jobs=runner default", self.output.getvalue())
+        self.assertIn(f"measured at jobs={corpus_gate.default_jobs()}", self.output.getvalue())
+
+    def test_default_jobs_shares_cores_and_memory_between_slot_holders(self):
+        with patch.object(corpus_gate.os, "cpu_count", return_value=10), \
+             patch.object(corpus_gate.os, "sysconf",
+                          side_effect=lambda name: {"SC_PAGE_SIZE": 16384,
+                                                    "SC_PHYS_PAGES": 2 ** 20}[name]):
+            self.assertEqual(corpus_gate.default_jobs(), 5)
+        with patch.object(corpus_gate.os, "cpu_count", return_value=32), \
+             patch.object(corpus_gate.os, "sysconf",
+                          side_effect=lambda name: {"SC_PAGE_SIZE": 4096,
+                                                    "SC_PHYS_PAGES": 2 ** 20}[name]):
+            self.assertEqual(corpus_gate.default_jobs(), 3)
 
 
 class StampProvenance(unittest.TestCase):

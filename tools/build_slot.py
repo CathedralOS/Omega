@@ -38,6 +38,7 @@ the other pool's acquisitions.
 import argparse
 import contextlib
 import errno
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -224,11 +225,34 @@ def main(arguments=None):
         parser.error("--slots must be at least 1")
 
     try:
-        with hold(options.repository, options.slots, options.timeout, options.pool):
-            return subprocess.run(command, cwd=options.repository).returncode
+        with hold(options.repository, options.slots, options.timeout, options.pool) as (slot, waited):
+            started = time.monotonic()
+            code = subprocess.run(command, cwd=options.repository).returncode
+            if slot is not None:
+                record_hold(slot.parent, command, options.repository, waited,
+                            time.monotonic() - started, code)
+            return code
     except TimeoutError as error:
         print(f"build_slot: {error}", file=sys.stderr)
         return 75
+
+
+def record_hold(directory, command, repository, waited, held, code):
+    """Append one line per completed hold to the pool's `history.jsonl`.
+
+    Slot files vanish on release, so without this nothing records who held the
+    two slots, for how long, or how long others waited; test-cost questions
+    were answered from PR prose instead (2026-11-02 test review)."""
+    entry = {"finished": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+             "worktree": str(Path(repository).resolve()),
+             "command": " ".join(command)[:500],
+             "waited_seconds": round(waited, 1), "held_seconds": round(held, 1),
+             "exit": code}
+    try:
+        with open(directory / "history.jsonl", "a", encoding="utf-8") as history:
+            history.write(json.dumps(entry) + "\n")
+    except OSError:
+        pass
 
 
 if __name__ == "__main__":
