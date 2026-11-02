@@ -103,14 +103,14 @@ jobs:
           gh run download 41399107774 --name compiler-pilot-linux_x86_64-08b7c22717e58f422e770c848287927ac9099f64-1 --dir build/case-retained-input
           git fetch --depth=1 origin 08b7c22717e58f422e770c848287927ac9099f64
           git worktree add --detach build/case-source 08b7c22717e58f422e770c848287927ac9099f64
-      - name: Temporary frozen case-where baseline and selected-body probe
+      - name: Temporary case-where admission trace on exact retained producer
         if: github.event_name == 'workflow_dispatch'
         env:
           OMEGA_CASE_REPLAY_ROOT: ${{ github.workspace }}/build/case-source
           OMEGA_CASE_RETAINED_INPUT: ${{ github.workspace }}/build/case-retained-input
         run: |
           case_probe_status=0
-          python tools/ci/case_where_baseline.py || case_probe_status=$?
+          python tools/ci/case_where_trace.py || case_probe_status=$?
           mkdir -p build/compiler-pilot
           cp -R build/case-source/build/compiler-pilot/. build/compiler-pilot/
           exit "$case_probe_status"
