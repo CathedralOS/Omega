@@ -1689,10 +1689,7 @@ impl State {
             query.clone(),
             Projection::new(&[]),
         )]);
-        for (written, value) in self.contents.iter() {
-            if written.root != query.root {
-                continue;
-            }
+        for (written, value) in self.contents.for_root(query.root) {
             let overlaps = written.steps.iter().zip(&query.steps).all(|(left, right)| {
                 left == right
                     || matches!(
@@ -1960,6 +1957,15 @@ mod snapshot_tests {
         before
             .contents_mut()
             .insert(query.clone(), Some(original.clone()));
+        // Unknown writes to a distinct root do not erase this family's
+        // origins. Overlapping writes on its own root still do.
+        before.contents_mut().insert(
+            DescriptorContentsQuery {
+                root: location(3).root,
+                steps: Vec::new(),
+            },
+            None,
+        );
         let mut joined = before.clone();
         // Joining symbolic contents is not a raw-map equality shortcut: an
         // incoming family is retained even when the stored payloads match.
@@ -1969,9 +1975,18 @@ mod snapshot_tests {
             query.clone(),
             Projection::new(&[]),
         ));
-        assert_eq!(joined.contents.get(&query), Some(&Some(expected)));
+        assert_eq!(joined.contents.get(&query), Some(&Some(expected.clone())));
         assert_eq!(before.contents.get(&query), Some(&Some(original)));
         assert!(!merge_state(&mut joined, &before));
+        assert_eq!(before.incoming_contents(&query), Some(expected));
+        let mut overwritten = before.clone();
+        let mut descendant = query.clone();
+        descendant.steps.push(DescriptorContentsStep::Address(
+            DescriptorPathSegment::FixedIndex(0),
+        ));
+        overwritten.contents_mut().insert(descendant, None);
+        assert_eq!(overwritten.incoming_contents(&query), None);
+        assert!(before.incoming_contents(&query).is_some());
     }
     #[test]
     fn ordered_slot_join_preserves_absence_unknown_and_captured_origins() {

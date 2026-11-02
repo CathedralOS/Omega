@@ -71,6 +71,18 @@ impl<Key: OriginKey> OriginMap<Key> {
             .flat_map(|roots| roots.values())
             .flat_map(|rows| rows.iter())
     }
+    /// Contents overlap is confined to one exact storage root. Read that
+    /// immutable row directly instead of scanning unrelated roots at every cut.
+    pub(super) fn for_root(
+        &self,
+        root: PlaceId,
+    ) -> impl DoubleEndedIterator<Item = (&Key, &Value)> {
+        self.pages
+            .get(&page(root))
+            .and_then(|roots| roots.get(&root))
+            .into_iter()
+            .flat_map(|rows| rows.iter())
+    }
     pub(super) fn keys(&self) -> impl DoubleEndedIterator<Item = &Key> {
         self.pages
             .values()
