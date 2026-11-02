@@ -531,6 +531,7 @@ pub use proof_contracts::contract_entailment::scoped_arithmetic::{
     scoped_completed_call_guarantees, scoped_declared_integer_application_formation,
     scoped_integer_expression_formation,
 };
+pub use proof_contracts::contract_entailment::scoped_arithmetic::ScopedReadCoordinate;
 pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
 pub use proof_contracts::contract_entailment::statement_predicates::StatementPredicateObservations;
 pub use proof_contracts::contract_entailment::strict_arithmetic::{

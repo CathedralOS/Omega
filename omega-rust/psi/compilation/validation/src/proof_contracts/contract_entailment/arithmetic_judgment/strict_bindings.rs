@@ -666,7 +666,7 @@ impl<'program> Engine<'program> {
         let mut symbols: Vec<(SymbolHandle, Polynomial)> = Vec::with_capacity(bindings.len());
         self.saved_conditions.clear();
         let mut occurrences = Vec::new();
-        let mut coordinates: Vec<(crate::RankSubjectCoordinate, Polynomial)> = Vec::new();
+        let mut coordinates: Vec<(crate::ScopedReadCoordinate, Polynomial)> = Vec::new();
         let mut types = Vec::new();
         let mut owned = Vec::new();
         let mut result = None;
@@ -747,7 +747,7 @@ impl<'program> Engine<'program> {
                     occurrences.push((expression, polynomial));
                 }
                 ScopedArithmeticBinder::Coordinate(ref coordinate) => {
-                    if !coordinate.parameter.is_valid() {
+                    if !coordinate.coordinate.parameter.is_valid() {
                         return false;
                     }
                     if let Some((_, existing)) =
@@ -780,7 +780,7 @@ impl<'program> Engine<'program> {
 
     pub(in crate::proof_contracts::contract_entailment) fn coordinate_value(
         &self,
-        coordinate: &crate::RankSubjectCoordinate,
+        coordinate: &crate::ScopedReadCoordinate,
     ) -> Option<Polynomial> {
         self.formal_read_arguments
             .iter()
@@ -793,9 +793,12 @@ impl<'program> Engine<'program> {
         expression: ExpressionHandle,
     ) -> Option<Polynomial> {
         let place = crate::canonical_place_from_expression(self.program, expression)?;
-        self.coordinate_value(&crate::RankSubjectCoordinate {
-            parameter: place.root.as_symbol()?,
-            path: place.segments,
+        self.coordinate_value(&crate::ScopedReadCoordinate {
+            coordinate: crate::RankSubjectCoordinate {
+                parameter: place.root.as_symbol()?,
+                path: place.segments,
+            },
+            calls: Vec::new(),
         })
     }
 

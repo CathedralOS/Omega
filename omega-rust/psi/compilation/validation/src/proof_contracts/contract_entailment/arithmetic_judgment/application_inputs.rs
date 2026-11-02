@@ -11,7 +11,7 @@ pub(in crate::proof_contracts::contract_entailment) enum IntegerApplicationInput
     Record {
         type_reference: TypeReferenceHandle,
         snapshot: Option<crate::CapturedOwnedSnapshot>,
-        reads: Vec<(crate::RankSubjectCoordinate, Polynomial)>,
+        reads: Vec<(crate::ScopedReadCoordinate, Polynomial)>,
     },
 }
 
@@ -57,9 +57,12 @@ impl IntegerApplicationInput {
                 }];
                 for (coordinate, value) in reads {
                     bindings.push(Binding {
-                        binder: Binder::Coordinate(crate::RankSubjectCoordinate {
-                            parameter: formal,
-                            path: coordinate.path.clone(),
+                        binder: Binder::Coordinate(crate::ScopedReadCoordinate {
+                            coordinate: crate::RankSubjectCoordinate {
+                                parameter: formal,
+                                path: coordinate.coordinate.path.clone(),
+                            },
+                            calls: coordinate.calls.clone(),
                         }),
                         value: scalar(value)?,
                     });
@@ -99,12 +102,7 @@ impl IntegerApplicationInput {
         let reads = shape
             .reads
             .iter()
-            .map(|read| {
-                Some((
-                    read.coordinate.clone(),
-                    engine.coordinate_value(&read.coordinate)?,
-                ))
-            })
+            .map(|read| Some((read.binding(), engine.coordinate_value(&read.binding())?)))
             .collect::<Option<Vec<_>>>()?;
         Some(Self::Record {
             type_reference: input_type,
@@ -195,6 +193,7 @@ impl super::Engine<'_> {
     pub(super) fn captured_record_call_input(
         &self,
         expression: typed_trees::expression::ExpressionHandle,
+        call: typed_trees::expression::ExpressionHandle,
     ) -> Option<IntegerApplicationInput> {
         // An explicit shared operand observes this already-captured value.
         // Do not ask for the borrow expression's constructed reference type:
@@ -223,16 +222,29 @@ impl super::Engine<'_> {
         ) {
             return None;
         }
+        // Consume one exact call cut. Other calls may use the same authored
+        // projection with different actual selectors; their observations cannot
+        // enter this callee. Nested demands retain the rest of their path.
         let reads = self
             .formal_read_arguments
             .iter()
             .filter_map(|(coordinate, value)| {
-                (coordinate.parameter == root).then_some(())?;
-                let path = coordinate.path.strip_prefix(place.segments.as_slice())?;
+                (coordinate.coordinate.parameter == root).then_some(())?;
+                let [supplying_call, context @ ..] = coordinate.calls.as_slice() else {
+                    return None;
+                };
+                (*supplying_call == call).then_some(())?;
+                let path = coordinate
+                    .coordinate
+                    .path
+                    .strip_prefix(place.segments.as_slice())?;
                 Some((
-                    crate::RankSubjectCoordinate {
-                        parameter: root,
-                        path: path.to_vec(),
+                    crate::ScopedReadCoordinate {
+                        coordinate: crate::RankSubjectCoordinate {
+                            parameter: root,
+                            path: path.to_vec(),
+                        },
+                        calls: context.to_vec(),
                     },
                     value.clone(),
                 ))

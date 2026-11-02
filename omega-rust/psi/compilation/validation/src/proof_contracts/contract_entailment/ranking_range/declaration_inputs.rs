@@ -13,6 +13,7 @@ mod selectors;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeclaredInputRead {
+    pub calls: Vec<typed_trees::expression::ExpressionHandle>,
     pub coordinate: crate::RankSubjectCoordinate,
     pub type_reference: TypeReferenceHandle,
     pub primitive_type: PrimitiveType,
@@ -78,6 +79,7 @@ pub fn declared_input_shape(
     if let Some(primitive_type) = program.primitive_type_reference(formal.type_reference) {
         primitive_type.is_fixed_integer().then_some(())?;
         shape.reads.push(DeclaredInputRead {
+            calls: Vec::new(),
             coordinate: crate::RankSubjectCoordinate {
                 parameter: formal.symbol,
                 path: Vec::new(),
@@ -98,4 +100,13 @@ pub fn declared_input_shape(
     program.closed_data_definition(observed)?;
     reads::collect(program, measure, &mut shape)?;
     Some(shape)
+}
+
+impl DeclaredInputRead {
+    pub fn binding(&self) -> crate::ScopedReadCoordinate {
+        crate::ScopedReadCoordinate {
+            coordinate: self.coordinate.clone(),
+            calls: self.calls.clone(),
+        }
+    }
 }

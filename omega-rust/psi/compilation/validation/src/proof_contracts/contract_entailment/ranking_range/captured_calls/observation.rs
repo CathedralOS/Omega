@@ -284,7 +284,7 @@ impl CallProgress {
                             .cloned()
                             .collect::<Vec<_>>();
                         let value = read(&projection)?;
-                        reads.push((required.coordinate.clone(), value, required.primitive_type));
+                        reads.push((required.binding(), value, required.primitive_type));
                     }
                     let snapshot = entry_observation.judge.bound_contract_term(
                         component.subject, entry.symbol, &parameters, callee.symbol,

@@ -183,7 +183,7 @@ impl Engine<'_> {
                     || shape.reads.iter().any(|read| {
                         reads
                             .iter()
-                            .filter(|(bound, _)| *bound == read.coordinate)
+                            .filter(|(bound, _)| *bound == read.binding())
                             .count()
                             != 1
                     })
@@ -217,7 +217,7 @@ impl Engine<'_> {
                 }
                 IntegerApplicationInput::Record { .. } => {
                     for read in &shape.reads {
-                        let value = engine.coordinate_value(&read.coordinate)?;
+                        let value = engine.coordinate_value(&read.binding())?;
                         if !formed_type(engine, program, read.type_reference, &value) {
                             return None;
                         }

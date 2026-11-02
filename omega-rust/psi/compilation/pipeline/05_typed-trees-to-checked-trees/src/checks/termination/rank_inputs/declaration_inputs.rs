@@ -109,7 +109,7 @@ impl RecordInput {
                         .same_scalar_projection(&coordinate.path, &path)
             })?;
             bindings.push(ScopedArithmeticBinding {
-                binder: validation::ScopedArithmeticBinder::Coordinate(read.coordinate.clone()),
+                binder: validation::ScopedArithmeticBinder::Coordinate(read.binding()),
                 value: coordinate.entry_value.clone(),
             });
         }
