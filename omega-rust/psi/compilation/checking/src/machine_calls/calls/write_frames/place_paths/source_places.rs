@@ -175,9 +175,49 @@ impl FrameSourcePlace {
 
     pub(in crate::machine_calls::calls::write_frames) fn recast(
         &mut self,
+        program: &dyn crate::CheckingInput,
         target_type: typed_trees::types::TypeReferenceHandle,
         formation_expression: ExpressionHandle,
     ) {
+        // A qualification-only view keeps the same physical carrier and field
+        // namespace. Retaining it as a representation boundary obscures later
+        // content loans, turning writes to backing into descriptor writes.
+        // This is coordinate identity only: cast admission and the retained
+        // lender's qualification/access obligations are checked separately.
+        let source_type = match &self.representation {
+            Some((carrier, selectors)) => {
+                crate::project_type_reference_from_segments(program, *carrier, selectors)
+            }
+            None => crate::value_custody::places::declaration_type_reference(program, self.root)
+                .and_then(|reference| {
+                    crate::project_type_reference_from_segments(
+                        program,
+                        crate::value_custody::places::assignment_value_type(program, reference),
+                        &self.segments,
+                    )
+                }),
+        };
+        if crate::reference_formation_source(program, formation_expression).is_some_and(
+            |formation| {
+                formation.interpretation
+                    == crate::ReferenceFormationInterpretation::RepresentationView
+            },
+        ) && source_type.is_some_and(|source| {
+            let source = program.normalized_type_identity(
+                program
+                    .type_reference_table
+                    .unconstrained_type_reference(source),
+            );
+            source.is_valid()
+                && source
+                    == program.normalized_type_identity(
+                        program
+                            .type_reference_table
+                            .unconstrained_type_reference(target_type),
+                    )
+        }) {
+            return;
+        }
         self.recasts.push(RecastSource {
             formation: ReferenceViewFormation::Expression(formation_expression),
             root: self.root,

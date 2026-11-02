@@ -212,7 +212,9 @@ pub(crate) fn stable_alias_initializer_origins(
     {
         let mut origins = alias_origins!(inference, formation.source)?;
         for origin in &mut origins {
-            origin.source.recast(formation.view_type, expression);
+            origin
+                .source
+                .recast(program, formation.view_type, expression);
         }
         return Some(origins);
     }
@@ -332,7 +334,9 @@ pub(crate) fn stable_alias_initializer_origins(
             let mut origins = alias_origins!(inference, cast.value)?;
             for origin in &mut origins {
                 let formation = crate::reference_formation_source(program, expression)?;
-                origin.source.recast(formation.view_type, expression);
+                origin
+                    .source
+                    .recast(program, formation.view_type, expression);
             }
             return Some(origins);
         }
@@ -445,7 +449,9 @@ fn stable_alias_expression_origins(
             let mut origins = expression_origins!(cast.value)?;
             for origin in &mut origins {
                 let formation = crate::reference_formation_source(program, expression)?;
-                origin.source.recast(formation.view_type, expression);
+                origin
+                    .source
+                    .recast(program, formation.view_type, expression);
             }
             origins
         }

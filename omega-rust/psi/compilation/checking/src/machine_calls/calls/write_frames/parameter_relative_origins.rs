@@ -225,7 +225,10 @@ fn parameter_relative_place_origins_in(
             let mut origins = place_child!(cast.value)?;
             let formation = crate::reference_formation_source(program, expression)?;
             for origin in &mut origins {
-                origin.place.source.recast(formation.view_type, expression);
+                origin
+                    .place
+                    .source
+                    .recast(program, formation.view_type, expression);
             }
             origins
         }
