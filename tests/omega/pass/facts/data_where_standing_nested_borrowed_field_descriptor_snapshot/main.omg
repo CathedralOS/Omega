@@ -12,7 +12,7 @@ public machine compute(holder: &Holder, replacement: &Counter) -> i32 {
     selected = replacement;
     require_same(value, read(old));
     let total: i32 = 70 + value;
-    transition read(selected.value) == replacement.value { true -> total false -> -99 }
+    transition read(selected.value) == replacement.value && read(old) == value { true -> total false -> -99 }
 }
 machine main() crashes Trap {
     let high: i32 = 60;
