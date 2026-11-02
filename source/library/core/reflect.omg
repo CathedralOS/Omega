@@ -75,14 +75,14 @@ machine schema_span<'bytes>(bytes: &'bytes [u8], start: u64) -> &'bytes [u8] cra
     machine bad(bytes: &'bytes [u8]) -> &'bytes [u8] { crash Trap; }
 }
 
-public machine TypeSchema::node<'graph>(graph: &'graph TypeSchema, handle: u64) -> SchemaNode<'graph> crashes Trap {
-    schema_node(graph.storage, handle)
+public machine schema_node<'graph>(graph: &'graph TypeSchema, handle: u64) -> SchemaNode<'graph> crashes Trap {
+    graph_node(graph.storage, handle)
 }
 
 // Node views retain the graph's actual immutable bytes, rather than an
 // additional reference to its copyable facade. Every relationship indexes
 // this same borrowed graph and preserves the ordinary source lifetime.
-machine schema_node<'graph>(graph: &'graph [u8], handle: u64) -> SchemaNode<'graph> crashes Trap {
+machine graph_node<'graph>(graph: &'graph [u8], handle: u64) -> SchemaNode<'graph> crashes Trap {
     let version: u64 = schema_word(graph, 0u64);
     let count: u64 = schema_word(graph, 8u64);
     transition version == 1u64 && graph.len >= 64u64 {
@@ -109,42 +109,42 @@ machine schema_node<'graph>(graph: &'graph [u8], handle: u64) -> SchemaNode<'gra
     machine bad(graph: &'graph [u8]) -> SchemaNode<'graph> { crash Trap; }
 }
 
-public machine TypeSchema::root<'graph>(graph: &'graph TypeSchema) -> SchemaNode<'graph> crashes Trap {
+public machine schema_root<'graph>(graph: &'graph TypeSchema) -> SchemaNode<'graph> crashes Trap {
     let root: u64 = schema_word(graph.storage, 16u64);
-    TypeSchema::node(graph, root)
+    schema_node(graph, root)
 }
-public machine TypeSchema::revision<'graph>(graph: &'graph TypeSchema) -> u64 crashes Trap {
+public machine schema_revision<'graph>(graph: &'graph TypeSchema) -> u64 crashes Trap {
     schema_word(graph.storage, 24u64)
 }
-public machine TypeSchema::requester<'graph>(graph: &'graph TypeSchema) -> &'graph [u8] crashes Trap {
+public machine schema_requester<'graph>(graph: &'graph TypeSchema) -> &'graph [u8] crashes Trap {
     schema_span(graph.storage, 40u64)
 }
-public machine SchemaNode::role<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 0u64) }
-public machine SchemaNode::declaration_position<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 8u64) }
-public machine SchemaNode::has_stable_number<'graph>(node: &SchemaNode<'graph>) -> bool crashes Trap { schema_word(node.storage, 16u64) != 0u64 }
-public machine SchemaNode::stable_number<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 24u64) }
-public machine SchemaNode::is_erased<'graph>(node: &SchemaNode<'graph>) -> bool crashes Trap { schema_word(node.storage, 32u64) != 0u64 }
-public machine SchemaNode::owner_case<'graph>(node: &SchemaNode<'graph>) -> SchemaNode<'graph> crashes Trap {
+public machine node_role<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 0u64) }
+public machine node_declaration_position<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 8u64) }
+public machine node_has_stable_number<'graph>(node: &SchemaNode<'graph>) -> bool crashes Trap { schema_word(node.storage, 16u64) != 0u64 }
+public machine node_stable_number<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 24u64) }
+public machine node_is_erased<'graph>(node: &SchemaNode<'graph>) -> bool crashes Trap { schema_word(node.storage, 32u64) != 0u64 }
+public machine node_owner_case<'graph>(node: &SchemaNode<'graph>) -> SchemaNode<'graph> crashes Trap {
     let handle: u64 = schema_word(node.storage, 40u64);
-    schema_node(node.graph, handle)
+    graph_node(node.graph, handle)
 }
-public machine SchemaNode::shape<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 48u64) }
-public machine SchemaNode::identity_is_hermetic<'graph>(node: &SchemaNode<'graph>) -> bool crashes Trap { schema_word(node.storage, 56u64) != 0u64 }
-public machine SchemaNode::identity<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 64u64) }
-public machine SchemaNode::name<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 80u64) }
-public machine SchemaNode::qualified_type<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 96u64) }
-public machine SchemaNode::owner_kind<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 112u64) }
-public machine SchemaNode::application_identity<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 128u64) }
-public machine SchemaNode::supply<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 144u64) }
-public machine SchemaNode::multiplicity<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 160u64) }
-public machine SchemaNode::carry<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 176u64) }
-public machine SchemaNode::retired_numbers<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 208u64) }
-public machine SchemaNode::retired_count<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap {
-    let numbers: &'graph [u8] = SchemaNode::retired_numbers(node);
+public machine node_shape<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 48u64) }
+public machine node_identity_is_hermetic<'graph>(node: &SchemaNode<'graph>) -> bool crashes Trap { schema_word(node.storage, 56u64) != 0u64 }
+public machine node_identity<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 64u64) }
+public machine node_name<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 80u64) }
+public machine node_qualified_type<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 96u64) }
+public machine node_owner_kind<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 112u64) }
+public machine node_application_identity<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 128u64) }
+public machine node_supply<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 144u64) }
+public machine node_multiplicity<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 160u64) }
+public machine node_carry<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 176u64) }
+public machine node_retired_numbers<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 208u64) }
+public machine node_retired_count<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap {
+    let numbers: &'graph [u8] = node_retired_numbers(node);
     numbers.len / 8u64
 }
-public machine SchemaNode::retired_number<'graph>(node: &SchemaNode<'graph>, index: u64) -> u64 crashes Trap {
-    let numbers: &'graph [u8] = SchemaNode::retired_numbers(node);
+public machine node_retired_number<'graph>(node: &SchemaNode<'graph>, index: u64) -> u64 crashes Trap {
+    let numbers: &'graph [u8] = node_retired_numbers(node);
     transition index < numbers.len / 8u64 {
         true -> read(numbers, index)
         false -> bad()
@@ -155,27 +155,27 @@ public machine SchemaNode::retired_number<'graph>(node: &SchemaNode<'graph>, ind
     }
     machine bad() -> u64 { crash Trap; }
 }
-public machine SchemaNode::type_parameters<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 240u64) }
-public machine SchemaNode::lifetime_parameters<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 256u64) }
+public machine node_type_parameters<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 240u64) }
+public machine node_lifetime_parameters<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 256u64) }
 
-public machine SchemaNode::members<'graph>(node: &SchemaNode<'graph>) -> SchemaMembers<'graph> crashes Trap {
+public machine node_members<'graph>(node: &SchemaNode<'graph>) -> SchemaMembers<'graph> crashes Trap {
     SchemaMembers { graph: node.graph, handles: schema_span(node.storage, 192u64), role: 0u64 }
 }
-public machine SchemaNode::nominal_references<'graph>(node: &SchemaNode<'graph>) -> SchemaMembers<'graph> crashes Trap {
+public machine node_nominal_references<'graph>(node: &SchemaNode<'graph>) -> SchemaMembers<'graph> crashes Trap {
     SchemaMembers { graph: node.graph, handles: schema_span(node.storage, 224u64), role: 0u64 }
 }
-public machine TypeSchema::fields<'graph>(graph: &'graph TypeSchema) -> SchemaMembers<'graph> crashes Trap {
-    let root: SchemaNode<'graph> = TypeSchema::root(graph);
+public machine schema_fields<'graph>(graph: &'graph TypeSchema) -> SchemaMembers<'graph> crashes Trap {
+    let root: SchemaNode<'graph> = schema_root(graph);
     SchemaMembers { graph: graph.storage, handles: schema_span(root.storage, 192u64), role: 2u64 }
 }
-public machine TypeSchema::cases<'graph>(graph: &'graph TypeSchema) -> SchemaMembers<'graph> crashes Trap {
-    let root: SchemaNode<'graph> = TypeSchema::root(graph);
+public machine schema_cases<'graph>(graph: &'graph TypeSchema) -> SchemaMembers<'graph> crashes Trap {
+    let root: SchemaNode<'graph> = schema_root(graph);
     SchemaMembers { graph: graph.storage, handles: schema_span(root.storage, 192u64), role: 3u64 }
 }
 
 // Filtering follows the root's authored member sequence. Stable numbers are
 // descriptive history, not array indexes or a request to reorder that sequence.
-public machine SchemaMembers::count<'graph>(members: &SchemaMembers<'graph>) -> u64 crashes Trap {
+public machine members_count<'graph>(members: &SchemaMembers<'graph>) -> u64 crashes Trap {
     transition { _ -> scan(members.graph, members.handles, members.role, 0u64) }
     machine scan(graph: &'graph [u8], handles: &'graph [u8], role: u64, count: u64) -> u64 {
         transition handles.len >= 8u64 {
@@ -185,8 +185,8 @@ public machine SchemaMembers::count<'graph>(members: &SchemaMembers<'graph>) -> 
     }
     machine item(graph: &'graph [u8], handles: &'graph [u8], role: u64, count: u64) -> u64 {
         let handle: u64 = schema_word(handles, 0u64);
-        let node: SchemaNode<'graph> = schema_node(graph, handle);
-        let selected: u64 = SchemaNode::role(&node);
+        let node: SchemaNode<'graph> = graph_node(graph, handle);
+        let selected: u64 = node_role(&node);
         let tail: &'graph [u8] = &handles[8u64..];
         transition role == 0u64 || role == selected {
             // Each increment consumes eight bytes from a finite slice. The
@@ -197,18 +197,18 @@ public machine SchemaMembers::count<'graph>(members: &SchemaMembers<'graph>) -> 
         }
     }
 }
-public machine SchemaMembers::get<'graph>(members: &SchemaMembers<'graph>, index: u64) -> SchemaNode<'graph> crashes Trap {
+public machine members_get<'graph>(members: &SchemaMembers<'graph>, index: u64) -> SchemaNode<'graph> crashes Trap {
     transition { _ -> scan(members.graph, members.handles, members.role, index) }
     machine scan(graph: &'graph [u8], handles: &'graph [u8], role: u64, index: u64) -> SchemaNode<'graph> {
         transition handles.len >= 8u64 {
             true -> item(graph, handles, role, index)
-            false -> schema_node(graph, 0u64)
+            false -> graph_node(graph, 0u64)
         }
     }
     machine item(graph: &'graph [u8], handles: &'graph [u8], role: u64, index: u64) -> SchemaNode<'graph> {
         let handle: u64 = schema_word(handles, 0u64);
-        let node: SchemaNode<'graph> = schema_node(graph, handle);
-        let selected: u64 = SchemaNode::role(&node);
+        let node: SchemaNode<'graph> = graph_node(graph, handle);
+        let selected: u64 = node_role(&node);
         let tail: &'graph [u8] = &handles[8u64..];
         transition role == 0u64 || role == selected {
             true -> matched(graph, tail, role, index, node)
