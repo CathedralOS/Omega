@@ -8,10 +8,8 @@
 use crate::{
     ValidatedAddressFold, ValidatedConstantBoolean, ValidatedConstantBranch,
     ValidatedCopiedCallOperand, ValidatedCopyRemoval, ValidatedDeadCompare,
-    ValidatedEquivalentCompare, ValidatedFixedOccurrences, ValidatedFixedViewCopies,
-    ValidatedLiteralFold, ValidatedPreAllocationTransformation, ValidatedPressureRematerialization,
-    ValidatedRedundantCompare, ValidatedRedundantExtension, ValidatedRuntimeRematerialization,
-    ValidatedRuntimeSpill, ValidatedRuntimeSplit, ValidatedStoredLoadForwarding,
+    ValidatedEquivalentCompare, ValidatedLiteralFold, ValidatedPreAllocationTransformation,
+    ValidatedRedundantCompare, ValidatedRedundantExtension, ValidatedStoredLoadForwarding,
 };
 use optimization_core::OptimizationUnitIdentity;
 use selected_instruction_analyses::{
@@ -109,42 +107,6 @@ validated_selected_analysis!(ValidatedDeadCompare);
 
 validated_selected_analysis!(ValidatedEquivalentCompare);
 
-validated_selected_analysis!(ValidatedRuntimeSpill);
-
-validated_selected_analysis!(ValidatedRuntimeSplit);
-
-validated_selected_analysis!(ValidatedRuntimeRematerialization);
-
-impl sealed::Sealed for ValidatedFixedViewCopies {}
-
-impl ValidatedSelectedAnalysis for ValidatedFixedViewCopies {}
-
-impl SelectedProgramView for ValidatedFixedViewCopies {
-    fn shared_selected_plan(&self) -> std::sync::Arc<SelectedInstructionPlan> {
-        std::sync::Arc::clone(&self.plan().transformed)
-    }
-
-    fn selected_plan(&self) -> &SelectedInstructionPlan {
-        &self.plan().transformed
-    }
-
-    fn selected_identity(&self) -> SelectedInstructionPlanIdentity {
-        self.receipt().transformed_selected()
-    }
-
-    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
-        self.receipt().optimization_unit()
-    }
-
-    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
-        self.receipt().fuel_schedule()
-    }
-}
-
 validated_selected_analysis!(ValidatedLiteralFold);
 
-validated_selected_analysis!(ValidatedPressureRematerialization);
-
 validated_selected_analysis!(ValidatedCopiedCallOperand);
-
-validated_selected_analysis!(ValidatedFixedOccurrences);

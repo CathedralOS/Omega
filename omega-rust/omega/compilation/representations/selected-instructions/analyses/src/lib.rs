@@ -439,6 +439,12 @@ macro_rules! rewrite_receipt_identity {
     };
 }
 
+mod allocation_recovery_catalog;
+pub use allocation_recovery_catalog::{
+    ALLOCATION_RECOVERY_RULE_CATALOG, AllocationRecoveryRuleCatalogEntry,
+    AllocationRecoveryRuleCatalogError, AllocationRecoveryRuleCatalogPayload,
+    selected_allocation_recovery_rule,
+};
 pub mod codec_bytes;
 pub mod cursor;
 pub mod rewriting;

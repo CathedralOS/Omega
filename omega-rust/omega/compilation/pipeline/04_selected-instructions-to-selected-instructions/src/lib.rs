@@ -26,7 +26,6 @@ use selected_instruction_analyses::work_accounting;
 
 use selected_instruction_analyses::codec_bytes;
 use selected_instruction_analyses::cursor;
-mod reanalysis;
 mod selected_input;
 pub use selected_input::ValidatedSelectedAnalysis;
 pub use selected_instruction_analyses::SelectedProgramView;
@@ -61,18 +60,8 @@ pub use analyses::{
     stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
 };
 pub(crate) use analyses::{
-    FixedPrecoloredIntervalError, FixedPrecoloredIntervalValidationReceipt,
-    FixedPrecoloredSegmentHomeError, FixedPrecoloredSegmentHomeValidationReceipt,
-    FixedPrecoloredSplitRequirementError, FixedPrecoloredSplitRequirementValidationReceipt,
-    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
-    ValidatedFixedPrecoloredIntervals, ValidatedFixedPrecoloredSegmentHomes,
-    ValidatedFixedPrecoloredSplitRequirements, analyze_fixed_precolored_intervals,
-    analyze_fixed_precolored_split_requirements, assign_fixed_precolored_segment_homes,
-    stage_optimized_live_ranges, stage_optimized_liveness,
-};
-pub use reanalysis::{
-    OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
-    StagedOptimizedSelectedReanalysisCustodyReceipt, stage_optimized_selected_reanalysis,
+    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError, stage_optimized_live_ranges,
+    stage_optimized_liveness,
 };
 
 // Selected-CFG rewrites: the executed catalog slices, the recovery rewrites
@@ -80,48 +69,32 @@ pub use reanalysis::{
 pub use rewrites::unexecuted;
 pub(crate) use rewrites::{
     AddressFoldError, ConstantBooleanError, ConstantBranchError, CopiedCallOperandError,
-    CopyRemovalError, DeadCompareError, EquivalentCompareError, FixedViewCopyError,
-    LiteralFoldPolicy, PairResultDisposition, PairUnitDefRelation, PreAllocationPolicy,
+    CopyRemovalError, DeadCompareError, EquivalentCompareError, LiteralFoldPolicy,
+    PairResultDisposition, PairUnitDefRelation, PreAllocationPolicy,
     PreAllocationTransformationIdentity, RedundantCompareError, RedundantExtensionError,
     SELECTED_STAGE_RULE_CATALOG, SelectedInstructionPairRule, SelectedLoweringRuleCatalogError,
-    SelectedStageRuleRows, StagedOptimizedFixedPrecoloredSegmentHomes,
-    StagedOptimizedFixedViewCopies, resolve_pre_allocation_rules, resolve_selected_lowering_rules,
+    SelectedStageRuleRows, resolve_pre_allocation_rules, resolve_selected_lowering_rules,
     run_pre_allocation_optimizations, run_selected_lowering_optimizations,
     validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
 };
-pub use rewrites::{
-    AllocationRecoveryRuleCatalogError, FixedViewCopy, FixedViewCopyPlan, FixedViewCopyPolicy,
-    FixedViewCopySourceEvidence, LiteralFoldIdentity,
-    OptimizedFixedPrecoloredSegmentHomeCustodyError, OptimizedFixedViewCopyCustodyError,
-    OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
-    PressureRematerializationError, PressureRematerializationPolicy, RuntimeRematerializationError,
-    RuntimeSpillError, RuntimeSpillSpanPolicy, StagedOptimizedLiteralFoldCustodyReceipt,
-    StagedOptimizedLiteralFolds, StagedPreAllocationOptimizationCustodyReceipt,
-    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationCustodyReceipt,
-    StagedSelectedLoweringOptimizationRun, ValidatedFixedViewCopies, ValidatedLiteralFold,
-    ValidatedPressureRematerialization, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
-    probe_optimized_fixed_precolored_segment_homes, rematerialize_selected_active_resident,
-    rematerialize_selected_runtime_value, selected_allocation_recovery_rule,
-    spill_selected_runtime_value, spill_selected_runtime_value_with_crossing_status,
-    spill_selected_runtime_value_with_span_policy, stage_optimized_fixed_precolored_segment_homes,
-    stage_optimized_fixed_view_copies,
-};
 pub(crate) use rewrites::{
-    FixedViewCopyDestination, FixedViewCopyValidationReceipt, FunctionLiteralFold,
-    FunctionPressureRematerialization, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan,
-    LiteralFoldValidationReceipt, PressureRematerializationAction, PressureRematerializationPlan,
-    PressureRematerializationRewrite, PressureRematerializationValidationReceipt,
-    StagedOptimizedFixedPrecoloredSegmentHomeCustodyReceipt,
-    StagedOptimizedFixedViewCopyCustodyReceipt, StagedOptimizedLiteralFoldAttempt,
+    FunctionLiteralFold, LiteralFoldAction, LiteralFoldError, LiteralFoldPlan,
+    LiteralFoldValidationReceipt, StagedOptimizedLiteralFoldAttempt,
     StagedOptimizedLiteralFoldAttemptReceipt, StagedOptimizedLiteralFoldIterationReceipt,
     StagedOptimizedLiteralFoldStep, StagedOptimizedPreAllocationAttempt,
     StagedOptimizedPreAllocationAttemptReceipt, StagedOptimizedPreAllocationIterationReceipt,
     StagedOptimizedPreAllocationStep, ValidatedAddressFold, ValidatedConstantBoolean,
     ValidatedConstantBranch, ValidatedCopiedCallOperand, ValidatedCopyRemoval,
     ValidatedDeadCompare, ValidatedEquivalentCompare, ValidatedPreAllocationTransformation,
-    ValidatedRedundantCompare, ValidatedRedundantExtension, fixed_view_copy_identity,
+    ValidatedRedundantCompare, ValidatedRedundantExtension,
 };
-pub use rewrites::{RuntimeSplitError, ValidatedRuntimeSplit, split_selected_runtime_value};
+pub use rewrites::{
+    LiteralFoldIdentity, OptimizedLiteralFoldCustodyError, OptimizedPreAllocationCustodyError,
+    StagedOptimizedLiteralFoldCustodyReceipt, StagedOptimizedLiteralFolds,
+    StagedPreAllocationOptimizationCustodyReceipt, StagedPreAllocationOptimizationRun,
+    StagedSelectedLoweringOptimizationCustodyReceipt, StagedSelectedLoweringOptimizationRun,
+    ValidatedLiteralFold,
+};
 
 // Durable transform-output identities live with the selected-instruction
 // representation; the transform publishes them under its root so callers keep
@@ -138,8 +111,4 @@ pub use selected_instructions::{
 
 pub(crate) use rewrites::{
     StoredLoadForwardingError, ValidatedStoredLoadForwarding, forward_selected_stored_load,
-};
-
-pub use rewrites::{
-    FixedOccurrencesError, ValidatedFixedOccurrences, materialize_selected_fixed_occurrences,
 };

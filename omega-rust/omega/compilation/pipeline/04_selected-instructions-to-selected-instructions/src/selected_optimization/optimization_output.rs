@@ -1,13 +1,13 @@
 //! Optimizer module role: stage output. Current selected program with separate replay inputs.
 
 use crate::{
-    AllocationRecoveryRuleCatalogError, OptimizedAllocationLegalityCustodyError,
-    OptimizedLiteralFoldCustodyError, OptimizedLiveRangeCustodyError,
-    OptimizedLivenessCustodyError, OptimizedPreAllocationCustodyError, OwnedSelectedProgram,
-    StagedOptimizedLiveRanges, StagedPreAllocationOptimizationRun,
-    StagedSelectedLoweringOptimizationRun, validate_pre_allocation_optimization_custody,
-    validate_selected_lowering_optimization_custody,
+    OptimizedAllocationLegalityCustodyError, OptimizedLiteralFoldCustodyError,
+    OptimizedLiveRangeCustodyError, OptimizedLivenessCustodyError,
+    OptimizedPreAllocationCustodyError, OwnedSelectedProgram, StagedOptimizedLiveRanges,
+    StagedPreAllocationOptimizationRun, StagedSelectedLoweringOptimizationRun,
+    validate_pre_allocation_optimization_custody, validate_selected_lowering_optimization_custody,
 };
+use selected_instruction_analyses::AllocationRecoveryRuleCatalogError;
 
 /// Only replay and custody assembly distinguish how the current program was obtained.
 #[derive(Debug)]

@@ -6,6 +6,10 @@
 mod construction;
 mod custody;
 
+use crate::StagedOptimizedSelectedReanalysisCustodyReceipt;
+use crate::{
+    OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis, ValidatedFixedViewCopies,
+};
 use crate::{
     RegisterHomeError, RegisterHomeIdentity, ValidatedPostAllocationOptimizationManifest,
     ValidatedRegisterHomes,
@@ -25,10 +29,6 @@ use selected_instruction_analyses::{
 };
 use selected_instructions::StagedOptimizedCustodyCore;
 use selected_instructions::{LiveRangeIdentity, LivenessIdentity, SelectedInstructionPlanIdentity};
-use selected_instructions_to_selected_instructions::{
-    OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
-    StagedOptimizedSelectedReanalysisCustodyReceipt, ValidatedFixedViewCopies,
-};
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
 use terminal_psi::TerminalPsiIdentity;
 

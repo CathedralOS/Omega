@@ -36,14 +36,16 @@ use crate::{
     AllocationAdmissionError, OptimizedPostSelectedLoweringHomeCustodyError,
     OptimizedRegisterHomeCustodyError, RetainedAllocation,
 };
+use crate::{AllocationRecoveryRuleCatalogError, selected_allocation_recovery_rule};
+use crate::{
+    OptimizedFixedPrecoloredSegmentHomeCustodyError, OptimizedFixedViewCopyCustodyError,
+    OptimizedSelectedReanalysisError,
+};
 use selected_instruction_analyses::{
     OptimizedAllocationLegalityCustodyError, stage_optimized_allocation_legality,
 };
 use selected_instructions_to_selected_instructions::{
-    AllocationRecoveryRuleCatalogError, OptimizedFixedPrecoloredSegmentHomeCustodyError,
-    OptimizedFixedViewCopyCustodyError, OptimizedSelectedReanalysisError,
     SelectedInstructionOptimizationEvidence, SelectedInstructionOptimizationOutput,
-    selected_allocation_recovery_rule,
 };
 
 /// Execute the exact selected allocation rules and publish one current result.
