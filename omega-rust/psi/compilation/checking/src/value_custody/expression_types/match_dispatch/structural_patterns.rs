@@ -202,8 +202,11 @@ pub(crate) fn validate_for_subject(
             .map(|reference| program.type_reference_table.type_reference(reference));
         diagnostics.push(
             Diagnostic::error(format!(
-                "match pattern does not select a record or case of its subject's exact carrier in `{}::{}`: selected {selected:?}, subject {subject:?}, type {actual:?}",
+                "match pattern does not select a record or case of its subject's exact carrier in `{}::{}`: selected {selected:?}, subject {subject:?} {:?}, type {actual:?}; parameters {:?}; locals {:?}",
                 machine.name, state.name,
+                expression_table(program).expression(subject),
+                program.state_parameters(state).iter().map(|parameter| (&parameter.name, parameter.symbol, parameter.type_reference)).collect::<Vec<_>>(),
+                program.statement_table.statements(state.statement_nodes).iter().filter_map(|statement| statement.as_local_data()).map(|local| (&local.name, local.symbol, local.type_reference, local.initial_value)).collect::<Vec<_>>(),
             ))
             .with_source_span(source_span),
         );
