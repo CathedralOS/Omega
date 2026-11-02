@@ -17,6 +17,19 @@ use language_semantics::ReferenceAccess;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 
 mod descriptor_loads;
+mod storage_addresses;
+
+/// The destination was evaluated before its RHS. Follow that completed address
+/// and each receiver's own descriptor observation, never newer source storage.
+pub(in crate::checks::borrows) fn stored_address(
+    program: &dyn ::validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    capture: arena::Handle<checked_trees::FlowOperandFact>,
+    replaces_descriptor: bool,
+) -> Result<Vec<ResolvedAlias>, &'static str> {
+    storage_addresses::resolve(program, facts, state, capture, replaces_descriptor)
+}
 
 pub(in crate::checks::borrows) fn resolve(
     program: &dyn ::validation::CheckingInput,
