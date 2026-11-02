@@ -46,6 +46,9 @@ public data PlaceKind [copy] {
     // The one arbitrary typed result in a fresh universal-refinement world.
     // It is not an authored call or an executable/borrow authority.
     case ContractResult;
+    // Each returned-view publication owns an immutable logical home. A
+    // later use of the same call expression cannot redirect an older alias.
+    case View;
 }
 
 public data Place [copy] {

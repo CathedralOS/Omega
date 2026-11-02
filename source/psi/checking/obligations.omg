@@ -1,3 +1,4 @@
+use psi::checking::reference_backings;
 use psi::checking::arithmetic;
 use psi::checking::checker;
 use psi::checking::completions;
@@ -414,6 +415,7 @@ crashes Trap
     machine effects(checker: &mut Checker, syntax: &SyntaxTrees, resolution: &NameResolution, typing: &Typing, node: u64 in Trapping, expression: Expression, row: TypeRow) {
         let selection: Selection = Typing::selection(typing, node);
         let called: bool = Checker::selects_machine(selection);
+        Checker::publish_reference_backings(checker, syntax, resolution, typing, node, expression);
         transition called {
             true -> released(checker, syntax, resolution, typing, node, expression, row)
             _ -> resulted(checker, syntax, typing, node, expression, row)

@@ -89,7 +89,7 @@ crashes Trap
     machine capture(checker: &mut Checker, index: u64 in Trapping, origin: u64 in Trapping)
     requires index < 256
     {
-        let captured: ReferenceOrigin = Checker::exact_reference_origin(origin);
+        let captured: ReferenceOrigin = Checker::exact_reference_origin(checker, origin);
         Checker::record_reference_origin(checker, index, captured);
     }
 
@@ -317,6 +317,23 @@ crashes Trap
 
     machine typed(checker: &mut Checker, typing: &Typing, place: u64 in Trapping) -> Value {
         let entry: Place = Checker::place_at(checker, place - 1);
+        transition entry.kind == PlaceKind::Call {
+            true -> publication(checker, typing, place, entry)
+            false -> value(checker, typing, place, entry)
+        }
+    }
+    machine publication(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
+        let origin: ReferenceOrigin = Checker::reference_origin(checker, place);
+        transition origin {
+            ReferenceOrigin::View { place as home, backing } -> published(checker, typing, home)
+            _ -> value(checker, typing, place, entry)
+        }
+    }
+    machine published(checker: &mut Checker, typing: &Typing, home: u64 in Trapping) -> Value {
+        let entry: Place = Checker::place_at(checker, home - 1);
+        transition { _ -> value(checker, typing, home, entry) }
+    }
+    machine value(checker: &mut Checker, typing: &Typing, place: u64 in Trapping, entry: Place) -> Value {
         let row: TypeRow = TypeTable::row(&typing.types, entry.type_handle);
         transition row.kind == TypeKind::Reference {
             true -> reference(checker, typing, place, entry)
@@ -335,6 +352,7 @@ crashes Trap
             PlaceKind::Parameter -> parameter(checker, typing, place, entry.type_handle)
             PlaceKind::Field -> field(checker, typing, place, entry)
             PlaceKind::Call -> parameter(checker, typing, place, entry.type_handle)
+            PlaceKind::View -> parameter(checker, typing, place, entry.type_handle)
             // A logical arbitrary referent in the isolated refinement world.
             // This is not added to storage_origin or any borrow authority.
             PlaceKind::ContractResult -> parameter(checker, typing, place, entry.type_handle)
@@ -356,6 +374,7 @@ crashes Trap
     {
         transition checker.reference_origins[index] {
             ReferenceOrigin::Exact { place } -> viewed(checker, typing, place, type_handle)
+            ReferenceOrigin::View { place, backing } -> viewed(checker, typing, place, type_handle)
             _ -> unknown()
         }
     }
@@ -364,6 +383,7 @@ crashes Trap
         let origin: ReferenceOrigin = Checker::reference_origin(checker, place);
         transition origin {
             ReferenceOrigin::Exact { place as captured } -> viewed(checker, typing, captured, entry.type_handle)
+            ReferenceOrigin::View { place as observed, backing } -> viewed(checker, typing, observed, entry.type_handle)
             ReferenceOrigin::Unrecorded -> incoming(checker, typing, place, entry)
             _ -> unknown()
         }

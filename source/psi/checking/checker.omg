@@ -15,7 +15,9 @@ use psi::checking::obligations;
 use psi::checking::ownership;
 use psi::checking::places;
 use psi::checking::qualification;
+use psi::checking::reference_backings;
 use psi::checking::reference_origins;
+use psi::checking::reference_writes;
 use psi::checking::references;
 use psi::checking::ranking;
 use psi::checking::slots;
@@ -46,6 +48,12 @@ public data Checker {
     // Reference descriptors retain live storage identity independently of
     // owned scalar snapshots, including inside copied aggregate values.
     reference_origins: [ReferenceOrigin; 256];
+    // Append-only per-body result rosters: old aliases retain their group
+    // when a later publication reuses a call place.
+    reference_views: [ReferenceView; 256];
+    reference_view_count: u64 in Trapping;
+    reference_backings: [ReferenceOrigin; 256];
+    reference_backing_count: u64 in Trapping;
     // Each place's default domain (domains.omg), and the place whose fields a
     // `where` fact's field names stand for while it is installed.
     domains: [DomainMark; 256];

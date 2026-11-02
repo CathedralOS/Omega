@@ -195,6 +195,34 @@ def nested_machine_cases(program: str) -> None:
     rejected(program, "returning-call-retains-ordinary-exclusive-window", ordinary, "OverlappingArguments", b"cell!7")
 
 
+def callable_contract_cases(program: str) -> None:
+    # Reuse executable fact witnesses: the product must prove the same public
+    # relation, without borrowing a concrete caller's value or supplier body.
+    root = Path(__file__).resolve().parents[3] / "samples/cli/facts/nested_machine_invocation/callable_context/contracts"
+    for path in ("main.omg", "controls/weaker_precondition/main.omg",
+                 "controls/preserves_poststate/main.omg", "controls/changes_poststate/main.omg",
+                 "owned_reference/main.omg", "forwarded/main.omg",
+                 "owned_reference/changes/main.omg", "owned_reference/eager_operands/main.omg",
+                 "returned_reference/main.omg"):
+        accepted(program, "callable-contract/" + path, (root / path).read_bytes())
+    for path, selection in (("invalid/main.omg", b"positive!2"),
+                            ("controls/weaker_guarantee/main.omg", b"positive!2"),
+                            ("controls/stale_entry/main.omg", b"provider!2"),
+                            ("owned_reference/invalid/main.omg", b"provider!2"),
+                            ("forwarded/invalid/main.omg", b"Candidate!3"),
+                            ("owned_reference/changes/invalid/main.omg", b"provider!2")):
+        rejected(program, "callable-contract/" + path, (root / path).read_bytes(),
+                 "RefinementUnproven", selection)
+    rejected(program, "callable-contract/eager-operand-stays-five",
+             (root / "owned_reference/eager_operands/invalid/main.omg").read_bytes(),
+             "RequirementUnproven", b"pair(value, setter(Holder { pointer: &mut value }))")
+    for path in ("returned_reference/invalid/main.omg",
+                 "returned_reference/controls/stale_call/main.omg",
+                 "returned_reference/controls/stale_store/main.omg"):
+        rejected(program, "callable-contract/" + path, (root / path).read_bytes(),
+                 "RequirementUnproven", b"require_five(value)")
+
+
 def invocation_component_cases(program: str) -> None:
     # Frozen own-contract controls: ancestry supplies neither a witness nor
     # input authority. Reordering the component preserves every obligation.
@@ -3487,6 +3515,7 @@ def main() -> None:
     phase_rejected(program, "resolution-rejection-has-no-observation", b"data A { x: Q; }", 248)
 
     nested_machine_cases(program)
+    callable_contract_cases(program)
     invocation_component_cases(program)
 
     slot = accepted(

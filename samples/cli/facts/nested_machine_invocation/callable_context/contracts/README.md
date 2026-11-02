@@ -20,6 +20,35 @@ The same public state relation also has
 [stale-entry twin](controls/stale_entry/main.omg) leaves the binder's required
 post-state at five while the provider writes and promises nine. Entry facts
 cannot supply a mutable postcondition. Unit calls retain their guarantees.
+The [owned-reference carrier](owned_reference/main.omg) and its
+[stale-entry twin](owned_reference/invalid/main.omg) carry the same obligation
+through an owned record containing an exclusive reference. Owning the record
+does not freeze its referent; post-state proof must retire that referent's entry
+facts. The Rust reference already runs the positive in both engines and rejects
+the twin; new product observations remain pending.
+The [changed owned referent](owned_reference/changes/main.omg) observes nine
+from an initial five; its [weaker-public-guarantee twin](owned_reference/changes/invalid/main.omg)
+keeps the write but removes the promised equality. The
+[eager-operand control](owned_reference/eager_operands/main.omg) passes an
+initial scalar observation before a later owned-borrow call writes nine. Its
+[twin](owned_reference/eager_operands/invalid/main.omg) requires the earlier
+observation to be six. The positive traps unless the sum is fourteen and the
+live value is nine, so omitted writes and reordered observations are visible.
+
+A [weaker provider premise](controls/weaker_precondition/main.omg) is permitted.
+[Forwarding a distinct binder](forwarded/main.omg) uses its public guarantees;
+[its twin](forwarded/invalid/main.omg) removes the required equality while
+keeping an exact visible supplier body. These use the same refinement judgment.
+
+The [returned-view snapshot](returned_reference/main.omg) proves that a saved
+scalar remains five while a store through the returned view changes the live
+value to nine. Its [twin](returned_reference/invalid/main.omg) passes the live
+value in place of that snapshot. The original frozen stale-entry controls
+exercise both [calls](returned_reference/controls/stale_call/main.omg) and
+[stores](returned_reference/controls/stale_store/main.omg). A logical result
+subject is separate from the storage it may reach; copying the view retains
+both, without asserting equality to every possible backing.
+
 All positive programs retain four hosted Build entries and an exit-0 oracle.
 These are contract-operation controls, not another nine-place matrix.
 
