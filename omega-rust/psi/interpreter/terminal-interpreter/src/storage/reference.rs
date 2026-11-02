@@ -358,7 +358,7 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    fn reference_contract(
+    pub(crate) fn reference_contract(
         &self,
         reference_type: StructuralTypeId,
     ) -> Result<(StructuralTypeId, StructuralAccess), TerminalInterpretError> {
@@ -1964,9 +1964,11 @@ impl TerminalExecution<'_> {
                 let mut backings = Vec::with_capacity(origin.sources.len());
                 for source in &origin.sources {
                     let terminal_psi::StructuralReferenceOrigin::Parameter(source) = source else {
-                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                            "interpreter invocation-owned reference return backing",
-                        ));
+                        // An invocation-owned backing is produced inside the
+                        // callee's own frame; nothing ingress-side exists to
+                        // capture. Completion authenticates the returned
+                        // referent's home against the declared carrier.
+                        continue;
                     };
                     let parameter = parameters
                         .iter()
@@ -2220,8 +2222,67 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
+            let mut invocation_backings = Vec::new();
+            for source in &origin.sources {
+                let terminal_psi::StructuralReferenceOrigin::Invocation {
+                    carrier_type,
+                    path,
+                    extent,
+                    access: source_access,
+                } = source
+                else {
+                    continue;
+                };
+                // The declared origin names a carrier this invocation itself
+                // produced: the completing frame's own operation-result homes
+                // of that type are the only admissible backings. Completing
+                // the source's declared projection must reach the returned
+                // referent through the same resolution a captured ingress
+                // backing performs.
+                let endpoint = terminal_semantics::reference_origin_type(
+                    self.structural_types().values(),
+                    *carrier_type,
+                    path,
+                )
+                .ok_or_else(malformed)?;
+                if endpoint != referent_type {
+                    return Err(malformed());
+                }
+                if path
+                    .iter()
+                    .any(|projection| {
+                        !matches!(
+                            projection,
+                            terminal_psi::ReferenceOriginProjection::Exact(_)
+                        )
+                    })
+                {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "invocation reference origin element window",
+                    ));
+                }
+                let machine = self.program.verified_machine(self.current_machine)?;
+                for (place, value) in self.structural_values.iter() {
+                    if value.structural_type != *carrier_type
+                        || machine.producing_operation(*place).is_none()
+                    {
+                        continue;
+                    }
+                    invocation_backings.push(ReferenceBacking {
+                        array_loan: None,
+                        placed: None,
+                        value: value.clone(),
+                        aggregate_view: None,
+                        primitive_storage: None,
+                        suffix: path.clone(),
+                        extent: *extent,
+                        element_view: None,
+                        access: *source_access,
+                    });
+                }
+            }
             let mut matched = false;
-            for backing in expected {
+            for backing in expected.iter().chain(&invocation_backings) {
                 if let Some(mut projected) = self.resolve_return_origin(backing, actual)? {
                     self.retain_returned_access_interpretation(
                         &mut projected,
