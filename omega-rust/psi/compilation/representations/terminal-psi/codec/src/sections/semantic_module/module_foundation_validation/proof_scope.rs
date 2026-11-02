@@ -1,6 +1,7 @@
 //! Structural ingress checks for retained proof scope. These do not establish
 //! any proof condition or authorize a declaration's execution.
 
+use super::super::wire::require_increasing;
 use crate::codec_error::{CodecError, malformed};
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
@@ -72,6 +73,34 @@ pub(super) fn validate(
                     }
                 }
             }
+        }
+    }
+    require_increasing(
+        scope
+            .callable_headers
+            .iter()
+            .map(|(_, header)| header.declaration),
+        "proof callable headers by declaration",
+    )?;
+    for (_, header) in scope.callable_headers.iter() {
+        declaration(header.declaration)?;
+        match &header.callable {
+            Ok(callable) => {
+                text(*callable)?;
+                if let Some(ProofScopeDeclaration::Callable(description)) =
+                    scope.declaration(header.declaration)
+                    && description.callable != *callable
+                {
+                    return malformed("callable header differs from its full declaration");
+                }
+            }
+            Err(reason) if reason.is_empty() => {
+                return malformed("unavailable callable header has no reason");
+            }
+            Err(_) => {}
+        }
+        if header.source_target.as_ref().is_some_and(String::is_empty) {
+            return malformed("callable header has an empty source target");
         }
     }
     let mut bound_declarations = BTreeSet::new();
