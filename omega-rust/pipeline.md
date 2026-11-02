@@ -442,7 +442,22 @@ plan replacement.
 
 ### Destination
 
-One application Build coordinator chooses needed work and schedules it. Two
+The `omega` executable is a router. It parses a command, hands it to the one
+owner of that command, and turns the returned outcome into output and an exit
+status; it owns no compilation, execution, scheduling or package workflow. The
+owner calls the other owners it needs:
+
+| Command | Owner | Calls |
+| --- | --- | --- |
+| `omega <root.omg>` (build), `--check`, `inspect-terminal` | compiler | the interpreter engine, to execute Build programs |
+| `omega run` | interpreter runtime | the compiler, for the program it executes |
+| `omega install`, `update`, `audit` | package manager | the compiler, for review |
+
+The interpreter engine is a library beneath both the compiler and the
+interpreter runtime, so neither command owner depends on the other's entrance.
+Settled with the owner on 2026-11-01.
+
+The compiler's Build coordinator chooses needed work and schedules it. Two
 compiler drivers own representation-to-representation sequencing. The Terminal
 interpreter owns execution and suspended continuations. Package management owns
 source resolution, acquisition, review and lock decisions. Shared representations,
@@ -450,7 +465,7 @@ foundations, product reports and publication keep independent ownership.
 
 | Entrance | Responsibility |
 | --- | --- |
-| `omega/application/cli/src/main.rs` | Parse and dispatch; display outcomes |
+| `omega/application/cli/src/main.rs` | Parse, route to the command's owner, display outcomes |
 | `omega/application/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
 | `omega/application/build/src/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
 | `omega/application/build/src/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
@@ -472,8 +487,8 @@ owner outside the language transformation stages.
 
 ### Public contracts
 
-Application coordination depends on package, compiler, interpreter and product
-facades, never compiler stages or source/intermediate IRs. Package management
+The router depends on the command owners' entrances, never compiler stages or
+source/intermediate IRs. Package management
 does not produce checked trees or native images. Psi does not acquire packages
 or permissions or invoke native compilation. Omega cannot depend on source IRs,
 source checkers or interpreters. Stages cannot call the coordinator or adjacent

@@ -15,6 +15,7 @@ use language_semantics::content::ContentPlaceVersion;
 use typed_trees::data::DataDefinition;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
+use typed_trees::types::TypeReferenceHandle;
 use typed_trees::{machine::Machine, state::State};
 
 pub(crate) fn stored_data_predicate_holds(
@@ -23,10 +24,21 @@ pub(crate) fn stored_data_predicate_holds(
     state: &State,
     statement_index: usize,
     place: &crate::CanonicalPlace,
+    receiver_type: TypeReferenceHandle,
     definition: &DataDefinition,
-    active_case: Option<symbols::SymbolHandle>,
     predicate: ExpressionHandle,
 ) -> bool {
+    let Some(application) =
+        crate::value_custody::places::unwrapped_type_reference(program, receiver_type)
+    else {
+        return false;
+    };
+    if program
+        .data_constructor_definition(application, definition.symbol)
+        .is_none()
+    {
+        return false;
+    }
     let Some(next_statement) = statement_index.checked_add(1) else {
         return false;
     };
@@ -37,8 +49,8 @@ pub(crate) fn stored_data_predicate_holds(
             in_transition_target: false,
         },
         place: place.clone(),
+        application,
         definition,
-        active_case,
         predicate,
         observed: false,
         proven: true,
@@ -61,8 +73,8 @@ pub(crate) fn stored_data_predicate_holds(
 struct StoredPredicate<'definition> {
     site: StructuralPrefixSite,
     place: crate::CanonicalPlace,
+    application: TypeReferenceHandle,
     definition: &'definition DataDefinition,
-    active_case: Option<symbols::SymbolHandle>,
     predicate: ExpressionHandle,
     observed: bool,
     proven: bool,
@@ -87,6 +99,14 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
         self.observed = true;
         let mut parameters = Vec::new();
         let mut bindings = Vec::new();
+        // Restoring a value judges the same applied predicate as constructing
+        // it. Its static arguments are part of that complete telescope, even
+        // when the field captures themselves are runtime scalars.
+        let type_bindings = judge.data_application_type_bindings(self.application);
+        for (parameter, value) in judge.data_application_static_bindings(self.application) {
+            bindings.push((parameter.name.to_string(), value));
+            parameters.push(parameter);
+        }
         for field in program
             .data_members(self.definition)
             .iter()
@@ -120,41 +140,7 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
                 },
             );
         if subject_demanded {
-            let variant = match self.active_case {
-                Some(symbol) => program
-                    .data_members(self.definition)
-                    .iter()
-                    .find_map(|member| {
-                        let variant = member.as_variant()?;
-                        (variant.symbol == symbol).then_some(variant)
-                    }),
-                None => None,
-            };
-            if self.active_case.is_some() && variant.is_none()
-                || variant.is_none()
-                    && program
-                        .data_members(self.definition)
-                        .iter()
-                        .any(|member| member.as_variant().is_some())
-            {
-                self.proven = false;
-                return;
-            }
-            let subject = super::structural_terms::captured_constructor_term(
-                program,
-                self.definition,
-                variant,
-                |field| {
-                    let mut place = self.place.clone();
-                    crate::value_custody::places::push_field_place_segments(
-                        program,
-                        &mut place.segments,
-                        field.symbol,
-                    );
-                    judge.captured_place_projection(&place, ContentPlaceVersion::Current)
-                },
-            );
-            let Some(subject) = subject else {
+            let Some(subject) = judge.captured_data_subject(&self.place, self.definition) else {
                 self.proven = false;
                 return;
             };
@@ -170,7 +156,10 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
             parameters.push(StateParameter {
                 symbol: self.definition.predicate_subject_symbol,
                 name: name.as_str().into(),
-                type_reference: self.definition.predicate_subject_type,
+                // The declaration subject can name its generic origin's field
+                // view. The performed store retains this exact receiving
+                // carrier, whose current constructor supplies these fields.
+                type_reference: self.application,
                 ..Default::default()
             });
             bindings.push((name, subject));
@@ -183,9 +172,16 @@ impl StructuralPrefixVisitor for StoredPredicate<'_> {
             self.predicate,
             &bindings,
             &[],
-            &[],
+            &type_bindings,
             Some((machine, state)),
         );
+        if super::struct_trace() {
+            eprintln!(
+                "STRUCT stored-predicate data={} predicate={} parameters={parameters:?} bindings={bindings:?} judgment={judgment:?}",
+                self.definition.name,
+                program.expression_table.display_name(self.predicate),
+            );
+        }
         self.proven &= matches!(judgment, StructuralJudgment::Proven);
     }
 }

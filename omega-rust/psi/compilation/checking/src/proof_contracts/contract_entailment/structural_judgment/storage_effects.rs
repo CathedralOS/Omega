@@ -1274,6 +1274,80 @@ impl StructuralJudge<'_> {
         )
     }
 
+    /// Rejoin a logical subject from the current tag and every current field.
+    /// A field store can retire the whole-value snapshot while preserving its
+    /// tag and untouched fields. All of those observations belong to this
+    /// prefix ledger, rather than a separate literal valuation's active case.
+    /// Missing fields or an unknown applied tag leave the subject unknown;
+    /// assembling its contents supplies no default-domain admission.
+    pub(in crate::proof_contracts::contract_entailment) fn captured_data_subject(
+        &self,
+        place: &CanonicalPlace,
+        definition: &typed_trees::data::DataDefinition,
+    ) -> Option<super::StructuralTerm> {
+        self.requires_value_preservation().then_some(())?;
+        let coordinate = self.capture_storage_place(place.clone())?;
+        let active_case = self
+            .stored_values
+            .iter()
+            .find(|stored| stored.coordinate == coordinate)
+            .and_then(|stored| stored.selected_case);
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT stored-subject data={} place={place:?} case={active_case:?}",
+                definition.name,
+            );
+        }
+        let variant = match active_case {
+            Some(symbol) => Some(
+                self.program
+                    .data_members(definition)
+                    .iter()
+                    .filter_map(typed_trees::data::DataMember::as_variant)
+                    .find(|variant| variant.symbol == symbol)?,
+            ),
+            None => {
+                if self
+                    .program
+                    .data_members(definition)
+                    .iter()
+                    .any(|member| member.as_variant().is_some())
+                {
+                    return None;
+                }
+                None
+            }
+        };
+        let subject = super::super::structural_terms::captured_constructor_term(
+            self.program,
+            definition,
+            variant,
+            |field| {
+                let mut field_place = place.clone();
+                crate::value_custody::places::push_field_place_segments(
+                    self.program,
+                    &mut field_place.segments,
+                    field.symbol,
+                );
+                let value = self.captured_place_projection(
+                    &field_place,
+                    language_semantics::content::ContentPlaceVersion::Current,
+                );
+                if super::super::struct_trace() {
+                    eprintln!("STRUCT stored-subject field={} value={value:?}", field.name,);
+                }
+                value
+            },
+        );
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT stored-subject data={} value={subject:?}",
+                definition.name
+            );
+        }
+        subject
+    }
+
     /// Query a captured place rather than reconstructing its initializer.
     /// Current local/call-result storage and an entry parameter use the same
     /// revision ledger; claim forwarding alone never establishes byte equality.

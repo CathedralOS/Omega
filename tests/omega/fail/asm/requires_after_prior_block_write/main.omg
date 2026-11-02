@@ -5,6 +5,6 @@ machine Subject::change(subject: &mut Subject)
 requires subject.ready
 {
     asm { mov subject.ready, false }
-    asm where requires subject.ready { nop }
+    asm requires subject.ready { nop }
 }
 machine main() {}

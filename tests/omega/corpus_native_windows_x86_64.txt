@@ -1937,6 +1937,10 @@ pass/expressions/call_result_comparison_operands_exit built 7997ms exit:70 @5f66
 pass/expressions/comparison_result_integer_conversion_exit built 11839ms exit:70 @5f668826adf3+wt
 pass/expressions/dead_trapping_let_traps built 12453ms exit:-1073741795 @5f668826adf3+wt
 pass/expressions/declared_operator_match_result built 9571ms exit:70 @5f668826adf3+wt
+pass/expressions/declared_operator_private_helper_exit built 4245ms exit:0 @630d0f945fc2
+pass/expressions/declared_operator_result_loan_exit built 4210ms exit:0 @630d0f945fc2
+pass/expressions/declared_operator_result_qualification_exit built 4227ms exit:0 @630d0f945fc2
+pass/expressions/declared_operator_stateful_body_exit built 4191ms exit:0 @630d0f945fc2
 pass/expressions/deep_paren_nesting checked 2220ms @5f668826adf3+wt
 pass/expressions/derives_helper_return checked 2800ms @5f668826adf3+wt
 pass/expressions/entry_mut_scalar_param checked 2328ms @5f668826adf3+wt

@@ -6,7 +6,7 @@ data Main {
 }
 
 machine Main::main(main: &mut Main) {
-    asm where
+    asm
         requires main.value
         clobbers none
     {

@@ -328,7 +328,7 @@ ensures acknowledgement_completed(acknowledgement)
 {
     let index: u32 = 2059;
     let value: u64 = 0;
-    asm where ensures acknowledgement_completed(acknowledgement) {
+    asm ensures acknowledgement_completed(acknowledgement) {
         wrmsr index, value
     }
 }

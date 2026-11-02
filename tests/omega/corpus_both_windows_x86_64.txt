@@ -1929,6 +1929,10 @@ pass/expressions/call_result_comparison_operands_exit built 8932ms exit:70 inter
 pass/expressions/comparison_result_integer_conversion_exit built 13751ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/expressions/dead_trapping_let_traps built 15939ms exit:-1073741795 interpreter:trapped @5f668826adf3+wt
 pass/expressions/declared_operator_match_result built 13360ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/expressions/declared_operator_private_helper_exit built 4224ms exit:0 interpreter-exit:0 interpreter:agrees @630d0f945fc2
+pass/expressions/declared_operator_result_loan_exit built 4190ms exit:0 interpreter-exit:0 interpreter:agrees @630d0f945fc2
+pass/expressions/declared_operator_result_qualification_exit built 4207ms exit:0 interpreter-exit:0 interpreter:agrees @630d0f945fc2
+pass/expressions/declared_operator_stateful_body_exit built 4242ms exit:0 interpreter-exit:0 interpreter:agrees @630d0f945fc2
 pass/expressions/deep_paren_nesting checked 2752ms @5f668826adf3+wt
 pass/expressions/derives_helper_return checked 2583ms @5f668826adf3+wt
 pass/expressions/entry_mut_scalar_param checked 2547ms @5f668826adf3+wt
@@ -5542,6 +5546,7 @@ pass/layouts/resident_signed_field_access checked 6739ms @5f668826adf3+wt
 pass/layouts/resident_unused_lifecycle_scope checked 2452ms @5f668826adf3+wt
 pass/layouts/resident_view_without_local_initialization checked 2874ms @5f668826adf3+wt
 pass/layouts/resident_whole_extraction checked 2982ms @5f668826adf3+wt
+pass/layouts/runtime_accessor_with_linear_owner_exit built 5081ms exit:0 interpreter-exit:0 interpreter:agrees @84981c988bf9+wt
 pass/layouts/runtime_callee_integer_at_fitting_write_exit rejected 1960ms interpreter:unchecked @5f668826adf3+wt
 	IntegerAt call in NativePlacement::initialize requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
 	IntegerAt call in Placed::initialize_owned requires every performed value to fit its physical storage: effectful invocation has unknown encoded reach
@@ -5980,6 +5985,7 @@ pass/ownership/runtime_nested_projected_claim_return_exit built 4683ms exit:0 in
 pass/ownership/runtime_nested_selected_cleanup_exit built 4062ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_nested_selected_owner_call_exit built 3626ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_nested_view_affine_window_exit built 3641ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/ownership/runtime_nonreturning_claim_alternative_exit built 4814ms exit:0 interpreter-exit:0 interpreter:agrees @475a84244f9e+wt
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit built 8622ms exit:42 interpreter-exit:42 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_owned_parameter_restoration_exit built 3479ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_partial_linear_record_case_cleanup_exit built 5287ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

@@ -1,0 +1,22 @@
+// A token use owes the declaration's `requires` under the exact operands. `combine`
+// establishes nothing about `left`, so the premise is unproved at the use.
+data Wrapped { value: u8; }
+
+machine + Wrapped::add(left: &Wrapped, right: &Wrapped) -> u64
+requires left.value > 0
+{
+    (left.value as u64) + (right.value as u64)
+}
+
+machine combine(left: &Wrapped, right: &Wrapped) -> u64 {
+    left + right
+}
+
+machine main() crashes Trap {
+    let left: Wrapped = Wrapped { value: 0 };
+    let right: Wrapped = Wrapped { value: 2 };
+    let sum: u64 = combine(&left, &right);
+    transition sum == 2 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

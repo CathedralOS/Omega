@@ -2,7 +2,7 @@
 // `cmp eax, eax` always sets ZF, so the `jz` fallthrough cannot be taken: the
 // unreachable arm's `requires false` closes on the refuted guard alone.
 machine main() crashes Trap {
-    asm where clobbers rax, rflags {
+    asm clobbers rax, rflags {
     entry:
         mov eax, 3;
         cmp eax, eax;

@@ -199,6 +199,10 @@ retired-syntax deletions to completion.
     as requested by the owner; Terminal comparison currently declines the
     Objective-C adapter's additional service demands. Scalar-range syntax
     migration and the remaining aggregate handback obligations below stay open.
+    Applied case predicates now retain saved scalar endpoints through an invalid
+    intermediate payload write and exact restoration across all nine places in
+    `samples/cli/facts/case_dependent_default_domain` (`macos_arm64` native/Terminal
+    exit 0); missing-ceiling and stale-snapshot controls still reject.
     Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
@@ -209,7 +213,7 @@ retired-syntax deletions to completion.
   the corpus, `bootstrap/5_omega/parser.epsilon` and
   `tests/bootstrap/omega-parser` are migrated and each customer's native/Terminal
   oracle runs via `omega run --both`; then delete suffix parsing
-  (`omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/type_syntax/parse_type.rs`),
+  (`omega-rust/psi/compilation/pipeline/01_tokens-to-syntax-trees/src/grammar/type_syntax/parse_type.rs`),
   `TypeConstraintNode::Range`, range-shell inference, suffix-recommending
   diagnostics, and the migration recipe, turning
   `fail/proofs/mathematical_constrained_scalar_formal:2` into a parse-refusal pin.
@@ -325,11 +329,9 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 61 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 3 facts spell it in all nine places
-    (`generic_calling_policy`,
-    `target_layout_derived_constant`,
-    `target_scoped_constant_realization`).
+    Frontier: 60 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 2 facts spell it in all nine places
+    (`target_layout_derived_constant`, `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
@@ -744,11 +746,6 @@ helper that passes does not close an item.
     callable's complete contract and terminating semicolon distinct from its
     enclosing declaration's requirements and guarantees, including higher-order
     and logical-evidence requirements.
-  - Parse body-level assembly `requires`, `ensures` and `clobbers` directly
-    after `asm`, including headers without predicates. Preserve label scopes,
-    incoming-edge and exit proofs, exact clobbers, instruction-catalog checks
-    and authority; removing the grouping word cannot turn assertions into
-    admissions or remove required effects.
   - Migrate bundled/product sources, Build declarations, samples, corpus and
     compiler-input literals, source tooling and highlighting, and affected
     customer programs. Update the Omega parser in `bootstrap/5_omega/` and its
@@ -838,7 +835,7 @@ helper that passes does not close an item.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
     expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
     [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md),
-    and [captured-supplier default-member](samples/cli/facts/transparent_generic_aliases/rhs_captured_supplier/README.md)
+    and [captured-supplier local/field/parameter/result/join](samples/cli/facts/transparent_generic_aliases/rhs_captured_supplier/README.md)
     places, including remaining mixed/open scope compositions, and captured
     Product/Build alias transport remain open.
   - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`
@@ -1303,7 +1300,7 @@ defines the complete product bar.
   [assembly](wiki/spec/language/assembly.md) and the
   [inline assembly catalog](omega-rust/psi/foundation/language-core/inline_assembly.md)
   end to end (`Psi 00–08` and `Omega 00–09`).
-  Owners: `01_tokens-to-syntax-trees/src/bodies/statements/inline_assembly.rs`,
+  Owners: `01_tokens-to-syntax-trees/src/grammar/bodies/statements/inline_assembly.rs`,
   `language-core/src/inline_assembly/`, stage 05 CFG/state transfer and
   `execution/terminal_unit/calls/call_operations.rs`, stage 06 lowering,
   Omega stage 02 `lowering/control_flow/operations.rs`, stage 03 scalar-graph
@@ -1900,12 +1897,6 @@ defines the complete product bar.
     breadth/set-file-time/metadata fixtures (exit 70), and Linux
     `write_all_full_device_exit`, and provide trusted Terminal adapters for the
     exact authored foreign bindings.
-  - Supply Darwin `_futimens` through the existing matching-host filesystem
-    adapter with its exact OS signature, guest descriptor custody and explicit
-    metadata-mutation delegation; keep missing-delegation rejection. Complete
-    `tests/omega/pass/filesystem/runtime_portable_metadata_exit` in Terminal as
-    well as native execution. The private native sponsor supplies no extra
-    filesystem capability.
   - Run `tests/omega/pass/filesystem/windows_canonicalize_exit` (exit 70 on
     Windows) and wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
