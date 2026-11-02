@@ -1929,6 +1929,10 @@ pass/expressions/call_result_comparison_operands_exit built 8932ms exit:70 inter
 pass/expressions/comparison_result_integer_conversion_exit built 13751ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/expressions/dead_trapping_let_traps built 15939ms exit:-1073741795 interpreter:trapped @5f668826adf3+wt
 pass/expressions/declared_operator_match_result built 13360ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/expressions/declared_operator_private_helper_exit built 4224ms exit:0 interpreter-exit:0 interpreter:agrees @630d0f945fc2
+pass/expressions/declared_operator_result_loan_exit built 4190ms exit:0 interpreter-exit:0 interpreter:agrees @630d0f945fc2
+pass/expressions/declared_operator_result_qualification_exit built 4207ms exit:0 interpreter-exit:0 interpreter:agrees @630d0f945fc2
+pass/expressions/declared_operator_stateful_body_exit built 4242ms exit:0 interpreter-exit:0 interpreter:agrees @630d0f945fc2
 pass/expressions/deep_paren_nesting checked 2752ms @5f668826adf3+wt
 pass/expressions/derives_helper_return checked 2583ms @5f668826adf3+wt
 pass/expressions/entry_mut_scalar_param checked 2547ms @5f668826adf3+wt
