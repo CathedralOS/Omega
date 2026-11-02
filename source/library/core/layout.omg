@@ -308,6 +308,8 @@ public machine AccessPlan::inaccessible(layout: LayoutPlan) -> AccessPlan {
 // explicit. Fuel is library policy, not part of the public access-plan
 // surface; 64 entries times a 32-slot duplicate search never exhausts it, and
 // an exhausted walk returns the partial seed for final validation to reject.
+// Every cyclic participant names the same rank. Lexical nesting does not make
+// the enclosing machine's witness a witness for the nested call component.
 machine AccessPlan::seed_bounded(plan: AccessPlan, index: u64, fuel: u64) -> AccessPlan
 terminates by fuel
 requires index <= 64 && fuel >= 1 && fuel <= 4096
@@ -315,6 +317,7 @@ requires index <= 64 && fuel >= 1 && fuel <= 4096
     transition { _ -> seed(plan, index, fuel) }
 
     machine seed(plan: AccessPlan, index: u64, fuel: u64) -> AccessPlan
+    terminates by fuel
     requires index <= 64 && fuel >= 1 && fuel <= 4096
     {
         transition fuel > 1 && index < plan.layout.entry_count && index < 64 {
@@ -324,6 +327,7 @@ requires index <= 64 && fuel >= 1 && fuel <= 4096
     }
 
     machine examine(plan: AccessPlan, index: u64, fuel: u64) -> AccessPlan
+    terminates by fuel
     requires index <= 63 && fuel >= 1 && fuel <= 4096
     {
         let key: u64 = plan.layout.entries[index].key;
@@ -337,6 +341,7 @@ requires index <= 64 && fuel >= 1 && fuel <= 4096
         slot: u64,
         fuel: u64
     ) -> AccessPlan
+    terminates by fuel
     requires index <= 63 && slot <= 32 && fuel >= 1 && fuel <= 4096
     {
         let field_count: u64 = plan.field_count;
@@ -354,6 +359,7 @@ requires index <= 64 && fuel >= 1 && fuel <= 4096
         slot: u64,
         fuel: u64
     ) -> AccessPlan
+    terminates by fuel
     requires index <= 63 && slot <= 31 && fuel >= 1 && fuel <= 4096
     {
         transition {
@@ -370,6 +376,7 @@ requires index <= 64 && fuel >= 1 && fuel <= 4096
         field_count: u64,
         fuel: u64
     ) -> AccessPlan
+    terminates by fuel
     requires index <= 63 && field_count <= 31 && fuel >= 1 && fuel <= 4096
     {
         let mut updated: AccessPlan = plan;
@@ -416,6 +423,7 @@ requires fuel >= 1 && fuel <= 128
         index: u64,
         fuel: u64
     ) -> AccessPlan
+    terminates by fuel
     requires index <= 32 && fuel >= 1 && fuel <= 128
     {
         transition fuel > 1 && index < plan.field_count && index < 32 {
@@ -431,6 +439,7 @@ requires fuel >= 1 && fuel <= 128
         index: u64,
         fuel: u64
     ) -> AccessPlan
+    terminates by fuel
     requires index <= 31 && fuel >= 1 && fuel <= 128
     {
         transition {
@@ -460,6 +469,7 @@ requires fuel >= 1 && fuel <= 128
         index: u64,
         fuel: u64
     ) -> AccessPlan
+    terminates by fuel
     requires index <= 31 && fuel >= 1 && fuel <= 128
     {
         transition fuel > 1 {

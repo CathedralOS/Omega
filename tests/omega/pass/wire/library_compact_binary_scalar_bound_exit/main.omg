@@ -1,6 +1,6 @@
 // Expected exit: 0
 // Capacity is computed from the exact owner schema by a pure source query.
-use omega_language_std::wire;
+use omega::language::core::wire;
 use omega::language::core::reflect;
 data First { #0 counter: u32; }
 data Second { #0 counter: u32; #1 timestamp: u32; }

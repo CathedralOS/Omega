@@ -28,7 +28,7 @@ machine forward<Value, Alt>(flag: bool, value: Payload in Tagged<Value>) -> Payl
 reaches Identity
 {
     let left: Payload in Tagged<Value> = Identity<Value>::identity(value);
-    let right: Payload in Tagged<Value> = left;
+    let right: Payload in Tagged<Value> = Payload { value: 31 };
     let joined: Payload in Tagged<Alt> = match flag {
         true -> left,
         false -> right
@@ -57,6 +57,7 @@ machine main() reaches Identity crashes Trap {
     let value: Payload in Tagged<Word> = Payload { value: 29 };
     let holder: Holder<Word> = Holder { value: value };
     let result: Payload in Tagged<Word> = field<Word>(holder);
+    let fallback: Payload in Tagged<Word> = forward<Word, Other>(false, value);
     let from_state: Payload in Tagged<Word> = later<Word>(result);
     let compound_value: Payload in Tagged<Box<Word>> = Payload { value: 37 };
     let from_compound: Payload in Tagged<Box<Word>> = Identity<Word>::compound(compound_value);
@@ -64,7 +65,7 @@ machine main() reaches Identity crashes Trap {
     let from_pair: Payload in Pair<Word, Other> = forward_pair<Word, Other>(pair_value);
     let other_pair: Payload in Pair<Word, Word> = Payload { value: 47 };
     let from_other_pair: Payload in Pair<Word, Word> = forward_pair<Word, Word>(other_pair);
-    transition from_state.value == 29 && from_compound.value == 37
+    transition from_state.value == 29 && fallback.value == 31 && from_compound.value == 37
         && from_pair.value == 43 && from_other_pair.value == 47 {
         true -> {}
         false -> bad()

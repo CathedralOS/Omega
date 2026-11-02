@@ -2630,8 +2630,10 @@ dependencies = [
 name = "terminal-runtime"
 version = "0.1.0"
 dependencies = [
+ "access-plans",
  "backend-plan",
  "calling-conventions",
+ "extents",
  "native-artifact",
  "native-provider-runtime",
  "numerics",

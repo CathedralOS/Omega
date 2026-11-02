@@ -9,12 +9,20 @@ use typed_trees::measure::MeasureDefinition;
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 mod reads;
+mod selectors;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeclaredInputRead {
     pub coordinate: crate::RankSubjectCoordinate,
     pub type_reference: TypeReferenceHandle,
     pub primitive_type: PrimitiveType,
+    /// The supplying telescope is part of an indexed read's meaning. These
+    /// are mathematical substitutions, never caller storage or loan authority.
+    /// This shape is checking scratch; execution retains admitted coordinates.
+    pub selector_owner: SymbolHandle,
+    pub selector_parameters: Vec<typed_trees::signature::StateParameter>,
+    pub selector_inputs: Vec<(SymbolHandle, crate::RankSubjectCoordinate)>,
+    pub selector_arguments: Vec<(SymbolHandle, typed_trees::expression::ExpressionHandle)>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -76,6 +84,10 @@ pub fn declared_input_shape(
             },
             type_reference: formal.type_reference,
             primitive_type,
+            selector_owner: measure.symbol,
+            selector_parameters: vec![formal.clone()],
+            selector_inputs: Vec::new(),
+            selector_arguments: Vec::new(),
         });
         return Some(shape);
     }
