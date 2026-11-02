@@ -11,12 +11,14 @@
 //! presentation is captured.
 
 mod original_homes;
+mod readonly_record;
 mod record_fields;
 mod record_shape;
 mod reference_outputs;
 mod service_reach;
 mod values;
 pub(super) use original_homes::{NativeContext, rejection};
+pub(super) use readonly_record::ReadonlyRecord;
 pub(super) use record_shape::{
     IntegerRecordField, matches_integer_record, matches_integer_storage,
     matches_signed_record_array,
@@ -30,7 +32,9 @@ use calling_conventions::{
     BoundaryValueClass, ValueClass,
 };
 use native_artifact::TerminalRuntimeHostProvisions;
-use native_provider_runtime::{NativeAdapterId, NativeArgument, NativeParameterStorage};
+use native_provider_runtime::{
+    NativeAdapterId, NativeArgument, NativeHomeId, NativeParameterStorage,
+};
 use runtime_abi::NativeBorrowedStorageLayout;
 use semantic_vocabulary::{BoundaryMachineId, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
@@ -78,6 +82,10 @@ pub(super) struct NativeImport<'host> {
     result: ResultCodec,
     references: reference_outputs::ReferenceOutputs,
     filesystem: Option<super::filesystem::FilesystemCall>,
+    // A modeled namespace may need a translated readonly ABI header. It is
+    // private marshalling storage, never an original Source allocation. One
+    // fixed header is reused only after each synchronous call completes.
+    filesystem_header: Option<NativeHomeId>,
     modeled_descriptor: Option<super::descriptor_io::DescriptorIoImport<'host>>,
 }
 
@@ -251,6 +259,7 @@ impl<'host> NativeImport<'host> {
             result,
             references,
             filesystem,
+            filesystem_header: None,
             modeled_descriptor,
         }))
     }
@@ -559,7 +568,24 @@ impl TerminalEffectHandler for NativeImport<'_> {
                         (StructuralAccess::Owned, TerminalBoundaryStorageBuffer::Structural(buffer)) if buffer.access() == *access && buffer.structural_type() == codec.structural_type && buffer.original_storage().is_none() => Input::Value(codec.encode(buffer.values())?),
                         (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, TerminalBoundaryStorageBuffer::Structural(buffer)) if buffer.access() == *access && buffer.structural_type() == codec.structural_type => {
                             let loan = buffer.original_storage().ok_or_else(|| rejection("native borrowed record has no original allocation"))?;
-                            let (home, offset) = self.native.loan(loan, codec)?; Input::Loan(home, offset)
+                            let (home, offset) = self.native.loan(loan, codec)?;
+                            if let Some(filesystem) = &self.filesystem {
+                                if *access == StructuralAccess::SharedBorrow && filesystem.readonly_record_argument(*index) {
+                                    let view = ReadonlyRecord::new(&self.native, &self.references, *index, loan, codec)?;
+                                    if let Some(bytes) = filesystem.prepare_readonly_record(*index, &view)? {
+                                        let header = match self.filesystem_header {
+                                            Some(header) => header,
+                                            None => {
+                                                let header = self.native.sponsor.borrow_mut().with(|process| process.create_home(codec.extent, codec.alignment))?;
+                                                self.filesystem_header = Some(header);
+                                                header
+                                            }
+                                        };
+                                        self.native.sponsor.borrow_mut().with(|process| process.write_home(header, 0, &bytes))?;
+                                        Input::Loan(header, 0)
+                                    } else { Input::Loan(home, offset) }
+                                } else { Input::Loan(home, offset) }
+                            } else { Input::Loan(home, offset) }
                         }
                         (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, TerminalBoundaryStorageBuffer::Scalar(buffer)) if buffer.access() == *access => {
                             let loan = buffer.original_storage().ok_or_else(|| rejection("native borrowed scalar has no original allocation"))?;

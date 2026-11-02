@@ -49,6 +49,10 @@ pub enum ObjectError {
     InvalidForeignCallArgument {
         caller: MachineId,
         owner: CallSiteOwner,
+        import: Option<String>,
+        parameter: Option<u32>,
+        reason: &'static str,
+        transport: Option<String>,
     },
     InvalidCallbackAddressCustody {
         caller: MachineId,

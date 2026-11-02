@@ -1863,15 +1863,15 @@ defines the complete product bar.
   [platform services](wiki/spec/build/platform_services.md) and
   [bounded occurrence-specific release proofs](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof)
   end to end (`Psi 05–08` and `Omega 00–09`):
-  - Validate the Windows portable `FilesystemService` implementation natively
+  - Validate remaining Windows portable `FilesystemService` paths natively
     (anonymous SQOS on owned path opens, HANDLE storage, explicit permissions and
-    data sync), run `note_vault` (exit 14), and provide trusted
+    data sync), and provide trusted
     Terminal adapters for the exact authored foreign bindings.
   - Wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
     so a proved close earns an empty authority classification (with
     `tests/omega/pass/filesystem/native_close` as the unconstrained control).
-  Acceptance: `note_vault` and the remaining Windows filesystem
+  Acceptance: the remaining Windows filesystem
   fixtures pass `omega run --both` on their matching
   hosts with nested raw-provider closure checks and occurrence-bound close
   classifications, while failed acquisition, handle escape, or unproved close
