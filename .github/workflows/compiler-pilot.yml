@@ -95,9 +95,25 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Temporary exact case-where nominal-admission qualification
+      - name: Restore exact completed-value candidate producer and source
         if: github.event_name == 'workflow_dispatch'
-        run: python tools/ci/case_where_repair.py
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 41414423655 --name compiler-pilot-linux_x86_64-dd14ab50fba0851df9a58a5208e6bce2b8e936ef-1 --dir build/case-retained-input
+          git fetch --depth=1 origin dd14ab50fba0851df9a58a5208e6bce2b8e936ef
+          git worktree add --detach build/case-source dd14ab50fba0851df9a58a5208e6bce2b8e936ef
+      - name: Trace exact completed-value producer without rebuilding Rust
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          OMEGA_CASE_REPLAY_ROOT: ${{ github.workspace }}/build/case-source
+          OMEGA_CASE_RETAINED_INPUT: ${{ github.workspace }}/build/case-retained-input
+        run: |
+          case_probe_status=0
+          python tools/ci/case_where_trace2.py || case_probe_status=$?
+          mkdir -p build/compiler-pilot
+          cp -R build/case-source/build/compiler-pilot/. build/compiler-pilot/
+          exit "$case_probe_status"
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
