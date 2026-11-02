@@ -191,7 +191,7 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
     }
 }
 
-fn assert_calling_review_outlives_source(relative: &str) {
+fn assert_calling_review_outlives_source(relative: &str, physical_refusal: Option<&str>) {
     use std::sync::Arc;
 
     let (
@@ -284,6 +284,10 @@ fn assert_calling_review_outlives_source(relative: &str) {
             .map(|provider| provider.plan.clone())
             .collect::<Vec<_>>();
         assert!(
+            !plans.is_empty(),
+            "the witness must retain authored calling rows"
+        );
+        assert!(
             !expected.is_empty(),
             "witness must actually activate policies"
         );
@@ -344,23 +348,6 @@ fn assert_calling_review_outlives_source(relative: &str) {
         actual, expected,
         "Source release cannot change the complete native applications"
     );
-    let components = provider_planning::calling_policy_plans::component_calling_applications(
-        target,
-        &code,
-        &plans.iter().collect::<Vec<_>>(),
-        &realizations,
-    )
-    .expect("canonical ABI row association after Source disposal");
-    assert!(
-        !components.is_empty(),
-        "the witness must join actual selected ABI rows"
-    );
-    for application in &components {
-        assert!(
-            actual.contains(application),
-            "the Source-free row must retain its exact evaluated application"
-        );
-    }
     let recovered = provider_planning::calling_policy_plans::CallingProgram {
         source_owner: std::sync::Weak::new(),
         artifact: Arc::new(
@@ -370,23 +357,58 @@ fn assert_calling_review_outlives_source(relative: &str) {
         entries: Vec::new(),
         source_records: Arc::from([]),
     };
-    let reloaded = provider_planning::calling_policy_plans::component_calling_applications(
-        target,
-        &recovered,
-        &plans.iter().collect::<Vec<_>>(),
-        &realizations,
-    )
-    .expect("decoded ABI census needs no Source owner, entries or review records");
-    assert_eq!(
-        reloaded, components,
-        "artifact reload must preserve exact ABI row association"
-    );
+    let mut retained = None;
+    for program in [&*code, &recovered] {
+        let components = provider_planning::calling_policy_plans::component_calling_applications(
+            target,
+            program,
+            &plans.iter().collect::<Vec<_>>(),
+            &realizations,
+        );
+        if let Some(reason) = physical_refusal {
+            let diagnostics = components.expect_err("ordinary owner cannot acquire a physical ABI");
+            assert!(
+                diagnostics
+                    .iter()
+                    .any(|diagnostic| diagnostic.message.contains(reason)),
+                "{diagnostics:?}"
+            );
+            continue;
+        }
+        let components = components.expect("canonical ABI census needs no Source companions");
+        assert!(
+            !components.is_empty(),
+            "the witness must join actual selected ABI rows"
+        );
+        for application in &components {
+            assert!(
+                actual.contains(application),
+                "the Source-free row must retain its exact evaluated application"
+            );
+        }
+        match &retained {
+            None => retained = Some(components),
+            Some(original) => assert_eq!(
+                &components, original,
+                "artifact reload preserves exact ABI row association"
+            ),
+        }
+    }
 }
 
 #[test]
 fn opaque_policy_review_activates_after_source_drop() {
     assert_calling_review_outlives_source(
         "tests/omega/pass/build/terminal_calling_policy_execution/main.omg",
+        None,
+    );
+    assert_calling_review_outlives_source(
+        "tests/omega/pass/facts/generic_calling_policy/shared_parent_roots_exit/main.omg",
+        None,
+    );
+    assert_calling_review_outlives_source(
+        "tests/omega/pass/facts/generic_calling_policy/ordinary_parent_fused_exit/main.omg",
+        Some("requirement owner `ParentEntry` is not an exact boundary trait"),
     );
 }
 
@@ -394,6 +416,7 @@ fn opaque_policy_review_activates_after_source_drop() {
 fn private_callback_policy_review_activates_after_source_drop() {
     assert_calling_review_outlives_source(
         "tests/omega/pass/build/terminal_private_callback_calling/main.omg",
+        None,
     );
 }
 
