@@ -12,8 +12,7 @@ machine LocalPolicy::bounded(value: u64) -> bool
 requires value <= 1
 { true }
 
-machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult 
-    satisfies CallingPolicy::plan
+machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
 {
     let observed: bool = LocalPolicy::bounded(signature.parameter_count);
     BoundaryPlanResult::Rejected {

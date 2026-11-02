@@ -87,6 +87,18 @@ pub fn admit_compiler_evaluation(
     let closure = scope
         .applications()
         .invocation_reachability(target, &selected, &[root]);
+    for binding in providers.assumed_bindings() {
+        for requirement in
+            std::iter::once(binding.required).chain(binding.supply_path.iter().copied())
+        {
+            let declaration = scope
+                .callable_declaration(TargetMachineCallable::Boundary(requirement))
+                .ok_or("compiler-evaluation assumed requirement lost its declaration")?;
+            if closure.calls.contains(&declaration) || closure.machines.contains(&declaration) {
+                return Err("assumed binding contracts are runtime-only and cannot supply compiler evaluation".into());
+            }
+        }
+    }
     let mut dependencies = closure.machines.clone();
     dependencies.extend(closure.calls.iter().copied());
     for (_, machine) in scope.plan.machines.iter() {
