@@ -72,10 +72,10 @@ records, rather than presented as repaired by this migration. The ordinary
 `call_result` place continues to test returning the original view through a
 checked helper.
 
-The compiler repair keeps address formation separate from reading a pointer.
-Locating the field to replace uses its receiver's existing write permission;
-it must not activate a new permission for reading that field's old reference.
-Actual pointer reads keep their existing checks. Unproved opaque boundaries
+The compiler repair distinguishes the final field being replaced from pointer
+reads needed to reach it. Locating that final field uses its receiver's existing
+write permission; it must not activate a new permission for reading the field's
+old reference. Intermediate pointer reads keep their existing checks. Unproved opaque boundaries
 also remain rejected: a declaration without a checked body needs admitted
 evidence that it will not observe write-only contents. The governing rules are
 [write-only authority](../../../../wiki/spec/terminal-psi/structural_access.md#write-only-authority),

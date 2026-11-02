@@ -226,7 +226,8 @@ pub(in crate::lowering) fn catalog(
         effects.access_results.insert(machine.id, result);
     }
     for function in candidates {
-        let summary = analysis.stored_effects(function.machine).and_then(|rows| {
+        let raw = analysis.stored_effects(function.machine);
+        let summary = raw.clone().and_then(|rows| {
             rows.into_iter()
                 .map(|row| {
                     let parameter = function.structural_parameters.get(row.parameter)?;
@@ -301,6 +302,9 @@ pub(in crate::lowering) fn catalog(
                 })
                 .collect()
         });
+        if summary.is_none() {
+            eprintln!("WRITEONLY-TRACE machine={:?} raw={:?} function={:#?} graph={:#?}", function.machine, raw, function, graph.iter().find(|machine| machine.id == function.machine));
+        }
         effects.machines.insert(function.machine, summary);
     }
     std::sync::Arc::new(effects)
