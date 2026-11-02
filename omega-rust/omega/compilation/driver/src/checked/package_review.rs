@@ -12,7 +12,7 @@ use package_evidence::record::{
     PackageReviewEvidence, PackageReviewSourceFacts, SemanticBindingReviewCandidate,
 };
 use package_evidence::{PackageReviewProjectionError, SemanticBindingProjectionError};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub struct PackageReviewProduct {
     pub evidence: PackageReviewEvidence,
@@ -41,10 +41,6 @@ pub struct PackageReviewSource {
 #[derive(Debug)]
 struct RetainedReviewSource {
     checked: CheckedCompilation,
-    // Publication is attached to this exact immutable checked owner. Cache and
-    // live consumers must receive the same issued description, not independent
-    // emissions. Keep failures retryable and retain only a successful product.
-    component: Mutex<Option<IndependentComponentDescription>>,
     facts: PackageReviewSourceFacts,
     // A target-entry projection failure matters only when discovery or cache
     // capture actually asks for it; explicit binding review does not require it.
@@ -63,15 +59,7 @@ impl PackageReviewSource {
     }
 
     pub fn publish_component(&self) -> Result<IndependentComponentDescription, Vec<Diagnostic>> {
-        let mut retained = self.retained.component.lock().map_err(|_| {
-            vec![Diagnostic::error(
-                "component publication owner was poisoned",
-            )]
-        })?;
-        if let Some(description) = retained.as_ref() {
-            return Ok(description.clone());
-        }
-        let description = super::run_on_compile_thread(|| {
+        super::run_on_compile_thread(|| {
             let request = crate::product_execution::ProductRequest::Component {
                 checked: self.retained.checked.clone(),
                 retain_native_inputs: false,
@@ -84,9 +72,7 @@ impl PackageReviewSource {
                 .and_then(crate::CompilationOutput::into_component)
                 .map(|product| product.description().clone())
                 .map_err(crate::CompilationProductError::into_diagnostics)
-        })?;
-        *retained = Some(description.clone());
-        Ok(description)
+        })
     }
 }
 
@@ -124,7 +110,6 @@ impl CompilationSession {
                 source: PackageReviewSource {
                     retained: Arc::new(RetainedReviewSource {
                         checked,
-                        component: Mutex::new(None),
                         facts,
                         target_entry,
                     }),
