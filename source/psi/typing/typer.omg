@@ -32,7 +32,7 @@ use psi::typing::statements;
 // is known: a declared local, a parameter, a field, an operand of a typed
 // operation, a cast or a result. The first rejection is the diagnostic.
 public data Typer
-where pattern_event_count <= 256, case_event_count <= 256
+requires pattern_event_count <= 256, case_event_count <= 256
 {
     case_events: [CaseTypeEvent; 256] in Trapping;
     case_event_count: u64;
