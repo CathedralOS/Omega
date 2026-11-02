@@ -5980,6 +5980,7 @@ pass/ownership/runtime_nested_projected_claim_return_exit built 4683ms exit:0 in
 pass/ownership/runtime_nested_selected_cleanup_exit built 4062ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_nested_selected_owner_call_exit built 3626ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_nested_view_affine_window_exit built 3641ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
+pass/ownership/runtime_nonreturning_claim_alternative_exit built 4814ms exit:0 interpreter-exit:0 interpreter:agrees @475a84244f9e+wt
 pass/ownership/runtime_owned_carried_loan_extract_transform_exit built 8622ms exit:42 interpreter-exit:42 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_owned_parameter_restoration_exit built 3479ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/ownership/runtime_partial_linear_record_case_cleanup_exit built 5287ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

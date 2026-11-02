@@ -744,11 +744,6 @@ helper that passes does not close an item.
     callable's complete contract and terminating semicolon distinct from its
     enclosing declaration's requirements and guarantees, including higher-order
     and logical-evidence requirements.
-  - Parse body-level assembly `requires`, `ensures` and `clobbers` directly
-    after `asm`, including headers without predicates. Preserve label scopes,
-    incoming-edge and exit proofs, exact clobbers, instruction-catalog checks
-    and authority; removing the grouping word cannot turn assertions into
-    admissions or remove required effects.
   - Migrate bundled/product sources, Build declarations, samples, corpus and
     compiler-input literals, source tooling and highlighting, and affected
     customer programs. Update the Omega parser in `bootstrap/5_omega/` and its
@@ -838,7 +833,7 @@ helper that passes does not close an item.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
     expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
     [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md),
-    and [captured-supplier default-member](samples/cli/facts/transparent_generic_aliases/rhs_captured_supplier/README.md)
+    and [captured-supplier local/field/parameter](samples/cli/facts/transparent_generic_aliases/rhs_captured_supplier/README.md)
     places, including remaining mixed/open scope compositions, and captured
     Product/Build alias transport remain open.
   - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`

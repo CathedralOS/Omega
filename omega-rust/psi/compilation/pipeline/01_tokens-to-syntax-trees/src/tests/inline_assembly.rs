@@ -48,7 +48,7 @@ fn parses_x86_memory_fences_as_zero_operand_intrinsics() {
         data Main {}
 
         machine Main::main(main: &mut Main) {
-            asm where clobbers none { lfence; sfence; mfence }
+            asm clobbers none { lfence; sfence; mfence }
         }
         "#;
 
@@ -75,7 +75,7 @@ fn parses_x86_interrupt_control_as_zero_operand_intrinsics() {
         data Main {}
 
         machine Main::main(main: &mut Main) reaches MachineControl {
-            asm where clobbers none { cli; sti }
+            asm clobbers none { cli; sti }
         }
         "#;
 
@@ -99,7 +99,7 @@ fn parses_x86_flags_as_explicit_value_operations() {
         data Main { saved: u64; }
 
         machine Main::main(main: &mut Main) reaches MachineControl {
-            asm where clobbers r10, r15 {
+            asm clobbers r10, r15 {
                 pushfq main.saved;
                 popfq main.saved
             }
@@ -132,7 +132,7 @@ fn parses_x86_msr_as_structured_value_operations() {
         data Main { value: u64; }
 
         machine Main::main(main: &mut Main) reaches MachineControl {
-            asm where clobbers rax, rcx, rdx, r10, r11, r15 {
+            asm clobbers rax, rcx, rdx, r10, r11, r15 {
                 rdmsr main.value, 3221225600;
                 wrmsr 3221225600, main.value
             }
@@ -165,7 +165,7 @@ fn parses_x86_control_registers_as_structured_value_operations() {
         data Main { value: u64; }
 
         machine Main::main(main: &mut Main) reaches MachineControl {
-            asm where clobbers rax, r10, r11, r15 {
+            asm clobbers rax, r10, r11, r15 {
                 read_cr0 main.value;
                 write_cr0 main.value;
                 read_cr2 main.value;
@@ -289,7 +289,7 @@ fn rejects_ambiguous_or_empty_multi_instruction_asm_blocks() {
             "an asm block must contain at least one known instruction",
         ),
         (
-            "asm where requires true {}",
+            "asm requires true {}",
             "an asm block must contain at least one known instruction",
         ),
     ] {
@@ -477,8 +477,8 @@ fn rejects_bracketed_memory_operands_on_register_moves() {
 #[test]
 fn parses_exact_asm_where_clobber_contracts() {
     for block in [
-        "asm where clobbers none { hlt }",
-        "asm where clobbers r11, rax, rdx, r10, r15 { out main.port, main.value }",
+        "asm clobbers none { hlt }",
+        "asm clobbers r11, rax, rdx, r10, r15 { out main.port, main.value }",
     ] {
         let source = format!(
             r#"
@@ -498,7 +498,7 @@ fn parses_asm_where_facts_at_entry_and_exit() {
     let source = r#"
         data Main { port: u16; value: u8; ready: bool; }
         machine Main::main(main: &mut Main) {
-            asm where
+            asm
                 requires main.ready
                 clobbers rax, rdx, r10, r11, r15
                 ensures main.ready
@@ -540,16 +540,17 @@ fn parses_asm_where_facts_at_entry_and_exit() {
 }
 
 #[test]
-fn rejects_inexact_asm_where_clobber_contracts() {
+fn rejects_inexact_asm_clobber_contracts() {
     for (block, expected) in [
         (
-            "asm where clobbers rax, rdx, r10 { out main.port, main.value }",
+            "asm clobbers rax, rdx, r10 { out main.port, main.value }",
             "missing `r11`",
         ),
-        ("asm where clobbers rax { hlt }", "not clobbered `rax`"),
-        ("asm where clobbers { hlt }", "spell `clobbers none`"),
+        ("asm clobbers rax { hlt }", "not clobbered `rax`"),
+        ("asm clobbers { hlt }", "spell `clobbers none`"),
+        ("asm where clobbers none { hlt }", "`clobbers <registers>`"),
         (
-            "asm where ensures true { hlt }",
+            "asm ensures true { hlt }",
             "requires a falling-through block",
         ),
     ] {

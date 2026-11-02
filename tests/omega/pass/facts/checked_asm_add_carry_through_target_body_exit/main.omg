@@ -6,7 +6,7 @@ machine main() crashes Trap {
 
 linux_x86_64 machine observe_target() crashes Trap {
  let mut snapshot: u64 = 0;
- asm where clobbers rax, rflags, r10, r15 {
+ asm clobbers rax, rflags, r10, r15 {
  entry:
   mov eax, 4294967295;
   add eax, 1;
@@ -22,7 +22,7 @@ linux_x86_64 machine observe_target() crashes Trap {
 
 windows_x86_64 machine observe_target() crashes Trap {
  let mut snapshot: u64 = 0;
- asm where clobbers rax, rflags, r10, r15 {
+ asm clobbers rax, rflags, r10, r15 {
  entry:
   mov eax, 4294967295;
   add eax, 1;
