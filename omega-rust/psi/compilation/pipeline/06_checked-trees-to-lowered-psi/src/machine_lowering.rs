@@ -230,7 +230,9 @@ fn nominal_cleanup_subject_from_types<'types>(
     source: symbols::SymbolHandle,
     mut types: impl Iterator<Item = (&'types str, semantic_vocabulary::StructuralTypeId)>,
 ) -> Result<Option<semantic_vocabulary::StructuralTypeId>, LoweringError> {
-    let Some(owner) = validation::nominal_cleanup_owner(&checked.typed, source) else {
+    let Some((owner, selected_subject)) =
+        validation::nominal_cleanup_target(&checked.typed, source)
+    else {
         return Ok(None);
     };
     let machine = checked.machine(source).ok_or(LoweringError::Unsupported(
@@ -243,7 +245,7 @@ fn nominal_cleanup_subject_from_types<'types>(
         ))?;
     let identity = if machine.attached_data_application.is_valid() {
         checked.normalized_type_identity(machine.attached_data_application)
-    } else if let Some(subject) = validation::nominal_cleanup_subject(&checked.typed, source) {
+    } else if let Some(subject) = selected_subject {
         checked.normalized_type_identity(subject)
     } else if let Some(application) = data.generic_instance {
         checked.normalized_type_identity(application)
