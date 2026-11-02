@@ -3,8 +3,8 @@
 //! result is judged with the operand captures available before adaptation;
 //! the adapted result's normal-return guarantees cannot exclude its own trap.
 
-use crate::facts::operator_crashes::named_call_operands;
 use crate::flow::expressions;
+use crate::published::facts::operator_crashes::named_call_operands;
 use checked_trees::{
     CheckFacts, CheckedArithmeticPolicyAdapter, CheckedValueOrigin, CrashSiteLocation,
 };

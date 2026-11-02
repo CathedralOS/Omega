@@ -8,7 +8,7 @@
 use crate::borrow::owner_place_segments;
 use crate::flow::canonical_place_from_semantic_place;
 use crate::flow::place_case_has_value;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{BorrowLoanFact, CheckFacts, FlowOperandFact, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use symbols::SymbolHandle;

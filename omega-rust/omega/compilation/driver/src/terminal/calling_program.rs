@@ -25,45 +25,14 @@ fn prepare(
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<Arc<CallingProgram>, Vec<Diagnostic>> {
     let code = super::product_code::ProductCodeSource::checked(source);
-    let machines = code.calling_policy_roots()?;
-    let applications = machines
-        .iter()
-        .map(|machine| {
-            psi_compiler::TerminalApplicationCustody::prepare(
-                &source.program,
-                psi_compiler::TerminalMachineSelection::Symbol(*machine),
-                None,
-                Some(psi_compiler::TerminalCompositionRoots::default()),
-                source.sources.exact_toolchain_sources(),
-                &mut psi_compiler::UnmeasuredProduction,
-            )
-        })
-        .collect::<Vec<_>>();
     let program = code.publish(
         source.terminal_publication.optimizations(),
         &mut crate::observations::PsiStageTimings::new(timings),
     )?;
-    let entries = machines
-        .into_iter()
-        .zip(applications)
-        .map(|(machine, application)| {
-            let entry = program
-                .attach_application(&application, &mut psi_compiler::UnmeasuredProduction)
-                .and_then(|application| {
-                    let [root] = <[_; 1]>::try_from(application.roots).map_err(|_| {
-                        vec![Diagnostic::error(
-                            "calling-policy publication did not retain one exact root",
-                        )]
-                    })?;
-                    root.map(|root| root.machine)
-                });
-            (machine, entry)
-        })
-        .collect();
     Ok(Arc::new(CallingProgram {
         source_owner: Arc::downgrade(&source.program),
         artifact: Arc::clone(program.artifact()),
-        entries,
         source_records: program.source_records().to_vec().into(),
+        evaluator: build_evaluation::evaluate_terminal_calling_policy,
     }))
 }

@@ -11,7 +11,7 @@ use super::{Multiplicity, SymbolHandle};
 use crate::execution::terminal_unit::{
     PermissionAccess, PermissionClaimIdentity, PermissionEventKind, PermissionEventSource,
 };
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 pub(crate) fn validate(
     program: &dyn ::validation::CheckingInput,
@@ -43,7 +43,7 @@ pub(crate) fn validate(
                 if parameter.is_const || parameter.is_mutable || parameter.relevance.is_erased() {
                     return None;
                 }
-                let (borrowed, _) = crate::semantic::calls::shared_argument_referent(
+                let (borrowed, _) = crate::published::semantic::calls::shared_argument_referent(
                     program,
                     *argument,
                     parameter.type_reference,

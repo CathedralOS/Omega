@@ -7,8 +7,8 @@ use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 // A callable's clauses end at the next clause word or its owner's body or
-// declaration terminator. They never consume that terminator. Refinement
-// rows and non-callable declaration punctuation retain their separate owners.
+// declaration terminator. They never consume that terminator. A refinement
+// member owns the same single terminator; non-callable punctuation has its own owner.
 // Recursive callable-header coordination stages each scope's complete ranges;
 // this operation recognizes ordinary clause bursts for that owner.
 public machine Parser::parse_clauses(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner)
@@ -487,40 +487,14 @@ crashes Trap
     }
 
     machine termination_close(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
-        let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
         let ended: Clause = Parser::with_clause_end(parser, clause, parser.token_end);
-        transition owner == ClauseOwner::Refinement {
-            true -> refinement_termination_end(parser, input, owner, ended, semicolon)
-            _ -> store(parser, input, owner, ended)
-        }
-    }
-
-    machine refinement_termination_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause, semicolon: bool) {
-        transition semicolon {
-            true -> termination_semicolon(parser, input, owner, clause)
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedClauseEnd)
-        }
-    }
-
-    machine termination_semicolon(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
-        let token: Token = input.tokens[parser.current_index];
-        let continuation: ClauseContinuation = Parser::after_clause_semicolon(parser, input, owner);
-        let ended: Clause = Parser::with_clause_end(parser, clause, token.end);
-        transition continuation {
-            ClauseContinuation::Clause -> termination_taken(parser, input, owner, ended)
-            _ -> store(parser, input, owner, ended)
-        }
-    }
-
-    machine termination_taken(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, clause: Clause) {
-        Parser::take_current(parser, input);
-        transition { _ -> store(parser, input, owner, clause) }
+        transition { _ -> store(parser, input, owner, ended) }
     }
 
     // An authored empty row is a ceiling in every callable context. Its
     // delimiter belongs to the declaration or following clause, so retaining
     // a zero-member Reaches row distinguishes it from omission without eating
-    // that next token. Refinements still require their own semicolon below.
+    // that next token, including on a transparent refinement member.
     machine reached(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
         let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
         let body: bool = Parser::at_punctuation(parser, input, PunctuationKind::LeftBrace);
@@ -559,18 +533,15 @@ crashes Trap
         }
     }
 
-    // A refinement's reach row ends at its own `;`.
     machine reaches_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) {
-        transition owner == ClauseOwner::Refinement {
-            true -> operational_end(parser, input, owner, ClauseKind::Reaches)
-            _ -> member_clause(parser, input, owner, ClauseKind::Reaches, parser.token_end)
-        }
+        transition { _ -> member_clause(parser, input, owner, ClauseKind::Reaches, parser.token_end) }
     }
 
-    // A refinement may state an operational axis outright: `suspends false;`.
+    // A refinement may narrow an axis with an explicit Boolean. A bare axis
+    // leaves the following clause or declaration terminator to its owner.
     machine operational_axis(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
-        let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
-        transition owner == ClauseOwner::Refinement && !semicolon {
+        let explicit: bool = Parser::at_keyword(parser, input, KeywordKind::True) || Parser::at_keyword(parser, input, KeywordKind::False);
+        transition owner == ClauseOwner::Refinement && explicit {
             true -> axis_value(parser, input, owner, kind)
             _ -> operational_end(parser, input, owner, kind)
         }
@@ -631,34 +602,7 @@ crashes Trap
         }
     }
 
-    // Only non-callable refinement rows own their explicit row punctuation;
-    // callable header ranges stop before the declaration terminator.
     machine operational_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
-        let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
-        transition owner == ClauseOwner::Refinement {
-            true -> refinement_operational_end(parser, input, owner, kind, semicolon)
-            _ -> member_clause(parser, input, owner, kind, parser.token_end)
-        }
-    }
-
-    machine refinement_operational_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind, semicolon: bool) {
-        transition semicolon {
-            true -> operational_semicolon(parser, input, owner, kind)
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedClauseEnd)
-        }
-    }
-
-    machine operational_semicolon(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
-        let token: Token = input.tokens[parser.current_index];
-        let continuation: ClauseContinuation = Parser::after_clause_semicolon(parser, input, owner);
-        transition continuation {
-            ClauseContinuation::Clause -> operational_taken(parser, input, owner, kind)
-            _ -> member_clause(parser, input, owner, kind, token.end)
-        }
-    }
-
-    machine operational_taken(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
-        Parser::take_current(parser, input);
         transition { _ -> member_clause(parser, input, owner, kind, parser.token_end) }
     }
 
@@ -826,8 +770,8 @@ public data ClauseContinuation [copy] {
     case End;
 }
 
-// A contract's `;` always ends its clauses, a refinement clause always keeps
-// its own `;`, and a trait member's `;` before `requires` ends the member:
+// A callable or refinement member's `;` ends its complete header. A trait
+// member's `;` before `requires` therefore ends the member:
 // `requires Parent;` there is the trait's body parent, not the member's
 // precondition.
 machine Parser::after_clause_semicolon(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) -> ClauseContinuation
@@ -837,19 +781,17 @@ crashes Trap
         ClauseOwner::Machine -> ended()
         ClauseOwner::TraitMember -> ended()
         ClauseOwner::Contract -> ended()
-        _ -> non_callable(parser, input, owner)
+        ClauseOwner::Refinement -> ended()
+        _ -> non_callable(parser, input)
     }
 
     machine ended() -> ClauseContinuation { ClauseContinuation::End }
 
-    machine non_callable(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner) -> ClauseContinuation {
+    machine non_callable(parser: &mut Parser, input: &TokenStream) -> ClauseContinuation {
         let cursor: u64 in Trapping = parser.cursor;
         parser.cursor = parser.cursor + 1;
         Parser::load_current(parser, input);
-        transition owner {
-            ClauseOwner::Refinement -> restore(parser, input, cursor, ClauseContinuation::Clause)
-            _ -> following(parser, input, cursor)
-        }
+        transition { _ -> following(parser, input, cursor) }
     }
 
     machine following(parser: &mut Parser, input: &TokenStream, cursor: u64 in Trapping) -> ClauseContinuation {

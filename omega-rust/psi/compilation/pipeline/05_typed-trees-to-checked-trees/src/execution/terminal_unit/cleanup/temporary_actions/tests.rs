@@ -17,7 +17,6 @@ fn body(state: SymbolHandle) -> StatePlan {
             primitive_referent: None,
             qualifications: Vec::new(),
             projected_qualifications: Vec::new(),
-            binding_carrier: None,
         }],
         scalar_parameters: Vec::new(),
         parameter_storage: Vec::new(),

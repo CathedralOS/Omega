@@ -1413,7 +1413,8 @@ impl ChainExit<'_> {
             for action in &mut selected {
                 if let TerminalAffineCleanupAction::InvokeNominal(cleanup) = action {
                     for obligation in &mut cleanup.requirement_obligations {
-                        *obligation = crate::terminal_identities::obligation_id(*next_obligation);
+                        *obligation =
+                            crate::shared::terminal_identities::obligation_id(*next_obligation);
                         *next_obligation =
                             next_obligation
                                 .checked_add(1)

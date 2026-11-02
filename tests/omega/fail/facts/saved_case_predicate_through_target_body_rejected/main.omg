@@ -3,7 +3,7 @@
 domain u64::Divisor requires self > 0;
 data Choice [copy] { case Empty; case Full(amount: u64 in Divisor); }
 machine clear(destination: &mut Choice) { destination = Choice::Empty; }
-machine capture<'storage, Value>(choice: Value, other: &mut Choice) -> Value where Value == &'storage mut Choice { clear(other); choice }
+machine capture<'storage, Value>(choice: Value, other: &mut Choice) -> Value requires Value == &'storage mut Choice { clear(other); choice }
 boundary trait SelectedBodyCheck {
     machine require_tag(tag: u64) reaches crashes Trap;
 }

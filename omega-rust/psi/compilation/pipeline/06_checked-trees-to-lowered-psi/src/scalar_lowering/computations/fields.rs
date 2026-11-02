@@ -42,7 +42,6 @@ use super::super::{
 use super::{
     CheckedScalarComputationKind, CheckedTrees, LoweringError, ScalarType, storage, unsupported,
 };
-use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, LoweredElementPathSegment, PrimitiveReadSource,
@@ -54,7 +53,8 @@ use crate::expression_preparation::bindings::place_observations::{
     PlaceObservationCapture, PrimitiveObservation, byte_overlay_read,
 };
 use crate::scalar_lowering::branch_states::structural_values;
-use crate::terminal_identities::stored_structural_identity;
+use crate::shared::checked_facts::value_facts;
+use crate::shared::terminal_identities::stored_structural_identity;
 use checked_trees::CheckedUnitStructuralArgumentPlan;
 use checked_trees::data::DataMember;
 use checked_trees::types::TypeReferenceNode;
@@ -75,7 +75,8 @@ impl super::Expansion<'_> {
         target: usize,
         site: &super::Site<'_>,
     ) -> Result<usize, LoweringError> {
-        let (machine, state) = crate::declarations::state_declaration(self.checked, site.state)?;
+        let (machine, state) =
+            crate::shared::declarations::state_declaration(self.checked, site.state)?;
         let CheckedScalarComputationKind::StructuralField { result_type, .. } =
             value_facts(&self.checked)
                 .scalar_computations
@@ -423,7 +424,8 @@ fn captured_place_subject(
     {
         return Ok(None);
     }
-    let (owner, state_declaration) = crate::declarations::state_declaration(checked, state)?;
+    let (owner, state_declaration) =
+        crate::shared::declarations::state_declaration(checked, state)?;
     let source = match loan.root {
         checked_trees::CheckedPlaceLoanRoot::StructuralParameter { parameter_index } => {
             LoanedSource::Parameter(parameter_index)

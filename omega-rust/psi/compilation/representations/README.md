@@ -30,7 +30,7 @@ Constituent semantic records have separate package owners:
 [facts](checked-trees/facts/src/lib.rs) holds fact contexts, places and evidence;
 [flow-effects](../../foundation/flow-effects/src/lib.rs) holds operational,
 invocation, capability and reach summaries. The shared
-[optimization selections](../../foundation/optimization-selections/src/lib.rs)
+[optimization selections](../../foundation/optimization/src/lib.rs)
 package owns pass names, canonical selections and their identities. These
 packages support the route above; none is an additional program stage.
 

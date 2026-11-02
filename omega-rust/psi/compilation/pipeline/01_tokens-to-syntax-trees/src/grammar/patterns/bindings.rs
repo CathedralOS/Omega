@@ -234,6 +234,7 @@ fn rewrite_expression(
                 })
                 .collect::<Vec<_>>();
             ExpressionNode::StructLiteral(TableStructLiteral {
+                application_type: struct_literal.application_type,
                 constructor_name: struct_literal.constructor_name,
                 fields: exprs(syntax_trees).insert_struct_fields(struct_fields),
             })

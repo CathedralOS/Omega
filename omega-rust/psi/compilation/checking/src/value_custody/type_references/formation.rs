@@ -3,7 +3,7 @@
 //! Requirements themselves are formed independently, before their truth can
 //! justify a dependent type; a partial condition cannot establish itself.
 
-use super::TypeReferenceOwner;
+use super::*;
 use crate::proof_contracts::arithmetic_domains::LocalValueFormation;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::SignatureContractKind;
@@ -11,7 +11,13 @@ use typed_trees::signature::SignatureContractKind;
 impl<'program> TypeReferenceOwner<'program> {
     pub(super) fn local_value_formation(self) -> Option<LocalValueFormation<'program>> {
         match self {
-            Self::StateLocalData {
+            Self::Expression {
+                machine,
+                current_state,
+                value_environment,
+                ..
+            }
+            | Self::StateLocalData {
                 machine,
                 current_state,
                 value_environment,
@@ -71,4 +77,35 @@ impl<'program> TypeReferenceOwner<'program> {
                 .collect()
         })
     }
+}
+
+pub(crate) fn validate_expression_type_application(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    reference: TypeReferenceHandle,
+    symbols: &TopLevelSymbols<'_>,
+    environment: &crate::proof_contracts::arithmetic_domains::ValueEnvironment,
+    diagnostics: &mut Vec<Diagnostic>,
+    obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
+) {
+    if !reference.is_valid() {
+        return;
+    }
+    let (parameters, lifetimes) =
+        program.machine_type_reference_scope(machine, |left, right| left.symbol == right.symbol);
+    validate_type_reference_handle(
+        program,
+        reference,
+        symbols,
+        diagnostics,
+        TypeReferenceOwner::Expression {
+            machine,
+            current_state: Some(state),
+            value_environment: environment,
+            generic_depth: 0,
+        },
+        TypeParameterScope::authored(machine.symbol, &parameters, &lifetimes),
+        obligations,
+    );
 }

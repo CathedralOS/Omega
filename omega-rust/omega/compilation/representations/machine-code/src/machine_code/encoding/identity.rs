@@ -66,7 +66,7 @@ fn encode_encoding_row(
 ) {
     hasher.raw(&row.instruction.0.to_le_bytes());
     selected_instructions::encode_machine_alternative_key_identity(hasher, row.alternative);
-    match row.address {
+    match row.address.as_deref() {
         None => hasher.byte(0),
         Some(address) => {
             use physical_instructions::PhysicalAddressOperation as Address;
@@ -201,7 +201,7 @@ fn encode_encoding_row(
         SelectedFormEncodingState::UnresolvedInternalMachineCall { fixup } => {
             hasher.byte(2);
             encode_row_contents(hasher, bytes, encoded.footprint(row.footprint));
-            encode_internal_fixup(hasher, *fixup);
+            encode_internal_fixup(hasher, **fixup);
         }
         SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } => {
             hasher.byte(3);
@@ -234,6 +234,23 @@ fn encode_row_contents(
     let Some(footprint) = footprint else {
         return;
     };
+    encode_footprint(hasher, footprint);
+}
+
+/// An interning bucket, never admission or a replacement for exact equality.
+/// Reuse the canonical field encoder so new footprint fields have one owner.
+pub(super) fn footprint_bucket(footprint: &SelectedFormDecodedFootprint) -> [u8; 32] {
+    let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(
+        b"omega.selected-form-decoded-footprint.storage.v1",
+    );
+    encode_footprint(&mut hasher, footprint);
+    hasher.finish()
+}
+
+fn encode_footprint(
+    hasher: &mut crate::digest_encoder::DomainDigestEncoder,
+    footprint: &SelectedFormDecodedFootprint,
+) {
     encode_views(hasher, &footprint.register_reads);
     encode_views(hasher, &footprint.register_writes);
     encode_units(hasher, &footprint.implicit_defs);

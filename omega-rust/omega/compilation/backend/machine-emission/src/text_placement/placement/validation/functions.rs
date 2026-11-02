@@ -77,7 +77,7 @@ pub(super) fn check(
                     source.byte_count,
                     alignment,
                 )?;
-                if let Some(fixup) = source_row.internal_machine_fixup {
+                if let Some(fixup) = source_row.internal_machine_fixup() {
                     // Every call row is one checked ISA call instruction.
                     if fixup.opcode_function_offset != source_row.offset
                         || bytes(
@@ -146,7 +146,7 @@ pub(super) fn check(
                         candidate,
                     )?);
                 }
-                if let Some(ref fixup) = source_row.normalized_foreign_call_fixup {
+                if let Some(fixup) = source_row.normalized_foreign_call_fixup() {
                     // Every foreign call row is one checked ISA call
                     // instruction whose import field stays unresolved. Any
                     // private-callback materialization groups tile the row
@@ -223,7 +223,7 @@ pub(super) fn check(
                         candidate,
                     )?;
                 }
-                if let Some(fixup) = source_row.image_address_fixup {
+                if let Some(fixup) = source_row.image_address_fixup() {
                     // The field stays the source's own zero bytes; only the
                     // section coordinates are new.
                     if !matches!(input, TextPlacementInput::InternalCalls(_)) {

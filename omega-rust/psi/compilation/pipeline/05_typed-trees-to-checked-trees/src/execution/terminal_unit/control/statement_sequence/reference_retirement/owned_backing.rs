@@ -4,11 +4,11 @@
 //! closes every actual holder and transport before attaching that disposition.
 
 use super::{Results, Retirement};
-use crate::collections::push_unique;
 use crate::execution::terminal_unit::calls::resolve_call_target;
 use crate::execution::terminal_unit::cleanup::retained_owners::dependency_dispositions;
 use crate::execution::terminal_unit::structural_value_calls::PreparedCalls;
 use crate::execution::terminal_unit::types::ShapeCollector;
+use crate::shared::collections::push_unique;
 use checked_trees::{
     CheckFacts, CheckedReferenceOwnerCleanup, CheckedUnitEffectOperationPlan as OperationPlan,
     CheckedUnitLocalBindingPlan, CheckedUnitStructuralArgumentPlan,

@@ -45,7 +45,7 @@ impl<'a> Consequences<'a> {
     }
 
     fn identity(&self, expression: ExpressionHandle, negated: bool) -> CrashPredicateIdentity {
-        crate::facts::canonical_crash_contract_predicate(
+        crate::published::facts::canonical_crash_contract_predicate(
             self.program,
             expression,
             negated,

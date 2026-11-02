@@ -12,7 +12,9 @@
 //! native ABI policy. Authored layout closure retains a separate exact overlay.
 //! Each consumer establishes its own invocation from these facts.
 
+mod compiler_evaluation;
 mod component_memberships;
+pub use compiler_evaluation::{AdmittedCompilerEvaluation, admit_compiler_evaluation};
 mod component_provider;
 mod entry_values;
 mod private_entry_ram;

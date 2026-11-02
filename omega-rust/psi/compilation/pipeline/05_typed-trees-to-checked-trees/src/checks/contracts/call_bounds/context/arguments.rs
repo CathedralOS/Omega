@@ -11,8 +11,8 @@ use crate::checks::contracts::call_bounds::context::comparison_is_admitted;
 use crate::checks::contracts::call_bounds::context::direct_parameter;
 use crate::checks::contracts::call_bounds::context::fixed_parameter_type;
 use crate::checks::contracts::prover::has_builtin_operators;
-use crate::facts::contract_occurrences::append_expression_occurrences;
 use crate::flow::frame_storage_writes;
+use crate::published::facts::contract_occurrences::append_expression_occurrences;
 use crate::values::scalar_expression_type;
 use numerics::arithmetic::ArithmeticDomain;
 

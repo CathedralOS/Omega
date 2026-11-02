@@ -13,7 +13,7 @@ use typed_trees::types::TypeReferenceNode;
 use super::super::super::overlap::{StatedOrderingPremise, captured_place_compatibility};
 use super::aliases;
 use crate::flow::{StateMutationSummaryCache, StateReceiverReadCache};
-use crate::labels::call_target_label;
+use crate::published::labels::call_target_label;
 
 /// The receiver summaries a footprint judgment reads.
 pub(in crate::checks::borrows) struct ReceiverSummaries<'cache> {

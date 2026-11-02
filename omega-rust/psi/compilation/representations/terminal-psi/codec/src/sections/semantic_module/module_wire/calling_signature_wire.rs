@@ -19,6 +19,7 @@ wire_record! {
         operands: List<StaticOperand>,
         formals: List<GenericFormal>,
         default_eligible: Flag,
+        physical_owner: ResultField<DeclarationOwner, Text>,
         storage: ResultField<AbiStorage, Text>,
     }
     AbiStorage: CallingAbiStorage {
@@ -36,6 +37,7 @@ wire_record! {
     }
     PolicyInstance: CallingPolicyInstance {
         declaring_application: Index,
+        policy_declaration: ResultField<ProofDeclaration, Text>,
         policy: ResultField<super::target_family_wire::Callable, Text>,
         signatures: ResultField<List<Id>, Text>,
     }
@@ -64,7 +66,48 @@ wire_record! {
     }
 }
 
+struct DeclarationOwner;
+impl Field<semantic_vocabulary::CallingDeclarationOwner> for DeclarationOwner {
+    fn write(
+        writer: &mut Writer,
+        value: &semantic_vocabulary::CallingDeclarationOwner,
+    ) -> Result<(), CodecError> {
+        use semantic_vocabulary::CallingDeclarationOwner;
+        writer.u8(match value {
+            CallingDeclarationOwner::BoundaryTrait => 0,
+            CallingDeclarationOwner::TopLevelRequirement => 1,
+        });
+        Ok(())
+    }
+
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<semantic_vocabulary::CallingDeclarationOwner, CodecError> {
+        use semantic_vocabulary::CallingDeclarationOwner;
+        match reader.u8()? {
+            0 => Ok(CallingDeclarationOwner::BoundaryTrait),
+            1 => Ok(CallingDeclarationOwner::TopLevelRequirement),
+            _ => Err(CodecError::MalformedStructuralFoundation(
+                "unknown physical calling owner",
+            )),
+        }
+    }
+}
+
 struct OperandKind;
+struct ProofDeclaration;
+impl Field<terminal_psi::ProofDeclarationId> for ProofDeclaration {
+    fn write(
+        writer: &mut Writer,
+        value: &terminal_psi::ProofDeclarationId,
+    ) -> Result<(), CodecError> {
+        writer.u32(value.0);
+        Ok(())
+    }
+    fn read(reader: &mut Reader<'_>) -> Result<terminal_psi::ProofDeclarationId, CodecError> {
+        Ok(terminal_psi::ProofDeclarationId(reader.u32()?))
+    }
+}
 impl Field<semantic_vocabulary::CallingOperandKind> for OperandKind {
     fn write(
         writer: &mut Writer,

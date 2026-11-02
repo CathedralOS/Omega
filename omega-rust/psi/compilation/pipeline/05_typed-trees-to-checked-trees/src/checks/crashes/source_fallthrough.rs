@@ -333,9 +333,15 @@ fn holds_entry_meaning(
             )
         }
         _ => {
-            crate::facts::crash_entry_operand(program, machine, state, evaluated_at, expression)
-                .map(CrashPredicateIdentity::from_expression)
-                == Some(crate::facts::canonical_crash_path_predicate(
+            crate::published::facts::crash_entry_operand(
+                program,
+                machine,
+                state,
+                evaluated_at,
+                expression,
+            )
+            .map(CrashPredicateIdentity::from_expression)
+                == Some(crate::published::facts::canonical_crash_path_predicate(
                     program,
                     expression,
                     false,

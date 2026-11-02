@@ -5,8 +5,8 @@ use crate::flow::active_context_handles;
 use crate::values::scalar_value_at_place;
 use validation::{CanonicalPlace, canonical_place_type_reference};
 
-use crate::facts::boolean_predicates::{self, BoundObservation, BoundPredicate};
 use crate::flow::FlowBuildContext;
+use crate::published::facts::boolean_predicates::{self, BoundObservation, BoundPredicate};
 use arena::HandleSpan;
 use checked_trees::{CheckedBooleanExpression, FlowSemanticContextRef};
 use facts::{FactOrigin, FactPlan, PlaceRoot, ProgramPoint, ScalarValue};

@@ -25,8 +25,8 @@
 //! `scalars` (scalar Boolean evaluation) are re-exported for the other
 //! contract checks, and `call_guarantees` is also used by `checks::borrows`.
 
-use crate::facts::boolean_predicates;
-use crate::places::place_at;
+use crate::published::facts::boolean_predicates;
+use crate::published::places::place_at;
 use checked_trees::{FlowCallFact, FlowStateFact};
 use facts::FactPayload;
 
@@ -533,7 +533,7 @@ fn case_test_subject_actual(
     typed_trees::expression::ExpressionHandle,
     Vec<facts::PlaceSegment>,
 )> {
-    crate::semantic::places::call_contract_argument_projection(
+    crate::published::semantic::places::call_contract_argument_projection(
         program,
         parameters,
         validation::call_site_argument_expressions(program, call_site),

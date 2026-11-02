@@ -12,7 +12,7 @@ use validation::CanonicalPlace;
 use crate::flow::expressions;
 use crate::flow::state_statements;
 use crate::flow::{self};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{FlowCallFact, FlowFacts, FlowStateFact};
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::{

@@ -26,7 +26,6 @@ mod reference_forwarding;
 mod result_arguments;
 mod result_owners;
 pub(super) use result_owners::structural_result_owner;
-mod service_forward;
 mod signatures;
 mod structural_arguments;
 pub(crate) use structural_arguments::structural_call_arguments;
@@ -96,9 +95,8 @@ pub(crate) use argument_paths::{
     projected_selected_path,
 };
 pub(crate) use boundary_admission::{
-    BoundaryTraitReceiver, boundary_authority_refusal, boundary_trait_receiver_source,
-    parameter_binding_receiver_sources, provider_attachment_receiver_field,
-    provider_attachment_receiver_matches,
+    boundary_authority_refusal, boundary_trait_receiver_is_namespace,
+    provider_attachment_receiver_field, provider_attachment_receiver_matches,
 };
 pub(in super::super) use call_operations::ExpectedCallValueResult;
 pub(in super::super) use call_operations::build_call_operation;

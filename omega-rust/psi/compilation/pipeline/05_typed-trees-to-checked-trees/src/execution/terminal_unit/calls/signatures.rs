@@ -16,7 +16,9 @@ use crate::execution::terminal_unit::{
 };
 
 /// The qualified structural signature of a state without scalar
-/// parameters, and the attachment an authored receiver retains.
+/// parameters. A qualified machine contributes no implicit receiver
+/// parameter, so the roster is exactly the authored telescope and the plan
+/// needs no attachment slot of its own.
 pub(crate) fn structural_signature(
     program: &dyn ::validation::CheckingInput,
     shapes: &mut ShapeCollector<'_>,
@@ -26,48 +28,8 @@ pub(crate) fn structural_signature(
     Option<typed_trees::type_identity::TypeIdentityId>,
     Vec<CheckedUnitStructuralParameterPlan>,
 )> {
-    let (attachment, structural, scalar) =
-        structural_signature_for_partial_affine(program, shapes, state, binders, false, false)?;
-    scalar.is_empty().then_some((attachment, structural))
-}
-
-fn scalar_parameter_signature(
-    program: &dyn ::validation::CheckingInput,
-    position: usize,
-    parameter: &StateParameter,
-) -> Option<ParameterPlan> {
-    // Binding mutability changes the state-local value namespace, not the
-    // incoming scalar carrier. The body initializes its current-value slot.
-    if parameter.is_const {
-        return None;
-    }
-    Some(ParameterPlan {
-        source_position: u32::try_from(position).ok()?,
-        primitive_type: program.primitive_type_reference(parameter.type_reference)?,
-    })
-}
-
-/// The authored parameters of one state as a structural plan, with the
-/// scalar formals separated out. A qualified machine contributes no implicit
-/// receiver parameter, so the roster is exactly the authored telescope and the
-/// plan needs no attachment slot of its own.
-fn structural_signature_for_partial_affine(
-    program: &dyn ::validation::CheckingInput,
-    shapes: &mut ShapeCollector<'_>,
-    state: &typed_trees::state::State,
-    binders: &[(SymbolHandle, String)],
-    allow_partial_affine: bool,
-    allow_scalar_parameters: bool,
-) -> Option<(
-    Option<typed_trees::type_identity::TypeIdentityId>,
-    Vec<CheckedUnitStructuralParameterPlan>,
-    Vec<ParameterPlan>,
-)> {
     let parameters = program.state_parameters(state);
-    let attachment = None::<(typed_trees::type_identity::TypeIdentityId, Multiplicity)>;
     let mut structural_parameters = Vec::new();
-    let mut scalar_parameters = Vec::new();
-    let mut fused_service_parameter_count = 0_usize;
     for (position, parameter) in parameters.iter().enumerate() {
         // An erased binding occurrence owns no ABI position: it is skipped
         // here and at every caller-side argument producer, while `position`
@@ -76,61 +38,14 @@ fn structural_signature_for_partial_affine(
         if strips_erased_parameter(parameter)? {
             continue;
         }
-        if parameter.is_const {
+        if parameter.is_const
+            || program
+                .primitive_type_reference(parameter.type_reference)
+                .is_some()
+        {
             return None;
         }
-        // Primitive values remain in the scalar namespace. A reference to a
-        // primitive may become a structural place only for the bounded
-        // write-only store/call closure or the exact bounded shared-observer leaf.
-        if let Some(primitive_type) = program.primitive_type_reference(parameter.type_reference) {
-            if !allow_scalar_parameters || parameter.is_mutable {
-                return None;
-            }
-            scalar_parameters.push(ParameterPlan {
-                source_position: u32::try_from(position).ok()?,
-                primitive_type,
-            });
-            continue;
-        }
-        let (type_identity, binding_carrier) =
-            if typed_trees::service::classify_exact_service_parameter_carrier(
-                program,
-                typed_trees::service::ServiceCarrierOccurrence {
-                    type_reference: parameter.type_reference,
-                    lexical_owner: parameter.symbol,
-                    enclosing_data_applications: &[],
-                },
-            )
-            .ok()
-            .flatten()
-            .is_some()
-            {
-                if allow_partial_affine || !binders.is_empty() {
-                    return None;
-                }
-                fused_service_parameter_count = fused_service_parameter_count.checked_add(1)?;
-                if fused_service_parameter_count != 1 {
-                    return None;
-                }
-                let (identity, receipt) = shapes.add_binding_parameter_type(
-                    parameter.type_reference,
-                    parameter.symbol,
-                    binders,
-                )?;
-                (identity, Some(receipt))
-            } else if allow_scalar_parameters {
-                return None;
-            } else if allow_partial_affine {
-                (
-                    shapes.add_partial_affine_type(parameter.type_reference, binders)?,
-                    None,
-                )
-            } else {
-                (
-                    shapes.add_type(parameter.type_reference, binders, &[])?,
-                    None,
-                )
-            };
+        let type_identity = shapes.add_type(parameter.type_reference, binders, &[])?;
         // Ingress lends the access-neutral view, but evaluating this formal as
         // a descriptor demands its exact stored shell. Declare both here;
         // operation roots decide whether the stored row survives pruning.
@@ -150,13 +65,6 @@ fn structural_signature_for_partial_affine(
         } else {
             crate::checks::type_multiplicity(program, parameter.type_reference)
         };
-        if binding_carrier.is_some()
-            && (!service_parameter_access_matches(multiplicity, access)
-                || parameter.is_mutable != (access == StructuralAccess::MutableBorrow)
-                || !qualifications.is_empty())
-        {
-            return None;
-        }
         // The bounded write-only closure, the exact shared-observer leaf, and
         // an ordinary shared borrow of a primitive referent all admit a
         // borrowed primitive place; the borrow's own custody checks decide
@@ -190,13 +98,7 @@ fn structural_signature_for_partial_affine(
                 parameter.type_reference,
                 binders,
             )?,
-            binding_carrier,
         });
-    }
-    if allow_scalar_parameters
-        && (fused_service_parameter_count != 1 || structural_parameters.len() != 1)
-    {
-        return None;
     }
     fold_parameter_entry_domains(
         program,
@@ -205,24 +107,23 @@ fn structural_signature_for_partial_affine(
         binders,
         &mut structural_parameters,
     )?;
-    Some((
-        attachment.map(|(identity, _)| identity),
-        structural_parameters,
-        scalar_parameters,
-    ))
+    Some((None, structural_parameters))
 }
 
-/// Borrowed parameters lend an existing affine carrier; the reference itself
-/// does not own that carrier. Keep access separate from value multiplicity so
-/// erasure cannot turn a loan into an owned service argument.
-fn service_parameter_access_matches(multiplicity: Multiplicity, access: StructuralAccess) -> bool {
-    match access {
-        StructuralAccess::Owned => multiplicity == Multiplicity::Affine,
-        checked_trees::checked_borrowed_access_pair_pattern!() => {
-            multiplicity == Multiplicity::Unrestricted
-        }
-        StructuralAccess::WriteOnlyBorrow => false,
+fn scalar_parameter_signature(
+    program: &dyn ::validation::CheckingInput,
+    position: usize,
+    parameter: &StateParameter,
+) -> Option<ParameterPlan> {
+    // Binding mutability changes the state-local value namespace, not the
+    // incoming scalar carrier. The body initializes its current-value slot.
+    if parameter.is_const {
+        return None;
     }
+    Some(ParameterPlan {
+        source_position: u32::try_from(position).ok()?,
+        primitive_type: program.primitive_type_reference(parameter.type_reference)?,
+    })
 }
 
 /// A static qualified signature, marking each parameter's erasure, scalar
@@ -371,36 +272,7 @@ pub(crate) fn parameter_signatures(
             return None;
         }
         trace.phase("state graph: state signature: parameter signature: structural parameter type");
-        let (type_identity, binding_carrier) =
-            if typed_trees::service::classify_exact_service_parameter_carrier(
-                program,
-                typed_trees::service::ServiceCarrierOccurrence {
-                    type_reference: parameter_type,
-                    lexical_owner: parameter.symbol,
-                    enclosing_data_applications: &[],
-                },
-            )
-            .ok()
-            .flatten()
-            .is_some()
-            {
-                trace.phase("state graph: state signature: parameter signature: binding binders");
-                if !binders.is_empty() {
-                    return None;
-                }
-                trace.phase("state graph: state signature: parameter signature: binding receipt");
-                let (identity, receipt) =
-                    shapes.add_binding_parameter_type(parameter_type, parameter.symbol, binders)?;
-                (identity, Some(receipt))
-            } else {
-                trace.phase(
-                    "state graph: state signature: parameter signature: ordinary structural type",
-                );
-                (
-                    shapes.add_type(parameter_type, binders, substitutions)?,
-                    None,
-                )
-            };
+        let type_identity = shapes.add_type(parameter_type, binders, substitutions)?;
         // Descriptor operands retain the formal's stored shell independently
         // of its access-neutral ingress identity and of the caller's carrier.
         // Only actual operation demands keep this declaration through pruning.
@@ -416,19 +288,9 @@ pub(crate) fn parameter_signatures(
         } else {
             crate::checks::type_multiplicity(program, parameter_type)
         };
-        if binding_carrier.is_some()
-            && (!service_parameter_access_matches(multiplicity, access)
-                || parameter.is_mutable != (access == StructuralAccess::MutableBorrow)
-                || !qualifications.is_empty())
-        {
-            return None;
-        }
         trace.phase("state graph: state signature: parameter signature: projected qualifications");
-        let projected_qualifications = if binding_carrier.is_some() {
-            Vec::new()
-        } else {
-            projected_parameter_qualifications(program, shapes, parameter_type, binders)?
-        };
+        let projected_qualifications =
+            projected_parameter_qualifications(program, shapes, parameter_type, binders)?;
         structural_parameters.push(CheckedUnitStructuralParameterPlan {
             position: source_position,
             primitive_referent: shapes.primitive_scalar(type_identity),
@@ -437,7 +299,6 @@ pub(crate) fn parameter_signatures(
             access,
             qualifications,
             projected_qualifications,
-            binding_carrier,
         });
     }
     Some((structural_parameters, scalar_parameters))

@@ -58,7 +58,7 @@ pub(super) fn validate(
             if !matches!(instruction.kind, selected_instructions::selected_call_pattern!(target:selected_instructions::SelectedCallTarget::Machine(callee), ..) if callee == fixup.callee)
                 || candidate.bytes != bytes
                 || candidate.branch.is_some()
-                || candidate.internal_machine_fixup != Some(*fixup)
+                || candidate.internal_machine_fixup() != Some(**fixup)
                 || candidate.normalized_foreign_call_fixup.is_some()
                 || candidate.image_address_fixup.is_some()
             {
@@ -74,7 +74,7 @@ pub(super) fn validate(
                 || candidate.bytes != bytes
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
-                || candidate.normalized_foreign_call_fixup.as_ref() != Some(fixup)
+                || candidate.normalized_foreign_call_fixup() != Some(fixup.as_ref())
                 || candidate.image_address_fixup.is_some()
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
@@ -90,7 +90,7 @@ pub(super) fn validate(
                 || candidate.branch.is_some()
                 || candidate.internal_machine_fixup.is_some()
                 || candidate.normalized_foreign_call_fixup.is_some()
-                || candidate.image_address_fixup != Some(*fixup)
+                || candidate.image_address_fixup() != Some(**fixup)
             {
                 return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
             }

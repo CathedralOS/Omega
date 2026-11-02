@@ -11,9 +11,9 @@ use super::{
     CheckedTrees, LoweredSourceCallOccurrence, LoweringError, OperationKind, TerminalModule,
     ValueDeclaration, ValueId, terminal_scalar_type, unsupported,
 };
-use crate::direct_calls::direct_call_parts;
 use crate::expression_preparation::bindings::structural_paths::lower_static_argument_path;
-use crate::terminal_identities::lookup_claim_id;
+use crate::shared::direct_calls::direct_call_parts;
+use crate::shared::terminal_identities::lookup_claim_id;
 use arena::{Handle, HandleSpan};
 use terminal_psi::{TerminalSuspensionPlace, TerminalSuspensionValueType};
 pub(crate) fn retain_suspension_call_plans(
@@ -21,6 +21,7 @@ pub(crate) fn retain_suspension_call_plans(
     checked: &CheckedTrees,
     source_machines: &[symbols::SymbolHandle],
     source_calls: &[LoweredSourceCallOccurrence],
+    state_blocks: &[lowered_psi::LoweredStateBlock],
     module: &mut TerminalModule,
 ) -> Result<(), LoweringError> {
     if !module.suspension_call_plans.is_empty() {
@@ -42,9 +43,14 @@ pub(crate) fn retain_suspension_call_plans(
                 crossing.call_ordinal,
             )
         });
-        let occurrence = occurrences.next().ok_or(LoweringError::Unsupported(
-            "possibly-suspending checked call has no exact Terminal operation join",
-        ))?;
+        let Some(occurrence) = occurrences.next() else {
+            if fused_component_transfer(checked, state_blocks, crossing) {
+                continue;
+            }
+            return unsupported(
+                "possibly-suspending checked call has no exact Terminal operation join",
+            );
+        };
         let terminal_operation =
             occurrence
                 .terminal_site
@@ -804,6 +810,46 @@ fn scalar_argument_binding(
     ))
 }
 
+/// A terminal transition into another state of the same composed recursive
+/// component lowers to a successor edge, not a call: it adds no activation and
+/// has no continuation in the transferring invocation. Its checked crossing
+/// (and the carry checks it recorded) stays authoritative, but there is no
+/// Terminal call operation to bind it to. The component's actual parking
+/// points are the target states' own possibly-suspending calls, which keep
+/// their crossings and plans. Stage 05's composed plan must name the edge: a
+/// successor of the source state at the crossing's statement coordinate enters
+/// the target. Every Terminal machine holding the source state must also hold
+/// that target; any other missing occurrence refuses.
+fn fused_component_transfer(
+    checked: &CheckedTrees,
+    state_blocks: &[lowered_psi::LoweredStateBlock],
+    crossing: &checked_trees::SuspensionCrossingCarryFact,
+) -> bool {
+    let target = validation::call_target_entry_symbol(checked, crossing.target);
+    let planned = crate::shared::checked_facts::flow_facts(checked)
+        .terminal_unit_effects
+        .composed_machines
+        .iter()
+        .flat_map(|plan| &plan.states)
+        .filter(|state| state.state == crossing.state)
+        .flat_map(|state| state.successors())
+        .any(|successor| {
+            successor.statement_ordinal as usize == crossing.statement_index
+                && successor.target_state == target
+        });
+    let mut holders = state_blocks
+        .iter()
+        .filter(|block| block.state == crossing.state)
+        .peekable();
+    planned
+        && holders.peek().is_some()
+        && holders.all(|holder| {
+            state_blocks
+                .iter()
+                .any(|block| block.machine == holder.machine && block.state == target)
+        })
+}
+
 fn owning_callable_symbol(
     checked: &CheckedTrees,
     symbol: symbols::SymbolHandle,
@@ -860,7 +906,10 @@ fn scalar_declaration(module: &TerminalModule, value: ValueId) -> Option<ValueDe
 /// join parameter without manufacturing a new operation result at every call.
 /// The crossing's own located call supplies the scope: the scan that found the
 /// operation already names the block whose earlier declarations may hold it, so
-/// the check must not search the module for the same operation again.
+/// the check must not search the module for the same operation again. A value
+/// declared in another block is visible only when that block dominates the
+/// call's block: a composed state's parameters live on its header block while
+/// a guarded arm's call runs in the arm's own block.
 fn scalar_value_available_before(
     machine: &terminal_psi::TerminalMachine,
     block_index: usize,
@@ -868,7 +917,7 @@ fn scalar_value_available_before(
     value: ValueId,
 ) -> bool {
     let block = &machine.blocks[block_index];
-    machine
+    if machine
         .parameters
         .iter()
         .chain(block.parameters.iter())
@@ -878,4 +927,23 @@ fn scalar_value_available_before(
                 .filter_map(|candidate| candidate.result.scalar_ref()),
         )
         .any(|declaration| declaration.id == value)
+    {
+        return true;
+    }
+    let Some(definition) = machine.blocks.iter().find(|candidate| {
+        candidate
+            .parameters
+            .iter()
+            .chain(
+                candidate
+                    .operations
+                    .iter()
+                    .filter_map(|operation| operation.result.scalar_ref()),
+            )
+            .any(|declaration| declaration.id == value)
+    }) else {
+        return false;
+    };
+    definition.id != block.id
+        && terminal_semantics::control_graph::dominators(machine).dominates(definition.id, block.id)
 }

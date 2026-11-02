@@ -7,7 +7,7 @@ use facts::FactPayload;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::statement::StatementNode;
 
-use crate::labels::semantic_fact_requirement_label;
+use crate::published::labels::semantic_fact_requirement_label;
 
 /// Recover the premise of this selected edge once, for both complete facts
 /// and their Boolean children. A computed transition subject is a captured
@@ -107,7 +107,7 @@ pub(in crate::checks::contracts) fn selected_guard_predicate(
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
-) -> Option<crate::facts::boolean_predicates::BoundPredicate> {
+) -> Option<crate::published::facts::boolean_predicates::BoundPredicate> {
     let (_, _, guards) =
         selected_transition_premise(program, facts, state_flow, call_flow, call_frames)?;
     let guard = *guards.first()?;
@@ -127,20 +127,20 @@ pub(in crate::checks::contracts) fn selected_guard_predicate(
     // This conditional goal names surviving current storage, not a new
     // completed read or an assertion of the guard. Bind the shared checked
     // algebra under the same declaration coordinates as the required formula.
-    let expression = crate::facts::boolean_predicates::lower_current_guard(
+    let expression = crate::published::facts::boolean_predicates::lower_current_guard(
         program,
         &facts.operators,
         state_flow.state_symbol,
         call_flow.statement_index,
         guard,
     )?;
-    crate::facts::boolean_predicates::bind_current_expression(
+    crate::published::facts::boolean_predicates::bind_current_expression(
         program,
         state_flow.state_symbol,
         expression,
         true,
         |operand| {
-            crate::facts::boolean_predicates::declared_observation(
+            crate::published::facts::boolean_predicates::declared_observation(
                 program,
                 state_flow.state_symbol,
                 call_flow.statement_index,

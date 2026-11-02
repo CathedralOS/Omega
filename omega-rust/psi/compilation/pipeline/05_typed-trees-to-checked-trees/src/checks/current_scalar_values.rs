@@ -790,7 +790,7 @@ impl<'program> CurrentScalarValues<'program> {
             for hypothesis in
                 self.capture_condition(program, machine, state, binary.right, holds, depth + 1)
             {
-                crate::collections::push_unique(&mut hypotheses, hypothesis);
+                crate::shared::collections::push_unique(&mut hypotheses, hypothesis);
             }
             return hypotheses;
         }
@@ -1807,7 +1807,7 @@ fn scoped(
             ExpressionNode::Name(_)
                 if program.expression_table.names_reserved_result(expression) => {}
             ExpressionNode::Name(name) if name.symbol == name.head_symbol => {
-                crate::collections::push_unique(&mut symbols, name.symbol);
+                crate::shared::collections::push_unique(&mut symbols, name.symbol);
             }
             ExpressionNode::Integer(_) | ExpressionNode::Boolean(_) => {}
             ExpressionNode::Cast(_) => {

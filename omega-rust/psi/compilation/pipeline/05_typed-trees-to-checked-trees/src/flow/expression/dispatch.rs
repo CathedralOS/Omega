@@ -107,7 +107,7 @@ impl Execution<'_, '_, '_> {
                 )
                 && structural_match_pattern_is_total(self.program, arm.pattern)
             {
-                crate::collections::push_unique(&mut case_coverage, case);
+                crate::shared::collections::push_unique(&mut case_coverage, case);
                 covered |= validation::structural_match_cases_are_covered(
                     self.program,
                     reference,
@@ -430,7 +430,7 @@ impl Execution<'_, '_, '_> {
             if !crate::flow::canonical_places_agree(self.program, &source, &fact_place) {
                 continue;
             }
-            crate::collections::push_unique(&mut predicates, predicate);
+            crate::shared::collections::push_unique(&mut predicates, predicate);
         }
         predicates
     }
@@ -459,7 +459,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(place),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: crate::facts::propagated_evidence(self.state.symbol),
+                evidence: crate::published::facts::propagated_evidence(self.state.symbol),
                 payload: FactPayload::AssignedScalarValue { value },
             });
             self.semantic.append_ref(&mut refs, fact);
@@ -469,7 +469,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(place),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: crate::facts::propagated_evidence(self.state.symbol),
+                evidence: crate::published::facts::propagated_evidence(self.state.symbol),
                 payload: domain.payload(expression),
             });
             self.semantic.append_ref(&mut refs, fact);

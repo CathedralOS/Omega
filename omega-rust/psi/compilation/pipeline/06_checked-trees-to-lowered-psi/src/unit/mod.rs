@@ -57,8 +57,6 @@ use crate::emission::operation_emission::{
 use crate::emission::scalar_types::{
     integer_landing_scalar_type, integer_scalar_type, integer_value, terminal_scalar_type,
 };
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::producer_result::{DebugPublication, LoweredSelectedMachine, LoweringCompletion};
 use crate::proofs::content_conservation;
 use crate::proofs::content_conservation::lower_boundary_content_guarantees;
 use crate::proofs::crash_routes::{
@@ -67,10 +65,14 @@ use crate::proofs::crash_routes::{
 };
 use crate::retention::access_view_inputs::lower_access_view_input;
 use crate::scalar_lowering::scalar_carriers;
-use crate::structural_types::{
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::producer_result::{
+    DebugPublication, LoweredSelectedMachine, LoweringCompletion,
+};
+use crate::shared::structural_types::{
     lower_mixed_cases, lower_mixed_fields, terminal_byte_sequence_carrier,
 };
-use crate::terminal_identities::{
+use crate::shared::terminal_identities::{
     TERMINAL_UNIT_CALL_OBLIGATION_BASE, allocate_dense, block_id, boundary_machine_id, claim_id,
     contract_id, dense_identity, edge_id, lookup_claim_id, lookup_domain_id, lookup_machine_id,
     lookup_service_id, lookup_type_id, machine_id, obligation_id, place_id, service_id,

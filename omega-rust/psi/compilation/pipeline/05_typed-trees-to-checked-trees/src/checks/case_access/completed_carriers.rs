@@ -1,7 +1,7 @@
 //! Current tag evidence follows an exact completed owned subtree.
 //! Historical descriptor provenance keeps its original owner and source access;
 //! this query relates that owner to the receiver actually used by this read.
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{CheckFacts, FlowCaseAccessFact, FlowControlFacts, FlowOperandFact};
 use facts::{PlaceRoot, PlaceSegment};

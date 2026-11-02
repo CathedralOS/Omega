@@ -958,7 +958,7 @@ fn completed_call_claims(
             },
             condition: conditions.always(),
         };
-        crate::collections::push_unique(&mut claims, claim);
+        crate::shared::collections::push_unique(&mut claims, claim);
     }
     Ok(claims)
 }

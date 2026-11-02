@@ -83,6 +83,9 @@ pub struct FlowOwnershipFacts {
     pub selection_transfers: Arena<super::FlowOwnedSelectionTransfer>,
     pub selection_transfer_claims: Arena<super::FlowOwnedSelectionClaim>,
     pub selection_place_bindings: Arena<super::FlowSelectionPlaceBinding>,
+    /// Final placement of each live owned linear transfer within its operand.
+    pub owned_transfer_paths: Arena<super::FlowOwnedTransferPath>,
+    pub owned_transfer_path_segments: Arena<super::CheckedUnitStructuralPathSegment>,
     pub permissions_by_state: KeyedRows<SymbolHandle, FlowPermissionEventFact>,
     pub owned_selections_by_state: KeyedRows<SymbolHandle, super::FlowOwnedSelectionReceipt>,
     pub selection_place_bindings_by_state:
@@ -116,6 +119,8 @@ impl FlowOwnershipFacts {
             selection_transfers: Arena::default(),
             selection_transfer_claims: Arena::default(),
             selection_place_bindings: Arena::default(),
+            owned_transfer_paths: Arena::default(),
+            owned_transfer_path_segments: Arena::default(),
             permissions_by_state: KeyedRows::default(),
             owned_selections_by_state: KeyedRows::default(),
             selection_place_bindings_by_state: KeyedRows::default(),
@@ -540,6 +545,8 @@ paged_flow_roots!(FlowOwnershipFacts {
         selection_transfers,
         selection_transfer_claims,
         selection_place_bindings,
+        owned_transfer_paths,
+        owned_transfer_path_segments,
     ],
     indexes: [
         permissions_by_state,

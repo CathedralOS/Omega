@@ -236,7 +236,7 @@ fn unrouted_address_refuses_in_producer_and_replay(kind: Option<SelectedInstruct
         replay_fixture_row(target, &selected, &machine, &physical, &row, &encoded).unwrap();
     }
     let mut changed = row;
-    changed.address = unrouted;
+    changed.address = unrouted.map(Box::new);
     assert!(
         replay_fixture_row(target, &selected, &machine, &physical, &changed, &encoded).is_err()
     );

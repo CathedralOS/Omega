@@ -11,7 +11,7 @@ use crate::flow::active_context_handles;
 use crate::flow::call_flows;
 use crate::flow::expressions;
 use crate::flow::place_cases_are_selected;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use crate::values::scalar::structural_fields::storage_observation_is_frozen;
 use checked_trees::{CheckFacts, FlowStateFact};
 use symbols::SymbolHandle;

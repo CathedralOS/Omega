@@ -9,13 +9,10 @@ use crate::selection::aggregate_result_input::{block_home, inline_argument_fragm
 use crate::selection::construction::scalar_graph::structural::invalid;
 use crate::selection::construction::scalar_graph::structural::local_storage;
 use crate::selection::construction::scalar_graph::structural::provenance;
-use crate::selection::construction::scalar_graph::structural::transport_register;
-use crate::selection::scalar_call_abi::load_transfer;
 use crate::structural_inputs::structural_reference_input::{
     case_projection, leaf_copy_geometry, reference_formation_geometry, reference_source_geometry,
 };
 use selected_instructions::VirtualRegisterId;
-use semantic_vocabulary::PlaceId;
 
 /// The copy reads the root through its durable pointer — an entry-assigned
 /// borrow, a retained owned home, a block arrival, or an earlier producer —
@@ -277,18 +274,7 @@ pub(super) fn reseat(
     )
 }
 
-/// One end of a chunked byte copy: the place whose storage is addressed, the
-/// register holding a pointer to it, and the extent's offset from that
-/// pointer.
-pub(super) struct CopyEnd<'a> {
-    pub(super) place: PlaceId,
-    pub(super) pointer: VirtualRegisterId,
-    pub(super) byte_offset: u32,
-    /// The runtime elements the pointer already scaled in; a read through
-    /// them publishes one element row per chunk rather than a place extent
-    /// at the static offset, which the load does not address.
-    pub(super) elements: &'a [legalized_operations::LegalizedRuntimeIndexOperand],
-}
+pub(super) use super::byte_copy::CopyEnd;
 
 /// Move an ordinary structural operand into unpublished aggregate storage.
 /// Constructors and lifecycle results use the same current-pointer/ABI-fragment
@@ -412,10 +398,6 @@ pub(super) fn project_operand<'indices>(
     })
 }
 
-/// Copy `byte_size` bytes from `from` to `to` in the widest aligned-size
-/// chunks: each chunk loads into a fresh transport register and stores it,
-/// recording the read and write footprints on their places. Both directions
-/// of a borrowed window and every leaf copy share this one routine.
 fn copy_bytes(
     builder: &mut Builder<'_>,
     row: &LegalizedScalarInstruction,
@@ -423,69 +405,14 @@ fn copy_bytes(
     to: CopyEnd<'_>,
     byte_size: u32,
 ) -> Result<(), SelectedInstructionError> {
-    let mut cursor = 0u32;
-    while cursor < byte_size {
-        let width = chunk(byte_size - cursor);
-        let load_offset = from.byte_offset + cursor;
-        let (input, load_displacement) = super::memory_pointer(
-            builder,
-            row,
-            from.place,
-            from.pointer,
-            load_offset,
-            u32::from(width),
-        )?;
-        let value = transport_register(builder, from.place, load_offset)?;
-        footprint(
-            builder,
-            row,
-            from.place,
-            load_offset,
-            u32::from(width),
-            from.elements,
-            super::runtime_address::Written::None,
-        )?;
-        let (kind, key) = load_transfer(
-            &builder.constraints.keys,
-            u32::from(width),
-            load_displacement,
-        )
-        .ok_or_else(|| invalid())?;
-        builder.emit(
-            kind,
-            key.ok_or_else(|| invalid())?,
-            &[input, value],
-            provenance(row),
-        )?;
-        let store_offset = to.byte_offset + cursor;
-        let (output, store_displacement) = super::memory_pointer(
-            builder,
-            row,
-            to.place,
-            to.pointer,
-            store_offset,
-            u32::from(width),
-        )?;
-        footprint(
-            builder,
-            row,
-            to.place,
-            store_offset,
-            u32::from(width),
-            to.elements,
-            super::runtime_address::Written::Structural,
-        )?;
-        builder.emit_store(store_displacement, width, output, value, provenance(row))?;
-        cursor += u32::from(width);
-    }
-    Ok(())
-}
-
-fn chunk(remaining: u32) -> u8 {
-    [8u8, 4, 2, 1]
-        .into_iter()
-        .find(|width| u32::from(*width) <= remaining)
-        .unwrap_or(1)
+    super::byte_copy::copy(
+        builder,
+        super::super::call_arguments::invocation_memory_origin(row),
+        provenance(row),
+        from,
+        to,
+        byte_size,
+    )
 }
 
 /// Copy a leaf out of an owned parameter's inline ABI fragments: every

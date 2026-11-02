@@ -1,6 +1,6 @@
 use super::{CapturedValue, CheckedScalarExpressionRole};
 use crate::flow::FlowBuildContext;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use crate::flow::transfers::scalar_values::CallValues;
 use crate::flow::transfers::scalar_values::LiveValues;

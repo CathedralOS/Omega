@@ -195,14 +195,26 @@ impl StructuralJudge<'_> {
                 }
             }
             (StructuralTerm::Variable(name), _) => {
-                if left != right {
+                if left != right && !term_contains(&right, &left) {
                     Arc::make_mut(&mut self.substitutions).push((name.clone(), right.clone()));
                     self.note_type_atom(name, &right);
+                } else if left != right && super::super::struct_trace() {
+                    eprintln!(
+                        "STRUCT recursive-substitution declined owner={:?} variable={name} replacement={right:?}",
+                        self.machine_symbol
+                    );
                 }
             }
             (_, StructuralTerm::Variable(name)) => {
-                Arc::make_mut(&mut self.substitutions).push((name.clone(), left.clone()));
-                self.note_type_atom(name, &left);
+                if left != right && !term_contains(&left, &right) {
+                    Arc::make_mut(&mut self.substitutions).push((name.clone(), left.clone()));
+                    self.note_type_atom(name, &left);
+                } else if left != right && super::super::struct_trace() {
+                    eprintln!(
+                        "STRUCT recursive-substitution declined owner={:?} variable={name} replacement={left:?}",
+                        self.machine_symbol
+                    );
+                }
             }
             // A parameter-rooted member place resolves to its Opaque display
             // (`left.code`), so it carries the same rewrite as the unresolved

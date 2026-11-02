@@ -2,10 +2,10 @@
 //! requests.
 
 use crate::frozen_program::expression_table;
-use crate::proof_contracts::quotients::ValidatedQuotientFormation;
-use crate::proof_contracts::quotients::carrier_fence::{
-    CarrierFenceViolation, first_forbidden_carrier_content,
+use crate::proof_contracts::carrier_contents::{
+    CarrierFenceViolation, first_forbidden_quotient_content,
 };
+use crate::proof_contracts::quotients::ValidatedQuotientFormation;
 use crate::proof_contracts::quotients::equivalence_selection::{
     base_data_symbol, validate_equivalence_selection,
 };
@@ -47,14 +47,14 @@ pub(crate) fn collect_validated_quotient_formations(
             )));
             continue;
         };
-        if let Some(forbidden) = first_forbidden_carrier_content(
+        if let Some(forbidden) = first_forbidden_quotient_content(
             program,
             proof_only,
             quotient.carrier,
             &mut HashSet::new(),
         ) {
             diagnostics.push(Diagnostic::error(match forbidden {
-                CarrierFenceViolation::NonCopyType(forbidden) => format!(
+                CarrierFenceViolation::UnshareableType(forbidden) => format!(
                     "quotient data `{}` carrier `{}` contains non-copy Type content `{forbidden}`; the initial quotient surface cannot identify affine or linear occurrences",
                     definition.name, carrier.name,
                 ),

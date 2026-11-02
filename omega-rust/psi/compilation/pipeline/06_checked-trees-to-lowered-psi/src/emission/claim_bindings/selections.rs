@@ -3,9 +3,9 @@
 //! at its dominating home, including backing observed by surviving descriptors.
 
 use super::{ClaimBindings, ClaimEdgeBinding};
-use crate::checked_facts::flow_facts;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::lookup_claim_id;
+use crate::shared::checked_facts::flow_facts;
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::lookup_claim_id;
 use language_semantics::PermissionClaimIdentity;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;

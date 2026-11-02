@@ -7,7 +7,7 @@
 //! Static geometry needs no new capture, but every projected descendant keeps
 //! its lineage: a static child can still depend on a dynamic ancestor address.
 use crate::LoweringError;
-use crate::terminal_identities::lookup_type_id;
+use crate::shared::terminal_identities::lookup_type_id;
 use checked_trees::{
     CheckedComposedUnitControlMachinePlan, CheckedStructuralControlTransferSourcePlan as Source,
     CheckedUnitStructuralArgumentSourcePlan as Root,

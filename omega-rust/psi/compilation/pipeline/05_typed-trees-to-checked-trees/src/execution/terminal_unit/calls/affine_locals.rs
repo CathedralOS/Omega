@@ -10,7 +10,7 @@ use crate::execution::terminal_unit::{
     PermissionEventKind, PermissionEventSource, StatementNode, SymbolHandle, TypeReferenceNode,
 };
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use std::collections::BTreeSet;
 
 pub(crate) fn build_affine_array_construction_prefix(

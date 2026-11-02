@@ -147,7 +147,7 @@ impl Execution<'_, '_, '_> {
         // carrier. Keep only predicate-only observations from the evaluated
         // operand; erased semantic tags and routed authority never follow.
         for observed in self.cast_predicate_observations(expression, reference, *contexts) {
-            crate::collections::push_unique(&mut domains, observed);
+            crate::shared::collections::push_unique(&mut domains, observed);
         }
         let mut predicates = Vec::new();
         crate::values::float_predicates::declared_type_predicates(
@@ -251,7 +251,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(place),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: crate::facts::propagated_evidence(self.state.symbol),
+                evidence: crate::published::facts::propagated_evidence(self.state.symbol),
                 payload: FactPayload::AssignedIntegerBounds { bounds },
             });
             self.semantic.append_ref(&mut refs, fact);
@@ -261,7 +261,7 @@ impl Execution<'_, '_, '_> {
         // and returns consume ordinary occurrence evidence. Declaration-only
         // membership and a return-specific zero proof would bypass this owner.
         for (path, domain_symbol, semantic_domain) in zero_fields {
-            let field = crate::semantic::places::append_place(
+            let field = crate::published::semantic::places::append_place(
                 self.semantic,
                 facts::PlaceRoot::Expression(expression),
                 &path,
@@ -270,7 +270,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(field),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: crate::facts::checked_validation_evidence(self.state.symbol),
+                evidence: crate::published::facts::checked_validation_evidence(self.state.symbol),
                 payload: FactPayload::DomainMembership {
                     value: expression,
                     domain: HandleSpan::empty(),
@@ -285,7 +285,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(place),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: crate::facts::propagated_evidence(self.state.symbol),
+                evidence: crate::published::facts::propagated_evidence(self.state.symbol),
                 payload: FactPayload::DomainMembership {
                     value: expression,
                     domain: HandleSpan::empty(),
@@ -311,7 +311,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(field),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: crate::facts::checked_validation_evidence(self.state.symbol),
+                evidence: crate::published::facts::checked_validation_evidence(self.state.symbol),
                 payload: FactPayload::FloatPredicate { predicate },
             });
             self.semantic.append_ref(&mut refs, fact);
@@ -321,7 +321,7 @@ impl Execution<'_, '_, '_> {
                 place: FactPlace::Place(place),
                 point,
                 origin: FactOrigin::StatementTransfer,
-                evidence: crate::facts::propagated_evidence(self.state.symbol),
+                evidence: crate::published::facts::propagated_evidence(self.state.symbol),
                 payload: FactPayload::FloatPredicate { predicate },
             });
             self.semantic.append_ref(&mut refs, fact);

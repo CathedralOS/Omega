@@ -7,8 +7,8 @@ use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::statement::StatementNode;
 
 use super::super::assembly::expression_reads_overlapping_place;
-use crate::labels::symbol_name;
-use crate::places::place_at;
+use crate::published::labels::symbol_name;
+use crate::published::places::place_at;
 
 /// The guard match above compares display labels, so it stands only while
 /// every unqualified name the instantiated requirement spells still refers to

@@ -24,7 +24,7 @@ use checked_trees::{
     CrashRouteBucket, CrashRouteGuard,
 };
 
-use crate::lowering_error::LoweringError;
+use crate::shared::lowering_error::LoweringError;
 
 /// The crash ceiling the checked contract plan proves for `machine`, in the
 /// machine's own parameter namespace: authored buckets for a published

@@ -3,8 +3,8 @@
 //! runs. This walk registers their theories, never membership or custody.
 //! Byte literal formation remains a separate validation owner.
 
-use crate::checked_facts::value_facts;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::checked_facts::value_facts;
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::types::{TypeReferenceHandle, TypeReferenceNode};
 use checked_trees::{CheckedTrees, CheckedUnitStructuralArgumentSourcePlan};
 use language_semantics::SemanticDomainId;

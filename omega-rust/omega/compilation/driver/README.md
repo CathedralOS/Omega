@@ -256,7 +256,7 @@ checked pass; eliminating that duplicate semantic work is separate from moving
 the protocol out of the coordinator. There is no compiler-private package gate
 or public raw Build checkpoint that can bypass the evaluation protocol.
 Checked-product selection belongs to
-[Psi 05](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/product_pruning/mod.rs):
+[Psi 05](../../../psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/products/product_pruning/mod.rs):
 the coordinator supplies the requested roots after rollback; the stage owns the
 identity case, root validation, pruning and selection evidence. It consumes only
 checked trees, not the Omega provider-settlement carrier.
@@ -329,7 +329,7 @@ belong to the package system's independent
 depend on those contracts directly, not on the package-command application.
 
 Target-neutral build evaluation remains in
-[Psi's compiler support](../../../psi/compilation/compile-time/README.md).
+[Psi's compiler support](../../../psi/compilation/build-time-evaluation/README.md).
 Opaque representation admission belongs to
 [Psi checking](../../../psi/compilation/checking/representation-planning/README.md);
 provider selection and planning belong to
@@ -512,7 +512,7 @@ complete the separate task of installing providers behind Terminal Psi.
 
 Boundary calls remain canonical in checked trees. Only the optional checked-tree
 oracle prepares its reference dispatch table through
-[checked interpreter dispatch](../realization/selected-dispatch/src/checked_interpreter_dispatch.rs)
+[checked interpreter dispatch](tests/support/checked_interpreter_dispatch/mod.rs)
 immediately before execution. Ordinary compilation does not build or retain
 those receiver/requirement/entry-state associations. Neither selection nor
 evaluation fabricates replacement source calls. Terminal

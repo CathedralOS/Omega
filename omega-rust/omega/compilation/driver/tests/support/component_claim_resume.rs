@@ -39,6 +39,7 @@ pub(super) fn observe(
             TerminalRuntimeRequest {
                 entry: None,
                 filesystem: Default::default(),
+                native_services: Default::default(),
                 native_provider: None,
                 artifact,
                 provisions,

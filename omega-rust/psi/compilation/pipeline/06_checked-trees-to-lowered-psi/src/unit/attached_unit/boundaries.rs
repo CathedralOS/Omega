@@ -22,9 +22,9 @@ use crate::emission::borrowed_window::terminal_multiplicity;
 use crate::expression_preparation::qualifications::signature_value_type;
 use crate::retention::conformance_applications::checked_method_arguments;
 use crate::scalar_lowering::contracts::proposition;
-use crate::terminal_identities::lookup_service_id;
-use crate::terminal_identities::value_id;
-use crate::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
+use crate::shared::terminal_identities::lookup_service_id;
+use crate::shared::terminal_identities::value_id;
+use crate::shared::terminal_identities::{StructuralDomainBinding, lookup_domain_id_for_carrier};
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 use crate::unit::attached_unit::catalog::lower_program_local_root_introductions;
 use crate::unit::{Proposition, ScalarType, ValueDeclaration};
@@ -50,7 +50,6 @@ pub(crate) fn lower_declarations(
     let mut declarations = Vec::with_capacity(boundaries.len());
     let mut parameter_rosters = Vec::with_capacity(boundaries.len());
     for (index, (plan, identity)) in boundaries.iter().enumerate() {
-        validate_requirement_kind(checked, plan)?;
         // Psi 05 retained the exact boundary's scalar consequences. Lower
         // that roster; deriving and comparing it again would replay checking
         // against the same source in the same compilation.
@@ -115,7 +114,7 @@ pub(crate) fn lower_declarations(
         // it is not an extra formal or permission to erase malformed clauses.
         let result = if plan.result.structural_identity().is_some() {
             let signature =
-                crate::declarations::target_signature(checked, plan.machine, plan.machine)?;
+                crate::shared::declarations::target_signature(checked, plan.machine, plan.machine)?;
             let position = u32::try_from(signature.parameters.len()).map_err(|_| {
                 LoweringError::Unsupported(
                     "boundary result coordinate exceeds the contract namespace",
@@ -253,18 +252,10 @@ pub(crate) fn lower_declarations(
                 plan.state,
             )?,
             fixed_service_reach: lower_fixed_boundary_service_reach(checked, plan, service_ids)?,
-            owning_service: if plan.kind == semantic_vocabulary::BoundaryRequirementKind::Trait {
-                let owner = checked
-                    .typed
-                    .service_reaches
-                    .id_for_symbol(plan.contract_owner)
-                    .ok_or(LoweringError::Unsupported(
-                        "boundary trait has no service identity",
-                    ))?;
-                Some(lookup_service_id(service_ids, owner)?)
-            } else {
-                None
-            },
+            owning_service: plan
+                .owning_service
+                .map(|owner| lookup_service_id(service_ids, owner))
+                .transpose()?,
             published_service_ceiling: lower_published_service_ceiling(
                 &checked.facts.service_reaches.rows,
                 plan.contract_service_reach,
@@ -282,44 +273,6 @@ pub(crate) fn lower_declarations(
         });
     }
     Ok((declarations, parameter_rosters))
-}
-
-/// Rejoin the published role to its authored owner. Handle equality is not
-/// a declaration kind, and a selected implementation cannot supply this fact.
-pub(crate) fn validate_requirement_kind(
-    checked: &CheckedTrees,
-    plan: &CheckedBoundaryMachinePlan,
-) -> Result<(), LoweringError> {
-    use semantic_vocabulary::BoundaryRequirementKind;
-    let matches_source =
-        match plan.kind {
-            BoundaryRequirementKind::Machine => checked.typed.machines().iter().any(|machine| {
-                machine.symbol == plan.machine && plan.contract_owner == machine.symbol
-            }),
-            BoundaryRequirementKind::Trait => checked.typed.traits().iter().any(|definition| {
-                definition.is_boundary
-                    && definition.symbol == plan.contract_owner
-                    && checked
-                        .typed
-                        .executable_trait_machine_instances(definition)
-                        .any(|signature| {
-                            signature.symbol == plan.machine && plan.state == signature.symbol
-                        })
-            }),
-            BoundaryRequirementKind::Operator => checked.typed.operators().iter().any(|operator| {
-                operator.is_boundary
-                    && operator.symbol == plan.machine
-                    && plan.state == operator.symbol
-                    && plan.contract_owner == operator.symbol
-            }),
-        };
-    if !matches_source
-        || (plan.kind != BoundaryRequirementKind::Machine
-            && plan.attachment_type_identity.is_some())
-    {
-        return unsupported("boundary requirement kind disagrees with its authored owner");
-    }
-    Ok(())
 }
 
 /// A boundary's scalar `requires` rows in its declaration-local formal
@@ -522,7 +475,7 @@ pub(crate) fn lower_boundary_result(
     Ok(match result {
         CheckedBoundaryMachineResultPlan::Unit => BoundaryMachineResult::Unit,
         CheckedBoundaryMachineResultPlan::Scalar(_) => {
-            let signature = crate::declarations::target_signature(checked, source, source)?;
+            let signature = crate::shared::declarations::target_signature(checked, source, source)?;
             BoundaryMachineResult::Scalar(signature_value_type(
                 checked,
                 scalar_qualifications,

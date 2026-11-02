@@ -3,6 +3,7 @@
 //! float projections and the arithmetic, default and weakened domains.
 
 mod argument_subjects;
+pub(crate) mod carrier_contents;
 pub use argument_subjects::contract_argument_root;
 pub(crate) mod arithmetic_domains;
 pub(crate) mod bound_expression_meaning;

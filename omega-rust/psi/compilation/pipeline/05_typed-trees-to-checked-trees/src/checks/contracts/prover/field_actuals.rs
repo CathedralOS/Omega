@@ -1,6 +1,6 @@
 //! Exact referent substitution for supplied Boolean field facts at call entry.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use validation::CanonicalPlace;
 
 use facts::{FactPlan, PlaceRoot};

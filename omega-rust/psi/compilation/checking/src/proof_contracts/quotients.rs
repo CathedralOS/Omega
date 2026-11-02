@@ -20,12 +20,11 @@
 //! This file validates quotient formations and extracts correspondences.
 //! `formation_collection.rs` collects validated formations and rejects
 //! operation requests, `equivalence_selection.rs` validates equivalence
-//! selections and exact relation applications, and `carrier_fence.rs`,
+//! selections and exact relation applications, and `../carrier_contents.rs`,
 //! `relation_plan.rs` and `terminal_bridge.rs` carry the fence, plan and
 //! bridge. Source fixtures under `tests/omega/*/proofs/quotient_*` exercise
 //! admission, executable realization and invalid controls.
 
-mod carrier_fence;
 mod equivalence_selection;
 mod formation_collection;
 mod relation_plan;
@@ -36,7 +35,6 @@ pub(crate) use equivalence_selection::exact_relation_application_matches;
 use crate::frozen_program::expression_table;
 use diagnostics::Diagnostic;
 use language_semantics::TerminationGuarantee;
-use std::collections::HashSet;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::proof_only::ProofOnlyClassification;
@@ -45,16 +43,6 @@ use typed_trees::types::TypeReferenceHandle;
 use crate::proof_contracts::quotients::formation_collection::{
     collect_validated_quotient_formations, reject_quotient_operation_requests,
 };
-use carrier_fence::first_forbidden_carrier_content;
-
-pub(crate) fn type_has_forbidden_denotational_content(
-    program: &dyn crate::CheckingInput,
-    proof_only: &ProofOnlyClassification,
-    type_reference: TypeReferenceHandle,
-) -> bool {
-    first_forbidden_carrier_content(program, proof_only, type_reference, &mut HashSet::new())
-        .is_some()
-}
 
 const CORE_EQUIVALENCE_SOURCE: &str = "relation.omg";
 

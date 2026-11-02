@@ -366,29 +366,32 @@ fn result_type(
             // callers cannot borrow that raw result: they need its applied
             // signature. Keep this owner distinction instead of making the
             // context-free call query guess a generic instantiation.
-            let scoped_requirement_result = match owner {
-                ExpressionOwner::State { machine, .. } => program
-                    .requirement_call_signature(machine.symbol, call)
-                    .filter(|signature| signature.return_type.is_valid())
-                    .map(|signature| signature.return_type),
-                ExpressionOwner::Declaration { owner_symbol, .. }
-                    if call.target_symbol.is_valid() =>
-                {
-                    let parent = program.symbols.get(owner_symbol).parent;
-                    (program.symbols.get(call.target_symbol).parent == parent)
-                        .then(|| program.trait_definition_by_symbol(parent))
-                        .flatten()
-                        .and_then(|definition| {
-                            program
-                                .trait_machine_signature_by_symbol(definition, call.target_symbol)
-                        })
-                        .filter(|signature| {
-                            signature.type_parameters.is_empty() && signature.return_type.is_valid()
-                        })
-                        .map(|signature| signature.return_type)
-                }
-                _ => None,
-            };
+            let scoped_requirement_result = program
+                .requirement_call_signature(owner.symbol(), call)
+                .filter(|signature| signature.return_type.is_valid())
+                .map(|signature| signature.return_type)
+                .or_else(|| match owner {
+                    ExpressionOwner::Declaration { owner_symbol, .. }
+                        if call.target_symbol.is_valid() =>
+                    {
+                        let parent = program.symbols.get(owner_symbol).parent;
+                        (program.symbols.get(call.target_symbol).parent == parent)
+                            .then(|| program.trait_definition_by_symbol(parent))
+                            .flatten()
+                            .and_then(|definition| {
+                                program.trait_machine_signature_by_symbol(
+                                    definition,
+                                    call.target_symbol,
+                                )
+                            })
+                            .filter(|signature| {
+                                signature.type_parameters.is_empty()
+                                    && signature.return_type.is_valid()
+                            })
+                            .map(|signature| signature.return_type)
+                    }
+                    _ => None,
+                });
             let retained = expression_table(program).constructed_value_type_reference(expression);
             let declared_result = retained
                 .is_valid()
@@ -1011,6 +1014,44 @@ fn binary_result(
             &operands,
         )
     {
+        // A lexical implementation bound, or the closed application a
+        // specialized machine selected, supplies the trait requirement; its
+        // result is that requirement's under the exact trait application.
+        if let [meaning] = typed_trees::operator::bound_trait_operator_meanings(
+            program,
+            owner.symbol(),
+            spelling,
+            &operands,
+        )
+        .as_slice()
+        {
+            return applied_requirement_result(
+                program,
+                meaning.requirement.return_type,
+                &meaning.substitutions,
+            );
+        }
+        if let [meaning] = typed_trees::operator::selected_trait_operator_meanings(
+            program,
+            owner.symbol(),
+            spelling,
+            &operands,
+        )
+        .as_slice()
+        {
+            let bindings = typed_trees::operator::trait_operator_operand_bindings(
+                program,
+                meaning.trait_definition,
+                meaning.requirement,
+                &operands,
+                None,
+            )?;
+            return applied_requirement_result(
+                program,
+                meaning.requirement.return_type,
+                &bindings.types,
+            );
+        }
         let candidates = typed_trees::operator::resolve_spelling_for_operands(
             program,
             spelling,
@@ -1403,6 +1444,30 @@ fn schematic_type_parameter_operand(
         }
     }
     carrier
+}
+
+/// A trait requirement's result under one exact trait application: a bare
+/// trait parameter takes its actual and a primitive result stands as
+/// declared. Any other result (a compound over a parameter, or a parameter
+/// no operand bound) stays unresolved rather than exporting the
+/// declaration-local spelling.
+fn applied_requirement_result(
+    program: &dyn crate::CheckingInput,
+    result: TypeReferenceHandle,
+    substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> Option<TypeReferenceHandle> {
+    if let TypeReferenceNode::Named { symbol, .. } =
+        program.type_reference_table.type_reference(result)
+        && let Some((_, actual)) = substitutions
+            .iter()
+            .find(|(parameter, _)| parameter == symbol)
+    {
+        return Some(*actual);
+    }
+    program
+        .primitive_type_reference(result)
+        .is_some()
+        .then_some(result)
 }
 
 /// A `-> T` result instantiates through the same binding operand selection

@@ -95,8 +95,7 @@ pub use structural_return::{
     CheckedStructuralReturnCompletion, CheckedUnitStructuralReturnPlan,
 };
 pub use structural_type_plans::{
-    CheckedAffineConstructionElementPlan, CheckedBindingFieldReceipt,
-    CheckedBindingParameterReceipt, CheckedByteSequenceCarrier, CheckedExtent,
+    CheckedAffineConstructionElementPlan, CheckedByteSequenceCarrier, CheckedExtent,
     CheckedMemberIdentity, CheckedRuntimeIndex, CheckedStructuralAccess,
     CheckedStructuralPathQualification, CheckedStructuralResultPlan,
     CheckedTrivialAffineStructuralLocalPlan, CheckedUnitRecordStorage,

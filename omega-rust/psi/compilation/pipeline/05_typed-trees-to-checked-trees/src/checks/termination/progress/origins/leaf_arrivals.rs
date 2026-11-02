@@ -11,7 +11,7 @@ use super::reference_bounds::*;
 use super::FlowStateFact;
 use crate::flow::state_statements;
 use crate::flow::{self};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;

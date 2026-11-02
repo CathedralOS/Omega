@@ -219,7 +219,7 @@ pub(in crate::checks::multiplicity) fn append_stored_transfer(
                 ));
             }
             let source = (value.expression, row.stored_destination);
-            crate::collections::push_unique(&mut sources, source);
+            crate::shared::collections::push_unique(&mut sources, source);
         }
     }
     if sources.len() > 1 {

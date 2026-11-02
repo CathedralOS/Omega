@@ -10,7 +10,7 @@ use super::super::{
 };
 use super::{CheckedTrees, LoweringError, catalogs};
 use crate::emission::operation_emission::buffer::OperationBuffer;
-use crate::terminal_identities::lookup_domain_id_for_carrier;
+use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
 use crate::unit::attached_unit::byte_subslices;
 use crate::unit::attached_unit::composed_control::emission::{FrameValues, StateFrame};
 
@@ -95,9 +95,9 @@ pub(super) fn evaluate(
         .iter()
         .map(|parameter| parameter.qualifications.clone())
         .collect::<Vec<_>>();
-    let authored = crate::call_sites::locate(checked, state, coordinate)?;
+    let authored = crate::shared::call_sites::locate(checked, state, coordinate)?;
     let signature =
-        crate::declarations::target_signature(checked, machine, authored.source_target)?;
+        crate::shared::declarations::target_signature(checked, machine, authored.source_target)?;
     let positions = super::super::call_parameters::structural_positions(checked, call, &signature)?
         .into_iter()
         .map(|position| position as usize)

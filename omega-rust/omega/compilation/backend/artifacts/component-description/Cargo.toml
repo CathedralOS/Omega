@@ -13,7 +13,7 @@ test-support = []
 
 [dependencies]
 backend-plan = { path = "../../plans/backend-plan" }
-effects = { path = "../../plans/provider-evidence" }
+effects = { path = "../../plans/effects" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
 proof-admission = { path = "../../../../../psi/compilation/proof/admission" }
 semantic-vocabulary = { path = "../../../../../psi/foundation/semantic-vocabulary" }

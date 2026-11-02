@@ -17,7 +17,7 @@
 //! source-checked disposal capability roster or schedules another death.
 //! Cycles preserve the same finite carrier frontier; nominal cleanup remains
 //! outside this pass.
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{BlockId, PlaceId, StructuralPlaceKind};
 use terminal_psi::{
     Block, StructuralAccess, StructuralMultiplicity, StructuralParameterDeclaration,
@@ -77,11 +77,15 @@ pub(crate) fn complete(
     blocks: &mut [Block],
     types: &[terminal_psi::StructuralTypeDeclaration],
 ) -> Result<(), LoweringError> {
-    let _g0 = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.affine_cleanup.owned_extractions");
+    let _g0 = phase_profile::guard(
+        "psi.06.lower_selected_machine.emit_composed_body.affine_cleanup.owned_extractions",
+    );
     let extractions =
         projected_transfers::owned_extractions(entry_parameters, local_places, blocks, types)?;
     drop(_g0);
-    let _g1 = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.affine_cleanup.complete_carriers");
+    let _g1 = phase_profile::guard(
+        "psi.06.lower_selected_machine.emit_composed_body.affine_cleanup.complete_carriers",
+    );
     complete_carriers(
         parameters,
         entry_parameters,
@@ -93,7 +97,9 @@ pub(crate) fn complete(
         &extractions,
     )?;
     drop(_g1);
-    let _g2 = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.affine_cleanup.projected_transfers");
+    let _g2 = phase_profile::guard(
+        "psi.06.lower_selected_machine.emit_composed_body.affine_cleanup.projected_transfers",
+    );
     projected_transfers::complete(
         entry_parameters,
         local_places,
@@ -103,7 +109,9 @@ pub(crate) fn complete(
         &extractions,
     )?;
     drop(_g2);
-    let _g3 = phase_profile::guard("psi.06.lower_selected_machine.emit_composed_body.affine_cleanup.retire_borrowed");
+    let _g3 = phase_profile::guard(
+        "psi.06.lower_selected_machine.emit_composed_body.affine_cleanup.retire_borrowed",
+    );
     retire_borrowed_descriptor_arrivals(entry_parameters, entry, blocks, types)
 }
 

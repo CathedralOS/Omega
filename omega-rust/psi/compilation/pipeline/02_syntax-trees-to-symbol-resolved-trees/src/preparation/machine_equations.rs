@@ -28,7 +28,7 @@ use syntax_trees::identifier::JoinedSyntaxPath;
 use syntax_trees::{
     SyntaxTrees,
     expression::StaticMachineArgument,
-    item::{Item, Machine, TypeParameterKind},
+    item::{Machine, TypeParameterKind},
     types::{TypeReferenceHandle, TypeReferenceNode},
 };
 
@@ -86,14 +86,28 @@ impl SourceLinks {
 }
 
 pub(crate) fn required(syntax: &SyntaxTrees, base: Option<&SymbolResolvedTrees>) -> bool {
-    syntax
-        .root_items()
-        .any(|item| matches!(item, Item::Machine(machine) if !machine.where_facts.is_empty()))
-        || base.is_some_and(|base| {
-            base.machines
-                .iter()
-                .any(|machine| machine.has_structural_type_equations)
-        })
+    syntax.root_items().any(|item| {
+        item.as_machine()
+            .is_some_and(|machine| !requirement_equations(syntax, machine).is_empty())
+    }) || base.is_some_and(|base| {
+        base.machines
+            .iter()
+            .any(|machine| machine.has_structural_type_equations)
+    })
+}
+
+/// The type equations among a machine's `requires` facts. Other facts remain
+/// ordinary entry obligations.
+pub(crate) fn machine_type_equations(
+    syntax: &SyntaxTrees,
+    machine: &Machine,
+) -> Vec<type_equations::TypeEquation> {
+    type_equations::classify_machine_equations(
+        syntax,
+        syntax.items.type_parameters(machine.type_parameters),
+        &machine.lifetime_parameters,
+        &syntax.items.requirement_facts(machine.contracts),
+    )
 }
 
 pub(crate) fn validate_declarations(syntax: &SyntaxTrees) -> Result<(), Vec<Diagnostic>> {
@@ -101,29 +115,20 @@ pub(crate) fn validate_declarations(syntax: &SyntaxTrees) -> Result<(), Vec<Diag
         let Some(machine) = item.as_machine() else {
             continue;
         };
-        if machine.where_facts.is_empty() {
+        let equations = machine_type_equations(syntax, machine);
+        if equations.is_empty() {
             continue;
         }
         // Explicit attached calls have the same selected declaration and
         // source links as free calls, so their tuples use `complete` below.
         // Implicit operator/conformance selection still needs its own complete
         // application context; an attachment alone is not such a selection.
-        if machine.spelling.is_some() || !machine.satisfies.is_empty() {
+        if (machine.spelling.is_some() || !machine.satisfies.is_empty())
+            && equations
+                .iter()
+                .any(type_equations::TypeEquation::requires_argument_recovery)
+        {
             return Err(vec![Diagnostic::error("machine structural equations currently require explicit calls; operator and conformance supplies retain undisclosed equations").with_source_span(machine.name.source_span())]);
-        }
-        if machine.type_parameters.is_empty() {
-            return Err(vec![
-                Diagnostic::error("machine structural equations require a generic declaration")
-                    .with_source_span(machine.name.source_span()),
-            ]);
-        }
-        let equations = type_equations::classify_type_equations(
-            syntax,
-            syntax.items.type_parameters(machine.type_parameters),
-            syntax.items.proof_facts(machine.where_facts),
-        );
-        if equations.len() != machine.where_facts.count() as usize {
-            return Err(vec![Diagnostic::error("machine where clause requires a structural type equation or a named conformance bound").with_source_span(machine.name.source_span())]);
         }
         for equation in equations {
             equation
@@ -176,7 +181,7 @@ pub(crate) fn complete(
                 let Some(index) = selected_machine(trees, call.target_symbol) else {
                     continue;
                 };
-                if !trees.machines[index].has_structural_type_equations {
+                if !completes_call(syntax, trees, sources, index, &call.machine_arguments) {
                     continue;
                 }
                 require_closed_selected_arguments(trees, &call.machine_arguments)?;
@@ -225,7 +230,7 @@ pub(crate) fn complete(
         let Some(index) = selected_machine(trees, call.target_symbol) else {
             continue;
         };
-        if !trees.machines[index].has_structural_type_equations {
+        if !completes_call(syntax, trees, sources, index, &call.machine_arguments) {
             continue;
         }
         require_closed_selected_arguments(trees, &call.machine_arguments)?;
@@ -288,6 +293,54 @@ pub(crate) fn complete(
         eprintln!("{warning}");
     }
     Ok(())
+}
+
+/// Whether a call's static arguments go through equation completion: every
+/// call to a machine whose `requires` facts define a type binder, except a
+/// complete tuple that forwards an open caller binder. That tuple is left to the
+/// type predicate check of its specialization.
+fn completes_call(
+    syntax: &SyntaxTrees,
+    trees: &SymbolResolvedTrees,
+    sources: &SourceLinks,
+    index: usize,
+    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+) -> bool {
+    let declares = trees.machines[index].has_structural_type_equations
+        || sources
+            .declarations
+            .iter()
+            .find(|(declaration, _)| *declaration == index)
+            .is_some_and(|(_, machine)| {
+                requirement_equations(syntax, machine)
+                    .iter()
+                    .any(type_equations::TypeEquation::requires_argument_recovery)
+            });
+    declares
+        && (!supplies_complete_tuple(trees, index, arguments)
+            || require_closed_selected_arguments(trees, arguments).is_ok())
+}
+
+/// Every type equation among a machine's `requires` facts, closed definitions
+/// included; completion solves omitted arguments from all of them.
+fn requirement_equations(
+    syntax: &SyntaxTrees,
+    machine: &Machine,
+) -> Vec<type_equations::TypeEquation> {
+    type_equations::classify_type_equations(
+        syntax,
+        syntax.items.type_parameters(machine.type_parameters),
+        &syntax.items.requirement_facts(machine.contracts),
+    )
+}
+
+fn supplies_complete_tuple(
+    trees: &SymbolResolvedTrees,
+    index: usize,
+    arguments: &[symbol_resolved_trees::expression::StaticMachineArgument],
+) -> bool {
+    let machine = &trees.machines[index];
+    arguments.len() == machine.type_parameters.count() as usize + machine.conformance_bounds.len()
 }
 
 fn reject_machine_arguments(

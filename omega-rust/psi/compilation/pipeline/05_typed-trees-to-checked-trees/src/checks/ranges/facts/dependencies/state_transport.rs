@@ -12,7 +12,7 @@ use super::{EXPRESSION_WALK_DEPTH_BOUND, ExpressionDependencyScope};
 use crate::checks::ranges::types::is_const_binder;
 use crate::flow::canonical_place_segments_equal;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use facts::{PlaceRoot, PlaceSegment};
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;

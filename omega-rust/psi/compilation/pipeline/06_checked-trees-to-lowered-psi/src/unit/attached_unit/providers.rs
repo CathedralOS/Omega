@@ -144,11 +144,13 @@ fn callable_candidate<'program>(
     plans: UnitPlans<'program>,
     machine: &Machine,
 ) -> Result<UnitBody<'program>, LoweringError> {
-    UnitBody::find(plans, machine.symbol).map_err(crate::lowering_error::unit_machine_plan_error(
-        checked,
-        machine.name.as_str(),
-        machine.symbol,
-    ))
+    UnitBody::find(plans, machine.symbol).map_err(
+        crate::shared::lowering_error::unit_machine_plan_error(
+            checked,
+            machine.name.as_str(),
+            machine.symbol,
+        ),
+    )
 }
 
 /// The requirement a boundary call names: a boundary-trait signature, or a
@@ -334,7 +336,7 @@ fn boundary_candidates(
 ) -> Result<Vec<CheckedUnitProviderCandidate>, LoweringError> {
     let mut output = Vec::new();
     let boundary = unique_unit_boundary(plans, boundary_symbol).map_err(
-        crate::lowering_error::unit_machine_plan_error(
+        crate::shared::lowering_error::unit_machine_plan_error(
             checked,
             checked.symbols.name(boundary_symbol),
             boundary_symbol,
@@ -344,7 +346,6 @@ fn boundary_candidates(
         .typed
         .traits()
         .iter()
-        .filter(|definition| definition.is_boundary)
         .flat_map(|definition| {
             checked
                 .typed

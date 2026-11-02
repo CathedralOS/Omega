@@ -60,7 +60,7 @@ fn zero_case(variant: &str, field: &str) -> BuildTimeValue {
     case(variant, vec![(field.to_owned(), BuildTimeValue::Int(0))])
 }
 
-pub(crate) fn encode_calling_policy_signature(
+pub fn encode_calling_policy_signature(
     signature: &CallingPolicySignature,
 ) -> Result<BuildTimeValue, String> {
     let native_formals = signature.native_parameters()?;
@@ -379,7 +379,7 @@ fn build_boundary_value_field(field: BoundaryValueField) -> BuildTimeValue {
     }
 }
 
-pub(crate) fn validate_calling_policy_result(
+pub fn validate_calling_policy_result(
     result: BoundaryPlanResult,
     signature: &CallingPolicySignature,
 ) -> Result<ValidatedBoundaryEntryPlan, String> {

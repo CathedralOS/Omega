@@ -33,7 +33,7 @@ use crate::emission::operation_emission::expressions::{
     LoweredDirectExpression, PrimitiveReadSource,
 };
 use crate::expression_preparation::bindings::structural_fields::EstablishedCasePayload;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, PlaceId, StructuralCaseId, StructuralFieldId,
 };
@@ -164,7 +164,7 @@ fn plan_decision<'a>(
                 if field.relevance.is_erased() {
                     continue;
                 }
-                let payload = crate::terminal_identities::fresh_field_snapshot(
+                let payload = crate::shared::terminal_identities::fresh_field_snapshot(
                     next_value,
                     scalar_type,
                     field.id,

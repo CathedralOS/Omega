@@ -30,7 +30,7 @@ pub(super) fn predicates(
                 .flow
                 .semantic_constraint_contexts(alias.epoch.constraints)
                 .collect::<Vec<_>>();
-            let mut predicates = crate::facts::boolean_predicates::retained(
+            let mut predicates = crate::published::facts::boolean_predicates::retained(
                 program,
                 &facts.operators,
                 &facts.semantic,
@@ -68,11 +68,14 @@ pub(super) fn predicates(
                 alias.epoch.statement_index,
             );
             while let Some(mut predicate) = predicates.pop() {
-                crate::facts::boolean_predicates::fold_cases(&mut predicate, |binding, case| {
-                    cases
-                        .as_ref()?
-                        .case_truth(&binding.place, binding.type_reference, case)
-                });
+                crate::published::facts::boolean_predicates::fold_cases(
+                    &mut predicate,
+                    |binding, case| {
+                        cases
+                            .as_ref()?
+                            .case_truth(&binding.place, binding.type_reference, case)
+                    },
+                );
                 if let checked_trees::CheckedBooleanExpression::And { left, right } =
                     &predicate.expression
                 {
@@ -87,7 +90,7 @@ pub(super) fn predicates(
                     continue;
                 }
                 let source_bindings = std::mem::take(&mut predicate.bindings);
-                let complete = crate::facts::boolean_predicates::map_observations(
+                let complete = crate::published::facts::boolean_predicates::map_observations(
                     &mut predicate.expression,
                     &mut |operand| {
                         let observation = source_bindings

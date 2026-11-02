@@ -8,9 +8,9 @@
 //! correspondence. A result binding is not new resource authority.
 
 mod joins;
-use crate::collections::push_unique;
-use crate::collections::unique_in_order;
 use crate::flow::literal_expression_projections;
+use crate::shared::collections::push_unique;
+use crate::shared::collections::unique_in_order;
 pub(super) use joins::preserved_inactive_place;
 pub(crate) use joins::{CallClaimJoinFailure, publish_call_claim_joins, validate_call_claim_joins};
 
@@ -22,7 +22,7 @@ use crate::checks::multiplicity::linear_validation::{
 };
 use crate::checks::multiplicity::type_multiplicity::data_field_name;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::HandleSpan;
 use checked_trees::{
     CheckFacts, FlowClaimOutcomeEntryFact, FlowClaimOutcomeMapFact, FlowClaimOutcomeSource,

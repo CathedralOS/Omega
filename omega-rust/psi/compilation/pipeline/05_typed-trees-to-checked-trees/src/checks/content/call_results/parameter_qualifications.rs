@@ -16,7 +16,7 @@ use crate::flow::call_parameter_qualification_identities;
 use crate::flow::operand_binds_live_view;
 use crate::flow::project_captured_view_place;
 use crate::flow::replay_retained_memberships;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{CheckFacts, FlowCallFact};
 use facts::{FactPlace, PlaceRoot, PlaceSegment, ProgramPoint, QualificationEvidence};
 use language_semantics::{QualificationEvidenceOrigin, SemanticDomainId};
