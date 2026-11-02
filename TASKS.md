@@ -1002,10 +1002,6 @@ defines the complete product bar.
   checking, constant evaluation, and publication end to end (`Psi 00–08` and
   `Omega 00–09`) under the [module/name contract](wiki/spec/language/modules.md)
   and [default builds and anonymous owner identity](wiki/spec/build/declarations.md#default-builds-and-anonymous-owner-identity).
-  - Assign versioned content owners to nonempty authored anonymous `Build`
-    activations after dependency requests join and before product declaration
-    identities are interned (extending
-    `samples/cli/facts/nominal_declaration_owner`).
   - Extend normalization and exact declaration selection for indexed constraints
     and operator homes in
     `omega-rust/psi/compilation/pipeline/02_syntax-trees-to-symbol-resolved-trees/src/preparation/`,
@@ -1019,7 +1015,7 @@ defines the complete product bar.
     `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/published/facts/crash_entry_values.rs`.
   Acceptance: `python3 tools/corpus_gate.py --both --filter modules/`,
   `samples/cli/facts/{nominal_declaration_owner,computed_constant_array_extent}`,
-  and fixtures for nonempty anonymous `Build` owners and new constant forms pass
+  and fixtures for new constant forms pass
   `omega run --both`, while mismatched provenance, visible-name conflicts, and
   unproved constant indices reject.
 
