@@ -9,7 +9,6 @@ samples/cli/facts/atomic_operand_carrier_once/README.md ARITHMETIC-POLICY-REALIZ
 samples/cli/facts/atomic_operand_carrier_once/README.md IMPLICIT-STORE-CONVERSION
 samples/cli/facts/boundary_provider_call/README.md PROVIDER-SELECTION
 samples/cli/facts/call_result_bound_discharge/README.md ONE-INTEGER-BOUNDS-ENGINE
-samples/cli/facts/case_dependent_default_domain/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION
 samples/cli/facts/case_payload_layout_geometry/README.md COUNT-ADDRESS-GEOMETRY
 samples/cli/facts/case_payload_layout_geometry/README.md LAYOUT-PLANS
 samples/cli/facts/case_tag_discriminant_layout/README.md LAYOUT-PLANS
