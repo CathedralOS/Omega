@@ -141,7 +141,7 @@ requires
     header_contract_count: u64;
     machine_first_component: u64 in Trapping;
     machine_component_count: u64 in Trapping;
-    // A `requires machine` or `where proposition` contract under way.
+    // A `requires machine` or `requires proposition` contract under way.
     contract_start: u64 in Trapping;
     contract_name_start: u64 in Trapping;
     contract_name_end: u64 in Trapping;

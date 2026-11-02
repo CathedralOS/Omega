@@ -437,8 +437,8 @@ narrows realization only.
   Enforce the connected single-pass Psi (`00–07`) + single-pass Build +
   per-target Omega (`00–09`) pipeline architecture and workspace dependency
   topology in [the pipeline contract](omega-rust/pipeline.md) end to end.
-  Owners: `omega-rust/omega/compilation/driver/src/compiler.rs`,
-  `omega-rust/psi/compilation/driver/`,
+  Owners: `omega-rust/omega/compilation/compiler/src/compiler.rs`,
+  `omega-rust/psi/compilation/psi-compiler/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
   - Admit each dependency occurrence under its exact delegated execution context
@@ -485,7 +485,7 @@ narrows realization only.
   float boundary-call realization, target-semantic capsule evaluation, and
   package review over canonical Terminal Psi plus target Build rows in Omega
   stage `00` end to end (`omega run --both`).
-  Owners: `omega-rust/omega/compilation/driver/src/execution_settlement.rs`,
+  Owners: `omega-rust/omega/compilation/compiler/src/execution_settlement.rs`,
   `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/{boundary_application_settlement.rs,provider_admission/compiler_builtins.rs}`,
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`.
   - Convert source-side preparation in `execution_settlement.rs` and
@@ -606,7 +606,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   operation end to end (`omega run --both`).
   Owners: `omega-rust/psi/interpreter/terminal-interpreter/src/{embedding/{program,instance,adapters},engine/execution}.rs`,
   `omega-rust/psi/compilation/build-time-evaluation/src/{machine_execution,const_evaluation,layouts}/`,
-  and `omega-rust/psi/compilation/driver/terminal-production/src/`.
+  and `omega-rust/psi/compilation/psi-compiler/terminal-production/src/`.
   - **INTERPRETER-CORE-ENTRY:** expose one interpreter facade accepting the
     borrowed Terminal artifact view, exact provisions, and host resources
     without checked-tree dependencies or compiler-owned source lookup; reject
@@ -641,7 +641,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   [scoped build execution](wiki/spec/build/scoped_execution.md) and
   [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance).
   Owners: `omega-rust/omega/compilation/build-evaluation/src/`,
-  `omega-rust/omega/packages/{build-declarations,compilation-inputs,source-acquisition,build-output,package-manager}/`,
+  `omega-rust/omega/packages/{build-declarations,package-compilation,source-acquisition,build-output,package-manager}/`,
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
     remaining host operations (including admitted carriers for reference results from
@@ -723,8 +723,8 @@ helper that passes does not close an item.
   [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
   end to end and retire `where` from Omega source syntax, without a permanent
   compatibility spelling or weaker proof obligations.
-  - Implement `where proposition` premises, and structural/nominal `requires machine`
-    contracts in both Rust and Omega producers. Preserve logical `self`, binder-kind
+  - Implement structural/nominal `requires machine` contracts in both Rust and
+    Omega producers. Preserve logical `self`, binder-kind
     inference, static/runtime distinctions, specialization and exact subjects;
     repeated predicates conjoin only within their owning scope. Keep a nested
     callable's complete contract and terminating semicolon distinct from its
@@ -736,9 +736,6 @@ helper that passes does not close an item.
     tests where it implements the retired surface; other bootstrap languages
     keep their own syntax. Delete the old keyword, grammar, recommending
     diagnostics and compatibility paths, not just their documentation.
-  - Reword checker diagnostics that still name a data declaration's `where`
-    facts (such as ``stores a value not provably within its data's `where`
-    facts``) together with their expected fragments and corpus rows.
   Acceptance: both producers accept the new data, generic, callable and assembly
   forms; all affected authored sources migrate without changing their result or
   refusal obligation. Existing applicable fact rows and their sensitive reject
@@ -1372,7 +1369,7 @@ defines the complete product bar.
   [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix),
   with `python tools/corpus_gate.py` (`--filter fail/` for diagnostics,
   `--native` / `--both` on each matching host). Harness:
-  `omega-rust/omega/compilation/driver/tests/corpus_runner.rs`; attribution per
+  `omega-rust/omega/compilation/compiler/tests/corpus_runner.rs`; attribution per
   [testing](tools/testing.md#attributing-a-move).
   - **CORPUS-ROUTE-BLIND-SPOTS:** invoke production application/compiler/package/interpreter
     facades in the runner, delete `driver/tests/support/fixture_package_inputs.rs`,
@@ -1461,7 +1458,7 @@ defines the complete product bar.
   - Preserve exact closed slot applications, call occurrences, and selected
     plans across activation/result/out-parameter joins to native execution via
     `omega-rust/omega/compilation/backend/plans/program-entry-plan/`,
-    `omega-rust/omega/compilation/driver/terminal-production/`,
+    `omega-rust/omega/compilation/compiler/terminal-production/`,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/settlement/entry_settlement/`,
     `native-artifact`'s `publish_fragment_object`, and
     `omega-rust/omega/compilation/backend/images/image-emission/src/entries/hosted_receiver.rs`.
@@ -1733,8 +1730,8 @@ defines the complete product bar.
   across the full admitted entry/call closure, native artifact custody,
   installation, and replacement (`Psi 05–08` and `Omega 00–09`). Reuse
   `omega-rust/omega/compilation/backend/plans/effects/src/provider_evidence/executable_scopes/behavior_exclusions.rs`,
-  `omega-rust/omega/compilation/driver/src/checked/checking/product_selections/exclusions.rs`,
-  `omega-rust/omega/compilation/driver/src/terminal/behavior_exclusions.rs`,
+  `omega-rust/omega/compilation/compiler/src/checked/checking/product_selections/exclusions.rs`,
+  `omega-rust/omega/compilation/compiler/src/terminal/behavior_exclusions.rs`,
   `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal.rs`,
   `omega-rust/omega/compilation/native-production/src/realization.rs`,
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/native_artifact.rs`.
@@ -1756,9 +1753,9 @@ defines the complete product bar.
   - Add `builder.tests.group<ExactRequirement>()` registration and enablement to
     `Build` (`omega-rust/omega/packages/build-declarations/src/prelude.rs`) and
     `EvaluatedBuildSettings`
-    (`omega-rust/omega/packages/compilation-inputs/src/build_execution/build_value/configuration.rs`),
+    (`omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs`),
     with package-local satisfaction discovery, separate runner roots, and
-    Terminal Psi + native execution in `omega-rust/omega/compilation/driver/`.
+    Terminal Psi + native execution in `omega-rust/omega/compilation/compiler/`.
   - Extend `omega-rust/omega/compilation/build-evaluation/src/admission/program.rs`
     and `omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`
     to carry group-scoped providers, ordinary fixture storage, fresh mock state,
@@ -1831,16 +1828,16 @@ defines the complete product bar.
   and [critical service audit policy](wiki/spec/packages/review.md#critical-service-audit-policy):
   - Carry core's critical service catalog and root `Build::audit_service<R>`
     selections through install/update review and compact lock acceptance.
-  - Settle demanded Linux x86-64 filesystem `BoundaryCall`s (`set_len`) in
-    `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`,
-    replace equality-based receiver checks in
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/terminal_authority_permissions.rs`
-    with demand-based containment, and replace the broad filesystem arm in
-    `omega-rust/omega/packages/review-evidence/src/capture/authority.rs` and
-    `omega-rust/omega/packages/package-manager/src/review/audit/triage/` with
-    exact cohort classifications from
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/settlements/source_imports.rs`
-    and `omega-rust/omega/packages/package-manager/src/review/candidate/semantic_bindings.rs`.
+  - Make Linux x86-64 filesystem calls such as `set_len` run through the
+    program's selected filesystem implementation. In the
+    [permission checks](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/terminal_authority_permissions.rs),
+    accept supplied permissions that cover every operation the call needs,
+    even if they allow additional operations. In
+    [review evidence](omega-rust/omega/packages/review-evidence/src/capture/authority.rs)
+    and [package review](omega-rust/omega/packages/package-manager/src/review/),
+    replace the broad filesystem category with the operation-specific categories
+    produced by [native import selection](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/settlements/source_imports.rs)
+    and [accepted API bindings](omega-rust/omega/packages/package-manager/src/review/candidate/semantic_bindings.rs).
   Acceptance: `tests/omega/pass/host/console_exit_process_exit` (exit 70),
   Cathedral native smoke, `samples/cli/basics/cli_mvp`, and Squalr build and run
   without a synthesized receiver-policy file; denying policies reject and

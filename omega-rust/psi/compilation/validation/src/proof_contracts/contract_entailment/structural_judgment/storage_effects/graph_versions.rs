@@ -111,6 +111,53 @@ impl<'program> StructuralJudge<'program> {
         })
     }
 
+    /// Preserve a declared inline referent across one exact completed call.
+    /// A reinterpreted view names another address space; preservation of its
+    /// owner descriptor cannot stand in for preservation of that view's cells.
+    pub(in crate::proof_contracts::contract_entailment) fn call_preserves_inline_subject(
+        &self,
+        state: &State,
+        expression: ExpressionHandle,
+        subject: &crate::machine_calls::calls::InvocationEntrySubject,
+    ) -> bool {
+        let [source] = subject.sources.as_slice() else {
+            return false;
+        };
+        if !source.recasts.is_empty() || source.representation.is_some() {
+            return false;
+        }
+        let Some(coordinate) = self
+            .captured_reference_subject(subject, state)
+            .and_then(|coordinate| Self::coordinate_place(&coordinate))
+        else {
+            return false;
+        };
+        let Some(graph) = self.storage_graph() else {
+            return false;
+        };
+        let Some(row) = self.flow_state(state.symbol) else {
+            return false;
+        };
+        let Some(calls) = graph.calls.span(row.calls) else {
+            return false;
+        };
+        let mut matching = calls
+            .iter()
+            .filter(|call| call.authored_expression == expression);
+        let Some(call) = matching.next() else {
+            return false;
+        };
+        matching.next().is_none()
+            && crate::completed_storage::contents_preserved_from(
+                self.program,
+                graph,
+                call.completed_storage,
+                &coordinate,
+                &[call.invocation_storage],
+                crate::completed_storage::StoredObservation::InlineContents,
+            )
+    }
+
     /// The version a read observed: its own completed operand's snapshot.
     pub(in crate::proof_contracts::contract_entailment) fn read_storage_version(
         &self,
@@ -239,6 +286,7 @@ impl<'program> StructuralJudge<'program> {
                                     *event,
                                     &place,
                                     &[*before],
+                                    crate::completed_storage::StoredObservation::Contents,
                                 )
                             })
                         })
@@ -461,6 +509,33 @@ impl<'program> StructuralJudge<'program> {
         let Some(graph) = self.storage_graph() else {
             return true;
         };
+        // A declared owned storage path contains inline cells up to its first
+        // reference boundary. Use the path's type, not an ObservedValue wrapper:
+        // isolated values need no wrapper. A separately backed content write
+        // invalidates referent observations, not the owner's inline cells.
+        let inline = stored
+            .coordinate
+            .root
+            .as_symbol()
+            .and_then(|root| crate::declaration_type_reference(self.program, root))
+            .and_then(|reference| {
+                stored
+                    .coordinate
+                    .segments
+                    .iter()
+                    .try_fold(reference, |reference, segment| {
+                        crate::reference_shell(self.program, reference)
+                            .is_none()
+                            .then(|| segment.projected_type(self.program, reference))
+                            .flatten()
+                    })
+            })
+            .is_some_and(|reference| crate::reference_shell(self.program, reference).is_none());
+        let observation = if inline {
+            crate::completed_storage::StoredObservation::InlineContents
+        } else {
+            crate::completed_storage::StoredObservation::Contents
+        };
         if stored.current_anchors.is_empty() || stored.anchor_state != at.state {
             return false;
         }
@@ -487,7 +562,7 @@ impl<'program> StructuralJudge<'program> {
                                 graph,
                                 at.snapshot,
                                 &prefix,
-                                crate::completed_storage::StoredObservation::Contents,
+                                observation,
                             ),
                             None | Some(crate::completed_storage::StoredOperand::Incoming(_))
                         )
@@ -502,6 +577,7 @@ impl<'program> StructuralJudge<'program> {
                                 at.snapshot,
                                 &prefix,
                                 &[*cut],
+                                observation,
                             ))
                 }
                 StorageAnchor::Store(_) | StorageAnchor::CallReturn => false,
@@ -517,6 +593,7 @@ impl<'program> StructuralJudge<'program> {
                         at.snapshot,
                         &place,
                         &[cut],
+                        observation,
                     ))
         };
         let reached = |reaching: &crate::completed_storage::StoredOperand| match reaching {
@@ -545,7 +622,7 @@ impl<'program> StructuralJudge<'program> {
             graph,
             at.snapshot,
             &place,
-            crate::completed_storage::StoredObservation::Contents,
+            observation,
         );
         match reaching {
             None => reached(&crate::completed_storage::StoredOperand::Incoming(

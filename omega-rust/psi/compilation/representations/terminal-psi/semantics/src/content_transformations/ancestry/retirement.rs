@@ -306,7 +306,7 @@ fn apply_nominal_disposals(
                 if selected.is_empty() {
                     continue;
                 }
-                crate::nominal_cleanup::target(
+                crate::structural::nominal_cleanup::target(
                     module.structural_types.iter(),
                     module.machines.iter(),
                     cleanup,

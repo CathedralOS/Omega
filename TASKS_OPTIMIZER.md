@@ -321,7 +321,7 @@ rewrites and promotion are not prerequisites for the first useful compiler.
   `encode`, an isolated validator, or a retained-but-unused plan is not a
   join.
   - The common physical route is
-    `omega-rust/omega/compilation/driver/src/native/physical_pipeline.rs` plus
+    `omega-rust/omega/compilation/compiler/src/native/physical_pipeline.rs` plus
     machine-emission's frame realization
     (`omega-rust/omega/compilation/backend/machine-emission/src/function_realization/frame.rs`);
     native-artifact owns `publish_fragment_object`

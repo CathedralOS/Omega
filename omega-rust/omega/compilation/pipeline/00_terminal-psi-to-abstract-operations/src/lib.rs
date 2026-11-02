@@ -38,8 +38,10 @@ mod lowering;
 mod native_admission;
 mod native_execution_scope;
 mod optimization;
-mod providers;
-pub use providers::provider_admission;
+// Provider admission and its sealed evidence live in their own package; this
+// stage runs the admission and keeps reading it under the same module name.
+use ::provider_admission as providers;
+pub use ::provider_admission::provider_admission;
 mod retained_terminal;
 mod settlement;
 #[cfg(test)]

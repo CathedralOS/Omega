@@ -50,26 +50,38 @@ the time goes and remove the cause rather than waiting on it or working around i
 ## Explain the change
 
 Use an inverted pyramid in PR descriptions, commit bodies, progress/final
-reports, and explanatory documentation. Start with one or two plain-language
-sentences saying what changes and why it matters. Write for someone who has
-not followed the session or learned this subsystem's vocabulary. A reader who
-stops after the opening should still understand the result and its significance.
+reports, explanatory documentation and comments. Start with one or two sentences
+that let someone unfamiliar with the subsystem picture the problem and the
+result. Name what the program or developer needs to do, what went wrong, and
+what changes. For an internal repair, explain its effect on a program or the
+development workflow before describing the compiler's bookkeeping.
 
-Then show the previous and resulting behavior, with a small example when useful.
-Explain the mechanism after its purpose is clear; introduce technical terms
-where they help the reader follow that explanation. Put validation and detailed
-provenance afterward, linking existing evidence or using a details section for
-long records. Keep any limitation that materially qualifies the result beside
-that result. Preserve exact evidence identities, failures and unverified cases.
-A small change may need only one paragraph; this is a reading order, not a form
-to fill with headings or a fixed word count.
+For example, a repair involving references and suspension could open with:
+"A program should be able to keep reading the same data after a function call
+that may pause. This fixes cases where the compiler wrongly rejected that safe
+use." Explain which cases next. A test value such as 73 illustrates the behavior
+after the reader understands what keeping that value demonstrates.
 
-Before publishing, check the explanation against the final diff and observed
-behavior. Rewrite it when the scope changes instead of appending the session's
-history. If the behavior or benefit is unclear, inspect the relevant code and
-witness rather than inventing a clearer-sounding claim. Read the opening alone:
-does it explain what changed and why without requiring the diff? Then check
-that the technical explanation and evidence support it.
+Build each explanation on what the reader already knows. Show the previous and
+resulting behavior, then explain the mechanism. Introduce a technical term with
+its meaning when it becomes useful, and use the canonical term consistently
+afterward. Words such as "lineage", "carrier" and "retirement" need that context;
+replacing them with an unexplained phrase such as "permission information"
+still leaves the reader guessing. In source comments, establish the local
+purpose before explaining the invariant or implementation detail.
+
+Put validation and detailed provenance after the explanation, linking existing
+evidence or using a details section for long records. Keep any limitation that
+materially qualifies the result beside that result. Preserve exact evidence
+identities, failures and unverified cases. A small change may need only one
+paragraph; this is a reading order, not a form to fill with headings.
+
+Before publishing, read only the opening. Can a reader explain what the program
+or developer can do differently and why it matters, without asking for a
+definition or reading the diff? Rewrite until they can. Then check the whole
+explanation against the final diff and observed behavior. If the purpose is
+unclear, inspect the code and witness before making a claim. Rewrite when the
+scope changes rather than appending the session's history.
 
 ## Law of completion
 
@@ -954,7 +966,7 @@ bootstrap implementation; those meanings stay distinct in subjects.
 | `psi` | Target-neutral source semantics through Terminal Psi: parsing, resolution, typing, checking, proof, interpretation, and Psi optimization in `omega-rust/psi/` or `source/psi/`. |
 | `omega` | The Terminal-Psi-consuming compiler stage: Omega representations, transforms, optimization, and realization semantics in `omega-rust/omega/compilation/{representations,pipeline,realization}/` or corresponding `source/omega/` implementation. Never a project-wide default. |
 | `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/compilation/backend/` and their product-source equivalents. Transform policy in `pipeline/` remains `omega`. |
-| `compiler` | Product compilation coordination and reports in `omega-rust/omega/compilation/driver/`, the source-free native driver in `omega-rust/omega/compilation/native-production/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
+| `compiler` | Product compilation coordination and reports in `omega-rust/omega/compilation/compiler/`, the source-free native driver in `omega-rust/omega/compilation/native-production/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
 | `build` | The product's Build activation in `omega-rust/omega/compilation/build-evaluation/`, plus product build declarations such as `source/omega/build.omg`. Provider planning and trust admission under `realization/` use `omega`; CLI policy-file handling uses `cli`. Repository build commands and CI use `repo`. |
 | `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/packages/`. Package command wiring accompanying those changes keeps `packages`. |
 | `cli` | Command parsing, flags, help, and command dispatch in `omega-rust/omega/application/cli/src/`, plus the corresponding product entrypoint. The command's underlying compiler or package behavior uses its owning lane. |

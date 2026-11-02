@@ -8,7 +8,7 @@ version.workspace = true
 path = "src/lib.rs"
 
 [dependencies]
-selected-instructions-to-selected-instructions = { path = "../04_selected-instructions-to-selected-instructions" }
+selected-instruction-analyses = { path = "../../representations/selected-instructions/analyses" }
 register-environment = { path = "../../backend/register-environment" }
 isa-aarch64 = { path = "../../backend/instruction-set-architectures/isa-aarch64" }
 isa-x86_64 = { path = "../../backend/instruction-set-architectures/isa-x86_64" }
@@ -26,6 +26,3 @@ calling-conventions = { path = "../../backend/calling-conventions" }
 legalized-operations = { path = "../../representations/target-operations/legalized-operations" }
 target-operations = { path = "../../representations/target-operations" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
-
-[dev-dependencies]
-selected-instructions-to-selected-instructions = { path = "../04_selected-instructions-to-selected-instructions", features = ["test-support"] }

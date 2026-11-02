@@ -16,8 +16,8 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
-    TerminalImportAdapter, TerminalImportSignature, TerminalProgram, TerminalReferenceResult,
-    TerminalScalarAggregateValue, TerminalScalarValue,
+    TerminalImportAdapter, TerminalImportSignature, TerminalProgram, TerminalReferencePayload,
+    TerminalReferenceResult, TerminalScalarAggregateValue, TerminalScalarValue,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, StructuralAccess, StructuralTypeShape,
@@ -27,11 +27,12 @@ use terminal_psi::{
 enum ReferenceStateOperation {
     ErrnoLocation,
     LibcVersion,
+    Localeconv,
 }
 
 pub(super) struct ReferenceStateImport {
     signature: TerminalImportSignature,
-    referent: TerminalScalarAggregateValue,
+    result: TerminalReferenceResult,
 }
 
 impl ReferenceStateImport {
@@ -45,11 +46,8 @@ impl ReferenceStateImport {
             return Ok(None);
         };
         let signature = TerminalImportSignature::from(declaration);
-        let referent = validate(program, declaration, binding, application, &signature, operation)?;
-        Ok(Some(Self {
-            signature,
-            referent,
-        }))
+        let result = validate(program, declaration, binding, application, &signature, operation)?;
+        Ok(Some(Self { signature, result }))
     }
 }
 
@@ -76,11 +74,7 @@ impl TerminalEffectHandler for ReferenceStateImport {
         {
             return Err(invalid());
         }
-        Ok(TerminalEffectResult::Reference(
-            TerminalReferenceResult {
-                referent: self.referent.clone(),
-            },
-        ))
+        Ok(TerminalEffectResult::Reference(self.result.clone()))
     }
 }
 
@@ -95,6 +89,10 @@ fn select(
         (
             b"gnu_get_libc_version".as_slice(),
             ReferenceStateOperation::LibcVersion,
+        ),
+        (
+            b"localeconv".as_slice(),
+            ReferenceStateOperation::Localeconv,
         ),
     ] {
         // Both names are glibc imports; other C runtimes decline the offer.
@@ -112,7 +110,7 @@ fn validate(
     application: Option<&BoundaryCallingApplication>,
     signature: &TerminalImportSignature,
     operation: ReferenceStateOperation,
-) -> Result<TerminalScalarAggregateValue, TerminalRuntimeError> {
+) -> Result<TerminalReferenceResult, TerminalRuntimeError> {
     let invalid = TerminalRuntimeError::InvalidProvision;
     if !signature.scalar_parameters.is_empty()
         || !signature.structural_parameters.is_empty()
@@ -132,32 +130,10 @@ fn validate(
             "provider reference state cannot establish result qualifications",
         ));
     }
-    let (access, payload_scalar, payload_value) = match operation {
-        ReferenceStateOperation::ErrnoLocation => {
-            let integer = IntegerType::new(IntegerSign::Signed, 32)
-                .map_err(|_| invalid("errno requires a supported i32 carrier"))?;
-            (
-                StructuralAccess::MutableBorrow,
-                ScalarType::Integer(integer),
-                TerminalScalarValue::Integer {
-                    scalar_type: integer,
-                    value: IntegerValue::Signed(0),
-                },
-            )
-        }
-        ReferenceStateOperation::LibcVersion => {
-            let integer = IntegerType::new(IntegerSign::Unsigned, 8)
-                .map_err(|_| invalid("libc version requires a supported u8 carrier"))?;
-            (
-                StructuralAccess::SharedBorrow,
-                ScalarType::Integer(integer),
-                // A stable nonzero byte: the semantic version cell this
-                // provider owns for the invocation's life.
-                TerminalScalarValue::Integer {
-                    scalar_type: integer,
-                    value: IntegerValue::Unsigned(2),
-                },
-            )
+    let access = match operation {
+        ReferenceStateOperation::ErrnoLocation => StructuralAccess::MutableBorrow,
+        ReferenceStateOperation::LibcVersion | ReferenceStateOperation::Localeconv => {
+            StructuralAccess::SharedBorrow
         }
     };
     let StructuralTypeShape::Reference {
@@ -175,7 +151,6 @@ fn validate(
             "provider reference access differs from its operation's semantics",
         ));
     }
-    let path = super::native_word::scalar_payload_path(program, *referent, payload_scalar)?;
     let native = CallSignature {
         parameters: Vec::new(),
         result: Some(ValueShape::integer(8, 8)),
@@ -191,9 +166,121 @@ fn validate(
             ));
         }
     }
-    Ok(TerminalScalarAggregateValue {
-        structural_type: *referent,
-        result_case: None,
-        fields: vec![(path, payload_value)],
+    match operation {
+        ReferenceStateOperation::ErrnoLocation => {
+            let integer = IntegerType::new(IntegerSign::Signed, 32)
+                .map_err(|_| invalid("errno requires a supported i32 carrier"))?;
+            scalar_state(
+                program,
+                *referent,
+                ScalarType::Integer(integer),
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Signed(0),
+                },
+            )
+        }
+        ReferenceStateOperation::LibcVersion => {
+            let integer = IntegerType::new(IntegerSign::Unsigned, 8)
+                .map_err(|_| invalid("libc version requires a supported u8 carrier"))?;
+            scalar_state(
+                program,
+                *referent,
+                ScalarType::Integer(integer),
+                // A stable nonzero byte: the semantic version cell this
+                // provider owns for the invocation's life.
+                TerminalScalarValue::Integer {
+                    scalar_type: integer,
+                    value: IntegerValue::Unsigned(2),
+                },
+            )
+        }
+        ReferenceStateOperation::Localeconv => locale_view(program, *referent),
+    }
+}
+
+/// A host-owned referent whose entire observable content is one scalar leaf:
+/// the provider state record beneath the result descriptor.
+fn scalar_state(
+    program: &TerminalProgram,
+    referent: semantic_vocabulary::StructuralTypeId,
+    scalar: ScalarType,
+    value: TerminalScalarValue,
+) -> Result<TerminalReferenceResult, TerminalRuntimeError> {
+    let path = super::native_word::scalar_payload_path(program, referent, scalar)?;
+    Ok(TerminalReferenceResult {
+        referent: TerminalReferencePayload::ScalarAggregate(TerminalScalarAggregateValue {
+            structural_type: referent,
+            result_case: None,
+            fields: vec![(path, value)],
+        }),
+        references: Vec::new(),
+    })
+}
+
+/// `localeconv` returns a stable pointer to C's `lconv`, every member a shared
+/// `char *` into provider locale state. The admitted view keeps that exact
+/// shape: each non-erased field is a shared reference to a single-u8 record,
+/// supplied the "C" locale's decimal point byte.
+fn locale_view(
+    program: &TerminalProgram,
+    referent: semantic_vocabulary::StructuralTypeId,
+) -> Result<TerminalReferenceResult, TerminalRuntimeError> {
+    let invalid = TerminalRuntimeError::InvalidProvision;
+    let byte = IntegerType::new(IntegerSign::Unsigned, 8)
+        .map_err(|_| invalid("locale members require a supported u8 carrier"))?;
+    let declaration = program
+        .structural_type(referent)
+        .ok_or(invalid("locale view referent type is absent"))?;
+    let StructuralTypeShape::Record { fields, .. } = &declaration.shape else {
+        return Err(invalid("locale view referent is not a record"));
+    };
+    let mut references = Vec::new();
+    for field in fields.iter().filter(|field| !field.relevance.is_erased()) {
+        let Some(member) = field.field_type.as_structural() else {
+            return Err(invalid("locale view members are provider references"));
+        };
+        let StructuralTypeShape::Reference {
+            referent: nested,
+            access,
+        } = &program
+            .structural_type(member)
+            .ok_or(invalid("locale view member type is absent"))?
+            .shape
+        else {
+            return Err(invalid("locale view members are provider references"));
+        };
+        if *access != StructuralAccess::SharedBorrow {
+            return Err(invalid("locale view members are shared references"));
+        }
+        let path =
+            super::native_word::scalar_payload_path(program, *nested, ScalarType::Integer(byte))?;
+        references.push((
+            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(field.id)],
+            TerminalReferenceResult {
+                referent: TerminalReferencePayload::ScalarAggregate(
+                    TerminalScalarAggregateValue {
+                        structural_type: *nested,
+                        result_case: None,
+                        // "." under the "C" locale.
+                        fields: vec![(
+                            path,
+                            TerminalScalarValue::Integer {
+                                scalar_type: byte,
+                                value: IntegerValue::Unsigned(46),
+                            },
+                        )],
+                    },
+                ),
+                references: Vec::new(),
+            },
+        ));
+    }
+    if references.is_empty() {
+        return Err(invalid("locale view exposes no provider references"));
+    }
+    Ok(TerminalReferenceResult {
+        referent: TerminalReferencePayload::Zeroed,
+        references,
     })
 }

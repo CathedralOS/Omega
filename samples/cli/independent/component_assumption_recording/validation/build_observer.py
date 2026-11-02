@@ -15,7 +15,7 @@ for name in names:
     path=candidates[0]; assert path.with_suffix('.rlib').is_file()
     command+=['--extern',f'{name}={path}','--extern',f'{name}={path.with_suffix(".rlib")}']
     selected[name]=str(path)
-environment=dict(os.environ,CARGO_MANIFEST_DIR=str(repo/'omega-rust/omega/compilation/driver'))
+environment=dict(os.environ,CARGO_MANIFEST_DIR=str(repo/'omega-rust/omega/compilation/compiler'))
 result=subprocess.run(command,env=environment)
 pathlib.Path(sys.argv[2]+'.link.json').write_text(json.dumps({'command':command,'selected':selected,'exit':result.returncode},indent=2))
 raise SystemExit(result.returncode)

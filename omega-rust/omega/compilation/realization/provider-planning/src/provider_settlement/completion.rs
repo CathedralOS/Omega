@@ -1,8 +1,7 @@
-//! External completion of a selected checked body, in its checked execution
-//! order. Satisfaction nominates a promise; it cannot prove its own body.
-//! Calls retain their original leaf identity and state arguments transport the
-//! entry value. Returning paths, cycles, and unresolved service redispatch do
-//! not establish an external completion.
+//! An implementation that promises to exit must reach an external exit
+//! operation on every path, passing along the original status code. Returning,
+//! looping forever, or calling the same API again does not keep that promise.
+//! Save this check before target selection needs it.
 
 use checked_trees::{
     CheckedCallScalarArgument, CheckedComposedUnitControlTerminatorPlan as Terminator,
@@ -14,49 +13,50 @@ use symbols::SymbolHandle;
 
 type Origin = Option<usize>;
 
-pub(super) fn retain_completions(
+/// Check whether this implementation really exits wherever its API promises
+/// to exit. Save the result now; report errors only if the build selects it.
+/// Calls must reach an original external operation from this target's complete
+/// implementation list, rather than another wrapper promising the same thing.
+pub(crate) fn capture(
     checked: &CheckedTrees,
-    selected: &mut [crate::SelectedProviderReviewProvenance],
+    provider: &crate::ProviderPlanProvenance,
     target: Option<&str>,
     candidates: &[&crate::DerivedProviderPlan],
-) -> Result<(), Vec<diagnostics::Diagnostic>> {
-    for provider in selected {
-        let mut rows = Vec::with_capacity(provider.plan.rows.len());
-        for (&requirement, realization) in provider
-            .provider
-            .row_requirements
-            .iter()
-            .zip(&provider.provider.row_realizations)
-        {
-            let Some(realization) = realization.authored() else {
-                rows.push(Vec::new());
-                continue;
-            };
-            let completion =
-                checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
-                    &checked.typed,
-                    requirement,
-                );
-            rows.push(
-                if matches!(
-                    completion,
-                    semantic_vocabulary::BoundaryCompletion::External(_)
-                ) {
-                    checked_completion(checked, realization, requirement, target, candidates)
-                        .map_err(|reason| {
-                            vec![diagnostics::Diagnostic::error(format!(
-                                "selected completion provider `{}`: {reason}",
-                                checked.symbols.display_path(realization, "::")
-                            ))]
-                        })?
-                } else {
-                    Vec::new()
-                },
+) -> Result<Vec<Vec<SymbolHandle>>, Vec<diagnostics::Diagnostic>> {
+    let mut rows = Vec::with_capacity(provider.row_requirements.len());
+    for (&requirement, realization) in provider
+        .row_requirements
+        .iter()
+        .zip(&provider.row_realizations)
+    {
+        let Some(realization) = realization.authored() else {
+            rows.push(Vec::new());
+            continue;
+        };
+        let completion =
+            checked_trees::typed_trees::boundary_completions::boundary_requirement_completion(
+                &checked.typed,
+                requirement,
             );
-        }
-        provider.row_external_completion_leaves = rows;
+        rows.push(
+            if matches!(
+                completion,
+                semantic_vocabulary::BoundaryCompletion::External(_)
+            ) {
+                checked_completion(checked, realization, requirement, target, candidates).map_err(
+                    |reason| {
+                        vec![diagnostics::Diagnostic::error(format!(
+                            "selected completion provider `{}`: {reason}",
+                            checked.symbols.display_path(realization, "::")
+                        ))]
+                    },
+                )?
+            } else {
+                Vec::new()
+            },
+        );
     }
-    Ok(())
+    Ok(rows)
 }
 
 #[derive(Clone)]

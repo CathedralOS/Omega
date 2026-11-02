@@ -453,7 +453,7 @@ check. The front-end, checking, lowering, Terminal, optimizer, realization
 and package crates carry no behavior tests; do not add them back. A test that
 scans a crate's own sources as an architecture guard is the one exception. The `compiler`
 crate's only test target is `corpus_runner`; see
-`omega-rust/omega/compilation/driver/tests/README.md`.
+`omega-rust/omega/compilation/compiler/tests/README.md`.
 
 ## Cache independence
 
@@ -781,7 +781,7 @@ them. On a warm cache, the same binary replays its earlier judgment, so a
 trace prints nothing and a knockout reports the verdict recorded without it.
 Give each run that relies on such a switch an empty `HOME` (`LOCALAPPDATA` on
 Windows, `XDG_CACHE_HOME` on Linux). Different builds never share records:
-`omega-rust/omega/compilation/driver/build.rs` digests every `.rs`, `.toml`
+`omega-rust/omega/compilation/compiler/build.rs` digests every `.rs`, `.toml`
 and `.omg` file under `omega-rust/` and `source/library/`, the workspace Cargo
 files, `rustc -vV` and the profile and flags. The selected library's content
 joins that digest, which names each record and is checked again in its header.
@@ -1004,7 +1004,7 @@ bounded migration replay explicitly compares with `corpus_outcomes.txt`, leaves
 new runtime facts visible as moves, and uses the exact reviewed
 `tests/omega/interpreter_migration.json` designation. Unimplemented interpreter
 debt stays nonzero and never exempts a wrong native result. The bounded replay
-command is in [the corpus tests guide](../omega-rust/omega/compilation/driver/tests/README.md#reviewed-interpreter-migration-debt).
+command is in [the corpus tests guide](../omega-rust/omega/compilation/compiler/tests/README.md#reviewed-interpreter-migration-debt).
 
 `--checked-interpreter` explicitly selects the independent checked-tree source
 oracle instead of Terminal. It compiles the same reviewed fixture inputs and
@@ -1015,7 +1015,7 @@ storage or authority. Records include
 `interpreter-engine:checked-tree`, and the separate default goldens are
 `corpus_checked_interpreted.txt` and `corpus_checked_both_<target>.txt` when
 combined with `--both`. An absent golden still requires an explicit `--golden`.
-The [corpus tests guide](../omega-rust/omega/compilation/driver/tests/README.md)
+The [corpus tests guide](../omega-rust/omega/compilation/compiler/tests/README.md)
 documents the bounded source/Trap replay. Checked-engine declines cannot satisfy
 the same unchanged authored exit or stdout promises.
 

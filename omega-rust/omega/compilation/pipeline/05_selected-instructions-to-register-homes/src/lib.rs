@@ -15,15 +15,20 @@
 //!   `runtime_spill` pressure recovery — including residual pressure a
 //!   completed run hands over — `baseline` homes over `home_assignment`, and
 //!   the `post_allocation_manifest` every route publishes.
-//! - `rewrites` stages active-resident rematerialization for a recovery rule.
+//! - `rewrites` holds the allocation-recovery rewrites register assignment
+//!   replays (runtime spill, split and rematerialization, fixed occurrences,
+//!   fixed-view copies, pressure rematerialization) and stages active-resident
+//!   rematerialization; `reanalysis` re-derives facts over fixed-view copies.
 //! - `output` owns the current allocation facts every route publishes.
 //! - `preservation` derives allocation-visible callee-saved requirements.
 //!
 //! Every name the route owns is re-exported below from the module that owns
 //! it, so the root reads as a map. Upstream vocabulary (`register_model`,
-//! `register_homes`, `selected_instructions`, and the preceding stage
-//! `selected_instructions_to_selected_instructions`) is imported from its
-//! owner where it is used. The root re-exports upstream names in two places
+//! `register_homes`, `selected_instructions`, and the selected-program
+//! analyses and rewrite primitives in `selected_instruction_analyses`) is
+//! imported from its owner where it is used. Selected optimization's result
+//! arrives as `selected_instruction_analyses::SelectedOptimizationOutput`;
+//! this stage names no type of the stage before it. The root re-exports upstream names in two places
 //! only: the `register_homes` records a stage publishes beside its operations
 //! (post-allocation manifest, logical spill operations, stack-slot coloring),
 //! and the seven selected-program analysis names listed last, which the
@@ -83,11 +88,62 @@ macro_rules! stage_error_display {
 
 pub(crate) use optimization_core::digest_encoder;
 #[macro_use]
+extern crate selected_instruction_analyses;
+
+// The shared analyses, work accounting and codec the moved recovery code
+// names at the crate root.
+use selected_instruction_analyses as analyses;
+#[allow(unused_imports)]
+pub(crate) use selected_instruction_analyses::*;
+use selected_instructions::{FixedViewCopyIdentity, PressureRematerializationIdentity};
+
+#[macro_use]
 mod assignment;
 mod output;
 mod preservation;
+mod reanalysis;
 mod register_allocation;
 mod rewrites;
+mod selected_input;
+
+// The recovery rewrites and the reanalysis over fixed-view copies, at the
+// crate root where their own modules name them.
+pub use reanalysis::{
+    OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
+    StagedOptimizedSelectedReanalysisCustodyReceipt, stage_optimized_selected_reanalysis,
+};
+pub(crate) use rewrites::*;
+pub use rewrites::{
+    FixedOccurrencesError, FixedViewCopy, FixedViewCopyPlan, FixedViewCopyPolicy,
+    FixedViewCopySourceEvidence, OptimizedFixedPrecoloredSegmentHomeCustodyError,
+    OptimizedFixedViewCopyCustodyError, PressureRematerializationError,
+    PressureRematerializationPolicy, RuntimeRematerializationError, RuntimeSpillError,
+    RuntimeSpillSpanPolicy, RuntimeSplitError, ValidatedFixedOccurrences, ValidatedFixedViewCopies,
+    ValidatedPressureRematerialization, ValidatedRuntimeRematerialization, ValidatedRuntimeSpill,
+    ValidatedRuntimeSplit, fixed_view_copy_identity, materialize_selected_fixed_occurrences,
+    probe_optimized_fixed_precolored_segment_homes, rematerialize_selected_active_resident,
+    rematerialize_selected_runtime_value, spill_selected_runtime_value,
+    spill_selected_runtime_value_with_crossing_status,
+    spill_selected_runtime_value_with_span_policy, split_selected_runtime_value,
+    stage_optimized_fixed_precolored_segment_homes, stage_optimized_fixed_view_copies,
+};
+pub use selected_input::ValidatedSelectedAnalysis;
+
+/// The completed suites selected optimization hands this stage, and their
+/// ledgers as this stage's receipts retain them.
+pub(crate) type SelectedLoweringResult =
+    selected_instruction_analyses::CompletedSelectedOptimization<
+        optimization_core::SelectedLoweringOptimizationCompletionIdentity,
+    >;
+pub(crate) type PreAllocationResult = selected_instruction_analyses::CompletedSelectedOptimization<
+    optimization_core::PreAllocationOptimizationCompletionIdentity,
+>;
+pub type SelectedLoweringLedger = selected_instruction_analyses::SelectedOptimizationLedger<
+    optimization_core::SelectedLoweringOptimizationCompletionIdentity,
+>;
+pub type PreAllocationLedger = selected_instruction_analyses::SelectedOptimizationLedger<
+    optimization_core::PreAllocationOptimizationCompletionIdentity,
+>;
 
 // The entry and its route.
 pub use register_allocation::{RegisterAllocationError, stage_register_allocation};
@@ -117,10 +173,9 @@ pub(crate) use assignment::runtime_spill::RuntimeSpillAllocationError;
 
 pub(crate) use assignment::transformed::{
     OptimizedPostPreAllocationHomeCustodyError, OptimizedPostSelectedLoweringHomeCustodyError,
-    StagedOptimizedPostLiteralFoldHomeCustodyReceipt,
     StagedOptimizedPostPreAllocationHomeCustodyReceipt,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
-    StagedOptimizedRegisterHomesAfterLiteralFolds, StagedOptimizedRegisterHomesAfterPreAllocation,
+    StagedOptimizedRegisterHomesAfterPreAllocation,
     StagedOptimizedRegisterHomesAfterSelectedLowering,
 };
 
@@ -151,7 +206,7 @@ pub use preservation::{
 
 // Upstream selected-program analyses. `AllocationOutput` carries the ranges
 // and legality; the post-allocation stages name these through this crate.
-pub use selected_instructions_to_selected_instructions::{
-    MachineEffectStageError, ValidatedAllocationLegality, ValidatedLiveRanges,
-    ValidatedPreAllocationMachineEffects, ValidatedSelectedAnalysis, analyze_machine_effects,
+pub use selected_instruction_analyses::{
+    MachineEffectStageError, SelectedProgramView, ValidatedAllocationLegality, ValidatedLiveRanges,
+    ValidatedPreAllocationMachineEffects, analyze_machine_effects,
 };

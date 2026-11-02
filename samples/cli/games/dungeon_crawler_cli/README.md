@@ -41,7 +41,7 @@ The closed-stdin and help/exit routes have verified native execution on macOS
 ARM64 and Windows x86_64. [build.omg](build.omg) declares four hosted entry
 bindings; the other hosts still need their own execution evidence. Checking and
 a zero exit status alone do not establish correct native output; see
-[native realization](../../../../omega-rust/omega/compilation/driver/README.md#native-realization)
+[native realization](../../../../omega-rust/omega/compilation/compiler/README.md#native-realization)
 and the [compiler completion plan](../../../../wiki/drafts/reference/rust_compiler_completion.md).
 
 The intended interactive path accepts commands at a live terminal. The closed-

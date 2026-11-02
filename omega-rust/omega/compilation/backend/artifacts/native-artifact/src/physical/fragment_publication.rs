@@ -98,9 +98,9 @@ pub(crate) fn derive_scope(
     let fragments = source.source().source().source();
     let optimized = fragments.source().optimized_target().optimized();
     validate_final_plan(final_plan, optimized.plan(), terminal, object.psi())?;
-    if optimized.validation().psi() != terminal
-        || optimized.validation().identity() != validation
-        || optimized.validation().final_unit() != final_unit
+    if optimized.projection_psi() != terminal
+        || optimized.projection() != validation
+        || optimized.final_unit() != final_unit
     {
         return Err("fragment publication is detached from the validated abstract projection");
     }

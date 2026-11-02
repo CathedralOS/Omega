@@ -33,19 +33,31 @@ pub(in crate::flow) struct CallStorageWrites {
 }
 
 impl CallStorageWrites {
-    /// A content region has a dependency anchor, not a descriptor store. Until
-    /// physical storage coordinates are available for that region, descriptor
-    /// association remains unknown rather than treating the anchor as a write.
+    /// Authenticated separately backed content does not store into its inline
+    /// owner. Retain its observation invalidation separately; an unresolved
+    /// content capability still supplies no complete inline-store footprint.
     pub(in crate::flow) fn descriptor_stores(&self) -> Option<Vec<CanonicalPlace>> {
-        self.contributions
-            .iter()
-            .map(|contribution| match &contribution.write.region {
-                crate::flow::mutation::StorageRegion::Declared(place) => Some(place.clone()),
+        let mut stores = Vec::new();
+        for contribution in &self.contributions {
+            match &contribution.write.region {
+                crate::flow::mutation::StorageRegion::Declared(place) => stores.push(place.clone()),
                 crate::flow::mutation::StorageRegion::ResidentContent { .. }
-                | crate::flow::mutation::StorageRegion::NonresidentContent { .. }
-                | crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => None,
-            })
-            .collect()
+                | crate::flow::mutation::StorageRegion::NonresidentContent { .. } => {
+                    // The owner is a descriptor, but other captured aliases can
+                    // designate the written cells themselves. Retain those
+                    // writes, including stored reference slots inside a view.
+                    stores.extend(
+                        contribution
+                            .observations
+                            .iter()
+                            .filter(|place| *place != contribution.write.region.anchor())
+                            .cloned(),
+                    );
+                }
+                crate::flow::mutation::StorageRegion::UnresolvedContent { .. } => return None,
+            }
+        }
+        Some(stores)
     }
 }
 

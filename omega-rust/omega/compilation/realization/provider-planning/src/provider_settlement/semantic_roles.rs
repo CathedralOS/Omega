@@ -1,48 +1,67 @@
-//! Rejoin source completion declarations to selected provider realizations.
-//! Source admission belongs to Psi; this operation never mutates its judgment.
+//! A program's exit API must belong to the package that declares it and use an
+//! implementation that actually exits. Save the declared identity before
+//! publishing Terminal Psi, then compare it with the selected implementation
+//! without reading source again.
 
 use crate::provider_planning::trait_name_text;
-use crate::{ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
+use crate::{ProviderPlanProvenance, ProviderSchemaDeclaration, SelectedProviderReviewProvenance};
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::boundary_completions::completion_declaration;
 use diagnostics::Diagnostic;
+use effects::provider_plan::ProviderPlan;
+use symbols::SymbolHandle;
 
-/// Rejoin selected provisional source roles to their exact realizations.
-/// This validates the proposal without changing any completed source judgment.
-pub(super) fn validate_proposed(
-    typed: &TypedTrees,
-    selected: &[SelectedProviderReviewProvenance],
-) -> Result<(), Vec<Diagnostic>> {
-    let mut declarations = Vec::new();
-    for selected in selected {
-        let plan = &selected.plan;
-        let provenance = &selected.provider;
+/// Identify the exact declared exit promise. Human-readable paths are useful
+/// in diagnostics, but cannot distinguish declarations from different packages.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct CompletionIdentity {
+    package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    owner: SymbolHandle,
+    requirement: SymbolHandle,
+    completion: semantic_vocabulary::BoundaryCompletion,
+}
+
+impl From<&checked_trees::typed_trees::BoundaryCompletionDeclaration> for CompletionIdentity {
+    fn from(declaration: &checked_trees::typed_trees::BoundaryCompletionDeclaration) -> Self {
+        Self {
+            package: declaration.package,
+            owner: declaration.owner,
+            requirement: declaration.requirement,
+            completion: declaration.completion,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct PreparedCompletionRole {
+    declaration: CompletionIdentity,
+    eligible_rows: Vec<usize>,
+}
+
+impl PreparedCompletionRole {
+    pub(crate) fn capture(
+        typed: &TypedTrees,
+        plan: &ProviderPlan,
+        provenance: &ProviderPlanProvenance,
+    ) -> Option<Self> {
         let ProviderSchemaDeclaration::BoundaryTrait(owner) = provenance.schema else {
-            continue;
+            return None;
         };
-        let Some(package) = plan.provider_type_package_identity else {
-            continue;
-        };
+        let package = plan.provider_type_package_identity?;
         if trait_name_text(&plan.schema) != "Console"
             || plan.schema.declaration.trait_package_identity != Some(package)
             || plan.origin_package_identity != Some(package)
             || typed.symbols.symbol_package_identity(owner) != Some(package)
         {
-            continue;
+            return None;
         }
-        let Some(declaration) = completion_declaration(typed, owner, package) else {
-            continue;
-        };
-        let external_rows =
+        let declaration = completion_declaration(typed, owner, package)?;
+        let eligible_rows =
             plan.rows
                 .iter()
                 .enumerate()
-                .filter(|(index, _row)| {
-                    selected
-                        .row_external_completion_leaves
-                        .get(*index)
-                        .is_some_and(|leaves| !leaves.is_empty())
-                        && provenance.row_requirements.get(*index) == Some(&declaration.requirement)
+                .filter(|(index, _)| {
+                    provenance.row_requirements.get(*index) == Some(&declaration.requirement)
                         && provenance
                             .row_realizations
                             .get(*index)
@@ -52,53 +71,86 @@ pub(super) fn validate_proposed(
                                 }) == Some(package)
                             })
                 })
+                .map(|(index, _)| index)
+                .collect();
+        Some(Self {
+            declaration: CompletionIdentity::from(&declaration),
+            eligible_rows,
+        })
+    }
+}
+
+pub(crate) struct PreparedCompletionRoles {
+    proposals: Vec<CompletionIdentity>,
+}
+
+impl PreparedCompletionRoles {
+    pub(crate) fn capture(typed: &TypedTrees) -> Self {
+        Self {
+            proposals: typed
+                .boundary_completion_declarations
+                .iter()
+                .map(|(_, declaration)| CompletionIdentity::from(declaration))
+                .collect(),
+        }
+    }
+
+    /// Confirm that each selected exit API has the implementation its package
+    /// declared. A hosted exit API that this target does not select needs no
+    /// implementation here, as in a library also built for firmware.
+    pub(crate) fn validate(
+        &self,
+        selected: &[(
+            SelectedProviderReviewProvenance,
+            Option<PreparedCompletionRole>,
+        )],
+    ) -> Result<(), Vec<Diagnostic>> {
+        let mut declarations = Vec::new();
+        for (selected, role) in selected {
+            let Some(role) = role else { continue };
+            let external_rows = role
+                .eligible_rows
+                .iter()
+                .filter(|index| {
+                    selected
+                        .row_external_completion_leaves
+                        .get(**index)
+                        .is_some_and(|leaves| !leaves.is_empty())
+                })
                 .count();
-        if external_rows > 1 {
+            if external_rows > 1 {
+                return Err(vec![Diagnostic::error(
+                    "completion role discovery has multiple realizations for one source requirement",
+                )]);
+            }
+            if external_rows == 1 {
+                declarations.push(&role.declaration);
+            }
+        }
+        if declarations.len() > 1 {
             return Err(vec![Diagnostic::error(
-                "completion role discovery has multiple realizations for one source requirement",
+                "completion role discovery has multiple selected package-owned Console declarations",
             )]);
         }
-        if external_rows == 1 {
-            declarations.push(declaration);
+        let proposals = self
+            .proposals
+            .iter()
+            .filter(|declaration| {
+                selected.iter().any(|(provider, _)| {
+                    matches!(provider.provider.schema,
+                    ProviderSchemaDeclaration::BoundaryTrait(owner) if owner == declaration.owner)
+                })
+            })
+            .collect::<Vec<_>>();
+        if proposals.len() != declarations.len()
+            || proposals
+                .iter()
+                .any(|proposal| !declarations.contains(proposal))
+        {
+            return Err(vec![Diagnostic::error(
+                "completion role discovery does not match the exact source declaration and selected realization",
+            )]);
         }
+        Ok(())
     }
-    if declarations.len() > 1 {
-        return Err(vec![Diagnostic::error(
-            "completion role discovery has multiple selected package-owned Console declarations",
-        )]);
-    }
-    let proposals = typed
-        .boundary_completion_declarations
-        .iter()
-        .map(|(_, declaration)| declaration)
-        // Source nomination covers every target body. A library can declare
-        // hosted exit providers while being reviewed for a freestanding target
-        // that selects none of them. Only a selected schema requires this
-        // realization join; source checking stays target-neutral, and ordinary
-        // provider-demand checking still rejects an actual unsupported call.
-        .filter(|declaration| {
-            selected.iter().any(|provider| {
-                matches!(
-                    provider.provider.schema,
-                    ProviderSchemaDeclaration::BoundaryTrait(owner)
-                        if owner == declaration.owner
-                )
-            })
-        })
-        .collect::<Vec<_>>();
-    if proposals.len() != declarations.len()
-        || proposals.iter().any(|proposal| {
-            !declarations.iter().any(|declaration| {
-                proposal.package == declaration.package
-                    && proposal.owner == declaration.owner
-                    && proposal.requirement == declaration.requirement
-                    && proposal.completion == declaration.completion
-            })
-        })
-    {
-        return Err(vec![Diagnostic::error(
-            "completion role discovery does not match the exact source declaration and selected realization",
-        )]);
-    }
-    Ok(())
 }

@@ -239,6 +239,8 @@ pub(super) fn prepare(
                 else {
                     return Some(Err("a rank upper expression lacks independent formation"));
                 };
+                // These are the upper expression's caller inputs. Its retained
+                // call formations own any callee contexts separately.
                 let bindings = inputs
                     .iter()
                     .filter(|input| input.observation == validation::RankPremiseObservation::Value)
@@ -248,6 +250,7 @@ pub(super) fn prepare(
                             path: input.path.clone(),
                         };
                         validation::RuntimeRankApplicationBinding {
+                            calls: Vec::new(),
                             formal: coordinate.clone(),
                             actual: coordinate,
                             entry_indexes: input.entry_indexes.clone(),

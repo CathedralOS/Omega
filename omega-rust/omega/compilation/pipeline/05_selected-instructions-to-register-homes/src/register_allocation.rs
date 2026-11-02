@@ -36,34 +36,36 @@ use crate::{
     AllocationAdmissionError, OptimizedPostSelectedLoweringHomeCustodyError,
     OptimizedRegisterHomeCustodyError, RetainedAllocation,
 };
-use selected_instructions_to_selected_instructions::{
-    AllocationRecoveryRuleCatalogError, OptimizedAllocationLegalityCustodyError,
+use crate::{AllocationRecoveryRuleCatalogError, selected_allocation_recovery_rule};
+use crate::{
     OptimizedFixedPrecoloredSegmentHomeCustodyError, OptimizedFixedViewCopyCustodyError,
-    OptimizedSelectedReanalysisError, SelectedInstructionOptimizationEvidence,
-    SelectedInstructionOptimizationOutput, selected_allocation_recovery_rule,
-    stage_optimized_allocation_legality,
+    OptimizedSelectedReanalysisError,
+};
+use selected_instruction_analyses::SelectedOptimizationOutput;
+use selected_instruction_analyses::{
+    OptimizedAllocationLegalityCustodyError, stage_optimized_allocation_legality,
 };
 
 /// Execute the exact selected allocation rules and publish one current result.
 /// Selected-lowering rewrites have already completed. Assignment consumes their
 /// retained proof; pressure recovery remains internal to allocation.
 pub fn stage_register_allocation(
-    selected: SelectedInstructionOptimizationOutput,
+    selected: SelectedOptimizationOutput,
 ) -> Result<RetainedAllocation, RegisterAllocationError> {
-    let ranges = match selected.into_evidence() {
-        SelectedInstructionOptimizationEvidence::Identity(ranges) => ranges,
+    let ranges = match selected {
+        SelectedOptimizationOutput::Identity(ranges) => ranges,
         // A completed rewrite run composes with pressure recovery like every
         // other prefix: assignment probes the run's final facts, success keeps
         // the transformed-homes route, and residual `NoCompatibleHome` or value-local
         // `NoCommonCandidate` hands
         // the run — not a rebuilt legality — to runtime spill so the produced
         // manifest keeps the suite's ledger and completion identity.
-        SelectedInstructionOptimizationEvidence::LiteralFolds(run) => {
+        SelectedOptimizationOutput::SelectedLowering(run) => {
             return phase_profile::scope("omega.05.route_selected_lowering", || {
                 stage_selected_lowering_register_allocation(run)
             });
         }
-        SelectedInstructionOptimizationEvidence::PreAllocation(run) => {
+        SelectedOptimizationOutput::PreAllocation(run) => {
             return phase_profile::scope("omega.05.route_pre_allocation", || {
                 stage_pre_allocation_register_allocation(run)
             });
