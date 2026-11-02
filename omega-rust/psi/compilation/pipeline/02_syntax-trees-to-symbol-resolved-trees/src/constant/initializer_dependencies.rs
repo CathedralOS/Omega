@@ -1308,12 +1308,6 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             );
         }
         self.type_parameters(machine.type_parameters)?;
-        self.expressions.extend(
-            body_expressions(&program)
-                .expression_handles(machine.declared_type_predicates)
-                .iter()
-                .copied(),
-        );
         for equation in resolved_declarations(&program)
             .declared_type_equations
             .span_or_empty(machine.declared_type_equations)

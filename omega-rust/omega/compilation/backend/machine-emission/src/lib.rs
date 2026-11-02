@@ -12,7 +12,7 @@
 //! `omega-rust/pipeline.md`):
 //!
 //! 1. [`stage_function_frame`] prepares frame geometry and its byte protocol.
-//!    The native pipeline owns encoding and layout stages 07-09;
+//!    The native pipeline owns encoding and layout Omega 07-09;
 //!    [`assemble_fixed_frame_realization`] then joins their products and
 //!    constructs the whole-function exit contract.
 //! 2. [`stage_optimized_function_fragment_emission`] ([`fragment_emission`])

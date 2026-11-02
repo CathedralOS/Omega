@@ -1,6 +1,6 @@
 //! Join produced encoding/layout artifacts with their exact fixed-frame custody.
 //!
-//! Native compilation sequences stages 07-09. This owner constructs the exit
+//! Native compilation sequences Omega 07-09. This owner constructs the exit
 //! contract and seals the realization; retained readers can replay its joins.
 
 use super::assembly::{expected_fixed_frame_manifest, fixed_frame_custody};

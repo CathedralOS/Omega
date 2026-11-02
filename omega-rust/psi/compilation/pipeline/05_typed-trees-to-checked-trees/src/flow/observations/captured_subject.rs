@@ -13,7 +13,7 @@ use super::super::stored_values::StoredObservation;
 use super::super::stored_values::StoredOperand;
 use super::super::stored_values::at_snapshot;
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{
     BorrowFacts, CheckFacts, FlowFacts, FlowOperandFact, FlowPermissionEvaluation,

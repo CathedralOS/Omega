@@ -69,7 +69,6 @@ fn bind_sibling_calls_with(
     let bodies = program
         .machines
         .iter()
-        .filter(|machine| work.contains(&machine.symbol))
         .filter_map(|machine| {
             let body = machine.symbol;
             let mut owner = machine;
@@ -161,6 +160,6 @@ fn bind_sibling_calls_with(
             };
             state.is_valid().then_some(state)
         };
-        retarget_machine_calls(program, body, inputs, &mut decide);
+        retarget_machine_calls(program, body, inputs, work.contains(&body), &mut decide);
     }
 }

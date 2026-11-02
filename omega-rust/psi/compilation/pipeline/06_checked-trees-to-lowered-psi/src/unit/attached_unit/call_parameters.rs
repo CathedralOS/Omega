@@ -5,8 +5,8 @@
 
 use super::bodies::{UnitBody, UnitPlans};
 use super::{CheckedTrees, LoweringError, unique_unit_boundary, unsupported};
-use crate::checked_facts::flow_facts;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
+use crate::shared::checked_facts::flow_facts;
 use checked_trees::{
     CheckedStructuralScalarParameterPlan, CheckedUnitCallPlan, CheckedUnitCallResult,
     CheckedUnitStructuralParameterPlan,
@@ -91,7 +91,7 @@ pub(crate) fn structural_parameters<'checked>(
 pub(crate) fn scalar_positions(
     checked: &CheckedTrees,
     call: &CheckedUnitCallPlan,
-    signature: &crate::declarations::TargetSignature<'_>,
+    signature: &crate::shared::declarations::TargetSignature<'_>,
 ) -> Result<Vec<usize>, LoweringError> {
     let parameters = parameter_roster(checked, call)?.scalar;
     if parameters.len() != call.scalar_operands().len() {
@@ -125,7 +125,7 @@ pub(crate) fn scalar_positions(
 pub(crate) fn structural_positions(
     checked: &CheckedTrees,
     call: &CheckedUnitCallPlan,
-    signature: &crate::declarations::TargetSignature<'_>,
+    signature: &crate::shared::declarations::TargetSignature<'_>,
 ) -> Result<Vec<u32>, LoweringError> {
     let parameters = structural_parameters(checked, call)?;
     if parameters.len() != call.structural_arguments.len() {

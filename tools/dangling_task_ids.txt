@@ -15,7 +15,6 @@ samples/cli/facts/case_tag_discriminant_layout/README.md LAYOUT-PLANS
 samples/cli/facts/case_type_equation_recovery/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION
 samples/cli/facts/checked_asm_register_contract_bound/README.md INSTRUCTION-SELECTION
 samples/cli/facts/checked_dependency_reuse/README.md CHECKED-PACKAGE-REUSE
-samples/cli/facts/compound_index_guard/README.md INDEX-INDUCTIVE-BOUNDS
 samples/cli/facts/contract_excluded_case/README.md DOMAIN-DEFAULT-PREDICATE-UNIFICATION
 samples/cli/facts/copied_call_argument_snapshot/README.md CHECKED-PACKAGE-REUSE
 samples/cli/facts/core_float_representation/README.md CORE-INTEGER-FLOAT-APIS

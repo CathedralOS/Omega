@@ -1,0 +1,1 @@
+argument `bytes` for state `last` expects `&[u8; 4]`

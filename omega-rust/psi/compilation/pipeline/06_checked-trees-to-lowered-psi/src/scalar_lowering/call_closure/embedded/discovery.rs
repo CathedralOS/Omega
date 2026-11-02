@@ -2,9 +2,9 @@
 
 use super::super::CheckedTerminalSignatureEligibility;
 use super::{CheckedTrees, LoweringError, unsupported};
-use crate::checked_facts::flow_facts;
 use crate::expression_preparation::computation_graph::structural_call_targets;
 use crate::scalar_lowering::call_closure::callee::CheckedScalarCallee;
+use crate::shared::checked_facts::flow_facts;
 
 pub(crate) fn checked_scalar_call_closure_with_structural_roots(
     checked: &CheckedTrees,

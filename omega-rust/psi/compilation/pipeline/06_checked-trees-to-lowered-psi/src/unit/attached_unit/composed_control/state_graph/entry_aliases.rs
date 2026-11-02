@@ -105,7 +105,6 @@ pub(super) fn alias_entry_parameter_loans(
                     && parameter.multiplicity == root_parameter.multiplicity
                     && parameter.qualifications == root_parameter.qualifications
                     && parameter.projected_qualifications == root_parameter.projected_qualifications
-                    && parameter.binding_carrier == root_parameter.binding_carrier
                     && !aliased[position].contains_key(&index)
                 {
                     candidates.insert((position, index));

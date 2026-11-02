@@ -9,24 +9,8 @@ use validation::contract_identities::accepted_template_commitment;
 use validation::contract_identities::normalized_machine_identity;
 
 pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {
-    let requests = program
-        .data_definitions()
-        .iter()
-        .filter_map(|data| data.cleanup_selection)
-        .chain(
-            program
-                .domain_definitions()
-                .iter()
-                .filter_map(|domain| domain.cleanup_selection),
-        )
-        .chain(
-            program
-                .applied_domain_applications
-                .iter()
-                .filter(|application| program.domain_definition(application.declaration).is_some())
-                .filter_map(|application| application.theory.cleanup_selection),
-        )
-        .collect::<Vec<_>>();
+    close_data_applications(program)?;
+    let requests = program.cleanup_selections().copied().collect::<Vec<_>>();
     let mut selected = Vec::new();
     let mut created = Vec::new();
     for request in requests {
@@ -179,5 +163,52 @@ pub(super) fn materialize(program: &mut TypedTrees) -> Result<Vec<SymbolHandle>,
             selection.executable = *executable;
         }
     }
+    for application in &mut program.applied_data_cleanup_selections {
+        if let Some((_, executable)) = selected
+            .iter()
+            .find(|(selected, _)| *selected == application.selection.application)
+        {
+            application.selection.executable = *executable;
+        }
+    }
     Ok(created)
+}
+
+/// Inference and specialization close generic carriers such as `Keeper<u64>`
+/// that no authored application named, so pre-resolution synthesis never
+/// copied their cleanup. Close the declaration's selection for each such
+/// carrier identity before tuple selection, as for applied domain theories.
+fn close_data_applications(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
+    let templates = program
+        .data_definitions()
+        .iter()
+        .filter(|data| data.cleanup_selection.is_some() && !data.type_parameters.is_empty())
+        .map(|data| data.symbol)
+        .collect::<Vec<_>>();
+    if templates.is_empty() {
+        return Ok(());
+    }
+    let carriers = program
+        .type_reference_table
+        .type_reference_rows()
+        .filter(|(_, node)| {
+            matches!(node, typed_trees::types::TypeReferenceNode::Generic { base_symbol, .. }
+                if templates.contains(base_symbol))
+        })
+        .map(|(reference, _)| reference)
+        .collect::<Vec<_>>();
+    for reference in carriers {
+        // An authored application already owns a synthesized closed
+        // declaration whose selection pre-resolution substituted.
+        if program
+            .closed_data_definition(reference)
+            .is_some_and(|data| data.generic_instance.is_some())
+        {
+            continue;
+        }
+        program
+            .prepare_closed_data_cleanup_application(reference)
+            .map_err(|message| vec![Diagnostic::error(message)])?;
+    }
+    Ok(())
 }

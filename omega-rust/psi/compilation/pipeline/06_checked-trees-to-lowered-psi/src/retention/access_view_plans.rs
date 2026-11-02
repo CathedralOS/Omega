@@ -1,8 +1,8 @@
 //! Preserve normalized placement and exact field/callable relationships.
 //! The normalizer-issued access key and source symbols are the only joins;
 //! names remain normalized identity/export payloads, never late target selection.
-use crate::lowering_error::LoweringError;
 use crate::machine_lowering::declarations::nominal;
+use crate::shared::lowering_error::LoweringError;
 use checked_trees::CheckedTrees;
 use terminal_psi::{
     TerminalAccessFieldPlan, TerminalAccessViewPlan, TerminalAccessor, TerminalAccessorKind,

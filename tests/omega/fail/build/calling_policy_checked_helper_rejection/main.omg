@@ -17,8 +17,7 @@ machine LocalPolicy::bounded(value: u64) -> bool {
     machine accept(value: u64) -> bool requires value <= 1 { true }
 }
 
-machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult 
-    satisfies CallingPolicy::plan
+machine LocalPolicy::plan(signature: BoundarySignature) -> BoundaryPlanResult
 {
     transition LocalPolicy::bounded(signature.parameter_count) {
         true -> observed()

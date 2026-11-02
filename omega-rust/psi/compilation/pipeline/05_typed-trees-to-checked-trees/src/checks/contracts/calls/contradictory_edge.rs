@@ -77,7 +77,7 @@ pub(super) fn proves(
     ) {
         return false;
     }
-    let Some(expression) = crate::facts::boolean_predicates::lower_current_guard(
+    let Some(expression) = crate::published::facts::boolean_predicates::lower_current_guard(
         program,
         &facts.operators,
         state_flow.state_symbol,
@@ -87,13 +87,13 @@ pub(super) fn proves(
         return false;
     };
     // Bind the refutation itself: this arrival means the guard evaluated false.
-    let Some(refuted) = crate::facts::boolean_predicates::bind_current_expression(
+    let Some(refuted) = crate::published::facts::boolean_predicates::bind_current_expression(
         program,
         state_flow.state_symbol,
         expression,
         false,
         |operand| {
-            crate::facts::boolean_predicates::declared_observation(
+            crate::published::facts::boolean_predicates::declared_observation(
                 program,
                 state_flow.state_symbol,
                 call_flow.statement_index,
@@ -110,7 +110,7 @@ pub(super) fn proves(
         state_symbol: state_flow.state_symbol,
         statement_index: call_flow.statement_index,
     };
-    let mut premises = crate::facts::boolean_predicates::retained(
+    let mut premises = crate::published::facts::boolean_predicates::retained(
         program,
         &facts.operators,
         &facts.semantic,
@@ -121,5 +121,5 @@ pub(super) fn proves(
         return false;
     }
     premises.push(refuted);
-    crate::facts::boolean_predicates::unsatisfiable(&premises)
+    crate::published::facts::boolean_predicates::unsatisfiable(&premises)
 }

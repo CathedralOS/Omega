@@ -50,7 +50,7 @@ use validation::field_domains::domain_is_vacuous;
 use validation::field_domains::domain_requires_provenance;
 use validation::machine_state_by_symbols;
 
-use crate::labels::{machine_name, symbol_name};
+use crate::published::labels::{machine_name, symbol_name};
 
 mod constructor_memberships;
 pub(super) use constructor_memberships::ConstructorMemberships;
@@ -136,7 +136,7 @@ pub(super) fn check_domain_field_writes(
                     // The result contract above names the closed application;
                     // a family declaration's template ID is not that instance.
                     domain_requires_provenance(program, domain_symbol)
-                        && crate::facts::qualification_evidence::machine_has_checked_domain_establishment(
+                        && crate::published::facts::qualification_evidence::machine_has_checked_domain_establishment(
                             program, machine, domain_symbol,
                         )
                 })

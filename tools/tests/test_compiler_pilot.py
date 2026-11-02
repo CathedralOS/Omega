@@ -48,6 +48,31 @@ class CompilerPilotTests(unittest.TestCase):
                                                 cli_fixtures=fixture), 1)
                 execute.assert_not_called()
 
+    def test_ordinary_cli_inspection_oracles_are_preserved_or_refused_before_build(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            project = Path(temporary)
+            oracle = project / "expected_terminal_inspections.txt"
+            oracle.write_text("Main::main\nOther::read\n")
+            self.assertEqual(pilot.ordinary_cli_fixture.inspection_machines(project),
+                             ("Main::main", "Other::read"))
+            for unsupported in ("", "Main::main debug", "Main::main runtime portable filesystem",
+                                "Main::main native-layout-controls"):
+                oracle.write_text(unsupported)
+                with self.subTest(oracle=unsupported), self.assertRaises(ValueError):
+                    pilot.ordinary_cli_fixture.inspection_machines(project)
+
+    def test_named_inspection_requires_machine_and_same_reloaded_identity(self):
+        validate = pilot.ordinary_cli_fixture.validate_inspection
+        identity = "a" * 64
+        source = f"terminal selected_machine=Main::main entry=MachineId(1)\nterminal program_fingerprint={identity}\n"
+        restored = f"terminal selected_machine=artifact entry=MachineId(1)\nterminal program_fingerprint={identity}\n"
+        self.assertEqual(validate("Main::main", source, restored), identity)
+        for wrong_source, wrong_artifact in ((source.replace("Main::main", "Other::main"), restored),
+                                            (source, restored.replace(identity, "b" * 64)),
+                                            (source, ""), (source + source, restored), (source, source)):
+            with self.subTest(source=wrong_source, artifact=wrong_artifact), self.assertRaises(ValueError):
+                validate("Main::main", wrong_source, wrong_artifact)
+
     def test_ordinary_cli_requires_explicit_terminal_exit_including_nonzero_oracles(self):
         validate = pilot.ordinary_cli_fixture.validate_exits
         validate(70, "native exit 70\ninterp exit: 70\n", 70)
@@ -464,6 +489,44 @@ class CompilerPilotTests(unittest.TestCase):
             report[key] = value
             with self.subTest(key=key), self.assertRaises(ValueError):
                 self.validate(report, True)
+
+    def test_authored_traps_require_matching_native_fault_and_typed_terminal_trap(self):
+        fixture = "pass/proofs/runtime_round_trip_trap"
+        targets = {
+            "linux_x86_64": {"exit": "signal", "signal": "4"},
+            "linux_arm64": {"exit": "signal", "signal": "5"},
+            "macos_arm64": {"exit": "signal", "signal": "5"},
+            "windows_x86_64": {"exit": "-1073741795"},
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, fixture)
+            oracle = root / "tests/omega" / fixture / "expected_native_exit.txt"
+            oracle.write_text("trap\n")
+            for target, native in targets.items():
+                report = self.report(True)
+                report["target"] = target
+                report["observations"] = [dict(fixture=fixture, status="built", facts={
+                    **native, "interpreter": "trapped"})]
+                with patch.object(pilot, "ROOT", root):
+                    def validate(value):
+                        pilot.validate_report(value, (fixture,), both=True,
+                                              revision="a" * 40, target=target)
+                    with self.subTest(target=target):
+                        validate(report)
+                        for facts in ({"exit": "0", "interpreter": "trapped"},
+                                      {"exit": "signal", "signal": "11", "interpreter": "trapped"},
+                                      {**native, "interpreter": "declined"},
+                                      {**native, "interpreter": "trapped", "interpreter-exit": "0"},
+                                      {**native, "interpreter": "trapped", "interpreter-signal": "5"}):
+                            missing = deepcopy(report)
+                            missing["observations"][0]["facts"] = facts
+                            with self.subTest(facts=facts), self.assertRaises(ValueError):
+                                validate(missing)
+                        oracle.write_text("0\n")
+                        with self.assertRaises(ValueError):
+                            validate(report)
+                        oracle.write_text("trap\n")
 
     def test_cleanup_report_requires_both_authored_output_observations(self):
         fixture = "pass/drops/runtime_projected_nominal_cleanup_exit"

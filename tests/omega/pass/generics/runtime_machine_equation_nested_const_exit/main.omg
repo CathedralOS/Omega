@@ -4,7 +4,7 @@ const Counts::FOUR: u64 = 4;
 data Mode<const Count: u64> [copy] { value: u64; }
 
 machine capacity<Payload, const Count: u64>() -> u64
-where Payload == Mode<Count>
+requires Payload == Mode<Count>
 { Count }
 
 data Main { result: u64; }

@@ -55,11 +55,11 @@ fn read_byte_identity_binds_structural_home_and_distinguishes_write_effects() {
     };
     let mut program = deferred_program();
     program.rows[0].alternative.family = MachineAlternativeFamily::HostedReadByte;
-    program.rows[0].address = Some(ResolvedPhysicalAddress {
+    program.rows[0].address = Some(Box::new(ResolvedPhysicalAddress {
         symbolic: PhysicalAddressOperation::HostedReadByte { slot },
         frame_alignment_bytes: 1,
         displacement: 8,
-    });
+    }));
     let mut effects = MachineEncodedEffects::fallthrough_v1(Vec::new(), Vec::new());
     effects.memory = MachineEncodedMemoryEffect::HostedReadByteV1 {
         stack_pointer: RegisterViewId(7),
@@ -185,14 +185,14 @@ fn encoding_identity_binds_symbolic_role_and_resolved_displacement() {
         invocation_site: OperationId::new(3).unwrap().into(),
         argument_index: 0,
     };
-    program.rows[0].address = Some(ResolvedPhysicalAddress {
+    program.rows[0].address = Some(Box::new(ResolvedPhysicalAddress {
         symbolic: PhysicalAddressOperation::Store64 {
             slot: selected_instructions::FrameStorageSlotId::Outgoing(slot),
             byte_offset: 8,
         },
         frame_alignment_bytes: 1,
         displacement: 40,
-    });
+    }));
     let identity = program.recomputed_identity();
     let mut changed = program.clone();
     changed.rows[0].address.as_mut().unwrap().displacement = 48;

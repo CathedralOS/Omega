@@ -1,15 +1,15 @@
 //! Quotient adaptations lower to ordinary copies and selected direct calls.
 //! Both construction schedules supply completed operands to these emitters.
 use super::StructuralPlaceDeclaration;
-use crate::direct_calls::{CallRecord, DirectCall, DirectCallResult, emit_direct_call};
 use crate::emission::operation_emission::buffer::{
     OperationBuffer, SourceCallCoordinate, scalar_result_declaration, structural_result_declaration,
 };
 use crate::emission::operation_emission::calls::CallEmissionContext;
 use crate::emission::operation_emission::expressions::emit_scalar_leaf;
 use crate::emission::operation_emission::place_declarations::operation_result_place;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::value_id;
+use crate::shared::direct_calls::{CallRecord, DirectCall, DirectCallResult, emit_direct_call};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::value_id;
 use crate::unit::attached_unit::ordinary_calls::prepare_requirement_obligations;
 use crate::unit::attached_unit::parameters::authored_result_qualification_domains;
 use crate::unit::attached_unit::primitive_locals::completed_scalar;
@@ -147,13 +147,17 @@ pub(crate) fn emit_call(
     // Quotient theorem schemas are not runtime witnesses or a second verifier.
     let requirement_obligations =
         prepare_requirement_obligations(&signature.call_target(), calls, operations)?;
-    let callee =
-        crate::terminal_identities::lookup_machine_id(calls.machine_ids, representative.symbol)?;
+    let callee = crate::shared::terminal_identities::lookup_machine_id(
+        calls.machine_ids,
+        representative.symbol,
+    )?;
     let (result, mode, scalar) = if let Some(scalar) = signature.scalar_result {
         if !scalar.qualifications.is_empty() {
             return unsupported("quotient scalar result has unimplemented qualifications");
         }
-        let id = value_id(crate::terminal_identities::allocate_dense(next_value)?);
+        let id = value_id(crate::shared::terminal_identities::allocate_dense(
+            next_value,
+        )?);
         (
             scalar_result_declaration(id, scalar.scalar_type),
             DirectCallResult::Scalar,

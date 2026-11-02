@@ -383,6 +383,30 @@ pub(in crate::checks::borrows) fn formation_lineage(
     Some(common)
 }
 
+/// The exact occurrences a descriptor transfer transports. Each supplier is
+/// owned by this state, is read through the transfer's source owner and
+/// grants at least the transported access, so the transfer adds no borrow,
+/// owner or access of its own. A transfer naming no supplier has no lineage.
+pub(in crate::checks) fn transport_suppliers<'borrow>(
+    borrow: &'borrow BorrowFacts,
+    state: &StateBorrowFact,
+    handle: Handle<BorrowLoanFact>,
+) -> Option<&'borrow [Handle<BorrowLoanFact>]> {
+    let loan = borrow.loans.get(handle);
+    if loan.lineage != BorrowLoanLineage::UnretainedDerived {
+        return None;
+    }
+    let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
+    let exact = !suppliers.is_empty()
+        && suppliers.iter().all(|supplier| {
+            let source = borrow.loans.get(*supplier);
+            borrow.state_owns_loan(state, *supplier)
+                && source.owner_symbol == loan.source_owner_symbol
+                && source.kind.direct_reborrow_effect(&loan.kind).is_some()
+        });
+    exact.then_some(suppliers)
+}
+
 pub(in crate::checks::borrows) fn retained_lineage(
     borrow: &BorrowFacts,
     state: &StateBorrowFact,
@@ -465,20 +489,7 @@ pub(in crate::checks::borrows) fn retained_lineage(
                 pending.push((parent_loan, false));
             }
             BorrowLoanLineage::UnretainedDerived => {
-                let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
-                if suppliers.is_empty() {
-                    return None;
-                }
-                for supplier in suppliers {
-                    if !borrow.state_owns_loan(state, *supplier) {
-                        return None;
-                    }
-                    let source = borrow.loans.get(*supplier);
-                    if loan.source_owner_symbol != source.owner_symbol
-                        || source.kind.direct_reborrow_effect(&loan.kind).is_none()
-                    {
-                        return None;
-                    }
+                for supplier in transport_suppliers(borrow, state, handle)? {
                     pending.push((*supplier, false));
                 }
             }

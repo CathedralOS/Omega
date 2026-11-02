@@ -21,7 +21,7 @@ use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralParameterPlan;
 use crate::execution::terminal_unit::Multiplicity;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::StatementNode;

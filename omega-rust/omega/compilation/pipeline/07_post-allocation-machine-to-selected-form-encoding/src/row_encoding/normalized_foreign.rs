@@ -314,7 +314,9 @@ pub(super) fn encode(
         machine,
         &effects,
         bytes,
-        SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup },
+        SelectedFormEncodingState::UnresolvedNormalizedForeignCall {
+            fixup: Box::new(fixup),
+        },
     )
 }
 

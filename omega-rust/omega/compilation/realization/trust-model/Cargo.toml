@@ -9,7 +9,7 @@ name = "trust_model"
 path = "src/lib.rs"
 
 [dependencies]
-effects = { path = "../../backend/plans/provider-evidence" }
+effects = { path = "../../backend/plans/effects" }
 optimization-core = { path = "../../../foundation/optimization-core" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 language-semantics = { path = "../../../../psi/foundation/language-semantics" }

@@ -20,11 +20,11 @@ authority.
 | 07 — selected optimization | [psi_optimization.rs](07_lowered-psi-to-lowered-psi/src/psi_optimization.rs) | the same Lowered Psi representation |
 | 08 — publication | [publish_artifact.rs](08_lowered-psi-to-terminal-psi/src/publish_artifact.rs) | [Terminal Psi and codec](../representations/terminal-psi/) |
 
-Stage 05 constructs the checked program using reusable judgments from
+Psi 05 constructs the checked program using reusable judgments from
 [checking/](../checking/README.md), obligation construction/search from
 [proof/](../proof/src/lib.rs), and independent mathematical admission. Those
 services are not competing typed-to-checked stages.
-[Compile-time elaboration](../compile-time/README.md) owns the evaluation
+[Compile-time elaboration](../build-time-evaluation/README.md) owns the evaluation
 continuations used around resolution and checking; the interpreter only executes
 the admitted programs. The product driver owns sequencing across these services.
 
@@ -624,7 +624,7 @@ Closed ordinary integer/Boolean machine calls also evaluate in these leaves;
 scalar `f32`/`f64` declarations additionally support ordinary nested helper calls
 and Boolean-selected results while preserving format and exact bits. These
 floating values remain ineligible as generic/domain indices. The
-[initializer admission owner](../compile-time/README.md#semantic-admission-boundary)
+[initializer admission owner](../build-time-evaluation/README.md#semantic-admission-boundary)
 checks concrete crash discharge before execution and repeats it during receiving
 replay. Closed type- and const-generic helper applications use ordinary checked
 specialization, including nested calls with integer, Boolean and floating results.
@@ -717,7 +717,7 @@ still require ordinary peer landing. The two-file CLI check
 `cargo run -p omega -- --check tests/omega/pass/modules/rational_boolean_indices/main.omg`
 covers fractional and decimal comparisons with their canonical Boolean results.
 Scalar `match` indices retain their complete source trees for the
-[typed evaluation owner](../compile-time/README.md), including
+[typed evaluation owner](../build-time-evaluation/README.md), including
 coverage and unselected-arm admission. Their source check is
 `cargo run -p omega -- --check tests/omega/pass/modules/match_constant_indices/main.omg`.
 Open templates, machine-computed nominal aggregate indices, constrained destinations, authored operators
@@ -772,7 +772,7 @@ Each rewritten application retains its original base/arguments at the exact use.
 Copies remap these origins; they are not new authored declarations or roots.
 Cloned attached methods retain the exact authored template and closed owner.
 Missing or ambiguous templates cannot acquire derivation custody.
-[Build-time evaluation](../compile-time/README.md) owns the
+[Build-time evaluation](../build-time-evaluation/README.md) owns the
 single-use pre/post-typing continuation and its ordered const/layout/wire work;
 orchestration cannot recombine its retained rows or exchange its authority.
 

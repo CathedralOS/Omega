@@ -6,7 +6,6 @@ use super::{
     Argument, CheckedScalarComputationKind, Computation, Expansion, LoweringError,
     QualifiedScalarType, ScalarType, Site, parameter, parameters, unsupported,
 };
-use crate::checked_facts::value_facts;
 use crate::emission::claim_bindings::selections::SelectedDecision;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::integer::LoweredIntegerComparisonKind;
@@ -14,6 +13,7 @@ use crate::scalar_lowering::branch_states::prepared::{
     LoweredScalarBranchState, LoweredScalarBranchTerminator,
 };
 use crate::scalar_lowering::branch_states::structural_values::ValueRequest;
+use crate::shared::checked_facts::value_facts;
 use checked_trees::{CheckedScalarDispatchArm, CheckedScalarDispatchPattern};
 
 fn dispatch_route(

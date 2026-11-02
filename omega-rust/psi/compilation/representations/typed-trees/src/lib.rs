@@ -25,7 +25,7 @@ pub mod typed_trees;
 
 pub use typed_trees::SpelledDeclarationTable;
 pub use typed_trees::calls::{
-    boundary, dynamic_traits, finite_family, service, signature, static_applications,
+    boundary, dynamic_traits, finite_family, signature, static_applications,
 };
 pub use typed_trees::constant_recipes;
 pub use typed_trees::control_flow::{machine, state, statement};

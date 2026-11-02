@@ -5,7 +5,7 @@
 //! belong to one authored constructor roster, and resolved symbols join each
 //! operand to its declaration without letting a common field select a case.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use facts::PlaceSegment;
 use facts::payload_variant_for_field;
 use validation::CanonicalPlace;

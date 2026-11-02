@@ -76,7 +76,7 @@ pub(in crate::checks::termination) fn strict_decrease_message(
     source: symbols::SymbolHandle,
     destination: symbols::SymbolHandle,
 ) -> String {
-    let label = |state| crate::labels::call_target_label(program, state);
+    let label = |state| crate::published::labels::call_target_label(program, state);
     let transition = if source == destination {
         format!("the transition from `{}` back to itself", label(source))
     } else {

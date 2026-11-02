@@ -3,7 +3,7 @@
 //! Each Boolean leaf keeps its selected operation, exact place and polarity.
 
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use facts::{FactContextHandle, FactPayload, FactPlan};
 use symbols::SymbolHandle;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, UnaryOperator};

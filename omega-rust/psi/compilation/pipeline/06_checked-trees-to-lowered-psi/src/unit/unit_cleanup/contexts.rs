@@ -7,8 +7,8 @@ use super::{
     CheckedTrees, LoweringError, PlaceId, Proposition, ScalarTerm, StructuralTypeShape,
     SymbolHandle, unsupported,
 };
-use crate::checked_facts::flow_facts;
-use crate::terminal_identities::place_id;
+use crate::shared::checked_facts::flow_facts;
+use crate::shared::terminal_identities::place_id;
 use terminal_psi::{
     StructuralParameterDeclaration, StructuralTypeDeclaration, find_structural_type,
 };
@@ -189,20 +189,23 @@ pub(crate) fn prepare_signature(
                 "nominal cleanup hook lacks a complete callable prerequisite roster",
             );
         }
-        let structural_type = crate::terminal_identities::structural_declaration_by_identity(
-            types,
-            identities,
-            checked,
-            hook.type_identity,
-            "nominal cleanup hook owner type is absent",
-        )?
-        .id;
+        let structural_type =
+            crate::shared::terminal_identities::structural_declaration_by_identity(
+                types,
+                identities,
+                checked,
+                hook.type_identity,
+                "nominal cleanup hook owner type is absent",
+            )?
+            .id;
         if predicate_parameters.is_empty() {
             // Reserve through the closure allocator, but publish no executable
             // parameter/place: this receiver exists only to substitute clauses
             // at each consuming cleanup action.
             predicate_parameters.push(StructuralParameterDeclaration {
-                place: place_id(crate::terminal_identities::allocate_dense(next_place)?),
+                place: place_id(crate::shared::terminal_identities::allocate_dense(
+                    next_place,
+                )?),
                 position: 0,
                 structural_type,
                 multiplicity: terminal_psi::StructuralMultiplicity::Unrestricted,

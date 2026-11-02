@@ -1,7 +1,9 @@
 use symbol_resolved_trees::SymbolResolvedTrees;
 use symbols::{SymbolHandle, SymbolKind, SymbolTableAppender, SymbolTableBuilder};
 
-use crate::symbols::symbol_table::names::{parameter_seeds, symbol_seed};
+use crate::symbols::symbol_table::names::{
+    evidence_requirement_seed, parameter_seeds, symbol_seed,
+};
 use symbol_resolved_trees::data::TypeParameterKind;
 use symbol_resolved_trees::trait_definition::TraitDefinition;
 
@@ -11,6 +13,7 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
     trait_symbol: SymbolHandle,
     trait_definition: &TraitDefinition,
     has_sources: bool,
+    sources: Option<&source::SourceMap>,
 ) {
     let trait_children = builder.insert_children(
         trait_symbol,
@@ -43,6 +46,34 @@ pub(in crate::symbols::symbol_table) fn insert_trait_symbol_children(
             builder.insert_children(
                 parameter_symbol,
                 parameter_seeds(program.state_parameters(contract.parameters), has_sources),
+            );
+        }
+        if let Some(parameter_symbol) = parameter_symbol
+            && let Some(bound) = trait_definition
+                .conformance_bounds
+                .iter()
+                .find(|bound| bound.binder_name == parameter.name)
+            && let Some(declaration) = super::machines::select_visible_trait_definition(
+                program,
+                &bound.trait_name,
+                sources,
+            )
+        {
+            // A trait law owns the same selected requirement namespace as a
+            // machine body. Its evidence parameter is never a runtime value.
+            let mut requirements = Vec::new();
+            super::machines::collect_evidence_requirement_closure(
+                program,
+                declaration,
+                sources,
+                &mut Vec::new(),
+                &mut requirements,
+            );
+            builder.insert_children(
+                parameter_symbol,
+                requirements
+                    .into_iter()
+                    .map(|requirement| evidence_requirement_seed(&requirement.name)),
             );
         }
     }

@@ -87,7 +87,10 @@ pub(super) fn bind_contract_expression_evidence_arguments(
                 continue;
             }
             let Some((target_machine_symbol, target_state_symbol)) =
-                crate::proof::contract_target_from_state_symbol(program, target_state_symbol)
+                crate::published::proof::contract_target_from_state_symbol(
+                    program,
+                    target_state_symbol,
+                )
             else {
                 diagnostics.push(Diagnostic::error(
                     "proof-expression evidence call has no exact checked target owner",
@@ -312,7 +315,7 @@ fn instantiate_proof_expression_parameter(
         .find(|contract| contract.evidence_term == Some(parameter))?;
     let application = program.proof_facts.get(contract.fact).as_proposition()?;
     let (binder_labels, argument_handles) =
-        crate::labels::proposition_label_sources(application, program);
+        crate::published::labels::proposition_label_sources(application, program);
     let argument_labels = argument_handles
         .iter()
         .map(|argument| {
@@ -334,7 +337,7 @@ fn instantiate_proof_expression_parameter(
                 argument_labels: &argument_labels,
             }),
         )
-        .map(crate::proof::lower_checked_proposition_application)
+        .map(crate::published::proof::lower_checked_proposition_application)
 }
 
 pub(super) fn bind_call_evidence_arguments(
@@ -599,7 +602,8 @@ fn instantiated_call_proposition(
         })
         .collect::<Option<Vec<_>>>()?;
     let mut proposition = parameter_term.proposition.clone();
-    let (binder_labels, _) = crate::labels::proposition_label_sources(application, program);
+    let (binder_labels, _) =
+        crate::published::labels::proposition_label_sources(application, program);
     let label = program.normalized_identity_label(application, &binder_labels, &argument_labels)?;
     proposition.arguments = argument_labels;
     Some((proposition, label))
@@ -609,5 +613,5 @@ fn call_target_name(
     program: &dyn ::validation::CheckingInput,
     target: symbols::SymbolHandle,
 ) -> String {
-    crate::labels::call_target_label(program, target)
+    crate::published::labels::call_target_label(program, target)
 }

@@ -33,7 +33,7 @@ use crate::emission::operation_emission::integer::{
 };
 use crate::emission::runtime_elements::{self, ProjectionStep};
 use crate::expression_preparation::integer_bit_image::integer_bit_image;
-use crate::structural_types::unique_declaration;
+use crate::shared::structural_types::unique_declaration;
 use checked_trees::{CheckedRuntimeIndex, CheckedStorePlan, CheckedStoreRoot};
 use semantic_vocabulary::IntegerValue;
 use symbols::SymbolHandle;

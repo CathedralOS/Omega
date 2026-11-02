@@ -13,7 +13,7 @@ use terminal_psi::{
 };
 use typed_trees::typed_trees::{AccessLifecycleOperation, AccessLifecyclePlan};
 
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 
 pub(crate) fn retain(
     identities: &mut TerminalIdentityTableBuilder,

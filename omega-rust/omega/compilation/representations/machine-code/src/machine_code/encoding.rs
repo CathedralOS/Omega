@@ -1,5 +1,6 @@
 //! Current layout-independent instruction bytes, call templates and evidence.
 
+mod footprints;
 mod identity;
 mod rows;
 #[cfg(test)]

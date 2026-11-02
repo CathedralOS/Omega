@@ -185,7 +185,7 @@ impl Scope<'_> {
         if !source.binding_declaration.is_valid() || !source.lexical_owner.is_valid() {
             return None;
         }
-        use crate::facts::index_compatibility::{
+        use crate::published::facts::index_compatibility::{
             BoundIndexArgument, call_index_substitutions, index_identity_bindings,
         };
         // Even exact immutable indices belong to the incoming call frame.
@@ -305,62 +305,13 @@ impl Scope<'_> {
             {
                 return Some(ScopedArithmeticValue::Term(term));
             }
-            if let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
-                && let Some(callee) = self
-                    .program
-                    .machine_by_own_or_state_symbol(call.target_symbol)
-                && let Some(entry) = self.program.machine_states(callee).first()
-            {
-                let statements = state_statements(self.program, entry.statement_nodes);
-                let return_expr = statements.last().and_then(|s| match s {
-                    StatementNode::Expression(e) => Some(*e),
-                    _ => None,
-                });
-                if let Some(return_expr) = return_expr {
-                    let callee_params = self.program.machine_type_parameters(callee);
-                    let mut callee_substitutions = Vec::new();
-                    for (param, actual_arg) in
-                        callee_params.iter().zip(call.machine_arguments.iter())
-                    {
-                        let value = if actual_arg.symbol.is_valid() {
-                            application
-                                .substitutions
-                                .iter()
-                                .find(|(s, _)| *s == actual_arg.symbol)
-                                .and_then(|(_, v)| v.clone())
-                        } else if let Some(lit) = &actual_arg.const_literal {
-                            lit.value_bignum().map(ScopedArithmeticValue::Integer)
-                        } else if actual_arg.type_reference.is_valid() {
-                            self.program
-                                .type_reference_table
-                                .anonymous_numeric_literal_value(actual_arg.type_reference)
-                                .map(|v| {
-                                    ScopedArithmeticValue::Integer(BigInt::from_i128(v as i128))
-                                })
-                        } else {
-                            None
-                        };
-                        callee_substitutions.push((param.symbol, value));
-                    }
-                    if let Some(values) = self.values(application.formation)
-                        && let Some(term) = values.application_value_with_captured(
-                            return_expr,
-                            &[],
-                            &callee_substitutions,
-                        )
-                    {
-                        return Some(ScopedArithmeticValue::Term(term));
-                    }
-                    if let ExpressionNode::Name(path) =
-                        self.program.expression_table.expression(return_expr)
-                        && let Some((_, Some(val))) =
-                            callee_substitutions.iter().find(|(s, _)| *s == path.symbol)
-                    {
-                        return Some(val.clone());
-                    }
-                }
-            }
-            return None;
+            return self.call_returned_value(
+                expression,
+                application.formation,
+                application.call.is_none(),
+                &application.arguments,
+                &application.substitutions,
+            );
         }
         let TypeReferenceNode::Named { symbol, name } =
             self.program.type_reference_table.type_reference(argument)
@@ -397,6 +348,92 @@ impl Scope<'_> {
             }
             _ => None,
         }
+    }
+
+    /// The value a call in an index position returns: the callee's published
+    /// result equation, else its single returned value, with its value binders and runtime parameters bound to
+    /// the call's exact actuals under the supplying application. Only an index
+    /// formed in this scope reads an unsubstituted static actual as its current
+    /// value; a callee's own binder never falls back to a same-named caller
+    /// symbol, and a missing operand stays unknown.
+    fn call_returned_value(
+        &self,
+        expression: ExpressionHandle,
+        formation: usize,
+        local: bool,
+        arguments: &[(SymbolHandle, Option<ExpressionHandle>)],
+        substitutions: &[(SymbolHandle, Option<ScopedArithmeticValue>)],
+    ) -> Option<ScopedArithmeticValue> {
+        let ExpressionNode::Call(call) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        let callee = self
+            .program
+            .machine_by_own_or_state_symbol(call.target_symbol)?;
+        let entry = self.program.machine_states(callee).first()?;
+        // The callee's published result equation is the call's value whatever
+        // control shape proves it; a body with one returned value supplies
+        // the same value when no equation is published.
+        let returned = crate::flow::contract_returned_value(self.program, callee)
+            .or_else(|| crate::flow::state_returned_value(self.program, entry))?;
+        let values = self.values(formation)?;
+        let mut callee_substitutions = Vec::new();
+        for (parameter, actual) in self
+            .program
+            .machine_type_parameters(callee)
+            .iter()
+            .zip(call.machine_arguments.iter())
+        {
+            let value = if actual.symbol.is_valid() {
+                match substitutions
+                    .iter()
+                    .find(|(symbol, _)| *symbol == actual.symbol)
+                {
+                    Some((_, value)) => value.clone(),
+                    None if local => values.current_symbol(actual.symbol),
+                    None => None,
+                }
+            } else if let Some(literal) = &actual.const_literal {
+                literal.value_bignum().map(ScopedArithmeticValue::Integer)
+            } else if actual.type_reference.is_valid() {
+                self.program
+                    .type_reference_table
+                    .anonymous_numeric_literal_value(actual.type_reference)
+                    .map(|value| ScopedArithmeticValue::Integer(BigInt::from_i128(value as i128)))
+            } else {
+                None
+            };
+            callee_substitutions.push((parameter.symbol, value));
+        }
+        // A specialized value binder arrives as an ordinary runtime operand.
+        let parameters = self.program.state_parameters(entry);
+        let operands = self
+            .program
+            .expression_table
+            .expression_handles(call.arguments);
+        if parameters.len() != operands.len() {
+            return None;
+        }
+        for (parameter, operand) in parameters.iter().zip(operands) {
+            let value = values
+                .application_value_with_captured(*operand, arguments, substitutions)
+                .map(ScopedArithmeticValue::Term);
+            callee_substitutions.push((parameter.symbol, value));
+        }
+        if let Some(term) =
+            values.application_value_with_captured(returned, &[], &callee_substitutions)
+        {
+            return Some(ScopedArithmeticValue::Term(term));
+        }
+        if let ExpressionNode::Name(path) = self.program.expression_table.expression(returned)
+            && let Some((_, Some(value))) = callee_substitutions
+                .iter()
+                .find(|(symbol, _)| *symbol == path.symbol)
+        {
+            return Some(value.clone());
+        }
+        None
     }
 
     /// A call whose arguments all write no completed path is inert: every
@@ -1075,7 +1112,11 @@ impl Scope<'_> {
                 let Some(required) = self.index(argument, application) else {
                     return false;
                 };
-                let Some(actual) = values.current(value).map(ScopedArithmeticValue::Term) else {
+                let Some(actual) = values
+                    .current(value)
+                    .map(ScopedArithmeticValue::Term)
+                    .or_else(|| self.call_returned_value(value, self.statement, true, &[], &[]))
+                else {
                     return false;
                 };
                 actual == required

@@ -157,7 +157,7 @@ pub(super) fn unknown_length_range_is_proven(
 
 /// `bound` is the extent binder itself (`items[..N]`) or the place's builtin
 /// length (`items[..items.len]`) — both spell `end <= N` trivially. The binder
-/// is matched by symbol: a name stage 02 left unbound is not the binder, even
+/// is matched by symbol: a name Psi 02 left unbound is not the binder, even
 /// when it is spelled like one (a container's binder its machine never
 /// declares).
 fn symbolic_extent_is_named(

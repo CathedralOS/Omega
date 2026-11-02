@@ -53,3 +53,13 @@ pub(super) fn lower_scoped_fact_expression(
         .in_fact_position()
         .lower(expression)
 }
+
+pub(crate) fn lower_transition_pattern(
+    program: &resolved::SymbolResolvedTrees,
+    source: &resolved::expression::ExpressionTable,
+    target: &mut typed::TypedTrees,
+    pattern: resolved::statement::TransitionPattern,
+) -> Result<typed::statement::TransitionPattern, Diagnostic> {
+    lowerer::ExpressionTableLowerer::new(Some(program), source, target, None, None)
+        .lower_transition_pattern(pattern)
+}

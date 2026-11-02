@@ -4,7 +4,7 @@
 //! immutable SSA results; the receiving annotation itself establishes nothing.
 
 use super::PreparedScalarQualifications;
-use crate::lowering_error::{LoweringError, unsupported};
+use crate::shared::lowering_error::{LoweringError, unsupported};
 use checked_trees::CheckedTrees;
 use checked_trees::types::TypeReferenceHandle;
 use semantic_vocabulary::StructuralFieldId;

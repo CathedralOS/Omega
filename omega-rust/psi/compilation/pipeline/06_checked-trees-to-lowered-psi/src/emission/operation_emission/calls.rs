@@ -2,14 +2,14 @@
 
 use super::buffer::{OperationBuffer, SourceInvocation};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
-use crate::direct_calls::DirectCallResult;
 use crate::expression_preparation::bindings::structural_paths::structural_argument;
-use crate::lowering_error::LoweringError;
-use crate::lowering_error::unsupported;
 use crate::proofs::crash_routes::lowered_erased_scalar_term;
-use crate::terminal_identities::mint;
-use crate::terminal_identities::obligation_id;
-use crate::terminal_identities::value_id;
+use crate::shared::direct_calls::DirectCallResult;
+use crate::shared::lowering_error::LoweringError;
+use crate::shared::lowering_error::unsupported;
+use crate::shared::terminal_identities::mint;
+use crate::shared::terminal_identities::obligation_id;
+use crate::shared::terminal_identities::value_id;
 use semantic_vocabulary::{MachineId, ObligationId, QualifiedScalarType, ValueId};
 use terminal_psi::{StructuralArgument, ValueDeclaration};
 
@@ -175,7 +175,7 @@ pub(crate) struct LoweredDirectCallBinding {
 pub(crate) struct CallEmissionContext<'a> {
     /// Actual emitted owner, including all source owners of a fused graph.
     pub(crate) terminal_machine: MachineId,
-    pub(crate) domain_ids: &'a [crate::terminal_identities::StructuralDomainBinding],
+    pub(crate) domain_ids: &'a [crate::shared::terminal_identities::StructuralDomainBinding],
     pub(crate) domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
     pub(crate) scalar_qualifications: &'a terminal_psi::ScalarQualificationCatalog,
     pub(crate) claims: crate::emission::claim_bindings::ClaimBindings<'a>,
@@ -267,7 +267,7 @@ fn emit_direct_call_operation(
     call_emission: &mut CallEmissionContext<'_>,
     current_claims: &mut crate::emission::current_claims::CurrentClaimNames,
 ) -> Result<ValueId, LoweringError> {
-    let callee = crate::terminal_identities::lookup_machine_id_with(
+    let callee = crate::shared::terminal_identities::lookup_machine_id_with(
         call_emission.machine_ids,
         call.target_machine,
         "direct scalar call target is absent from the terminal closure",
@@ -303,7 +303,7 @@ fn emit_direct_call_operation(
         checked,
         operations,
         call.source_coordinate,
-        crate::direct_calls::CallRecord::Frontier(frontier),
+        crate::shared::direct_calls::CallRecord::Frontier(frontier),
         terminal_psi::OperationResult::Scalar(ValueDeclaration {
             qualifications: call.result_type.qualifications,
             id: result,

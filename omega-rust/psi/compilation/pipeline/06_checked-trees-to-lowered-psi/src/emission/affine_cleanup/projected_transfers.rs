@@ -8,8 +8,8 @@
 //! same ordered complement. This pass neither invents hooks nor disposes a
 //! transferred subtree to make the remaining partition fit.
 use super::{LoweringError, block_position, unsupported};
-use crate::call_operands::structural_arguments;
-use crate::lowering_error::ProjectedCustodyObservation;
+use crate::shared::call_operands::structural_arguments;
+use crate::shared::lowering_error::ProjectedCustodyObservation;
 use semantic_vocabulary::{BlockId, OperationId, PlaceId, StructuralPlaceKind, StructuralTypeId};
 use std::collections::{BTreeSet, VecDeque};
 use terminal_psi::{

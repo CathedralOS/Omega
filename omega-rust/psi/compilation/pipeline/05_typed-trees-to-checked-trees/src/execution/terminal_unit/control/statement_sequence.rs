@@ -219,9 +219,9 @@ pub(in super::super) fn build(
     // expression of a value body, or the scalar-control terminator's own
     // statements. Those belong to the terminator and `completion`. A walk
     // that stops anywhere else would leave the authored statements after
-    // it unplanned, so the body has no route. A proven nonreturning expression
-    // stays in the prefix: it evaluates its call rather than supplying a value
-    // to the return owner, independently of the declared result carrier.
+    // it unplanned, so the body has no route. A retained value graph owns its
+    // complete evaluation, including a nonreturning call. Only an invocation
+    // with no retained value owner stays in the ordinary operation prefix.
     let sequenced = |index: usize, statement: &StatementNode| {
         let terminal_call = matches!(statement, StatementNode::Transition(_))
             && call_occurrences::terminal_invocation(program, machine, state, index).is_some();
@@ -248,23 +248,23 @@ pub(in super::super) fn build(
         };
         !completion_expression.is_some_and(|expression| {
             !is_unit(program, state.return_type)
-                && validation::expression_normal_completion_possible(program, expression)
-                    != Some(false)
-                && (!matches!(
+                && ((!matches!(
                     program.expression_table.expression(expression),
                     ExpressionNode::Call(_)
-                ) || u32::try_from(index).ok().is_some_and(|ordinal| {
-                    facts
-                        .values
-                        .scalar_computations
-                        .root_at(state.symbol, ordinal, CheckedScalarExpressionRole::Return)
-                        .is_some()
-                        || facts
+                ) && validation::expression_normal_completion_possible(program, expression)
+                    != Some(false))
+                    || u32::try_from(index).ok().is_some_and(|ordinal| {
+                        facts
                             .values
-                            .structural_values
-                            .root_for_expression(state.symbol, ordinal, expression)
+                            .scalar_computations
+                            .root_at(state.symbol, ordinal, CheckedScalarExpressionRole::Return)
                             .is_some()
-                }))
+                            || facts
+                                .values
+                                .structural_values
+                                .root_for_expression(state.symbol, ordinal, expression)
+                                .is_some()
+                    }))
         })
     };
     let execution_order = program
@@ -327,9 +327,10 @@ pub(in super::super) fn build(
     // Erased borrow carriers have no storage binding: the sequence advances
     // past their declarations while each use's planner joins the captured
     // referent's checked loan evidence.
-    let erased_locals = phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.erased_locals", || {
-        erased_alias_locals(program, facts, machine, state)
-    });
+    let erased_locals = phase_profile::scope(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.erased_locals",
+        || erased_alias_locals(program, facts, machine, state),
+    );
     let mut scalar_count = crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .take(construction_statement_count)
@@ -387,7 +388,9 @@ pub(in super::super) fn build(
     })?
     .into_iter()
     .peekable();
-    let _loop_guard = phase_profile::guard("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.statement_loop");
+    let _loop_guard = phase_profile::guard(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.statement_loop",
+    );
     // A composed state ends its sequence where its terminator begins: a
     // transition into a fused sibling is a successor edge the state graph
     // plans, not a terminal call, so the caller bounds the walk.
@@ -711,26 +714,29 @@ pub(in super::super) fn build(
     }
     drop(_loop_guard);
     trace.statement(None);
-    phase_profile::scope("psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.completion", || {
-        completion::complete(completion::Completion {
-            construction: construction!(),
-            owner_candidates,
-            prepared_calls,
-            binders: &binders,
-            calls,
-            scalar_control,
-            operations,
-            place_loans,
-            scalar_count,
-            structural_count,
-            structural_local_symbols,
-            windows,
-            returned_call,
-            returned_scalar_call,
-            structural_results,
-            call_count,
-        })
-    })
+    phase_profile::scope(
+        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.completion",
+        || {
+            completion::complete(completion::Completion {
+                construction: construction!(),
+                owner_candidates,
+                prepared_calls,
+                binders: &binders,
+                calls,
+                scalar_control,
+                operations,
+                place_loans,
+                scalar_count,
+                structural_count,
+                structural_local_symbols,
+                windows,
+                returned_call,
+                returned_scalar_call,
+                structural_results,
+                call_count,
+            })
+        },
+    )
 }
 
 /// Share scalar exit discovery while leaving operation storage with its sequence.

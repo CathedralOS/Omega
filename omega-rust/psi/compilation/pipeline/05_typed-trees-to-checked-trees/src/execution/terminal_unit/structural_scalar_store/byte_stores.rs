@@ -14,7 +14,7 @@ use crate::checks::reference_access;
 use crate::execution::terminal_unit::types::{
     byte_sequence_carrier, structural_access_for_type_reference, terminal_field_identity,
 };
-use crate::places::place_at;
+use crate::published::places::place_at;
 use crate::values::operator_is_builtin;
 
 /// `view[index] = byte` through a whole mutable borrowed view or owned home.
@@ -44,17 +44,12 @@ pub(super) fn byte_write(site: &super::Site<'_, '_, '_>) -> Option<OperationPlan
     // the descriptor, while the loan grants mutation of its bytes. Destination
     // resolution already retained that live loan rather than its initializer.
     let (declared_type, access, multiplicity, mutable_owner) = match destination.root {
-        Root::Parameter { plan, parameter } => {
-            if plan.binding_carrier.is_some() {
-                return None;
-            }
-            (
-                parameter.type_reference,
-                plan.access,
-                plan.multiplicity,
-                parameter.is_mutable && !parameter.is_const,
-            )
-        }
+        Root::Parameter { plan, parameter } => (
+            parameter.type_reference,
+            plan.access,
+            plan.multiplicity,
+            parameter.is_mutable && !parameter.is_const,
+        ),
         Root::Local { symbol } => {
             let (_, local) = program.state_local_declaration(state, symbol)?;
             (
@@ -118,7 +113,6 @@ pub(super) fn whole_store(site: &super::Site<'_, '_, '_>) -> Option<OperationPla
                 plan.access,
                 StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
             ) || plan.multiplicity != Multiplicity::Unrestricted
-                || plan.binding_carrier.is_some()
             {
                 return None;
             }

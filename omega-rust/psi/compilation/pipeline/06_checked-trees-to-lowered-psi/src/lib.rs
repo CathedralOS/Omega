@@ -39,21 +39,20 @@
 //! The entrance closes by attaching the Terminal debug companion that
 //! `machine_lowering::debug_map` builds when the checked plan is eligible.
 //!
-//! Beside the route: `producer_result` names what a plan family hands back —
-//! its source mapping and its debug and conformance completion modes
-//! — `terminal_identities` and `lowering_error` carry the identity and
-//! failure vocabulary every producer shares, and `declarations` maps a checked
-//! state symbol to its declared machine and state. `direct_calls` is the one place
-//! a direct in-module call's facts choose its Terminal call operation, and
-//! the one reader of those operations' callee and operand lanes.
-//! `structural_types` turns checked structural type plans into the Terminal
-//! declarations every family that declares structural storage shares.
+//! Beside the route, `shared/` holds what every plan family reads:
+//! `producer_result` names what a family hands back, `terminal_identities`
+//! and `lowering_error` carry the identity and failure vocabulary, `declarations`
+//! maps a checked state symbol to its machine and state, `direct_calls` is the
+//! one place a direct call's facts choose its Terminal operation, and
+//! `structural_types` turns checked structural plans into Terminal declarations.
+//! `projections/` holds what is produced beside the lowered machine: program
+//! roots, the declaration-only projection package review reads, task
+//! activation demands and diagnostic provenance.
 
 // The entrance.
 pub(crate) use optimization::digest_encoder;
 mod machine_lowering;
-mod program_roots;
-pub use program_roots::TerminalProgramRoots;
+pub use projections::program_roots::TerminalProgramRoots;
 pub use terminal_psi::{PreparedTerminalRoots, RetainedTerminalRoot};
 
 // The plan families `machine_dispatch` selects between, in their dependency
@@ -67,38 +66,23 @@ mod unit;
 mod proofs;
 mod retention;
 
-// Beside the route: shared producer vocabulary and diagnostic source attribution.
-mod activation_storage;
-mod external_provider_declarations;
-pub use external_provider_declarations::{
+// Beside the route: what every family reads, and the projections produced
+// beside the lowered machine.
+mod projections;
+mod shared;
+pub use projections::external_provider_declarations::{
     ExternalProviderDeclarations, PreparedExternalProviderDeclarations,
     project_external_provider_declarations,
 };
-mod task_activation;
-pub use task_activation::lower_task_activation_demands;
-mod call_operands;
-mod call_sites;
-mod checked_facts;
-mod content_classes;
-mod declarations;
-mod direct_calls;
-mod lowered_provenance;
-mod lowering_error;
-mod producer_result;
-mod reference_custody;
-mod structural_types;
-mod terminal_identities;
-
-#[cfg(test)]
-mod source_guards;
+pub use projections::task_activation::lower_task_activation_demands;
 
 // The entrance, and the failure vocabulary its callers match on.
-pub use lowering_error::LoweringError;
 pub use machine_lowering::lower_machine;
 pub use machine_lowering::machine_dispatch::{TerminalMachineSelection, select_terminal_machine};
+pub use shared::lowering_error::LoweringError;
 
 // Diagnostic-only source attribution for the unoptimized lowering.
-pub use lowered_provenance::lowered_module_provenance;
+pub use projections::lowered_provenance::lowered_module_provenance;
 
 // Proof artifacts this stage produces for owners outside it.
 pub use proofs::content_conservation::{

@@ -15,7 +15,7 @@ use crate::emission::operation_emission::expressions::{
 };
 use crate::expression_preparation::bindings::LoanAccess;
 use crate::expression_preparation::prepare_expression::exact_u64_index;
-use crate::terminal_identities::obligation_id;
+use crate::shared::terminal_identities::obligation_id;
 
 impl Emission<'_, '_, '_> {
     /// Establish one borrowed element view without a selection join: the op
@@ -59,29 +59,38 @@ impl Emission<'_, '_, '_> {
         let Some(continuation) = continuation else {
             return self.direct_element_view(identities, source, region, expression, loan);
         };
+        // The join parameter is the selected descriptor. An owned parameter
+        // receives the arm's own carrier; a loan of the arm-local view would
+        // die on this edge and leave the parameter without a disposal record.
+        let transfers = continuation
+            .structural_parameters
+            .first()
+            .is_some_and(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned);
+        // A transferred exclusive view keeps the custody a direct view has:
+        // the affine descriptor moves onto the affine join parameter. Minted
+        // unrestricted, it would be an exclusive loan with a shared shell's
+        // multiplicity, which native element-view admission refuses.
+        let multiplicity = match loan {
+            LoanAccess::Mutable if transfers => StructuralMultiplicity::Affine,
+            _ => StructuralMultiplicity::Unrestricted,
+        };
         let place = self.establish_element_view(
             identities,
             source,
             region,
             expression,
             loan,
-            StructuralMultiplicity::Unrestricted,
+            multiplicity,
         )?;
-        let mut argument = StructuralArgument {
+        let argument = StructuralArgument {
             place,
             path: Vec::new(),
-            access: loan.structural_access(),
+            access: if transfers {
+                terminal_psi::StructuralAccess::Owned
+            } else {
+                loan.structural_access()
+            },
         };
-        // The join parameter is the selected descriptor. Forward that same
-        // owned carrier; a loan of the arm-local view would die on this edge
-        // and leave the parameter without a disposal record.
-        if continuation
-            .structural_parameters
-            .first()
-            .is_some_and(|parameter| parameter.access == terminal_psi::StructuralAccess::Owned)
-        {
-            argument.access = terminal_psi::StructuralAccess::Owned;
-        }
         self.complete_loan(argument, continuation, loan)?;
         Ok(continuation.place)
     }
@@ -248,7 +257,7 @@ impl Emission<'_, '_, '_> {
                     source_length: source_length.ok_or(LoweringError::Unsupported(
                         "representation view lost its captured count",
                     ))?,
-                    obligation: crate::terminal_identities::obligation_id(
+                    obligation: crate::shared::terminal_identities::obligation_id(
                         id.get().checked_add(1).ok_or(LoweringError::Unsupported(
                             "representation count obligation identity overflows",
                         ))?,

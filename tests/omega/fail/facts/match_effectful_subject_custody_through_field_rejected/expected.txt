@@ -1,0 +1,1 @@
+after `pair.slot` was transferred or consumed

@@ -116,7 +116,7 @@ impl ExitScalars<'_, '_> {
             root: PlaceRoot::Expression(operand.expression),
             segments: Vec::new(),
         });
-        let mut required = crate::facts::boolean_predicates::bind_parameters(
+        let mut required = crate::published::facts::boolean_predicates::bind_parameters(
             self.program,
             self.machine.symbol,
             entry.symbol,
@@ -184,7 +184,7 @@ impl ExitScalars<'_, '_> {
                 }
             }
         }
-        let mut predicates = crate::facts::boolean_predicates::retained(
+        let mut predicates = crate::published::facts::boolean_predicates::retained(
             self.program,
             &self.facts.operators,
             &self.facts.semantic,
@@ -249,8 +249,8 @@ impl ExitScalars<'_, '_> {
                 )
             })
         };
-        crate::facts::boolean_predicates::truth(&predicates, &required, &mut ordinary).or_else(
-            || {
+        crate::published::facts::boolean_predicates::truth(&predicates, &required, &mut ordinary)
+            .or_else(|| {
                 // Normal return composes the same authenticated captured equations
                 // as invocation and cleanup. Whole-proposition Boolean closure alone
                 // does not carry a scalar through a declared return equation.
@@ -263,7 +263,6 @@ impl ExitScalars<'_, '_> {
                     ordinary,
                 )
                 .then_some(true)
-            },
-        )
+            })
     }
 }

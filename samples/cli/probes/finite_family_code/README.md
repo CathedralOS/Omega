@@ -1,7 +1,7 @@
 # Finite Family Code
 
 Depend-free compile-scope probe: const-generic requirement families — the
-first sample with a trait requirement bounded by a finite `where`
+first sample with a trait requirement bounded by a finite `requires`
 disjunction over a const parameter.
 
 - `Shape<T>::code<Width: u32>` is a finite family: only `Width == 16` and
@@ -10,9 +10,8 @@ disjunction over a const parameter.
 - `Item::code<Width>` declares `satisfies Shape<Item>::code` in its own
   signature — the authored row IS the conformance — and `Primary`'s
   roster binds it with `Shape::code = Item::code`.
-- The `where` disjunction admits on trait requirements only: a free
-  machine carrying the same clause is rejected at admission ("requires a
-  structural type equation or a named conformance bound").
+- On a free machine the same `requires` disjunction is an ordinary entry
+  obligation; only a requirement signature derives a dispatch roster from it.
 
 The machine calls `Item::code<16>` and `Item::code<32>` directly and
 accepts when both rows return the item's 7. Compile-checked only (no std

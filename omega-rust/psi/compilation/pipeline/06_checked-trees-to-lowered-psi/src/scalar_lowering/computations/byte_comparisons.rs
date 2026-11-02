@@ -8,7 +8,6 @@
 //! result with the selectors that leaf depends on. `byte_sequence_observation`
 //! is that route; each entrypoint below constructs only its own leaf.
 use super::{Expansion, LoweringError, QualifiedScalarType, Site, unsupported};
-use crate::checked_facts::value_facts;
 use crate::emission::operation_emission::LoweredScalarBinding;
 use crate::emission::operation_emission::boolean::LoweredBooleanReturnExpression;
 use crate::emission::operation_emission::expressions::{
@@ -16,6 +15,7 @@ use crate::emission::operation_emission::expressions::{
 };
 use crate::expression_preparation::bindings::ScalarBindings;
 use crate::scalar_lowering::branch_states::structural_values::ValueRequest;
+use crate::shared::checked_facts::value_facts;
 use checked_trees::{
     CheckedBooleanExpression, CheckedScalarExpression, CheckedStorageRoot,
     CheckedStructuralPredicatePathSegment as Predicate, CheckedUnitStructuralArgumentPlan,
@@ -102,7 +102,8 @@ impl Expansion<'_> {
                 Vec::<Predicate>::new(),
             )
         } else {
-            let (_, state) = crate::declarations::state_declaration(self.checked, site.state)?;
+            let (_, state) =
+                crate::shared::declarations::state_declaration(self.checked, site.state)?;
             let root = match subject.source {
                 Source::Parameter { parameter_index } => {
                     let (position, _) = self

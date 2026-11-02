@@ -6,7 +6,7 @@ data Mode<const Enabled: bool> [copy] { value: u64; }
 data Wrapper<Inner> [copy] { value: u64; }
 
 machine enabled<Payload, const Enabled: bool>() -> bool
-where Payload == Wrapper<Mode<Enabled>>
+requires Payload == Wrapper<Mode<Enabled>>
 { Enabled }
 
 data Main { disabled: bool; enabled: bool; }

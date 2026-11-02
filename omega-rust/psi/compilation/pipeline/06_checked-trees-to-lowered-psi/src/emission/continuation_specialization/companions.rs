@@ -2,8 +2,8 @@
 
 use super::{CompanionRows, Counters, Instance};
 use crate::emission::selected_continuations::Specialization;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{allocate_dense, obligation_id};
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{allocate_dense, obligation_id};
 use lowered_psi::LoweredSourceCallSite;
 use terminal_psi::TerminalMachine;
 

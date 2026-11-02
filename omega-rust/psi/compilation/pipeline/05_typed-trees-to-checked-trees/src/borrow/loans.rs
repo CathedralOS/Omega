@@ -39,7 +39,7 @@
 
 use crate::borrow::view_link::is_borrow_carrying_data;
 use crate::flow::{expressions, state_statements};
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::name::Identifier;

@@ -5,7 +5,7 @@ call's result, and the caller reads the record.
 
 Owning task: **OPERATOR-MACHINE-SUPPLY** (`TASKS.md`). The exact requirement this
 row establishes is that item's formation-checks bullet — the checks in
-`omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls.rs`
+`omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/specification_calls.rs`
 and
 `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`
 extended to **calls in abstract signatures** — together with the item's own
@@ -161,7 +161,7 @@ plain-body places of the same row pass. Checking rewrites a named terminal
 invocation into an ordinary call expression. It attached the source-owned Call
 occurrence to that expression but left the call's own `authored_call_selection`
 empty, and constant call custody joins that field to the table row. The rewrite
-now sets both, as stage 03 and the result-overload rewrite do for every other
+now sets both, as Psi 03 and the result-overload rewrite do for every other
 authored expression call.
 
 A producer built from the repaired source observes the three frozen positives

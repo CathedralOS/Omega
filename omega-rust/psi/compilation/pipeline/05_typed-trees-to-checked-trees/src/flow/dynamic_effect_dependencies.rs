@@ -1,7 +1,7 @@
 //! Narrow operational envelopes through completed selector values, never current storage.
 //! Unknown predecessors retain the public envelope; every known alternative contributes.
 
-use crate::places::place_at;
+use crate::published::places::place_at;
 use arena::Handle;
 use checked_trees::{CheckFacts, FlowOperandFact};
 use facts::PlaceSegment;

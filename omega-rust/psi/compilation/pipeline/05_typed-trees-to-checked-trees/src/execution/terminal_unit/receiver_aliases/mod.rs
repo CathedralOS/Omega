@@ -7,7 +7,7 @@ use crate::execution::terminal_unit::types::{
     lent_storage_identity, state_flow, structural_access_for_type_reference,
 };
 use crate::flow::{expressions, state_statements};
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use crate::execution::terminal_unit::calls;
 

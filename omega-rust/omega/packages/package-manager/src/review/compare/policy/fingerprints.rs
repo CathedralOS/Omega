@@ -45,6 +45,19 @@ pub(super) fn package_context(
     );
     row_set(hash, rows);
     if let Some(candidate) = candidate {
+        crate::review::timings::note(|| {
+            format!(
+                "policy_comparison package={} source={} policy={} build={:?} observation={}",
+                key.name().as_str(),
+                crate::Hex(&candidate.source_consumption_commitment().digest()),
+                crate::Hex(&candidate.policy_commitment()),
+                candidate.selected_build_machine_identity(),
+                candidate
+                    .build_observation_summary()
+                    .map(|summary| crate::Hex(&build_observation_commitment(summary)).to_string())
+                    .unwrap_or_else(|| "none".to_owned()),
+            )
+        });
         field(hash, &candidate.source_consumption_commitment().digest());
         field(hash, &candidate.policy_commitment());
         field(hash, candidate.selected_build_machine_identity().as_bytes());

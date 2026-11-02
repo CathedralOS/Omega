@@ -16,9 +16,9 @@ pub struct BoundaryOpaqueRepresentationUse {
     pub application_report_fingerprint: u64,
     pub conformance_application_commitment: [u8; 32],
     pub representation_schema_version: u16,
-    pub origin: representation_planning::OpaqueRepresentationApplicationOrigin,
-    pub lifecycle: representation_planning::OpaqueRepresentationLifecycleDisposition,
-    pub copy_disposition: representation_planning::OpaqueRepresentationCopyDisposition,
+    pub origin: representation_selections::OpaqueRepresentationApplicationOrigin,
+    pub lifecycle: representation_selections::OpaqueRepresentationLifecycleDisposition,
+    pub copy_disposition: representation_selections::OpaqueRepresentationCopyDisposition,
     pub selected_application_commitment: [u8; 32],
 }
 
@@ -55,19 +55,19 @@ impl BoundaryOpaqueRepresentationUse {
         self.representation_schema_version
     }
 
-    pub const fn origin(&self) -> representation_planning::OpaqueRepresentationApplicationOrigin {
+    pub const fn origin(&self) -> representation_selections::OpaqueRepresentationApplicationOrigin {
         self.origin
     }
 
     pub const fn lifecycle(
         &self,
-    ) -> representation_planning::OpaqueRepresentationLifecycleDisposition {
+    ) -> representation_selections::OpaqueRepresentationLifecycleDisposition {
         self.lifecycle
     }
 
     pub const fn copy_disposition(
         &self,
-    ) -> representation_planning::OpaqueRepresentationCopyDisposition {
+    ) -> representation_selections::OpaqueRepresentationCopyDisposition {
         self.copy_disposition
     }
 
@@ -76,7 +76,7 @@ impl BoundaryOpaqueRepresentationUse {
     }
 
     pub fn rederived_selected_application_commitment(&self) -> [u8; 32] {
-        representation_planning::selected_application_commitment(
+        representation_selections::selected_application_commitment(
             self.conformance_application_commitment,
             self.lifecycle,
             self.copy_disposition,
@@ -88,7 +88,7 @@ impl BoundaryOpaqueRepresentationUse {
 #[cfg(test)]
 mod tests {
     use super::BoundaryOpaqueRepresentationUse;
-    use representation_planning::{
+    use representation_selections::{
         OPAQUE_REPRESENTATION_APPLICATION_SCHEMA_VERSION, OpaqueRepresentationApplicationOrigin,
         OpaqueRepresentationCopyDisposition, OpaqueRepresentationLifecycleDisposition,
         selected_application_commitment,

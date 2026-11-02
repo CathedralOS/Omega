@@ -2,7 +2,6 @@ use crate::diagnostics::parse_error::ParseError;
 use crate::grammar::expressions::parse_expression::{
     parse_expression_handle_without_struct_literals,
     parse_expression_handle_without_struct_literals_or_membership,
-    parse_proof_fact_expression_handle,
 };
 use crate::grammar::parameters::contracts::parse_machine_parameter_contracts;
 use crate::grammar::parameters::parse_parameters::parse_optional_return_type;
@@ -16,7 +15,7 @@ use syntax_trees::identifier::Identifier;
 use syntax_trees::item::{CapabilityContract, CapabilityContractKind, CrashCause};
 use tokens::{KeywordKind, PunctuationKind};
 
-/// The `terminates`/`reaches`/operational/contract/`where` rows parsed after a
+/// The `terminates`/`reaches`/operational/contract rows parsed after a
 /// machine header, field-named so the one owner that folds them into a
 /// `Machine` never destructures an eighteen-position tuple.
 pub(crate) struct MachineClauses {
@@ -38,7 +37,6 @@ pub(crate) struct MachineClauses {
     pub blocks: bool,
     pub contracts: HandleSpan<CapabilityContract>,
     pub return_type: syntax_trees::types::TypeReferenceHandle,
-    pub where_facts: HandleSpan<syntax_trees::item::ProofFact>,
     pub admitted_same_stack_bytes: u64,
     pub same_stack_clause_span: Option<source::SourceSpan>,
 }
@@ -73,7 +71,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
     let mut outcome_case_groups = Vec::<String>::new();
     let mut public_selectors = Vec::<String>::new();
     let mut return_type = syntax_trees::types::TypeReferenceHandle::invalid();
-    let mut where_facts = Vec::new();
     let mut admitted_same_stack_bytes = 0u64;
     let mut same_stack_clause_span = None;
 
@@ -329,36 +326,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             continue;
         }
 
-        // `where` carries proof facts. Conformance evidence is an explicit
-        // binder in the generic parameter list, never a test on a data
-        // parameter that would search for an implementation.
-        if input.at_contextual("where") {
-            let after_where = input.take_contextual("where")?;
-            if after_where.at_keyword(KeywordKind::Machine) {
-                return Err(after_where.error_here(
-                    "`where machine` is retired; write `requires machine` with an explicit generic binder",
-                ));
-            }
-            input = after_where;
-            loop {
-                if let Ok((subject, rest)) = input.take_identifier()
-                    && rest.at_contextual("satisfies")
-                {
-                    return Err(
-                        input.error_here(retired_where_conformance(subject.as_str(syntax_trees)))
-                    );
-                }
-                let (expression, rest) = parse_proof_fact_expression_handle(syntax_trees, input)?;
-                where_facts.push(syntax_trees::item::ProofFact::Expression(expression));
-                input = rest;
-                if !input.at_punctuation(PunctuationKind::Comma) {
-                    break;
-                }
-                input = input.take_punctuation(PunctuationKind::Comma, ",")?;
-            }
-            continue;
-        }
-
         // Anything else between the machine header and its `{` is a mistake --
         // silently skipping it hid dropped return types and typo'd clauses.
         return Err(input.expected_one_of_here(&[
@@ -377,10 +344,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
         ]));
     }
 
-    let mut where_facts_span = crate::storage::handle_spans::HandleSpanBuilder::new();
-    for fact in where_facts {
-        where_facts_span.push(items(syntax_trees).append_proof_fact(fact));
-    }
     Ok((
         MachineClauses {
             terminates_guarantee,
@@ -400,7 +363,6 @@ pub(crate) fn parse_machine_clauses<'tokens, 'source>(
             blocks,
             contracts: super::publish_capability_contracts(syntax_trees, contracts),
             return_type,
-            where_facts: where_facts_span.finish(),
             admitted_same_stack_bytes,
             same_stack_clause_span,
         },
@@ -419,7 +381,6 @@ fn machine_contract_fact_boundary(input: Input<'_, '_>) -> bool {
         || input.at_contextual("requires")
         || input.at_contextual("ensures")
         || input.at_contract_continuation_keyword()
-        || input.at_contextual("where")
         || input.at_contextual("satisfies")
         || input.at_same_stack_demand()
         || input.tokens.is_empty()
@@ -468,7 +429,6 @@ fn reject_ambiguous_outcome_specific_ensures(input: Input<'_, '_>) -> Result<(),
                     | "invokes"
                     | "suspends"
                     | "blocks"
-                    | "where"
                     | "satisfies"
                     | "stack"
             )
@@ -564,7 +524,6 @@ fn machine_reaches_clause_boundary(input: Input<'_, '_>) -> bool {
         || input.at_contextual("requires")
         || input.at_contextual("ensures")
         || input.at_contract_continuation_keyword()
-        || input.at_contextual("where")
         || input.at_contextual("satisfies")
         || input.at_same_stack_demand()
 }

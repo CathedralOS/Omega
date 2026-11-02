@@ -20,7 +20,7 @@ use super::{StorageWalk, place_spelling};
 use super::boundary_checks::*;
 
 use crate::checks::borrows::{StorageSelectorFacts, storage_path_compatibility};
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use checked_trees::facts::StorageWindowInvocation;
 use diagnostics::Diagnostic;

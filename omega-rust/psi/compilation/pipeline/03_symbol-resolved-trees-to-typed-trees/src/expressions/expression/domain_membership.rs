@@ -27,33 +27,20 @@ pub(super) fn lower_case_membership_expression(
     domain: HandleSpan<resolved::name::DiagnosticName>,
     type_symbol: SymbolHandle,
     case_symbol: SymbolHandle,
+    is_pattern: bool,
 ) -> Option<typed::expression::ExpressionHandle> {
-    lower_case_membership_expression_from_members(
+    case_membership_test(
         program,
         target,
         value,
         source.name_path_members(domain),
         type_symbol,
         case_symbol,
-    )
-}
-
-fn lower_case_membership_expression_from_members(
-    program: &resolved::SymbolResolvedTrees,
-    target: &mut typed::TypedTrees,
-    value: typed::expression::ExpressionHandle,
-    domain_members: &[resolved::name::DiagnosticName],
-    type_symbol: SymbolHandle,
-    case_symbol: SymbolHandle,
-) -> Option<typed::expression::ExpressionHandle> {
-    case_membership_test(
-        program,
-        target,
-        value,
-        domain_members,
-        type_symbol,
-        case_symbol,
-        typed::expression::BinaryOperator::Equal,
+        if is_pattern {
+            typed::expression::BinaryOperator::CaseMembership
+        } else {
+            typed::expression::BinaryOperator::Equal
+        },
     )
 }
 

@@ -11,7 +11,7 @@ use validation::find_call_site;
 
 use crate::flow::canonical_place_from_symbol;
 use crate::flow::canonical_place_segments_may_overlap;
-use crate::places::place_at;
+use crate::published::places::place_at;
 
 use checked_trees::expression::ExpressionNode;
 use checked_trees::statement::StatementNode;
@@ -57,6 +57,9 @@ pub(super) enum WritePlaceNamespace {
 pub(in crate::flow) struct CallMutationWrite {
     pub region: StorageRegion,
     pub source: Option<StorageRegion>,
+    /// Exact destination presentation of the checked assignment, retained
+    /// through call projection. A may-write footprint alone proves no domain.
+    pub checked_write_type: typed_trees::types::TypeReferenceHandle,
 }
 
 /// Caller storage footprint. `None` requires full invalidation; an empty
@@ -168,6 +171,7 @@ pub(in crate::flow) fn call_mutation_writes(
             writes.push(CallMutationWrite {
                 region,
                 source: None,
+                checked_write_type: Default::default(),
             });
         }
     }
@@ -264,19 +268,20 @@ fn call_write_places(
         return Some(Vec::new());
     }
 
-    let summarized_places = phase_profile::scope("psi.05.build_check_facts.flow.mutation.summary", || {
-        instantiate_known_call_mutation_summary_places(
-            program,
-            caller_machine_symbol,
-            caller_state_symbol,
-            borrow,
-            borrow_call,
-            state_mutation_summaries,
-            namespace,
-            call_frames,
-            loan,
-        )
-    });
+    let summarized_places =
+        phase_profile::scope("psi.05.build_check_facts.flow.mutation.summary", || {
+            instantiate_known_call_mutation_summary_places(
+                program,
+                caller_machine_symbol,
+                caller_state_symbol,
+                borrow,
+                borrow_call,
+                state_mutation_summaries,
+                namespace,
+                call_frames,
+                loan,
+            )
+        });
     if summarized_places.is_none() && matches!(namespace, WritePlaceNamespace::Storage) {
         let boundary_target = program.traits().iter().any(|definition| {
             definition.is_boundary
@@ -357,7 +362,7 @@ fn exclusive_loan_places(
                 segments: Vec::new(),
             };
             place.extend_segments(borrow.access_segments.span_or_empty(access.segments));
-            crate::collections::push_unique(&mut places, place);
+            crate::shared::collections::push_unique(&mut places, place);
         }
     }
 
@@ -415,6 +420,7 @@ fn unattributed_writes(regions: Vec<StorageRegion>) -> Vec<CallMutationWrite> {
         .map(|region| CallMutationWrite {
             region,
             source: None,
+            checked_write_type: Default::default(),
         })
         .collect()
 }
@@ -470,7 +476,7 @@ fn shared_call_storage_regions(
             call_frames,
         )? {
             let StorageRegion::Declared(coarse) = region else {
-                crate::collections::push_unique(&mut places, region);
+                crate::shared::collections::push_unique(&mut places, region);
                 continue;
             };
             // The durable frame path deliberately drops index selectors to the
@@ -499,12 +505,12 @@ fn shared_call_storage_regions(
             };
             if refinements.is_empty() {
                 let region = StorageRegion::Declared(coarse);
-                crate::collections::push_unique(&mut places, region);
+                crate::shared::collections::push_unique(&mut places, region);
                 continue;
             }
             for refined in refinements {
                 let region = StorageRegion::Declared(refined);
-                crate::collections::push_unique(&mut places, region);
+                crate::shared::collections::push_unique(&mut places, region);
             }
         }
     }
@@ -569,7 +575,7 @@ fn boundary_frame_access_places(
             break;
         };
         for rebased in rebased {
-            crate::collections::push_unique(&mut exclusive_referents, rebased);
+            crate::shared::collections::push_unique(&mut exclusive_referents, rebased);
         }
     }
     if refinable
@@ -629,7 +635,7 @@ fn boundary_frame_access_places(
                 ) {
                     Some(rebased) => {
                         for anchor in rebased {
-                            crate::collections::push_unique(&mut coarse_anchors, anchor);
+                            crate::shared::collections::push_unique(&mut coarse_anchors, anchor);
                         }
                     }
                     None => {
@@ -662,7 +668,7 @@ fn boundary_frame_access_places(
         ) {
             Some(rebased) => {
                 for receiver in rebased {
-                    crate::collections::push_unique(&mut coarse_anchors, receiver);
+                    crate::shared::collections::push_unique(&mut coarse_anchors, receiver);
                 }
             }
             None => refinable = false,
@@ -841,7 +847,7 @@ pub(crate) fn frame_storage_writes(
             source,
             call_frames,
         )? {
-            crate::collections::push_unique(&mut places, place);
+            crate::shared::collections::push_unique(&mut places, place);
         }
     }
     local_origins::close_storage_places_over_aliases(

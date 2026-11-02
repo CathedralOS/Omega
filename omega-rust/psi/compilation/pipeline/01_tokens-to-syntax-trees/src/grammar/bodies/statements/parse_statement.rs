@@ -151,6 +151,7 @@ fn parse_statement_handle<'tokens, 'source>(
             .insert_transition_target(TransitionTargetNode::Terminal);
         return Ok((
             stmts(syntax_trees).insert(StatementNode::Transition(TableTransition {
+                patterns: HandleSpan::empty(),
                 target,
                 continuation: TransitionTargetHandle::invalid(),
                 guard: TransitionGuardNode::Always,
@@ -242,6 +243,7 @@ fn parse_statement_handle<'tokens, 'source>(
         let source_span = exprs_of(syntax_trees).source_span(expression);
         return Ok((
             stmts(syntax_trees).insert(StatementNode::Transition(TableTransition {
+                patterns: HandleSpan::empty(),
                 target,
                 continuation: TransitionTargetHandle::invalid(),
                 guard: TransitionGuardNode::Always,

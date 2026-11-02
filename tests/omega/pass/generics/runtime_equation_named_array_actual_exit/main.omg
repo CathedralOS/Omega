@@ -11,7 +11,7 @@ requires Payload == [u64; 4]
 { value: Payload; }
 
 machine capacity<Payload, const Count: u64>() -> u64
-where Payload == [u64; Count]
+requires Payload == [u64; Count]
 { Count }
 
 data Main {

@@ -29,7 +29,7 @@ pub enum FunctionFragmentControlProvenance {
     },
     None,
     Jump {
-        successor: FunctionFragmentSuccessorProvenance,
+        successor: Box<FunctionFragmentSuccessorProvenance>,
     },
     InternalCall {
         target: selected_instructions::SelectedCallTarget,
@@ -46,8 +46,10 @@ pub enum FunctionFragmentControlProvenance {
     },
     ConditionalBranch {
         predicate: FunctionFragmentConditionalBranchPredicate,
-        when_taken: FunctionFragmentSuccessorProvenance,
-        when_fallthrough: FunctionFragmentSuccessorProvenance,
+        // Successor bindings and fuel remain complete owned values, but a
+        // non-control instruction must not pay two inline successor rosters.
+        when_taken: Box<FunctionFragmentSuccessorProvenance>,
+        when_fallthrough: Box<FunctionFragmentSuccessorProvenance>,
     },
     Return {
         psi_return_edge: EdgeId,

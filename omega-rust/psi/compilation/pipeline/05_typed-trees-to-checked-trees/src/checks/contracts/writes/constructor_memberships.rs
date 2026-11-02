@@ -13,8 +13,8 @@ use super::{
     CheckFacts, ConstructionWalk, Diagnostic, ExpressionHandle, SymbolHandle, record_qualification,
     value_proves_qualification_in_contexts,
 };
-use crate::labels::{machine_name, symbol_name};
-use crate::places::place_at;
+use crate::published::labels::{machine_name, symbol_name};
+use crate::published::places::place_at;
 use checked_trees::FlowOperandFact;
 use checked_trees::FlowStateFact;
 use facts::FactContextHandle;

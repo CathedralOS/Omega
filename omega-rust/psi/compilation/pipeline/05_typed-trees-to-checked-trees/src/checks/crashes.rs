@@ -93,7 +93,7 @@ pub(crate) fn check_operator_invocation_custody(
     program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    let expected = crate::facts::operator_crashes::build(
+    let expected = crate::published::facts::operator_crashes::build(
         program,
         &facts.operators,
         &facts.flow,
@@ -157,7 +157,8 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
             continue;
         }
         let incoming = incoming_guards.for_machine(machine.symbol);
-        let parameter_names = crate::facts::machine_entry_parameter_names(program, machine);
+        let parameter_names =
+            crate::published::facts::machine_entry_parameter_names(program, machine);
         // The declaration classification is a program roster and the mutable
         // primitive parameters are machine facts; the guard-consequence
         // derivations below reread both per state hosting checked work.
@@ -332,7 +333,7 @@ pub(crate) fn infer_path_conditioned_guard_coverage(
                     "`{}` in machine `{}` state `{}` has an uncovered Trap result-policy site ({:?}); publish a same-cause `crashes` route covering this operation or prove its raw result finite",
                     program.expression_table.display_name(operation.expression),
                     machine.name.as_str(),
-                    crate::labels::symbol_name(program, operation.location.state()),
+                    crate::published::labels::symbol_name(program, operation.location.state()),
                     operation.adapter,
                 )).with_source_span(program.expression_table.source_span(operation.expression)));
             }
@@ -402,7 +403,7 @@ fn classify_state_guards(
     let conjunct_identities = conjuncts
         .iter()
         .map(|&(guard, negated)| {
-            crate::facts::canonical_crash_path_predicate(
+            crate::published::facts::canonical_crash_path_predicate(
                 program,
                 guard,
                 negated,
@@ -490,7 +491,7 @@ fn site_path_classification(
         let mut order_relations = classification.order_relations.clone();
         let mut integer_disequalities = classification.disequalities.clone();
         for &(guard, negated) in &fallthrough.guards {
-            path_guard_conjuncts.push(crate::facts::canonical_crash_path_predicate(
+            path_guard_conjuncts.push(crate::published::facts::canonical_crash_path_predicate(
                 program,
                 guard,
                 negated,
@@ -582,7 +583,7 @@ pub(crate) fn check_published_ceiling_coverage(
                     .machine_by_symbol(call.target_machine())
                     .map(|machine| machine.name.as_str().to_owned())
                     .unwrap_or_else(|| {
-                        crate::labels::call_target_label(program, call.target_state())
+                        crate::published::labels::call_target_label(program, call.target_state())
                     });
                 diagnostics.push(Diagnostic::error(format!(
                     "call from `{caller_name}` to `{target_name}` at statement {} call {} has an uncovered {:?} crash route; publish a same-cause route whose guard covers this invocation",
@@ -611,7 +612,7 @@ pub(crate) fn check_published_ceiling_coverage(
                         Diagnostic::error(format!(
                             "`{}` in `{caller_name}` selects operator `{}`, which has an uncovered {:?} crash route; publish a same-cause route whose guard covers this invocation",
                             program.expression_table.display_name(expression),
-                            crate::labels::symbol_name(program, invocation.selected_operator),
+                            crate::published::labels::symbol_name(program, invocation.selected_operator),
                             surviving.cause(),
                         ))
                         .with_source_span(program.expression_table.source_span(expression)),
@@ -735,7 +736,7 @@ fn collect_structural_guard_consequences(
 ) {
     use typed_trees::expression::ExpressionNode;
 
-    output.push(crate::facts::canonical_crash_path_predicate(
+    output.push(crate::published::facts::canonical_crash_path_predicate(
         program,
         expression,
         negated,
@@ -890,13 +891,13 @@ fn crash_operand_identities(
     content_conservation: &[ContentConservationSourcePlan],
 ) -> (CrashPredicateIdentity, CrashPredicateIdentity) {
     (
-        crate::facts::canonical_crash_operand_identity(
+        crate::published::facts::canonical_crash_operand_identity(
             program,
             left,
             parameter_names,
             content_conservation,
         ),
-        crate::facts::canonical_crash_operand_identity(
+        crate::published::facts::canonical_crash_operand_identity(
             program,
             right,
             parameter_names,
@@ -935,7 +936,7 @@ fn collect_normalized_integer_order_relation(
             right,
             strict,
         };
-        crate::collections::push_unique(&mut *output, relation);
+        crate::shared::collections::push_unique(&mut *output, relation);
     };
     match normalized {
         BinaryOperator::Less => push(left, right, true),
@@ -958,7 +959,7 @@ fn collect_normalized_integer_order_relation(
                 left_identity,
                 right_identity,
             };
-            crate::collections::push_unique(&mut *disequalities, disequality);
+            crate::shared::collections::push_unique(&mut *disequalities, disequality);
         }
         _ => unreachable!("normalized comparisons use only comparison operators"),
     }
@@ -989,7 +990,7 @@ fn push_transitive_integer_order_consequences(
         })
         .collect::<Vec<_>>();
     for refinement in strict_refinements {
-        crate::collections::push_unique(&mut *relations, refinement);
+        crate::shared::collections::push_unique(&mut *relations, refinement);
     }
 
     loop {
@@ -1089,24 +1090,28 @@ fn push_comparison_consequences(
         }
     }
     for operator in consequences {
-        output.push(crate::facts::canonical_crash_binary_path_predicate(
-            program,
-            operator,
-            left,
-            right,
-            parameter_names,
-            content_conservation,
-        ));
-        output.push(crate::facts::canonical_crash_binary_path_predicate(
-            program,
-            operator
-                .mirrored_comparison()
-                .expect("only normalized comparisons reach operand reversal"),
-            right,
-            left,
-            parameter_names,
-            content_conservation,
-        ));
+        output.push(
+            crate::published::facts::canonical_crash_binary_path_predicate(
+                program,
+                operator,
+                left,
+                right,
+                parameter_names,
+                content_conservation,
+            ),
+        );
+        output.push(
+            crate::published::facts::canonical_crash_binary_path_predicate(
+                program,
+                operator
+                    .mirrored_comparison()
+                    .expect("only normalized comparisons reach operand reversal"),
+                right,
+                left,
+                parameter_names,
+                content_conservation,
+            ),
+        );
     }
 }
 

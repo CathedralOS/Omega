@@ -18,7 +18,7 @@ pub(crate) use reference_places::{
 pub(crate) use result_memberships::CapturedResultMemberships;
 
 use crate::flow::expressions;
-use crate::places::place_at;
+use crate::published::places::place_at;
 use checked_trees::{FlowControlFacts, FlowFacts, FlowOperandFact, FlowStateFact};
 use facts::{FactPlan, PlaceRoot, PlaceSegment};
 use typed_trees::types::TypeReferenceHandle;
@@ -128,7 +128,7 @@ pub(crate) fn captured_observation_roots(
         if !referent.root.is_valid() {
             return None;
         }
-        crate::collections::push_unique(&mut roots, referent.root);
+        crate::shared::collections::push_unique(&mut roots, referent.root);
     }
     Some(roots)
 }

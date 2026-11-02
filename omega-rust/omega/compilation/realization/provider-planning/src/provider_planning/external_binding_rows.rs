@@ -20,7 +20,7 @@ pub(crate) fn extract_native_external_binding_rows(
     ],
     services: ServiceCatalog<'_>,
     calling_program: &crate::calling_policy_plans::CallingProgram,
-    opaque_representation_selections: &[representation_planning::OpaqueRepresentationSelection],
+    opaque_representation_selections: &[representation_selections::OpaqueRepresentationSelection],
 ) -> Result<Vec<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
     let context = ExternalBindingContext {
         selected_target,
@@ -55,7 +55,7 @@ pub(crate) struct ExternalBindingContext<'a> {
     pub services: ServiceCatalog<'a>,
     pub calling_program: &'a crate::calling_policy_plans::CallingProgram,
     pub opaque_representation_selections:
-        &'a [representation_planning::OpaqueRepresentationSelection],
+        &'a [representation_selections::OpaqueRepresentationSelection],
 }
 
 impl ExternalBindingContext<'_> {
@@ -102,7 +102,7 @@ impl ExternalBindingContext<'_> {
         row_index: usize,
         provenance: &crate::ProviderPlanProvenance,
     ) -> Result<Option<calling_conventions::ExternalBindingRow>, Vec<Diagnostic>> {
-        use crate::calling_policy_plans::selected_source_calling_applications;
+        use crate::calling_policy_plans::selected_calling_applications;
         use calling_conventions::{CallingPolicy, ExternalBindingKind, ExternalBindingRow};
         use effects::provider_plan::ProviderBinding;
         let Self {
@@ -169,11 +169,10 @@ impl ExternalBindingContext<'_> {
             | ProviderBinding::VtableSlot { .. }
             | ProviderBinding::CheckedAdapter { .. } => return Ok(None),
         };
-        let selected = selected_source_calling_applications(
-            services,
+        let selected = selected_calling_applications(
+            calling_program.artifact.semantic_module(),
             boundary_calling_plan_realizations,
             plan,
-            provenance,
             row_index,
         )
         .map_err(|diagnostic| vec![diagnostic])?;

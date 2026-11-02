@@ -21,7 +21,7 @@ class NativeBoundaryTests(unittest.TestCase):
         self.metadata = {"workspace_root": str(self.root), "packages": []}
         self.native = self.package("native-production", NATIVE_ROOT)
         self.evidence = self.package(
-            "effects", "omega-rust/omega/compilation/backend/plans/provider-evidence"
+            "effects", "omega-rust/omega/compilation/backend/plans/effects"
         )
         self.edge(self.native, self.evidence)
 
@@ -160,7 +160,7 @@ class NativeBoundaryTests(unittest.TestCase):
 
     def test_realization_cannot_import_checker_under_an_inactive_alias(self):
         dispatch = self.package("selected-dispatch", "omega-rust/omega/compilation/realization/selected-dispatch")
-        checker = self.package("validation", "omega-rust/psi/compilation/checking")
+        checker = self.package("validation", "omega-rust/psi/compilation/validation")
         self.edge(dispatch, checker, kind="dev")
         self.assertEqual(realization_checker_entry_violations(self.metadata), [])
         self.edge(dispatch, checker, kind="build", rename="facts", optional=True, target='cfg(windows)')
@@ -170,7 +170,7 @@ class NativeBoundaryTests(unittest.TestCase):
 
     def test_source_coordinator_keeps_its_checker_dependency(self):
         coordinator = self.package("psi-compiler", "omega-rust/psi/compilation/driver")
-        checker = self.package("validation", "omega-rust/psi/compilation/checking")
+        checker = self.package("validation", "omega-rust/psi/compilation/validation")
         self.edge(coordinator, checker)
         self.assertEqual(realization_checker_entry_violations(self.metadata), [])
 
@@ -255,7 +255,7 @@ class ForbiddenDependencyTests(unittest.TestCase):
                 self.assertTrue((self.root / path).is_dir(), f"{path}: {rule.reason}")
 
     def test_psi_cannot_depend_on_omega(self):
-        checking = self.package("checking", "omega-rust/psi/compilation/checking")
+        checking = self.package("checking", "omega-rust/psi/compilation/validation")
         target = self.package("target", "omega-rust/omega/compilation/backend/target")
         self.edge(checking, target, optional=True, target='cfg(unix)')
         failures = forbidden_dependency_violations(self.metadata)
@@ -263,7 +263,7 @@ class ForbiddenDependencyTests(unittest.TestCase):
         self.assertIn("checking -> target: Psi must not depend on Omega", failures[0])
 
     def test_dev_dependency_on_omega_is_not_a_production_edge(self):
-        checking = self.package("checking", "omega-rust/psi/compilation/checking")
+        checking = self.package("checking", "omega-rust/psi/compilation/validation")
         target = self.package("target", "omega-rust/omega/compilation/backend/target")
         self.edge(checking, target, kind="dev")
         self.assertEqual(forbidden_dependency_violations(self.metadata), [])
@@ -306,7 +306,7 @@ class ForbiddenDependencyTests(unittest.TestCase):
             ("omega-rust/omega/compilation/representations/target-operations", "omega-rust/psi/interpreter/checked-interpreter"),
             ("omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
              "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi"),
-            ("omega-rust/omega/compilation/backend/layout", "omega-rust/psi/compilation/checking/representation-planning"),
+            ("omega-rust/omega/compilation/backend/layout", "omega-rust/psi/compilation/validation/representation-planning"),
         ):
             with self.subTest(owner=owner):
                 self.metadata["packages"] = [dispatch, typed]
@@ -319,7 +319,7 @@ class ForbiddenDependencyTests(unittest.TestCase):
     def test_omega_crate_keeps_terminal_psi_and_foundations(self):
         layout = self.package("layout", "omega-rust/omega/compilation/backend/layout")
         for dependency in ("omega-rust/psi/compilation/representations/terminal-psi",
-                           "omega-rust/psi/compilation/checking/terminal-installation",
+                           "omega-rust/psi/compilation/validation/terminal-installation",
                            "omega-rust/psi/foundation/layout-plans"):
             self.edge(layout, self.package(Path(dependency).name, dependency))
         self.assertEqual(forbidden_dependency_violations(self.metadata), [])

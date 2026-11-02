@@ -10,13 +10,13 @@ cleanup:
   such asserts; within an hour of the AGENTS.md ban (#1159), three more PRs
   added 14 reads to product_boundary.rs. The per-file counts in
   `tools/source_text_reads.txt` may only fall.
-- Stage 06 re-derivation. The 2026-10-04 owner ruling (TASKS.md, "Lowering,
-  checker, data-flow, and PCC simplification") makes stage 06 a mechanical
-  lowering of stage 05's plans, and omega-rust/pipeline.md forbids stages from
-  reconstructing missing input facts. In the two weeks to 2026-11-01 stage 06
-  took 124 repairs in 219 commits and changed with stage 05's execution and
-  checks in 39 and 36 commits: each production stage 05 learned needed a
-  matching shape gate or source re-read in stage 06. Two per-file counts may only fall (LOC-VALUE-CUSTODY
+- Psi 06 re-derivation. The 2026-10-04 owner ruling (TASKS.md, "Lowering,
+  checker, data-flow, and PCC simplification") makes Psi 06 a mechanical
+  lowering of Psi 05's plans, and omega-rust/pipeline.md forbids stages from
+  reconstructing missing input facts. In the two weeks to 2026-11-01 Psi 06
+  took 124 repairs in 219 commits and changed with Psi 05's execution and
+  checks in 39 and 36 commits: each production Psi 05 learned needed a
+  matching shape gate or source re-read in Psi 06. Two per-file counts may only fall (LOC-VALUE-CUSTODY
   retires them): shape gates (`unsupported(`, `Unsupported`, `unpinned(`) in
   `tools/stage06_shape_gates.txt`, and reads of source context (the
   `TypedTrees` table, `typed_trees::expression` nodes, and `.typed`, the typed
@@ -118,8 +118,8 @@ STATUS_PHRASE = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
-# Stage 06 sites that refuse a production stage 05 already checked, and reads
-# that reach past stage 05's plans into the typed source trees.
+# Psi 06 sites that refuse a production Psi 05 already checked, and reads
+# that reach past Psi 05's plans into the typed source trees.
 SHAPE_GATE = re.compile(r"unsupported\(|Unsupported|unpinned\(")
 SOURCE_CONTEXT = re.compile(r"\b(?:Frozen)?TypedTrees\b|\btyped_trees::expression\b|\.typed\b")
 
@@ -215,23 +215,23 @@ RATCHETS = (
         "Contracts state rules; record where the implementation stands as a remaining "
         "bullet on the owning TASKS.md item, and phrase the rule without it."),
     Ratchet(
-        SHAPE_GATE_BASELINE, "update-shape-gates", "stage-06 shape gates", stage06_files,
+        SHAPE_GATE_BASELINE, "update-shape-gates", "Psi 06 shape gates", stage06_files,
         lambda text: len(SHAPE_GATE.findall(text)),
-        ("Stage 06 shape gates (unsupported(, Unsupported, unpinned() per file.",
-         "Counts may only fall: stage 06 is a mechanical lowering of stage 05's plans",
+        ("Psi 06 shape gates (unsupported(, Unsupported, unpinned() per file.",
+         "Counts may only fall: Psi 06 is a mechanical lowering of Psi 05's plans",
          "(TASKS.md owner ruling 2026-10-04; LOC-VALUE-CUSTODY retires these gates)."),
-        "Stage 06 lowers stage 05's plans without re-checking them (TASKS.md owner "
-        "ruling 2026-10-04): record the missing decision on the stage 05 plan and "
+        "Psi 06 lowers Psi 05's plans without re-checking them (TASKS.md owner "
+        "ruling 2026-10-04): record the missing decision on the Psi 05 plan and "
         "lower it, or reject the program in checking with a reject twin."),
     Ratchet(
-        SOURCE_CONTEXT_BASELINE, "update-source-context", "stage-06 source-context reads",
+        SOURCE_CONTEXT_BASELINE, "update-source-context", "Psi 06 source-context reads",
         stage06_files, lambda text: len(SOURCE_CONTEXT.findall(text)),
-        ("Stage 06 reads of source context (TypedTrees, typed_trees::expression,",
+        ("Psi 06 reads of source context (TypedTrees, typed_trees::expression,",
          ".typed) per file. Counts may only fall: stages do not reconstruct missing",
          "input facts (omega-rust/pipeline.md \"Public contracts\")."),
         "Stages cannot reconstruct missing input facts from source context "
-        "(omega-rust/pipeline.md \"Public contracts\"): read the fact from the stage 05 "
-        "plan, and record it there when stage 05 does not yet publish it."),
+        "(omega-rust/pipeline.md \"Public contracts\"): read the fact from the Psi 05 "
+        "plan, and record it there when Psi 05 does not yet publish it."),
 )
 
 

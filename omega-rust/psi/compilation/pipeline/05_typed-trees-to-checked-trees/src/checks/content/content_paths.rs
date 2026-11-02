@@ -209,7 +209,7 @@ pub(super) fn entry_claim_identity<'event>(
     input_path: &[PlaceSegment],
     events: impl Iterator<Item = &'event FlowPermissionEventFact>,
 ) -> Option<PermissionClaimIdentity> {
-    let identities = crate::collections::unique_in_order(
+    let identities = crate::shared::collections::unique_in_order(
         events
             .filter(|event| {
                 event.state_symbol == state_symbol
@@ -484,7 +484,7 @@ pub(crate) fn projection_observations(
                         })
                     })
                     .collect::<Option<Vec<_>>>()?;
-                crate::collections::push_unique(&mut *paths, path);
+                crate::shared::collections::push_unique(&mut *paths, path);
             }
             ContentScalarExpression::Natural(_) => {}
             ContentScalarExpression::Successor(inner) => scalar(inner, paths)?,

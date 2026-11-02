@@ -4,9 +4,9 @@
 //! immutable while straight-line emission reserves checked completion names.
 //! Namespace reservation is not live custody: the producing operation alone
 //! establishes or receives the resource when execution completes.
-use crate::checked_facts::flow_facts;
-use crate::lowering_error::{LoweringError, unsupported};
-use crate::terminal_identities::{allocate_dense, claim_id, lookup_claim_id};
+use crate::shared::checked_facts::flow_facts;
+use crate::shared::lowering_error::{LoweringError, unsupported};
+use crate::shared::terminal_identities::{allocate_dense, claim_id, lookup_claim_id};
 use language_semantics::PermissionClaimIdentity;
 use semantic_vocabulary::ClaimId;
 
@@ -908,65 +908,32 @@ pub(crate) fn lower_owned_operand_claims(
         .map_err(|_| LoweringError::Unsupported("structural return coordinate exceeds usize"))?;
     let expression =
         validation::ownership_source_expression(&checked.typed, state, statement, expression);
-    // Source transfer discovery and selection receipts use ownership places.
-    // A noncopy saved subject observes its original owning home; its proof/read
-    // anchor is not another source of claims. Copy subjects retain their own
-    // captured home through that same shared query.
-    let place = validation::ownership_place_from_expression_in_state(
-        &checked.typed,
-        state,
-        statement,
-        expression,
-    )
-    .ok_or(LoweringError::Unsupported(
-        "owned operand has no exact owning source",
-    ))?;
-    let root = place.root;
-    let prefix = place.segments.as_slice();
-    let evaluated_transfers = flow_facts(checked)
-        .ownership
-        .permissions
+    let ownership = &flow_facts(checked).ownership;
+    // Checking published where each live owned linear transfer lands within
+    // its consuming operand. The event owns the claim; the placement names
+    // only the operand-relative storage that carries it.
+    let evaluated_transfers = ownership
+        .owned_transfer_paths
         .iter()
-        .filter_map(|(_, event)| {
+        .filter_map(|(_, transfer)| {
+            let event = ownership.permissions.get(transfer.event);
             (event.machine_symbol == machine
                 && event.state_symbol == state
-                && event.root == root
                 && event.expression == expression
-                && event.kind == language_semantics::PermissionEventKind::Transfer
-                && event.access == language_semantics::PermissionAccess::Owned
-                && event.multiplicity == language_semantics::Multiplicity::Linear
-                && event.obligation_live)
-                .then_some(event)
+                && transfer.placement != checked_trees::FlowOwnedTransferPlacement::OtherRoot)
+                .then_some((event, transfer.placement))
         })
         .collect::<Vec<_>>();
-    // Evaluated events own the transfer authority. Stage 05 records a selection
+    // Evaluated events own the transfer authority. Psi 05 records a selection
     // receipt only from these same events at this exact evaluation, so the
     // receipt supplies no claim and needs no second comparison here.
     if evaluated_transfers.is_empty() {
         return Ok(Vec::new());
     }
-    let root_type = validation::canonical_place_type_reference(
-        &checked.typed,
-        state,
-        statement,
-        &validation::CanonicalPlace {
-            root,
-            segments: Vec::new(),
-        },
-    )
-    .ok_or(LoweringError::Unsupported(
-        "returned owner has no exact carrier",
-    ))?;
-    // These coordinates name the selected value's storage, including a loan
-    // descriptor. They do not own its referent. Actual linear claims below
-    // still require structural_claim_path and matching evaluated provenance.
-    let (prefix, _) =
-        validation::structural_transfer_storage_path(&checked.typed, root_type, prefix)
-            .map_err(LoweringError::Unsupported)?;
     let mut claims = Vec::new();
     let mut consumer = expected_source;
     let mut evaluation = expected_evaluation;
-    for event in &evaluated_transfers {
+    for (event, placement) in &evaluated_transfers {
         if event.evaluation == checked_trees::FlowPermissionEvaluation::Unknown
             || evaluation.is_some_and(|lane| lane != event.evaluation)
         {
@@ -984,17 +951,16 @@ pub(crate) fn lower_owned_operand_claims(
             return unsupported("owned operand has multiple consuming coordinates");
         }
         consumer = Some(event.source);
-        let path = validation::structural_claim_path(
-            &checked.typed,
-            root_type,
-            flow_facts(checked)
-                .ownership
-                .segments
-                .span_or_empty(event.segments),
-        )
-        .map_err(LoweringError::Unsupported)?;
-        let Some(relative) = path.strip_prefix(prefix.as_slice()) else {
-            continue;
+        let relative = match placement {
+            checked_trees::FlowOwnedTransferPlacement::Within(path) => {
+                ownership.owned_transfer_path_segments.span_or_empty(*path)
+            }
+            // Outside storage stays with the root; other roots are filtered above.
+            checked_trees::FlowOwnedTransferPlacement::Outside
+            | checked_trees::FlowOwnedTransferPlacement::OtherRoot => continue,
+            checked_trees::FlowOwnedTransferPlacement::Unresolved => {
+                return unsupported("owned operand transfer has no checked placement");
+            }
         };
         let path =
             crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(

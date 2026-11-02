@@ -73,5 +73,14 @@ it does not assume counts and addresses have the same width in general.
 Both engines return 0. Host-adapter tests separately check that retirement invalidates every
 retained handle and that unknown or out-of-bounds ranges supply no storage.
 
-This row does not complete allocator reset or Vec growth/reallocation/drop.
-Those remain the parent outcome's acceptance, not hidden behind this milestone.
+The [package allocator customer](../../../../tests/omega/pass/memory/bump_allocator_canary/README.md)
+extends this lifecycle through the ordinary Bump package: exhausted allocation,
+release without cursor rewind, checked recomposition, full reset, and reuse.
+Vec growth/reallocation/drop remains the parent outcome's acceptance.
+
+The [runtime-cell production](runtime_cells/README.md) partitions at runtime,
+updates actual backing through a qualification-erasing view, and rejoins the
+original descriptor. Its bounds twin rejects a cell extending past the end.
+The accompanying ordinary-RAM control preserves an untouched neighbor but
+rejects a stale fact about the written field; content-only writes must not
+accidentally become the rule for every access view.
