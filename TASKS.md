@@ -658,7 +658,6 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     park/resume contract to the production Build scheduler, replacing checked-tree Build
     evaluation and the live-source/Git static syntax projections in
     `omega-rust/omega/packages/build-declarations`.
-  - Complete applied/inherited multi-slot provider readiness.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final
