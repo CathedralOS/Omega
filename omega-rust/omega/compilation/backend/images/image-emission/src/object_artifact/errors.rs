@@ -52,6 +52,7 @@ pub enum ObjectError {
         import: Option<String>,
         parameter: Option<u32>,
         reason: &'static str,
+        transport: Option<String>,
     },
     InvalidCallbackAddressCustody {
         caller: MachineId,

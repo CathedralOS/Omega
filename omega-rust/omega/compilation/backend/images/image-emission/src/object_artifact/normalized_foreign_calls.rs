@@ -678,17 +678,23 @@ fn foreign_scalar_argument_custody<F>(
 where
     F: Fn(&selected_instructions::SelectedOperand, target_operations::MachineRegister) -> bool,
 {
-    let invalid_argument = |reason, parameter| ObjectError::InvalidForeignCallArgument {
-        caller,
-        owner,
-        import: record
-            .call
-            .binding
-            .symbolic_import()
-            .map(|(locator, _)| format!("{locator:?}")),
-        parameter,
-        reason,
-    };
+    let invalid_argument =
+        |reason, argument: Option<&target_operations::TargetUnitScalarCallArgument>| {
+            ObjectError::InvalidForeignCallArgument {
+                caller,
+                owner,
+                import: record
+                    .call
+                    .binding
+                    .symbolic_import()
+                    .map(|(locator, _)| format!("{locator:?}")),
+                parameter: argument.map(|argument| argument.parameter_index),
+                reason,
+                transport: argument.map(|argument| {
+                    scalar_argument_transport_context(function, block, fragment, record, argument)
+                }),
+            }
+        };
     let invalid = |reason| invalid_argument(reason, None);
     let plan = &record.call.binding.boundary_entry_plan.call;
     let placements = record.call.binding.operand_placements();
@@ -750,7 +756,7 @@ where
     }
     let mut scalar_arguments = Vec::new();
     for (scalar_ordinal, argument) in record.call.scalar_arguments.iter().enumerate() {
-        let invalid = |reason| invalid_argument(reason, Some(argument.parameter_index));
+        let invalid = |reason| invalid_argument(reason, Some(argument));
         let native_position = usize::try_from(argument.parameter_index)
             .map_err(|_| invalid("parameter index is not addressable"))?;
         let shape = scalar_shape(argument.source.scalar_type())
@@ -866,6 +872,71 @@ where
         });
     }
     Ok(scalar_arguments)
+}
+
+/// Keep the rejected selected transport visible without depending on a source
+/// product's independent numbering. No recovery or placement is inferred here.
+fn scalar_argument_transport_context(
+    function: &selected_instructions::SelectedFunction,
+    block: &selected_instructions::SelectedBlock,
+    fragment: &machine_code::PlacedFunctionFragment,
+    record: &selected_instructions::SelectedNormalizedForeignCall,
+    argument: &target_operations::TargetUnitScalarCallArgument,
+) -> String {
+    use selected_instructions::{FrameStorageSlotId, SelectedInstructionKind};
+    let anchor = block
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(
+                instruction.kind,
+                SelectedInstructionKind::FrameAddress {
+                    slot: FrameStorageSlotId::Outgoing(slot), byte_offset: 0,
+                } if slot.invocation_site == record.invocation_site
+                    && slot.argument_index == argument.parameter_index
+            )
+        })
+        .or_else(|| {
+            block.instructions.iter().position(|instruction| {
+                instruction
+                    .provenance
+                    .values
+                    .contains(&argument.source.source_value())
+            })
+        })
+        .unwrap_or(0);
+    let instructions = &block.instructions
+        [anchor.saturating_sub(2)..anchor.saturating_add(12).min(block.instructions.len())];
+    let mut registers = instructions
+        .iter()
+        .flat_map(|instruction| {
+            instruction
+                .operands
+                .iter()
+                .map(|operand| operand.virtual_register)
+        })
+        .collect::<Vec<_>>();
+    registers.sort_by_key(|register| register.0);
+    registers.dedup();
+    format!(
+        "argument={argument:?}; outgoing={:?}; instructions={:?}; registers={:?}",
+        function
+            .outgoing_arguments
+            .iter()
+            .filter(|slot| slot.id.invocation_site == record.invocation_site)
+            .collect::<Vec<_>>(),
+        instructions
+            .iter()
+            .map(|instruction| (
+                instruction,
+                fragment_instruction_span(fragment, instruction.id)
+            ))
+            .collect::<Vec<_>>(),
+        registers
+            .iter()
+            .map(|register| function.virtual_register(*register))
+            .collect::<Vec<_>>()
+    )
 }
 
 /// Reconstruct completed aggregate storage from the retained ABI and selected
@@ -1180,6 +1251,7 @@ fn foreign_scalar_result_custody(
             .map(|(locator, _)| format!("{locator:?}")),
         parameter: None,
         reason,
+        transport: None,
     };
     let plan = &record.call.binding.boundary_entry_plan.call;
     if matches!(
