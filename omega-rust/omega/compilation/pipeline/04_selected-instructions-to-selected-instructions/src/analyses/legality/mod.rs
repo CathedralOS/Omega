@@ -21,9 +21,9 @@ use optimization_core::{
 use register_environment::ValidatedTargetRegisterEnvironment;
 use register_homes::{AllocationLegalityIdentity, AllocatorAvailabilityIdentity};
 use selected_instructions::SelectedInstructionPlanIdentity;
+use selected_instructions::SelectedProgram;
 use selected_instructions::StagedOptimizedCustodyCore;
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use target_operations_to_selected_instructions::ValidatedSelectedInstructions;
 use terminal_psi::TerminalPsiIdentity;
 
 pub fn stage_optimized_allocation_legality(

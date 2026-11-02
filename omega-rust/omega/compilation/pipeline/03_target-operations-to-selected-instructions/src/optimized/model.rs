@@ -44,6 +44,17 @@ impl StagedOptimizedSelectedInstructions {
         &self.selected
     }
 
+    /// The selected program as the stages after selection carry it.
+    pub fn selected_program(&self) -> selected_instructions::SelectedProgram {
+        let receipt = self.selected.receipt();
+        selected_instructions::SelectedProgram {
+            plan: self.selected.shared_plan(),
+            identity: receipt.identity(),
+            optimization_unit: receipt.optimization_unit(),
+            fuel_schedule: receipt.fuel_schedule(),
+        }
+    }
+
     /// The governing optimizer selections admitted with this stage. They are
     /// stage-owned admission data copied out of the optimized-target product
     /// at construction.

@@ -50,4 +50,4 @@ pub(crate) fn seal_stored_load_forwarding(
     ))
 }
 use crate::rewrites::sealed;
-use target_operations_to_selected_instructions::selected_instruction_plan_identity;
+use selected_instructions::selected_instruction_plan_identity;

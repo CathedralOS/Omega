@@ -13,7 +13,7 @@
 /// optimized-target proof input — one getter trio each assignment-mode context
 /// used to restate beside its own retained-stage path.
 macro_rules! assignment_context_accessors {
-    ($field:ident $(. $step:ident())*) => {
+    () => {
         pub const fn homes(&self) -> &crate::ValidatedRegisterHomes {
             &self.homes
         }

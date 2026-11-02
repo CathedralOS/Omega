@@ -26,7 +26,9 @@ use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected
 use selected_instructions_to_register_homes::{
     ValidatedSelectedAnalysis, stage_register_allocation,
 };
-use selected_instructions_to_selected_instructions::optimize_selected_instructions;
+use selected_instructions_to_selected_instructions::{
+    SelectedOptimizationInput, optimize_selected_instructions,
+};
 use target_operations_to_selected_instructions::stage_optimized_instruction_selection;
 
 /// Both application entries and separately emitted callables use these stages.
@@ -71,8 +73,14 @@ pub(crate) fn emit_target(
     let target_input = std::sync::Arc::clone(selected.optimized_target_owner());
     let selected = phase_profile::scope("omega.04", || {
         observation.enter(NativePipelineStage::SelectedOptimization);
-        optimize_selected_instructions(selected)
-            .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)
+        optimize_selected_instructions(SelectedOptimizationInput {
+            program: selected.selected_program(),
+            custody: selected.custody().core(),
+            register_environment: selected.register_environment().clone(),
+            selections: selected.selections().clone(),
+            budget_per_pass: selected.budget_per_pass(),
+        })
+        .map_err(OptimizedVerifiedPhysicalPipelineError::SelectedOptimization)
     })?;
     let allocation = phase_profile::scope("omega.05", || {
         observation.enter(NativePipelineStage::RegisterAllocation);
