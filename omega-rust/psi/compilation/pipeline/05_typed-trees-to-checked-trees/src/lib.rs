@@ -47,9 +47,9 @@ pub use package_review::{
     derive_checked_contract_expression_evidence_instantiation,
     derive_checked_contract_expression_evidence_parameters, derive_checked_nominal_call_target,
     derive_checked_semantic_dependencies, infer_checked_crash_causes,
-    infer_checked_machine_crash_causes, infer_machine_termination_summary,
-    late_bound_member_declaration_from_exact_owner, typed_operator_authored_selection_candidates,
-    typed_operator_has_no_authored_selection,
+    infer_checked_machine_crash_causes, infer_checked_recursive_machine_terminations,
+    infer_machine_termination_summary, late_bound_member_declaration_from_exact_owner,
+    typed_operator_authored_selection_candidates, typed_operator_has_no_authored_selection,
 };
 
 pub use product_pruning::{

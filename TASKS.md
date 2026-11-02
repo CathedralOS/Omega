@@ -329,10 +329,9 @@ retired-syntax deletions to completion.
     `samples/cli/audio/audio_playback` and its sine, square, and melody
     consumers through unchanged playback oracles; shared binding-value producers
     and helpers remain ordinary machines.
-    Frontier: 60 `samples/cli/facts/*/target_body` places still spell the
-    prefix, and 2 facts spell it in all nine places
-    (`generic_calling_policy`,
-    `target_scoped_constant_realization`).
+    Frontier: 59 `samples/cli/facts/*/target_body` places still spell the
+    prefix, and 1 fact spells it in all nine places
+    (`target_layout_derived_constant`, `target_scoped_constant_realization`).
   - Transport exact requirement and implementation identities, lifetimes,
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
@@ -836,7 +835,7 @@ helper that passes does not close an item.
     The complete alias row, remaining binder/case/pattern cases, alias-RHS
     expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
     [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md),
-    and [captured-supplier local/field/parameter](samples/cli/facts/transparent_generic_aliases/rhs_captured_supplier/README.md)
+    and [captured-supplier local/field/parameter/result/join](samples/cli/facts/transparent_generic_aliases/rhs_captured_supplier/README.md)
     places, including remaining mixed/open scope compositions, and captured
     Product/Build alias transport remain open.
   - Implement named `FixedLayout<T>` policies and `LayoutStorage<T, Policy>`

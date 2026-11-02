@@ -608,6 +608,23 @@ pub(super) fn account<'calls>(
                     0
                 }
         };
+        // A constructor takes its whole owned local operands just as a call
+        // does. Statement sequencing already retires their disposal flags;
+        // rejoin the exact value children here instead of requiring that the
+        // operand itself also be the returned outer binding. Selected values
+        // retain their separate per-arm ownership receipts.
+        let construction_count = construction_uses
+            .iter()
+            .filter(|(consumer_index, argument)| {
+                *consumer_index > producer_index
+                    && construction_owns_result(argument, *consumer_index)
+            })
+            .count();
+        let construction_transfers = if result.multiplicity == Multiplicity::Unrestricted {
+            0
+        } else {
+            construction_count
+        };
         let permits_disposal = |statement: Option<u32>, continuation: bool| {
             // A closed dispatch retains the selected arm even after its call
             // becomes an ordinary completion. Never infer its disposal from
@@ -616,11 +633,13 @@ pub(super) fn account<'calls>(
                 selected_exit.and_then(|exit| u32::try_from(exit.statement_index).ok())
             });
             !retired_whole
-                // An in-sequence owned call already consumes this exact
-                // materialized occurrence. Source exit permission only permits
-                // disposal of a still-live value; it is not another action.
-                // Explicit returns and cleanup retain their separate counts.
+                // An in-sequence owned call or construction already consumes
+                // this exact materialized occurrence. Source exit permission
+                // only permits disposal of a still-live value; it is not an
+                // additional action. Explicit returns, separate cleanup and
+                // competing constructions retain their independent counts.
                 && call_transfers == 0
+                && construction_transfers == 0
                 && reference_releases == 0
                 // A scheduled loan release is the one checked disposition of
                 // an affine view: the same retirement the lexical disposal
@@ -1030,28 +1049,11 @@ pub(super) fn account<'calls>(
             | TerminatorPlan::InvokeNoNormal { .. }
             | TerminatorPlan::EvaluateNoNormal => false,
         } || selection_source_disposition;
-        // A constructor takes its whole owned local operands just as a call
-        // does. Statement sequencing already retires their disposal flags;
-        // rejoin the exact value children here instead of requiring that the
-        // operand itself also be the returned outer binding. Selected values
-        // retain their separate per-arm ownership receipts.
-        let construction_count = construction_uses
-            .iter()
-            .filter(|(consumer_index, argument)| {
-                *consumer_index > producer_index
-                    && construction_owns_result(argument, *consumer_index)
-            })
-            .count();
         // Copyable local leaves may be retained as shared case/record reads,
         // or as owned operands. Neither form moves the original owner; repeated
         // observations do not create or discharge an affine obligation.
         let copied_into_construction =
             result.multiplicity == Multiplicity::Unrestricted && construction_count != 0;
-        let construction_transfers = if result.multiplicity == Multiplicity::Unrestricted {
-            0
-        } else {
-            construction_count
-        };
         // A view result's custody is also its loan's release: the loan
         // minted at the establishment ends in exactly one Consume row —
         // on the selected edge that carries it when control moves, or at
@@ -1143,7 +1145,7 @@ pub(super) fn account<'calls>(
         if total != 1 && !(total == 0 && !has_normal_caller_completion) {
             if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
                 eprintln!(
-                    "result custody: machine={:?} state={:?} result={result:?} local={result_local:?} construction={construction_transfers} cleanup={cleanup_discards} implicit={implicit_disposition} calls={call_transfers} release={reference_releases} views={independent_view_releases} operations={operations:#?}",
+                    "result custody: machine={:?} state={:?} result={result:?} local={result_local:?} construction={construction_transfers} cleanup={cleanup_discards} implicit={implicit_disposition} consumed={consumed} stored={stored} projected={projected_disposition} retired={retired_whole} calls={call_transfers} release={reference_releases} views={independent_view_releases} operations={operations:#?}",
                     machine.symbol, state.symbol
                 );
                 for (_, establishment) in facts.contextual_cleanup.storage_establishments.iter() {
