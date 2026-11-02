@@ -331,7 +331,7 @@ depend on those contracts directly, not on the package-command application.
 Target-neutral build evaluation remains in
 [Psi's compiler support](../../../psi/compilation/build-time-evaluation/README.md).
 Opaque representation admission belongs to
-[Psi checking](../../../psi/compilation/checking/representation-planning/README.md);
+[Psi checking](../../../psi/compilation/validation/representation-planning/README.md);
 provider selection and planning belong to
 [Omega provider realization](../realization/provider-planning/README.md), beside
 [selected execution](../realization/selected-dispatch/README.md).

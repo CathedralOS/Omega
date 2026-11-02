@@ -88,6 +88,9 @@ pub struct TerminalExecution<'artifact> {
     /// Entry storage may be supplied only before the first resume, including
     /// a resume which exhausts its fuel without executing an operation.
     pub(crate) entry_storage_open: bool,
+    /// Explicit host acceptance of returned loans. Their sources are captured
+    /// from final entry storage before the first resume, never at return time.
+    pub(crate) entry_reference_backings: Option<crate::storage::reference::EntryReferenceBackings>,
     pub(crate) activation_storage: RuntimeActivationStorage,
     // One immutable program owner survives suspension and is shared verbatim
     // across every independent instance admitted from the same module. A
@@ -671,6 +674,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             private_entry_ram: Vec::new(),
             provider_storage: RuntimeProviderStorage::new(account.as_ref()),
             entry_storage_open: true,
+            entry_reference_backings: None,
             structural_byte_sequence_fields: RuntimeRows::new(account.as_ref()),
             structural_byte_storage: RuntimeRows::new(account.as_ref()),
             empty_array_storage: EmptyArrayStorage::new(account.as_ref()),
@@ -1019,9 +1023,14 @@ impl<'artifact> TerminalExecution<'artifact> {
         if let Some(failure) = &self.failure {
             return Err(failure.clone());
         }
-        self.entry_storage_open = false;
-        let outcome = self
-            .resume_operations(meter, handler, components)
+        let entry_capture = if self.entry_storage_open {
+            self.entry_storage_open = false;
+            self.capture_entry_reference_backings()
+        } else {
+            Ok(())
+        };
+        let outcome = entry_capture
+            .and_then(|()| self.resume_operations(meter, handler, components))
             .map_err(|error| {
                 // Report the execution cursor that declined the operation, including
                 // failures reached in a callee. A missing operation means the block

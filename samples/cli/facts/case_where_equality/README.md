@@ -165,7 +165,7 @@ This limitation follows the current witness's representation. The
 immutable compile-time value and requests semantic evaluation; symbolic
 mathematical definitions are a separate construct. The existing closed
 constructor projection in
-`omega-rust/psi/compilation/checking/src/value_custody/literals/record_projection.rs`
+`omega-rust/psi/compilation/validation/src/value_custody/literals/record_projection.rs`
 retains the landed payload scalars. Those known `4`/`4` values independently
 prove exact subtraction. Under the
 [case contract](../../../../wiki/spec/language/data_and_literals.md#case-constraints),

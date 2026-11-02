@@ -23,6 +23,8 @@ mod component_return;
 pub(crate) use component_return::ComponentOwnedReturn;
 mod storage_observation;
 pub use storage_observation::{TerminalStorageObservationError, TerminalStorageObservationValue};
+mod returned_loans;
+pub use returned_loans::{TerminalReturnedLoan, TerminalReturnedLoanError};
 
 use std::collections::BTreeMap;
 

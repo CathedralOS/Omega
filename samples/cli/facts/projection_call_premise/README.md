@@ -130,7 +130,7 @@ so sample and fixture cannot drift apart.
    target-neutral Terminal Psi; the Terminal Psi interpreter executes all nine
    positive places in agreement with native execution (`omega run --both`).
    The pinned compiler mechanism is the checked-tree body-wide boolean join in
-   `omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs`,
+   `omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/selected_contracts.rs`,
    which records `true` for a boolean call whose normal exits return the
    admitted parameter projection. The equation does not establish the premise.
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):**

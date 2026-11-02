@@ -19,6 +19,7 @@ pub(crate) struct PreparedTypedProgram<'program> {
 
 pub(crate) fn prepare_typed_program<'program>(
     program: &'program dyn ::validation::CheckingInput,
+    proof_plan: ProofPlan<'program>,
     opaque_property_receipts: &[validation::OpaqueDataPropertyReceipt],
     allow_pending_opaque_copy: bool,
     prior_dependency_bodies: &[validation::DependencyBodyJudgment],
@@ -43,9 +44,6 @@ pub(crate) fn prepare_typed_program<'program>(
         )
     })?;
 
-    let proof_plan = phase_profile::scope("psi.05.prepare_typed_program.build_proof_plan", || {
-        proof::obligations::build_proof_plan(program)
-    });
     let decisions = phase_profile::scope("psi.05.prepare_typed_program.check_proof_plan", || {
         proof::checker::check_proof_plan_with_decisions(&proof_plan)
     })

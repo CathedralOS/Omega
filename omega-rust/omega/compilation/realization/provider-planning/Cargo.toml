@@ -20,7 +20,7 @@ effects = { path = "../../backend/plans/effects" }
 layout = { path = "../../backend/layout" }
 package-compilation = { path = "../../../packages/compilation-inputs" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
-representation-selections = { path = "../../../../psi/compilation/checking/representation-planning/selections" }
+representation-selections = { path = "../../../../psi/compilation/validation/representation-planning/selections" }
 target = { path = "../../backend/target" }
 arena = { path = "../../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../../psi/compilation/build-time-evaluation" }
@@ -29,7 +29,7 @@ terminal-psi = { path = "../../../../psi/compilation/representations/terminal-ps
 terminal-semantics = { path = "../../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-codec = { path = "../../../../psi/compilation/representations/terminal-psi/codec" }
 terminal-fuel = { path = "../../../../psi/compilation/representations/terminal-psi/fuel" }
-terminal-installation = { path = "../../../../psi/compilation/checking/terminal-installation" }
+terminal-installation = { path = "../../../../psi/compilation/validation/terminal-installation" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 diagnostics = { path = "../../../../psi/foundation/diagnostics" }
 flow-effects = { path = "../../../../psi/foundation/flow-effects" }

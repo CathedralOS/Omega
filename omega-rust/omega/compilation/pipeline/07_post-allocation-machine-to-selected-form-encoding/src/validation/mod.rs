@@ -4,9 +4,9 @@
 //! are checked against retained frame geometry before aggregate custody.
 
 use register_model::ValidatedPhysicalRegisterModel;
-use selected_instructions_to_register_homes::ValidatedSelectedAnalysis;
+use selected_instructions::CurrentSelectedProgram;
 
-use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
+use physical_instructions::PostAllocationMachinePlan;
 
 use super::OptimizedSelectedFormEncodingError;
 use machine_code::SelectedFormEncoding;
@@ -15,27 +15,24 @@ mod aggregate;
 mod ordinary;
 pub(crate) mod row;
 
-pub(super) fn validate<S: ValidatedSelectedAnalysis>(
-    selected: &S,
-    staged: &StagedOptimizedPostAllocationMachinePlan,
+pub(super) fn validate(
+    selected: CurrentSelectedProgram<'_>,
+    machine: &PostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     frame: Option<&machine_code::TargetFrameLayoutPlan>,
     artifact: &SelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let machine = staged.machine().plan();
     crate::frame_address::validate_frame_root(machine, frame)?;
     if artifact.frame.as_ref() != frame {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
-    if machine.selected != selected.selected_identity()
-        || artifact.selected != selected.selected_identity()
-    {
+    if machine.selected != selected.identity || artifact.selected != selected.identity {
         return Err(OptimizedSelectedFormEncodingError::SelectedRootMismatch);
     }
     if machine.physical_register_model != physical.identity() {
         return Err(OptimizedSelectedFormEncodingError::PhysicalModelMismatch);
     }
-    if artifact.machine != staged.machine().receipt().identity() {
+    if artifact.machine != machine.identity {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
     if artifact.post_allocation_machine_optimization.is_some() {
@@ -44,7 +41,7 @@ pub(super) fn validate<S: ValidatedSelectedAnalysis>(
 
     ordinary::validate(
         selected,
-        staged,
+        machine,
         physical,
         frame,
         artifact.rows(),

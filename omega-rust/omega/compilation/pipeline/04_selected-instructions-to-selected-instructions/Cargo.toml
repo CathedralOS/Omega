@@ -18,7 +18,6 @@ register-model = { path = "../../backend/register-model" }
 register-homes = { path = "../../representations/register-homes" }
 selected-instructions = { path = "../../representations/selected-instructions" }
 target = { path = "../../backend/target" }
-target-operations-to-selected-instructions = { path = "../03_target-operations-to-selected-instructions" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }
 optimization-unit = { path = "../../representations/abstract-operations/optimization-unit" }
