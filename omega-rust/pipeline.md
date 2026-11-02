@@ -1095,7 +1095,7 @@ the exact application's existing body span supplies its executable alternatives.
 `omega/compilation/compiler/` owns only compilation orchestration.
 [`omega/compilation/native-production/`](omega/compilation/native-production/README.md)
 owns the source-free Terminal-to-image sequence. Its entry is
-`compiler.rs`; `pipeline.rs` owns shared abstract-to-object sequencing for
+`compile.rs`; `pipeline.rs` owns shared abstract-to-object sequencing for
 application entries, callbacks and component exports. Realization captures runtime provisions before the
 abstract, target and physical stages produce the image. Those provisions belong
 to `native-artifact`, not the source compilation products. Provider evidence
