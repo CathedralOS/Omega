@@ -20,8 +20,7 @@ terminates by remaining -> Progress::Remaining
     requires pending.values[0] > 0 && pending.values[0] <= 7 && pending.values[1] == 919
     {
         counter = ((counter as u64 in Wrapping) + 1) as u64;
-        let mut next: Progress = pending;
-        next.values[0] = pending.values[0] - 1;
+        let next: Progress = Progress { values: [pending.values[0] - 1, pending.values[1]], canary: pending.canary };
         transition { _ -> count(next, counter) }
     }
 }
