@@ -147,7 +147,8 @@ requirement. It rejects on the missing `keeper.code == 7` clause at `consume`'s
 disposal edge. The baseline already rejects it that way, so this control pins
 existing behavior and needed no compiler change. A data default-domain owner passed
 through an erased `T` without any carried fact still rejects on the hook's
-requirement. That is the rule, not a gap: an erased formal carries no field facts.
+requirement in a local probe on the candidate; no fixture pins that probe. That
+is the rule, not a gap: an erased formal carries no field facts.
 
 ## Build-owned target-body migration
 
