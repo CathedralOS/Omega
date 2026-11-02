@@ -79,7 +79,7 @@ pub(crate) fn prepare_checked_build(
     // This provisional Build owner stays immutable through provider planning
     // and pending evaluation. A later re-projection creates its own census.
     let service_catalog =
-        typed_trees::service_declarations::PreparedServiceCatalog::prepare(context);
+        typed_trees::service_declarations::PreparedServiceCatalog::prepare(context, &[]);
     let services = service_catalog.bind(context).map_err(|error| vec![error])?;
     let candidates = provider_planning::derive_satisfies_plans(ProviderPlanDerivation::evaluated(
         services,
