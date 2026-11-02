@@ -1330,7 +1330,7 @@ def clause_row(
 
 def machine_form_cases(program: str) -> None:
     """Satisfactions, termination promises, operator tokens, `requires machine`
-    and `where proposition` contracts, proposition and evidence binders,
+    and `requires proposition` contracts, proposition and evidence binders,
     transparent refinements and mathematical definitions."""
     NONE = (1, 0, 0)
     MACHINE_ROOT, DATA_ROOT, TRAIT_ROOT, CONFORMANCE_ROOT, DEFINITION_ROOT = 3, 2, 4, 5, 9
@@ -1547,7 +1547,7 @@ def machine_form_cases(program: str) -> None:
     assert actual.machines[0][35:37] == (0, 1), actual.machines
     assert actual.machines[1][35:37] == (1, 0), actual.machines
 
-    source = (b"trait T<proposition P> where proposition P(); {} "
+    source = (b"trait T<proposition P> requires proposition P(); {} "
               b"trait R = Base { machine * blocks; }")
     status, payload = run(program, source)
     assert status == 0, f"trait-contract-reset: status {status}"
@@ -1562,9 +1562,9 @@ def machine_form_cases(program: str) -> None:
     assert actual.machines[0][13:15] == (0, 1), actual.machines
     assert actual.machines[0][35:37] == (0, 1), actual.machines
 
-    # Proposition binders take their signature from `where proposition`;
+    # Proposition binders take their signature from `requires proposition`;
     # an evidence binder `Name satisfies Trait<...>` names an implementation.
-    source = (b"trait Reflexive<C, proposition Relation>\nwhere proposition Relation(left: C, right: C);\n{\n"
+    source = (b"trait Reflexive<C, proposition Relation>\nrequires proposition Relation(left: C, right: C);\n{\n"
               b"    machine reflexive(value: C)\n    ensures Relation(value, value);\n}")
     declaration_accepted(
         program, "proposition-binder-contract", source,
@@ -1573,7 +1573,7 @@ def machine_form_cases(program: str) -> None:
             (6, *span(source, b"Relation"), 0, 0, 0, *span(source, b"proposition Relation")),
         ),
         contracts=((2, *span(source, b"Relation", 2), 2, 0, 0, 2, 0, 0, 0, 0,
-                    *span(source, b"where proposition Relation(left: C, right: C);")),),
+                    *span(source, b"requires proposition Relation(left: C, right: C);")),),
         traits=((*span(source, b"Reflexive"), 0, 2, 0, 0, 0, 1, 0, 0, *whole(source), 0, 1, 0, 0),),
     )
     source = b"trait Calling<Policy satisfies CallingPolicy> {}"
@@ -1701,9 +1701,9 @@ def machine_form_cases(program: str) -> None:
          166, b"via", 1, {"generic_parameter_count": 1, "member_count": 2}),
         ("proposition-binder-name", b"trait T<proposition> {}", 33, b">", 1, {}),
         ("evidence-binder-trait", b"trait T<P satisfies> {}", 179, b">", 1, {}),
-        ("proposition-contract-end", b"trait R<proposition P> where proposition P(x: u8) {}", 166, b"{", 1,
+        ("proposition-contract-end", b"trait R<proposition P> requires proposition P(x: u8) {}", 166, b"{", 1,
          {"generic_parameter_count": 1, "type_reference_count": 1, "parameter_count": 1}),
-        ("proposition-contract-name", b"trait R<proposition P> where proposition (x: u8); {}", 165, b"(", 1,
+        ("proposition-contract-name", b"trait R<proposition P> requires proposition (x: u8); {}", 165, b"(", 1,
          {"generic_parameter_count": 1}),
         ("refinement-base", b"trait X = { }", 182, b"{", 1, {}),
         ("refinement-takes-no-clauses", b"trait X = Base requires P; {}", 116, b"requires", 1, {"type_reference_count": 1}),

@@ -725,8 +725,8 @@ helper that passes does not close an item.
   [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
   end to end and retire `where` from Omega source syntax, without a permanent
   compatibility spelling or weaker proof obligations.
-  - Implement `where proposition` premises, and structural/nominal `requires machine`
-    contracts in both Rust and Omega producers. Preserve logical `self`, binder-kind
+  - Implement structural/nominal `requires machine` contracts in both Rust and
+    Omega producers. Preserve logical `self`, binder-kind
     inference, static/runtime distinctions, specialization and exact subjects;
     repeated predicates conjoin only within their owning scope. Keep a nested
     callable's complete contract and terminating semicolon distinct from its
