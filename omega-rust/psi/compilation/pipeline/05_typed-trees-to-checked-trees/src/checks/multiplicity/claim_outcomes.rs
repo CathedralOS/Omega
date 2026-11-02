@@ -170,10 +170,29 @@ pub(crate) fn derive_checked_claim_outcome_maps(
     };
     let mut maps = Vec::new();
     for _ in 0..=state_count {
-        let next = derive(&maps)
+        let mut next = derive(&maps)
             .into_iter()
             .map(|hypothesis| hypothesis.map)
             .collect::<Vec<_>>();
+        // A loop may return its original input on one exit and a reconstructed
+        // value on another. Its provisional input hypothesis then fails, but
+        // removing it here lets the direct exit seed it again indefinitely.
+        // Retain hypotheses during discovery; the decreasing closure below
+        // removes every unsupported hypothesis and its dependent callers
+        // before any correspondence becomes permission evidence.
+        for previous in &maps {
+            if !next
+                .iter()
+                .any(|map| map.state_symbol == previous.state_symbol)
+            {
+                next.push(previous.clone());
+            }
+        }
+        next.sort_by_key(|map| {
+            candidate_states
+                .iter()
+                .position(|(_, state, _)| state.symbol == map.state_symbol)
+        });
         if next == maps {
             // A direct return can seed a recursive invariant, but a missing
             // alternative is not evidence that the invariant holds. Close
