@@ -71,14 +71,25 @@ pub enum TerminalEffectResult {
     Reference(TerminalReferenceResult),
 }
 
-/// The materialized referent a host reference result supplies. The carrier
-/// itself is minted at commit; only the referent's declared type and actual
-/// scalar payload cross the boundary.
+/// The referent payload a host reference result supplies. The carrier itself
+/// is minted at commit; only the referent's declared contents cross the
+/// boundary.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TerminalReferenceResult {
+pub enum TerminalReferencePayload {
     /// The referent's declared type and complete scalar contents, in the same
     /// canonical-path form `TerminalScalarAggregateValue` uses for results.
-    pub referent: TerminalScalarAggregateValue,
+    ScalarAggregate(TerminalScalarAggregateValue),
+    /// The operation's contract is uniformly zeroed storage (calloc/memset
+    /// semantics): the interpreter materializes zeroed cells for the full
+    /// declared referent shape instead of an exact scalar payload.
+    Zeroed,
+}
+
+/// The materialized referent a host reference result supplies.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalReferenceResult {
+    /// What the host reports about the referent beneath the minted carrier.
+    pub referent: TerminalReferencePayload,
 }
 
 impl TerminalExecution<'_> {
@@ -199,6 +210,12 @@ impl TerminalExecution<'_> {
                             )
                             .is_ok()
                         })
+                        || terminal_semantics::zeroed_structural_leaves_with_established_erased_fields(
+                            self.structural_types().values(),
+                            referent,
+                            &[],
+                        )
+                        .is_some()
                 })
     }
 

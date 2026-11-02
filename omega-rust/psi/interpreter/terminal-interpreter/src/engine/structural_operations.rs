@@ -137,13 +137,18 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let (referent, _access) = self.reference_contract(result.structural_type)?;
-        if supply.referent.structural_type != referent {
-            return Err(malformed());
+        if let crate::boundary::effects::results::TerminalReferencePayload::ScalarAggregate(
+            aggregate,
+        ) = &supply.referent
+        {
+            if aggregate.structural_type != referent {
+                return Err(malformed());
+            }
+            aggregate.validate_against(
+                self.structural_declaration(referent)?,
+                |identity| self.structural_types().get(&identity),
+            )?;
         }
-        supply.referent.validate_against(
-            self.structural_declaration(referent)?,
-            |identity| self.structural_types().get(&identity),
-        )?;
         let value = TerminalStructuralValue::minted(
             self.local_structural_identities.allocate()?,
             result.structural_type,
@@ -156,10 +161,19 @@ impl TerminalExecution<'_> {
             projected_qualifications: Vec::new(),
             path: Vec::new(),
         };
-        let root = StructuralRuntimePlace::from(&view);
-        let mut storage = ConstructorStorage::new(self.account.as_ref());
-        storage.stage_scalar_aggregate(self, &supply.referent, &root)?;
-        storage.publish(self)?;
+        match &supply.referent {
+            crate::boundary::effects::results::TerminalReferencePayload::ScalarAggregate(
+                aggregate,
+            ) => {
+                let root = StructuralRuntimePlace::from(&view);
+                let mut storage = ConstructorStorage::new(self.account.as_ref());
+                storage.stage_scalar_aggregate(self, aggregate, &root)?;
+                storage.publish(self)?;
+            }
+            crate::boundary::effects::results::TerminalReferencePayload::Zeroed => {
+                self.materialize_zeroed_structural_storage(&view)?;
+            }
+        }
         self.reference_referents.insert(
             StructuralRuntimePlace::from(&value),
             crate::storage::reference::ReferenceReferent {

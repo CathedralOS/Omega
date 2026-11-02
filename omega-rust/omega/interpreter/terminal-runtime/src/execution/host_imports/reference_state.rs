@@ -16,8 +16,8 @@ use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, ScalarType};
 use target_operations::NormalizedForeignCallBinding;
 use terminal_interpreter::{
     TerminalEffect, TerminalEffectHandler, TerminalEffectRejection, TerminalEffectResult,
-    TerminalImportAdapter, TerminalImportSignature, TerminalProgram, TerminalReferenceResult,
-    TerminalScalarAggregateValue, TerminalScalarValue,
+    TerminalImportAdapter, TerminalImportSignature, TerminalProgram, TerminalReferencePayload,
+    TerminalReferenceResult, TerminalScalarAggregateValue, TerminalScalarValue,
 };
 use terminal_psi::{
     BoundaryMachineDeclaration, BoundaryMachineResult, StructuralAccess, StructuralTypeShape,
@@ -78,7 +78,7 @@ impl TerminalEffectHandler for ReferenceStateImport {
         }
         Ok(TerminalEffectResult::Reference(
             TerminalReferenceResult {
-                referent: self.referent.clone(),
+                referent: TerminalReferencePayload::ScalarAggregate(self.referent.clone()),
             },
         ))
     }

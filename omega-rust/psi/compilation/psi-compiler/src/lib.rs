@@ -28,9 +28,9 @@ mod source_compilation;
 mod source_parsing;
 
 pub use source_checking::{
-    CheckRequest, CheckedSource, CheckedTreeProductSelection, ProductRepresentationInput,
-    ProductSelections, RetainedCheck, SelectedCheckedSource, SourceAdmission,
-    whole_program_reuse_hits,
+    CheckRequest, CheckedSource, CheckedTreeProductSelection, LibrarySliceKey, LibrarySliceRequest,
+    LibrarySliceTotals, ProductRepresentationInput, ProductSelections, RetainedCheck,
+    SelectedCheckedSource, SourceAdmission, library_slice_totals, whole_program_reuse_hits,
 };
 pub use source_parsing::{
     ParsedText, SourceInput, SourceParseError, load_source_files, parse_text,
