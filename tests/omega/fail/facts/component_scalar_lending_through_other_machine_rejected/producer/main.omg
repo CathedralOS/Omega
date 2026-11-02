@@ -1,0 +1,21 @@
+public data Token {}
+public data Word [copy] { before: u64; count: u64; after: u64; }
+public boundary trait Observation { machine seen(value: &Token) reaches; }
+public NoObservation satisfies Observation { machine seen(value: &Token) {} }
+public boundary trait Lending {
+    machine write(value: &mut Word, token: &Token, original: addr, member: addr) -> u64
+    reaches Observation suspends crashes Trap;
+}
+public Writer satisfies Lending {
+    machine write(value: &mut Word, token: &Token, original: addr, member: addr) -> u64
+    reaches Observation suspends crashes Trap {
+        Observation::seen(token);
+        transition address_of(value) == original && address_of(&value.count) == member {
+            true -> store(value)
+            _ -> bad()
+        }
+        machine store(value: &mut Word) -> u64 { value.count = 73; 73 }
+        machine bad() -> u64 { crash Trap; }
+    }
+}
+machine component_entry() {}

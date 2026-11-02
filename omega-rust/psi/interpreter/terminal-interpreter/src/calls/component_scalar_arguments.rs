@@ -257,7 +257,7 @@ impl LentScalarArgument {
             return Err(malformed());
         }
         for key in addresses.keys() {
-            if child.component_scalar_addresses.contains_key(key) {
+            if child.component_borrowed_addresses.contains_key(key) {
                 return Err(malformed());
             }
         }
@@ -278,7 +278,7 @@ impl LentScalarArgument {
             }
         }
         for (key, address) in addresses {
-            child.component_scalar_addresses.insert(key, address)?;
+            child.component_borrowed_addresses.insert(key, address)?;
         }
         Ok(())
     }

@@ -20,6 +20,7 @@ use terminal_psi::{
     StructuralArgument, StructuralMultiplicity,
 };
 
+use super::component_empty_arguments::SharedEmptyArgument;
 use super::component_scalar_arguments::LentScalarArgument;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
@@ -43,6 +44,7 @@ pub(crate) struct ComponentInputCustody {
     pub(crate) contents: Vec<crate::TerminalStructuralContents>,
     opaque_arguments: Vec<usize>,
     scalar_arguments: Vec<LentScalarArgument>,
+    empty_arguments: Vec<SharedEmptyArgument>,
     _scalar_scope: Option<crate::scalar_storage::ScalarLoanScope>,
 }
 
@@ -81,6 +83,9 @@ impl ComponentInputCustody {
                 home,
                 crate::structural_storage::HostStructuralPayload::Opaque(value.opaque_identity),
             )?;
+        }
+        for argument in &self.empty_arguments {
+            argument.establish(child)?;
         }
         for argument in &self.scalar_arguments {
             argument.establish(child)?;
@@ -159,6 +164,7 @@ impl<'artifact> TerminalExecution<'artifact> {
         let mut contents = Vec::new();
         let mut opaque_arguments = Vec::new();
         let mut scalar_arguments = Vec::new();
+        let mut empty_arguments = Vec::new();
         let mut remaining_affine = self.live_affine_frontier.clone();
         let receiver_types = self.structural_types();
         let provider_types = provider.program.structural_types();
@@ -334,18 +340,24 @@ impl<'artifact> TerminalExecution<'artifact> {
             // The existing storage map authenticates the actual atom. A plain
             // opaque_identity, equal layout or synthesized input cannot answer it.
             } else if !self.forward_host_atom(value) {
-                if !owned {
+                if required.access == StructuralAccess::SharedBorrow
+                    && let Some(original) =
+                        self.prepare_shared_empty_argument(value, argument_index)?
+                {
+                    empty_arguments.push(original);
+                } else if !owned {
                     return Err(reject(
                         "component input requires actual unchanged opaque host storage",
                     ));
+                } else {
+                    contents.push(self.capture_component_contents(
+                        argument,
+                        value,
+                        argument_index,
+                        provider,
+                        supplied.structural_type,
+                    )?);
                 }
-                contents.push(self.capture_component_contents(
-                    argument,
-                    value,
-                    argument_index,
-                    provider,
-                    supplied.structural_type,
-                )?);
             } else if lent {
                 opaque_arguments.push(argument_index);
             }
@@ -399,6 +411,7 @@ impl<'artifact> TerminalExecution<'artifact> {
                 contents,
                 opaque_arguments,
                 scalar_arguments,
+                empty_arguments,
                 _scalar_scope: scalar_scope,
             },
             remaining_affine,

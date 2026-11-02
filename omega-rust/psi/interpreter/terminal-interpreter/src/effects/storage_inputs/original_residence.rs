@@ -639,7 +639,7 @@ impl TerminalExecution<'_> {
         // A scoped interpreter scalar view retains actual cells and address
         // identity. It does not supply the enclosing allocation's complete
         // native geometry or the authority to export that allocation.
-        if self.component_scalar_addresses.contains_key(
+        if self.component_borrowed_addresses.contains_key(
             &crate::storage_addresses::ScalarStorageAddressKey::Scalar(
                 StructuralRuntimePlace::from(original),
             ),

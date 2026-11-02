@@ -96,7 +96,7 @@ impl TerminalExecution<'_> {
         &self,
         key: &ScalarStorageAddressKey,
     ) -> Result<ScalarStorageAddress, TerminalInterpretError> {
-        if let Some(original) = self.component_scalar_addresses.get(key) {
+        if let Some(original) = self.component_borrowed_addresses.get(key) {
             return Ok(original.clone());
         }
         let (home, final_field) = match key {
