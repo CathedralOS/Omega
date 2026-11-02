@@ -3,7 +3,10 @@
 //! this module owns the representation and join, while callers retain fact
 //! availability and source/storage-version checks.
 
+use facts::IntegerRange;
+use numerics::bignum::BigInt;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::types::PrimitiveType;
 
 /// The values an integer expression can take, as the arithmetic walk that
 /// checked its evaluation found them; `None` is an unbounded end. Every walk of
@@ -13,6 +16,21 @@ pub struct ExpressionInterval {
     pub expression: ExpressionHandle,
     pub low: Option<i64>,
     pub high: Option<i64>,
+}
+
+impl ExpressionInterval {
+    /// This enclosure within `primitive`'s carrier. A missing i64 endpoint is
+    /// the carrier's own extreme, never a fabricated cap.
+    pub fn carrier_range(&self, primitive: PrimitiveType) -> Option<IntegerRange> {
+        let mut range = super::carrier_integer_range(primitive)?;
+        if let Some(low) = self.low {
+            range.minimum = range.minimum.max(BigInt::from_i64(low));
+        }
+        if let Some(high) = self.high {
+            range.maximum = range.maximum.min(BigInt::from_i64(high));
+        }
+        (range.minimum <= range.maximum).then_some(range)
+    }
 }
 
 /// The retained interval of `expression`, from `intervals` in handle order.

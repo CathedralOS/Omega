@@ -142,6 +142,13 @@ impl CheckingInput for CheckingQuery<'_> {
         self.input.storage_graph()
     }
 
+    fn expression_interval(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<crate::ExpressionInterval> {
+        self.input.expression_interval(expression)
+    }
+
     fn prepared_mathematics(
         &self,
     ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
