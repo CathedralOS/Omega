@@ -84,6 +84,45 @@ pub fn dispatch_table(typed: &TypedTrees, machine: &Machine) -> Result<DispatchT
     })
 }
 
+/// Freeze the checked field use while the selected leaf still owns Source.
+/// Target realization consumes this correspondence and never rediscovers a
+/// field from its spelling, scalar width, or position in a second inventory.
+pub fn field_storage(
+    typed: &TypedTrees,
+    machine: &Machine,
+    field_name: &str,
+) -> Result<effects::provider_plan::TableFieldStorage, String> {
+    use checked_trees::typed_trees::data::DataMember;
+    use checked_trees::typed_trees::types::PrimitiveType;
+    let table = dispatch_table(typed, machine)?;
+    let field = typed
+        .data_members(table.definition(typed))
+        .iter()
+        .find_map(|member| match member {
+            DataMember::Field(field)
+                if !field.relevance.is_erased() && field.name.as_str() == field_name =>
+            {
+                Some(field)
+            }
+            _ => None,
+        })
+        .ok_or_else(|| format!("no runtime field `{field_name}` in the dispatch table"))?;
+    if typed.primitive_type_reference(field.type_reference) != Some(PrimitiveType::Addr) {
+        return Err("table dispatch field must have type addr".into());
+    }
+    let application = typed.storage_type_identity(
+        checked_trees::typed_trees::type_identity::TypeIdentityRequest::ordinary(
+            table.table_type(),
+        ),
+    );
+    Ok(effects::provider_plan::TableFieldStorage {
+        table_application: typed
+            .type_identity_text(application)
+            .ok_or("dispatch table lost its exact storage application")?,
+        field_declaration: typed.normalized_hermetic_symbol_identity(field.symbol)?,
+    })
+}
+
 fn unrefined(typed: &TypedTrees, mut reference: TypeReferenceHandle) -> TypeReferenceHandle {
     while let TypeReferenceNode::Constrained { base_type, .. } =
         type_reference_node(typed, reference)

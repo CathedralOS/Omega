@@ -174,6 +174,56 @@ impl CallingProgram {
             target.target_name(),
             declaration,
         )?;
+        self.with_storage_extents(&demand, target, scope, providers, |extents| {
+            CanonicalCallingSignature::materialize(
+                self.artifact.semantic_module(),
+                demand.declaration().id(),
+                target,
+                extents,
+            )
+        })
+    }
+
+    /// Describe an actual borrowed formal's storage without invoking the
+    /// boundary. This uses the same scoped scalar completion as ABI geometry.
+    pub(crate) fn describe_borrowed_storage<Output>(
+        &self,
+        declaration: &semantic_vocabulary::CallingAbiIdentity,
+        target: target::TargetProfile,
+        ordinal: usize,
+        describe: impl FnOnce(
+            &dyn Fn(
+                semantic_vocabulary::ScalarApplicationId,
+            ) -> Result<u64, terminal_semantics::StorageGeometryError>,
+        ) -> Result<Output, String>,
+    ) -> Result<Output, String> {
+        let demand = terminal_installation::CallingAbiStorageDemand::new(
+            self.artifact.view(),
+            target.target_name(),
+            declaration,
+        )?
+        .with_borrowed_parameter(self.artifact.view(), ordinal)?;
+        self.with_storage_extents(
+            &demand,
+            target,
+            CallingStorageScope::Description,
+            &[],
+            describe,
+        )
+    }
+
+    fn with_storage_extents<Output>(
+        &self,
+        demand: &terminal_installation::CallingAbiStorageDemand,
+        target: target::TargetProfile,
+        scope: CallingStorageScope<'_>,
+        providers: &[backend_plan::TerminalTargetProviderPlan],
+        describe: impl FnOnce(
+            &dyn Fn(
+                semantic_vocabulary::ScalarApplicationId,
+            ) -> Result<u64, terminal_semantics::StorageGeometryError>,
+        ) -> Result<Output, String>,
+    ) -> Result<Output, String> {
         let mut extents = Vec::with_capacity(demand.applications().len());
         if !demand.applications().is_empty() {
             let providers = backend_plan::TerminalTargetProviderSelection::from_plans(
@@ -202,7 +252,7 @@ impl CallingProgram {
                     )
                 }
                 CallingStorageScope::Description => (
-                    super::scalar_completion::CallingScalarScope::AbiStorage(&demand),
+                    super::scalar_completion::CallingScalarScope::AbiStorage(demand),
                     terminal_fuel::TerminalFuelMeter::with_allowance(CALLING_EVALUATION_FUEL),
                 ),
             };
@@ -229,19 +279,14 @@ impl CallingProgram {
                 extents.push((application, value));
             }
         }
-        CanonicalCallingSignature::materialize(
-            self.artifact.semantic_module(),
-            demand.declaration().id(),
-            target,
-            &|application| {
-                extents
-                    .iter()
-                    .find(|(identity, _)| *identity == application)
-                    .map(|(_, value)| *value)
-                    .ok_or(terminal_semantics::StorageGeometryError::UnresolvedExtent(
-                        application,
-                    ))
-            },
-        )
+        describe(&|application| {
+            extents
+                .iter()
+                .find(|(identity, _)| *identity == application)
+                .map(|(_, value)| *value)
+                .ok_or(terminal_semantics::StorageGeometryError::UnresolvedExtent(
+                    application,
+                ))
+        })
     }
 }

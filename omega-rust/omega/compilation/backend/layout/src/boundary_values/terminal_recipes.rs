@@ -8,7 +8,7 @@ use arena::Handle;
 use language_semantics::boundary_values::{
     BoundaryFieldRecipe, BoundaryRecordStorage, BoundaryValueRecipe, BoundaryValueRecipes,
 };
-use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralTypeId};
+use semantic_vocabulary::{ScalarApplicationId, ScalarType, StructuralFieldId, StructuralTypeId};
 use terminal_psi::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralRecordStorage, StructuralTypeShape,
     TerminalModule,
@@ -21,6 +21,7 @@ pub struct TerminalBoundaryRecipes<'module> {
     extents: &'module dyn Fn(ScalarApplicationId) -> Result<u64, StorageGeometryError>,
     visiting: Vec<StructuralTypeId>,
     closed: Vec<(StructuralTypeId, Handle<BoundaryValueRecipe>)>,
+    fields: Vec<(StructuralTypeId, StructuralFieldId, usize)>,
     recipes: BoundaryValueRecipes,
 }
 
@@ -36,12 +37,30 @@ impl<'module> TerminalBoundaryRecipes<'module> {
             extents,
             visiting: Vec::new(),
             closed: Vec::new(),
+            fields: Vec::new(),
             recipes: BoundaryValueRecipes::default(),
         }
     }
 
     pub fn recipes(&self) -> &BoundaryValueRecipes {
         &self.recipes
+    }
+
+    /// Return this recipe producer's exact live-field coordinate. The caller
+    /// never zips a second declaration inventory with the physical field list.
+    pub fn record_field(
+        &mut self,
+        record: StructuralTypeId,
+        field: StructuralFieldId,
+    ) -> Result<(Handle<BoundaryValueRecipe>, usize), String> {
+        let recipe = self.value(record)?;
+        let ordinal = self
+            .fields
+            .iter()
+            .find(|(owner, candidate, _)| *owner == record && *candidate == field)
+            .map(|(_, _, ordinal)| *ordinal)
+            .ok_or("boundary record has no exact live field recipe")?;
+        Ok((recipe, ordinal))
     }
 
     pub fn scalar(&mut self, scalar: ScalarType) -> Result<Handle<BoundaryValueRecipe>, String> {
@@ -238,6 +257,7 @@ impl<'module> TerminalBoundaryRecipes<'module> {
                         .ok_or("fragmented field has no single foreign boundary offset")
                 })
                 .transpose()?;
+            self.fields.push((record, field.id, recipes.len()));
             recipes.push(BoundaryFieldRecipe { value, byte_offset });
         }
         Ok(BoundaryValueRecipe::Record {

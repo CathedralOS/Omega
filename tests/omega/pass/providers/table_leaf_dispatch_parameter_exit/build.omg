@@ -1,4 +1,12 @@
+use omega::language::core::external_binding;
 machine build(builder: &mut Build) {
     Build::application(builder, "table_leaf_dispatch_parameter_exit");
-    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::bind<Symbols::lookup>(builder, linux_x86_64, ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+        object: "libc.so.6", symbol: "dlsym", version: "GLIBC_2.34"
+    } });
+    Build::bind<Symbols::lookup>(builder, macos_arm64, ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+        install_name: "/usr/lib/libSystem.B.dylib", symbol: "_dlsym"
+    } });
+    Build::bind(builder, linux_x86_64::ProgramEntry, linux_main);
+    Build::bind(builder, macos_arm64::ProgramEntry, macos_main);
 }

@@ -2,6 +2,18 @@ use super::{Error, Reader, nominal, package};
 use crate::encoding::recovery::policy::external::{locator, producer};
 use crate::record::{PackagePolicyProviderBinding, PackagePolicyProviderEvaluatedSyscall};
 
+fn table_field_storage(
+    reader: &mut Reader<'_>,
+) -> Result<Result<effects::provider_plan::TableFieldStorage, String>, Error> {
+    Ok(super::super::tag!(reader => {
+        0 => Ok(effects::provider_plan::TableFieldStorage {
+            table_application: reader.string()?,
+            field_declaration: reader.string()?,
+        }),
+        1 => Err(reader.string()?),
+    }))
+}
+
 pub(in crate::encoding::recovery) fn binding(
     reader: &mut Reader<'_>,
 ) -> Result<PackagePolicyProviderBinding, Error> {
@@ -30,11 +42,13 @@ pub(in crate::encoding::recovery) fn binding(
             table: reader.string()?,
             field: reader.string()?,
             table_declaration: nominal(reader)?,
+            storage: table_field_storage(reader)?,
         },
         5 => Binding::TableFunction {
             table: reader.string()?,
             field: reader.string()?,
             table_declaration: nominal(reader)?,
+            storage: table_field_storage(reader)?,
         },
         6 => Binding::CheckedAdapter {
             machine_identity: reader.string()?,

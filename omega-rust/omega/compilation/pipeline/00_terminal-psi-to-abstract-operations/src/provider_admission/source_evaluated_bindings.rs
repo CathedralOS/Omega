@@ -443,10 +443,12 @@ mod tests {
             ProviderBinding::VtableField {
                 table: "Protocol".to_owned(),
                 field: "output_string".to_owned(),
+                storage: Err("this control observes only same-stack demand".into()),
             },
             ProviderBinding::TableFunction {
                 table: "BootServices".to_owned(),
                 field: "output_string".to_owned(),
+                storage: Err("this control observes only same-stack demand".into()),
             },
         ] {
             let authored_plan = leaf_plan(binding.clone(), 4096);
