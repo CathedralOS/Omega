@@ -57,7 +57,6 @@ impl CurrentScalarValues<'_> {
                     path: vec![index],
                     carrier,
                     value,
-                    read_dependencies: Vec::new(),
                 });
             }
         }
@@ -100,20 +99,10 @@ impl CurrentScalarValues<'_> {
                     ),
                     selected.iter().map(|field| field.value.clone()).collect(),
                 )?;
-                let mut read_dependencies = Vec::new();
-                for candidate in selected {
-                    for dependency in &candidate.read_dependencies {
-                        crate::shared::collections::push_unique(
-                            &mut read_dependencies,
-                            dependency.clone(),
-                        );
-                    }
-                }
                 Some(CapturedScalarField {
                     path: field.path.clone(),
                     carrier: field.carrier,
                     value,
-                    read_dependencies,
                 })
             })
             .collect()
