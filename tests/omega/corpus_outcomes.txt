@@ -1431,6 +1431,24 @@ fail/facts/nested_machine_joint_rank_declared_scalar_helper_non_decreasing_rejec
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_declared_wrong_field_rejected rejected 711ms expected @b22c0a34ea0d
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_endpoint_call_call_result_rejected rejected 21722ms expected @4449c9d8ccc0
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_endpoint_call_const_name_rejected rejected 24778ms expected @4449c9d8ccc0
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_endpoint_call_field_rejected rejected 28567ms expected @4449c9d8ccc0
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_endpoint_call_local_rejected rejected 24051ms expected @4449c9d8ccc0
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_endpoint_call_match_join_rejected rejected 17267ms expected @4449c9d8ccc0
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_endpoint_call_other_machine_rejected rejected 20820ms expected @4449c9d8ccc0
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_endpoint_call_other_state_rejected rejected 28591ms expected @4449c9d8ccc0
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_endpoint_call_parameter_rejected rejected 22278ms expected @4449c9d8ccc0
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_endpoint_call_target_body_rejected rejected 19830ms expected @4449c9d8ccc0
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_exclusive_child_call_result rejected 6705ms expected @ff8fd23a7ba0+wt
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_exclusive_child_const_name rejected 5298ms expected @ff8fd23a7ba0+wt
@@ -2592,6 +2610,10 @@ fail/termination/nested_machine_distance_missing_endpoint_bound rejected 3246ms 
 	machine call cycle: `count`, `forward`, `reduce` -- a bounded cursor rank lacks independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/nested_machine_distance_missing_index_bound rejected 1030ms expected @ce5685c3aa52+wt
 	cannot form specification index in machine `count` requires contract: independent collection bounds are not established by preceding formed facts
+fail/termination/private_rank_endpoint_effectful_rejected rejected 20140ms expected @4449c9d8ccc0
+	specification call `endpoint` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+fail/termination/private_rank_endpoint_missing_call_premise_rejected rejected 17486ms expected @4449c9d8ccc0
+	machine call cycle: `count`, `forward` -- a rank upper expression lacks independent formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/traits/dyn_selected_reach_callee_rebind_rejected rejected 50577ms expected @863cdf432f5d+wt
 	machine `observe` publishes service reach `<none>` but its checked body reaches undeclared service `Journal`
 fail/traits/dyn_selected_reach_public_helper_rejected rejected 24943ms expected @863cdf432f5d+wt
@@ -8449,6 +8471,15 @@ pass/facts/nested_machine_joint_rank_descriptor_indexed_value_other_machine_exit
 pass/facts/nested_machine_joint_rank_descriptor_indexed_value_other_state_exit checked 1048ms check-target:macos_arm64 @02a2d6944961
 pass/facts/nested_machine_joint_rank_descriptor_indexed_value_parameter_exit checked 1030ms check-target:macos_arm64 @02a2d6944961
 pass/facts/nested_machine_joint_rank_descriptor_indexed_value_target_body_exit checked 992ms check-target:macos_arm64 @02a2d6944961
+pass/facts/nested_machine_joint_rank_endpoint_call_call_result_exit checked 32008ms check-target:macos_arm64 @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_const_name_exit checked 32033ms check-target:macos_arm64 @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_field_exit checked 25818ms check-target:macos_arm64 @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_local_exit checked 27258ms check-target:macos_arm64 @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_match_join_exit checked 21140ms check-target:macos_arm64 @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_other_machine_exit checked 23058ms check-target:macos_arm64 @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_other_state_exit checked 20071ms check-target:macos_arm64 @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_parameter_exit checked 19263ms check-target:macos_arm64 @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_target_body_exit checked 23522ms check-target:macos_arm64 @4449c9d8ccc0
 pass/facts/nested_machine_joint_rank_exclusive_child_call_result checked 9801ms check-target:macos_arm64 @ff8fd23a7ba0+wt
 pass/facts/nested_machine_joint_rank_exclusive_child_const_name checked 9602ms check-target:macos_arm64 @ff8fd23a7ba0+wt
 pass/facts/nested_machine_joint_rank_exclusive_child_field checked 8006ms check-target:macos_arm64 @ff8fd23a7ba0+wt
@@ -13743,6 +13774,7 @@ pass/termination/nested_projection_measure rejected 11040ms regressed-from:check
 	terminating machine walk: cannot prove rank range `0..=ceiling` for the rank produced by the selected view
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 pass/termination/predicate_requires_ranked_cycle checked 13641ms @ccdb99ca2214
+pass/termination/private_rank_endpoint_composed_endpoint_exit checked 27470ms check-target:macos_arm64 @4449c9d8ccc0
 pass/termination/private_self_call_without_promise_compile checked 2690ms @ccdb99ca2214
 pass/termination/progress_selector_owned_arrival_affine_exit rejected 2824ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`

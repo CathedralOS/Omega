@@ -99,6 +99,17 @@ pass/facts/nested_machine_joint_rank_borrowed_call_other_state_exit built 7468ms
 pass/facts/nested_machine_joint_rank_borrowed_call_parameter_exit built 7463ms exit:0 interpreter-exit:0 interpreter:agrees @7766281105f8
 pass/facts/nested_machine_joint_rank_borrowed_call_target_body_exit built 6970ms exit:0 interpreter-exit:0 interpreter:agrees @7766281105f8
 pass/facts/nested_machine_joint_rank_borrowed_call_two_shared_arguments_exit built 7601ms exit:0 interpreter-exit:0 interpreter:agrees @7766281105f8
+pass/facts/nested_machine_joint_rank_computed_measure_parameter_exit built 20328ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_computed_upper_parameter_exit built 20587ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_call_result_exit built 24488ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_const_name_exit built 23491ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_field_exit built 26927ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_local_exit built 26137ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_match_join_exit built 24693ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_other_machine_exit built 24429ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_other_state_exit built 24166ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_parameter_exit built 23966ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
+pass/facts/nested_machine_joint_rank_endpoint_call_target_body_exit built 19174ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
 pass/facts/nested_machine_joint_rank_exclusive_child_call_result built 8701ms exit:0 interpreter-exit:0 interpreter:agrees @ff8fd23a7ba0+wt
 pass/facts/nested_machine_joint_rank_exclusive_child_const_name built 9097ms exit:0 interpreter-exit:0 interpreter:agrees @ff8fd23a7ba0+wt
 pass/facts/nested_machine_joint_rank_exclusive_child_field built 8168ms exit:0 interpreter-exit:0 interpreter:agrees @ff8fd23a7ba0+wt
@@ -110,6 +121,7 @@ pass/facts/nested_machine_joint_rank_exclusive_child_owned_copy_child built 1328
 pass/facts/nested_machine_joint_rank_exclusive_child_parameter built 8452ms exit:0 interpreter-exit:0 interpreter:agrees @ff8fd23a7ba0+wt
 pass/facts/nested_machine_joint_rank_exclusive_child_target_body built 10804ms exit:0 interpreter-exit:0 interpreter:agrees @ff8fd23a7ba0+wt
 pass/facts/nested_machine_joint_rank_exclusive_child_two_shared_arguments built 8074ms exit:0 interpreter-exit:0 interpreter:agrees @ff8fd23a7ba0+wt
+pass/facts/nested_machine_joint_rank_increasing_to_overshoot_exit built 18624ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
 pass/facts/nested_machine_joint_rank_record_call_parameter_exit built 7213ms exit:0 interpreter-exit:0 interpreter:agrees @7766281105f8
 pass/arithmetic/addr_algebra checked 2420ms @a92f16431042
 pass/arithmetic/affine_difference_weighted_exit built 2444ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -7357,11 +7369,13 @@ pass/termination/native_layout_family_premises built 2146ms @a92f16431042
 pass/termination/native_layout_ordinary_progress built 2200ms @a92f16431042
 pass/termination/natural_call_variable_step checked 1534ms @a92f16431042
 pass/termination/nested_leaf_rank checked 1706ms @a92f16431042
+pass/termination/nested_machine_computed_distance_indexed_upper_exit built 20216ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
 pass/termination/nested_pair_endpoint rejected 1536ms @a92f16431042
 	machine call cycle: `walk` -- rank range membership, pinned endpoints, or nonincrease is unproven at a call site; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 pass/termination/nested_projection_measure rejected 2044ms @a92f16431042
 	machine call cycle: `walk` -- rank range membership, pinned endpoints, or nonincrease is unproven at a call site; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 pass/termination/predicate_requires_ranked_cycle checked 1613ms @a92f16431042
+pass/termination/private_rank_endpoint_composed_endpoint_exit built 20254ms exit:0 interpreter-exit:0 interpreter:agrees @4449c9d8ccc0
 pass/termination/private_self_call_without_promise_compile checked 1995ms @a92f16431042
 pass/termination/progress_selector_owned_snapshot_exit built 2250ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/termination/progress_selector_reference_snapshot_exit built 2239ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
