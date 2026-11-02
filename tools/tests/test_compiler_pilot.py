@@ -27,6 +27,7 @@ class CompilerPilotTests(unittest.TestCase):
             paths = [sample + "/main.omg", sample + "/build.omg", "source/library/std/last.omg"]
             output = root / "observation"
             producer = Mock(cli=Path("/retained/omega"), target="windows_x86_64")
+            producer.record.return_value = {"revision": "a" * 40}
             expected_project = output / "workspace" / sample
 
             def refuse_update(arguments, **kwargs):
