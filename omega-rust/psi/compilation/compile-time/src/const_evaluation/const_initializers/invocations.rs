@@ -1001,7 +1001,7 @@ impl Invocation<'_> {
         })
     }
 
-    /// Evaluate a fresh scalar application probe — a const-generic argument
+    /// Evaluate a fresh application probe — a const-generic argument
     /// whose expression composes ordinary closed machine calls such as
     /// `sized(4) + 2`. The exact transitive call closure collected beside
     /// evaluation is returned so the caller can rejoin its original lexical
@@ -1012,13 +1012,13 @@ impl Invocation<'_> {
         &self,
         reference: SourceSpan,
         public: bool,
-        syntax: &syntax_trees::SyntaxTrees,
+        syntax: &mut syntax_trees::SyntaxTrees,
         extent: bool,
     ) -> Result<ApplicationProbeEvaluation, String> {
         let typed = self.program.typed();
         let roots = self.probe_roots()?;
         let &[expression] = roots.as_slice() else {
-            return Err("application probe lost its single scalar root".into());
+            return Err("application probe lost its single result root".into());
         };
         crate::machine_execution::admission::require_const_expression_selection(
             typed,
@@ -1026,19 +1026,69 @@ impl Invocation<'_> {
             reference,
             self.program.authority.as_deref(),
         )?;
-        let destination = crate::const_evaluation::const_generic_expressions::exact_probe_destination(
-            typed,
-            if extent {
-                expression_result_type_reference(typed, self.machine, self.state, expression)
-                    .unwrap_or(self.state.return_type)
-            } else { self.state.return_type },
-        )
-        .ok_or("application probe destination requires an unconstrained exact builtin integer or Boolean carrier")?;
+        let destination_type = if extent {
+            expression_result_type_reference(typed, self.machine, self.state, expression)
+                .unwrap_or(self.state.return_type)
+        } else {
+            self.state.return_type
+        };
+        let destination =
+            crate::const_evaluation::const_generic_expressions::exact_probe_destination(
+                typed,
+                destination_type,
+            );
         let (origins, operators, calls) =
             leaf_call_custody(typed, self.machine, self.state, &roots, public, syntax)?;
-        let (value, warnings) = self.evaluate(expression, destination)?;
+        let (value, warnings, materialized_expression) = match destination {
+            Some(destination) => {
+                let (value, warnings) = self.evaluate(expression, destination)?;
+                (
+                    value,
+                    warnings,
+                    syntax_trees::expression::ExpressionHandle::invalid(),
+                )
+            }
+            None => {
+                // The initializer's ordinary checked invocation owns aggregate
+                // results too. Admit every authored call before interpretation,
+                // then replay its complete result against the receiving carrier.
+                // Equal field bytes cannot supply nominal identity, predicates,
+                // copying rights, or eligibility as a canonical static index.
+                let mut warnings = Vec::new();
+                for call in call_expressions(typed, &roots)? {
+                    extend_unique(&mut warnings, self.check_call(call)?);
+                }
+                let result = self.interpret(reference)?;
+                let decoded =
+                    super::materialize::canonical_value(typed, destination_type, &result)?;
+                let value = CanonicalConstValue::from_decoded(
+                    &decoded,
+                    expression_table(typed).display_name(expression),
+                )
+                .ok_or(
+                    "application result is not a canonical static value within encoding limits",
+                )?;
+                validation::validate_exact_const_value_encoding(
+                    typed,
+                    destination_type,
+                    &value.encoding,
+                )?;
+                // Source normalization retains the canonical schema label;
+                // the independently checked destination above owns nominal
+                // authority, rather than a rendered typed-identity string.
+                let materialized = super::materialize::literal(
+                    syntax,
+                    typed,
+                    destination_type,
+                    &result,
+                    reference,
+                )?;
+                (value, warnings, materialized)
+            }
+        };
         Ok(ApplicationProbeEvaluation {
             value,
+            materialized_expression,
             origins,
             operators,
             calls,
@@ -1115,11 +1165,12 @@ fn result_carriers_match(
     }
 }
 
-/// The evaluated result of one scalar application probe: the canonical value,
+/// The evaluated result of one application probe: the canonical value,
 /// the selection custody gathered beside it, the exact transitive call
 /// closure, and any evaluation warnings.
 pub(crate) struct ApplicationProbeEvaluation {
     pub(crate) value: CanonicalConstValue,
+    pub(crate) materialized_expression: syntax_trees::expression::ExpressionHandle,
     pub(crate) origins: Vec<syntax_trees::types::ConstArgumentOrigin>,
     pub(crate) operators: Vec<SourceSpan>,
     pub(crate) calls: Vec<(SourceSpan, SourceSpan)>,

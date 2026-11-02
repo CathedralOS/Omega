@@ -29,3 +29,5 @@ oracle are unchanged. The entry wrapper and each implementation check a tag
 Linux x86-64 native and Terminal Psi agreement for the positive and source
 rejection for the twin; the other hosted targets keep their authored rows,
 unexecuted here.
+
+[Closed record call results](local/closed_call/README.md) carry the same fact through an ordinary checked function producing the const argument. Its nine places retain exact call and nominal result custody, selected-argument twins, neighbor canaries and distinct match-arm tags.

@@ -459,11 +459,17 @@ fn inferred_const_argument(
         .ok_or_else(reject)?
         .clone();
     if normalization.authored_expression.is_valid() {
-        let type_reference = syntax
-            .type_references
-            .insert(TypeReferenceNode::ConstExpression(
-                normalization.authored_expression,
-            ));
+        // A produced value retains the original normalization and its exact
+        // computation. The shared type-reference lowerer owns that join.
+        let type_reference = if normalization.materialized_expression.is_valid() {
+            reference
+        } else {
+            syntax
+                .type_references
+                .insert(TypeReferenceNode::ConstExpression(
+                    normalization.authored_expression,
+                ))
+        };
         return Ok(StaticMachineArgument {
             type_reference,
             path: Box::default(),

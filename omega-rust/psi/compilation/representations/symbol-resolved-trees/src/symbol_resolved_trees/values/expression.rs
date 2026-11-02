@@ -57,6 +57,10 @@ pub struct ExpressionTable {
 struct ExpressionNodeStorage {
     expressions: Arena<ExpressionNode>,
     source_spans: Vec<SourceSpan>,
+    /// Original checked computation of a materialized static value. This
+    /// provenance edge preserves invocation custody without executing it again.
+    materialization_sources: Vec<ExpressionHandle>,
+
     authored_expression_exposures: Vec<Option<AuthoredDeclarationSelectionExposure>>,
     compiler_selection_partitions: Vec<Option<CompilerDerivedSelectionPartition>>,
     authored_selection_occurrences: Vec<HandleSpan<StoredAuthoredSelectionOccurrenceId>>,
@@ -222,6 +226,7 @@ impl ExpressionTable {
             nodes: ExpressionNodeStorage {
                 expressions: Arena::new(),
                 source_spans: Vec::new(),
+                materialization_sources: Vec::new(),
                 authored_expression_exposures: Vec::new(),
                 compiler_selection_partitions: Vec::new(),
                 authored_selection_occurrences: Vec::new(),
@@ -244,6 +249,7 @@ impl ExpressionTable {
     pub fn clear(&mut self) {
         self.nodes.expressions.reset_retain_capacity();
         self.nodes.source_spans.clear();
+        self.nodes.materialization_sources.clear();
         self.nodes.authored_expression_exposures.clear();
         self.nodes.compiler_selection_partitions.clear();
         self.nodes.authored_selection_occurrences.clear();
@@ -264,6 +270,9 @@ impl ExpressionTable {
     pub fn insert(&mut self, expression: ExpressionNode) -> ExpressionHandle {
         let handle = self.nodes.expressions.insert(expression);
         self.nodes.source_spans.push(SourceSpan::default());
+        self.nodes
+            .materialization_sources
+            .push(ExpressionHandle::invalid());
         self.nodes.authored_expression_exposures.push(None);
         self.nodes.compiler_selection_partitions.push(None);
         self.nodes
@@ -283,6 +292,24 @@ impl ExpressionTable {
             self.nodes.authored_selection_occurrences.len() - 1
         );
         handle
+    }
+
+    pub fn materialization_source(&self, handle: ExpressionHandle) -> ExpressionHandle {
+        self.nodes
+            .materialization_sources
+            .get(source_span_index(handle))
+            .copied()
+            .unwrap_or_default()
+    }
+
+    pub fn retain_materialization_source(
+        &mut self,
+        value: ExpressionHandle,
+        authored: ExpressionHandle,
+    ) {
+        assert!(value.is_valid() && authored.is_valid() && value != authored);
+        assert!(!self.materialization_source(value).is_valid());
+        self.nodes.materialization_sources[source_span_index(value)] = authored;
     }
 
     pub fn source_span(&self, handle: ExpressionHandle) -> SourceSpan {

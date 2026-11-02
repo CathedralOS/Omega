@@ -228,6 +228,12 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             .attach_authored_selection_occurrences(lowered, authored_selection_occurrences);
         self.lowered_expressions
             .push((expression, self.fact_position, lowered));
+        let authored = self.source.materialization_source(expression);
+        if authored.is_valid() {
+            let authored = self.lower_value(authored)?;
+            self.target()
+                .retain_materialization_source(lowered, authored);
+        }
         Ok(lowered)
     }
 

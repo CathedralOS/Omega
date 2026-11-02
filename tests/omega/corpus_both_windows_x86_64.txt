@@ -2057,6 +2057,7 @@ pass/facts/affine_discard_root_cleanup_through_other_machine_exit built 3163ms e
 pass/facts/affine_discard_root_cleanup_through_other_state_exit built 3121ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/affine_discard_root_cleanup_through_parameter_exit built 3060ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
 pass/facts/affine_discard_root_cleanup_through_target_body_exit built 3543ms exit:0 interpreter-exit:0 interpreter:agrees @02e7d90a49ae+wt
+pass/facts/aggregate_storage_address_identity_packed_array_exit built 4111ms exit:0 interpreter-exit:0 interpreter:agrees @c0578466ca4e+wt
 pass/facts/aggregate_storage_address_identity_through_call_result_exit built 3712ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/aggregate_storage_address_identity_through_const_name_exit built 3616ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/facts/aggregate_storage_address_identity_through_field_exit built 2425ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt

@@ -492,6 +492,7 @@ dependencies = [
  "extents",
  "image-emission",
  "installation-evidence",
+ "language-core",
  "language-semantics",
  "layout",
  "libc",
@@ -2202,7 +2203,6 @@ name = "selected-instructions-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
  "abstract-operations",
- "abstract-operations-to-target-operations",
  "arena",
  "calling-conventions",
  "isa-aarch64",

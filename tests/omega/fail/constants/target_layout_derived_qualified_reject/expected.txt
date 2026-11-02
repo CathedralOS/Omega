@@ -1,3 +1,2 @@
-constant invocation of `bounded_layout` failed checking
-violates required fact `value <= 3`
-structurally false
+cannot prove requires contract for call bounded_layout
+needs fact `value <= 3`

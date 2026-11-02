@@ -81,6 +81,7 @@ installation-evidence = { path = "../backend/runtime/installation-evidence" }
 object-file = { path = "../backend/object/object-file" }
 mimalloc = { version = "0.1", default-features = false }
 package-compilation = { path = "../../packages/compilation-inputs", features = ["test-support"] }
+language-core = { path = "../../../psi/foundation/language-core" }
 
 [target.'cfg(unix)'.dev-dependencies]
 # Match the CLI's native dependency features. A libc feature mismatch travels
