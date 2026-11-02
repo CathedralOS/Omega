@@ -1,0 +1,106 @@
+// Fact: Owned semantic schemas retain complete numbered mixed-data descriptions and graph-local relationships under the query author's authority.
+// Expected exit: 0
+use omega::language::core::reflect;
+use foreign;
+
+domain u64::PayloadValue requires self <= 50;
+data Reading [copy] {
+    #8 header: u8;
+    #3 sequence: u64;
+    #90 case Sample(#1 value: u64 in PayloadValue, retired #2);
+    #7 case Empty;
+    retired #4;
+}
+data ExpectedPayload { value: u64 in PayloadValue; }
+data Envelope [copy] { left: u64; graph: reflect::TypeSchema; right: u64; }
+
+machine describe_here<T>() -> reflect::TypeSchema { reflect::schema<T>() }
+
+machine equal_bytes(left: &[u8], right: &[u8]) -> bool {
+    transition left.len == right.len {
+        true -> scan(left, right)
+        false -> false
+    }
+    machine scan(left: &[u8], right: &[u8]) -> bool {
+        transition left.len > 0u64 {
+            true -> item(left, right)
+            false -> true
+        }
+    }
+    machine item(left: &[u8], right: &[u8]) -> bool {
+        transition left[0u64] == right[0u64] {
+            true -> scan(&left[1u64..], &right[1u64..])
+            false -> false
+        }
+    }
+}
+machine require_true(value: bool) crashes Trap {
+    transition value { true -> done() false -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
+
+machine inspect(graph: &reflect::TypeSchema) crashes Trap {
+    let root: reflect::SchemaNode = reflect::TypeSchema::root(graph);
+    let fields: reflect::SchemaMembers = reflect::TypeSchema::fields(graph);
+    let cases: reflect::SchemaMembers = reflect::TypeSchema::cases(graph);
+    let members: reflect::SchemaMembers = reflect::SchemaNode::members(&root);
+    require_true(reflect::SchemaNode::role(&root) == 1u64);
+    require_true(reflect::SchemaNode::shape(&root) == 3u64);
+    require_true(reflect::SchemaNode::identity_is_hermetic(&root));
+    require_true(equal_bytes(reflect::SchemaNode::name(&root), "Reading"));
+    require_true(reflect::SchemaMembers::count(&members) == 4u64);
+    require_true(reflect::SchemaMembers::count(&fields) == 2u64);
+    require_true(reflect::SchemaMembers::count(&cases) == 2u64);
+    let header: reflect::SchemaNode = reflect::SchemaMembers::get(&fields, 0u64);
+    let sequence: reflect::SchemaNode = reflect::SchemaMembers::get(&fields, 1u64);
+    let sample: reflect::SchemaNode = reflect::SchemaMembers::get(&cases, 0u64);
+    let empty: reflect::SchemaNode = reflect::SchemaMembers::get(&cases, 1u64);
+    require_true(equal_bytes(reflect::SchemaNode::name(&header), "header"));
+    require_true(equal_bytes(reflect::SchemaNode::name(&sequence), "sequence"));
+    require_true(equal_bytes(reflect::SchemaNode::name(&sample), "Sample"));
+    require_true(equal_bytes(reflect::SchemaNode::name(&empty), "Empty"));
+    require_true(reflect::SchemaNode::declaration_position(&header) == 0u64);
+    require_true(reflect::SchemaNode::declaration_position(&sequence) == 1u64);
+    require_true(reflect::SchemaNode::declaration_position(&sample) == 2u64);
+    require_true(reflect::SchemaNode::declaration_position(&empty) == 3u64);
+    require_true(reflect::SchemaNode::has_stable_number(&header));
+    require_true(reflect::SchemaNode::has_stable_number(&sequence));
+    require_true(reflect::SchemaNode::has_stable_number(&sample));
+    require_true(reflect::SchemaNode::has_stable_number(&empty));
+    require_true(reflect::SchemaNode::stable_number(&header) == 8u64);
+    require_true(reflect::SchemaNode::stable_number(&sequence) == 3u64);
+    require_true(reflect::SchemaNode::stable_number(&sample) == 90u64);
+    require_true(reflect::SchemaNode::stable_number(&empty) == 7u64);
+    let payloads: reflect::SchemaMembers = reflect::SchemaNode::members(&sample);
+    let none: reflect::SchemaMembers = reflect::SchemaNode::members(&empty);
+    require_true(reflect::SchemaMembers::count(&payloads) == 1u64);
+    require_true(reflect::SchemaMembers::count(&none) == 0u64);
+    let payload: reflect::SchemaNode = reflect::SchemaMembers::get(&payloads, 0u64);
+    let owner: reflect::SchemaNode = reflect::SchemaNode::owner_case(&payload);
+    let common_owner: reflect::SchemaNode = reflect::SchemaNode::owner_case(&header);
+    require_true(reflect::SchemaNode::role(&common_owner) == 0u64);
+    require_true(equal_bytes(reflect::SchemaNode::identity(&owner), reflect::SchemaNode::identity(&sample)));
+    require_true(equal_bytes(reflect::SchemaNode::name(&payload), "value"));
+    require_true(reflect::SchemaNode::stable_number(&payload) == 1u64);
+    require_true(reflect::SchemaNode::declaration_position(&payload) == 0u64);
+    require_true(!reflect::SchemaNode::is_erased(&payload));
+    require_true(reflect::SchemaNode::retired_count(&sample) == 1u64);
+    require_true(reflect::SchemaNode::retired_number(&sample, 0u64) == 2u64);
+    require_true(reflect::SchemaNode::retired_count(&root) == 1u64);
+    require_true(reflect::SchemaNode::retired_number(&root, 0u64) == 4u64);
+    // A separate owner with the same declared field type gives an exact
+    // runtime oracle for the complete qualified type, without guessing its
+    // package identity or parsing a display name into authority.
+    let expected_graph: reflect::TypeSchema = reflect::schema<ExpectedPayload>();
+    let expected_fields: reflect::SchemaMembers = reflect::TypeSchema::fields(&expected_graph);
+    let expected: reflect::SchemaNode = reflect::SchemaMembers::get(&expected_fields, 0u64);
+    require_true(equal_bytes(reflect::SchemaNode::qualified_type(&payload), reflect::SchemaNode::qualified_type(&expected)));
+    let invalid: reflect::SchemaNode = reflect::TypeSchema::node(graph, 18446744073709551615u64);
+    require_true(reflect::SchemaNode::role(&invalid) == 0u64);
+}
+machine consume(selected: reflect::TypeSchema) crashes Trap { inspect(&selected); }
+machine main() crashes Trap {
+    let produced: reflect::TypeSchema = describe_here<Reading>();
+    consume(produced);
+}
