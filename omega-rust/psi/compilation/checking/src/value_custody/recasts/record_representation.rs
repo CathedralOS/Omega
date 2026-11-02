@@ -721,6 +721,15 @@ pub(super) fn pending_record_definition(
     let semantic = program
         .layout_storage_arguments(reference)
         .map_or(reference, |storage| storage.semantic_type);
+    // The pending obligation is only the record's own default predicate.
+    // Wrapping a qualified semantic carrier in LayoutStorage cannot defer or
+    // erase that carrier's independent range, policy or domain obligations.
+    if matches!(
+        program.type_reference_table.type_reference(semantic),
+        TypeReferenceNode::Constrained { .. }
+    ) {
+        return None;
+    }
     let definition = program.closed_data_field_definition(semantic)?;
     (!definition.where_facts.is_empty()
         && program.type_multiplicity(semantic) == language_semantics::Multiplicity::Unrestricted
