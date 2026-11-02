@@ -10,7 +10,7 @@ path = "src/lib.rs"
 
 [dependencies]
 compiler-storage = { path = "../../../foundation/compiler-storage" }
-optimization = { path = "../../../foundation/optimization-selections" }
+optimization = { path = "../../../foundation/optimization" }
 typed-trees-to-typed-trees = { path = "../04_typed-trees-to-typed-trees" }
 arena = { path = "../../../foundation/arena" }
 checked-trees = { path = "../../representations/checked-trees" }

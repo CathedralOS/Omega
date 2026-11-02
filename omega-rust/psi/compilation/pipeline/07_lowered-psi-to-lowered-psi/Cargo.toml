@@ -9,7 +9,7 @@ version.workspace = true
 semantic-vocabulary = { path = "../../../foundation/semantic-vocabulary" }
 terminal-semantics = { path = "../../representations/terminal-psi/semantics" }
 lowered-psi = { path = "../../representations/lowered-psi" }
-optimization = { path = "../../../foundation/optimization-selections" }
+optimization = { path = "../../../foundation/optimization" }
 terminal-psi = { path = "../../representations/terminal-psi" }
 terminal-codec = { path = "../../representations/terminal-psi/codec" }
 

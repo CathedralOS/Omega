@@ -1014,7 +1014,7 @@ library APIs; they do not introduce another compiler driver.
 | Source acquisition and package storage primitives | Omega `packages/` behind package-manager requests |
 | Terminal Psi loading, supplied-binding installation and execution | Psi interpreter facade under `interpreter/` |
 | Target-aware interpreter host adapters | Omega-owned host integration outside Psi, reusing independent backend ABI/mechanism libraries; not a compiler driver |
-| Compile-time interpretation and result elaboration | Psi `compilation/compile-time/` |
+| Compile-time interpretation and result elaboration | Psi `compilation/build-time-evaluation/` |
 | Checked program → published Terminal artifact | `psi/compilation/driver/terminal-production/`, called directly with consumer-owned policy and observation |
 | Ordinary library reference implementations | `library/`, outside the compiler halves |
 
@@ -1024,7 +1024,7 @@ Psi exposes seven successive program forms: tokens, syntax trees, resolved
 trees, typed trees, checked trees, Lowered Psi and Terminal Psi. Checked fact
 contexts have their own package at `psi/compilation/representations/checked-trees/facts/`.
 Shared effect-summary records and pass-selection vocabulary live in
-`psi/foundation/flow-effects/` and `psi/foundation/optimization-selections/`.
+`psi/foundation/flow-effects/` and `psi/foundation/optimization/`.
 
 Omega exposes six top-level program families: abstract operations, target
 operations, selected instructions, register homes, post-allocation machine and
@@ -1290,7 +1290,7 @@ compiler uses their exact permission-consent comparison before production.
 Shared process and filesystem utilities remain under `omega/foundation/`.
 
 `psi/interpreter/` contains the independent `checked-interpreter` and
-`terminal-interpreter` engines. `psi/compilation/compile-time/` admits execution
+`terminal-interpreter` engines. `psi/compilation/build-time-evaluation/` admits execution
 and elaborates results into source and typed trees. Checked fixed-array-length
 jobs use the Terminal program/instance lifecycle. Build activations use the
 Terminal Build host in `omega/compilation/build-evaluation/`; there is no
@@ -1544,7 +1544,7 @@ names (Psi's `semantic-vocabulary` and `flow-effects`, for example).
   ordered composition roots and diagnostic payloads as data. Omega checks
   exclusions after publication against retained pre-optimization semantic
   operations, without exporting or cloning checked-source lowering.
-- Psi `compilation/compile-time/` — evaluation admission and result elaboration.
+- Psi `compilation/build-time-evaluation/` — evaluation admission and result elaboration.
 - Psi `interpreter/` — checked and Terminal execution engines.
 - `compiler/` — compilation coordination.
 - Omega `package-manager/` — package operations and independent acquisition,

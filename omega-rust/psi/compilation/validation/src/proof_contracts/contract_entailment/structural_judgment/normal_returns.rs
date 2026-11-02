@@ -6,6 +6,8 @@
 //! This environment belongs to one executed normal-return path; it is neither
 //! a loop invariant nor permission to replay mutable storage observations.
 
+#[cfg(test)]
+mod arithmetic_alias_tests;
 mod array_elements;
 mod body_completion;
 mod call_bindings;

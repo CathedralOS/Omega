@@ -11,7 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 calling-conventions = { path = "../../calling-conventions" }
 diagnostics = { path = "../../../../../psi/foundation/diagnostics" }
-effects = { path = "../../plans/provider-evidence" }
+effects = { path = "../../plans/effects" }
 target = { path = "../../target" }
 language-core = { path = "../../../../../psi/foundation/language-core" }
 optimization-core = { path = "../../../../foundation/optimization-core" }
