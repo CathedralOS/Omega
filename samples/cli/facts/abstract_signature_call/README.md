@@ -5,7 +5,7 @@ call's result, and the caller reads the record.
 
 Owning task: **OPERATOR-MACHINE-SUPPLY** (`TASKS.md`). The exact requirement this
 row establishes is that item's formation-checks bullet — the checks in
-`omega-rust/psi/compilation/checking/src/proof_contracts/contract_entailment/specification_calls.rs`
+`omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/specification_calls.rs`
 and
 `omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/contracts/evidence.rs`
 extended to **calls in abstract signatures** — together with the item's own
