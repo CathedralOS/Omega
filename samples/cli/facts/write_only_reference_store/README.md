@@ -22,6 +22,12 @@ record through its original owner and checks `held.target.value == 85`,
 `slot.target` through the write-only view to supply its own replacement.
 That read must reject during source checking.
 
+The match place runs both choices. Its forwarding helper writes an independent
+marker to 1; the direct arm leaves it at 0. The caller checks the marker as well
+as the original 85/11/17 result, so choosing the wrong arm or skipping the
+helper cannot silently pass. The helper's explicit result lifetime relates the
+returned view to the destination input, independently of the marker.
+
 Acceptance is `omega run --both <place>/main.omg`: native execution and the
 Terminal Psi interpreter must both exit 0. Each `invalid/main.omg` must reject
 for observing write-only contents. The nine places are `local`, `field`,
@@ -48,8 +54,8 @@ bindings are present. Matching programs and reject controls live under
 - **Layout, providers, and ABI:** the record has two ordinary fields. Calls pass
   the view using the ordinary pointer calling convention; Build chooses a
   checked implementation for each hosted target.
-- **Instructions and frames:** the store changes the reference field's address
-  without loading its old referent or overwriting `stamp`.
+- **Instructions and frames:** the store changes only the pointer stored in
+  `target`, without reading the old referent or overwriting `stamp`.
 - **Native image and execution:** the emitted program must produce the same
   exit-0 result as Terminal Psi. Omitting the store, changing the wrong field,
   or returning a view of a copy makes the final check trap.
@@ -67,35 +73,42 @@ destination or grant readable access.
 The selected body performs the store directly. A requirement that only returns
 `&write Held` with an input-related lifetime does not promise that it returns
 the same reference: a lifetime constrains validity, not the pointer's identity.
-The earlier forwarding attempt and its refusals are retained with the PR
-records, rather than presented as repaired by this migration. The ordinary
+The earlier forwarding program and its refusals remain in the PR records;
+this migration puts the store itself in the selected body. The ordinary
 `call_result` place continues to test returning the original view through a
 checked helper.
 
 The compiler repair distinguishes the final field being replaced from pointer
 reads needed to reach it. Locating that final field uses its receiver's existing
 write permission; it must not activate a new permission for reading the field's
-old reference. Intermediate pointer reads keep their existing checks. Writes through those
-pointers use the saved receiver and its live child borrows when checking
-conflicts. Unproved opaque boundaries also remain rejected: a declaration without a checked body needs admitted
-evidence that it will not observe write-only contents. The governing rules are
+old reference. Intermediate pointer reads keep their existing checks. When a
+formed view enters a block parameter, the compiler also retains its stored
+reference information, so a later helper can describe the same leaf store.
+Writes through those pointers use the saved receiver and its live child borrows
+when checking conflicts. Unproved opaque boundaries also remain rejected: a
+declaration without a checked body needs admitted evidence that it will not
+observe write-only contents. The governing rules are
 [write-only authority](../../../../wiki/spec/terminal-psi/structural_access.md#write-only-authority),
 [returned-view lifetimes](../../../../wiki/spec/language/lifetimes.md#returned-views),
 and [checked boundary providers](../../../../wiki/spec/terminal-psi/boundary_calls.md#checked-providers).
 
 ## Evidence and remaining scope
 
-The frozen baseline rejected the original target-body program before execution
-because it could not identify the store destination. The first compiler repair
-allows seven places and the root program to execute with native and Terminal
-exit 0 on Linux x86-64, including the Build-selected store. The two forwarding
-places still refuse during native lowering, so this row remains unfinished.
-A live-child control also exposed a missing write conflict; it now rejects
-for the intended reason while valid incoming-pointer reads and writes execute
-with both exits 0. The remaining forwarding repair preserves the stored
-references when a formed view enters a block parameter, and is under focused
-validation. Run records and exact producer identities stay in the claim
-and PR evidence. No execution on the other three hosted targets is claimed here.
+All nine places execute with native and Terminal exit 0 on Linux x86-64. All
+nine twins reject for observing write-only contents. The root program and all
+nine places also pass the ordinary `omega run --both` sample path, with the
+invalid projects matching their authored rejection expectations.
+
+[The full focused run](https://github.com/CathedralOS/Omega/actions/runs/41521723559)
+records 14 executable positives and 17 intended rejections, including the
+nine-place row, valid incoming-pointer reads and writes, conflicting live
+children, forbidden intermediate reads, opaque boundaries, and an exclusive
+lifetime anchor. [The final sample run](https://github.com/CathedralOS/Omega/actions/runs/41523427365)
+freshly checks the stronger match witness, all nine aligned twins, and all 19
+public projects. The compiler binaries are identical between these runs;
+only the changed witnesses need the later observations. Exact source stamps
+remain on the corpus records, with raw receipts in the claim and PR evidence.
+Execution on the other three hosted targets remains unverified here.
 
 This row establishes replacement of a stored reference through write-only
 access. It does not establish whole-record replacement, readable widening,
