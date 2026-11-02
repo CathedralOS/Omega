@@ -22,15 +22,6 @@ macro_rules! assignment_context_accessors {
         ) -> &crate::ValidatedPostAllocationOptimizationManifest {
             &self.manifest
         }
-        /// The retained optimized-target proof input, kept as replay evidence;
-        /// downstream custody checks compare the owner handle by identity.
-        pub fn optimized_target_owner(
-            &self,
-        ) -> &std::sync::Arc<
-            abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
-        > {
-            self.$field$(.$step())*.optimized_target_owner()
-        }
     };
 }
 
