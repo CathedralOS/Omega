@@ -122,6 +122,20 @@ class LandTests(unittest.TestCase):
         self.assertEqual((code, len(fake.readied), len(fake.enqueued), fake.armed), (0, 1, 1, []))
         self.assertTrue(pull["mergeQueueEntry"])
 
+    def test_armed_green_head_enqueues_without_rearming(self):
+        fake = FakeGitHub(autoMergeRequest={"enabledAt": "2026-11-01T00:00:00Z"})
+        pull, code = run_land(self, fake)
+        self.assertEqual(code, 0)
+        self.assertTrue(pull["mergeQueueEntry"])
+        self.assertEqual((fake.readied, len(fake.enqueued), fake.armed), ([], 1, []))
+
+    def test_armed_red_head_refuses_without_mutation(self):
+        fake = FakeGitHub(autoMergeRequest={"enabledAt": "2026-11-01T00:00:00Z"},
+                          checks=[check_run(conclusion="FAILURE")])
+        with self.assertRaisesRegex(landing.LandingError, "compiler-check concluded failure"):
+            run_land(self, fake)
+        self.assertEqual(fake.mutated, [])
+
     def test_other_checks_and_older_runs_do_not_decide(self):
         checks = [check_run(name="lint", conclusion="FAILURE"),
                   check_run(conclusion="FAILURE", started="2026-11-01T00:00:00Z"),
@@ -176,7 +190,7 @@ class LandTests(unittest.TestCase):
                     run_land(self, fake)
                 self.assertEqual(fake.mutated, [])
 
-    def test_already_merged_queued_or_armed_repeats_no_mutation(self):
+    def test_merged_queued_or_pending_armed_repeats_no_mutation(self):
         for change in (dict(state="MERGED"), dict(mergeQueueEntry={"position": 1}),
                        dict(autoMergeRequest={"enabledAt": "x"}, isDraft=False)):
             with self.subTest(change=change):

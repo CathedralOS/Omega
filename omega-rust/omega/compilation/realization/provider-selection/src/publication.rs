@@ -20,14 +20,14 @@ pub enum CanonicalProviderDeclaration {
     Operator { owner: String, callable: String },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedProviderRealizations<Owner = ()> {
     pub provider_declaration: Option<String>,
     pub row_numeric_realizations: Vec<Option<String>>,
     pub owner: Owner,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedProviderCandidate<Owner = ()> {
     pub choice: ProviderCandidate<
         CanonicalProviderDeclaration,
@@ -81,7 +81,7 @@ impl<Owner> PreparedProviderCandidate<Owner> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedTargetChoices<Owner = (), Origin = ()> {
     pub application_roots: Option<Vec<CanonicalProviderDeclaration>>,
     pub profile: target::TargetProfile,

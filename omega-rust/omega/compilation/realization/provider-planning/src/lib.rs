@@ -22,7 +22,6 @@
 //! Source selection declarations are owned by Psi compile-time admission; the
 //! re-exported selection records below are inputs, not a second source decoder.
 
-mod boundary_value_recipes;
 pub mod calling_policy_plans;
 pub mod data_layout_queries;
 pub mod dispatch_tables;
@@ -64,7 +63,7 @@ pub use build_time_evaluation::provider_declarations::{
 pub use intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
 };
-pub(crate) use provider_planning::extract_native_external_binding_rows;
+pub use provider_planning::extract_native_external_binding_rows;
 pub use provider_planning::provider_rows::{
     DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource, PreparedProviderRows,
     ProviderPlanCandidate, ProviderRowDeclarations, UnpreparedProviderRows,
