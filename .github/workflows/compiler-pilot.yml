@@ -106,11 +106,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 41451849306 --name compiler-pilot-linux_x86_64-1f3c4da0217eac2b7401cc0d3b3e0186d954e7e2-1 --dir build/generic-retained-input
+          gh run download 41463557701 --name compiler-pilot-linux_x86_64-9ec6893f3cf313dc27165ee561b2a7f4b8036654-1 --dir build/generic-retained-input
           git fetch --depth=1 origin 1f3c4da0217eac2b7401cc0d3b3e0186d954e7e2
-      - name: Qualify the selected generic-case row without Rust
+      - name: Replay the frozen four-candidate selection refusal
         if: github.event_name == 'workflow_dispatch'
-        run: python tools/build_slot.py -- python tools/ci/generic_case_migration1.py
+        run: python tools/build_slot.py -- python tools/ci/generic_case_provider_replay.py
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
