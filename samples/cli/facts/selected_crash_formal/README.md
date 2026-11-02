@@ -88,8 +88,8 @@ broader promise pass.
 [argument_snapshot](probes/argument_snapshot/main.omg) copies the first argument
 before evaluating a second argument that clears its source. The original value
 and its bound must survive. Its [twin](probes/argument_snapshot/invalid/main.omg)
-allows an initially negative value; the later clear cannot make the earlier
-argument safe. [match_record](probes/match_record/main.omg) checks the same
+widens `safe`'s input contract to permit -1; clearing the source later cannot
+justify the already copied argument. [match_record](probes/match_record/main.omg) checks the same
 nonnegative bound on a field selected by two match arms. Its
 [twin](probes/match_record/invalid/main.omg) permits a crash at zero.
 
