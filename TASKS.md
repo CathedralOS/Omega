@@ -571,9 +571,10 @@ decision (`SourceChecked`) into Psi 06 and Omega 00.
     until those authority decisions are made.
   - Complete the wire fixture and public-customer acceptance below, including
     the 40-field runtime qualification.
-  - Carry complete owned numbered mixed-data schema descriptions through call
-    results, match joins, const names, nested machines, other machines and
-    selected target implementations; retain exact query-authority reject twins.
+  - Carry complete owned numbered mixed-data schema descriptions through const
+    names, nested machines, other machines and selected target implementations;
+    retain exact query-authority reject twins. Const transport needs an owned
+    image of computed array length; borrowed facades must continue rejecting.
   Owners: `source/library/std/wire.omg`,
   `omega-rust/psi/compilation/validation/src/reflection/`, and
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/reflection.rs`.
