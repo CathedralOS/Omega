@@ -7,14 +7,14 @@
 // the relation's nominal identity.
 
 public trait Reflexive<C, proposition Relation>
-where proposition Relation(left: C, right: C);
+requires proposition Relation(left: C, right: C);
 {
     machine reflexive(value: C)
     ensures Relation(value, value);
 }
 
 public trait Symmetric<C, proposition Relation>
-where proposition Relation(left: C, right: C);
+requires proposition Relation(left: C, right: C);
 {
     machine symmetric(left: C, right: C)
     requires Relation(left, right)
@@ -22,7 +22,7 @@ where proposition Relation(left: C, right: C);
 }
 
 public trait Transitive<C, proposition Relation>
-where proposition Relation(left: C, right: C);
+requires proposition Relation(left: C, right: C);
 {
     machine transitive(left: C, middle: C, right: C)
     requires
@@ -32,7 +32,7 @@ where proposition Relation(left: C, right: C);
 }
 
 public trait Antisymmetric<C, proposition Relation>
-where proposition Relation(left: C, right: C);
+requires proposition Relation(left: C, right: C);
 {
     machine antisymmetric(left: C, right: C)
     requires
@@ -45,20 +45,20 @@ public trait Equivalence<C, proposition Relation>:
     Reflexive<C, Relation>
     + Symmetric<C, Relation>
     + Transitive<C, Relation>
-where proposition Relation(left: C, right: C);
+requires proposition Relation(left: C, right: C);
 {
 }
 
 public trait Preorder<C, proposition Relation>:
     Reflexive<C, Relation>
     + Transitive<C, Relation>
-where proposition Relation(left: C, right: C);
+requires proposition Relation(left: C, right: C);
 {
 }
 
 public trait PartialOrder<C, proposition Relation>:
     Preorder<C, Relation>
     + Antisymmetric<C, Relation>
-where proposition Relation(left: C, right: C);
+requires proposition Relation(left: C, right: C);
 {
 }
