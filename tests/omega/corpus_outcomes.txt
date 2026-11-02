@@ -2648,7 +2648,7 @@ fail/facts/resource_representation_buffered_field_capacity_rejected rejected 103
 	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
 	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2820: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
 	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2832: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
-fail/facts/resource_representation_buffered_local_capacity_rejected rejected 8495ms expected @0f36ecb1ab02
+fail/facts/resource_representation_buffered_local_capacity_rejected rejected 4782ms expected @b07784918316
 	cannot prove requires contract for call emit from WriteFirst::try_from: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
 	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$0$2805: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
 	cannot prove requires contract for call emit from WriteFirst::try_from$specialized$e5e2390881a2212d$1$2817: request.output.len >= 3 (needs fact `request.output.len >= 3` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `try_from`
@@ -10212,12 +10212,12 @@ pass/facts/resident_backing_target_body_exit checked 9694ms check-target:macos_a
 pass/facts/resource_representation_buffered_call_result_exit checked 13469ms check-target:macos_arm64 @b9975b628a04
 pass/facts/resource_representation_buffered_const_name_exit checked 15037ms check-target:macos_arm64 @b9975b628a04
 pass/facts/resource_representation_buffered_field_exit checked 13958ms check-target:macos_arm64 @b9975b628a04
-pass/facts/resource_representation_buffered_local_exit checked 15593ms check-target:macos_arm64 @0f36ecb1ab02
+pass/facts/resource_representation_buffered_local_exit checked 8910ms check-target:macos_arm64 @b07784918316
 pass/facts/resource_representation_buffered_match_join_exit checked 12489ms check-target:macos_arm64 @b9975b628a04
 pass/facts/resource_representation_buffered_other_machine_exit checked 12781ms check-target:macos_arm64 @b9975b628a04
 pass/facts/resource_representation_buffered_other_state_exit checked 12676ms check-target:macos_arm64 @b9975b628a04
 pass/facts/resource_representation_buffered_parameter_exit checked 12499ms check-target:macos_arm64 @b9975b628a04
-pass/facts/resource_representation_buffered_target_body_exit checked 12490ms check-target:macos_arm64 @b9975b628a04
+pass/facts/resource_representation_buffered_target_body_exit checked 8888ms check-target:macos_arm64 @b07784918316
 pass/facts/result_cleanup_guarantees_through_call_result_exit checked 4216ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_const_name_exit checked 3199ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/result_cleanup_guarantees_through_field_exit checked 3393ms check-target:macos_arm64 @ccdb99ca2214

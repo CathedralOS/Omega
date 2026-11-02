@@ -120,12 +120,24 @@ public evidence promise. Preparation reused the saved cache and took 185
 seconds; source checking took 102 seconds and both engines 60 seconds. Together
 the integrated runs establish 28 source outcomes and 14 execution agreements.
 
+The last main integration receives focused observations in
+[run 41534411326](https://github.com/CathedralOS/Omega/actions/runs/41534411326)
+on `b07784918316aaa5e1387326285c4d775517a990`: three source outcomes, two
+native/Terminal agreements and four CLI sample projects. The frozen conversion
+exercises stores and returned-view retirement; the selected-provider place also
+checks current provider preparation and runtime admission. Unchanged lifetime
+and evidence admission retain the applicable earlier integrated observations.
+Preparation took 823 seconds, source checking 15 seconds, both engines 9 seconds
+and samples 24 seconds. The cache fallback restored the prior compiled objects
+across the Cargo-input change; ordinary build and producer checks still ran.
+
 All eighteen buffered sample projects meet their authored oracles. The original
-pair has fresh integrated observations above. The remaining sixteen retain
+and selected-provider pairs have fresh observations above. The remaining
+fourteen retain
 [run 41522299500](https://github.com/CathedralOS/Omega/actions/runs/41522299500)
 on `6b941db428c6e25d7b2556df3930f8e25d315697`; their programs and Build files are
-unchanged and match the mirrors executed by the integrated compiler. The
-original sample pair also exercises the current CLI review and execution path.
+unchanged and match the mirrors executed by the integrated compiler. The fresh
+sample projects also exercise current CLI review and execution.
 
 Earlier support records retain their actual observations: shared partial-case
 cleanup, qualified bytes, outer references and write-only arrays from
