@@ -1238,6 +1238,12 @@ fn resolve_claim_outcome_source(
                     segments,
                     events,
                 )?;
+                // Permission preparation may already have forwarded this
+                // occurrence to the input's exact identity. That is agreement,
+                // not another dependency to chase back into the same source.
+                if bound == source {
+                    continue;
+                }
                 push_unique(&mut forwarded, bound);
             }
         }
