@@ -155,7 +155,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         })
     }
 
-    pub(super) fn lower_transition_pattern(
+    pub(crate) fn lower_transition_pattern(
         &mut self,
         retained: resolved::statement::TransitionPattern,
     ) -> Result<typed::statement::TransitionPattern, Diagnostic> {

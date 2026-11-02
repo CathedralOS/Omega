@@ -566,7 +566,7 @@ impl Default for TableLocalData {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct TransitionPattern {
     /// Braced structural pattern, versus an ordinary value/case pattern.
     pub is_structural: bool,
