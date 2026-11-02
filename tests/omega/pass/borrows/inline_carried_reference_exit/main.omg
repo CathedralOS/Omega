@@ -3,6 +3,7 @@
 // its containing record was only a temporary and its backing is ordinary RAM.
 data Packet<'bytes> [copy] { bytes: &'bytes [u8]; }
 
+machine packet<'bytes>(bytes: &'bytes [u8]) -> Packet<'bytes> { Packet { bytes: bytes } }
 machine selected<'bytes>(packet: &Packet<'bytes>) -> &'bytes [u8] { packet.bytes }
 machine first(bytes: &[u8]) -> u64 {
     transition bytes.len > 0u64 {
@@ -15,7 +16,7 @@ machine inspect<'bytes>(packet: &Packet<'bytes>) -> u64 { first(selected(packet)
 machine inspect_buffers<'left, 'right>(left: &'left [u8], right: &'right [u8]) crashes Trap {
     let packet: Packet<'left> = Packet { bytes: left };
     let named: u64 = inspect(&packet);
-    let temporary: u64 = first(selected(&Packet<'right> { bytes: right }));
+    let temporary: u64 = first(selected(&packet(right)));
     transition named == 17u64 && temporary == 42u64 {
         true -> done()
         false -> bad()
