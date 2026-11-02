@@ -5,7 +5,7 @@
 //! the same explicit Build selection roster for package review and publication.
 //! A geometry report grants no representation or boundary authority.
 
-use representation_planning::OpaqueRepresentationSelection;
+use representation_selections::OpaqueRepresentationSelection;
 
 pub(crate) fn representation_types(
     selections: &[OpaqueRepresentationSelection],

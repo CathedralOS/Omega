@@ -20,7 +20,7 @@ effects = { path = "../../backend/plans/provider-evidence" }
 layout = { path = "../../backend/layout" }
 package-compilation = { path = "../../../packages/compilation-inputs" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
-representation-planning = { path = "../../../../psi/compilation/checking/representation-planning" }
+representation-selections = { path = "../../../../psi/compilation/checking/representation-planning/selections" }
 target = { path = "../../backend/target" }
 arena = { path = "../../../../psi/foundation/arena" }
 build-time-evaluation = { path = "../../../../psi/compilation/compile-time" }
