@@ -61,6 +61,16 @@ pub(crate) fn dynamic_selector_call<'program>(
     if !receiver.is_valid() || program.symbols.get(receiver).kind != symbols::SymbolKind::Trait {
         return Ok(None);
     }
+    // A boundary call forwards every written argument to its implementation.
+    // A dyn-valued argument may select a later call, but does not dispatch this
+    // one. Read the exact requirement owner before inspecting operand types;
+    // an inherited requirement need not belong to the receiver's trait.
+    if program
+        .trait_machine_signature(target)
+        .is_some_and(|(declaring, _)| declaring.is_boundary)
+    {
+        return Ok(None);
+    }
     let Some(selector_type) = selector_type(program, machine, state, selector) else {
         return Ok(None);
     };

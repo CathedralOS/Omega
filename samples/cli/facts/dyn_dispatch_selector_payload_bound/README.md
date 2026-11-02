@@ -96,11 +96,25 @@ The fixed starting revision is `2da2c5b57f1966e0989001b12d805d6d477113e4`.
 The first hosted run uses documentation-only checkpoint `25686539ece3` with
 unchanged compiler, library and authored program inputs. Earlier passing target
 prefixes are migration inputs, not a newly discovered compiler defect.
-The current migration and strengthened runtime checks still require fresh
-observations; no successful execution of the changed programs is claimed here.
+The unchanged baseline passes all 36 corpus fixtures and 38 sample projects on
+Linux x86-64. Migration checkpoint `8a297d8025c2` exposed a separate checking
+error: the two target places reject because the compiler mistakes their first
+ordinary dynamic-valued argument for the outer call's selector. The other
+sixteen corpus positives execute with native/Terminal exit 0, and all eighteen
+bound controls reject. Neither target place executes, and the sample leg does
+not run after that failure.
 
-The focused selection comprises 36 corpus fixtures and all 38 discovered sample
-projects: both roots, eighteen positive places and eighteen reject twins. Each
+The shared call classifier now reads the requirement's declaring owner first.
+A boundary call forwards every authored argument; only the later local trait
+call consumes its separate selector. The [wrong-trait control](controls/wrong_trait/main.omg)
+keeps a genuine attempt to call an unrelated trait invalid. This fixes the
+existing call rules rather than changing the selector or public result bound.
+Fresh repair observations are still pending.
+
+The migration selection comprises 36 corpus fixtures and all 38 original sample
+projects: both roots, eighteen positive places and eighteen reject twins.
+The compiler repair adds a wrong-trait control and four existing dynamic-call
+regressions, bringing its focused selection to 41 fixtures and 39 sample projects. Each
 sample Main/Build pair is copied to its corresponding fixture under
 `tests/omega/{pass,fail}/facts/dyn_dispatch_selector_payload_bound_through_*`
 or `dyn_dispatch_payload_alias_through_*`. Reject diagnostics and raw execution

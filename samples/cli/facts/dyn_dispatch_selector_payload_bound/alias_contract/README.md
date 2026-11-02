@@ -8,7 +8,8 @@ justifies the later `88u64 - result` operation.
 Fact: Dispatching a trait method through a dynamic trait carrier (dyn / trait conformance) whose contract establishes result <= 88u64 preserves the return bound across the selector and data lanes, discharging exact subtraction 88u64 - result.
 
 `within_payload_bound(value, ceiling)` is a transparent checked definition of
-`value <= ceiling`. The implementation members publish ordinary integer
+`value <= ceiling`, following [named mathematical definitions](../../../../../wiki/spec/proofs/mathematical_bindings.md#named-mathematical-definitions).
+The implementation members publish ordinary integer
 comparisons. Every positive calls both implementations with inputs 10 and 20
 and checks differences 50, 60, 40 and 30. Both match branches therefore have
 distinct observable results. The target place uses ordinary named
