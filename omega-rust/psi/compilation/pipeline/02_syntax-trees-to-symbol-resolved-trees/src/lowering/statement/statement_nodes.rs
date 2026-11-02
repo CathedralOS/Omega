@@ -398,9 +398,12 @@ pub(crate) fn lower_statement_node(
                     &mut hoisted,
                 );
             }
-            // An Always fallback is selected only after earlier arms fail.
-            // Its target work cannot join the pre-dispatch hoist prefix.
+            // Retained patterns also select an arm, even when its raw guard
+            // is Always: their completed predicate becomes the typed guard.
+            // Neither their target work nor a later fallback may join the
+            // pre-dispatch hoist prefix.
             let unconditional = !has_preceding_transition
+                && patterns.is_empty()
                 && matches!(transition.guard, TransitionGuardNode::Always);
             let target = lower_transition_target_node(
                 lowerer,

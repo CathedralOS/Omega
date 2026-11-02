@@ -1,0 +1,12 @@
+// Expected error: cannot prove index
+// Retained arm predicates keep indexed value operands inside their selected arm.
+public data Checker { bodies: [u64; 128]; body_count: u64 in Trapping; }
+public machine Checker::body_handle(checker: &Checker, slot: u64 in Trapping) -> u64 in Trapping crashes Trap { transition slot < checker.body_count { true -> checker.bodies[slot] as u64 in Trapping false -> invalid() } machine invalid() -> u64 in Trapping { 0 } }
+public data Mode [copy] { case Read(index: u64 in Trapping); case Skip; }
+public machine read_mode(checker: &Checker, mode: Mode) -> u64 in Trapping crashes Trap {
+    transition mode {
+        Mode::Read { index as slot } if slot < 128 -> checker.bodies[slot] as u64 in Trapping
+        _ -> 0
+    }
+}
+machine main() crashes Trap { let mut checker: Checker; checker.body_count = 1; checker.bodies[0] = 13; transition Checker::body_handle(&checker, 0) == 13 && Checker::body_handle(&checker, 128) == 0 && read_mode(&checker, Mode::Read { index: 0 }) == 13 && read_mode(&checker, Mode::Read { index: 128 }) == 0 && read_mode(&checker, Mode::Skip) == 0 { true -> done() _ -> bad() } machine done() {} machine bad() { crash Trap; } }

@@ -420,12 +420,20 @@ def write_frame_inventory_cases(program: str) -> None:
     rejected(program, "inline-indexed-store-retires-count-written-after-index", source.replace(b"p.table.count = p.table.count + 1;", b"p.table.count = 16; p.table.count = p.table.count + 1;"), "DomainUnproven", b"p.table.count = p.table.count + 1;")
 
 
+
+def guarded_operand_cases(program: str) -> None:
+    source = b'// Expected exit: 0\n// Retained arm predicates keep indexed value operands inside their selected arm.\npublic data Checker { bodies: [u64; 128]; body_count: u64 in Trapping; }\npublic machine Checker::body_handle(checker: &Checker, slot: u64 in Trapping) -> u64 in Trapping crashes Trap { transition slot < checker.body_count && slot < 128 { true -> checker.bodies[slot] as u64 in Trapping false -> invalid() } machine invalid() -> u64 in Trapping { 0 } }\npublic data Mode [copy] { case Read(index: u64 in Trapping); case Skip; }\npublic machine read_mode(checker: &Checker, mode: Mode) -> u64 in Trapping crashes Trap {\n    transition mode {\n        Mode::Read { index as slot } if slot < 128 -> checker.bodies[slot] as u64 in Trapping\n        _ -> 0\n    }\n}\n'
+    accepted(program, "retained-patterns-keep-value-index-operands-guarded", source)
+    rejected(program, "retained-pattern-still-owes-its-index-bound", source.replace(b"slot < checker.body_count && slot < 128", b"slot < checker.body_count"), "IndexOutOfBounds", b"checker.bodies[slot]")
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: test_checking.py <checking-harness-executable>")
     program = sys.argv[1]
     data_decomposition_cases(program)
     write_frame_inventory_cases(program)
+    guarded_operand_cases(program)
     data_decomposition_static_cases(program)
     data_decomposition_named_type_cases(program)
     data_decomposition_owned_cases(program)
