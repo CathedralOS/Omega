@@ -130,7 +130,9 @@ retain their outcomes; the negative unsigned Width literal still rejects for
 Six public preparations/runs from exact producer `9f23a5b` and four unchanged
 public observations from `e67b77c` retain those actual producer identities.
 The current selected-helper public preparation also runs 0/0 at `6416b0f`.
-All nine sample/pin Main and Build pairs retain the same authored program.
+All nine positive and nine negative sample/pin Main files match exactly.
+Positive Build files also match; negative Build files differ only in the
+relative path to the bundled standard library.
 These observations establish matching-host behavior, not foreign execution.
 
 The later actual Main reconciliation retains owned source-free calling review,
@@ -138,9 +140,17 @@ canonical request/instance identities, Terminal provider-demand settlement,
 and the same selected helper plans for ABI completion and policy activation.
 The `6416b0f` root completes normal preparation and acceptance for all four
 hosted targets, checks each selected target, and runs at native/Terminal 0/0
-on macOS arm64. Final source review accepts the actual Main reconciliation;
-its focused hosted integration replay remains pending. Historical observations
-are not relabelled as that producer.
+on macOS arm64. Final source review accepts the actual Main reconciliation.
+[Hosted integration run 41364118419](https://github.com/CathedralOS/Omega/actions/runs/41364118419)
+uses exact optimized producer `a24f907e6cfeddf177a8d14ed9c8571fc4eed523`
+on macOS arm64: all ten positives check, all ten invalid controls reject for
+their intended obligations, and all nine pins plus the joint-recursion control
+run at native/Terminal 0/0. Raw records retain that source and producer identity;
+the later pipeline renumbering and opaque-component loan changes use scoped
+consumer applicability, rather than a claim that this run executed the final
+publication source. These consumers create no opaque component loans, so the
+added guest-write checks observe an empty lender table. Historical observations
+retain their actual producer identities.
 The parent migration remains open for other facts, library/product sources,
 and retirement of target-family parsing and runtime paths.
 
