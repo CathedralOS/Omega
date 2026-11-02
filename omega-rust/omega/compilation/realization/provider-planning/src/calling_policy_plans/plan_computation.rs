@@ -86,7 +86,8 @@ pub(crate) fn evaluate_default_calling_applications(
     Ok(applications)
 }
 /// Prepare Source invocation admission and exact review coordinates only.
-/// Canonical publication owns declaration storage; target activation reads it.
+/// Shared inert Terminal publication precedes invocation-scoped helper choice.
+/// Psi's original Source admission remains required before target activation.
 pub fn prepare_boundary_calling_plans(
     checked: &Arc<checked_trees::CheckedTrees>,
     services: checked_trees::typed_trees::service_declarations::ServiceCatalog<'_>,

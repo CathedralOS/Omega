@@ -570,12 +570,14 @@ fail/facts/foreign_retained_shared_borrow_persistent_retention rejected 2088ms e
 	statement 9 mutates `second_buffer.value` while local borrow `state` is still active (borrowed at statement 7; its last use is at statement 10)
 fail/facts/foreign_retained_shared_borrow_wrapper_redemption rejected 2004ms expected @13c1304502d6
 	callable `Reader::redeem_wrapper` returns content-bearing custody `Buffer::Owned` sourced only from borrowed parameter `pending` through a structural field; retained-after-return authority requires a consumed owned input
-fail/facts/generic_calling_policy/inherited_helper_rejected rejected 22200ms expected @3855367b078c
+fail/facts/generic_calling_policy/inherited_helper_rejected rejected 21209ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy/missing_nested_provider rejected 20347ms expected @3855367b078c
+fail/facts/generic_calling_policy/missing_nested_provider rejected 19466ms expected @002791b61f14
 	calling-policy helper requires an exact Build or target-default provider selection
-fail/facts/generic_calling_policy/missing_policy_provider rejected 18616ms expected @3855367b078c
+fail/facts/generic_calling_policy/missing_policy_provider rejected 18177ms expected @002791b61f14
 	slot `ValuePlan` has 3 covering provider plans for the selected target: `<selected target>::SysVValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::MicrosoftValuePlan::satisfies::ValuePlan` [<fingerprint>], `<selected target>::AapcsValuePlan::satisfies::ValuePlan` [<fingerprint>] -- choose one in build.omg with `Build::select_provider<ValuePlan, ProviderType>(b);`
+fail/facts/generic_calling_policy/unused_descendant_rejected rejected 20322ms expected @002791b61f14
+	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_nonempty_array_changed_to_zero rejected 619ms expected @a889c2d8b84c
 	machine `step` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
 	machine `step$specialized$47e79a86f727bf08$0` state `entry` value call to `step` violates required fact `Count > 0`: the instantiated fact is structurally false (`0 > 0`)
@@ -1927,6 +1929,8 @@ fail/providers/implicit_method_unused_const_count rejected 468ms expected @33b18
 	static method application requires its complete invocation telescope for `UnusedCount::read` (found 0, expected 1)
 fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected @959aa53558d2
 	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
+fail/providers/selected_parent_and_descendant_overlap rejected 1846ms expected @002791b61f14
+	selected whole provider maps `<selected target>::ParentMap::satisfies::Parent` and `<selected target>::ChildMap::satisfies::Child` supply the same exact receiver application; inherited rows cannot be mixed across choosing owners
 fail/providers/table_leaf_without_dispatch_borrow rejected 3589ms expected @bad39459725b+wt
 	selected provider plan `<selected target>::satisfies::Measure` is not fully covering: external leaf for `Measure::length` uses a table field, but its first parameter is not a readable borrow of a data declaration
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
@@ -6530,13 +6534,14 @@ pass/facts/free_entry_local_state_through_target_body_exit checked 4203ms check-
 pass/facts/generic_calling_policy/bound_argument_exit checked 14319ms check-target:linux_x86_64 @ccdb99ca2214
 pass/facts/generic_calling_policy/constant_projection_exit checked 20960ms check-target:linux_x86_64 @ccdb99ca2214
 pass/facts/generic_calling_policy/distinct_applications_exit checked 18902ms check-target:linux_x86_64 @ccdb99ca2214
-pass/facts/generic_calling_policy/helper_uses_own_policy checked 25618ms check-target:macos_arm64 @3855367b078c
-pass/facts/generic_calling_policy/inherited_helper_exit checked 25618ms check-target:macos_arm64 @3855367b078c
+pass/facts/generic_calling_policy/helper_uses_own_policy checked 26700ms check-target:macos_arm64 @002791b61f14
+pass/facts/generic_calling_policy/inherited_helper_exit checked 26635ms check-target:macos_arm64 @002791b61f14
 pass/facts/generic_calling_policy/inline_const_exit checked 19475ms check-target:linux_x86_64 @ccdb99ca2214
 pass/facts/generic_calling_policy/literal_arguments_exit checked 21185ms check-target:linux_x86_64 @ccdb99ca2214
 pass/facts/generic_calling_policy/nested_argument_exit rejected 17926ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	executed provider choice lost its complete static application
 pass/facts/generic_calling_policy/nested_data_const_exit checked 19027ms check-target:linux_x86_64 @ccdb99ca2214
+pass/facts/generic_calling_policy/unused_descendant_exit checked 22124ms check-target:macos_arm64 @002791b61f14
 pass/facts/generic_calling_policy_through_call_result_exit checked 22159ms check-target:macos_arm64 @6416b0fdfbe3
 pass/facts/generic_calling_policy_through_const_name_exit checked 19953ms check-target:macos_arm64 @6416b0fdfbe3
 pass/facts/generic_calling_policy_through_field_exit checked 19763ms check-target:macos_arm64 @6416b0fdfbe3
@@ -12352,6 +12357,7 @@ pass/providers/scalar_membership_boundary_exit checked 4706ms check-target:macos
 pass/providers/scalar_membership_foreign checked 3013ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/selected_const_provider_call_identity_exit rejected 13878ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("pending constant expression has no retained complete evaluation entry"))
+pass/providers/selected_parent_ignores_unused_descendant_exit checked 2268ms check-target:macos_arm64 @002791b61f14
 pass/providers/service_borrowed_parameter checked 1969ms @ccdb99ca2214
 pass/providers/service_fused_root checked 3420ms @ccdb99ca2214
 pass/providers/service_fused_root_establishment checked 3382ms check-target:linux_x86_64 @ccdb99ca2214
@@ -15464,13 +15470,13 @@ fail/build/build_satisfier_trait_signature_mismatch rejected 34ms unexpected @cc
 	machine satisfaction target `ExtentRootProvider::grant` does not resolve to an exact trait requirement or top-level `boundary requirement`
 fail/build/calling_policy_authored_rejection rejected 19361ms expected @ccdb99ca2214
 	calling policy rejected the boundary: local
-fail/build/calling_policy_checked_helper_rejection rejected 21411ms expected @3855367b078c
+fail/build/calling_policy_checked_helper_rejection rejected 21200ms expected @002791b61f14
 	calling policy rejected the boundary: checked helper observed
 fail/build/calling_policy_entry_premise rejected 18444ms expected @ccdb99ca2214
 	machine `LocalPolicy::plan` is not build-time admissible: machine `LocalPolicy::plan` has an authored `requires` premise along `LocalPolicy::plan`; pre-check semantic evaluation has no checked invocation proof for that premise; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
 fail/build/calling_policy_missing_target_member rejected 8848ms expected @d2937c3afdf3
 	boundary trait `LocalEntry` cannot evaluate Calling<Policy>: calling policy realization `TargetPolicy::plan` has no body for target `linux_x86_64`
-fail/build/calling_policy_unproved_helper rejected 17786ms expected @3855367b078c
+fail/build/calling_policy_unproved_helper rejected 17599ms expected @002791b61f14
 	cannot prove requires contract for call bounded from LocalPolicy::plan: signature.parameter_count <= 1 (needs fact `value <= 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `plan`
 fail/build/captured_named_input_missing_slot rejected 578ms expected published:none @ccdb99ca2214
 	named build input `absent` is not assigned to this activation at OperationId(28) in MachineId(6)/BlockId(30) at Some(OperationId(28))
@@ -22921,23 +22927,23 @@ fail/facts/generic_calling_policy/unresolved_argument rejected 9217ms expected @
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `UnknownWidth` has another static category
 fail/facts/generic_calling_policy/wrong_argument_kind rejected 8686ms expected @ccdb99ca2214
 	conformance `GenericPolicy` parameter `Width` requires a const argument, but `<structural type>` has another static category
-fail/facts/generic_calling_policy_through_call_result_rejected rejected 21595ms expected @3855367b078c
+fail/facts/generic_calling_policy_through_call_result_rejected rejected 22548ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_const_name_rejected rejected 21576ms expected @3855367b078c
+fail/facts/generic_calling_policy_through_const_name_rejected rejected 22548ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_field_rejected rejected 18712ms expected @3855367b078c
+fail/facts/generic_calling_policy_through_field_rejected rejected 19620ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_local_rejected rejected 18106ms expected @3855367b078c
+fail/facts/generic_calling_policy_through_local_rejected rejected 17529ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_match_join_rejected rejected 18720ms expected @3855367b078c
+fail/facts/generic_calling_policy_through_match_join_rejected rejected 19472ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_other_machine_rejected rejected 17933ms expected @3855367b078c
+fail/facts/generic_calling_policy_through_other_machine_rejected rejected 19626ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_other_state_rejected rejected 17937ms expected @3855367b078c
+fail/facts/generic_calling_policy_through_other_state_rejected rejected 19477ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_parameter_rejected rejected 18911ms expected @3855367b078c
+fail/facts/generic_calling_policy_through_parameter_rejected rejected 19600ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
-fail/facts/generic_calling_policy_through_target_body_rejected rejected 18894ms expected @3855367b078c
+fail/facts/generic_calling_policy_through_target_body_rejected rejected 19598ms expected @002791b61f14
 	calling policy accepted an invalid plan: value 0 placement does not cover every source byte
 fail/facts/generic_case_subject_through_call_result_rejected rejected 1886ms expected @ccdb99ca2214
 	case membership must test a value of the exact declaring data type (machine `observe`, state `entry`)
