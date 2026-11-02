@@ -1,0 +1,18 @@
+// Fact: A default trait member keeps an alias's captured const supplier separate from its same-named fresh invocation binder while forwarding the same array value.
+// Expected exit: 0
+use leaf::buffers;
+machine observe(value: &[u8; 4]) -> u8 { value[3u64] }
+machine produce() -> leaf::buffers::Padded<3u64> { [17u8, 0u8, 0u8, 42u8] }
+machine main() crashes Trap {
+    let Count: u64 = 17u64;
+    let Bias: u64 = 9u64;
+    let represented: leaf::buffers::Padded<3u64> = produce();
+    let forwarded: [u8; 4] = leaf::buffers::Selected<3u64>::forward<17u64>(represented);
+    let alias_again: leaf::buffers::Padded<3u64> = forwarded;
+    transition observe(&alias_again) == 42u8 && represented[0u64] == 17u8 && Count == 17u64 && Bias == 9u64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
