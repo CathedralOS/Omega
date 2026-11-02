@@ -17,6 +17,7 @@ mod descriptor_sources;
 mod incoming_origins;
 mod invocation_returns;
 mod presence;
+mod trace;
 
 use super::{
     StoredCarrierSource, is_mutable_structural_parameter, loan_owner_path, loan_place_segments,
@@ -50,7 +51,11 @@ pub fn call_sources(
     facts: &CheckFacts,
     target: SymbolHandle,
 ) -> Option<Vec<CheckedReturnedReferencePlan>> {
-    Captures { program, facts }.target_sources(target, &mut Vec::new())
+    let result = Captures { program, facts }.target_sources(target, &mut Vec::new());
+    if result.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        trace::return_sources(program, facts, target);
+    }
+    result
 }
 
 /// A terminal call has no expression-local holder. Its normal-return capture
