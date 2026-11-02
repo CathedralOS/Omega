@@ -45,7 +45,7 @@
 
 module verify;
 
-use digest;
+use omega::language::core::sha256;
 use omega::language::core::numeric_conversion;
 
 public data Verify {
@@ -80,7 +80,7 @@ public data Verify {
     cp: u64 in Wrapping;
     cb: u64 in Wrapping;
     cb2: u64 in Wrapping;
-    dig: digest::Sha256;
+    dig: sha256::Sha256;
 
     i: u64 in Wrapping;
     j: u64 in Wrapping;

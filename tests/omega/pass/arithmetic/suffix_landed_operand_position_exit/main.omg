@@ -1,4 +1,4 @@
-use omega_language_std::math;
+use omega::language::core::math;
 
 // RUN CANARY (exit 77, differential) -- CR4a: a width-SUFFIXED literal is
 // BORN LANDED (ch5 two-phase law: the type is chosen at the spelling), so

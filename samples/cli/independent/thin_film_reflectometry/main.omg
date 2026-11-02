@@ -5,7 +5,7 @@ use domain::report;
 use domain::complex;
 use omega::language::core::complex::Complex;
 use omega::language::core::float_operations;
-use omega_language_std::math;
+use omega::language::core::math;
 use omega_language_std::console;
 
 data Application {
