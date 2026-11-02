@@ -110,14 +110,35 @@ pub(super) fn validate_nominal_machine_selection(
     let mut operand_mismatch = None::<String>;
     let mut arguments_match = |actual: &[typed_trees::types::TypeReferenceHandle],
                                actual_owner: SymbolHandle,
+                               actual_scope: Option<
+        &typed_trees::trait_definition::AppliedTraitScope<'_>,
+    >,
                                bindings: &mut Vec<TypeBinding>| {
         if actual.len() != required_arguments.len() {
             return false;
         }
+        let scoped_actuals = if let Some(scope) = actual_scope {
+            let identities = program
+                .trait_type_parameters(scope.declaration)
+                .iter()
+                .map(|parameter| scope.argument_identity(program, parameter.symbol))
+                .collect::<Option<Vec<_>>>();
+            let Some(identities) = identities else {
+                operand_mismatch =
+                    Some("inline requirement application lost an argument identity".to_owned());
+                return false;
+            };
+            Some(identities)
+        } else {
+            None
+        };
         if applied.is_none() {
             // Inference may fill only missing caller Type slots. It is followed
             // by exact region-aware equality; carrier equality grants no
-            // nominal authority over a differently declared region.
+            // nominal authority over a differently declared region. A map
+            // operand may be compound in a supplying scope: its bare node is
+            // not a caller TypeBinding. Such rows use already admitted caller
+            // operands and compare their complete identities below.
             let Some(definition) = program.trait_definition_by_symbol(*required_trait) else {
                 return false;
             };
@@ -126,6 +147,7 @@ pub(super) fn validate_nominal_machine_selection(
                 return false;
             }
             if provider_application.is_none()
+                && actual_scope.is_none()
                 && !actual
                     .iter()
                     .zip(required_arguments)
@@ -236,7 +258,8 @@ pub(super) fn validate_nominal_machine_selection(
                 .iter()
                 .zip(required_arguments)
                 .zip(program.trait_type_parameters(definition))
-                .all(|((actual, required), parameter)| {
+                .enumerate()
+                .all(|(ordinal, ((actual, required), parameter))| {
                     let (actual, required) = if parameter.kind.is_const_or_value() {
                         (
                             applied_index_identity(
@@ -258,6 +281,9 @@ pub(super) fn validate_nominal_machine_selection(
                             applied_type_identity(program, *required, caller_owner, &[scope]),
                         )
                     };
+                    let actual = scoped_actuals
+                        .as_ref()
+                        .map_or(actual, |identities| identities.get(ordinal).copied());
                     let matches = actual
                         .zip(required)
                         .is_some_and(|(actual, required)| actual == required);
@@ -343,8 +369,12 @@ pub(super) fn validate_nominal_machine_selection(
         };
         let parameters = program.trait_type_parameters(definition);
         parameters.len() == actual.len()
-            && actual.iter().zip(required_arguments).zip(parameters).all(
-                |((actual, required), parameter)| {
+            && actual
+                .iter()
+                .zip(required_arguments)
+                .zip(parameters)
+                .enumerate()
+                .all(|(ordinal, ((actual, required), parameter))| {
                     let (actual, required) = if parameter.kind.is_const_or_value() {
                         (
                             applied_index_identity(
@@ -376,6 +406,9 @@ pub(super) fn validate_nominal_machine_selection(
                             ),
                         )
                     };
+                    let actual = scoped_actuals
+                        .as_ref()
+                        .map_or(actual, |identities| identities.get(ordinal).copied());
                     let matches = actual
                         .zip(required)
                         .is_some_and(|(actual, required)| actual == required);
@@ -387,8 +420,7 @@ pub(super) fn validate_nominal_machine_selection(
                         ));
                     }
                     matches
-                },
-            )
+                })
     };
 
     // Forwarding another static binder is sound only when that binder carries
@@ -412,6 +444,7 @@ pub(super) fn validate_nominal_machine_selection(
                 program.lifetime_declaration_owner(
                     program.declaration_scope_parent(selected_parameter.symbol),
                 ),
+                None,
                 &mut scratch,
             ) {
                 *bindings = scratch;
@@ -498,9 +531,48 @@ pub(super) fn validate_nominal_machine_selection(
                 .type_reference_table
                 .type_reference_handles(conformance.arguments),
             selected_machine.symbol,
+            None,
             &mut scratch,
         ) {
             matching_rows += 1;
+            admitted_bindings = Some(scratch);
+        }
+    }
+    let map_scope = match program.machine_conformance_requirement_scope(
+        selected_machine.symbol,
+        *required_trait,
+        *required_requirement,
+    ) {
+        Ok(scope) => scope,
+        Err(reason) => {
+            diagnostics.push(Diagnostic::error(reason));
+            return Err(());
+        }
+    };
+    if let Some(scope) = map_scope {
+        let actuals = program
+            .trait_type_parameters(scope.declaration)
+            .iter()
+            .map(|parameter| {
+                scope
+                    .parameter_application(parameter.symbol)
+                    .map(|(reference, _)| reference)
+            })
+            .collect::<Option<Vec<_>>>();
+        let Some(actuals) = actuals else {
+            diagnostics.push(Diagnostic::error(
+                "inline requirement application lost its declared argument roster",
+            ));
+            return Err(());
+        };
+        let mut scratch = bindings.clone();
+        if arguments_match(&actuals, scope.argument_owner, Some(&scope), &mut scratch) {
+            // An explicit edge may disambiguate this very map row. Both
+            // descriptions supply one exact authority, not two independent
+            // satisfaction rows. Repeated explicit clauses remain duplicates.
+            if matching_rows == 0 {
+                matching_rows = 1;
+            }
             admitted_bindings = Some(scratch);
         }
     }

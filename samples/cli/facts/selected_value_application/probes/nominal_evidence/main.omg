@@ -21,6 +21,14 @@ boundary trait SelectedValue {
     requires Index <= 10
     ensures result.right == Index;
 }
+boundary trait OtherSelectedValue {
+    machine selected<Index: u32, Implementation satisfies Choose<Cell>>(
+        first: Cell, second: Cell
+    ) -> Selection<Cell>
+    reaches
+    requires Index <= 10
+    ensures result.right == Index;
+}
 SelectionAdapter satisfies SelectedValue {
     machine selected<Index: u32, Implementation satisfies Choose<Cell>>(
         first: Cell, second: Cell
