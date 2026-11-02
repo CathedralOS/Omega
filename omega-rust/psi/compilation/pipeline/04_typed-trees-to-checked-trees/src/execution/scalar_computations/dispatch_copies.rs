@@ -10,26 +10,55 @@ use checked_trees::{
 };
 
 impl Builder<'_, '_> {
-    pub(super) fn retain_dispatch_copy_roots(&mut self) {
+    pub(super) fn retain_dispatch_copy_roots(
+        &mut self,
+    ) -> Result<(), Vec<diagnostics::Diagnostic>> {
         let Some(state) = self.flow.control.unique_state(self.machine, self.state) else {
-            return;
+            return Ok(());
         };
-        let copies = self
+        let Some(transition) = self
+            .program
+            .state_by_symbol(self.state)
+            .and_then(|state| {
+                self.program
+                    .statement_table
+                    .statement_at(state, self.statement_index)
+            })
+            .and_then(|statement| statement.as_transition())
+        else {
+            return Ok(());
+        };
+        let mut outgoing = self
             .flow
             .control
             .outgoing
             .span_or_empty(state.outgoing)
             .iter()
-            .filter(|outgoing| outgoing.statement_index == self.statement_index)
-            .flat_map(|outgoing| {
-                self.flow
-                    .control
-                    .operands
-                    .span_or_empty(outgoing.copied_payloads)
-                    .iter()
-                    .copied()
-            })
-            .collect::<Vec<_>>();
+            .filter(|row| {
+                row.statement_index == self.statement_index
+                    && row.transition_target == transition.target
+            });
+        let Some(row) = outgoing.next() else {
+            return Ok(());
+        };
+        if outgoing.next().is_some() {
+            return Err(vec![diagnostics::Diagnostic::error(
+                "selected payload entry has ambiguous completed flow",
+            )]);
+        }
+        let copies = self
+            .flow
+            .control
+            .operands
+            .span_or_empty(row.copied_payloads)
+            .to_vec();
+        let program = self.program;
+        let failure = |copy: checked_trees::FlowOperandFact, reason: &str| {
+            vec![
+                diagnostics::Diagnostic::error(reason)
+                    .with_source_span(program.expression_table.source_span(copy.expression)),
+            ]
+        };
         for copy in copies {
             if self
                 .program
@@ -42,8 +71,27 @@ impl Builder<'_, '_> {
             let checked_trees::FlowOperandCompletion::Copied { copy: identity, .. } =
                 copy.completion
             else {
-                continue;
+                return Err(failure(
+                    copy,
+                    "selected payload lost its completed copy identity",
+                ));
             };
+            if !validation::type_satisfies_declared_property(
+                self.program,
+                &[],
+                copy.type_reference,
+                validation::DeclaredPropertyRequirement::Copy,
+            ) || !validation::has_contents(
+                self.program,
+                copy.type_reference,
+                &[],
+                validation::ContentsRequirement::DescriptorCleanup,
+            ) {
+                return Err(failure(
+                    copy,
+                    "selected copied value lacks independent copy/discard capability",
+                ));
+            }
             if self
                 .structural_values
                 .root_for_captured_copy(self.state, self.statement_index as u32, identity)
@@ -52,12 +100,18 @@ impl Builder<'_, '_> {
                 continue;
             }
             let Some(kind) = self.dispatch_copy_kind(copy) else {
-                continue;
+                return Err(failure(
+                    copy,
+                    "selected structural payload has no checked copied-value plan",
+                ));
             };
             let Some(value) =
                 self.publish_structural_value(copy.expression, copy.type_reference, kind)
             else {
-                continue;
+                return Err(failure(
+                    copy,
+                    "selected structural payload could not publish its copied-value root",
+                ));
             };
             self.structural_values
                 .roots
@@ -71,6 +125,7 @@ impl Builder<'_, '_> {
                     root: value,
                 });
         }
+        Ok(())
     }
 
     pub(super) fn captured_dispatch_value(

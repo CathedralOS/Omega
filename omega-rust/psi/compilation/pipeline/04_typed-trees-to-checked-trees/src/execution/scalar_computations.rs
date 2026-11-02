@@ -99,10 +99,13 @@ pub(crate) fn build_checked_value_computation_plans(
     proof: &ProofFacts,
     pure: &mut CheckedScalarExpressionPlans,
     exact_integer_casts: &[validation::ExactIntegerCastFact],
-) -> (
-    CheckedScalarComputationPlans,
-    checked_trees::CheckedStructuralValuePlans,
-) {
+) -> Result<
+    (
+        CheckedScalarComputationPlans,
+        checked_trees::CheckedStructuralValuePlans,
+    ),
+    Vec<diagnostics::Diagnostic>,
+> {
     dispatch_copies::withdraw_value_dependent_pure_roots(program, flow, pure);
     let mut plans = CheckedScalarComputationPlans::default();
     let mut structural_values = CheckedStructuralValuePlans::default();
@@ -158,7 +161,7 @@ pub(crate) fn build_checked_value_computation_plans(
                     scalar_occurrences: Vec::new(),
                     integer_occurrences: Vec::new(),
                 };
-                builder.retain_dispatch_copy_roots();
+                builder.retain_dispatch_copy_roots()?;
                 // Endpoints are ordinary operands. Capture every occurrence
                 // before constructing consumers, so a call result and a pure
                 // bound supply the same range operation at its authored site.
@@ -263,6 +266,7 @@ pub(crate) fn build_checked_value_computation_plans(
                             qualification_decisions: Default::default(),
                             content_transformation: Default::default(),
                             content_inputs: Default::default(),
+                            selects_source_storage: false,
                             kind: CheckedStructuralValueKind::ZeroedStructural {
                                 projected_qualifications,
                             },
@@ -718,7 +722,7 @@ pub(crate) fn build_checked_value_computation_plans(
     }
     plans.seal();
     structural_values.seal();
-    (plans, structural_values)
+    Ok((plans, structural_values))
 }
 
 /// Source-admitted observations append only after completed effects and final

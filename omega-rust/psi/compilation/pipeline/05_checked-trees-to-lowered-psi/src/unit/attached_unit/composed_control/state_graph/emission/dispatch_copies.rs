@@ -40,7 +40,7 @@ impl StateGraphEmission<'_, '_> {
             owner,
             state.state,
             statement_ordinal,
-        )?;
+        );
         let mut completed = Vec::new();
         for root in roots {
             let structural_type = crate::terminal_identities::lookup_type_id(

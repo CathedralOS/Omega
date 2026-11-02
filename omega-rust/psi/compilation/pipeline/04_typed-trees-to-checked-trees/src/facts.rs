@@ -328,29 +328,33 @@ pub(crate) fn build_check_facts(
     prepared.flow.control.seal_indexes();
     let _post_flow_guard = phase_profile::guard("05.d.3.c.post_flow_facts");
     crate::borrow::accesses::retain_completed_dispatch_extractions(program, &mut prepared);
-    phase_profile::scope("05.d.3.c.1.scalar_and_index_plans", || {
-        crate::values::retain_nested_call_arguments(
-            program,
-            &prepared.operators,
-            &prepared.flow,
-            &mut prepared.values.scalar_expressions,
-            &mut prepared.values.proof_terms.terms,
-            &validation_facts.exact_integer_casts,
-        );
-        (
-            prepared.values.scalar_computations,
-            prepared.values.structural_values,
-        ) = crate::execution::scalar_computations::build_checked_value_computation_plans(
-            program,
-            &prepared.operators,
-            &prepared.semantic,
-            &prepared.flow,
-            &prepared.borrow,
-            &prepared.proof,
-            &mut prepared.values.scalar_expressions,
-            &validation_facts.exact_integer_casts,
-        );
-    });
+    phase_profile::scope(
+        "05.d.3.c.1.scalar_and_index_plans",
+        || -> Result<(), Vec<diagnostics::Diagnostic>> {
+            crate::values::retain_nested_call_arguments(
+                program,
+                &prepared.operators,
+                &prepared.flow,
+                &mut prepared.values.scalar_expressions,
+                &mut prepared.values.proof_terms.terms,
+                &validation_facts.exact_integer_casts,
+            );
+            (
+                prepared.values.scalar_computations,
+                prepared.values.structural_values,
+            ) = crate::execution::scalar_computations::build_checked_value_computation_plans(
+                program,
+                &prepared.operators,
+                &prepared.semantic,
+                &prepared.flow,
+                &prepared.borrow,
+                &prepared.proof,
+                &mut prepared.values.scalar_expressions,
+                &validation_facts.exact_integer_casts,
+            )?;
+            Ok(())
+        },
+    )?;
     crate::execution::content_consumption::attach(program, &mut prepared)?;
     let index_compatibility = phase_profile::scope("05.d.3.c.2.index_compatibility", || {
         index_compatibility::build_index_compatibility_facts(

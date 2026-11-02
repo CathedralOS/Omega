@@ -386,16 +386,10 @@ pub(crate) fn emit<'source>(
     let mut storage_memberships = Vec::new();
     loop {
         let node = structural_values(checked).nodes.get(storage_value);
-        let CheckedStructuralValueKind::Projection { source, path, .. } = &node.kind else {
+        let CheckedStructuralValueKind::Projection { source, .. } = &node.kind else {
             break;
         };
-        if !path.is_empty()
-            || (checked
-                .type_reference_table
-                .case_view_subject(node.type_reference)
-                .is_some()
-                && validation::reference_shell(&checked.typed, node.type_reference).is_none())
-        {
+        if node.selects_source_storage {
             break;
         }
         storage_memberships.push((node.qualification_decisions, node.expression));
@@ -419,24 +413,10 @@ pub(crate) fn emit<'source>(
             projection_evaluations,
             copies_selected_value: false,
             ..
-        } if (!path.is_empty()
-            || (checked
-                .type_reference_table
-                .case_view_subject(
-                    structural_values(checked)
-                        .nodes
-                        .get(storage_value)
-                        .type_reference,
-                )
-                .is_some()
-                && validation::reference_shell(
-                    &checked.typed,
-                    structural_values(checked)
-                        .nodes
-                        .get(storage_value)
-                        .type_reference,
-                )
-                .is_none()))
+        } if structural_values(checked)
+            .nodes
+            .get(storage_value)
+            .selects_source_storage
             && (production.destination == ValueDestination::Operand
                 || matches!(
                     structural_values(checked).nodes.get(source).kind,
