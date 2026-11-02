@@ -19,14 +19,14 @@ use register_homes::{
     AllocationLegalityIdentity, AllocatorAvailabilityIdentity,
     PostAllocationOptimizationManifestError,
 };
+use selected_instructions::StagedOptimizedCustodyCore;
 use selected_instructions::{LiveRangeIdentity, LivenessIdentity, SelectedInstructionPlanIdentity};
 use selected_instructions_to_selected_instructions::{
-    OptimizedSelectedReanalysisError, StagedOptimizedAllocationLegality,
+    OptimizedSelectedReanalysisError, SelectedProgramRef, StagedOptimizedAllocationLegality,
     StagedOptimizedSelectedReanalysis, StagedOptimizedSelectedReanalysisCustodyReceipt,
     ValidatedAllocationLegality, ValidatedFixedViewCopies, ValidatedLiveRanges, ValidatedLiveness,
 };
 use semantic_vocabulary::{FuelScheduleIdentity, MachineId};
-use target_operations_to_selected_instructions::StagedOptimizedCustodyCore;
 use terminal_psi::TerminalPsiIdentity;
 
 use super::PostHomeCustodyReceipt;
@@ -53,10 +53,8 @@ impl StagedOptimizedRegisterHomes {
     /// The retained producer stage. Replay and custody validation inspect it;
     /// ordinary consumers read the current program and analyses directly.
     /// The current selected program this assignment describes.
-    pub const fn selected(
-        &self,
-    ) -> &target_operations_to_selected_instructions::ValidatedSelectedInstructions {
-        self.legality.selected()
+    pub fn selected(&self) -> SelectedProgramRef<'_> {
+        SelectedProgramRef::new(self.legality.selected())
     }
     admitted_stage_accessors!(const pub, legality);
     pub const fn liveness(&self) -> &ValidatedLiveness {
@@ -94,7 +92,7 @@ pub struct StagedOptimizedRegisterHomeCustodyReceipt {
 }
 
 impl StagedOptimizedRegisterHomeCustodyReceipt {
-    target_operations_to_selected_instructions::staging_custody_core_accessors!();
+    selected_instructions::staging_custody_core_accessors!();
 
     receipt_accessor_rows!(StagedOptimizedRegisterHomeCustodyReceipt {
         allocator_availability: AllocatorAvailabilityIdentity,

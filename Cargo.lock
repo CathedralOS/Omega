@@ -2186,7 +2186,6 @@ dependencies = [
  "semantic-vocabulary",
  "target",
  "target-operations",
- "target-operations-to-selected-instructions",
  "terminal-codec",
  "terminal-psi",
 ]
