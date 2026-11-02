@@ -42,6 +42,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
                                 capture,
                                 dispatch.subject,
                                 None,
+                                true,
                             )?,
                         )
                     }
@@ -74,6 +75,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         capture: Handle<typed::expression::CompletedValueCapture>,
         source_subject: resolved::expression::ExpressionHandle,
         completed_subject: Option<typed::expression::ExpressionHandle>,
+        is_structural: bool,
     ) -> Result<typed::expression::TableDestructurePattern, Diagnostic> {
         let program = self.program.ok_or_else(|| {
             Diagnostic::error(
@@ -89,6 +91,11 @@ impl ExpressionTableLowerer<'_, '_, '_> {
             self.lower_application_type(pattern.application_type, pattern.head)?;
         let head = if pattern.head.is_valid() {
             self.lower_value(pattern.head)?
+        } else if !is_structural {
+            // Ordinary scalar/Boolean transition predicates have no nominal
+            // head. Only a retained structural pattern requests inference of
+            // its positional carrier; an absent head alone is not that role.
+            typed::expression::ExpressionHandle::invalid()
         } else if !capture.is_valid() {
             self.infer_pattern_head(source_subject)?
         } else {
@@ -245,6 +252,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
             Handle::invalid(),
             retained.subject,
             Some(subject),
+            retained.is_structural,
         )?;
         Ok(typed::statement::TransitionPattern {
             is_structural: retained.is_structural,

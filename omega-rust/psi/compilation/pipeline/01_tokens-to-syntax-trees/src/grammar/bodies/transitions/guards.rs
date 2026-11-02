@@ -432,16 +432,19 @@ where
 /// Parse a single-subject DESTRUCTURE pattern arm, with or without an `if` guard:
 ///
 /// - `Type::Case { field, .. } [if guard] -> ...` -- a CASE pattern: the arm
-///   matches when the subject's tag is `Type::Case` (an equality guard against
-///   the case name), and each bound `field` rewrites to `subject.field` (a
-///   payload read) in the `if` guard and in the transition target's arguments.
+///   selects the declaration's case membership, and each bound `field` reads
+///   that payload through the same saved subject in the `if` guard and in the
+///   transition target's arguments. Path length does not classify the head.
 /// - `Type { field, fixed: value, .. } [if guard] -> ...` -- a record
 ///   destructure: no tag compare (the subject IS that type); bare fields bind,
 ///   while `fixed: value` contributes `subject.fixed == value` to the arm
 ///   guard. Case payload patterns use the same field-value spelling.
 ///
-/// Returns `Ok(None)` when the arm is not a destructure pattern (no `{` after a
-/// leading path), so the caller falls back to the plain pattern list.
+/// A positional outer pattern `(first, second, case_view)` retains ordinal
+/// selectors against the subject's exact carrier. Declaration selection later
+/// distinguishes common fields from the final anonymous case component.
+/// Returns `Ok(None)` when neither positional nor braced syntax is a pattern,
+/// so the caller falls back to the plain pattern list.
 fn parse_destructure_pattern_arm<'tokens, 'source>(
     syntax_trees: &mut SyntaxTrees,
     input: Input<'tokens, 'source>,
