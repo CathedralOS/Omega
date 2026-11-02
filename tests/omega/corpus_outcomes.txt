@@ -1644,6 +1644,24 @@ fail/facts/recorded_build_role/parameter rejected 1541ms expected @1a41b8e686ed
 	failed to resolve tests/omega/fail/facts/recorded_build_role/parameter/my_library/values.omg: captured entry is absent: my_library
 fail/facts/recorded_build_role/target_body rejected 1250ms expected @1a41b8e686ed
 	failed to resolve tests/omega/fail/facts/recorded_build_role/target_body/my_library/values.omg: captured entry is absent: my_library
+fail/facts/reflection_capacity_through_call_result_rejected rejected 47728ms expected @1e29a538216e
+	cannot prove ensures contract for exit from produce at statement 0: result.valid && result.bytes == 7
+fail/facts/reflection_capacity_through_const_name_rejected rejected 44871ms expected @1e29a538216e
+	cannot prove requires contract for call accept from main: constructor:22:toolchain::ScalarBound6:record17:common:name:bytes2:1317:common:name:valid4:true.valid && constructor:22:toolchain::ScalarBound6:record17:common:name:bytes2:1317:common:name:valid4:true.bytes == 7 (needs fact `bound.valid && bound.bytes == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/reflection_capacity_through_field_rejected rejected 46425ms expected @1e29a538216e
+	cannot prove requires contract for call accept from main: holder.bound.valid && holder.bound.bytes == 7 (needs fact `bound.valid && bound.bytes == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/reflection_capacity_through_local_rejected rejected 46347ms expected @1e29a538216e
+	cannot prove requires contract for call accept from main: bound.valid && bound.bytes == 7 (needs fact `bound.valid && bound.bytes == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/reflection_capacity_through_match_join_rejected rejected 44760ms expected @1e29a538216e
+	cannot prove requires contract for call accept from exercise: bound.valid && bound.bytes == 7 (needs fact `bound.valid && bound.bytes == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/reflection_capacity_through_other_machine_rejected rejected 44761ms expected @1e29a538216e
+	cannot prove requires contract for call forward from main: bound.valid && bound.bytes == 7 (needs fact `bound.valid && bound.bytes == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/reflection_capacity_through_other_state_rejected rejected 41204ms expected @1e29a538216e
+	cannot prove requires contract for call forward from main: bound.valid && bound.bytes == 7 (needs fact `bound.valid && bound.bytes == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/reflection_capacity_through_parameter_rejected rejected 41194ms expected @1e29a538216e
+	cannot prove requires contract for call forward from main: bound.valid && bound.bytes == 7 (needs fact `bound.valid && bound.bytes == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/reflection_capacity_through_target_body_rejected rejected 41595ms expected @1e29a538216e
+	cannot prove requires contract for call apply from main: bound.valid && bound.bytes == 7 (needs fact `bound.valid && bound.bytes == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/representation_conversion_primitive_shadow_rejected rejected 3051ms expected @dde0f3a03bcd
 	data `Int` shadows the builtin type of the same name -- references would silently bind to the builtin and this definition would never be used (its contracts would go unvalidated). Pick a different name.
 fail/facts/representation_conversion_stored_output_source_write_rejected rejected 6488ms expected @dde0f3a03bcd
@@ -2009,7 +2027,7 @@ pass/arithmetic/runtime_guard_narrowed_transition_arg_exit checked 90785ms check
 pass/arithmetic/runtime_guarded_read_count_assignment_exit checked 18856ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_immutable_unsigned_bitwise_bounds_exit checked 3989ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_integer_casts_exit checked 17201ms check-target:macos_arm64 @ccdb99ca2214
-pass/arithmetic/runtime_min_max_clamp_narrowing_exit checked 22670ms check-target:macos_arm64 @ccdb99ca2214
+pass/arithmetic/runtime_min_max_clamp_narrowing_exit checked 61505ms check-target:macos_arm64 @1e29a538216e
 pass/arithmetic/runtime_monte_carlo_pi_exit checked 17259ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_nested_record_observation_exit checked 16686ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_nested_unsigned_witness_exit checked 16867ms check-target:macos_arm64 @ccdb99ca2214
@@ -2045,7 +2063,7 @@ pass/arithmetic/runtime_wrapping_operand_truncation_exit checked 16801ms check-t
 pass/arithmetic/saturating_signed_divide_min_by_neg_one checked 16618ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/signed_index_bounds checked 3936ms @ccdb99ca2214
 pass/arithmetic/sparse_captured_utf_path_exit checked 4168ms check-target:macos_arm64 @ccdb99ca2214
-pass/arithmetic/suffix_landed_operand_position_exit checked 20628ms check-target:macos_arm64 @ccdb99ca2214
+pass/arithmetic/suffix_landed_operand_position_exit checked 61505ms check-target:macos_arm64 @1e29a538216e
 pass/arithmetic/total_contract_guarded_division checked 2654ms @ccdb99ca2214
 pass/arithmetic/truncating_reconstruction_bound checked 7295ms @911f6617ba9e
 pass/arithmetic/typed_integer_remainder checked 2603ms @ccdb99ca2214
@@ -3057,8 +3075,8 @@ pass/calls/runtime_nested_continuation_exit checked 3702ms check-target:macos_ar
 pass/calls/runtime_nested_local_field_store_exit checked 17484ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_nested_receiver_guard_exit checked 16566ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_nested_value_call_guard_exit checked 58144ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_numeric_operand_order_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-pass/calls/runtime_numeric_operand_single_evaluation_exit checked 20147ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_numeric_operand_order_exit checked 74041ms check-target:macos_arm64 @1e29a538216e
+pass/calls/runtime_numeric_operand_single_evaluation_exit checked 52873ms check-target:macos_arm64 @1e29a538216e
 pass/calls/runtime_operator_guard_result_exit checked 7010ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_option_value_call_exit checked 17511ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_owned_case_temporaries_exhaustive_dispatch_exit checked 17242ms check-target:macos_arm64 @ccdb99ca2214
@@ -3089,7 +3107,8 @@ pass/calls/runtime_static_entry_context_exit checked 3774ms check-target:macos_a
 pass/calls/runtime_static_proof_only_namespace_exit checked 3656ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_static_tail_local_custody_exit checked 3704ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_static_tail_reordered_local_custody_exit checked 3592ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_std_math_sin_cos_exit checked 16554ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_std_math_sin_cos_exit rejected 39472ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
 pass/calls/runtime_stored_constructor_snapshots_exit checked 6637ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_stored_equal_observations_exit checked 3567ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_stored_field_constructor_snapshots_exit checked 3069ms check-target:macos_arm64 @ccdb99ca2214
@@ -3107,7 +3126,8 @@ pass/calls/runtime_value_call_return_types_exit checked 17928ms check-target:mac
 pass/calls/runtime_value_call_single_execution_exit checked 17996ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_value_call_statement_recursive_walk_exit rejected 8786ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal call `walk` does not select a declared machine entry or callable requirement
-pass/calls/runtime_value_call_terminal_exit checked 21025ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/runtime_value_call_terminal_exit rejected 38018ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
 pass/calls/runtime_wrapping_division_call_span_exit checked 16660ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/scalar_callee_borrowed_primitive_reads_exit checked 16649ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/scalar_expression_binding_evaluation_order_exit checked 4149ms check-target:macos_arm64 @ccdb99ca2214
@@ -3129,7 +3149,7 @@ pass/calls/static_boundary_helpers_and_cleanup_exit checked 4045ms check-target:
 pass/calls/static_context_forwarded_through_state_arms_exit checked 14920ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/static_context_forwarded_twice_exit checked 13469ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/static_machine_required_input_crash_refinement_exit checked 3699ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/static_state_context_field_window_exit rejected 15731ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/calls/static_state_context_field_window_exit rejected 16750ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
 	call to `lend` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 pass/calls/stored_unsigned_as_signed_negative_requires_exit checked 24836ms check-target:macos_arm64 @5d70aa361af0
 pass/calls/stored_unsigned_as_signed_positive_requires_exit checked 26756ms check-target:macos_arm64 @5d70aa361af0
@@ -3216,7 +3236,7 @@ pass/collections/case_array_literal_nested_store_exit checked 17620ms check-targ
 pass/collections/case_array_literal_row_store_exit checked 79692ms check-target:macos_arm64 @911f6617ba9e
 pass/collections/contract_length_qualified_result_cast_exit checked 3326ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/contract_length_results_exit checked 6891ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/cyclic_shared_plain_array_parameter_exit checked 21181ms check-target:macos_arm64 @ccdb99ca2214
+pass/collections/cyclic_shared_plain_array_parameter_exit checked 35589ms check-target:macos_arm64 @1e29a538216e
 pass/collections/element_policy_array_literal_store checked 16905ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/element_view_borrow_local rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
@@ -8668,6 +8688,15 @@ pass/facts/reference_recast_backing_footprint_through_other_machine_exit checked
 pass/facts/reference_recast_backing_footprint_through_other_state_exit checked 3637ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/reference_recast_backing_footprint_through_parameter_exit checked 3134ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/reference_recast_backing_footprint_through_target_body_exit checked 3292ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/reflection_capacity_through_call_result_exit checked 40692ms check-target:macos_arm64 @1e29a538216e
+pass/facts/reflection_capacity_through_const_name_exit checked 43670ms check-target:macos_arm64 @1e29a538216e
+pass/facts/reflection_capacity_through_field_exit checked 41640ms check-target:macos_arm64 @1e29a538216e
+pass/facts/reflection_capacity_through_local_exit checked 40949ms check-target:macos_arm64 @1e29a538216e
+pass/facts/reflection_capacity_through_match_join_exit checked 41283ms check-target:macos_arm64 @1e29a538216e
+pass/facts/reflection_capacity_through_other_machine_exit checked 41205ms check-target:macos_arm64 @1e29a538216e
+pass/facts/reflection_capacity_through_other_state_exit checked 42143ms check-target:macos_arm64 @1e29a538216e
+pass/facts/reflection_capacity_through_parameter_exit checked 41990ms check-target:macos_arm64 @1e29a538216e
+pass/facts/reflection_capacity_through_target_body_exit checked 40695ms check-target:macos_arm64 @1e29a538216e
 pass/facts/register_stack_arg_calling_plan_through_call_result_exit checked 3712ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/register_stack_arg_calling_plan_through_const_name_exit checked 3244ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/register_stack_arg_calling_plan_through_field_exit checked 7139ms check-target:macos_arm64 @911f6617ba9e
@@ -10577,7 +10606,8 @@ pass/float/build_runtime_semantics_twins_windows_x64 rejected 49193ms check-targ
 	constant checking: scalar evaluation needs an unavailable provider or external effect
 pass/float/build_runtime_semantics_twins_x86_baseline rejected 48446ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
 	constant checking: scalar evaluation needs an unavailable provider or external effect
-pass/float/builtin_extrema_field_store_exit checked 18987ms check-target:macos_arm64 @ccdb99ca2214
+pass/float/builtin_extrema_field_store_exit rejected 33074ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
 pass/float/closed_integer_conversion_predicate_proof_exit checked 6992ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/closed_integer_conversion_trapping_source_no_normal_result checked 6217ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/coherent_field_energy_scattering_exit checked 6844ms check-target:macos_arm64 @ccdb99ca2214
@@ -10602,7 +10632,7 @@ pass/float/f32_per_operation_rounding_exit rejected 9363ms check-target:macos_ar
 	compiler-derived copies of one authored Call selection resolved inconsistently: `saturating_sub::entry` versus `saturating_sub::entry`
 pass/float/finite_core_domain_range_discharge checked 60357ms check-target:macos_arm64 @911f6617ba9e
 pass/float/finite_signature_transport_exit checked 14450ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/float_catalog_calls checked 17418ms @ccdb99ca2214
+pass/float/float_catalog_calls checked 45014ms @1e29a538216e
 pass/float/float_computation_route_exit checked 15685ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/float_copied_argument_completion checked 6006ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/float_detached_recast_copy_completion rejected 5435ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -10686,8 +10716,10 @@ pass/float/nearest_even_binary_arithmetic_exit checked 16115ms check-target:maco
 pass/float/nested_call_requirement_before_sibling_write_exit checked 6416ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/nested_caller_snapshot_before_sibling_write_exit rejected 5583ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call demand from forward: value == value (needs fact `value == value` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/float/nested_float_operator_applications_exit checked 16240ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/ordinary_numeric_helper_edges_exit checked 15678ms check-target:macos_arm64 @ccdb99ca2214
+pass/float/nested_float_operator_applications_exit rejected 36447ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
+pass/float/ordinary_numeric_helper_edges_exit rejected 35643ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
 pass/float/owned_local_computed_float_store_exit checked 14880ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/primitive_comparison_sealed_scope_exit checked 6385ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/primitive_storage_predicate_keeps_ieee_meaning checked 6381ms check-target:macos_arm64 @ccdb99ca2214
@@ -10714,11 +10746,16 @@ pass/float/public_integer_result_contract_import_exit rejected 3119ms check-targ
 pass/float/qualified_integer_source_exact_float_coercion_exit checked 7158ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/requirement_nested_record_arithmetic_exit checked 15740ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/returned_record_computed_fields_exit checked 15972ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_absolute_return_sum_exit checked 17321ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_absolute_shared_call_operands_exit checked 16805ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_authored_max_selection_exit checked 16738ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_builtin_guard_application_exit checked 16759ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_builtin_ieee_order_exit checked 14345ms check-target:macos_arm64 @ccdb99ca2214
+pass/float/runtime_absolute_return_sum_exit rejected 35910ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
+pass/float/runtime_absolute_shared_call_operands_exit rejected 34925ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
+pass/float/runtime_authored_max_selection_exit rejected 33283ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
+pass/float/runtime_builtin_guard_application_exit rejected 32518ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
+pass/float/runtime_builtin_ieee_order_exit rejected 31576ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
 pass/float/runtime_classification_result_categories_exit checked 6668ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_coercion_future_policy_exit rejected 2538ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `convert` state `entry` cannot prove Exact float-to-`u8` cast operand `source` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -10795,10 +10832,14 @@ pass/float/runtime_resultless_law_equality_custody_exit rejected 11796ms check-t
 	cannot prove ensures contract for exit from same32 at statement 0: value == value
 	cannot prove ensures contract for exit from same64 at statement 0: value == value
 	cannot prove ensures contract for exit from same64 at statement 0: value == value
-pass/float/runtime_shared_float_lazy_branch_exit checked 16415ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_shared_float_operand_once_exit checked 18313ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_std_is_finite_exit checked 17220ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_std_trigonometric_endpoints checked 17071ms check-target:macos_arm64 @ccdb99ca2214
+pass/float/runtime_shared_float_lazy_branch_exit rejected 32687ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
+pass/float/runtime_shared_float_operand_once_exit rejected 32395ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
+pass/float/runtime_std_is_finite_exit rejected 32449ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
+pass/float/runtime_std_trigonometric_endpoints rejected 33378ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	Terminal boundary application has no unique exact selected row
 pass/float/runtime_total_order_satisfiers_exit checked 14841ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/saturating_named_operations_retain_ordered_inputs checked 7007ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/scalar_helper_boundary_sequence_exit checked 16852ms check-target:macos_arm64 @ccdb99ca2214
@@ -12498,7 +12539,7 @@ pass/slices/inclusive_subslice_bounds checked 3317ms @ccdb99ca2214
 pass/slices/inclusive_subslice_literal_bounds_compile checked 3051ms @ccdb99ca2214
 pass/slices/let_matched_mutable_window checked 3249ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/live_view_edge_write checked 3174ms @ccdb99ca2214
-pass/slices/local_array_element_view_exit checked 20021ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/local_array_element_view_exit checked 42878ms check-target:macos_arm64 @1e29a538216e
 pass/slices/local_record_array_state_view_exit rejected 11672ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	native artifact target lowering failed: UnsupportedOperationInScalarFunction(MachineId(31))
 pass/slices/matched_window_before_later_field_effect checked 5427ms check-target:macos_arm64 @911f6617ba9e
@@ -13316,31 +13357,40 @@ pass/types/runtime_i16_signed_arith_exit checked 11952ms check-target:macos_arm6
 pass/types/shared_borrow_retains_carrier_exit checked 3428ms check-target:linux_x86_64 @ccdb99ca2214
 pass/types/storage_address_aggregate checked 2207ms @ccdb99ca2214
 pass/types/storage_address_core_name_shadowed_exit checked 3658ms check-target:linux_x86_64 @ccdb99ca2214
-pass/versioning/migration_generic_trait checked 10356ms check-target:macos_arm64 @ccdb99ca2214
-pass/versioning/runtime_version_migration_exit checked 13225ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/codec_reference_array_exit checked 3937ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/codec_state_local_types_exit incomplete 3304ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	`main` calls `main::encode`; `main::encode` has no executable body: this compiler does not lower a call of it yet (statement sequence: call: flow call); in state `main::encode::entry`, statement 6
-pass/wire/fixed_vec_member_through_qualified_path checked 2395ms @ccdb99ca2214
-pass/wire/fixed_vec_wire_member timeout 120000ms regressed-from:checked @ccdb99ca2214
+pass/versioning/migration_generic_trait checked 50465ms check-target:macos_arm64 @1e29a538216e
+pass/versioning/runtime_version_migration_exit checked 52430ms check-target:macos_arm64 @1e29a538216e
+pass/wire/codec_reference_array_exit checked 53509ms check-target:macos_arm64 @1e29a538216e
+pass/wire/codec_state_local_types_exit checked 47475ms check-target:macos_arm64 @1e29a538216e
+pass/wire/fixed_vec_member_through_qualified_path checked 45353ms @1e29a538216e
+pass/wire/fixed_vec_wire_member checked 41750ms @1e29a538216e
+pass/wire/library_compact_binary_packed_decode_exit checked 36770ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_packed_reflection_exit checked 41925ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_predicate_decode_exit checked 42947ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_reflection_exit checked 57480ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_scalar_bound_exit checked 45173ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_scalar_decode_exit checked 48779ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_signed_blob_exit checked 45894ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_signed_reflection_exit checked 46169ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_utf8_exit checked 38301ms check-target:macos_arm64 @1e29a538216e
+pass/wire/library_compact_binary_varints_exit checked 41420ms check-target:macos_arm64 @1e29a538216e
 pass/wire/numbered_case_identities checked 2664ms @ccdb99ca2214
-pass/wire/runtime_wire_decode_byte_slice_exit checked 30541ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/runtime_wire_decode_ranged_field_exit checked 16313ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit checked 12709ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/runtime_wire_decode_rejects_wrong_era_exit checked 13741ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit checked 12900ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/runtime_wire_encode_byte_slice_exit checked 12839ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/runtime_wire_encode_interior_scalar_slice_exit checked 13152ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/runtime_wire_exact_array_without_count_exit checked 12526ms check-target:macos_arm64 @ccdb99ca2214
+pass/wire/runtime_wire_decode_byte_slice_exit checked 44878ms check-target:macos_arm64 @1e29a538216e
+pass/wire/runtime_wire_decode_ranged_field_exit checked 55802ms check-target:macos_arm64 @1e29a538216e
+pass/wire/runtime_wire_decode_rejects_noncanonical_varint_exit checked 53024ms check-target:macos_arm64 @1e29a538216e
+pass/wire/runtime_wire_decode_rejects_wrong_era_exit checked 51688ms check-target:macos_arm64 @1e29a538216e
+pass/wire/runtime_wire_encode_borrowed_scalar_slice_exit checked 61187ms check-target:macos_arm64 @1e29a538216e
+pass/wire/runtime_wire_encode_byte_slice_exit checked 59910ms check-target:macos_arm64 @1e29a538216e
+pass/wire/runtime_wire_encode_interior_scalar_slice_exit checked 65724ms check-target:macos_arm64 @1e29a538216e
+pass/wire/runtime_wire_exact_array_without_count_exit checked 72446ms check-target:macos_arm64 @1e29a538216e
 pass/wire/runtime_wire_policy_authored_plan_exit checked 75665ms check-target:macos_arm64 @911f6617ba9e
-pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit timeout 176565ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-pass/wire/runtime_wire_signed_extremes_roundtrip_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-pass/wire/runtime_wire_utf8_edge_verdicts_exit checked 109571ms check-target:macos_arm64 @ccdb99ca2214
+pass/wire/runtime_wire_roundtrip_nested_and_repeated_exit checked 77728ms check-target:macos_arm64 @1e29a538216e
+pass/wire/runtime_wire_signed_extremes_roundtrip_exit checked 72202ms check-target:macos_arm64 @1e29a538216e
+pass/wire/runtime_wire_utf8_edge_verdicts_exit checked 64041ms check-target:macos_arm64 @1e29a538216e
 pass/wire/systems_wire_protocol_exit checked 77089ms check-target:macos_arm64 @911f6617ba9e
-pass/wire/wire_compatibility_migration_across_shapes checked 11966ms check-target:macos_arm64 @ccdb99ca2214
+pass/wire/wire_compatibility_migration_across_shapes checked 40783ms check-target:macos_arm64 @1e29a538216e
 pass/wire/wire_data_reserved_field checked 3922ms check-target:macos_arm64 @ccdb99ca2214
-pass/wire/wire_field_numbers checked 3594ms @ccdb99ca2214
-pass/wire/wire_preserving_decode_relay_exit checked 18579ms check-target:macos_arm64 @ccdb99ca2214
+pass/wire/wire_field_numbers checked 56196ms @1e29a538216e
+pass/wire/wire_preserving_decode_relay_exit checked 51143ms check-target:macos_arm64 @1e29a538216e
 pass/wire/wire_retired_field checked 4022ms @ccdb99ca2214
 pass/write_only/returned_destination_transport_exit checked 3655ms check-target:macos_arm64 @ccdb99ca2214
 pass/write_only/state_forwarded_scalar_store_exit checked 13290ms check-target:macos_arm64 @ccdb99ca2214
@@ -13618,9 +13668,9 @@ fail/arithmetic/nested_unsigned_sum_operand_overflow rejected 735ms expected @cc
 	exact arithmetic in machine `tally` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/nonlinear_square_strict_operand_bound_rejected rejected 1952ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from square at statement 0: result > value
-fail/arithmetic/numeric_operand_abs_unrepresentable rejected 15146ms expected @ccdb99ca2214
+fail/arithmetic/numeric_operand_abs_unrepresentable rejected 12572ms expected @1e29a538216e
 	machine `main` state `entry` value call to `abs_i32` violates required fact `value > -2147483648`: the instantiated fact is structurally false (`-2147483648 > -2147483648`)
-fail/arithmetic/ordinary_clamp_inverted_bounds rejected 17992ms expected @ccdb99ca2214
+fail/arithmetic/ordinary_clamp_inverted_bounds rejected 14347ms expected @1e29a538216e
 	machine `inverted` state `entry` value call to `clamp_i32` violates required fact `lower <= upper`: the instantiated fact is structurally false (`8 <= 2`)
 fail/arithmetic/qualified_cast_decision_wrong_arm rejected 785ms expected @ccdb99ca2214
 	Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
@@ -15890,12 +15940,12 @@ fail/calls/numeric_helper_min_requires_declaration rejected 875ms expected @ccdb
 	machine `evaluate` state `entry`: value call `min(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/calls/numeric_helper_sqrt_requires_declaration rejected 1670ms expected @ccdb99ca2214
 	machine `evaluate` state `entry`: value call `sqrt(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
-fail/calls/numeric_operand_call_requires rejected 9150ms expected @ccdb99ca2214
+fail/calls/numeric_operand_call_requires rejected 14021ms expected @1e29a538216e
 	machine `main` state `entry` value call to `step` violates required fact `value >= -3 && value <= 3`: the instantiated fact is structurally false (`100 >= -3 && 100 <= 3`)
-fail/calls/numeric_operand_exclusive_arguments_overlap rejected 11643ms expected @ccdb99ca2214
+fail/calls/numeric_operand_exclusive_arguments_overlap rejected 33304ms expected @1e29a538216e
 	state `abs_i32` receives `counter` as mutable more than once
 	state `pair` receives `counter` as mutable more than once
-fail/calls/numeric_scalar_call_boolean_guard rejected 15617ms expected @ccdb99ca2214
+fail/calls/numeric_scalar_call_boolean_guard rejected 14033ms expected @1e29a538216e
 	machine `evaluate` state `entry` applies an operator to a numeric value and a boolean -- Omega does not coerce a boolean to a number -- compare booleans directly (`b == true`) or convert a number explicitly (`n != 0`)
 fail/calls/ordered_bound_requires_argument_rejected rejected 13643ms expected @ccdb99ca2214
 	machine `Main::main` state `main` value call to `Main::pick` violates required fact `d > 5`: the instantiated fact is structurally false (`2 > 5`)
@@ -16622,7 +16672,7 @@ fail/contracts/target_family_window_unshared_length rejected 2515ms expected @cc
 	cannot prove requires contract for call need from main: view.len >= 2 (needs fact `items.len >= 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/target_named_fact_preserved rejected 700ms expected @ccdb99ca2214
 	machine `probe` state `entry` value call to `offset` violates required fact `macos_arm64 >= 0`: the instantiated fact is structurally false (`-1 >= 0`)
-fail/contracts/undischarged_contract_entailment rejected 14755ms expected @ccdb99ca2214
+fail/contracts/undischarged_contract_entailment rejected 13880ms expected @1e29a538216e
 	checked machine `unchecked_claim` cannot establish proposition ensure `boolean:min_u64(right, 0) >= 1` in state `entry`; require it, cite a checked/accepted proof that ensures it, or supply its declared evidence
 fail/contracts/unused_argument_bound_mutation rejected 2061ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from main: count <= 8 (needs fact `count <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -29873,7 +29923,7 @@ fail/float/boundary_call_guard_wrong_argument rejected 9628ms expected @ccdb99ca
 	argument `value` for state `from_i32` expects `i32`, got `float literal`
 fail/float/boundary_call_guard_wrong_format rejected 8745ms unexpected @ccdb99ca2214
 	cannot determine the dispatch subject storage type in `Main::main::main`
-fail/float/builtin_operand_borrow_conflict_rejected rejected 11528ms expected @ccdb99ca2214
+fail/float/builtin_operand_borrow_conflict_rejected rejected 41596ms expected @1e29a538216e
 	state `abs_f64` receives `main.values` as both mutable and read-only
 	state `pair` receives `main.values` as both mutable and read-only
 fail/float/captured_finite_requirement_precedes_source_repair rejected 4669ms expected @ccdb99ca2214
@@ -34360,25 +34410,26 @@ fail/types/unknown_machine_binder_carrier rejected 11102ms expected @ccdb99ca221
 	machine `scale` parameter `factor` references unknown data type `Ratio`
 fail/types/usize_rejected rejected 7636ms expected @ccdb99ca2214
 	data `Main` field `n` references unknown data type `usize`
-fail/wire/codec_reference_array_overlapping rejected 2273ms expected @ccdb99ca2214
+fail/wire/codec_reference_array_overlapping rejected 48035ms expected @1e29a538216e
 	cannot prove index `index` is within length 4 in main::entry
-fail/wire/codec_shared_cursor rejected 1161ms expected @ccdb99ca2214
-	machine `encode_finish` state `entry` assignment cannot write `written` because it is not mutable in this state (if `written` is undeclared -- a typo -- no such field or local exists)
-	machine `encode_overflow` state `entry` assignment cannot write `written` because it is not mutable in this state (if `written` is undeclared -- a typo -- no such field or local exists)
+fail/wire/codec_shared_cursor rejected 21438ms expected @1e29a538216e
+	argument `written` for state `encode` is declared `&mut` (`&mut u64`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/wire/field_reuses_reserved_number rejected 3ms expected @ccdb99ca2214
 	tests/omega/fail/wire/field_reuses_reserved_number/main.omg:12:1: stable identity #3 is declared more than once among record fields and their retired identities
 fail/wire/layout_domain_on_stored_bytes rejected 7607ms expected @ccdb99ca2214
 	data `Main` field `buffer` declares `in OmegaLayout<CounterMessage>` on owned stored bytes; a layout domain is a fact about bytes ESTABLISHED by validate/encode, never declared on storage (a zeroed buffer holds no valid encoding). Hold the value (`CounterMessage`) and encode at the edge, or carry the fact on a borrowed view (`&[u8] in OmegaLayout<CounterMessage>`)
-fail/wire/proof_only_wire_field_rejected rejected 8475ms expected @ccdb99ca2214
-	wire data `Msg` field `n` mentions proof-only `Nat`, which has no wire encoding
-fail/wire/returned_preserving_remainder_input_write rejected 12529ms expected @ccdb99ca2214
+fail/wire/proof_only_wire_field_rejected rejected 25860ms expected @1e29a538216e
+	machine `CompactBinary::plan_scalar` requires type predicate does not hold for the supplied arguments
+fail/wire/returned_preserving_remainder_input_write rejected 55795ms expected @1e29a538216e
 	statement 6 mutates `main.buffer[1]` while local borrow `decoded` is still active (borrowed at statement 3; its last use is at statement 7 and it is released at state exit)
-fail/wire/same_named_data_is_not_the_core_fixed_vec timeout 120000ms @ccdb99ca2214
+fail/wire/same_named_data_is_not_the_core_fixed_vec rejected 13523ms expected @1e29a538216e
+	machine `SelectedCodec::member` requires type predicate does not hold for the supplied arguments
+	machine `SelectedCodec::field` requires type predicate does not hold for the supplied arguments
 fail/wire/unnumbered_field_in_numbered_data rejected 4ms expected @ccdb99ca2214
 	tests/omega/fail/wire/unnumbered_field_in_numbered_data/main.omg:8:1: stable identities are all-or-nothing for record fields: number every member with `#N` or number none of them
-fail/wire/wire_codec_schema_identity_buffer_bound rejected 990ms expected @ccdb99ca2214
-	`Counter::encode` out buffer `[u8; 7]` is too small: the worst-case encoding needs 13 bytes (era varint + per-field tag and value varints)
-fail/wire/wire_compatibility_migration_retired_identity_reuse rejected 11122ms expected @ccdb99ca2214
+fail/wire/wire_codec_schema_identity_buffer_bound rejected 56621ms expected @1e29a538216e
+	cannot prove requires contract for call encode from Main::main: constructor:22:toolchain::ScalarBound6:record17:common:name:bytes2:1317:common:name:valid4:true.valid && 7 >= constructor:22:toolchain::ScalarBound6:record17:common:name:bytes2:1317:common:name:valid4:true.bytes (needs fact `ScalarBound.valid && 7 >= ScalarBound.bytes` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/wire/wire_compatibility_migration_retired_identity_reuse rejected 13477ms expected @1e29a538216e
 	wire compatibility demand `ArchiveStore` is unsatisfied for local schema `CounterV3` and peer schema `CounterV1`: migration coverage (the selected route is not a sound migration: era `CounterV3` redeclares stable identity #2 retired in era `Counter`)
 fail/wire/wire_compatibility_migration_route_missing rejected 456ms expected @ccdb99ca2214
 	wire compatibility demand `ArchiveStore` is unsatisfied for local schema `Counter` and peer schema `CounterV1`: migration coverage (no complete `CounterLineage` migration route exists from `CounterV1` to `Counter`)
@@ -34482,10 +34533,14 @@ run/calls/recursive_machine_transition_scalar_arguments_exit checked 4449ms chec
 run/calls/resultless_scalar_parameters checked 9529ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/retained_implicit_entry_selection checked 1850ms check-target:macos_arm64 @44449d36ba89
 run/calls/returned_reference_case_write_then_view_exit checked 2787ms check-target:macos_arm64 @ccdb99ca2214
-run/calls/runtime_float_distinct_operand_calls_exit rejected 8529ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `observe` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-run/calls/runtime_float_normalized_operand_single_evaluation_exit rejected 9316ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `observe` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
+run/calls/runtime_float_distinct_operand_calls_exit rejected 54993ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
+	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
+	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
+run/calls/runtime_float_normalized_operand_single_evaluation_exit rejected 65975ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
+	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
+	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
+	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
 run/calls/saved_scalar_dispatch_guard_arguments_exit checked 5019ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/scalar_guard_after_borrow_parameters_exit checked 5636ms check-target:macos_arm64 @ccdb99ca2214
 run/calls/selected_provider_range_arguments checked 6040ms check-target:macos_arm64 terminal-inspections:match @f6273e83f99c
@@ -34719,7 +34774,7 @@ run/variant_record_normalization_repeats rejected 12132ms check-target:linux_x86
 	call to `reject` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `next` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
 	call to `read` has operational envelope `block` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/wire/runtime_wire_decode_predicate_capture_exit checked 8163ms check-target:macos_arm64 @00d9206f6621
+pass/wire/runtime_wire_decode_predicate_capture_exit checked 53004ms check-target:macos_arm64 @1e29a538216e
 fail/dependent/data_where_field_free_conjunct_unestablished rejected 322ms expected @00d9206f6621
 	machine `entry_start` state `entry` statement 2: reading `pending.<whole value>` crosses an open default-domain invariant window before data `Guarded` is established: the zeroed representation is not yet a `Guarded` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/data/prefix_case_block rejected 98ms expected @3e5750be47b9
