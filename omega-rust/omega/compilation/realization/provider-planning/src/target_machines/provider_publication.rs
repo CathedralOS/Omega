@@ -76,7 +76,6 @@ pub struct TargetProviderPreparationRequest<'program> {
     /// None is reusable Source checking; Some is the complete Build deployment
     /// entry roster, with provider-only deployments represented by an empty slice.
     pub application_roots: Option<&'program [(String, SymbolHandle)]>,
-    pub application_scopes: &'program [String],
     pub overrides: &'program [ProviderSelection],
     pub assumed_bindings: &'program [effects::AssumedBindingContractSelection],
     pub independent_components:
@@ -126,7 +125,6 @@ impl TargetProviderPreparationRequest<'_> {
             targets,
             self.assumed_bindings.to_vec(),
             self.application_roots.is_some(),
-            self.application_scopes.to_vec(),
         )
     }
 

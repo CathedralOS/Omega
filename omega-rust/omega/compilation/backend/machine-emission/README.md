@@ -113,7 +113,7 @@ coverage; omission requires validated elimination of that exact occurrence.
 Neither ordinary frame geometry nor optimization selection supplies an otherwise
 missing firmware adapter or executable-region proof.
 
-The [image reporting projection](../images/image-emission/src/function_fragments/reporting.rs)
+The [image reporting projection](../images/image-emission/src/object/function_fragments/reporting.rs)
 uses replayed fragment and frame data. Instruction counts mean selected spans,
 including zero-byte spans, not ISA instruction counts: one materialization may
 encode several instructions. Inserted prologue/epilogue bytes are counted

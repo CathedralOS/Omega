@@ -164,8 +164,9 @@ retired-syntax deletions to completion.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
     declaration calls needing exclusive-loan arguments or owned affine transfers,
-    owned copies from borrowed outer input homes or repeated selector
-    occurrences, other remaining declared body forms, nonscalar orders beyond fixed-integer
+    owned copies from borrowed outer input homes, runtime-selected stored-reference
+    call operands (captured-loan access), other remaining declared body forms,
+    nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
@@ -571,6 +572,9 @@ decision (`SourceChecked`) into Psi 06 and Omega 00.
     until those authority decisions are made.
   - Complete the wire fixture and public-customer acceptance below, including
     the 40-field runtime qualification.
+  - Carry complete owned numbered mixed-data schema descriptions through call
+    results, match joins, const names, nested machines, other machines and
+    selected target implementations; retain exact query-authority reject twins.
   Owners: `source/library/std/wire.omg`,
   `omega-rust/psi/compilation/validation/src/reflection/`, and
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/reflection.rs`.
@@ -643,9 +647,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   - Connect admitted Build operations, remaining live-storage accounting,
     remaining host operations (including admitted carriers for reference results from
     opaque host providers), and the staged dependency preparation/provider
-    park/resume contract to the production Build scheduler, and replace the
-    Rust-supplied default declaration for a missing `build.omg` with ordinary
-    source Build execution.
+    park/resume contract to the production Build scheduler.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final
@@ -832,8 +834,12 @@ helper that passes does not close an item.
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
     The [guarded fixed-layout byte-roundtrip row](samples/cli/facts/fixed_layout_byte_roundtrip/README.md)
-    covers all nine Rust/Linux places with rejection twins. Complete its
-    other-host execution, broader reference composition, and other-host
+    covers all nine places on Rust/Linux x86_64, Linux ARM64, Mac ARM64 and
+    Windows x86_64 with rejection twins.
+    The [typed interior-region prerequisite](samples/cli/facts/fixed_region_byte_roundtrip/README.md)
+    additionally carries byte views through fields, parameters and returned records
+    on Mac ARM64; its other five transport places and other-host observations remain open.
+    Complete broader reference composition and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete remaining schema/case composition support and platform ABI
@@ -1276,7 +1282,7 @@ defines the complete product bar.
   `language-core/src/inline_assembly/`, Psi 05 CFG/state transfer and
   `execution/terminal_unit/calls/call_operations.rs`, Psi 06 lowering,
   Omega 02 `lowering/control_flow/operations.rs`, Omega 03 scalar-graph
-  admission, `image-emission/src/function_fragments/{production,validation}.rs`,
+  admission, `image-emission/src/object/function_fragments/{production,validation}.rs`,
   `native-artifact/src/physical/derivation/provider_custody.rs`, and the
   shared Terminal/native execution paths.
   - Implement explicit `asm machine` bodies and nested basic-block declarations
@@ -1464,7 +1470,7 @@ defines the complete product bar.
     `omega-rust/omega/compilation/driver/terminal-production/`,
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/`,
     `native-artifact`'s `publish_fragment_object`, and
-    `omega-rust/omega/compilation/backend/images/image-emission/src/hosted_receiver.rs`.
+    `omega-rust/omega/compilation/backend/images/image-emission/src/entries/hosted_receiver.rs`.
   - **PROCESS-EXIT-CONTRACT:** remove `Never` return-type assumptions in
     `source/library/std/process.omg` and treat process termination as a
     non-returning `ProcessExit` boundary call with affine cleanup before

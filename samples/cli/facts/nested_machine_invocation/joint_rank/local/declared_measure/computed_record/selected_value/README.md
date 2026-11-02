@@ -57,8 +57,9 @@ other-host physical execution is not established here.
 - [Distinct call contexts](controls/distinct_call_contexts/main.omg) invokes one
   public indexed requirement at two different actual indices. Its proposed sum
   is unchanged by moving one unit between the cells. Distinct supplying contexts
-  must not collapse into a single decreasing read. It rejects at independent
-  application formation rather than manufacturing one coordinate binding.
+  must not collapse into a single decreasing read. It remains a refusal after
+  the repeated-call repair. The [constructed conserved-sum control](repeated_calls/controls/conserved_sum/invalid/main.omg)
+  independently exercises the same cycle-descent boundary.
 
 ## Requirements and evidence
 
@@ -102,7 +103,8 @@ rejections. Three existing joint-rank positive controls also return exit 0 in
 both engines, and their three rejection twins retain the expected diagnostics.
 Only the 24 new fixture rows are added to `tests/omega/corpus_outcomes.txt`.
 
-The parent retains whole-value snapshots through mutable borrowed inputs,
-repeated selector occurrences under distinct actual telescopes, other declared
-body forms, broader custody/resource acceptance, product-compiler parity and
-application migration. This production does not close that parent outcome.
+The [repeated-call production](repeated_calls/README.md) now retains selector
+occurrences under distinct actual telescopes across the same nine places.
+The parent retains owned copies from borrowed outer input homes, other declared
+body forms, broader custody/resource acceptance, product-compiler parity
+and application migration. These productions do not close that parent outcome.

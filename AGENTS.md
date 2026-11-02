@@ -530,6 +530,9 @@ profiles bound to the actual binary digests. See
     `--filter facts/saved_observation_snapshot` selects 105.
   - Unfiltered and whole-domain runs, the [full baseline](tools/testing.md#full-baseline),
     and any other whole-corpus or whole-workspace sweep are the user's to start.
+  - A base compare over 40 fixtures runs on hosted CI:
+    `corpus_gate.py --compare <base> --remote --filter ...`. Hosted runs are
+    free; this machine's build slots are not.
   - A comparison must reach the code it compares. Before trusting base and
     candidate agreeing, confirm a fixture got past parsing, admission and
     package review into the stage the change touched. Two builds failing the

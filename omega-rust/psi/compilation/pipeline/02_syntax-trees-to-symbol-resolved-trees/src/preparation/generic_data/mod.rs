@@ -268,11 +268,27 @@ pub fn closed_array_extent_expressions(
     let (machine, public_machine) = collect_callable_type_reference_positions(syntax);
     positions.extend(machine);
     public.extend(public_machine);
+    let public = public.into_iter().collect();
+    closed_array_extents_at(syntax, &positions, &public)
+}
+
+/// Constant positions demanded by one declaration cohort. Array extents have
+/// their own checked length-job continuation, rather than a scalar leaf job.
+pub struct ClosedDeclarationConstantUses {
+    pub arguments: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
+    pub array_extents: Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>,
+}
+
+fn closed_array_extents_at(
+    syntax: &mut SyntaxTrees,
+    positions: &[TypeReferenceHandle],
+    public: &HashSet<TypeReferenceHandle>,
+) -> Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)> {
     let destination = syntax
         .type_references
         .insert_named(Identifier::generated("u64"));
     let mut uses = Vec::new();
-    for owner in positions {
+    for &owner in positions {
         let TypeReferenceNode::FixedArray {
             length: FixedArrayLength::Expression(value),
             ..
@@ -352,17 +368,17 @@ pub fn closed_machine_const_arguments(
     Ok(arguments)
 }
 
-/// Static argument prerequisites of exact ready declarations. Initializer
+/// Constant type prerequisites of exact ready declarations. Initializer
 /// scheduling owns readiness; this inventory only supplies receiving carriers.
 /// It neither evaluates unrelated declarations nor replaces lexical selection.
-pub fn closed_declaration_const_arguments(
+pub fn closed_declaration_constant_uses(
     syntax: &mut SyntaxTrees,
     sources: Option<std::sync::Arc<source::SourceMap>>,
     top_level_bindings: Vec<symbols::SourceScopedTopLevelBinding>,
     retained_base: Option<&symbol_resolved_trees::SymbolResolvedTrees>,
     declaration_syntax: Option<&SyntaxTrees>,
     declarations: &[syntax_trees::item::ItemHandle],
-) -> Result<Vec<(TypeReferenceHandle, TypeReferenceHandle, bool)>, Vec<Diagnostic>> {
+) -> Result<ClosedDeclarationConstantUses, Vec<Diagnostic>> {
     let selection =
         ConstantSelection::with_retained_base(syntax, sources, top_level_bindings, retained_base)?;
     let mut positions = collect_selected_type_reference_positions(syntax, declarations);
@@ -397,7 +413,11 @@ pub fn closed_declaration_const_arguments(
         &public_positions,
         &mut arguments,
     );
-    Ok(arguments)
+    let array_extents = closed_array_extents_at(syntax, &positions, &public_positions);
+    Ok(ClosedDeclarationConstantUses {
+        arguments,
+        array_extents,
+    })
 }
 
 fn collect_closed_const_arguments(

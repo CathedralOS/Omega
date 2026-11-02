@@ -1,5 +1,5 @@
 // Matching Choice<u64> retains its exact payload type beside Choice<bool>, so the selected payload returns as u64.
-// Expected error: case membership must test a value of the exact declaring data type
+// Expected exit: 0
 
 data Choice<T [copy]> [copy] { case Value(value: T); case Empty; }
 data Other [copy] { case Value(value: u64); case Empty; }

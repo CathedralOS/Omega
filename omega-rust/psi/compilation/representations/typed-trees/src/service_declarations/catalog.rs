@@ -119,7 +119,24 @@ pub struct PreparedServiceCatalog {
 #[derive(Clone, Copy)]
 pub struct ServiceCatalog<'catalog> {
     context: ProviderPlanningContext<'catalog>,
-    catalog: &'catalog PreparedServiceCatalog,
+    catalog: &'catalog Arc<PreparedServiceCatalog>,
+}
+
+/// One immutable prepared surface with its original arena owner. Retention
+/// keeps metadata, never a Source context or execution permission.
+pub struct RetainedServiceSurface {
+    catalog: Arc<PreparedServiceCatalog>,
+    record: Handle<ServiceRecord>,
+}
+
+impl RetainedServiceSurface {
+    pub fn surface(&self) -> Result<PreparedServiceSurface<'_>, Diagnostic> {
+        self.catalog
+            .view(self.catalog.records.get(self.record))
+            .ok_or_else(|| {
+                Diagnostic::error("retained service declaration lost its prepared surface")
+            })
+    }
 }
 
 /// The complete declaration census includes unsupported dormant declarations.
@@ -336,7 +353,7 @@ impl PreparedServiceCatalog {
     /// The identity closes address reuse; the address distinguishes clones that
     /// retain the source memo tag. Neither coordinate is portable or serialized.
     pub fn bind<'catalog>(
-        &'catalog self,
+        self: &'catalog Arc<Self>,
         context: ProviderPlanningContext<'catalog>,
     ) -> Result<ServiceCatalog<'catalog>, Diagnostic> {
         if self.owner_identity != context.typed.identity.get()
@@ -353,16 +370,22 @@ impl PreparedServiceCatalog {
         })
     }
 
-    fn lookup(&self, origin: ServiceOrigin) -> Option<PreparedServiceSurface<'_>> {
+    fn record(&self, origin: ServiceOrigin) -> Handle<ServiceRecord> {
         let mut matching = self
             .records
             .iter()
             .filter(|(_, record)| record.origin == origin);
-        let (_, record) = matching.next()?;
+        let Some((record, _)) = matching.next() else {
+            return Handle::default();
+        };
         if matching.next().is_some() {
-            return None;
+            return Handle::default();
         }
-        self.view(record)
+        record
+    }
+
+    fn lookup(&self, origin: ServiceOrigin) -> Option<PreparedServiceSurface<'_>> {
+        self.view(self.records.get(self.record(origin)))
     }
 }
 
@@ -380,6 +403,20 @@ impl<'catalog> ServiceCatalog<'catalog> {
         schema: ProviderSchemaDeclaration,
     ) -> Option<PreparedServiceSurface<'catalog>> {
         self.catalog.lookup(ServiceOrigin::Declaration(schema))
+    }
+
+    /// Retain the exact declaration selected through this Source-bound query.
+    /// Subsequent readers borrow its metadata without retaining that context.
+    pub fn retain_declaration(
+        self,
+        schema: ProviderSchemaDeclaration,
+    ) -> Option<RetainedServiceSurface> {
+        let record = self.catalog.record(ServiceOrigin::Declaration(schema));
+        self.catalog.view(self.catalog.records.get(record))?;
+        Some(RetainedServiceSurface {
+            catalog: Arc::clone(self.catalog),
+            record,
+        })
     }
 
     pub fn named_application(

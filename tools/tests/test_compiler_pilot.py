@@ -472,6 +472,29 @@ class CompilerPilotTests(unittest.TestCase):
                     pilot.execute(output, {}, positives=(), negatives=())
                 build.assert_not_called()
 
+    def test_failed_checking_still_measures_execution_and_stays_red(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(revision="a" * 40, target="linux_x86_64",
+                            runner_profile={"sha256": "b" * 64})
+            legs = []
+            def corpus(arguments, **kwargs):
+                both = "--both" in arguments
+                legs.append("both" if both else "checking")
+                report = self.report(both=both)
+                if not both:
+                    report["oracle_failures"] = [{"fixture": pilot.NEGATIVES[0]}]
+                Path(arguments[arguments.index("--json") + 1]).write_text(json.dumps(report))
+                return Mock(returncode=1)
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                 patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                 patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                 patch.object(pilot, "observation_golden", return_value=output / "golden"), \
+                 patch.object(pilot.subprocess, "run", side_effect=corpus):
+                with self.assertRaisesRegex(ValueError, "oracle"):
+                    pilot.execute(output, {}, producer=producer)
+            self.assertEqual(legs, ["checking", "both"])
+
     def test_first_host_keeps_unknown_history_separate_from_other_host_results(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

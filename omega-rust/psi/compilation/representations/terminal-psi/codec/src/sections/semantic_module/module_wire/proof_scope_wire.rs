@@ -96,6 +96,7 @@ pub(super) fn encode(writer: &mut Writer, scope: &ProofApplicationScope) -> Resu
         target(writer, &header.source_target)?;
         writer.boolean(header.product_eligible);
         writer.boolean(header.supplies_checked_body);
+        writer.len("callable type parameters", header.type_parameter_count)?;
         writer.boolean(header.compiler_evaluation.is_ok());
         match &header.compiler_evaluation {
             Ok(facts) => {
@@ -330,6 +331,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
         let source_target = read_target(reader)?;
         let product_eligible = reader.boolean()?;
         let supplies_checked_body = reader.boolean()?;
+        let type_parameter_count = reader.count()? as usize;
         let compiler_evaluation = if reader.boolean()? {
             let name = reader.string("compiler-evaluation display name")?;
             let custody = match reader.u8()? {
@@ -397,6 +399,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ProofApplicationScope, C
             source_target,
             product_eligible,
             supplies_checked_body,
+            type_parameter_count,
             compiler_evaluation,
             synchronous_invocations,
         });

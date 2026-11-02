@@ -6,6 +6,7 @@
 //! equality of configuration or a common source path alone is insufficient.
 
 use super::CompilationSession;
+use super::PreparedProductTarget;
 use super::checking::{check_product_source, complete_prepared_build};
 use crate::execution_settlement::SelectedCompileOutcome;
 use compilation_products::{CompileFailure, PreparedPackageBuild};
@@ -16,6 +17,7 @@ impl CompilationSession {
         builds: Vec<(Owner, PreparedPackageBuild)>,
     ) -> Vec<(Owner, SelectedCompileOutcome)> {
         let mut outcomes = Vec::with_capacity(builds.len());
+        let mut applications = Vec::with_capacity(builds.len());
         // The first checked source per distinct publication input owns the
         // invocation's portable code; equal siblings adopt its slots.
         let mut canonical_sources: Vec<compilation_products::CheckedProductSource> = Vec::new();
@@ -72,15 +74,9 @@ impl CompilationSession {
                     let completion_timings = std::mem::replace(&mut source.timings, first_timings);
                     source.timings.extend(&completion_timings);
                     self.retain(&source.retained_checks);
-                    outcomes.push((
-                        first_position,
-                        first_owner,
-                        crate::execution_settlement::select_product_target(
-                            &source,
-                            Some(target),
-                            Some(&inputs),
-                        ),
-                    ));
+                    let target_source =
+                        PreparedProductTarget::capture(&source, Some(target), Some(&inputs));
+                    applications.push((first_position, first_owner, source.clone(), target_source));
                     for (position, owner, member) in members {
                         let (_, target, inputs, _, prepared) = member.into_continuation();
                         let mut application = source.clone();
@@ -113,15 +109,12 @@ impl CompilationSession {
                         application.retained_checks.build = prepared.built.retained_build_check;
                         application.timings = prepared.timings;
                         application.timings.extend(&completion_timings);
-                        outcomes.push((
-                            position,
-                            owner,
-                            crate::execution_settlement::select_product_target(
-                                &application,
-                                Some(target),
-                                Some(&inputs),
-                            ),
-                        ));
+                        let target_source = PreparedProductTarget::capture(
+                            &application,
+                            Some(target),
+                            Some(&inputs),
+                        );
+                        applications.push((position, owner, application, target_source));
                     }
                 }
                 Err(diagnostics) => {
@@ -145,6 +138,16 @@ impl CompilationSession {
                     }
                 }
             }
+        }
+        // Different source-admission groups can adopt the same publication.
+        // Finish the complete Source roster before any selected child starts
+        // Calling or publishes code, not merely the first group's members.
+        for (position, owner, source, prepared) in applications {
+            outcomes.push((
+                position,
+                owner,
+                crate::execution_settlement::select_product_target(&source, prepared),
+            ));
         }
         // Cohorts finish together; restore the authored request order before
         // attaching component products. The owner never separates from its result.

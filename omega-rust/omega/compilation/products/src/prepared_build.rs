@@ -102,6 +102,9 @@ pub struct CheckedProductSource {
     /// Complete source demand is shared across targets without forcing fallible
     /// external declarations or treating nominal references as invocations.
     pub provider_inventory: Arc<psi_compiler::PreparedProviderInventory>,
+    /// Build-native declaration formation is complete before portable publication.
+    /// Targets attach Calling to these exact surfaces without reopening source.
+    pub native_bindings: Arc<provider_planning::native_bindings::PreparedNativeBuildBindings>,
     /// One portable publication for both compile-time policies and final
     /// Product applications. The holder carries no source or target selection.
     pub terminal_publication: Arc<crate::ProductTerminalPublication>,

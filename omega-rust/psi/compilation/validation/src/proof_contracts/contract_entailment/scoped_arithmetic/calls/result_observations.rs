@@ -113,9 +113,12 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
                 else {
                     continue;
                 };
-                let Some(backing) =
-                    frames.completed_result_read_backing(machine, expression, &place.segments)
-                else {
+                let Some(backing) = frames.completed_value_read_backing(
+                    machine,
+                    state,
+                    expression,
+                    &place.segments,
+                ) else {
                     continue;
                 };
                 Some(backing)

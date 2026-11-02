@@ -145,7 +145,7 @@ fn capture_projection(
     };
     let reads = captured_reference_reads(program, &Some(origin), aliases, stored)
         .into_iter()
-        .map(|read| read.and_then(|read| admitted(read, usage)))
+        .map(|read| read.and_then(|read| admitted(program, read, usage)))
         .collect::<Option<Vec<_>>>()?;
     if !cuts.is_empty() && reads.iter().any(|read| read.slots.is_empty()) {
         // A spatial answer or lifetime debt did not load this descriptor.
@@ -200,6 +200,7 @@ pub(in crate::machine_calls::calls::write_frames) fn complete_contents(
     }
     cursor.finish()?;
     let read = admitted(
+        program,
         CapturedReferenceRead {
             source,
             slots: Vec::new(),
@@ -270,6 +271,7 @@ pub(in crate::machine_calls::calls::write_frames) fn contents_invalidation_paths
         return Some(vec![source.origin.path]);
     }
     let read = admitted(
+        program,
         CapturedReferenceRead {
             source,
             slots: Vec::new(),
@@ -289,7 +291,7 @@ pub(in crate::machine_calls::calls::write_frames) fn contents_invalidation_paths
         stored,
         ProjectionUse::Contents,
     )?;
-    let backing = super::read_backing::from_reads(reads, Vec::new())?;
+    let backing = super::read_backing::from_reads(program, reads, Vec::new())?;
     let mut paths = backing.values;
     for binding in backing.bindings {
         if !paths.contains(&binding) {
@@ -328,11 +330,30 @@ fn complete_spans(
             } else {
                 return None;
             };
-            for next in completed_reference_projection_reads(program, &read, &projected, stored)? {
-                let next = admitted(next, usage)?;
+            let next_reads =
+                completed_reference_projection_reads(program, &read, &projected, stored);
+            let Some(next_reads) = next_reads else {
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!(
+                        "STRUCT read-projection-refused phase=next-descriptor-suppliers source={:?} suffix={:?} loaded={before}",
+                        read.source,
+                        &path[consumed..end]
+                    );
+                }
+                return None;
+            };
+            for next in next_reads {
+                let next = admitted(program, next, usage)?;
                 // A repeated zero-width boundary needs independent evidence;
                 // reusing one load cannot authenticate another pointer.
                 if load_required && next.slots.len() == before {
+                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        eprintln!(
+                            "STRUCT read-projection-refused phase=missing-independent-descriptor-load source={:?} suffix={:?} loaded={before} next={next:?}",
+                            read.source,
+                            &path[consumed..end]
+                        );
+                    }
                     return None;
                 }
                 if !completed.contains(&next) {
@@ -346,15 +367,99 @@ fn complete_spans(
     (!reads.is_empty()).then_some(reads)
 }
 
-fn admitted(read: CapturedReferenceRead, usage: ProjectionUse) -> Option<CapturedReferenceRead> {
-    (read.source.lifetime_access.is_none()
-        && read.source.origin.precision == FramePathPrecision::Exact
-        && read.source.origin.source.output_identity().is_none()
-        && read.slots.iter().all(|slot| {
-            (usage == ProjectionUse::Address || slot.access.is_readable())
-                && slot.place.precision == FramePathPrecision::Exact
-                && slot.place.source.root.is_valid()
-                && slot.place.source.output_identity().is_none()
-        }))
-    .then_some(read)
+fn admitted(
+    program: &dyn crate::CheckingInput,
+    read: CapturedReferenceRead,
+    usage: ProjectionUse,
+) -> Option<CapturedReferenceRead> {
+    let reason = if read.source.lifetime_access.is_some() {
+        Some("lifetime debt is not a descriptor load")
+    } else if read.source.origin.source.output_identity().is_some() {
+        Some("opaque output has no independently loaded contents")
+    } else if !resolved_read_coordinate(program, &read.source.origin) {
+        Some("supplier coordinate is not resolved")
+    } else if read
+        .slots
+        .iter()
+        .any(|slot| usage != ProjectionUse::Address && !slot.access.is_readable())
+    {
+        Some("descriptor slot is not readable")
+    } else if read.slots.iter().any(|slot| {
+        !slot.place.source.root.is_valid() || slot.place.source.output_identity().is_some()
+    }) {
+        Some("descriptor slot has no declaration namespace")
+    } else if read
+        .slots
+        .iter()
+        .any(|slot| !resolved_read_coordinate(program, &slot.place))
+    {
+        Some("descriptor slot coordinate is not resolved")
+    } else {
+        None
+    };
+    if let Some(reason) = reason {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!("STRUCT read-admission-refused reason={reason} read={read:?}");
+        }
+        None
+    } else {
+        Some(read)
+    }
+}
+
+/// Load records already own their access, lifetime and predecessor custody.
+/// This authenticates only their retained declaration coordinates: the write
+/// footprint remains coarse and supplies no equality with one selected slot.
+/// Unknown selectors, ranges and unresolved applications cannot refine it.
+pub(in crate::machine_calls::calls::write_frames) fn resolved_read_coordinate(
+    program: &dyn crate::CheckingInput,
+    origin: &FramePlaceOrigin,
+) -> bool {
+    if origin.precision == FramePathPrecision::Exact {
+        return true;
+    }
+    let source = &origin.source;
+    if !source.root.is_valid()
+        || !source.builtin_coordinates
+        || source.output_identity().is_some()
+        || !source.recasts.is_empty()
+        || source.representation.is_some()
+    {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT read-coordinate-refused phase=namespace-builtin-or-representation origin={origin:?}"
+            );
+        }
+        return false;
+    }
+    let Some(reference) = crate::declaration_type_reference(program, source.root) else {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT read-coordinate-refused phase=source-declaration-type origin={origin:?}"
+            );
+        }
+        return false;
+    };
+    let mut cursor = StorageProjectionCursor::new(program, reference);
+    for segment in &source.segments {
+        while cursor.reference_access().is_some() {
+            if cursor.enter_referee().is_none() {
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!(
+                        "STRUCT read-coordinate-refused phase=reference-or-case-crossing origin={origin:?} segment={segment:?}"
+                    );
+                }
+                return false;
+            }
+        }
+        if cursor.advance_fixed(segment).is_none() {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT read-coordinate-refused phase=declared-field-case-or-fixed-extent origin={origin:?} segment={segment:?}"
+                );
+            }
+            return false;
+        }
+    }
+    cursor.finish().is_some()
 }

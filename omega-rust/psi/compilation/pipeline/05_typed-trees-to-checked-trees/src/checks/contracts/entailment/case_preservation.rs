@@ -1,4 +1,4 @@
-//! Case tags survive scalar writes, not replacement of a structural subject.
+//! Eligibility for tag-only proof without completed value observations.
 //!
 //! The runtime case judge retains tags for entry parameters, saved call results
 //! and branch subjects. Establish preservation for the whole reachable body,
@@ -7,7 +7,9 @@
 //! Complete frames exclude unknown effects; checked stored-value types
 //! distinguish scalar mutation (including atomic events) from replacement of
 //! a case-bearing value or reference binding. This deliberately proves no
-//! scalar equations. Non-case requirements keep the stable-value judgment.
+//! scalar equations. A replacement instead needs the ordinary completed-value
+//! prefix proof: exact captures and write frames, never replay of changed
+//! storage. Failure here selects that owner rather than refusing its evidence.
 
 use checked_trees::CheckFacts;
 use symbols::SymbolHandle;

@@ -1,7 +1,7 @@
 //! Retain calling declarations and policy entries in the shared Product publication.
 //!
 //! Original review correspondence and inert helper choices are captured once
-//! after publication. All target children borrow this immutable catalog; no
+//! before publication. All target children borrow this immutable catalog; no
 //! policy invocation compiles source or falls back to the checked interpreter.
 //! This owner publishes no policy-only artifact.
 
@@ -26,12 +26,32 @@ fn prepare(
     source: &CheckedProductSource,
     timings: &mut artifacts::compile_timings::CompileTimings,
 ) -> Result<Arc<CallingProgram>, Vec<Diagnostic>> {
+    // Capture Source relationships before publishing code, but consume their
+    // refusal afterwards as before. Targets receive only this owned result;
+    // Calling construction does not reopen Source after Terminal publication.
+    let source_preparation = capture_source_preparation(source);
     let code = super::product_code::ProductCodeSource::checked(source);
     let program = code.publish(
         source.terminal_publication.optimizations(),
         &mut crate::observations::PsiStageTimings::new(timings),
     )?;
-    let source_preparation = CallingSourcePreparation::capture(
+    let source_preparation = source_preparation?;
+    Ok(Arc::new(CallingProgram {
+        source_owner: Arc::downgrade(&source.program),
+        artifact: Arc::clone(program.artifact()),
+        source_records: program.source_records().to_vec().into(),
+        source_preparation: Arc::new(source_preparation),
+        evaluator: build_evaluation::evaluate_terminal_calling_policy,
+    }))
+}
+
+/// Keep all fallible declaration acquisition in the captured Result, including
+/// owner/census refusals. Publication retains its original diagnostic priority.
+fn capture_source_preparation(
+    source: &CheckedProductSource,
+) -> Result<CallingSourcePreparation, Vec<Diagnostic>> {
+    let _profile = phase_profile::guard("omega.product.calling.prepare_source");
+    CallingSourcePreparation::capture(
         &source.program,
         source
             .provider_inventory
@@ -54,12 +74,5 @@ fn prepare(
             requested: &source.computed_build_config.config.provider_selections,
             exact_toolchain_sources: source.sources.exact_toolchain_sources(),
         },
-    )?;
-    Ok(Arc::new(CallingProgram {
-        source_owner: Arc::downgrade(&source.program),
-        artifact: Arc::clone(program.artifact()),
-        source_records: program.source_records().to_vec().into(),
-        source_preparation: Arc::new(source_preparation),
-        evaluator: build_evaluation::evaluate_terminal_calling_policy,
-    }))
+    )
 }

@@ -399,6 +399,8 @@ fn transfers_descriptor_value(
                 pending.extend(alternatives.iter().map(|alternative| alternative.value));
             }
             checked_trees::FlowOperandCompletion::Observation
+            | checked_trees::FlowOperandCompletion::IncomingContents { .. }
+            | checked_trees::FlowOperandCompletion::InvocationResult { .. }
             | checked_trees::FlowOperandCompletion::Copied { .. } => {}
         }
     }

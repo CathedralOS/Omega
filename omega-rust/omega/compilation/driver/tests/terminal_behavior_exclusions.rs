@@ -545,18 +545,22 @@ fn late_application_attachment_outlives_source_and_preserves_recovered_attributi
         let source = checked.execution().provider_source.program();
         let source_owner = std::sync::Arc::downgrade(source);
         let sources = checked.sources().exact_toolchain_sources();
-        let describe = |name| {
+        let signature = checked
+            .execution()
+            .selected_program_entry
+            .as_ref()
+            .expect("selected entry")
+            .source_signature();
+        let describe = |declaration, name| {
             psi_compiler::TerminalApplicationCustody::prepare(
-                source,
-                psi_compiler::TerminalMachineSelection::Name(name),
+                terminal_psi::PreparedNominalRoot::new(declaration, name, None)
+                    .map_err(|reason| vec![diagnostics::Diagnostic::error(reason.to_string())]),
                 None,
                 Some(psi_compiler::TerminalCompositionRoots::default()),
-                sources,
-                &mut psi_compiler::UnmeasuredProduction,
             )
         };
-        let valid = describe("main");
-        let invalid = describe("missing_entry");
+        let valid = describe(signature.declaration(), signature.machine_name());
+        let invalid = describe("", "missing_entry");
         let produced = psi_compiler::TerminalProductionRequest::new(
             source,
             psi_compiler::TerminalMachineSelection::Name("main"),

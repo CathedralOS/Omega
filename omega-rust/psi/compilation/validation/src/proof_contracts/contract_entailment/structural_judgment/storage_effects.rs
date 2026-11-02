@@ -785,10 +785,24 @@ impl StructuralJudge<'_> {
         // An owned descriptor cell identifies the pointer, not its scalar
         // contents. A separately authenticated live backing read may observe
         // those contents; otherwise retain the descriptor's existing fence.
-        if current.as_ref().is_none_or(|value| {
+        let missing_contents = current.as_ref().is_none_or(|value| {
             super::super::structural_terms::term_is_unobserved_descriptor(self.program, value)
-        }) && let Some((machine, state)) = scope
-            && let Some(value) = self.current_backing_value(machine, state, expression)
+                || scope
+                    .and_then(|(machine, state)| {
+                        self.scalar_reference_read_type(machine, state, expression)
+                    })
+                    .is_some_and(|reference| {
+                        !super::super::structural_terms::scalar_operand_is_observed(
+                            self.program,
+                            reference,
+                            value,
+                        )
+                    })
+        });
+        if missing_contents
+            && let Some((machine, state)) = scope
+            && let Some(value) =
+                self.current_backing_value(machine, state, expression, read_version)
         {
             return Some(value);
         }
@@ -1379,7 +1393,7 @@ impl StructuralJudge<'_> {
             .then_some(())?;
         let program = self.program;
         let frames = self.frame_resolver()?;
-        let origins = frames.assignment_storage_origins(machine, statement)?;
+        let origins = frames.assignment_storage_origins(machine, statement).ok()?;
         let mut representation = None;
         let place = match origins.destinations.as_slice() {
             [origin]

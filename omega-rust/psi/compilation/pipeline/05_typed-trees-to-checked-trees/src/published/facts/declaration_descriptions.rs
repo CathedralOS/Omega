@@ -43,6 +43,7 @@ pub(crate) fn retain_declaration_descriptions(checked: &mut CheckedTrees) {
                     source::DependencyScope::Product,
                 ),
             supplies_checked_body: machine.supplies_checked_body(),
+            type_parameter_count: checked.typed.machine_type_parameters(machine).len(),
             compiler_evaluation: validation::compiler_evaluation::checked_declaration(
                 checked,
                 machine,

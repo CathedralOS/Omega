@@ -215,7 +215,9 @@ pub(super) fn assignment_storage_regions(
     if assignment_stored_value_type(program, machine, state, assignment)
         .is_some_and(|reference| reference_shell(program, reference).is_some())
     {
-        let captured = resolver.assignment_storage_origins(machine, statement)?;
+        let captured = resolver
+            .assignment_storage_origins(machine, statement)
+            .ok()?;
         let mut regions = Vec::new();
         for source in captured.destinations {
             let StorageRegion::Declared(place) =

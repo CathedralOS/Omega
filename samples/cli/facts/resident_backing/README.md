@@ -84,3 +84,9 @@ original descriptor. Its bounds twin rejects a cell extending past the end.
 The accompanying ordinary-RAM control preserves an untouched neighbor but
 rejects a stale fact about the written field; content-only writes must not
 accidentally become the rule for every access view.
+
+The field place also captures its qualified extent through an ordinary call
+before reconstructing `Held`. Its default domain consumes the returned length
+guarantee. The new occurrence must retain its existing Granted and Vacant
+memberships: an equal constructor or receiving annotation supplies neither.
+This exercises the owned-record transfer needed by the allocator and Vec.

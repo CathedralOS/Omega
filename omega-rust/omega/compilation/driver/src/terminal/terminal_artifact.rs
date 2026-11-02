@@ -45,6 +45,10 @@ pub(crate) struct TerminalProductionView<'a> {
 }
 
 impl<'a> TerminalProductionView<'a> {
+    fn shares_source(&self, other: &Self) -> bool {
+        Arc::ptr_eq(self.program, other.program) && self.sources == other.sources
+    }
+
     pub(crate) fn selection(
         selection: &'a mut SelectedProviderCustody,
         native_components: Option<
@@ -177,9 +181,8 @@ impl ProducedTerminalProduct {
 struct PreparedTerminalProduct<'a> {
     position: usize,
     request: TerminalProductRequest<'a>,
-    selected_machine: symbols::SymbolHandle,
     signature_identity: Option<[u8; 32]>,
-    physical_adapter: symbols::SymbolHandle,
+    physical_adapter: Option<&'a terminal_psi::PreparedNominalRoot>,
     policy: Option<TerminalBehaviorExclusions<'a>>,
     provider_publication: provider_planning::target_machines::PreparedTargetProviderPublication,
 }
@@ -188,22 +191,22 @@ impl<'a> PreparedTerminalProduct<'a> {
     fn prepare(
         position: usize,
         request: TerminalProductRequest<'a>,
+        requested_scopes: &[String],
     ) -> Result<Self, Vec<Diagnostic>> {
         let view = &request.view;
         if request.use_kind != TerminalProductUse::Application {
-            let provider_publication = prepare_target_provider_publication(view, request.use_kind)?;
+            let provider_publication =
+                prepare_target_provider_publication(view, request.use_kind, requested_scopes)?;
             return Ok(Self {
                 position,
                 request,
-                selected_machine: Default::default(),
                 signature_identity: None,
-                physical_adapter: Default::default(),
+                physical_adapter: None,
                 policy: None,
                 provider_publication,
             });
         }
         let entry = admit_terminal_production(view.entry, view.provenance, view.native_components)?;
-        let selected_machine = entry.machine_symbol();
         let signature_identity = entry.source_signature().identity().bytes();
         let policy = TerminalBehaviorExclusions::new(
             view.build.config.behavior_exclusions.as_slice(),
@@ -213,12 +216,12 @@ impl<'a> PreparedTerminalProduct<'a> {
         );
         // Firmware starts in the selected adapter, not the semantic continuation.
         // Admit its behavior and callbacks while retaining the semantic receipt.
-        let physical_adapter = entry.physical_adapter().unwrap_or_default();
-        let provider_publication = prepare_target_provider_publication(view, request.use_kind)?;
+        let physical_adapter = entry.physical_adapter();
+        let provider_publication =
+            prepare_target_provider_publication(view, request.use_kind, requested_scopes)?;
         Ok(Self {
             position,
             request,
-            selected_machine,
             signature_identity: Some(signature_identity),
             physical_adapter,
             policy,
@@ -233,18 +236,34 @@ impl<'a> PreparedTerminalProduct<'a> {
         self.request.use_kind == other.request.use_kind
             && self.request.view.publication.optimizations().project_psi()
                 == other.request.view.publication.optimizations().project_psi()
-            && Arc::ptr_eq(self.request.view.program, other.request.view.program)
-            && self.request.view.sources == other.request.view.sources
+            && self.request.view.shares_source(&other.request.view)
             && self.request.selections.project_psi() == other.request.selections.project_psi()
     }
 
-    fn prepare_application(
-        &self,
-        observer: &mut impl psi_compiler::PsiCompilationObserver,
-    ) -> TerminalApplicationCustody<'a> {
+    fn prepare_application(&self) -> TerminalApplicationCustody<'a> {
+        let entry = self
+            .request
+            .view
+            .entry
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "application has no selected entry declaration",
+                )]
+            })
+            .and_then(|entry| {
+                let signature = entry.source_signature();
+                terminal_psi::PreparedNominalRoot::new(
+                    signature.declaration(),
+                    signature.machine_name(),
+                    None,
+                )
+                .map_err(|reason| {
+                    psi_compiler::TerminalArtifactProductionError::EntryReceipt(reason.into())
+                        .diagnostics()
+                })
+            });
         TerminalApplicationCustody::prepare(
-            self.request.view.program,
-            psi_compiler::TerminalMachineSelection::Symbol(self.selected_machine),
+            entry,
             self.signature_identity,
             self.policy
                 .as_ref()
@@ -252,8 +271,6 @@ impl<'a> PreparedTerminalProduct<'a> {
                     callbacks: Some(self.request.view.callbacks),
                     physical_adapter: self.physical_adapter,
                 }),
-            self.request.view.sources.exact_toolchain_sources(),
-            observer,
         )
     }
 }
@@ -265,54 +282,116 @@ pub(crate) fn produce_retained_terminal_artifacts(
     requests: Vec<TerminalProductRequest<'_>>,
 ) -> Vec<Result<ProducedTerminalProduct, Vec<Diagnostic>>> {
     let mut outcomes = Vec::with_capacity(requests.len());
-    let mut cohorts: Vec<Vec<PreparedTerminalProduct<'_>>> = Vec::new();
+    // Realization belongs to the checked Source request domain, not to one
+    // optimization/use-specific artifact cohort. Keep requests with their
+    // author-order position; no declaration association is inferred by index.
+    let mut source_cohorts: Vec<Vec<(usize, TerminalProductRequest<'_>)>> = Vec::new();
     for (position, request) in requests.into_iter().enumerate() {
-        let application = match PreparedTerminalProduct::prepare(position, request) {
-            Ok(application) => application,
-            Err(diagnostics) => {
-                outcomes.push((position, Err(diagnostics)));
-                continue;
-            }
-        };
-        // Every cohort starts with its first prepared application. A direct scan
-        // is sufficient for the small target roster; no source hashing or copying.
-        match cohorts
+        match source_cohorts
             .iter_mut()
-            .find(|cohort| cohort[0].shares_production(&application))
+            .find(|cohort| cohort[0].1.view.shares_source(&request.view))
         {
-            Some(cohort) => cohort.push(application),
-            None => cohorts.push(vec![application]),
+            Some(cohort) => cohort.push((position, request)),
+            None => source_cohorts.push(vec![(position, request)]),
         }
     }
 
-    for mut cohort in cohorts {
-        let mut timings = std::mem::take(cohort[0].request.view.timings);
-        timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0);
-        let applications = {
-            let mut observer = PsiStageTimings::new(&mut timings);
-            cohort
-                .iter()
-                .map(|application| application.prepare_application(&mut observer))
-                .collect::<Vec<_>>()
-        };
-        let started = std::time::Instant::now();
-        let produced = produce_shared_terminal(&cohort, &mut timings);
-        let elapsed = started.elapsed().as_micros();
-        timings.add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
-        *cohort[0].request.view.timings = timings;
-        for application in &mut cohort[1..] {
-            // Each report shows the shared cost; stage rows remain on the
-            // producing request, not fabricated per-target executions.
-            application
-                .request
-                .view
-                .timings
-                .add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
+    for source_requests in source_cohorts {
+        let mut requested_scopes = source_requests
+            .iter()
+            .map(|(_, request)| {
+                request
+                    .view
+                    .selected_target_profile
+                    .unwrap_or_else(target::TargetProfile::host)
+                    .target_name()
+                    .to_owned()
+            })
+            .collect::<Vec<_>>();
+        requested_scopes.sort();
+        requested_scopes.dedup();
+
+        let mut cohorts: Vec<Vec<PreparedTerminalProduct<'_>>> = Vec::new();
+        let mut realization_scopes = Vec::new();
+        for (position, request) in source_requests {
+            let application =
+                match PreparedTerminalProduct::prepare(position, request, &requested_scopes) {
+                    Ok(application) => application,
+                    Err(diagnostics) => {
+                        outcomes.push((position, Err(diagnostics)));
+                        continue;
+                    }
+                };
+            realization_scopes.push(
+                application
+                    .request
+                    .view
+                    .selected_target_profile
+                    .unwrap_or_else(target::TargetProfile::host)
+                    .target_name()
+                    .to_owned(),
+            );
+            // Preparation retains every requested sibling proposal. Only
+            // successfully prepared requests expand actual scalar demand;
+            // another target's preparation failure remains its own outcome.
+            match cohorts
+                .iter_mut()
+                .find(|cohort| cohort[0].shares_production(&application))
+            {
+                Some(cohort) => cohort.push(application),
+                None => cohorts.push(vec![application]),
+            }
         }
-        // Descriptive consumers borrow one portable owner. Inspection also
-        // consumes its exact source-issued Build companions; checking borrows
-        // only the artifact. Neither creates an application receipt.
-        if cohort[0].request.use_kind != TerminalProductUse::Application {
+        realization_scopes.sort();
+        realization_scopes.dedup();
+
+        for mut cohort in cohorts {
+            let mut timings = std::mem::take(cohort[0].request.view.timings);
+            timings.add_completed(TERMINAL_PRODUCTION_STAGE, 0);
+            let applications = cohort
+                .iter()
+                .map(PreparedTerminalProduct::prepare_application)
+                .collect::<Vec<_>>();
+            let started = std::time::Instant::now();
+            let produced = produce_shared_terminal(&cohort, &mut timings);
+            let elapsed = started.elapsed().as_micros();
+            timings.add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
+            *cohort[0].request.view.timings = timings;
+            for application in &mut cohort[1..] {
+                // Each report shows the shared cost; stage rows remain on the
+                // producing request, not fabricated per-target executions.
+                application
+                    .request
+                    .view
+                    .timings
+                    .add_completed(TERMINAL_PRODUCTION_STAGE, elapsed);
+            }
+            // Descriptive consumers borrow one portable owner. Inspection also
+            // consumes its exact source-issued Build companions; checking borrows
+            // only the artifact. Neither creates an application receipt.
+            if cohort[0].request.use_kind != TerminalProductUse::Application {
+                match produced {
+                    Err(diagnostics) => {
+                        for application in cohort {
+                            outcomes.push((application.position, Err(diagnostics.clone())));
+                        }
+                    }
+                    Ok(program) => {
+                        for application in cohort {
+                            let outcome = Ok(ProducedTerminalProduct::Descriptive {
+                                proposals: application.provider_publication.publish(
+                                    program.artifact().view(),
+                                    application.request.selections.identity(),
+                                    &realization_scopes,
+                                ),
+                                program: Arc::clone(&program),
+                            });
+                            outcomes.push((application.position, outcome));
+                        }
+                    }
+                }
+                continue;
+            }
             match produced {
                 Err(diagnostics) => {
                     for application in cohort {
@@ -320,57 +399,38 @@ pub(crate) fn produce_retained_terminal_artifacts(
                     }
                 }
                 Ok(program) => {
-                    for application in cohort {
-                        let outcome = Ok(ProducedTerminalProduct::Descriptive {
-                            proposals: application.provider_publication.publish(
-                                program.artifact().view(),
-                                application.request.selections.identity(),
-                            ),
-                            program: Arc::clone(&program),
-                        });
+                    for (application, custody) in cohort.into_iter().zip(applications) {
+                        let mut timings = std::mem::take(application.request.view.timings);
+                        let produced = program
+                            .attach_application(&custody, &mut PsiStageTimings::new(&mut timings));
+                        *application.request.view.timings = timings;
+                        let outcome = produced.and_then(|produced| {
+                                if let Some(policy) = &application.policy {
+                                    policy.admit(program.artifact().semantic_module(), &mut produced.roots.into_iter())?;
+                                }
+                                let receipt = produced.receipt?.ok_or_else(|| {
+                                    vec![Diagnostic::error(
+                                        "terminal-artifact production retained no checked ProgramEntry receipt",
+                                    )]
+                                })?;
+                                Ok(ProducedTerminalProduct::Application(TerminalApplication {
+                                    physical_entry_adapter: application
+                                        .request
+                                        .view
+                                        .entry
+                                        .and_then(|entry| entry.physical_adapter())
+                                        .is_some(),
+                                    provider_proposals: application.provider_publication.publish(
+                                        program.artifact().view(),
+                                        application.request.selections.identity(),
+                                        &realization_scopes,
+                                    ),
+                                    artifact: Arc::clone(program.artifact()),
+                                    receipt,
+                                }))
+                            });
                         outcomes.push((application.position, outcome));
                     }
-                }
-            }
-            continue;
-        }
-        match produced {
-            Err(diagnostics) => {
-                for application in cohort {
-                    outcomes.push((application.position, Err(diagnostics.clone())));
-                }
-            }
-            Ok(program) => {
-                for (application, custody) in cohort.into_iter().zip(applications) {
-                    let mut timings = std::mem::take(application.request.view.timings);
-                    let produced = program
-                        .attach_application(&custody, &mut PsiStageTimings::new(&mut timings));
-                    *application.request.view.timings = timings;
-                    let outcome = produced.and_then(|produced| {
-                            if let Some(policy) = &application.policy {
-                                policy.admit(program.artifact().semantic_module(), &mut produced.roots.into_iter())?;
-                            }
-                            let receipt = produced.receipt?.ok_or_else(|| {
-                                vec![Diagnostic::error(
-                                    "terminal-artifact production retained no checked ProgramEntry receipt",
-                                )]
-                            })?;
-                            Ok(ProducedTerminalProduct::Application(TerminalApplication {
-                                physical_entry_adapter: application
-                                    .request
-                                    .view
-                                    .entry
-                                    .and_then(|entry| entry.physical_adapter())
-                                    .is_some(),
-                                provider_proposals: application.provider_publication.publish(
-                                    program.artifact().view(),
-                                    application.request.selections.identity(),
-                                ),
-                                artifact: Arc::clone(program.artifact()),
-                                receipt,
-                            }))
-                        });
-                    outcomes.push((application.position, outcome));
                 }
             }
         }
@@ -440,6 +500,7 @@ fn admit_terminal_production<'a>(
 fn prepare_target_provider_publication(
     source: &TerminalProductionView<'_>,
     use_kind: TerminalProductUse<'_>,
+    requested_scopes: &[String],
 ) -> Result<provider_planning::target_machines::PreparedTargetProviderPublication, Vec<Diagnostic>>
 {
     let mut targets = source
@@ -487,6 +548,9 @@ fn prepare_target_provider_publication(
         .into_iter()
         .map(str::to_owned),
     );
+    // Build rows are not the request domain. Even a sibling with no authored
+    // row needs a complete (possibly refused) proposal in this publication.
+    targets.extend(requested_scopes.iter().cloned());
     targets.sort();
     targets.dedup();
     let inventory = provider_planning::target_machines::TargetProviderInventoryRequest {
@@ -514,7 +578,6 @@ fn prepare_target_provider_publication(
     Ok(
         provider_planning::target_machines::TargetProviderPreparationRequest {
             application_roots: deployment.roots.as_deref(),
-            application_scopes: &deployment.scopes,
             context: provider_planning::ProviderPlanningContext::new(
                 &source.program.typed,
                 source::DependencyScope::Product,
