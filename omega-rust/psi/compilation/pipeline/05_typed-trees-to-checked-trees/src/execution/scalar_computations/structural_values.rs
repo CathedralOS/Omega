@@ -439,12 +439,7 @@ impl Builder<'_, '_> {
             }
             root.root
         } else {
-            self.structural_value(expression, expected).or_else(|| {
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-                    eprintln!("LOWER retained-argument refused machine={:?} expression={} expected={:?} actual={:?}", self.machine, self.program.expression_table.display_name(expression), self.program.type_reference_table.type_reference(expected), self.program.expression_table.constructed_value_type_reference(expression));
-                }
-                None
-            })?
+            self.structural_value(expression, expected)?
         };
         if !argument_needs_establishment(&self.structural_values.nodes.get(root).kind) {
             // A whole-place operand normally uses direct storage transport.

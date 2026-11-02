@@ -388,7 +388,7 @@ pub(crate) fn capture_source(
     })
 }
 
-fn access_can_supply(source: StructuralAccess, result: StructuralAccess) -> bool {
+pub(crate) fn access_can_supply(source: StructuralAccess, result: StructuralAccess) -> bool {
     source == result
         || matches!(
             source,

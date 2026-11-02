@@ -236,12 +236,7 @@ impl Builder<'_, '_> {
                 checked_trees::CheckedStructuralRecordFieldValue::Scalar(root)
             } else {
                 checked_trees::CheckedStructuralRecordFieldValue::Structural(
-                    self.structural_value(initializer.value, declared).or_else(|| {
-                        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-                            eprintln!("LOWER record-field refused record={} field={} expression={} declared={:?}", self.program.expression_table.display_name(expression), field.name, self.program.expression_table.display_name(initializer.value), self.program.type_reference_table.type_reference(declared));
-                        }
-                        None
-                    })?,
+                    self.structural_value(initializer.value, declared)?,
                 )
             };
             fields.push(checked_trees::CheckedStructuralRecordField {

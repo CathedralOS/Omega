@@ -105,6 +105,33 @@ jobs:
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
         run: python tools/ci/compiler_pilot.py
+      - name: Format the changed Rust owners for inspection
+        if: always() && github.event_name == 'workflow_dispatch' && contains(inputs.fixtures, 'resource_representation_buffered_local_exit')
+        shell: python
+        run: |
+          import difflib, json, shutil, subprocess
+          from pathlib import Path
+          output = Path('build/compiler-pilot/rustfmt')
+          rows = []
+          patches = []
+          for name in (
+              'omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment.rs',
+              'omega-rust/psi/compilation/validation/src/proof_contracts/contract_entailment/structural_judgment/normal_returns.rs',
+              'omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/scalar_computations/reference_captures.rs',
+              'omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/values/reference_sources.rs',
+          ):
+              source = Path(name)
+              destination = output / name
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copyfile(source, destination)
+              result = subprocess.run(['rustfmt', '--edition', '2024', '--config', 'skip_children=true', str(destination)])
+              before, after = source.read_text(), destination.read_text()
+              rows.append(dict(path=name, exit=result.returncode, formatted=before == after))
+              patches.extend(difflib.unified_diff(before.splitlines(True), after.splitlines(True), fromfile=name, tofile=name))
+          output.mkdir(parents=True, exist_ok=True)
+          (output / 'report.json').write_text(json.dumps(rows, indent=2))
+          (output / 'format.patch').write_text(''.join(patches))
+          print(json.dumps(rows, indent=2))
       - name: Trace the frozen buffered conversion proof
         if: always() && github.event_name == 'workflow_dispatch' && contains(inputs.fixtures, 'resource_representation_buffered_local_exit')
         shell: python

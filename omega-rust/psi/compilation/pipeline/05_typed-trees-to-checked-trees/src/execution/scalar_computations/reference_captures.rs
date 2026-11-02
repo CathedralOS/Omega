@@ -25,6 +25,24 @@ impl Builder<'_, '_> {
             })
             .and_then(|statement| statement.as_local_data())
             .filter(|local| local.initial_value == expression);
+        // An incoming reference already owns its descriptor and declared
+        // access. Transport that current value without requiring a new loan
+        // birth; sized references and slice descriptors share this receipt.
+        // Locals and projected leaves still need their occurrence captures.
+        let incoming = descriptor.as_ref().and_then(|place| {
+            if !place.segments.is_empty()
+                || self.canonical_place(expression).as_ref() != Some(place)
+            {
+                return None;
+            }
+            let parameter = self.program.state_parameter_by_symbol(
+                self.program.state_by_symbol(self.state)?,
+                place.root.as_symbol()?,
+            )?;
+            let declared = validation::reference_shell(self.program, parameter.type_reference)?;
+            crate::values::reference_sources::access_can_supply(declared.access.into(), access)
+                .then_some(parameter.symbol)
+        });
         let mut source = None;
         let mut retain_capture = |root, segments, captured_kind: &BorrowAccessKind| {
             if *captured_kind != kind {
@@ -47,6 +65,9 @@ impl Builder<'_, '_> {
             source = Some(place);
             Some(())
         };
+        if let Some(parameter) = incoming {
+            retain_capture(facts::PlaceRoot::Symbol(parameter), Default::default(), &kind)?;
+        }
         for loan in self.borrow.loans.span(state.loans)?.iter().filter(|loan| {
             loan.statement_index == self.statement_index
                 && loan.formation_expression == expression
@@ -155,15 +176,6 @@ impl Builder<'_, '_> {
                 }
             }
         }
-        if source.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
-            eprintln!("LOWER reference-capture refused machine={:?} expression={} access={expected_access:?} descriptor={descriptor:?}", self.machine, self.program.expression_table.display_name(expression));
-            for (_, resource) in self.borrow.call_loan_resources.iter().filter(|(_, resource)| resource.machine_symbol == self.machine && resource.state_symbol == self.state) {
-                let operand = self.flow.control.operands.get(resource.operand);
-                if operand.expression == expression {
-                    eprintln!("LOWER reference-leaf resource={resource:?} operand={operand:?}");
-                }
-            }
-        }
         Some((source?, access))
     }
 
@@ -206,14 +218,12 @@ impl Builder<'_, '_> {
                             .is_some()
                     })
             });
-        if !incoming {
-            if !borrowed {
-                return None;
-            }
-            // No ultimate-backing reconstruction: the original slot is loaded
-            // at this exact value occurrence, with all suppliers still retained.
-            self.captured_reference_place(expression, shell.access, Some(place))?;
+        if !incoming && !borrowed {
+            return None;
         }
+        // No ultimate-backing reconstruction: the original slot is loaded
+        // at this exact value occurrence, with all suppliers still retained.
+        self.captured_reference_place(expression, shell.access, Some(place))?;
         Some(validation::ReferenceFormationSource {
             source: expression,
             access: shell.access,
