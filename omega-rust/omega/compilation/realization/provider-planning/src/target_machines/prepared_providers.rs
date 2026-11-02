@@ -9,6 +9,7 @@
 use super::{AuthoredTargetProviders, TargetProviderPreparationRequest};
 use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use crate::evaluated_via_bindings::EvaluatedViaBindingTable;
+use crate::provider_settlement::assumed_bindings::PreparedAssumedBindings;
 use crate::{
     DerivedProviderPlan, ProviderPlanProvenance, ProviderSchemaDeclaration, ProviderSelection,
 };
@@ -40,11 +41,14 @@ pub struct ProductProviderPreparation<'program> {
     pub exact_toolchain_sources: &'program [(source::SourceId, [u8; 32])],
     pub native_bindings: &'program crate::native_bindings::PreparedNativeBuildBindings,
     pub native_supplies: &'program [crate::native_bindings::NativeBuildSupply],
+    pub assumed_bindings:
+        &'program [build_time_evaluation::assumed_bindings::AssumedBindingContract],
 }
 
 pub struct PreparedProductProviders {
     owner: Weak<checked_trees::CheckedTrees>,
     planning_target: Option<target::TargetProfile>,
+    assumptions: PreparedAssumedBindings,
     bindings: EvaluatedViaBindingTable,
     candidates: Vec<CallingCandidate>,
     native_start: usize,
@@ -214,6 +218,7 @@ impl ProviderPublicationCatalog {
 }
 
 pub(crate) struct SettledProductProviders {
+    pub assumptions: PreparedAssumedBindings,
     pub bindings: EvaluatedViaBindingTable,
     pub candidates: Vec<DerivedProviderPlan>,
     pub native_start: usize,
@@ -262,6 +267,7 @@ impl PreparedProductProviders {
                 .collect(),
         };
         Ok(SettledProductProviders {
+            assumptions: self.assumptions,
             bindings: self.bindings,
             candidates,
             native_start: self.native_start,
@@ -417,6 +423,10 @@ impl ProductProviderPreparation<'_> {
         Ok(PreparedProductProviders {
             owner: Arc::downgrade(self.checked),
             planning_target,
+            assumptions: PreparedAssumedBindings::capture(
+                &self.checked.typed,
+                self.assumed_bindings,
+            ),
             bindings,
             candidates,
             native_start,

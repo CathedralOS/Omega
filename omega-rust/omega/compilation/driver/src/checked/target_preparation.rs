@@ -133,6 +133,7 @@ impl PreparedProductTarget {
                         exact_toolchain_sources: source.sources.exact_toolchain_sources(),
                         native_bindings: &source.native_bindings,
                         native_supplies: &source.computed_build_config.config.native_bindings,
+                        assumed_bindings: &source.computed_build_config.config.assumed_bindings,
                     }
                     .capture()
                 })();
