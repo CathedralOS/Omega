@@ -374,6 +374,21 @@ impl<Owner: Clone, Origin: Clone + Eq> PreparedTargetChoices<Owner, Origin> {
             })
             .filter_map(|boundary| module.identities.text(boundary.owner.identity()))
             .collect::<Vec<_>>();
+        // An operator occurrence reaches the walk as its target realization
+        // leaf, whose owner is the provider machine rather than the requirement
+        // that owns candidate schemas. Terminal's boundary-application roster
+        // keeps the requirement itself, and boundary settlement later owes a
+        // selected row for every one of those demands, so they demand here too.
+        invoked_owners.extend(
+            module
+                .boundary_application_demands
+                .iter()
+                .filter_map(|demand| {
+                    module
+                        .identities
+                        .text(demand.requirement().declaration().identity())
+                }),
+        );
         invoked_owners.sort_unstable();
         invoked_owners.dedup();
         for (candidate, demanded) in self.candidates.iter().zip(demanded) {
