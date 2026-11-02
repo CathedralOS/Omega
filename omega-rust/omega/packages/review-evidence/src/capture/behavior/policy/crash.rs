@@ -1,9 +1,9 @@
 use super::rejected;
-use crate::capture::PackageReviewInput;
 use crate::capture::contracts::{
     expressions::projection::project_contract_expression, facts::ContractProjectionContext,
 };
 use crate::capture::semantics::facts::exactly_one;
+use crate::capture::{PackageReviewInput, SourceDeclarationInput};
 use crate::record::{
     PackagePolicyCrash, PackagePolicyCrashGuard, PackagePolicyCrashRoute,
     PackagePolicyInferredCrash, PackageReviewCrashCause, PackageReviewCrashInterface,
@@ -141,9 +141,11 @@ fn validate_crash_publication(
         "family head declaration custody",
     )?;
     let original_head = machine_contract_plan(compilation.custody, original_machine)?;
-    let original_authored =
-        derive_authored_machine_crash_buckets(compilation.custody_checking_input, original_machine)
-            .map_err(|diagnostic| vec![diagnostic])?;
+    let original_authored = derive_authored_machine_crash_buckets(
+        compilation.original_checking_input,
+        original_machine,
+    )
+    .map_err(|diagnostic| vec![diagnostic])?;
     if plan.crash != original_head.crash
         || plan.commitment != original_head.commitment
         || authored != original_authored
@@ -187,7 +189,7 @@ fn machine_contract_plan<'a>(
 }
 
 pub(crate) fn crash_routes(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     contracts: &[typed_trees::signature::SignatureContract],
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],

@@ -21,9 +21,9 @@ const TERMINAL_PRODUCTION_STAGE: StageMeta = StageMeta::new(
     "CanonicalTerminalArtifact",
 );
 
-/// Production borrows precisely the source, entry and provider facts it reads.
-/// Review descriptions and new product selections supply this same view; the
-/// producer does not branch on the caller's installation history.
+/// Attach a target using saved entry and provider facts. Ordinary requests can
+/// access the publication and its identity, but cannot inspect source through
+/// this view.
 pub(crate) struct TerminalProductionView<'a> {
     source_identity: compilation_products::ProductSourceIdentity,
     publication: &'a compilation_products::ProductTerminalPublication,
@@ -486,8 +486,8 @@ pub(crate) fn produce_retained_terminal_artifacts(
     outcomes.into_iter().map(|(_, outcome)| outcome).collect()
 }
 
-/// Produce one nonempty source cohort. Source-root projection and optimization
-/// are shared; each product checks its retained policy after publication.
+/// Reuse the shared publication for ordinary requests. Named inspection alone
+/// may produce a different program from its explicitly supplied source.
 fn produce_shared_terminal(
     cohort: &[PreparedTerminalProduct<'_>],
     timings: &mut CompileTimings,

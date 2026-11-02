@@ -1,6 +1,6 @@
 //! Policy signature projection with an explicit containing static telescope.
 use super::Projection;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::semantics::signatures::parameters::CallingContractScope;
 use crate::capture::semantics::signatures::parameters::project_type_parameters_inner;
 use crate::record::PackageReviewTypeParameter;
@@ -10,7 +10,7 @@ use symbols::SymbolHandle;
 
 pub(crate) fn project_policy_type_parameters_after(
     typed: &dyn ::validation::CheckingInput,
-    checked_source: &PackageReviewInput<'_>,
+    checked_source: &SourceDeclarationInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_path: &str,
     preceding_binders: &[(SymbolHandle, String)],
@@ -35,7 +35,7 @@ pub(crate) fn project_policy_type_parameters_after(
 
 pub(crate) fn project_policy_type_parameters(
     typed: &dyn ::validation::CheckingInput,
-    checked_source: &PackageReviewInput<'_>,
+    checked_source: &SourceDeclarationInput<'_>,
     parameters: &[typed_trees::data::TypeParameter],
     declaration_path: &str,
     preceding_binders: &[(SymbolHandle, String)],

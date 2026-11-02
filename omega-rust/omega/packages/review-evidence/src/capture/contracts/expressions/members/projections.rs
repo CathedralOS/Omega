@@ -2,14 +2,14 @@
 //! The producer owns the correspondence; review never rebuilds a type view.
 
 use super::AuthoredMember;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use checked_trees::ContractProofFactOwner;
 use facts::FactOrigin;
 use symbols::{SymbolHandle, SymbolKind};
 
 pub(super) fn authored_projection(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     source: AuthoredMember,
@@ -79,7 +79,7 @@ pub(super) fn authored_projection(
 }
 
 fn valid_field(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     field: SymbolHandle,
     case: SymbolHandle,
 ) -> bool {

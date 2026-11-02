@@ -1,6 +1,6 @@
 //! Exact named-const values used by reviewed contract calls.
 
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
 
@@ -8,7 +8,7 @@ use crate::capture::semantics::types::review_type_identity_with_binders;
 use crate::record::PackageReviewContractStaticArgument;
 
 pub(super) fn project_named_const_static_argument(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     subject_kind: &str,
     subject_name: &str,
     declaration: &typed_trees::constant::ConstDeclaration,

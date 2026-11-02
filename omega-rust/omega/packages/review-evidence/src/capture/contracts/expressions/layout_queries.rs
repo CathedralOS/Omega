@@ -1,6 +1,6 @@
 //! Exact checked layout observations in inert review expressions.
 
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::types::signature_type_identity;
 use crate::record::{
@@ -11,7 +11,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, StaticMachineArgument, TableCallExpression};
 
 pub(super) fn project_layout_query(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     expression: ExpressionHandle,
@@ -22,7 +22,7 @@ pub(super) fn project_layout_query(
         .as_ref()
         .ok_or_else(|| context.rejected("has no layout query"))?;
     let original_call = compilation
-        .custody
+        .original_program
         .typed
         .expression_table
         .call_node(expression)
@@ -57,9 +57,7 @@ pub(super) fn project_layout_query(
             );
         }
     }
-    let mut original = PackageReviewInput::supplied(compilation.custody, compilation.custody);
-    original.checking_input = compilation.custody_checking_input;
-    original.custody_checking_input = compilation.custody_checking_input;
+    let original = compilation.original();
     let operand = operand_type(compilation, context, binders, &query.operand)?;
     let expected = operand_type(&original, context, binders, &original_query.operand)?;
     if operand != expected {
@@ -105,7 +103,7 @@ pub(super) fn project_layout_query(
 }
 
 fn operand_type(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     operand: &StaticMachineArgument,
@@ -119,7 +117,7 @@ fn operand_type(
     signature_type_identity(
         compilation,
         compilation.checking_input,
-        compilation.custody.sources().exact_toolchain_sources(),
+        compilation.exact_toolchain_sources,
         operand.type_reference,
         binders,
         context.lifetime_binders,
@@ -131,7 +129,7 @@ fn operand_type(
 }
 
 fn source_operand(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     operand: &StaticMachineArgument,
 ) -> Result<Option<String>, Vec<Diagnostic>> {

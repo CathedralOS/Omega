@@ -1,4 +1,4 @@
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::{ContractProjectionContext, reviewed_package};
 use crate::capture::semantics::declarations::{nominal_identity, reviewed_package_owns};
 use crate::capture::semantics::types::review_type_identity_with_binders;
@@ -14,7 +14,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, TableCastExpression};
 
 pub(crate) fn project_contract_cast(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     cast: &TableCastExpression,

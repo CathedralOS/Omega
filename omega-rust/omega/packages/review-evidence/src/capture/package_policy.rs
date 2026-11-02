@@ -3,7 +3,7 @@
 //! This does not construct a legacy review capsule, persist proof results, or
 //! admit the package. Every component retains its own checked association owner.
 
-mod assumed_bindings;
+pub(crate) mod assumed_bindings;
 mod authority;
 mod external;
 mod native_bindings;
@@ -50,9 +50,12 @@ pub fn project_checked_package_policy<'a>(
     let compilation = &PackageReviewInput {
         service_declarations: Some(&services),
         external_providers: Some(&external_providers),
-        checking_input: &queries.candidate,
-        custody_checking_input: &queries.custody,
-        contract_owner_queries: None,
+        source: super::SourceDeclarationInput {
+            checking_input: &queries.candidate,
+            original_checking_input: &queries.custody,
+            contract_owner_queries: None,
+            ..input.source
+        },
         ..input
     };
     if compilation.custody.sources().package_identity() != Some(package)

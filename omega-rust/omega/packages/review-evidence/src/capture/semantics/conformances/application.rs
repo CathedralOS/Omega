@@ -1,6 +1,6 @@
 use super::projected_application::ProjectedSelectedConformanceApplication;
 use crate::capture::EvidenceOption;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::expressions::static_arguments::{
     ContractCallStaticParameterKind, contract_call_static_parameter_kind, project_static_argument,
 };
@@ -115,7 +115,7 @@ fn selected_conformance_application_type_reference(
 }
 
 pub(crate) fn project_selected_conformance_application(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     selected: &typed_trees::expression::StaticMachineArgument,
     binders: &[(SymbolHandle, String)],
     lifetime_binders: &[Identifier],
@@ -266,7 +266,7 @@ pub(crate) fn project_selected_conformance_application(
             signature_type_identity(
                 compilation,
                 &instantiated,
-                compilation.custody.sources().exact_toolchain_sources(),
+                compilation.exact_toolchain_sources,
                 *argument,
                 binders,
                 lifetime_binders,

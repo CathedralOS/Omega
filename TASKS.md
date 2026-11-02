@@ -495,17 +495,13 @@ narrows realization only.
     `selected-dispatch/src/provider_binding.rs` (selected dispatch, component
     progress, intrinsic review and deferred array/const-generic recipes)
     from typed/checked records to canonical Terminal Psi
-    plus target Build rows, and replace provisional completion-role nomination
-    so unused external candidates do not make selected returning implementations
-    fail closed.
+    plus target Build rows.
   - Move opaque selection and source-qualified review onto canonical Terminal
     Psi, so target planning drops its source-side signature preparation and
     passes source-discard/reload.
   - Move the remaining source-reading provider consumers onto prepared
-    declarations: host classification's catalog-local source join, typed
-    constant/comparison evaluation (including Early Build's typed-only
-    comparison path), general review call coordinates, source-dependent
-    direct-call preparation.
+    declarations: typed constant/comparison evaluation (including Early Build's
+    typed-only comparison path) and general review call coordinates.
   - Move review-only products' complete conformance evidence from checked
     source custody into Terminal Psi.
   - Publish portable dormant-use records and the trust-model accepted-machine
