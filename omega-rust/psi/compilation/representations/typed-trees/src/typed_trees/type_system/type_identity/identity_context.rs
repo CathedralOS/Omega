@@ -38,6 +38,9 @@ pub(crate) struct TypeIdentityContext<'binders> {
     /// normalization consumes these rows; it grants no borrow authority.
     pub(crate) resolved_lifetimes:
         &'binders [(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+    /// Declaration-schema alpha coordinates for exact region slots. Payload
+    /// names never identify these binders across declarations.
+    pub(crate) lifetime_binders: &'binders [(LifetimeParameterIdentity, String)],
     pub(crate) invalid_application: Option<&'binders Cell<bool>>,
     pub(crate) encountered_regions: Option<&'binders Cell<bool>>,
     pub(crate) binders: &'binders [(SymbolHandle, String)],
@@ -233,6 +236,13 @@ impl TypeIdentityContext<'_> {
             .iter()
             .find(|(parameter, _)| *parameter == region)
             .map_or(region, |(_, argument)| *argument);
+        if let Some((_, binder)) = self
+            .lifetime_binders
+            .iter()
+            .find(|(parameter, _)| *parameter == region)
+        {
+            return atom("lifetime-binder", binder);
+        }
         if self.qualification == TypeIdentityQualification::PackageQualified {
             if let Some(identity) =
                 super::lifetime_parameters::portable_lifetime_parameter_identity(program, region)

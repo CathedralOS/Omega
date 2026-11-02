@@ -49,7 +49,9 @@ pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
     TypeIdentityTable,
 };
-pub use static_operand_identity::StaticOperandIdentityRequest;
+pub use static_operand_identity::{
+    DeclaredStaticOperandIdentityRequest, StaticOperandIdentityRequest,
+};
 
 use crate::TypedTrees;
 use crate::data;

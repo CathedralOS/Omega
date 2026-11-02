@@ -874,6 +874,40 @@ fn formal_parameter_binders(
     binders
 }
 
+fn signature_lifetime_binders(
+    program: &dyn crate::CheckingInput,
+    signature: &typed_trees::signature::StateSignature,
+) -> Vec<(
+    typed_trees::type_identity::LifetimeParameterIdentity,
+    String,
+)> {
+    let mut owners = Vec::new();
+    let mut owner = signature.symbol;
+    while owner.is_valid() && !owners.contains(&owner) {
+        owners.push(owner);
+        owner = program.declaration_scope_parent(owner);
+    }
+    let mut binders = Vec::new();
+    for owner in owners.into_iter().rev() {
+        let declaration = program.lifetime_declaration_owner(owner);
+        if let Some(parameters) = typed_trees::type_identity::declaration_lifetime_parameters(
+            program.typed_program(),
+            declaration,
+        ) {
+            for ordinal in 0..parameters.len() {
+                let parameter = typed_trees::type_identity::LifetimeParameterIdentity {
+                    declaration,
+                    ordinal,
+                };
+                if !binders.iter().any(|(known, _)| *known == parameter) {
+                    binders.push((parameter, format!("$L{}", binders.len())));
+                }
+            }
+        }
+    }
+    binders
+}
+
 fn encode_state_signature(
     program: &dyn crate::CheckingInput,
     signature: &typed_trees::signature::StateSignature,
@@ -885,6 +919,7 @@ fn encode_state_signature(
         program.requirement_invocation_contract_parameters(signature),
         binders,
     );
+    let lifetime_binders = signature_lifetime_binders(program, signature);
     output.extend((signature.conformance_bounds.len() as u64).to_le_bytes());
     for bound in &signature.conformance_bounds {
         let ordinal = program
@@ -899,21 +934,45 @@ fn encode_state_signature(
             })?;
         output.extend((ordinal as u64).to_le_bytes());
         let identity = program
-            .normalized_nominal_type_identity(bound.trait_symbol)
-            .and_then(|identity| program.type_identity_text(identity))
-            .ok_or_else(|| {
-                Diagnostic::error("callable evidence bound has no exact trait identity")
+            .normalized_hermetic_symbol_identity(bound.trait_symbol)
+            .map_err(|reason| {
+                Diagnostic::error(format!(
+                    "callable evidence bound lost its exact trait owner: {reason}"
+                ))
             })?;
         encode_identity_text(&identity, output);
         output.extend((bound.arguments.len() as u64).to_le_bytes());
-        for argument in &bound.arguments {
-            encode_identity_text(
-                &program.type_identity_request_text(TypeIdentityRequest {
+        let definition = program
+            .trait_definition_by_symbol(bound.trait_symbol)
+            .ok_or_else(|| {
+                Diagnostic::error("callable evidence bound lost its trait declaration")
+            })?;
+        let parameters = program.trait_type_parameters(definition);
+        if parameters.len() != bound.arguments.len() {
+            return Err(Diagnostic::error(
+                "callable evidence bound lost its complete trait application",
+            ));
+        }
+        for (parameter, argument) in parameters.iter().zip(&bound.arguments) {
+            use typed_trees::type_identity::{
+                DeclaredStaticOperandIdentityRequest, IndexIdentityArgument,
+            };
+            let identity = program
+                .declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
+                    operand: if parameter.kind.is_const_or_value() {
+                        IndexIdentityArgument::TypeReference(*argument)
+                    } else {
+                        IndexIdentityArgument::TypeArgument(*argument)
+                    },
+                    lexical_owner: signature.symbol,
                     binders: &generic_binders,
-                    ..TypeIdentityRequest::ordinary(*argument)
-                }),
-                output,
-            );
+                    lifetime_binders: &lifetime_binders,
+                })
+                .and_then(|identity| program.type_identity_text(identity))
+                .ok_or_else(|| {
+                    Diagnostic::error("callable evidence argument lost its exact declared schema")
+                })?;
+            encode_identity_text(&identity, output);
         }
     }
     let parameters = program.state_signature_parameters(signature);

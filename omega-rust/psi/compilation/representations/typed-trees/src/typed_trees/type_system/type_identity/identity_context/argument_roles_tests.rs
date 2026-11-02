@@ -58,7 +58,10 @@ fn resolved_region_substitution_is_scoped_and_simultaneous() {
         program.push_machine(Machine {
             symbol,
             name: Identifier::generated(name),
-            lifetime_parameters: vec![Identifier::generated("slot")],
+            lifetime_parameters: vec![
+                Identifier::generated("slot"),
+                Identifier::generated("later"),
+            ],
             ..Default::default()
         });
     }
@@ -70,6 +73,13 @@ fn resolved_region_substitution_is_scoped_and_simultaneous() {
             access: language_semantics::ReferenceAccess::Shared,
             lifetime: Some(Identifier::generated("slot")),
         });
+    let later = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: scalar,
+            access: language_semantics::ReferenceAccess::Shared,
+            lifetime: Some(Identifier::generated("later")),
+        });
     let region = |declaration| LifetimeParameterIdentity {
         declaration,
         ordinal: 0,
@@ -78,6 +88,31 @@ fn resolved_region_substitution_is_scoped_and_simultaneous() {
         applied_type_identity_in_region_scope(&program, reference, owner, owner, &[], rows).unwrap()
     };
     assert_ne!(identity(actual, &[]), identity(required, &[]));
+
+    // Public schema keeps region position while erasing declaration-local
+    // binder identities. A different bound region must change the commitment.
+    use crate::type_identity::{DeclaredStaticOperandIdentityRequest, IndexIdentityArgument};
+    let declared = |owner, reference| {
+        program
+            .declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
+                operand: IndexIdentityArgument::TypeArgument(reference),
+                lexical_owner: owner,
+                binders: &[],
+                lifetime_binders: &[
+                    (region(owner), "$L0".to_owned()),
+                    (
+                        LifetimeParameterIdentity {
+                            declaration: owner,
+                            ordinal: 1,
+                        },
+                        "$L1".to_owned(),
+                    ),
+                ],
+            })
+            .unwrap()
+    };
+    assert_eq!(declared(required, reference), declared(actual, reference));
+    assert_ne!(declared(required, reference), declared(required, later));
     assert_ne!(identity(actual, &[]), identity(captured, &[]));
     assert_eq!(
         identity(actual, &[(region(actual), region(required))]),

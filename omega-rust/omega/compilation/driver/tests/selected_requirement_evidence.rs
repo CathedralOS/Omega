@@ -10,6 +10,10 @@ fn selected_requirement_preserves_runtime_index_and_explicit_evidence() {
     let mut failures = Vec::new();
     for (fixture, rejection) in [
         (
+            "samples/cli/facts/selected_value_application/probes/nominal_evidence",
+            None,
+        ),
+        (
             "tests/omega/pass/facts/selected_value_application_through_target_body_exit",
             None,
         ),
