@@ -13606,8 +13606,6 @@ pass/providers/runtime_provider_reference_nested_exit checked 3181ms check-targe
 pass/providers/runtime_provider_reference_state_exit checked 3908ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/runtime_provider_reference_view_exit checked 3462ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/runtime_qualified_fixed_array_foreign_exit checked 3368ms check-target:macos_arm64 @ccdb99ca2214
-pass/providers/runtime_requirement_service_declared_exit checked 14994ms check-target:macos_arm64 provider-choice-controls:match terminal-inspections:match @b0810d04a84e
-pass/providers/runtime_requirement_service_unsupplied_exit checked 14995ms check-target:macos_arm64 provider-choice-controls:match terminal-inspections:match @b0810d04a84e
 pass/providers/runtime_result_domain_requirement_overload_exit checked 14397ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/runtime_transitive_provider_slot_exit checked 12946ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/same_name_requirement_dispatch_exit rejected 11911ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
