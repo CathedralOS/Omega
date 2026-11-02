@@ -18,7 +18,9 @@
 
 pub(super) mod calls;
 mod formation;
-pub use formation::scoped_declared_integer_application_formation;
+pub use formation::{
+    scoped_declared_integer_application_formation, scoped_integer_expression_formation,
+};
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
 use crate::proof_contracts::arithmetic_domains::BigIntInterval;
@@ -34,9 +36,9 @@ pub enum ScopedArithmeticBinder {
     /// A declaration type binder, never an integer value symbol.
     Type(symbols::SymbolHandle),
     Symbol(symbols::SymbolHandle),
-    /// One typed projection of an already captured formal value. The binding
-    /// owns its exact root/path; a foreign contract expression is not an alias.
-    Coordinate(crate::RankSubjectCoordinate),
+    /// One captured read with its complete typed selector telescope and exact
+    /// nested call path. This grants no storage access or call formation.
+    DeclaredRead(crate::DeclaredInputRead),
     /// One exact value occurrence whose denotation the binding owner supplies.
     Occurrence(ExpressionHandle),
     Result,
@@ -412,6 +414,7 @@ fn values_relation<'program>(
             | BinaryOperator::Greater
             | BinaryOperator::GreaterOrEqual
             | BinaryOperator::Equal
+            | BinaryOperator::NotEqual
     ) {
         return StrictArithmeticImplicationJudgment::Unknown;
     }
@@ -444,6 +447,7 @@ fn values_relation<'program>(
                 engine.prove_at_least(&right.sub(&left), &zero)
                     && engine.prove_at_least(&left.sub(&right), &zero)
             }
+            BinaryOperator::NotEqual => engine.proves_nonzero(&left.sub(&right)),
             _ => false,
         };
     if proven {

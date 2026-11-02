@@ -109,6 +109,15 @@ def proposition(handle: int) -> tuple[int, int, int]:
     return (14, handle, 0)
 
 
+def contract_returned_value(contract: int) -> tuple[int, int, int]:
+    """The result of the exact callable signature, not its enclosing body."""
+    return (19, contract, 0)
+
+
+def data_subject(item: int) -> tuple[int, int, int]:
+    return (20, item, 0)
+
+
 def domain_subject(handle: int) -> tuple[int, int, int]:
     """A domain's subject binder in its predicates."""
     return (16, handle, 0)
@@ -990,6 +999,21 @@ def main() -> None:
     )
     accepted(
         program,
+        "data-default-fact-retains-subject",
+        b"data Value requires self == self { value: u64; }",
+        (builtin("u64"),),
+        (data_subject(0), data_subject(0), NOT_A_NAME),
+    )
+    accepted(
+        program,
+        "callable-ensures-owns-result",
+        b"machine outer<machine F>(x: u64) -> u64\n"
+        b"requires machine F(item: u8) -> u8 ensures result == item;\n{ x }",
+        (builtin("u64"), builtin("u64"), builtin("u8"), builtin("u8")),
+        (contract_returned_value(0), parameter(1), NOT_A_NAME, parameter(0)),
+    )
+    accepted(
+        program,
         "parameter-shadows-result",
         b"machine f(result: u64) -> u64\nensures result > 0\n{ result }",
         (builtin("u64"), builtin("u64")),
@@ -1396,9 +1420,9 @@ def main() -> None:
     rejected(
         program,
         "unsupported-trait-contract",
-        b"trait Ordered<C> where proposition R(left: C, right: C); { }",
+        b"trait Ordered<C> requires proposition R(left: C, right: C); { }",
         UNSUPPORTED_MACHINE_CONTRACT,
-        b"where proposition R(left: C, right: C);",
+        b"requires proposition R(left: C, right: C);",
     )
     # A trait telescope keeps an evidence binder in the position the author
     # wrote. The binder's trait application binds as a trait, not a type.

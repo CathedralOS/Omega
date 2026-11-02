@@ -5,8 +5,8 @@ use std::collections::BTreeSet;
 use selected_instructions::VirtualRegisterId;
 
 use crate::{RegisterHomePlan, RegisterHomeValidationReceipt, register_home_identity};
+use selected_instruction_analyses::ValidatedLiveRanges;
 use selected_instructions::DistinctUseDefTie;
-use selected_instructions_to_selected_instructions::ValidatedLiveRanges;
 
 pub(super) fn build(
     plan: &RegisterHomePlan,

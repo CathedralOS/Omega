@@ -684,6 +684,63 @@ fn nonempty(source_span: SourceSpan) -> bool {
     source_span.span.start < source_span.span.end
 }
 
+/// Complete the original operand occurrences after normalized map selection.
+/// Attachments retain copy identity; a span-only lookup cannot issue custody.
+pub(super) fn finalize_normalized_static_operands(
+    program: &mut SymbolResolvedTrees,
+    occurrences: &[AuthoredDeclarationSelectionOccurrenceId],
+    exposure: Option<
+        language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    >,
+    partition: Option<CompilerDerivedSelectionPartition>,
+    operands: &[super::static_arguments::ResolvedStaticOperand],
+) -> Result<(), Diagnostic> {
+    use language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget as Target;
+    for operand in operands {
+        let mut candidates = occurrences
+            .iter()
+            .filter_map(|occurrence| program.authored_declaration_selections().get(*occurrence))
+            .filter(|row| {
+                row.source_span() == operand.source
+                    && row.kind() == Kind::StaticArgument
+                    && row.exposure() == exposure.unwrap_or(language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation)
+                    && (exposure.is_none() || row.compiler_partition() == partition)
+            });
+        let original = candidates.next().copied().ok_or_else(|| {
+            Diagnostic::error("normalized member has no attached static selection occurrence")
+                .with_source_span(operand.source)
+        })?;
+        if candidates.next().is_some() {
+            return Err(Diagnostic::error(
+                "normalized member has ambiguous attached static selection occurrences",
+            )
+            .with_source_span(operand.source));
+        }
+        match original.target() {
+            Target::LateBound(LateBinding::CheckedStaticArgument) => program
+                .finalize_authored_declaration_selection(
+                    original.occurrence_id(),
+                    LateBinding::CheckedStaticArgument,
+                    operand.entry,
+                )
+                .map_err(|reason| {
+                    Diagnostic::error(format!(
+                        "normalized static selection finalization failed: {reason:?}"
+                    ))
+                    .with_source_span(operand.source)
+                })?,
+            Target::Resolved(target) if target.selected_symbol() == operand.entry => {}
+            _ => {
+                return Err(Diagnostic::error(
+                    "normalized member conflicts with its original static selection",
+                )
+                .with_source_span(operand.source));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Retain explicit realization-machine references only after closed
 /// conformance normalization has resolved each target to one exact machine.
 /// The referenced member remains private implementation even when the complete

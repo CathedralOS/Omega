@@ -46,6 +46,20 @@ pub struct DataDefinitionFactDependency {
     pub expression: ExpressionHandle,
     pub place: PlaceHandle,
 }
+
+/// Checked correspondence between an authored contract member and its exact
+/// applied field. This is declaration metadata, not a storage or proof grant.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct ContractMemberProjection {
+    pub origin: FactOrigin,
+    pub fact: Handle<ProofFact>,
+    pub expression: ExpressionHandle,
+    pub receiver_type: typed_trees::types::TypeReferenceHandle,
+    pub authored_field: SymbolHandle,
+    pub applied_field: SymbolHandle,
+    pub applied_case: SymbolHandle,
+    pub authored_case: SymbolHandle,
+}
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub enum FactOrigin {
     #[default]

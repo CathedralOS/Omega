@@ -8,7 +8,7 @@
 
 use super::{CapturedStorageCoordinate, StructuralJudge};
 use crate::machine_calls::calls::CapturedStorageReadBacking;
-use typed_trees::types::PrimitiveType;
+use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 use typed_trees::{expression::ExpressionHandle, machine::Machine, state::State};
 
 #[derive(Clone, PartialEq)]
@@ -20,6 +20,27 @@ pub(in crate::proof_contracts::contract_entailment::structural_judgment) struct 
 }
 
 impl StructuralJudge<'_> {
+    /// A readable reference place can observe scalar contents without making
+    /// its descriptor home a scalar slot. This selects the read's address cut;
+    /// backing authentication and access admission remain separate.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn scalar_reference_read_type(
+        &self,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+    ) -> Option<TypeReferenceHandle> {
+        self.ordinary_storage_path(Some((machine, state)), expression)
+            .then_some(())?;
+        let reference =
+            crate::expression_result_type_reference(self.program, machine, state, expression)?;
+        crate::reference_shell(self.program, reference)?;
+        crate::value_custody::expression_types::scalar_observation_meaning(
+            self.program,
+            reference,
+        )?;
+        Some(reference)
+    }
+
     /// A completed call's public coordinate observes current contents through
     /// its independently retained result suppliers. It is a logical post-state
     /// cell, not an invented executable scalar-read occurrence.
@@ -156,7 +177,12 @@ impl StructuralJudge<'_> {
         {
             // A differently represented recast cannot inherit the source's
             // field namespace merely because both views have the same size.
-            self.intake_storage_field_observations(&storage.coordinate, reference, &value);
+            self.intake_storage_field_observations(
+                &storage.coordinate,
+                reference,
+                &value,
+                self.storage_version,
+            );
         }
         self.retain_storage_value(storage.coordinate.clone(), value, false);
         if let Some(backing) = backing
@@ -214,7 +240,7 @@ impl StructuralJudge<'_> {
         })
     }
 
-    pub(super) fn freeze_entry_scalar_read_backing(
+    pub(super) fn freeze_entry_read_backing(
         &self,
         state: &State,
         dependencies: CapturedStorageReadBacking,
@@ -260,74 +286,129 @@ impl StructuralJudge<'_> {
         machine: &Machine,
         state: &State,
         expression: ExpressionHandle,
+        at: Option<super::StorageVersion>,
     ) -> Option<super::super::super::StructuralTerm> {
-        // Whole references/aggregates retain their ordinary conservative fence.
+        let values = self.current_backing_values(machine, state, expression, at)?;
+        let first = values.first()?;
+        // A single-value consumer needs agreement, not a convenient supplier.
+        values
+            .iter()
+            .all(|value| value == first)
+            .then(|| first.clone())
+    }
+
+    /// Observe every possible scalar cell at the performed read's cut. This
+    /// frontier supplies proof alternatives, never one physical alias identity.
+    /// Missing or expired suppliers leave the whole observation unavailable.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn current_backing_values(
+        &self,
+        machine: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        at: Option<super::StorageVersion>,
+    ) -> Option<Vec<super::super::super::StructuralTerm>> {
+        self.ordinary_storage_path(Some((machine, state)), expression)
+            .then_some(())?;
         let declared =
             crate::expression_result_type_reference(self.program, machine, state, expression)?;
-        // Ordinary scalar operands may read an explicit readable scalar borrow.
-        // This selects meaning only: the exact captured-load chain below still
-        // supplies its independent content observation and authority.
         let (primitive, _) = crate::value_custody::expression_types::scalar_observation_meaning(
             self.program,
             declared,
         )?;
-        let place = crate::canonical_place_from_expression(self.program, expression)?;
-        let dependencies = self.frame_resolver()?.storage_read_backing_at_expression(
-            machine,
-            state,
-            expression,
-            place.root.as_symbol()?,
-            &place.segments,
-        );
-        if super::super::super::struct_trace() {
-            eprintln!(
-                "STRUCT scalar-backing read={} dependencies={dependencies:?}",
-                self.program.expression_table.display_name(expression)
-            );
-        }
-        let dependencies = dependencies?;
-        let backing = self.freeze_scalar_read_backing(state, dependencies);
-        let (identity, representation) = if let Some(identity) = backing.identity {
-            if identity.1 != primitive {
-                return None;
-            }
-            (identity, None)
-        } else {
-            let (coordinate, source, view) = backing.representation?;
-            if view != primitive {
-                return None;
-            }
-            ((coordinate, source), Some((source, view)))
-        };
-        if super::super::super::struct_trace() {
-            for stored in self.stored_values.iter() {
+        let frames = self.frame_resolver()?;
+        let dependencies = if crate::reference_shell(self.program, declared).is_some() {
+            let supplied = frames.completed_value_read_backing(machine, state, expression, &[]);
+            if supplied.is_none() && super::super::super::struct_trace() {
                 eprintln!(
-                    "STRUCT scalar-backing donor read={} current={:?} identity={} same={}",
-                    self.program.expression_table.display_name(expression),
-                    stored.current,
-                    stored
-                        .backing
-                        .as_ref()
-                        .is_some_and(|b| b.identity.is_some()),
-                    stored
-                        .backing
-                        .as_ref()
-                        .is_some_and(|b| b.identity.as_ref() == Some(&identity))
+                    "STRUCT scalar-read-refused expression={expression:?} phase=performed-descriptor-load-frontier"
                 );
             }
+            supplied?
+        } else {
+            let place = crate::canonical_place_from_expression(self.program, expression)?;
+            frames.storage_read_backing_at_expression(
+                machine,
+                state,
+                expression,
+                place.root.as_symbol()?,
+                &place.segments,
+            )?
+        };
+        if dependencies.sources.is_empty() {
+            return None;
         }
-        self.stored_values.iter().find_map(|stored| {
-            if stored.backing.as_ref()?.identity.as_ref()? != &identity {
-                return None;
-            }
-            let value = stored.current.clone()?;
-            Some(if let Some((source, view)) = representation {
-                super::super::super::structural_terms::normalize_scalar_representation(
-                    source, view, value,
-                )
-            } else {
-                value
+        dependencies
+            .sources
+            .iter()
+            .map(|source| {
+                // Coarse mutation labels do not erase a fully resolved supplier
+                // coordinate. Dynamic/unknown coordinates still fail the ordinary
+                // scalar geometry owner; all source interpretations are retained.
+                let scalar = match source.scalar_storage_coordinate_result(self.program, state) {
+                    Ok(scalar) => scalar,
+                    Err(reason) => {
+                        if super::super::super::struct_trace() {
+                            eprintln!("STRUCT scalar-read-refused expression={expression:?} source={source:?} phase=scalar-geometry reason={reason}");
+                        }
+                        return None;
+                    }
+                };
+                if scalar.view_primitive != primitive
+                    || (!scalar.preserves_scalar_value && !scalar.preserves_primitive_bits)
+                {
+                    if super::super::super::struct_trace() {
+                        eprintln!("STRUCT scalar-read-refused expression={expression:?} source={source:?} phase=primitive-interpretation source_primitive={:?} view_primitive={:?}", scalar.source_primitive, scalar.view_primitive);
+                    }
+                    return None;
+                }
+                let coordinate = self.capture_storage_place(scalar.place)?;
+                let identity = (coordinate.clone(), scalar.source_primitive);
+                let value = self.current_storage_value_at(&coordinate, at).or_else(|| {
+                    self.stored_values.iter().find_map(|stored| {
+                        if stored.backing.as_ref()?.identity.as_ref()? != &identity
+                            || (self.graph_storage_mode()
+                                && !at.is_some_and(|at| {
+                                    self.current_value_valid(stored, &coordinate, at)
+                                }))
+                        {
+                            return None;
+                        }
+                        stored.current.clone()
+                    })
+                }).or_else(|| {
+                    // Entry predicates can name a field before its pointer is
+                    // loaded. They supply contents only to this performed-read
+                    // owner, after the whole load frontier and current cut are
+                    // independently authenticated. A retired Entry snapshot is
+                    // never a substitute for changed current storage.
+                    if self.storage_graph().is_none() {
+                        return None;
+                    }
+                    let at = at?;
+                    self.stored_values.iter().find_map(|stored| {
+                        (stored.coordinate == coordinate
+                            && stored.current.is_none()
+                            && self.current_value_valid(stored, &coordinate, at))
+                        .then(|| stored.entry.clone())
+                        .flatten()
+                    })
+                });
+                let Some(value) = value else {
+                    if super::super::super::struct_trace() {
+                        eprintln!("STRUCT scalar-read-refused expression={expression:?} source={source:?} coordinate={coordinate:?} at={at:?} phase=current-or-preserved-entry-value");
+                    }
+                    return None;
+                };
+                Some(if scalar.preserves_scalar_value {
+                    value
+                } else {
+                    super::super::super::structural_terms::normalize_scalar_representation(
+                        scalar.source_primitive,
+                        scalar.view_primitive,
+                        value,
+                    )
+                })
             })
-        })
+            .collect()
     }
 }

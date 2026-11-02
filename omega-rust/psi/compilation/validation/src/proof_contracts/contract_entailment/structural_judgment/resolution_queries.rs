@@ -600,7 +600,7 @@ impl<'program> StructuralJudge<'program> {
             address(&*self.entry_machines),
             address(&*self.declaration_parameters),
             address(&*self.normal_results),
-            address(&*self.completed_nominal_captures),
+            address(&*self.completed_nominal_values),
             address(&*self.returned_field_owners),
             address(&*self.body_invocations),
             address(&*self.normal_memberships),
@@ -644,8 +644,8 @@ impl<'program> StructuralJudge<'program> {
             && self.premise_facts == other.premise_facts
             && Arc::ptr_eq(&self.normal_results, &other.normal_results)
             && Arc::ptr_eq(
-                &self.completed_nominal_captures,
-                &other.completed_nominal_captures,
+                &self.completed_nominal_values,
+                &other.completed_nominal_values,
             )
             && Arc::ptr_eq(&self.returned_field_owners, &other.returned_field_owners)
             && Arc::ptr_eq(&self.body_invocations, &other.body_invocations)

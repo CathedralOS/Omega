@@ -6,8 +6,9 @@ use symbols::SymbolKind;
 use typed_trees::{
     data::TypeParameterKind,
     type_identity::{
-        AppliedTypeIdentityScope, IndexIdentityArgument, NormalizedTypeIdentity,
-        applied_index_identity, applied_type_identity_in_scope,
+        AppliedTypeIdentityScope, IndexIdentityArgument, LifetimeParameterIdentity,
+        NormalizedTypeIdentity, applied_index_identity_in_region_scope,
+        applied_type_identity_in_region_scope,
     },
 };
 use typed_trees::{expression::StaticMachineArgument, machine::GenericConformanceBound};
@@ -27,28 +28,7 @@ pub(crate) fn validate_forwarded_argument(
         return Err("an implementation evidence binder is already selected and takes no application arguments".to_owned());
     }
     let actual = program
-        .traits()
-        .iter()
-        .flat_map(|definition| definition.conformance_bounds.iter())
-        .chain(
-            program
-                .machines()
-                .iter()
-                .flat_map(|machine| machine.conformance_bounds.iter()),
-        )
-        .chain(
-            program
-                .data_definitions()
-                .iter()
-                .flat_map(|definition| definition.conformance_bounds.iter()),
-        )
-        .chain(
-            program
-                .type_aliases()
-                .iter()
-                .flat_map(|definition| definition.conformance_bounds.iter()),
-        )
-        .find(|actual| actual.binder == selected.symbol)
+        .callable_conformance_bound(program.symbols.get(selected.symbol).parent, selected.symbol)
         .ok_or_else(|| "forwarded implementation binder has no declared contract".to_owned())?;
     let demanded = crate::refinement_fit::resolve_bound_carrier(program, required.trait_symbol);
     let promised = crate::refinement_fit::resolve_bound_carrier(program, actual.trait_symbol);
@@ -79,6 +59,24 @@ pub(crate) fn applied_bound_argument_identities(
     argument_owner: symbols::SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<TraitApplicationIdentity> {
+    applied_bound_argument_identities_in_region_scope(
+        program,
+        bound,
+        receiving_owner,
+        argument_owner,
+        scopes,
+        &[],
+    )
+}
+
+pub(crate) fn applied_bound_argument_identities_in_region_scope(
+    program: &dyn crate::CheckingInput,
+    bound: &GenericConformanceBound,
+    receiving_owner: symbols::SymbolHandle,
+    argument_owner: symbols::SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    regions: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<TraitApplicationIdentity> {
     let carrier = crate::refinement_fit::resolve_bound_carrier(program, bound.trait_symbol);
     let root = typed_trees::trait_definition::AppliedTraitScope::new(
         program.typed_program(),
@@ -91,7 +89,13 @@ pub(crate) fn applied_bound_argument_identities(
         },
     )?;
     let scope = root.declaring_scope(program.typed_program(), carrier.base)?;
-    applied_scope_argument_identities(program, &scope, argument_owner, scopes)
+    applied_scope_argument_identities_in_region_scope(
+        program,
+        &scope,
+        argument_owner,
+        scopes,
+        regions,
+    )
 }
 
 /// Static operands and explicit region slots belong to one complete inherited
@@ -104,6 +108,22 @@ pub(crate) fn applied_scope_argument_identities(
     argument_owner: symbols::SymbolHandle,
     outer: &[AppliedTypeIdentityScope<'_>],
 ) -> Option<TraitApplicationIdentity> {
+    applied_scope_argument_identities_in_region_scope(
+        program,
+        application,
+        argument_owner,
+        outer,
+        &[],
+    )
+}
+
+fn applied_scope_argument_identities_in_region_scope(
+    program: &dyn crate::CheckingInput,
+    application: &typed_trees::trait_definition::AppliedTraitScope<'_>,
+    argument_owner: symbols::SymbolHandle,
+    outer: &[AppliedTypeIdentityScope<'_>],
+    regions: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<TraitApplicationIdentity> {
     application.with_identity_scopes(program.typed_program(), |inner| {
         let identities = program
             .trait_type_parameters(application.declaration)
@@ -114,19 +134,21 @@ pub(crate) fn applied_scope_argument_identities(
                 scopes.extend_from_slice(&inner[..prefix]);
                 match parameter.kind {
                     TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. } => {
-                        applied_index_identity(
+                        applied_index_identity_in_region_scope(
                             program.typed_program(),
                             IndexIdentityArgument::TypeReference(argument),
                             argument_owner,
                             &scopes,
+                            regions,
                         )
                     }
-                    _ => applied_type_identity_in_scope(
+                    _ => applied_type_identity_in_region_scope(
                         program.typed_program(),
                         argument,
                         application.argument_owner,
                         argument_owner,
                         &scopes,
+                        regions,
                     ),
                 }
             })
@@ -151,7 +173,14 @@ pub(crate) fn applied_scope_argument_identities(
                     argument_owner,
                     &scopes,
                 )
-                .map(|(argument, _)| argument)
+                .map(|(argument, _)| {
+                    // The caller already checked this frame. Apply its exact
+                    // correspondence once, after resolving the supplied slot.
+                    regions
+                        .iter()
+                        .find(|(parameter, _)| *parameter == argument)
+                        .map_or(argument, |(_, resolved)| *resolved)
+                })
             })
             .collect::<Option<Vec<_>>>()?;
         Some(TraitApplicationIdentity {

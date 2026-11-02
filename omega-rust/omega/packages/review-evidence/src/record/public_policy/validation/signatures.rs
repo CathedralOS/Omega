@@ -59,6 +59,11 @@ fn machine(
         &signature.type_parameters,
         signature.lifetime_parameter_count,
     )?;
+    evidence_parameters(
+        &signature.type_parameters,
+        &signature.conformance_bounds,
+        &scope,
+    )?;
     formals(&mut scope, &signature.parameters, |value| {
         (&value.name, &value.type_identity)
     })?;
@@ -140,4 +145,28 @@ pub(in crate::record) fn bounds(
         }
     }
     Ok(())
+}
+
+/// Inline evidence slots and their local contract roster are one telescope.
+/// Enclosing evidence belongs to the parent scope and cannot fill a missing
+/// contract in this callable.
+pub(in crate::record) fn evidence_parameters(
+    parameters: &[PackagePolicyTypeParameter],
+    contracts: &[PackageReviewConformanceBound],
+    scope: &Scope<'_>,
+) -> Result {
+    if parameters
+        .iter()
+        .filter(|parameter| {
+            matches!(
+                parameter.kind,
+                PackagePolicyTypeParameterKind::Implementation
+            )
+        })
+        .count()
+        != contracts.len()
+    {
+        return Err("public implementation slots do not match their conformance contracts");
+    }
+    bounds(contracts, scope)
 }

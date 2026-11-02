@@ -1,1 +1,1 @@
-data `Reading` literal cannot prove the default domain: a `where` fact is not established by the values observed at this construction
+data `Reading` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction

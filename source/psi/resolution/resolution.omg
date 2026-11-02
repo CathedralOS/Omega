@@ -112,6 +112,9 @@ public data ValueBinding [copy] {
     // `size_of` or `align_of`, the primitive layout queries
     // (wiki/spec/language/counts_and_addresses.md).
     case LayoutQuery(query: LayoutQuery);
+    // `result` in a callable binder contract belongs to that exact signature,
+    // independently of the enclosing machine's result type.
+    case ContractReturnedValue(contract: u64 in Trapping);
 }
 
 // The primitive byte predicates over a byte view
@@ -209,7 +212,7 @@ public data ResolveDiagnosticCode [copy] {
     case UnsupportedDeclaration;
     // A form whose bindings resolution does not record yet rejects at that
     // form: an operator token outside an ordinary owned machine (or `==`,
-    // `!=`, `[]`, `[..]`), a `requires machine` or `where proposition`
+    // `!=`, `[]`, `[..]`), a `requires machine` or `requires proposition`
     // contract, a `satisfies` clause naming its trait through a module path,
     // or a proposition or evidence binder.
     case UnsupportedOperatorToken;

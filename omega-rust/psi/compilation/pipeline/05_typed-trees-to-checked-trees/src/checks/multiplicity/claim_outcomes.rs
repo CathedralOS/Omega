@@ -677,6 +677,7 @@ fn claim_outcomes_for_named_transition(
                 &entry.source,
                 segments,
                 permission_events,
+                known_maps,
             )?;
             Some(CheckedClaimOutcomeEntry {
                 output_path: entry.output_path.clone(),
@@ -712,7 +713,15 @@ fn claim_outcomes_for_expression(
         };
     }
     let segments = &ownership.segments;
-    if let Some(place) = place_at(program, state.symbol, statement_index, expression) {
+    // A call's receiving home is not its source correspondence. Resolve that
+    // correspondence from the callee's complete return map below; otherwise a
+    // provisional result identity can contradict the direct-return seed of a
+    // recursive component before the component has even been solved.
+    if !matches!(
+        program.expression_table.expression(expression),
+        typed_trees::expression::ExpressionNode::Call(_)
+    ) && let Some(place) = place_at(program, state.symbol, statement_index, expression)
+    {
         let found = permission_events
             .iter()
             .filter(|event| {
@@ -732,13 +741,20 @@ fn claim_outcomes_for_expression(
                 output_path.extend_from_slice(&event_path[place.segments.len()..]);
                 Some(CheckedClaimOutcomeEntry {
                     output_path,
-                    source: claim_outcome_source_for_event(
+                    source: resolve_claim_outcome_source(
                         program,
                         state,
-                        event,
+                        claim_outcome_source_for_event(
+                            program,
+                            state,
+                            event,
+                            segments,
+                            permission_events,
+                        ),
                         segments,
                         permission_events,
-                    ),
+                        known_maps,
+                    )?,
                 })
             })
             .collect::<Vec<_>>();
@@ -861,6 +877,7 @@ fn claim_outcomes_for_expression(
                         &entry.source,
                         segments,
                         permission_events,
+                        known_maps,
                     )?;
                     let mut output_path = output_prefix.to_vec();
                     output_path.extend_from_slice(&entry.output_path);
@@ -1113,6 +1130,7 @@ fn bind_claim_outcome_source_at_call(
     source: &CheckedClaimOutcomeSource,
     segments: &arena::PagedArenaSet<facts::PlaceSegment>,
     permission_events: &[FlowPermissionEventFact],
+    maps: &[CheckedClaimOutcomeMap],
 ) -> Option<CheckedClaimOutcomeSource> {
     bind_claim_outcome_source_at_arguments(
         program,
@@ -1123,11 +1141,122 @@ fn bind_claim_outcome_source_at_call(
         source,
         segments,
         permission_events,
+        maps,
     )
 }
 
 #[allow(clippy::too_many_arguments)]
 fn bind_claim_outcome_source_at_arguments(
+    program: &dyn ::validation::CheckingInput,
+    caller_state: &typed_trees::state::State,
+    statement_index: usize,
+    arguments: &[typed_trees::expression::ExpressionHandle],
+    target_state: &typed_trees::state::State,
+    source: &CheckedClaimOutcomeSource,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
+    permission_events: &[FlowPermissionEventFact],
+    maps: &[CheckedClaimOutcomeMap],
+) -> Option<CheckedClaimOutcomeSource> {
+    let source = bind_claim_outcome_source_at_arguments_raw(
+        program,
+        caller_state,
+        statement_index,
+        arguments,
+        target_state,
+        source,
+        segments,
+        permission_events,
+    )?;
+    resolve_claim_outcome_source(
+        program,
+        caller_state,
+        source,
+        segments,
+        permission_events,
+        maps,
+    )
+}
+
+/// A completed helper may forward an input before permission preparation has
+/// rewritten its receiving identity. Solve that correspondence from the same
+/// candidate maps as the surrounding return, without modifying observed events.
+/// Every candidate is still checked against all returns before publication.
+fn resolve_claim_outcome_source(
+    program: &dyn validation::CheckingInput,
+    state: &typed_trees::state::State,
+    mut source: CheckedClaimOutcomeSource,
+    segments: &arena::PagedArenaSet<facts::PlaceSegment>,
+    events: &[FlowPermissionEventFact],
+    maps: &[CheckedClaimOutcomeMap],
+) -> Option<CheckedClaimOutcomeSource> {
+    let mut visited = Vec::new();
+    loop {
+        let CheckedClaimOutcomeSource::Established {
+            claim_identity,
+            provenance,
+        } = source
+        else {
+            return Some(source);
+        };
+        if visited.contains(&(claim_identity, provenance)) {
+            return None;
+        }
+        visited.push((claim_identity, provenance));
+        let mut forwarded = Vec::new();
+        for event in events.iter().filter(|event| {
+            event.state_symbol == state.symbol
+                && event.kind == PermissionEventKind::Establish
+                && event.access == PermissionAccess::Owned
+                && event.obligation_live
+                && event.claim_identity == claim_identity
+                && event.provenance == provenance
+        }) {
+            let Some((statement, expression, path)) = receiving_value(program, segments, event)
+            else {
+                continue;
+            };
+            let Some(call) = program.expression_table.call_node(expression) else {
+                continue;
+            };
+            let Some(target) = validation::call_target_state(program, call.target_symbol) else {
+                continue;
+            };
+            let Some(map) = maps.iter().find(|map| map.state_symbol == target.symbol) else {
+                continue;
+            };
+            for entry in map.entries.iter().filter(|entry| {
+                entry.output_path == path
+                    && matches!(entry.source, CheckedClaimOutcomeSource::Input { .. })
+            }) {
+                let bound = bind_claim_outcome_source_at_arguments_raw(
+                    program,
+                    state,
+                    statement,
+                    program.expression_table.expression_handles(call.arguments),
+                    target,
+                    &entry.source,
+                    segments,
+                    events,
+                )?;
+                // Permission preparation may already have forwarded this
+                // occurrence to the input's exact identity. That is agreement,
+                // not another dependency to chase back into the same source.
+                if bound == source {
+                    continue;
+                }
+                push_unique(&mut forwarded, bound);
+            }
+        }
+        match forwarded.as_slice() {
+            [] => return Some(source),
+            [next] => source = next.clone(),
+            _ => return None,
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn bind_claim_outcome_source_at_arguments_raw(
     program: &dyn ::validation::CheckingInput,
     caller_state: &typed_trees::state::State,
     statement_index: usize,
@@ -1301,6 +1430,7 @@ fn call_result_origin_rewrite(
                     &entry.source,
                     segments,
                     permission_events,
+                    maps,
                 )
             }),
     );

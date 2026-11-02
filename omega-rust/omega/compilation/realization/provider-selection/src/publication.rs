@@ -20,14 +20,14 @@ pub enum CanonicalProviderDeclaration {
     Operator { owner: String, callable: String },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedProviderRealizations<Owner = ()> {
     pub provider_declaration: Option<String>,
     pub row_numeric_realizations: Vec<Option<String>>,
     pub owner: Owner,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedProviderCandidate<Owner = ()> {
     pub choice: ProviderCandidate<
         CanonicalProviderDeclaration,
@@ -81,7 +81,7 @@ impl<Owner> PreparedProviderCandidate<Owner> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedTargetChoices<Owner = (), Origin = ()> {
     pub application_roots: Option<Vec<CanonicalProviderDeclaration>>,
     pub profile: target::TargetProfile,
@@ -132,9 +132,52 @@ pub struct SelectedTargetProviderPublication {
 }
 
 impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
+    /// Save additional checks with each possible implementation. Selection
+    /// carries them back to the caller only for implementations it chooses.
+    /// Keep existing declaration errors in place for the same later decision.
+    pub fn map_owner<Mapped>(
+        self,
+        mut map: impl FnMut(&effects::provider_plan::ProviderPlan, Owner) -> Mapped,
+    ) -> PreparedTargetChoices<Mapped, Origin> {
+        let candidates = self
+            .candidates
+            .into_iter()
+            .map(|candidate| {
+                let choice = candidate.choice;
+                let owner = choice
+                    .owner
+                    .map(|realizations| PreparedProviderRealizations {
+                        provider_declaration: realizations.provider_declaration,
+                        row_numeric_realizations: realizations.row_numeric_realizations,
+                        owner: map(&choice.plan, realizations.owner),
+                    });
+                PreparedProviderCandidate {
+                    choice: ProviderCandidate {
+                        plan: choice.plan,
+                        declarations: choice.declarations,
+                        native_build: choice.native_build,
+                        owner,
+                    },
+                    schema_owner: candidate.schema_owner,
+                    inherited_owners: candidate.inherited_owners,
+                    explicitly_selected: candidate.explicitly_selected,
+                }
+            })
+            .collect();
+        PreparedTargetChoices {
+            application_roots: self.application_roots,
+            profile: self.profile,
+            candidates,
+            defaults: self.defaults,
+            overrides: self.overrides,
+            independent_components: self.independent_components,
+        }
+    }
+
     /// Publication carries only canonical declarations. Original producer
     /// addresses are for the caller's review, not another selection input.
     pub fn without_correspondence(self) -> PreparedTargetChoices {
+        let choices = self.map_owner(|_, _| ());
         let declarations =
             |rows: Vec<ProviderDeclaration<CanonicalProviderDeclaration, Origin>>| {
                 rows.into_iter()
@@ -148,38 +191,12 @@ impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
                     .collect()
             };
         PreparedTargetChoices {
-            application_roots: self.application_roots,
-            profile: self.profile,
-            candidates: self
-                .candidates
-                .into_iter()
-                .map(|candidate| {
-                    let ProviderCandidate {
-                        plan,
-                        declarations,
-                        native_build,
-                        owner,
-                    } = candidate.choice;
-                    PreparedProviderCandidate {
-                        choice: ProviderCandidate {
-                            plan,
-                            declarations,
-                            native_build,
-                            owner: owner.map(|realizations| PreparedProviderRealizations {
-                                provider_declaration: realizations.provider_declaration,
-                                row_numeric_realizations: realizations.row_numeric_realizations,
-                                owner: (),
-                            }),
-                        },
-                        schema_owner: candidate.schema_owner,
-                        inherited_owners: candidate.inherited_owners,
-                        explicitly_selected: candidate.explicitly_selected,
-                    }
-                })
-                .collect(),
-            defaults: declarations(self.defaults),
-            overrides: declarations(self.overrides),
-            independent_components: self.independent_components,
+            application_roots: choices.application_roots,
+            profile: choices.profile,
+            candidates: choices.candidates,
+            defaults: declarations(choices.defaults),
+            overrides: declarations(choices.overrides),
+            independent_components: choices.independent_components,
         }
     }
 }
@@ -187,7 +204,6 @@ impl<Owner, Origin> PreparedTargetChoices<Owner, Origin> {
 #[derive(Debug, Clone)]
 pub struct PreparedTargetProviderPublication {
     deployed: bool,
-    application_scopes: Vec<String>,
     targets: Vec<(String, Result<TargetProviderChoice, Vec<Diagnostic>>)>,
     assumed_bindings: Vec<effects::AssumedBindingContractSelection>,
 }
@@ -197,11 +213,9 @@ impl PreparedTargetProviderPublication {
         targets: Vec<(String, Result<TargetProviderChoice, Vec<Diagnostic>>)>,
         assumed_bindings: Vec<effects::AssumedBindingContractSelection>,
         deployed: bool,
-        application_scopes: Vec<String>,
     ) -> Self {
         Self {
             deployed,
-            application_scopes,
             targets,
             assumed_bindings,
         }
@@ -211,12 +225,15 @@ impl PreparedTargetProviderPublication {
         self,
         artifact: terminal_codec::TerminalArtifactView<'_>,
         optimization_selection: optimization_core::OptimizationSelectionIdentity,
+        realization_scopes: &[String],
     ) -> Vec<backend_plan::TerminalTargetProviderProposal> {
         self.targets
             .into_iter()
             .map(|(target, prepared)| {
                 let mut application_roots = self.deployed.then(Vec::new);
-                let application_required = self.application_scopes.contains(&target);
+                // Declaring a Build row retains a choice, not a request to
+                // realize its backend. The operation owns the actual cohort.
+                let application_required = realization_scopes.contains(&target);
                 let selection = prepared
                     .and_then(|choice| {
                         let prepared = match choice {

@@ -106,33 +106,40 @@ pub(super) fn record(
                 ..
             } = rank.measure
             {
-                let Some(inputs) = admitted.bindings.span(bindings).and_then(|inputs| {
-                    inputs
-                        .iter()
-                        .map(|input| {
-                            let entry = admitted.coordinates.get(input.entry);
-                            let destination = admitted.coordinates.get(input.destination);
-                            Some((
-                                validation::CanonicalPlace {
-                                    root: facts::PlaceRoot::Symbol(entry.parameter),
-                                    segments: admitted.path_segments.span(entry.path)?.to_vec(),
-                                },
-                                validation::CanonicalPlace {
-                                    root: facts::PlaceRoot::Symbol(destination.parameter),
-                                    segments: admitted
-                                        .path_segments
-                                        .span(destination.path)?
-                                        .to_vec(),
-                                },
-                            ))
-                        })
-                        .collect::<Option<Vec<_>>>()
-                }) else {
+                // This builder evaluates the declaration's own body. Reads
+                // beneath a callee's call cut belong to that callee and cannot
+                // become duplicate/path-only bindings in the caller namespace.
+                let inputs = (|| {
+                    let mut direct = Vec::new();
+                    for input in admitted.bindings.span(bindings)? {
+                        if !admitted
+                            .application_contexts
+                            .span(input.application_context)?
+                            .is_empty()
+                        {
+                            continue;
+                        }
+                        let entry = admitted.coordinates.get(input.entry);
+                        let destination = admitted.coordinates.get(input.destination);
+                        direct.push((
+                            validation::CanonicalPlace {
+                                root: facts::PlaceRoot::Symbol(entry.parameter),
+                                segments: admitted.path_segments.span(entry.path)?.to_vec(),
+                            },
+                            validation::CanonicalPlace {
+                                root: facts::PlaceRoot::Symbol(destination.parameter),
+                                segments: admitted.path_segments.span(destination.path)?.to_vec(),
+                            },
+                        ));
+                    }
+                    Some(direct)
+                })();
+                let Some(inputs) = inputs else {
                     continue;
                 };
                 declaration_bindings.extend(inputs);
                 if admitted.application_formations.is_valid(formation)
-                    && let Some(input) = admitted.application_formations.get(formation).owned_input
+                    && let Some(input) = admitted.application_formations.get(formation).input_home
                 {
                     let coordinate = admitted.coordinates.get(input.actual);
                     let Some(path) = admitted.path_segments.span(coordinate.path) else {
@@ -194,6 +201,7 @@ pub(super) fn record(
                 plans,
                 structural_values,
                 statement_nodes_start,
+                root_scope: super::builder::RootScope::RankObservation,
                 scalar_occurrences: Vec::new(),
                 integer_occurrences: Vec::new(),
             };
@@ -288,6 +296,13 @@ fn observation<'program>(
                 return None;
             };
             for input in admitted.bindings.span(application_inputs)? {
+                if !admitted
+                    .application_contexts
+                    .span(input.application_context)?
+                    .is_empty()
+                {
+                    continue;
+                }
                 let source = admitted.coordinates.get(input.entry);
                 if source.parameter != formal.symbol {
                     return None;
@@ -323,7 +338,7 @@ fn observation<'program>(
                 if proof.machine != builder.machine
                     || proof.machine_body != owner.states
                     || proof.state != builder.state
-                    || proof.application.measure != measure
+                    || proof.application.owner != measure
                     || proof.application.definition_body != *body
                     || proof.bindings != application_inputs
                 {

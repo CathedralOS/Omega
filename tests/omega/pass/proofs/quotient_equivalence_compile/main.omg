@@ -40,7 +40,7 @@ RepresentativeEquivalence satisfies Equivalence<Representative, equivalent> {
 }
 
 data EquivalenceClass = Representative % equivalent
-where equivalent satisfies
+requires equivalent satisfies
     Equivalence<Representative, equivalent>
     as RepresentativeEquivalence;
 

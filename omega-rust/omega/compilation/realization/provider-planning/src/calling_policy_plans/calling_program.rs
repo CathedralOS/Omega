@@ -31,6 +31,9 @@ pub struct CallingProgram {
     pub source_owner: std::sync::Weak<checked_trees::CheckedTrees>,
     pub artifact: std::sync::Arc<CanonicalTerminalArtifact>,
     pub source_records: std::sync::Arc<[checked_trees::typed_trees::SourceRecordCorrespondence]>,
+    /// Owned original review addresses and inert helper candidates. No Source
+    /// trees or service catalog are retained by this preparation.
+    pub source_preparation: std::sync::Arc<super::CallingSourcePreparation>,
     /// Build evaluation's Terminal executor. Function identity is not part of
     /// the catalog's equality.
     pub evaluator: CallingPolicyEvaluator,
@@ -41,6 +44,7 @@ impl PartialEq for CallingProgram {
         std::sync::Weak::ptr_eq(&self.source_owner, &other.source_owner)
             && self.artifact == other.artifact
             && self.source_records == other.source_records
+            && self.source_preparation == other.source_preparation
     }
 }
 

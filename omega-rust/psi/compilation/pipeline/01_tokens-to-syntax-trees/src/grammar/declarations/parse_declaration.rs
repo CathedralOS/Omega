@@ -387,7 +387,7 @@ fn parse_declared_item<'tokens, 'source>(
     if input.at_contextual("invariant") {
         return Err(input.error_here(
             "the `invariant` declaration is retired: put value-wide facts in a data \
-             default domain (`where` or field constraints) and behavioral facts in \
+             default domain (`requires` or field constraints) and behavioral facts in \
              explicit contracts",
         ));
     }

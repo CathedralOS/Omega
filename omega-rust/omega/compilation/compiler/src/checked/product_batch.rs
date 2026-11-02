@@ -1,0 +1,162 @@
+//! Complete source cohorts once, then settle each admitted target separately.
+//!
+//! Grouping is explicit work partitioning for this batch, not a lookup into a
+//! historical cache. Every member has already supplied its own Build consent.
+//! Equal source input includes pending evaluation and declaration authority;
+//! equality of configuration or a common source path alone is insufficient.
+
+use super::CompilationSession;
+use super::PreparedProductTarget;
+use super::checking::{check_product_source, complete_prepared_build};
+use crate::execution_settlement::SelectedCompileOutcome;
+use compilation_products::{CompileFailure, PreparedPackageBuild};
+
+impl CompilationSession {
+    pub(super) fn select_build_batch<Owner>(
+        &mut self,
+        builds: Vec<(Owner, PreparedPackageBuild)>,
+    ) -> Vec<(Owner, SelectedCompileOutcome)> {
+        let mut outcomes = Vec::with_capacity(builds.len());
+        let mut applications = Vec::with_capacity(builds.len());
+        // The first checked source per distinct publication input owns the
+        // invocation's portable code; equal siblings adopt its slots.
+        let mut canonical_sources: Vec<compilation_products::CheckedProductSource> = Vec::new();
+        let mut groups: Vec<Vec<(usize, Owner, PreparedPackageBuild)>> = Vec::new();
+        for (position, (owner, build)) in builds.into_iter().enumerate() {
+            artifacts::compile_timings::counters::record_checked_compilation();
+            if let Some(group) = groups.iter_mut().find(|group| {
+                group
+                    .first()
+                    .is_some_and(|(_, _, prior)| prior.same_product_source(&build))
+            }) {
+                group.push((position, owner, build));
+            } else {
+                groups.push(vec![(position, owner, build)]);
+            }
+        }
+        for group in groups {
+            let completion_timings = if group
+                .iter()
+                .any(|(_, _, build)| build.timings().is_enabled())
+            {
+                artifacts::compile_timings::CompileTimings::enabled()
+            } else {
+                Default::default()
+            };
+            let mut members = group.into_iter();
+            let Some((first_position, first_owner, first)) = members.next() else {
+                continue;
+            };
+            let (_, target, inputs, rollback, mut prepared) = first.into_continuation();
+            let first_timings = std::mem::replace(&mut prepared.timings, completion_timings);
+            let discovery = prepared
+                .built
+                .computed_build_config
+                .independent_components();
+            let checked = complete_prepared_build(prepared, Some(&inputs)).and_then(|source| {
+                check_product_source(
+                    source,
+                    Some(&inputs),
+                    &rollback,
+                    self.reuse(),
+                    &mut self.selections,
+                )
+            });
+            match checked {
+                Ok(mut source) => {
+                    match canonical_sources
+                        .iter()
+                        .find(|prior| prior.shares_terminal_publication(&source))
+                    {
+                        Some(canonical) => source.adopt_derived_code(canonical),
+                        None => canonical_sources.push(source.clone()),
+                    }
+                    let completion_timings = std::mem::replace(&mut source.timings, first_timings);
+                    source.timings.extend(&completion_timings);
+                    self.retain(&source.retained_checks);
+                    let target_source =
+                        PreparedProductTarget::capture(&source, Some(target), Some(&inputs));
+                    applications.push((first_position, first_owner, source.clone(), target_source));
+                    for (position, owner, member) in members {
+                        let (_, target, inputs, _, prepared) = member.into_continuation();
+                        let mut application = source.clone();
+                        // The program and source custody are common; admission,
+                        // accounting and Build receipts belong to this member.
+                        application.admission = prepared.built.admission;
+                        let observed = match source
+                            .computed_build_config
+                            .with_execution_observation(&prepared.built.computed_build_config)
+                        {
+                            Ok(observed) => observed,
+                            Err(reason) => {
+                                outcomes.push((
+                                    position,
+                                    owner,
+                                    SelectedCompileOutcome {
+                                        result: Err(CompileFailure::from(vec![
+                                            diagnostics::Diagnostic::error(reason),
+                                        ])),
+                                        independent_components: prepared
+                                            .built
+                                            .computed_build_config
+                                            .independent_components(),
+                                    },
+                                ));
+                                continue;
+                            }
+                        };
+                        application.computed_build_config = std::sync::Arc::new(observed);
+                        application.retained_checks.build = prepared.built.retained_build_check;
+                        application.timings = prepared.timings;
+                        application.timings.extend(&completion_timings);
+                        let target_source = PreparedProductTarget::capture(
+                            &application,
+                            Some(target),
+                            Some(&inputs),
+                        );
+                        applications.push((position, owner, application, target_source));
+                    }
+                }
+                Err(diagnostics) => {
+                    outcomes.push((
+                        first_position,
+                        first_owner,
+                        SelectedCompileOutcome {
+                            result: Err(CompileFailure::from(diagnostics.clone())),
+                            independent_components: discovery,
+                        },
+                    ));
+                    for (position, owner, member) in members {
+                        outcomes.push((
+                            position,
+                            owner,
+                            SelectedCompileOutcome {
+                                result: Err(CompileFailure::from(diagnostics.clone())),
+                                independent_components: member.build().independent_components(),
+                            },
+                        ));
+                    }
+                }
+            }
+        }
+        // Different source-admission groups can adopt the same publication.
+        // Finish the complete Source roster before any selected child starts
+        // Calling or publishes code, not merely the first group's members.
+        for (position, owner, source, prepared) in applications {
+            outcomes.push((
+                position,
+                owner,
+                crate::execution_settlement::select_product_target(&source, prepared),
+            ));
+        }
+        // Cohorts finish together; restore the authored request order before
+        // attaching component products. The owner never separates from its result.
+        outcomes.sort_unstable_by_key(|(position, _, _)| *position);
+        let mut selected = Vec::with_capacity(outcomes.len());
+        for (_, owner, mut outcome) in outcomes {
+            self.attach_component_products(&mut outcome);
+            selected.push((owner, outcome));
+        }
+        selected
+    }
+}

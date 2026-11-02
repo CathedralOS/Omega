@@ -372,7 +372,7 @@ fn non_authoritative_post_handoff_entry_writer_context_fingerprint(
     invocation: &PostHandoffWriterInvocationPlan,
     packed_words: &[u64],
 ) -> NonAuthoritativeWriterContextFingerprint64 {
-    let mut hash = crate::fnv1a::Fnv1a::new();
+    let mut hash = semantic_vocabulary::Fnv1a::new();
     let mut mix = |value: u64| hash.u64_mix(value);
     mix(installed_code.normalized_identity());
     mix(artifact.normalized_identity());
@@ -423,7 +423,7 @@ fn non_authoritative_post_handoff_entry_writer_context_fingerprint(
     }
     let hash = hash.finish();
     NonAuthoritativeWriterContextFingerprint64::from_compatibility_value(if hash == 0 {
-        crate::fnv1a::OFFSET_BASIS
+        semantic_vocabulary::Fnv1a::OFFSET_BASIS
     } else {
         hash
     })

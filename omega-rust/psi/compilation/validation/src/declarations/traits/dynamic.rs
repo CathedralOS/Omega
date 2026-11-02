@@ -983,7 +983,11 @@ fn closed_family_requirements(
                         && instance
                             .local_arguments
                             .iter()
-                            .map(|argument| program.static_const_type_reference_identity(*argument))
+                            .map(|argument| {
+                                argument.static_operand().and_then(|reference| {
+                                    program.static_const_type_reference_identity(reference)
+                                })
+                            })
                             .collect::<Option<Vec<_>>>()
                             .as_deref()
                             == Some(tuple.identities.as_ref())

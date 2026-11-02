@@ -20,8 +20,8 @@ pub struct TerminalTargetProviderProposal {
     /// reusable declaration product; Some is a complete deployment roster,
     /// including a provider-only deployment with no ProgramEntry.
     pub application_roots: Option<Vec<terminal_psi::ProofDeclarationId>>,
-    /// An authored entry or provider row requires this deployment scope even
-    /// when another target is the primary value consumer.
+    /// This target belongs to the requesting operation's realization cohort.
+    /// Inactive authored entry/provider rows retain choices, not deployment demand.
     pub application_required: bool,
     pub selection: Result<TerminalTargetProviderSelection, Vec<String>>,
 }

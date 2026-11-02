@@ -200,25 +200,13 @@ fn evaluate(
                 .ok_or("closed predicate call has no fully decided admitted integer application")?;
             boolean(value)
         }
-        ExpressionNode::Member(member) => {
-            if !names_subject(program, subject, member.receiver) {
-                return Err("predicate projection is outside the closed scalar fragment");
-            }
-            let field = fields
-                .iter()
-                .find(|field| {
-                    (member.member_symbol.is_valid() && field.symbol == member.member_symbol)
-                        || field.name.as_str() == member.member.as_str()
-                })
-                .ok_or("predicate projection is neither its field nor an evaluated constant")?;
-            let (_, value) = values
-                .iter()
-                .find(|(name, _)| name == field.name.as_str())
-                .ok_or("predicate field has no completed value")?;
+        ExpressionNode::Member(_) => {
+            let (value, reference) =
+                projected_field_value(program, owner, subject, fields, values, expression, depth)?;
             Ok((
                 scalar(value)
                     .ok_or("predicate field is outside the closed integer/Boolean fragment")?,
-                Some(field.type_reference),
+                Some(reference),
             ))
         }
         ExpressionNode::Binary(binary) => {
@@ -346,4 +334,102 @@ fn case_membership(
         return None;
     }
     Some(path.symbol == active_case)
+}
+
+/// Reuse exact declared receiving fields for every projection of a closed
+/// record. The completed encoding supplies contents; its carrier supplies only
+/// the projection identity. This never interprets a pointer as its contents.
+fn projected_field_value<'value>(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    subject: SymbolHandle,
+    fields: &[&DataField],
+    values: &'value [(String, DecodedCanonicalConstValue)],
+    expression: ExpressionHandle,
+    depth: usize,
+) -> Result<(&'value DecodedCanonicalConstValue, TypeReferenceHandle), &'static str> {
+    if depth > 128 {
+        return Err("closed predicate projection exceeds the evaluation depth bound");
+    }
+    let direct = |symbol| {
+        let selected = if fields.iter().any(|field| field.symbol == symbol) {
+            symbol
+        } else {
+            let definition = program
+                .unique_data_definition_by_symbol(owner)
+                .ok_or("closed predicate has no receiving declaration")?;
+            let (source, _) = program
+                .any_field_owner(symbol)
+                .ok_or("closed predicate projection has no source field")?;
+            program
+                .data_constructor_field(
+                    definition
+                        .generic_instance
+                        .unwrap_or(definition.predicate_subject_type),
+                    source.symbol,
+                    symbol,
+                )
+                .ok_or("closed predicate projection has no exact applied field")?
+                .symbol
+        };
+        let field = fields
+            .iter()
+            .find(|field| field.symbol == selected)
+            .ok_or("predicate projection has no exact declared field")?;
+        let (_, value) = values
+            .iter()
+            .find(|(name, _)| name == field.name.as_str())
+            .ok_or("predicate field has no completed value")?;
+        Ok((value, field.type_reference))
+    };
+    match expression_table(program).expression(expression) {
+        ExpressionNode::Name(name) => direct(name.symbol),
+        ExpressionNode::Member(member) if names_subject(program, subject, member.receiver) => {
+            direct(member.member_symbol)
+        }
+        ExpressionNode::Member(member) => {
+            let (receiver, reference) = projected_field_value(
+                program,
+                owner,
+                subject,
+                fields,
+                values,
+                member.receiver,
+                depth + 1,
+            )?;
+            if crate::reference_shell(program, reference).is_some() {
+                return Err(
+                    "closed predicate projection cannot read through a reference descriptor",
+                );
+            }
+            let field =
+                crate::value_custody::places::applied_data_member_field(program, reference, member)
+                    .ok_or("closed predicate projection lost its exact receiving field")?;
+            let values = match receiver {
+                DecodedCanonicalConstValue::Record { fields, .. } => fields,
+                DecodedCanonicalConstValue::Variant {
+                    case_name, fields, ..
+                } => {
+                    let parent = program.symbols.get(field.symbol).parent;
+                    if program.symbols.get(parent).kind == symbols::SymbolKind::Variant
+                        && program.symbols.name(parent) != case_name
+                    {
+                        return Err("closed predicate projection selects an inactive case");
+                    }
+                    fields
+                }
+                _ => {
+                    return Err(
+                        "closed predicate projection has no completed record/case contents",
+                    );
+                }
+            };
+            let (_, value) = values
+                .iter()
+                .find(|(name, _)| name == field.name.as_str())
+                .ok_or("closed predicate projection has no completed field")?;
+            Ok((value, field.type_reference))
+        }
+        _ => Err("predicate projection is outside the closed storage fragment"),
+    }
 }

@@ -20,6 +20,8 @@ pub struct CheckedCallableHeader {
     pub source_target: Option<String>,
     pub product_eligible: bool,
     pub supplies_checked_body: bool,
+    /// Remaining source binders, independent of emitted closed specializations.
+    pub type_parameter_count: usize,
     pub compiler_evaluation:
         Result<semantic_vocabulary::compiler_evaluation::CompilerEvaluationDeclaration, String>,
     /// The checked realized calls, not the callable's public permission ceiling.
@@ -35,6 +37,7 @@ impl Default for CheckedCallableHeader {
             source_target: None,
             product_eligible: false,
             supplies_checked_body: false,
+            type_parameter_count: 0,
             compiler_evaluation: Err("checked compiler-evaluation facts are absent".into()),
             synchronous_invocations: Err("checked synchronous invocation facts are absent".into()),
         }

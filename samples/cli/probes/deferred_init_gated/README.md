@@ -8,7 +8,7 @@ Depend-free compile-scope probe: deferred locals and gated nested records
   observation, then takes a compound `+=` step.
 - `Session` is a gated record (`retries <= 3`) nested inside `Registry`;
   `Registry {}` zero-fills it, and the zero value itself satisfies the
-  gate — the `where` fact constrains the scalar field without hiding the
+  gate — the `requires` fact constrains the scalar field without hiding the
   record from establishment.
 
 Compile-checked only (no std dependency, no ProcessExit provider):

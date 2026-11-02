@@ -9,5 +9,4 @@ mod evaluation;
 pub use evaluation::{NativeBuildEvaluation, NativeBuildSupply};
 
 mod plans;
-pub use plans::NativeBuildRowOrigin;
-pub(crate) use plans::derive;
+pub use plans::{NativeBuildRowOrigin, PreparedNativeBuildBindings};

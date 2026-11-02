@@ -176,7 +176,12 @@ landings when the Windows namespace has no main cache. GitHub's
 [cache access rules](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching#restrictions-for-accessing-a-cache)
 exclude sibling-branch caches. Land each completed witness separately on that
 branch; the next run can retain its warmed Cargo objects and still authenticates
-the exact producer and inputs.
+the exact producer and inputs. Fetch and verify the published commit without
+routinely merging unrelated `main` changes into that warm branch. Keep the
+qualified compiler inputs for the next witness; integrate new main only for an
+actual conflict or a prerequisite the witness needs. A restored cache still
+rebuilds changed Rust inputs, so a routine post-merge integration can spend the
+same cold-build time that branch reuse was meant to avoid.
 
 Locally, the same selector is `python tools/ci/compiler_pilot.py --fixtures IDS`
 or `OMEGA_COMPILER_PILOT_FIXTURES=IDS`. IDs must name existing normalized directories under `pass/` or `fail/`
@@ -184,6 +189,12 @@ containing `main.omg`, including nested fact-place paths.
 For canonical checking rows after runtime is already qualified, add
 `--checking-only` (manual workflow input `checking_only: true`). It requires
 exact fixture IDs and refuses sample or ordinary CLI execution selectors.
+The ordinary CLI selector `cli_fixtures` also accepts an exact normal-exit
+`samples/cli/...` project. It retains that project's original relative dependency
+paths and numeric source oracle; it does not select descendants or weaken the
+fact-only `samples` selector. Windows hosted application runs explicitly
+provision current-drive `\tmp`, as the filesystem examples require, without
+rewriting their rooted paths.
 Empty entries, duplicates, traversal, missing roots and substring-filter
 collisions refuse before building; malformed input never selects default smoke.
 An unset/empty environment variable leaves the default unchanged. Pass fixtures
@@ -442,7 +453,7 @@ check. The front-end, checking, lowering, Terminal, optimizer, realization
 and package crates carry no behavior tests; do not add them back. A test that
 scans a crate's own sources as an architecture guard is the one exception. The `compiler`
 crate's only test target is `corpus_runner`; see
-`omega-rust/omega/compilation/driver/tests/README.md`.
+`omega-rust/omega/compilation/compiler/tests/README.md`.
 
 ## Cache independence
 
@@ -770,7 +781,7 @@ them. On a warm cache, the same binary replays its earlier judgment, so a
 trace prints nothing and a knockout reports the verdict recorded without it.
 Give each run that relies on such a switch an empty `HOME` (`LOCALAPPDATA` on
 Windows, `XDG_CACHE_HOME` on Linux). Different builds never share records:
-`omega-rust/omega/compilation/driver/build.rs` digests every `.rs`, `.toml`
+`omega-rust/omega/compilation/compiler/build.rs` digests every `.rs`, `.toml`
 and `.omg` file under `omega-rust/` and `source/library/`, the workspace Cargo
 files, `rustc -vV` and the profile and flags. The selected library's content
 joins that digest, which names each record and is checked again in its header.
@@ -798,9 +809,33 @@ Name the fixtures the change can move: `--compare` refuses to run without
 `--filter` or `--shard`, because both sides of an unfiltered comparison run the
 whole corpus, about two hours on a Windows host.
 
-The base is built from its commit in a separate worktree (`build/cmp`) with its
-own build directory, so neither uncommitted edits nor artifacts from this tree
-can leak into it. An already built immutable base can be reused with
+A compare over 40 fixtures runs on hosted CI with `--remote`, and a local one
+that large refuses without `--local`:
+
+```bash
+python3 tools/corpus_gate.py --compare origin/main --remote --filter calls/,host/
+```
+
+`--remote` pushes the committed HEAD to the work branch it continues (it must
+already be pushed, as the draft PR requires; `--remote work/NAME` names it),
+dispatches the `Compiler queue pilot` at the base and at the head with the same
+exact fixture list, waits for both, and diffs their rows with the local
+compare's exit codes. Hosted runners are free for this repository and start in
+about 0.1 minutes; a Linux run takes about 15 minutes including its build, no
+slower than a local base build, and the Mac builds nothing. The default leg is
+checking only on `linux_x86_64`; `--native` or `--both` also compares
+native/Terminal rows on the matching host (`linux_x86_64`, `linux_arm64`,
+`windows_x86_64` or `macos_arm64`). The base's rows are cached like local
+ones, so a second remote compare against that base dispatches only the head.
+The pilot takes exact `pass/` and `fail/` IDs, so `run/` fixtures and `--shard`
+stay local.
+
+The base is built from its commit in a separate worktree
+(`build/compare-bases/<sha>`) with its own build directory, so neither uncommitted edits nor artifacts from
+this tree can leak into it. That worktree and the base's cached rows live in the
+`build/` beside the common git directory, shared by every worktree of the
+checkout: one session at a time measures a commit, and the next finds its runner
+and rows. The newest three base worktrees are kept. An already built immutable base can be reused with
 `--baseline-runner <binary>` alongside `--compare <revision>`. The gate still
 checks the exact baseline checkout revision, optimized profile, and fixture-root
 protocol, but does not invoke a Rust build. Retain the executable digest and its
@@ -899,8 +934,8 @@ Direct runner or CLI invocations should select the matching library explicitly
 when sharing build artifacts across checkouts. Release library validation still
 checks the selected content; this does not waive compiler or package identity.
 
-`--compare` caches the base under ignored
-`build/corpus_baselines/<sha>[-leg].txt`. Use it when the checked-in golden
+`--compare` caches the base under the shared, ignored
+`build/corpus_baselines/<sha>[-leg].txt`; a native leg names its target. Use it when the checked-in golden
 disagrees with your checkout over another lane's in-flight movement, which is
 the usual case: a run against the shared golden cannot separate that drift from
 yours, and re-recording the shared golden would pin their regression as
@@ -969,7 +1004,7 @@ bounded migration replay explicitly compares with `corpus_outcomes.txt`, leaves
 new runtime facts visible as moves, and uses the exact reviewed
 `tests/omega/interpreter_migration.json` designation. Unimplemented interpreter
 debt stays nonzero and never exempts a wrong native result. The bounded replay
-command is in [the corpus tests guide](../omega-rust/omega/compilation/driver/tests/README.md#reviewed-interpreter-migration-debt).
+command is in [the corpus tests guide](../omega-rust/omega/compilation/compiler/tests/README.md#reviewed-interpreter-migration-debt).
 
 `--checked-interpreter` explicitly selects the independent checked-tree source
 oracle instead of Terminal. It compiles the same reviewed fixture inputs and
@@ -980,7 +1015,7 @@ storage or authority. Records include
 `interpreter-engine:checked-tree`, and the separate default goldens are
 `corpus_checked_interpreted.txt` and `corpus_checked_both_<target>.txt` when
 combined with `--both`. An absent golden still requires an explicit `--golden`.
-The [corpus tests guide](../omega-rust/omega/compilation/driver/tests/README.md)
+The [corpus tests guide](../omega-rust/omega/compilation/compiler/tests/README.md)
 documents the bounded source/Trap replay. Checked-engine declines cannot satisfy
 the same unchanged authored exit or stdout promises.
 

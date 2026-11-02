@@ -53,10 +53,21 @@ pub fn parameter_expression_result_type_reference(
     expression: ExpressionHandle,
 ) -> Option<TypeReferenceHandle> {
     if !owner_symbol.is_valid() {
-        // A declaration-field constant has no callable lifetime telescope.
-        // Its constructor still names an exact produced carrier; recovering
-        // that identity does not admit its fields or use the receiving formal.
-        return constructor_result_type_reference(program, expression);
+        // Closed declaration arguments have no callable telescope. Their own
+        // constructor identity or explicit scalar landing still determines a
+        // principal result through the ordinary walk. No declaration-relative
+        // place can be recovered without its owner, and the destination never
+        // supplies a carrier here. Replay separately admits the closed value.
+        return result_type(
+            program,
+            ExpressionOwner::Declaration {
+                owner_symbol,
+                place_type: &|_| None,
+                telescope: None,
+            },
+            expression,
+            &mut Vec::new(),
+        );
     }
     let telescope = crate::frozen_program::frozen_program_memos(program).and_then(|memos| {
         let roster = parameters
@@ -73,7 +84,10 @@ pub fn parameter_expression_result_type_reference(
             .map(|place| place.type_reference)
             .or_else(|| {
                 crate::value_custody::places::parameter_scoped_type_reference(
-                    program, parameters, expression,
+                    program,
+                    owner_symbol,
+                    parameters,
+                    expression,
                 )
             })
             .or_else(|| {

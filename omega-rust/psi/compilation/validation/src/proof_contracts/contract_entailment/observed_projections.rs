@@ -45,6 +45,7 @@ pub(super) fn project_observed_value(
         value,
         path,
         |_| None,
+        |value| value,
         |value, _, variant| {
             matches!(value.semantic_value(), StructuralTerm::Constructor { case, .. }
             if case.as_str() == program.symbols.name(variant))
@@ -68,6 +69,7 @@ pub(super) fn project_observed_value_in_scope(
         value,
         path,
         |_| None,
+        |value| judge.completed_nominal_observation(&value),
         |value, data, variant| {
             matches!(
                 judge.judge_case(value.clone(), data, variant),
@@ -93,6 +95,7 @@ pub(super) fn project_observed_value_with_selectors(
         value,
         path,
         selector,
+        |value| judge.completed_nominal_observation(&value),
         |value, data, variant| {
             matches!(
                 judge.judge_case(value.clone(), data, variant),
@@ -108,6 +111,7 @@ fn project_observed_value_under_cases(
     mut value: StructuralTerm,
     path: &[PlaceSegment],
     mut selector: impl FnMut(typed_trees::expression::ExpressionHandle) -> Option<StructuralTerm>,
+    mut completed: impl FnMut(StructuralTerm) -> StructuralTerm,
     mut case_is_proved: impl FnMut(&StructuralTerm, SymbolHandle, SymbolHandle) -> bool,
 ) -> Option<StructuralTerm> {
     for segment in path {
@@ -140,14 +144,18 @@ fn project_observed_value_under_cases(
             PlaceSegment::Field { symbol }
                 if symbol.is_valid() && program.any_field_owner(*symbol).is_some() =>
             {
-                value = project_field(
-                    if owned {
-                        value.into_semantic_value()
-                    } else {
-                        value
-                    },
-                    program.symbols.name(*symbol),
-                )?;
+                // Scalar/payload projections keep the completed value's exact
+                // identity, including its admitted predicates. Only a reference
+                // child reads the producer's separately retained descriptor;
+                // unfolding the whole aggregate here can replay retired cells.
+                let source = if owned && crate::reference_shell(program, projected).is_some() {
+                    completed(value).into_semantic_value()
+                } else if owned {
+                    value.into_semantic_value()
+                } else {
+                    value
+                };
+                value = project_field(source, program.symbols.name(*symbol))?;
                 if owned {
                     value = super::structural_terms::owned_projection_observation(
                         program, projected, value,
@@ -319,6 +327,86 @@ pub(super) fn project_index(
     })
 }
 
+/// Describe the address loaded by one completed reference projection. The
+/// complete frame-owned supplier roster authenticates the load, while the
+/// receiver and selector retain their already evaluated identities. This is
+/// descriptor identity only: it must remain masked from referent observations.
+pub(super) fn completed_reference_descriptor(
+    program: &dyn crate::CheckingInput,
+    judge: &super::structural_judgment::StructuralJudge<'_>,
+    machine: &typed_trees::machine::Machine,
+    state: &typed_trees::state::State,
+    expression: typed_trees::expression::ExpressionHandle,
+    receiver: StructuralTerm,
+    selector: Option<StructuralTerm>,
+) -> Option<StructuralTerm> {
+    use typed_trees::expression::ExpressionNode;
+
+    let result = crate::expression_result_type_reference(program, machine, state, expression)?;
+    crate::reference_shell(program, result)?;
+    let sources = judge
+        .frame_resolver()?
+        .completed_reference_read_sources(machine, state, expression)?;
+    if sources.is_empty() {
+        return None;
+    }
+    // Owned reads retain a fresh value identity. Its completed-value receipt
+    // names the denotation actually read, so descriptor selection must consume
+    // that receipt rather than compare the new snapshot with a declaration
+    // spelling. This recovers no reference contents and performs no equation
+    // search; the complete read-source frontier above remains mandatory.
+    let descriptor = judge
+        .completed_nominal_observation(&receiver)
+        .into_collection_descriptor();
+    descriptor.observation_identity_key()?;
+    match program.expression_table.expression(expression) {
+        ExpressionNode::Member(member) => {
+            let receiver =
+                crate::expression_result_type_reference(program, machine, state, member.receiver)?;
+            let receiver = crate::field_domains::readable_type_reference(program, receiver)?;
+            let field =
+                crate::value_custody::places::applied_data_member_field(program, receiver, member)?;
+            if field.relevance.is_erased()
+                || !crate::declared_carriers_match(program, field.type_reference, result)
+            {
+                return None;
+            }
+            project_field(descriptor, field.name.as_str())
+        }
+        ExpressionNode::Indexed(indexed)
+            if program.expression_table.range_node(indexed.index).is_none()
+                && crate::value_custody::places::place_has_builtin_coordinates(
+                    program,
+                    machine,
+                    Some(state),
+                    expression,
+                ) =>
+        {
+            let receiver = crate::expression_result_type_reference(
+                program,
+                machine,
+                state,
+                indexed.collection,
+            )?;
+            let receiver = crate::field_domains::readable_type_reference(program, receiver)?;
+            let element_type =
+                crate::value_custody::places::collection_element_type_reference(program, receiver)?;
+            if !crate::declared_carriers_match(program, element_type, result) {
+                return None;
+            }
+            let index = selector?;
+            index.observation_identity_key()?;
+            Some(StructuralTerm::IndexedValue {
+                element_type,
+                element_identity: program.normalized_type_identity(element_type),
+                collection: Box::new(descriptor),
+                index: Box::new(index),
+            })
+        }
+        _ => None,
+    }
+}
+
 /// A captured coordinate identifies storage, not permission to observe it.
 /// Fields and elements retain the same readable-reference and origin fences.
 fn readable_projection_crossings(
@@ -449,6 +537,17 @@ fn inline_projection_source(
     reference: TypeReferenceHandle,
     value: StructuralTerm,
 ) -> Option<(TypeReferenceHandle, StructuralTerm)> {
+    // Entry admission may already have captured an incoming borrow's inline
+    // referent. Consume that exact observed carrier, not the reference shell
+    // again. All projection consumers (including domain predicates) share this
+    // crossing; reference-valued children remain descriptor-only below it.
+    if let Some(observed) = super::structural_terms::owned_observation_type(program, &value)
+        && let Some(shell) = crate::reference_shell(program, reference)
+        && shell.access.is_readable()
+        && crate::declared_carriers_match(program, shell.referee, observed)
+    {
+        return Some((observed, value));
+    }
     let Some(observed) = super::structural_terms::shared_inline_observation_type(program, &value)
     else {
         return Some((reference, value));

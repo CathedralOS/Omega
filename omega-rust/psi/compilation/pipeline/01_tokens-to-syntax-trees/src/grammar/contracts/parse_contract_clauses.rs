@@ -650,11 +650,3 @@ fn parse_ranked_subjects<'tokens, 'source>(
         rest,
     ))
 }
-
-/// The retired anonymous `where T satisfies Trait` test searched for an
-/// implementation of the subject's type. Evidence is now an explicit binder.
-pub(crate) fn retired_where_conformance(subject: &str) -> String {
-    format!(
-        "`where {subject} satisfies Trait` is retired: a conformance names code, not data; declare an evidence binder such as `Implementation satisfies Trait<{subject}>` in the generic parameter list and pass a named implementation"
-    )
-}

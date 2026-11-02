@@ -3,6 +3,7 @@
 //! every lifetime anchor, access and transactional descriptor restoration.
 //! Pointers outside this closed captured graph remain explicitly unsupported.
 
+use super::values::ReferenceField;
 use super::{NativeContext, StorageCodec, rejection};
 use native_provider_runtime::NativePointerTarget;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, StructuralTypeId};
@@ -22,6 +23,12 @@ struct Capture {
     access: StructuralAccess,
     view: StructuralTypeId,
     loan: TerminalOriginalStorageLoan,
+}
+pub(super) struct CapturedInput<'a> {
+    pub path: Vec<Path>,
+    pub loan: &'a TerminalOriginalStorageLoan,
+    pub codec: &'a StorageCodec,
+    pub bytes: Vec<u8>,
 }
 pub(super) struct ReferenceOutputs {
     types: Vec<StructuralTypeDeclaration>,
@@ -68,6 +75,68 @@ impl ReferenceOutputs {
                 loan: request.loan(),
             })
             .collect();
+    }
+    /// Read one existing typed input endpoint. Pointer equality rejoins the
+    /// parent's produced slot with this exact captured loan; it never admits
+    /// a new endpoint or turns an integer address into a reference.
+    pub fn input_reference<'a>(
+        &'a self,
+        native: &NativeContext,
+        argument: usize,
+        parent_path: &[Path],
+        parent: &TerminalOriginalStorageLoan,
+        field: &ReferenceField,
+    ) -> Result<CapturedInput<'a>, TerminalEffectRejection> {
+        let mut path = parent_path.to_vec();
+        path.extend_from_slice(&field.path);
+        path.push(Path::Referent);
+        let mut matching = self
+            .captures
+            .iter()
+            .filter(|capture| capture.argument == argument && capture.path == path);
+        let capture = matching
+            .next()
+            .ok_or_else(|| rejection("native input reference is outside the captured graph"))?;
+        if matching.next().is_some()
+            || capture.view != field.referent
+            || !covers(capture.access, StructuralAccess::SharedBorrow)
+        {
+            return Err(rejection(
+                "native input reference changed its exact typed/readable capture",
+            ));
+        }
+        let codec = self
+            .codecs
+            .get(&capture.view)
+            .ok_or_else(|| rejection("native input reference lost its complete codec"))?;
+        let (home, offset) = native.loan(&capture.loan, codec)?;
+        let target = NativePointerTarget {
+            home,
+            offset,
+            byte_size: codec.extent,
+            alignment: codec.alignment,
+        };
+        let slot = native.reference_slot(parent, &field.path)?;
+        if !native
+            .sponsor
+            .borrow_mut()
+            .with(|process| process.pointer_matches(slot, target))?
+        {
+            return Err(rejection(
+                "native input pointer differs from its captured typed endpoint",
+            ));
+        }
+        let mut bytes = vec![0; codec.extent];
+        native
+            .sponsor
+            .borrow_mut()
+            .with(|process| process.read_home(home, offset, &mut bytes))?;
+        Ok(CapturedInput {
+            path,
+            loan: &capture.loan,
+            codec,
+            bytes,
+        })
     }
     fn path(
         &self,

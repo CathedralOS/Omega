@@ -126,8 +126,9 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
     }
 
     /// The one storage history of the checked bodies: storage versions,
-    /// stores, joins, and the operands each read observed. Stage 04 builds it
-    /// before validation's machine loop; inputs without it supply none.
+    /// stores, joins, and the operands each read observed. Stage 05 attaches
+    /// its flow fixed point after validation's machine loop, for the deferred
+    /// judgments; before that, and for inputs without it, there is none.
     fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
         None
     }

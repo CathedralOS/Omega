@@ -39,6 +39,28 @@ pub(crate) fn validate_total_specification_arithmetic(
     owner: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> super::ArithmeticDecisions {
+    validate_total_specification_arithmetic_with_premises(
+        program,
+        machine,
+        state,
+        expression,
+        environment,
+        None,
+        owner,
+        diagnostics,
+    )
+}
+
+fn validate_total_specification_arithmetic_with_premises(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: Option<&State>,
+    expression: ExpressionHandle,
+    environment: &ValueEnvironment,
+    prior_facts: Option<&[ExpressionHandle]>,
+    owner: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> super::ArithmeticDecisions {
     let diagnostics_before = diagnostics.len();
     if let Some(state) = state {
         crate::value_custody::expression_types::validate_float_expression_formats(
@@ -55,19 +77,35 @@ pub(crate) fn validate_total_specification_arithmetic(
     // its own proposed contract to establish its definedness. A second walk
     // from the outer environment would lose the facts of a selected match arm.
     let mut formation_diagnostics = Vec::new();
-    let formed = analyze(
-        program,
-        machine,
-        state,
-        expression,
-        environment,
-        None,
-        ArithmeticDomain::Exact,
-        owner,
-        true,
-        false,
-        &mut formation_diagnostics,
-    );
+    let analyze_term = |candidate, diagnostics: &mut Vec<Diagnostic>| {
+        if let Some(prior_facts) = prior_facts {
+            super::expression_analysis::analyze_specification(
+                program,
+                machine,
+                state,
+                candidate,
+                environment,
+                prior_facts,
+                owner,
+                diagnostics,
+            )
+        } else {
+            analyze(
+                program,
+                machine,
+                state,
+                candidate,
+                environment,
+                None,
+                ArithmeticDomain::Exact,
+                owner,
+                true,
+                false,
+                diagnostics,
+            )
+        }
+    };
+    let formed = analyze_term(expression, &mut formation_diagnostics);
     // Runtime-only unconditional-Trapping warnings have no meaning in Prop;
     // the totality walker below emits the directed hard error instead.
     diagnostics.extend(
@@ -77,19 +115,7 @@ pub(crate) fn validate_total_specification_arithmetic(
     );
     let analyzed = |candidate| {
         let mut ignored_diagnostics = Vec::new();
-        analyze(
-            program,
-            machine,
-            state,
-            candidate,
-            environment,
-            None,
-            ArithmeticDomain::Exact,
-            owner,
-            true,
-            false,
-            &mut ignored_diagnostics,
-        )
+        analyze_term(candidate, &mut ignored_diagnostics)
     };
     let expression_domain = |candidate| analyzed(candidate).value.domain;
     let expression_interval = |candidate| Some(analyzed(candidate).value.interval);
@@ -305,12 +331,13 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                 diagnostics,
             );
             if let Some(expression) = fact.as_expression() {
-                decisions.extend(validate_total_specification_arithmetic(
+                decisions.extend(validate_total_specification_arithmetic_with_premises(
                     program,
                     machine,
                     entry_state,
                     *expression,
                     &machine_environment,
+                    Some(&machine_prior_facts),
                     &owner,
                     diagnostics,
                 ));
@@ -365,12 +392,13 @@ pub(crate) fn validate_machine_total_specification_arithmetic(
                     diagnostics,
                 );
                 if let Some(expression) = fact.as_expression() {
-                    decisions.extend(validate_total_specification_arithmetic(
+                    decisions.extend(validate_total_specification_arithmetic_with_premises(
                         program,
                         machine,
                         Some(state),
                         *expression,
                         &state_environment,
+                        Some(&state_prior_facts),
                         &owner,
                         diagnostics,
                     ));

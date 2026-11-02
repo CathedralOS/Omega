@@ -71,11 +71,10 @@ pub(super) fn source_representation(
     else {
         return Err("recast source window needs a proved fixed collection extent");
     };
+    // The same coordinate place lowering reads, so an admitted window is the
+    // window that lowering places.
     let coordinate = |expression| {
-        program
-            .closed_integer_expression_value_in(expression, machine.symbol)
-            .and_then(|value| value.to_u64())
-            .and_then(|value| usize::try_from(value).ok())
+        crate::value_custody::places::window_coordinate(program, expression)
             .ok_or("recast source window endpoint is not statically exact")
     };
     let start = if range.start.is_valid() {

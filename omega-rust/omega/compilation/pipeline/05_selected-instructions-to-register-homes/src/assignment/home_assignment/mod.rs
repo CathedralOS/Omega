@@ -1,9 +1,7 @@
 //! Optimizer module role: executable entrance. Transition-free physical-home assignment entrance.
 
 use register_environment::ValidatedTargetRegisterEnvironment;
-use selected_instructions_to_selected_instructions::{
-    ValidatedAllocationLegality, ValidatedLiveRanges,
-};
+use selected_instruction_analyses::{ValidatedAllocationLegality, ValidatedLiveRanges};
 pub(crate) mod compute;
 mod physical_requirement;
 mod receipt;

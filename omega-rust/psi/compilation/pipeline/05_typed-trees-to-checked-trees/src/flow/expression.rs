@@ -245,7 +245,7 @@ pub(super) fn append_statement_calls<'plans>(
                     first_write,
                     completed,
                     *contexts,
-                    *constraints,
+                    constraints,
                 );
                 store_target = execution.context.control.operands.append(captured);
             }
@@ -311,20 +311,20 @@ pub(super) fn append_statement_calls<'plans>(
             }
         }
         StatementNode::Call(call) => {
-            let mut captured = Vec::new();
-            for (position, argument) in program
-                .statement_table
-                .expression_handles(call.arguments)
-                .iter()
-                .enumerate()
+            let arguments = program.statement_table.expression_handles(call.arguments);
+            let mut captured = vec![checked_trees::FlowOperandFact::default(); arguments.len()];
+            // Source-custody publication reports an incoherent schedule. It
+            // contributes no operand facts during this preliminary flow walk.
+            for position in validation::CallSite::Statement(call)
+                .argument_evaluation_order(program)
+                .into_iter()
+                .flatten()
             {
                 let destination =
                     execution.invocation_parameter_type(InvocationSite::Statement, position);
-                captured.push(
-                    execution
-                        .evaluated_operand_as(*argument, destination, contexts, constraints)
-                        .capture,
-                );
+                captured[position] = execution
+                    .evaluated_operand_as(arguments[position], destination, contexts, constraints)
+                    .capture;
             }
             let completed = execution.invoke(
                 InvocationSite::Statement,
@@ -798,7 +798,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 first_write,
                 completed,
                 *contexts,
-                *constraints,
+                constraints,
             );
             capture.retention = self.formed_view_retention(&capture);
             capture.completion = checked_trees::FlowOperandCompletion::Observation;
@@ -822,7 +822,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 first_write,
                 completed,
                 *contexts,
-                *constraints,
+                constraints,
             );
             self.context.control.operands.append(descriptor)
         } else {
@@ -937,6 +937,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             // so later saved copies can identify that carrier by handle.
             capture.value_source = owner;
         }
+        self.retain_descriptor_permission(&mut capture, constraints);
         self.retain_observation_result(expression, capture);
         EvaluatedOperand {
             boolean,
@@ -1025,7 +1026,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             };
         }
         let capture =
-            self.capture_place_operand(expression, first_write, completed, *contexts, *constraints);
+            self.capture_place_operand(expression, first_write, completed, *contexts, constraints);
         self.retain_observation_result(expression, capture);
         EvaluatedOperand {
             boolean,
@@ -1042,7 +1043,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         first_write: usize,
         completed: CompletedValue,
         contexts: HandleSpan<FlowSemanticContextRef>,
-        constraints: HandleSpan<FlowConstraintRef>,
+        constraints: &mut HandleSpan<FlowConstraintRef>,
     ) -> checked_trees::FlowOperandFact {
         let reference = if completed.formed_type.is_valid() {
             completed.formed_type
@@ -1088,7 +1089,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         let referents = if expression != self.reference_slot_target && produces_view {
             self.complete_reference_formation(
                 expression,
-                constraints,
+                *constraints,
                 referents,
                 completed.case_access,
             )
@@ -1096,7 +1097,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             referents
         };
         let mut capture =
-            self.capture_operand(expression, first_write, contexts, constraints, referents);
+            self.capture_operand(expression, first_write, contexts, *constraints, referents);
         capture.case_access = completed.case_access;
         capture.completion = completed.completion;
         capture.value_source = completed.value_source;
@@ -1138,6 +1139,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 },
             );
         }
+        self.retain_descriptor_permission(&mut capture, constraints);
         capture
     }
 
@@ -1214,6 +1216,8 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         self.filter_captured_sources(&changed, &mut captured_contexts, &mut captured_constraints);
         let retention = self.retention_from_referents(referents);
         checked_trees::FlowOperandFact {
+            descriptor_loan: Handle::invalid(),
+            descriptor_read: Handle::invalid(),
             expression,
             state_symbol: self.state.symbol,
             statement_index: self.statement_index,
@@ -1789,22 +1793,32 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     let receiver = self.evaluated_operand(call.receiver, contexts, constraints);
                     captured.push((call.receiver, receiver.capture));
                 }
-                for (position, argument) in self
+                let prefix = captured.len();
+                let arguments = self
                     .program
                     .expression_table
-                    .expression_handles(call.arguments)
-                    .iter()
-                    .enumerate()
+                    .expression_handles(call.arguments);
+                captured.resize(
+                    prefix + arguments.len(),
+                    (
+                        ExpressionHandle::invalid(),
+                        checked_trees::FlowOperandFact::default(),
+                    ),
+                );
+                for position in (validation::CallSite::Expression { expression, call })
+                    .argument_evaluation_order(self.program)
+                    .ok()?
                 {
+                    let argument = arguments[position];
                     let destination = self.invocation_parameter_type(
                         InvocationSite::Expression(expression),
                         position,
                     );
-                    captured.push((
-                        *argument,
-                        self.evaluated_operand_as(*argument, destination, contexts, constraints)
+                    captured[prefix + position] = (
+                        argument,
+                        self.evaluated_operand_as(argument, destination, contexts, constraints)
                             .capture,
-                    ));
+                    );
                 }
                 self.record_named_operator_invocations(call, &named_uses, &captured, *constraints);
                 // Formation metadata belongs to the exact actuals before
@@ -1894,6 +1908,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 }
                 self.install_call_stores(completed.call, completed.stores);
                 self.capture_returned_retention(
+                    completed.call,
                     expression,
                     destination,
                     call,

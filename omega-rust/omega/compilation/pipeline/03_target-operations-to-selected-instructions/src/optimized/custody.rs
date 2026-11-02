@@ -1,8 +1,7 @@
-use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
-
 use crate::{ValidatedLegalizedOperations, ValidatedSelectedInstructions};
 use register_environment::ValidatedTargetRegisterEnvironment;
 
+use super::input::TargetSelectionInput;
 use super::model::StagedOptimizedSelectionCustodyReceipt;
 
 use selected_instructions::StagedOptimizedCustodyCore;
@@ -12,25 +11,20 @@ use selected_instructions::StagedOptimizedCustodyCore;
 /// result, so the stage does not replay either join again
 /// (verification placement in `omega-rust/pipeline.md`).
 pub(super) fn selection_custody_receipt(
-    optimized_target: &ValidatedOptimizedTargetOperations,
+    input: &TargetSelectionInput<'_>,
     register_environment: &ValidatedTargetRegisterEnvironment,
     legalized: &ValidatedLegalizedOperations,
     selected: &ValidatedSelectedInstructions,
 ) -> StagedOptimizedSelectionCustodyReceipt {
-    let target = optimized_target.target_operations();
-    let unit = optimized_target.optimized().unit();
+    let (target, unit) = (input.target, input.unit);
     StagedOptimizedSelectionCustodyReceipt {
         core: StagedOptimizedCustodyCore {
             psi: target.psi,
             target: target.target,
             entry: target.entry,
-            optimization: optimized_target.optimized().identity_bundle().identity(),
-            projection: optimized_target.optimized().validation().identity(),
-            manifest: optimized_target
-                .optimized()
-                .pre_physical_manifest()
-                .record()
-                .identity,
+            optimization: input.optimization,
+            projection: input.projection,
+            manifest: input.manifest,
             optimization_unit: unit.identity,
             fuel_schedule: unit.fuel_schedule,
             register_environment: register_environment.identity(),

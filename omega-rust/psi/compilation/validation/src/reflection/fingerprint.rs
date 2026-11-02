@@ -7,7 +7,7 @@ pub(crate) const OFFSET_BASIS: u64 = semantic_vocabulary::Fnv1a::OFFSET_BASIS;
 
 pub(crate) fn byte(hash: &mut u64, value: u8) {
     *hash ^= u64::from(value);
-    *hash = hash.wrapping_mul(0x100000001b3);
+    *hash = hash.wrapping_mul(semantic_vocabulary::Fnv1a::PRIME);
 }
 pub(crate) fn bytes(hash: &mut u64, value: &[u8]) {
     for value in value {

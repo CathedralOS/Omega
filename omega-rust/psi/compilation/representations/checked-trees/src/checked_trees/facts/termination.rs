@@ -9,8 +9,9 @@ use typed_trees::type_identity::TypeIdentityId;
 
 mod application_formation;
 pub use application_formation::{
-    CheckedDeclarationCall, CheckedRankApplicationFacts, CheckedRankApplicationFormation,
-    CheckedRankApplicationFormationHandle, CheckedRankApplicationOwnedInput,
+    CheckedDeclarationCall, CheckedDeclarationDispatchArm, CheckedRankApplicationFacts,
+    CheckedRankApplicationFormation, CheckedRankApplicationFormationHandle,
+    CheckedRankApplicationInputHome,
 };
 
 mod arrival_correspondence;

@@ -27,6 +27,10 @@ pub enum StoredOperand {
 #[derive(Clone, Copy)]
 pub enum StoredObservation {
     Binding,
+    /// Inline value cells, including descendant fields, but not separately
+    /// backed contents reached through the value. Unlike Binding, a child
+    /// assignment invalidates an observation of the enclosing whole value.
+    InlineContents,
     Contents,
 }
 

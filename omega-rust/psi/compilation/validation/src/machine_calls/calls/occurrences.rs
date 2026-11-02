@@ -30,6 +30,36 @@ pub enum CallSite<'program> {
 }
 
 impl<'program> CallSite<'program> {
+    pub fn authored_application(
+        &self,
+    ) -> typed_trees::static_applications::StaticMachineApplicationHandle {
+        match self {
+            Self::Expression { call, .. } => call.authored_machine_application,
+            Self::Statement(call) => call.authored_machine_application,
+            Self::TransitionNamed { .. } => Default::default(),
+        }
+    }
+
+    /// Authenticate a descriptor alias against this invocation and ordinal.
+    pub fn captured_argument_position(
+        &self,
+        program: &dyn crate::CheckingInput,
+        saved: &typed_trees::expression::TableSavedSubject,
+    ) -> Option<usize> {
+        super::captured_argument_position(program, saved, *self)
+    }
+    /// Executable placement does not reorder authored runtime header reads.
+    pub fn argument_evaluation_order(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> Result<typed_trees::typed_trees::calls::CallArgumentEvaluationOrder, &'static str> {
+        let application = self.authored_application();
+        program.call_argument_evaluation_order(
+            application,
+            self.target_symbol(program),
+            super::call_site_argument_expressions(program, self).len(),
+        )
+    }
     /// Only the arm's whole invocation completes it. Calls inside its operands
     /// still belong to argument evaluation, even when they select the same callee.
     pub fn completes_transition(

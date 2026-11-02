@@ -1103,7 +1103,15 @@ fn declared_type_parameters<'a>(
     {
         return program.machine_type_parameters(machine);
     }
-    &[]
+    program
+        .trait_machine_signature(target_symbol)
+        .map(|(_, signature)| program.requirement_invocation_contract_parameters(signature))
+        .or_else(|| {
+            program
+                .machine_parameter_signature(target_symbol)
+                .map(|(_, signature)| program.requirement_invocation_contract_parameters(signature))
+        })
+        .unwrap_or(&[])
 }
 
 fn machine_and_state<'a>(

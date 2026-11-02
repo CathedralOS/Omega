@@ -1,4 +1,3 @@
-use abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations;
 use optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationSelections, OptimizationUnitIdentity,
     OptimizationValidatorIdentity, OptimizationWorkBudget, OptimizedAbstractPlanProjectionIdentity,
@@ -17,7 +16,6 @@ use selected_instructions::StagedOptimizedCustodyCore;
 /// publication authority.
 #[derive(Debug)]
 pub struct StagedOptimizedSelectedInstructions {
-    pub(super) optimized_target: std::sync::Arc<ValidatedOptimizedTargetOperations>,
     pub(super) register_environment: ValidatedTargetRegisterEnvironment,
     pub(super) selections: OptimizationSelections,
     pub(super) budget_per_pass: OptimizationWorkBudget,
@@ -26,16 +24,6 @@ pub struct StagedOptimizedSelectedInstructions {
 }
 
 impl StagedOptimizedSelectedInstructions {
-    /// The optimized-target product, shared with the emission stages that
-    /// read its provider installation, manifests and structural types.
-    pub fn optimized_target_owner(&self) -> &std::sync::Arc<ValidatedOptimizedTargetOperations> {
-        &self.optimized_target
-    }
-
-    pub fn optimized_target(&self) -> &ValidatedOptimizedTargetOperations {
-        &self.optimized_target
-    }
-
     pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
         &self.register_environment
     }
@@ -55,9 +43,8 @@ impl StagedOptimizedSelectedInstructions {
         }
     }
 
-    /// The governing optimizer selections admitted with this stage. They are
-    /// stage-owned admission data copied out of the optimized-target product
-    /// at construction.
+    /// The governing optimizer selections this stage was given, so later
+    /// stages read them from selection's output.
     pub const fn selections(&self) -> &OptimizationSelections {
         &self.selections
     }

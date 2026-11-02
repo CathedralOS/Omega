@@ -1,20 +1,13 @@
 #![forbid(unsafe_code)]
 
-//! Shared Build declarations and syntactic projection of the project role in
-//! an Omega `build.omg`.
+//! Shared validated Build declarations, requests, and ordinary prelude source.
 //!
-//! Projection parses syntax but never evaluates build code, follows imports,
-//! or grants build-host authority. Package management and the compiler can
-//! therefore consume one role grammar without depending on each other.
-//!
-//! Start at `build_declaration.rs`, the root: the declaration and its validated
-//! parts. `syntax_projection` reads one from source, `declaration_errors`
-//! names every rejection, and `dependencies` projects the dependency rows
-//! beside the role; `direct_build_call` owns the one direct
-//! `Build::<operation>(builder, ...)` call shape both projections consume.
-//! `prelude` supplies the toolchain-authored Build API as ordinary source,
-//! projecting optimization names from their shared catalog. These static
-//! declarations confer no interpreter authority.
+//! Interpreted activations supply package and dependency authority. Syntax
+//! projection is confined to conservative source edits and diagnostic naming;
+//! it never binds a package to acquired bytes or recovers historical identity.
+//! `build_declaration` owns the records and validated parts; `dependencies`
+//! shares dependency vocabulary with editing tools. `prelude` supplies the
+//! compiler-authored Build API as ordinary source.
 
 mod build_declaration;
 mod build_request;
@@ -37,9 +30,8 @@ pub use dependencies::{
     DependencyOperation, DependencyPurpose, DependencyRow, DependencyRowError,
     is_dependency_call_name, project_dependency_rows,
 };
-pub use prelude::build_prelude_source;
+pub use prelude::{build_prelude_source, default_build_source};
 pub use syntax_projection::{
-    BuildEntrySyntaxProjection, extract_build_declaration, package_authored_type_name,
-    project_build_declaration_from_source, project_build_declaration_in_entry,
-    project_build_entry_syntax, read_build_file_source,
+    BuildEntrySyntaxProjection, package_authored_type_name, project_build_declaration_from_source,
+    project_build_declaration_in_entry, project_build_entry_syntax,
 };

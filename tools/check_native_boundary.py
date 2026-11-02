@@ -28,10 +28,12 @@ import sys
 
 NATIVE_ROOT = "omega-rust/omega/compilation/native-production"
 PROVIDER_SELECTION_ROOT = "omega-rust/omega/compilation/realization/provider-selection"
+PROVIDER_ADMISSION_ROOT = "omega-rust/omega/compilation/realization/provider-admission"
 TRUST_ROOT = "omega-rust/omega/compilation/realization/trust-model"
 PERMITTED_OWNERS = (
     NATIVE_ROOT,
     PROVIDER_SELECTION_ROOT,
+    PROVIDER_ADMISSION_ROOT,
     "omega-rust/omega/compilation/pipeline",
     "omega-rust/omega/compilation/representations",
     "omega-rust/omega/compilation/backend",
@@ -60,14 +62,14 @@ PSI_PIPELINE = f"{PSI}/compilation/pipeline"
 OMEGA_PIPELINE = f"{OMEGA}/compilation/pipeline"
 PACKAGES = f"{OMEGA}/packages"
 PACKAGE_MANAGER = f"{PACKAGES}/package-manager"
-PRODUCT_COORDINATOR = f"{OMEGA}/compilation/driver"
+PRODUCT_COORDINATOR = f"{OMEGA}/compilation/compiler"
 PRODUCTS = f"{OMEGA}/compilation/products"
 BUILD_EVALUATION = f"{OMEGA}/compilation/build-evaluation"
 BUILD_COORDINATOR = f"{OMEGA}/compilation/build"
 CLI_APPLICATION = f"{OMEGA}/application/cli"
 TRUST_MODEL = f"{OMEGA}/compilation/realization/trust-model"
 REVIEW_EVIDENCE = f"{PACKAGES}/review-evidence"
-PSI_FACADE = f"{PSI}/compilation/driver"
+PSI_FACADE = f"{PSI}/compilation/psi-compiler"
 TERMINAL_PRODUCTION = f"{PSI_FACADE}/terminal-production"
 SOURCE_STAGES = tuple(
     f"{PSI_PIPELINE}/{stage}"
@@ -125,6 +127,9 @@ SELECTED_DISPATCH = f"{OMEGA}/compilation/realization/selected-dispatch"
 PROVIDER_PLANNING = f"{OMEGA}/compilation/realization/provider-planning"
 REPRESENTATION_PLANNING = f"{PSI}/compilation/validation/representation-planning"
 STAGE_DEBT = "Debt: stage output type lives in the producing stage crate instead of compilation/representations"
+ADMISSION_EVIDENCE = ("Sanctioned: pipeline.md:65-83 (verification placement); Omega 01 is Omega 00's "
+                      "immediate successor and requires its sealed VerifiedPsiOptimizationInput by "
+                      "type as admission evidence, not as stage output")
 
 # Frozen on 2026-11-01. Delete a row with the edge; never add one.
 FIREWALL_ALLOWANCES = (
@@ -143,17 +148,7 @@ FIREWALL_ALLOWANCES = (
     Allowance(PROVIDER_PLANNING, f"{REPRESENTATION_PLANNING}/selections",
               "Sanctioned: pipeline.md:1301-1303, the selections package \"keeps consumers free "
               "of a dependency on admission\" (OpaqueRepresentationSelection, selection_for_opaque)"),
-    Allowance(stage("01"), stage("00"),
-              "Debt: calls build_verified_psi_optimization_unit; VerifiedPsiOptimizationInput"),
-    Allowance(stage("02"), stage("00"), f"{STAGE_DEBT} (VerifiedPsiOptimizationInput)"),
-    Allowance(stage("02"), stage("01"), f"{STAGE_DEBT} (ValidatedOptimizedAbstractPlan)"),
-    Allowance(stage("03"), stage("00"), f"{STAGE_DEBT} (VerifiedPsiOptimizationInput)"),
-    Allowance(stage("03"), stage("01"), f"{STAGE_DEBT} (ValidatedOptimizedAbstractPlan)"),
-    Allowance(stage("03"), stage("02"),
-              "Debt: calls classified_boundary_shape and descriptor_input_guard instead of "
-              "reading them from Omega 02 output"),
-    Allowance(stage("05"), stage("04"),
-              f"{STAGE_DEBT} (SelectedProgramRef, ValidatedSelectedAnalysis, allocation legality)"),
+    Allowance(stage("01"), stage("00"), ADMISSION_EVIDENCE),
 )
 
 
@@ -200,7 +195,7 @@ FORBIDDEN_DEPENDENCIES = tuple(Rule(*rule) for rule in (
         "product consumers call the Psi facade and do not assemble source stages",
     ),
     (
-        (f"{PACKAGES}/compilation-inputs", f"{PACKAGES}/build-declarations", PACKAGE_MANAGER),
+        (f"{PACKAGES}/package-compilation", f"{PACKAGES}/build-declarations", PACKAGE_MANAGER),
         PARSER_STAGES,
         "package consumers receive parsed sources and do not run the lexer or parser",
     ),

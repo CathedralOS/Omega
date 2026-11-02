@@ -135,6 +135,9 @@ impl Candidate<'_> {
 /// from the represented descriptor of an earlier completed call argument.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum RuntimeValueBinding {
+    /// A reusable callable projection owes an ordinary Value formal, but no
+    /// representative caller's subject or executable recipe belongs to it.
+    Carrier,
     Authored(StaticMachineArgument),
     CapturedArgument {
         site: CallSite,

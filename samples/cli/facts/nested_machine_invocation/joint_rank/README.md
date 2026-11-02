@@ -257,6 +257,10 @@ entry selectors and bounds while observing the replacement value after mutation.
 carry the same fact through arithmetic over explicit entry inputs in all nine
 places, preserving completed captures and each formal's carrier and policy.
 
+[Ordinary-call computed endpoints](parameter/bounded_distance/moving_upper/computed_upper/call/README.md)
+continue the same bounded-distance fact through selected helper contracts and
+retained executable call decisions.
+
 [Whole-record computed measures](parameter/declared_measure/computed_record/README.md)
 carry this same fact, bound and counter operation through a declared integer
 application that reads both endpoints of one nominal record. All nine places
@@ -270,3 +274,20 @@ shared window separately from the scalar proof reads.
 [Declaration-local selector coordinates](local/declared_measure/computed_record/selected_value/README.md)
 carry the same private-cycle fact through indexed measure reads in all nine
 places, with public-contract and computed-selector compositions.
+
+[Repeated declared reads](local/declared_measure/computed_record/selected_value/repeated_calls/README.md)
+retain distinct supplying call telescopes across the same nine places, with
+zero-step twins, a self-selected input, a two-slot sum and a conserved-sum
+refusal. Their Boolean dispatch keeps declaration calls in the complete rank
+observation graph through Terminal/native execution. The broader nested-machine
+contracts and migration remain open.
+
+[Declared calls borrowing outer input homes](local/borrowed_value/declared_call/README.md)
+lend the caller-owned rank record to a pure, total shared call across all nine
+places. Repeated shared arguments, projected input and alias forwarding preserve
+the same initialized home; access violations and stale/reset descent still reject.
+
+[Repeated declaration-call actuals](local/declared_measure/computed_record/selected_value/repeated_actuals/README.md)
+continue that production through two calls sharing a helper's indexed source
+expression. Each call retains its own actual telescope through copy/writeback,
+joint-cycle comparison, nested public guarantees and execution lowering.

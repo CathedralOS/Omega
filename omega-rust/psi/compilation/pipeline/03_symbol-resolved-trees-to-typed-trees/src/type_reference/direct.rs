@@ -210,6 +210,7 @@ pub(super) fn lower_fixed_array_type(
     exposure: Option<AuthoredDeclarationSelectionExposure>,
 ) -> Result<typed::types::TypeReferenceHandle, Diagnostic> {
     let mut origin = None;
+    let mut extent_argument = None;
     let length = match length {
         resolved::types::FixedArrayLength::Literal(value) => {
             typed::types::FixedArrayLength::Literal(*value)
@@ -278,12 +279,37 @@ pub(super) fn lower_fixed_array_type(
             }
         }
         resolved::types::FixedArrayLength::Expression(value) => {
-            typed::types::FixedArrayLength::Expression(lower_type_reference_handle_with_context(
+            let argument = lower_type_reference_handle_with_context(
                 source_trees,
                 typed_trees,
                 source_trees.child_type_reference(*value),
                 exposure,
-            )?)
+            )?;
+            extent_argument = Some(argument);
+            // Source normalization already checked both the canonical result
+            // and its authored computation. A bare integer value has complete
+            // geometry; retain its child independently instead of erasing the
+            // selected calls together with the old expression-shaped length.
+            let completed = match typed_trees.type_reference_table.type_reference(argument) {
+                typed::types::TypeReferenceNode::ConstExpression(expression)
+                    if typed_trees
+                        .expression_table
+                        .materialization_source(*expression)
+                        .is_valid() =>
+                {
+                    match typed_trees.expression_table.expression(*expression) {
+                        typed::expression::ExpressionNode::Integer(literal) => literal
+                            .value_u64()
+                            .and_then(|value| usize::try_from(value).ok()),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            };
+            completed.map_or(
+                typed::types::FixedArrayLength::Expression(argument),
+                typed::types::FixedArrayLength::Literal,
+            )
         }
         resolved::types::FixedArrayLength::ConstCall { machine, name } => {
             typed::types::FixedArrayLength::ConstCall {
@@ -310,6 +336,12 @@ pub(super) fn lower_fixed_array_type(
                 element_type,
                 length,
             });
+    if let Some(argument) = extent_argument {
+        typed_trees
+            .type_reference_table
+            .retain_array_extent_argument(reference, argument)
+            .map_err(Diagnostic::error)?;
+    }
     // The numeric extent is sufficient for layout, not for declaration
     // reachability or evaluation custody. Keep the selected constant attached
     // to this type use after folding, including when the type is copied.

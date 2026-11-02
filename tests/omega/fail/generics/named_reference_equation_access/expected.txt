@@ -1,1 +1,1 @@
-where type equation has conflicting reference access
+requires type equation has conflicting reference access

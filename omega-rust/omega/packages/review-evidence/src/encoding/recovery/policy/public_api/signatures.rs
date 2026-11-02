@@ -62,6 +62,7 @@ pub(in crate::encoding::recovery) fn machine_signature(
     Ok(PackagePolicyMachineParameterSignature {
         lifetime_parameter_count: reader.usize()?,
         type_parameters: reader.sequence(3, type_parameter)?,
+        conformance_bounds: reader.sequence(62, super::super::signatures::conformance_bound)?,
         parameters: reader.sequence(18, signature_parameter)?,
         return_type: reader.option(type_identity)?,
         contracts: reader.sequence(4, callable_contract)?,

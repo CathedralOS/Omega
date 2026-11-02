@@ -6,7 +6,8 @@ use crate::checks::borrows::resources::reborrow_drafts::{
     CheckedReborrowLoanResourceDraft, ParentResourceIndex,
 };
 use checked_trees::{
-    BorrowLoanFact, CheckedBorrowResourceLifecyclePhase, FlowFacts, FlowInvalidationSource,
+    BorrowFacts, BorrowLoanFact, CheckedBorrowResourceLifecyclePhase, FlowFacts,
+    FlowInvalidationSource,
 };
 use diagnostics::Diagnostic;
 
@@ -99,11 +100,16 @@ pub(crate) type LoanLifecycleRows = (
 /// does not start at the loan's own formation statement — is refused here,
 /// never reconstructed differently per consumer.
 pub(crate) fn exact_loan_lifecycle_rows(
+    borrow: &BorrowFacts,
     flow: &FlowFacts,
     flow_state: &checked_trees::FlowStateFact,
     loan: arena::Handle<BorrowLoanFact>,
-    formation_statement: usize,
 ) -> Result<LoanLifecycleRows, Diagnostic> {
+    if !borrow.loans.is_valid(loan) {
+        return Err(Diagnostic::error("checked borrow lifecycle names no loan"));
+    }
+    let loan_fact = borrow.loans.get(loan);
+    let formation_statement = loan_fact.statement_index;
     let activations = flow
         .borrow_lifetimes
         .activations
@@ -123,9 +129,23 @@ pub(crate) fn exact_loan_lifecycle_rows(
         .filter_map(|(offset, _)| span_handle(flow_state.borrow_weakenings, offset))
         .collect::<Vec<_>>();
     let ([activation], [weakening]) = (activations.as_slice(), weakenings.as_slice()) else {
-        return Err(Diagnostic::error(
-            "checked borrow resource requires exactly one activation and one weakening",
-        ));
+        return Err(Diagnostic::error(format!(
+            "checked borrow resource requires exactly one activation and one weakening \
+             (state {:?}, loan {:?}, formation statement {formation_statement}, \
+             last use {}, activations {}, weakenings {}, origin {:?})",
+            flow_state.state_symbol,
+            loan,
+            loan_fact.last_use_statement_index,
+            activations.len(),
+            weakenings.len(),
+            borrow
+                .incoming_references
+                .is_valid(loan_fact.incoming_reference)
+                .then(|| &borrow
+                    .incoming_references
+                    .get(loan_fact.incoming_reference)
+                    .origin),
+        )));
     };
     if flow.borrow_lifetimes.activations.get(*activation).source
         != (FlowInvalidationSource::Statement {

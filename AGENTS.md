@@ -47,6 +47,42 @@ the time goes and remove the cause rather than waiting on it or working around i
   may invoke, stamp, compare, and report but never parse, lower, manufacture
   semantic evidence, or decide trust.
 
+## Explain the change
+
+Use an inverted pyramid in PR descriptions, commit bodies, progress/final
+reports, explanatory documentation and comments. Start with one or two sentences
+that let someone unfamiliar with the subsystem picture the problem and the
+result. Name what the program or developer needs to do, what went wrong, and
+what changes. For an internal repair, explain its effect on a program or the
+development workflow before describing the compiler's bookkeeping.
+
+For example, a repair involving references and suspension could open with:
+"A program should be able to keep reading the same data after a function call
+that may pause. This fixes cases where the compiler wrongly rejected that safe
+use." Explain which cases next. A test value such as 73 illustrates the behavior
+after the reader understands what keeping that value demonstrates.
+
+Build each explanation on what the reader already knows. Show the previous and
+resulting behavior, then explain the mechanism. Introduce a technical term with
+its meaning when it becomes useful, and use the canonical term consistently
+afterward. Words such as "lineage", "carrier" and "retirement" need that context;
+replacing them with an unexplained phrase such as "permission information"
+still leaves the reader guessing. In source comments, establish the local
+purpose before explaining the invariant or implementation detail.
+
+Put validation and detailed provenance after the explanation, linking existing
+evidence or using a details section for long records. Keep any limitation that
+materially qualifies the result beside that result. Preserve exact evidence
+identities, failures and unverified cases. A small change may need only one
+paragraph; this is a reading order, not a form to fill with headings.
+
+Before publishing, read only the opening. Can a reader explain what the program
+or developer can do differently and why it matters, without asking for a
+definition or reading the diff? Rewrite until they can. Then check the whole
+explanation against the final diff and observed behavior. If the purpose is
+unclear, inspect the code and witness before making a claim. Rewrite when the
+scope changes rather than appending the session's history.
+
 ## Law of completion
 
 Our superhuman advantage is carrying the entire difficult task end to end.
@@ -530,6 +566,9 @@ profiles bound to the actual binary digests. See
     `--filter facts/saved_observation_snapshot` selects 105.
   - Unfiltered and whole-domain runs, the [full baseline](tools/testing.md#full-baseline),
     and any other whole-corpus or whole-workspace sweep are the user's to start.
+  - A base compare over 40 fixtures runs on hosted CI:
+    `corpus_gate.py --compare <base> --remote --filter ...`. Hosted runs are
+    free; this machine's build slots are not.
   - A comparison must reach the code it compares. Before trusting base and
     candidate agreeing, confirm a fixture got past parsing, admission and
     package review into the stage the change touched. Two builds failing the
@@ -726,7 +765,6 @@ The rules that touch every edit:
   165 spelling-only asserts, and three PRs added 14 more within an hour of
   this rule. `tools/check_rules.py` now fails admission when a file's reads
   exceed its count in `tools/source_text_reads.txt`.
-- Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   the sample loop, `rust-systems-programmer` for Rust implementation and review,
   `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `devin-swarm`,
@@ -928,7 +966,7 @@ bootstrap implementation; those meanings stay distinct in subjects.
 | `psi` | Target-neutral source semantics through Terminal Psi: parsing, resolution, typing, checking, proof, interpretation, and Psi optimization in `omega-rust/psi/` or `source/psi/`. |
 | `omega` | The Terminal-Psi-consuming compiler stage: Omega representations, transforms, optimization, and realization semantics in `omega-rust/omega/compilation/{representations,pipeline,realization}/` or corresponding `source/omega/` implementation. Never a project-wide default. |
 | `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/compilation/backend/` and their product-source equivalents. Transform policy in `pipeline/` remains `omega`. |
-| `compiler` | Product compilation coordination and reports in `omega-rust/omega/compilation/driver/`, the source-free native driver in `omega-rust/omega/compilation/native-production/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
+| `compiler` | Product compilation coordination and reports in `omega-rust/omega/compilation/compiler/`, the source-free native driver in `omega-rust/omega/compilation/native-production/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
 | `build` | The product's Build activation in `omega-rust/omega/compilation/build-evaluation/`, plus product build declarations such as `source/omega/build.omg`. Provider planning and trust admission under `realization/` use `omega`; CLI policy-file handling uses `cli`. Repository build commands and CI use `repo`. |
 | `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/packages/`. Package command wiring accompanying those changes keeps `packages`. |
 | `cli` | Command parsing, flags, help, and command dispatch in `omega-rust/omega/application/cli/src/`, plus the corresponding product entrypoint. The command's underlying compiler or package behavior uses its owning lane. |
@@ -973,12 +1011,11 @@ follow the same rule: they take the lane of the behavior they pin, or
 Oct 25 to Nov 1. A squash merge takes the pull request title as its subject,
 so `compiler-check` checks the title against this table.
 
-The body is prose paragraphs after a blank line, with numbers in place of
-adjectives. Cover what applies: what the previous behavior was and why it
-was wrong; which alternatives were rejected; which constraint shaped the
-diff; which gates ran, named with counts rather than the word `pass`; what
-is known red or deliberately left undone. Omit the body only when the
-subject carries the full reasoning (typo, rename, mechanical revert).
+The body follows [Explain the change](#explain-the-change), after a blank line.
+Include design constraints or rejected alternatives only when they help explain
+the final change. Describe validation by what it establishes, with measured
+results where relevant. Omit the body only when the subject carries the full
+reasoning (typo, rename, mechanical revert).
 
 Commit messages carry no tool attribution: no "Generated with ..." line, no
 `Co-Authored-By` trailer naming an agent or vendor.

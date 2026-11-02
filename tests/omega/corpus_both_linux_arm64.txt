@@ -4318,6 +4318,16 @@ pass/facts/fixed_array_value_through_other_machine_exit built 2212ms exit:0 inte
 pass/facts/fixed_array_value_through_other_state_exit built 2136ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/fixed_array_value_through_parameter_exit built 1969ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/fixed_array_value_through_target_body_exit built 2045ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
+pass/facts/fixed_layout_byte_roundtrip_rejected_payload_exit built 12636ms exit:0 interpreter-exit:0 interpreter:agrees @463f7229129b116f23de431bb3c72764f5555636
+pass/facts/fixed_layout_byte_roundtrip_through_call_result_exit built 12648ms exit:0 interpreter-exit:0 interpreter:agrees @463f7229129b116f23de431bb3c72764f5555636
+pass/facts/fixed_layout_byte_roundtrip_through_const_name_exit built 16505ms exit:0 interpreter-exit:0 interpreter:agrees @463f7229129b116f23de431bb3c72764f5555636
+pass/facts/fixed_layout_byte_roundtrip_through_field_exit built 16505ms exit:0 interpreter-exit:0 interpreter:agrees @463f7229129b116f23de431bb3c72764f5555636
+pass/facts/fixed_layout_byte_roundtrip_through_local_exit built 13192ms exit:0 interpreter-exit:0 interpreter:agrees @463f7229129b116f23de431bb3c72764f5555636
+pass/facts/fixed_layout_byte_roundtrip_through_match_join_exit built 16475ms exit:0 interpreter-exit:0 interpreter:agrees @463f7229129b116f23de431bb3c72764f5555636
+pass/facts/fixed_layout_byte_roundtrip_through_other_machine_exit built 14090ms exit:0 interpreter-exit:0 interpreter:agrees @463f7229129b116f23de431bb3c72764f5555636
+pass/facts/fixed_layout_byte_roundtrip_through_other_state_exit built 12344ms exit:0 interpreter-exit:0 interpreter:agrees @463f7229129b116f23de431bb3c72764f5555636
+pass/facts/fixed_layout_byte_roundtrip_through_parameter_exit built 13507ms exit:0 interpreter-exit:0 interpreter:agrees @463f7229129b116f23de431bb3c72764f5555636
+pass/facts/fixed_layout_byte_roundtrip_through_target_body_exit built 17043ms exit:0 interpreter-exit:0 interpreter:agrees @463f7229129b116f23de431bb3c72764f5555636
 pass/facts/float_comparison_route_through_call_result_exit built 4496ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_comparison_route_through_const_name_exit built 4193ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720
 pass/facts/float_comparison_route_through_field_exit built 4645ms exit:0 interpreter-exit:0 interpreter:agrees @6e42425cd720

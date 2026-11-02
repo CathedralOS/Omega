@@ -349,6 +349,15 @@ fn project_machine_parameter_contract_inner(
                 PackageReviewMachineParameterSignature {
                     lifetime_parameter_count: signature.lifetime_parameters.len(),
                     type_parameters,
+                    conformance_bounds:
+                        crate::capture::semantics::conformances::project_conformance_bounds(
+                            compilation,
+                            &signature.conformance_bounds,
+                            &binders,
+                            &lifetime_binders,
+                            "public static-machine parameter",
+                            declaration_path,
+                        )?,
                     parameters: parameters
                         .iter()
                         .map(|parameter| {

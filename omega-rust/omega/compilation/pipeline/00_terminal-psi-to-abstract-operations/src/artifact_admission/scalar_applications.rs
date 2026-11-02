@@ -89,10 +89,11 @@ impl<'request> NativeScalarApplications<'request> {
                 "native scalar closure differs from exact provider installation custody".into(),
             );
         }
-        let full_adapters = crate::provider_admission::retain_selected_provider_adapters(
-            selection.plans,
-            self.provider_declarations,
-        )?;
+        let full_adapters =
+            crate::providers::provider_admission::retain_selected_provider_adapters(
+                selection.plans,
+                self.provider_declarations,
+            )?;
         if selection
             .providers
             .iter()

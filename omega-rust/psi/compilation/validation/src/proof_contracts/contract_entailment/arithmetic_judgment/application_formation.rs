@@ -11,6 +11,7 @@ mod dispatch;
 struct ApplicationDecisions {
     casts: Vec<crate::ExactIntegerCastFact>,
     calls: Vec<checked_trees::CheckedDeclarationCall>,
+    dispatches: Vec<checked_trees::CheckedDeclarationDispatchArm>,
 }
 use crate::frozen_program::expression_table;
 use numerics::arithmetic::ArithmeticDomain;
@@ -22,15 +23,16 @@ use typed_trees::types::PrimitiveType;
 /// exact state and supplying input bindings alongside this result.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IntegerApplicationFormation {
-    measure: symbols::SymbolHandle,
+    owner: symbols::SymbolHandle,
     body: ExpressionHandle,
     casts: Vec<crate::ExactIntegerCastFact>,
     calls: Vec<checked_trees::CheckedDeclarationCall>,
+    dispatches: Vec<checked_trees::CheckedDeclarationDispatchArm>,
 }
 
 impl IntegerApplicationFormation {
-    pub fn measure(&self) -> symbols::SymbolHandle {
-        self.measure
+    pub fn owner(&self) -> symbols::SymbolHandle {
+        self.owner
     }
 
     pub fn body(&self) -> ExpressionHandle {
@@ -45,16 +47,21 @@ impl IntegerApplicationFormation {
         &self.calls
     }
 
+    pub fn dispatches(&self) -> &[checked_trees::CheckedDeclarationDispatchArm] {
+        &self.dispatches
+    }
+
     /// Rehydrate decisions already retained by checking, not a new proof.
     /// The enclosing runtime row and executable application authenticate the
     /// state, declaration and complete coordinate bindings separately.
     pub(crate) fn from_retained(
-        measure: symbols::SymbolHandle,
+        owner: symbols::SymbolHandle,
         body: ExpressionHandle,
         casts: Vec<crate::ExactIntegerCastFact>,
         calls: Vec<checked_trees::CheckedDeclarationCall>,
+        dispatches: Vec<checked_trees::CheckedDeclarationDispatchArm>,
     ) -> Option<Self> {
-        if !measure.is_valid() || !body.is_valid() {
+        if !owner.is_valid() || !body.is_valid() {
             return None;
         }
         for cast in &casts {
@@ -75,11 +82,18 @@ impl IntegerApplicationFormation {
         }) {
             return None;
         }
+        if dispatches
+            .iter()
+            .any(|arm| !arm.expression.is_valid() || !arm.source_arm.is_valid())
+        {
+            return None;
+        }
         Some(Self {
-            measure,
+            owner,
             body,
             casts,
             calls,
+            dispatches,
         })
     }
 }
@@ -90,6 +104,49 @@ pub(in crate::proof_contracts::contract_entailment) struct FormedIntegerApplicat
 }
 
 impl Engine<'_> {
+    /// Form an authored scalar expression under its already installed input
+    /// roster. Endpoint expressions and declared measures share the same
+    /// child-first operation and call decisions; normalization supplies no debt.
+    pub(in crate::proof_contracts::contract_entailment) fn form_integer_expression(
+        &mut self,
+        owner: symbols::SymbolHandle,
+        body: ExpressionHandle,
+    ) -> Option<FormedIntegerApplication> {
+        let program = self.program;
+        let mut admitted = self.clone();
+        admitted.source_owner = owner;
+        // Anonymous numeric peers have exact unbounded intermediates until
+        // their consumer lands the final integer. All other expressions retain
+        // their actual selected finite carrier; no default carrier is inferred.
+        let anonymous = super::super::proof_integer::anonymous_integer_value(program, body);
+        let result_type = if anonymous.is_some() {
+            None
+        } else {
+            let reference = admitted.source_result_type(body)?;
+            program
+                .primitive_type_reference(reference)?
+                .integer_bounds()?;
+            Some(reference)
+        };
+        let mut decisions = ApplicationDecisions::default();
+        let value = formed_value(&mut admitted, program, body, 0, &mut decisions)?;
+        if result_type
+            .is_some_and(|reference| !formed_type(&mut admitted, program, reference, &value))
+            || admitted.requires_unsatisfiable
+        {
+            return None;
+        }
+        let formation = Some(IntegerApplicationFormation {
+            owner,
+            body,
+            casts: decisions.casts,
+            calls: decisions.calls,
+            dispatches: decisions.dispatches,
+        });
+        *self = admitted;
+        Some(FormedIntegerApplication { value, formation })
+    }
+
     pub(in crate::proof_contracts::contract_entailment) fn form_declared_integer_application(
         &mut self,
         measure: symbols::SymbolHandle,
@@ -138,13 +195,10 @@ impl Engine<'_> {
                     return None;
                 }
                 if reads.len() != shape.reads.len()
-                    || shape.reads.iter().any(|read| {
-                        reads
-                            .iter()
-                            .filter(|(bound, _)| *bound == read.coordinate)
-                            .count()
-                            != 1
-                    })
+                    || shape
+                        .reads
+                        .iter()
+                        .any(|read| reads.iter().filter(|(bound, _)| *bound == *read).count() != 1)
                 {
                     return None;
                 }
@@ -175,7 +229,7 @@ impl Engine<'_> {
                 }
                 IntegerApplicationInput::Record { .. } => {
                     for read in &shape.reads {
-                        let value = engine.coordinate_value(&read.coordinate)?;
+                        let value = engine.declared_read_value(read)?;
                         if !formed_type(engine, program, read.type_reference, &value) {
                             return None;
                         }
@@ -215,10 +269,11 @@ impl Engine<'_> {
         // An inconsistent path can establish a vacuous proposition, but it
         // supplies no concrete application decision for executable lowering.
         let formation = (!admitted.requires_unsatisfiable).then_some(IntegerApplicationFormation {
-            measure,
+            owner: measure,
             body: *body,
             casts: decisions.casts,
             calls: decisions.calls,
+            dispatches: decisions.dispatches,
         });
         *self = admitted;
         Some(FormedIntegerApplication { value, formation })
@@ -239,6 +294,16 @@ fn formed_value(
     // normalized parent as formed could erase a partial child (x / 0, a bad
     // index, or a selected user operation) after polynomial cancellation.
     if let Some(value) = engine.formal_coordinate_value(expression) {
+        return Some(value);
+    }
+    // The current-value owner captured these exact reads, including their
+    // selectors, before formation. Only read leaves can use occurrence facts:
+    // a normalized arithmetic/call parent must still form every child.
+    if matches!(
+        expression_table(program).expression(expression),
+        ExpressionNode::Member(_) | ExpressionNode::Indexed(_)
+    ) && let Some(value) = engine.strict_occurrence_value(expression)
+    {
         return Some(value);
     }
     // Wholly anonymous integers have unbounded intermediates until landing.

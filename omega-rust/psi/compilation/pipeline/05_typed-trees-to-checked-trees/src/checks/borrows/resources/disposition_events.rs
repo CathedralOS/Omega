@@ -55,12 +55,9 @@ pub(crate) fn plan_reborrow_disposition_events(
         }) {
             // The lifecycle ledger is joined by its one reader; a drifted
             // ledger is a disposition failure, not a second reconstruction.
-            let Ok((activation, weakening)) = exact_loan_lifecycle_rows(
-                flow,
-                flow_state,
-                resource.loan,
-                borrow.loans.get(resource.loan).statement_index,
-            ) else {
+            let Ok((activation, weakening)) =
+                exact_loan_lifecycle_rows(borrow, flow, flow_state, resource.loan)
+            else {
                 return Err(reborrow_disposition_drift());
             };
             events.push(LifecycleEvent {

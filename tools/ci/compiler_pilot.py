@@ -83,12 +83,19 @@ def select_fixtures(request):
 
 def select_cli_fixtures(request):
     """Existing normal-exit projects, selected exactly before producer creation."""
-    positives, negatives = select_fixtures(request)
-    if negatives:
-        raise ValueError("ordinary CLI fixtures must be pass/... projects")
-    for fixture in positives:
+    if not isinstance(request, str):
+        raise ValueError("ordinary CLI projects must be a comma-separated string")
+    selected = tuple(part.strip() for part in request.split(","))
+    if not all(selected) or len(set(selected)) != len(selected):
+        raise ValueError("ordinary CLI projects must be nonempty and distinct")
+    corpus = tuple(project for project in selected if not project.startswith("samples/"))
+    if corpus:
+        _, negatives = select_fixtures(",".join(corpus))
+        if negatives:
+            raise ValueError("ordinary CLI fixtures must be pass/... projects")
+    for fixture in selected:
         ordinary_cli_fixture.expected_exit(ROOT, fixture, corpus_gate.host_target())
-    return positives
+    return selected
 
 
 def select_samples(request):
@@ -338,11 +345,20 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         validate_report(json.loads(report_path.read_text(encoding="utf-8")), fixtures,
                         both=both, revision=revision, target=summary["target"])
 
+    refused = None
     if positives or checking_only or negatives:
         checking = tuple(dict.fromkeys(positives + checking_only + negatives))
-        stage("checking and rejection controls", lambda: corpus("checking", checking))
+        try:
+            stage("checking and rejection controls", lambda: corpus("checking", checking))
+        except ValueError as error:
+            # The run stays red, but a remote base comparison
+            # (`corpus_gate.py --compare --remote`) still needs the
+            # native/Terminal rows of a base whose checking oracles fail.
+            refused = error
     if positives:
         stage("native and Terminal execution", lambda: corpus("both", positives, both=True))
+    if refused is not None:
+        raise refused
     if cli_fixtures:
         def ordinary_cli():
             rows = []

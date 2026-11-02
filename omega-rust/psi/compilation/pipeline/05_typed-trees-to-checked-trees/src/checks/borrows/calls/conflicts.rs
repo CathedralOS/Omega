@@ -121,6 +121,7 @@ pub(in crate::checks::borrows) fn check_staged_operand_move<'program>(
                 if backings.places.iter().all(|backing| {
                     captured_place_compatibility(
                         program,
+                        &facts.borrow,
                         &backing.place,
                         &access.kind,
                         moved,
@@ -356,6 +357,7 @@ pub(super) fn check_call_access_conflicts<'p>(
                 super::held_places::places(&operand_backings[other_index]).find_map(|second| {
                     simultaneous_hold_conflict(
                         program,
+                        &facts.borrow,
                         first,
                         &access.kind,
                         second,

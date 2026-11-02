@@ -74,8 +74,35 @@ machine main() crashes Trap {
     machine bad() { crash Trap; }
 }
 
-data Held { storage: Extent in Granted & Vacant; }
-machine transport(storage: Extent in Granted & Vacant, choose: bool) -> Extent in Granted & Vacant crashes Trap { let held: Held = Held { storage: storage }; exercise(held.storage) }
+data Held
+requires self.storage.length == self.length
+{
+    storage: Extent in Granted & Vacant;
+    length: u64;
+}
+machine retain_storage(storage: Extent in Granted & Vacant) -> Extent in Granted & Vacant
+ensures result.base == storage.base, result.length == storage.length
+{ storage }
+machine retain_record(held: Held) -> Held {
+    let length: u64 = held.length;
+    let storage: Extent in Granted & Vacant = retain_storage(held.storage);
+    Held { storage: storage, length: length }
+}
+machine transport(storage: Extent in Granted & Vacant, choose: bool) -> Extent in Granted & Vacant
+crashes Trap
+{
+    let length: u64 = storage.length;
+    let mut held: Held = retain_record(Held { storage: storage, length: length });
+    restore_record(&mut held);
+    exercise(held.storage)
+}
+
+machine restore_record(held: &mut Held) {
+    let length: u64 = held.length;
+    let storage: Extent in Granted & Vacant = retain_storage(held.storage);
+    held.storage = storage;
+    held.length = length;
+}
 
 machine exercise(vacant: Extent in Granted & Vacant) -> Extent in Granted & Vacant crashes Trap {
     transition NativeAccess<WordPlacement, Word, TestMemory>::initialize(vacant, Word { prefix: 101, value: 17, suffix: 103 }) {

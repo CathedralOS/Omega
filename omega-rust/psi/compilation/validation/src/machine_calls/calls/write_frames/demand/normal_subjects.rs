@@ -245,23 +245,13 @@ impl<'program> CallFrameResolver<'program> {
                             {
                                 return None;
                             }
-                            // The captured origin may name an incoming reference
-                            // leaf, rather than an inline scalar field. The
-                            // scalar owner validates that complete read geometry;
-                            // an owned-only projection would discard the leaf
-                            // before the invocation can observe its referent.
-                            // This selects its carrier, not access or contents.
-                            let reference = match &source.representation {
-                                Some((carrier, path)) => {
-                                    stored_origins::projected_storage_type(program, *carrier, path)?
-                                }
-                                None => stored_origins::projected_storage_type(
-                                    program,
-                                    root_type,
-                                    &source.segments,
-                                )?,
-                            };
-                            crate::value_custody::places::assignment_value_type(program, reference)
+                            // Captured origins supply the performed reads; the
+                            // scalar owner retains their logical presentation
+                            // before translating to physical storage. A second
+                            // owned-span walk would lose intermediate stored
+                            // references. This supplies a type, never contents
+                            // or access authority.
+                            scalar.view_reference
                         } else {
                             reference_subjects::validate_owned_projection(
                                 program,

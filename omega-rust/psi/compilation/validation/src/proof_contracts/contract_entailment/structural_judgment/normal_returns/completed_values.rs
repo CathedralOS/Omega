@@ -17,10 +17,102 @@ impl<'program> StructuralJudge<'program> {
         call_values: Option<Vec<StructuralTerm>>,
         receiver_changed: bool,
         scalar_storage_read: bool,
+        reference_contents: Option<StructuralTerm>,
     ) -> Option<NormalReturnPath<'program>> {
         let program = self.program;
         let node = expression_table(program).expression(expression);
         let mut judge = self;
+        // Complete scalar contents through the common storage owner before
+        // descriptor projection can hide them. The captured operands select
+        // this read; an intervening receiver write forbids address replay.
+        let completed_reference = if let Some(contents) = reference_contents {
+            let declared = judge.scalar_reference_read_type(scope.0, scope.1, expression)?;
+            let result_type =
+                crate::value_custody::expression_types::readable_observation_type_reference(
+                    program, declared,
+                )?;
+            let mut observed = judge.capture_unknown_value(expression, scope)?;
+            if let StructuralTerm::CapturedValue {
+                result_type: carrier,
+                integer_range,
+                ..
+            } = &mut observed
+            {
+                // This is a performed scalar read, not a descriptor cast.
+                // The read owner supplied every current-content alternative;
+                // each normal path proves its own independently captured value.
+                *carrier = result_type;
+                *integer_range = judge
+                    .completed_integer_range_recipe(&contents)
+                    .map(Arc::new);
+            }
+            judge.assume_completed_value_equation(result_type, observed.clone(), contents);
+            if super::super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT completed-reference-contents expression={expression:?} descriptor_type={declared:?} scalar_type={result_type:?} observed={observed:?}"
+                );
+            }
+            Some(observed)
+        } else if !receiver_changed
+            && let Some(reference) = judge.scalar_reference_read_type(scope.0, scope.1, expression)
+        {
+            judge
+                .stored_value_observation(Some((scope.0, scope.1)), expression, |selector| {
+                    inputs
+                        .iter()
+                        .find(|(input, _)| *input == selector)
+                        .and_then(|(_, input)| input.observed_value().cloned())
+                })
+                .filter(|value| {
+                    structural_terms::scalar_operand_is_observed(program, reference, value)
+                })
+        } else {
+            None
+        };
+        let descriptor_projection = (|| {
+            let reference =
+                crate::expression_result_type_reference(program, scope.0, scope.1, expression)?;
+            crate::reference_shell(program, reference)?;
+            let (receiver, selector) = match node {
+                ExpressionNode::Member(member) => (member.receiver, None),
+                ExpressionNode::Indexed(indexed)
+                    if program.expression_table.range_node(indexed.index).is_none() =>
+                {
+                    let selector = inputs
+                        .iter()
+                        .find(|(source, _)| *source == indexed.index)?
+                        .1
+                        .observed_value()?
+                        .clone();
+                    (indexed.collection, Some(selector))
+                }
+                _ => return None,
+            };
+            let receiver = inputs
+                .iter()
+                .find(|(source, _)| *source == receiver)?
+                .1
+                .observed_value()?
+                .clone();
+            super::super::super::observed_projections::completed_reference_descriptor(
+                program, &judge, scope.0, scope.1, expression, receiver, selector,
+            )
+        })();
+        let descriptor_completed = descriptor_projection.is_some() || completed_reference.is_some();
+        let completed_descriptor = if let Some(descriptor) = descriptor_projection {
+            // The event remains opaque. Only its separately retained address
+            // can be rejoined with frame-authorized current referent storage.
+            let value = judge.capture_unknown_value(expression, scope)?;
+            Some(StructuralTerm::ObservedValue {
+                observed_type: crate::expression_result_type_reference(
+                    program, scope.0, scope.1, expression,
+                )?,
+                value: Box::new(value),
+                descriptor: Some(Box::new(descriptor)),
+            })
+        } else {
+            None
+        };
         let completed_field = if let ExpressionNode::Member(member) = node {
             let receiver_type = crate::expression_result_type_reference(
                 program,
@@ -166,11 +258,16 @@ impl<'program> StructuralJudge<'program> {
             // The receiver selected its base before a later operand
             // wrote storage. Reconstructing it from the live place now
             // could silently select a replacement descriptor.
-            match completed_field.filter(|value| value.observation_identity_key().is_some()) {
+            match completed_descriptor
+                .or(completed_field)
+                .filter(|value| value.observation_identity_key().is_some())
+            {
                 Some(value) => value,
                 None => judge.capture_unknown_value(expression, scope)?,
             }
-        } else if let Some(value) = completed_borrow
+        } else if let Some(value) = completed_reference
+            .or(completed_descriptor)
+            .or(completed_borrow)
             .or(completed_measure)
             .or(completed_field)
             .or(completed_cast)
@@ -269,6 +366,18 @@ impl<'program> StructuralJudge<'program> {
                 }
                 None => return None,
             };
+            if judge.runtime_body_values
+                && let Some(reference) =
+                    crate::expression_result_type_reference(program, scope.0, scope.1, expression)
+                && crate::field_domains::owned_nominal_data_definition(program, reference).is_some()
+            {
+                // This operation has completed: its children and the complete
+                // construction obligation precede this cut. Retain validity
+                // on a fresh value, never on a reconstructed constructor with
+                // equal fields. Before-operation judgment cannot see this row.
+                value =
+                    judge.retain_completed_nominal_value(expression, reference, value, scope)?;
+            }
         }
         if let ExpressionNode::Cast(cast) = node {
             let [(_, operand)] = inputs else {
@@ -343,6 +452,7 @@ impl<'program> StructuralJudge<'program> {
         }
         if let ExpressionNode::Indexed(indexed) = node
             && program.expression_table.range_node(indexed.index).is_none()
+            && !descriptor_completed
         {
             let [(_, collection), (_, index)] = inputs else {
                 return None;
@@ -399,6 +509,17 @@ impl<'program> StructuralJudge<'program> {
             && program.primitive_type_reference(reference).is_none()
             && crate::reference_shell(program, reference).is_none()
         {
+            if !receiver_changed
+                && judge.runtime_body_values
+                && crate::field_domains::owned_nominal_data_definition(program, reference).is_some()
+                && judge.has_admitted_nominal_subject(expression, &value, reference)
+            {
+                // The actual read acquired this admitted value before any
+                // synthetic transition/local binding. That new home must carry
+                // the completed observation, rather than re-admit its type.
+                value =
+                    judge.retain_completed_nominal_value(expression, reference, value, scope)?;
+            }
             judge.observe_completed_storage_read(scope.0, scope.1, expression, value.clone());
         }
         if let Some(actual_type) =

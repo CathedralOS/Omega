@@ -16,6 +16,73 @@ import compiler_retained_foreign as retained
 
 
 class CompilerPilotTests(unittest.TestCase):
+    def test_ordinary_cli_copy_loop_retains_the_actual_project_directory(self):
+        sample = "samples/cli/systems/journal"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample)
+            library = root / "source/library/std/last.omg"
+            library.parent.mkdir(parents=True)
+            library.write_text("data Last {}")
+            paths = [sample + "/main.omg", sample + "/build.omg", "source/library/std/last.omg"]
+            output = root / "observation"
+            producer = Mock(cli=Path("/retained/omega"), target="windows_x86_64")
+            producer.record.return_value = {"revision": "a" * 40}
+            expected_project = output / "workspace" / sample
+
+            def refuse_update(arguments, **kwargs):
+                self.assertEqual(arguments[1:4], ["update", "--project", expected_project])
+                self.assertTrue((expected_project / "build.omg").is_file())
+                self.assertTrue((output / "workspace/source/library/std/last.omg").is_file())
+                return Mock(returncode=1)
+
+            with patch.object(pilot.ordinary_cli_fixture.subprocess, "check_output", return_value="\n".join(paths)), \
+                    patch.object(pilot.ordinary_cli_fixture.subprocess, "run", side_effect=refuse_update) as run:
+                row = pilot.ordinary_cli_fixture.observe(root, producer, sample, output)
+                run.assert_called_once()
+                self.assertEqual(row["stages"][0]["arguments"][3], str(expected_project))
+                self.assertFalse(row["passed"])
+
+    def test_ordinary_cli_uses_exact_product_sample_and_its_authored_exit(self):
+        sample = "samples/cli/systems/journal"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample, sample + "/nested")
+            project = root / sample
+            (project / "main.omg").write_text("// Expected exit: 7.\nmachine main() {}")
+            with patch.object(pilot, "ROOT", root):
+                self.assertEqual(pilot.select_cli_fixtures(sample), (sample,))
+                self.assertEqual(pilot.ordinary_cli_fixture.expected_exit(root, sample, "windows_x86_64"), 7)
+                self.assertEqual(pilot.ordinary_cli_fixture.relative_project(root, sample), Path(sample))
+                for invalid in (sample + "/../journal", sample + "," + sample,
+                                "/" + sample, sample.replace("/", "\\")):
+                    with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                        pilot.select_cli_fixtures(invalid)
+
+    def test_ordinary_cli_product_samples_refuse_nonruntime_roles_and_extra_oracles(self):
+        sample = "samples/cli/systems/journal"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.sample_root(root, sample)
+            project = root / sample
+            with patch.object(pilot, "ROOT", root):
+                for role in ("intended-invalid", "library", "check-only"):
+                    (project / "sample.json").write_text(json.dumps({"role": role}))
+                    with self.subTest(role=role), self.assertRaises(ValueError):
+                        pilot.select_cli_fixtures(sample)
+                (project / "other.omg").write_text("machine other() {}")
+                (project / "sample.json").write_text(json.dumps({"entry": "other.omg"}))
+                with self.assertRaises(ValueError):
+                    pilot.select_cli_fixtures(sample)
+                (project / "sample.json").unlink()
+                (project / "expected_stdout.txt").write_text("must be checked")
+                with self.assertRaises(ValueError):
+                    pilot.select_cli_fixtures(sample)
+                (project / "expected_stdout.txt").unlink()
+                (project / "main.omg").write_text("machine main() {}")
+                with self.assertRaises(ValueError):
+                    pilot.select_cli_fixtures(sample)
+
     def test_checking_only_retains_exact_roster_without_execution_defaults(self):
         positive, negative = "pass/copy/value", "fail/copy/value"
         with tempfile.TemporaryDirectory() as temporary:
@@ -404,6 +471,29 @@ class CompilerPilotTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "at least one fixture"):
                     pilot.execute(output, {}, positives=(), negatives=())
                 build.assert_not_called()
+
+    def test_failed_checking_still_measures_execution_and_stays_red(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(revision="a" * 40, target="linux_x86_64",
+                            runner_profile={"sha256": "b" * 64})
+            legs = []
+            def corpus(arguments, **kwargs):
+                both = "--both" in arguments
+                legs.append("both" if both else "checking")
+                report = self.report(both=both)
+                if not both:
+                    report["oracle_failures"] = [{"fixture": pilot.NEGATIVES[0]}]
+                Path(arguments[arguments.index("--json") + 1]).write_text(json.dumps(report))
+                return Mock(returncode=1)
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                 patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                 patch.object(pilot.corpus_gate, "host_target", return_value="linux_x86_64"), \
+                 patch.object(pilot, "observation_golden", return_value=output / "golden"), \
+                 patch.object(pilot.subprocess, "run", side_effect=corpus):
+                with self.assertRaisesRegex(ValueError, "oracle"):
+                    pilot.execute(output, {}, producer=producer)
+            self.assertEqual(legs, ["checking", "both"])
 
     def test_first_host_keeps_unknown_history_separate_from_other_host_results(self):
         with tempfile.TemporaryDirectory() as temporary:

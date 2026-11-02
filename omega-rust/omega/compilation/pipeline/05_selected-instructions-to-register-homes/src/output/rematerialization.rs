@@ -1,6 +1,6 @@
 use super::{AllocationEvidence, AllocationOutput, ProjectAllocation};
 use crate::StagedOptimizedActiveResidentRematerialization;
-use selected_instructions_to_selected_instructions::SelectedProgramRef;
+use selected_instruction_analyses::SelectedProgramRef;
 
 impl ProjectAllocation for StagedOptimizedActiveResidentRematerialization {
     fn project_allocation(&self) -> AllocationOutput<'_> {

@@ -19,8 +19,8 @@ use package_source::LocalSourceLimits;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-/// Immutable package source after acquisition, declaration extraction, and
-/// dependency projection have all succeeded.
+/// Immutable source bound to its executed or accepted recorded package metadata.
+/// Historical metadata never replaces resolver authentication of the bytes.
 #[derive(Debug, Clone)]
 pub(crate) struct PackageSourceCustody {
     key: PackageKey,
@@ -174,7 +174,46 @@ impl PackageSourceCustody {
         self.compiled_review_cache_dir.as_deref()
     }
 
-    crate::resolution::source::package_source_surface_accessors!();
+    pub fn key(&self) -> &PackageKey {
+        &self.key
+    }
+
+    pub const fn role(&self) -> BuildDeclarationKind {
+        self.role
+    }
+
+    pub fn resolution(&self) -> &ImmutableSourceResolution {
+        &self.resolution
+    }
+
+    pub const fn materialization(&self) -> &PackageSourceMaterialization {
+        &self.materialization
+    }
+
+    pub fn snapshot_root(&self) -> &std::path::Path {
+        &self.snapshot_root
+    }
+
+    pub const fn navigation(&self) -> &PackageSourceNavigation {
+        &self.navigation
+    }
+
+    pub const fn selection_evidence(&self) -> &PackageSourceSelectionEvidence {
+        &self.selection_evidence
+    }
+
+    pub fn source_limits(&self) -> LocalSourceLimits {
+        self.source_limits
+    }
+
+    /// Authored requests for one purpose scope, in requester-local order.
+    pub fn dependency_requests(&self, purpose: DependencyPurpose) -> &[DependencySourceRequest] {
+        self.dependency_projections.requests(purpose)
+    }
+
+    pub const fn dependency_projections(&self) -> &DependencyProjections {
+        &self.dependency_projections
+    }
 
     pub(crate) fn semantically_equivalent(&self, other: &Self) -> bool {
         self.key == other.key

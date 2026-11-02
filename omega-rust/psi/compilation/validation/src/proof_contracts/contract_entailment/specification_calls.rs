@@ -1745,7 +1745,7 @@ pub(super) fn call_scalar_substitution(
         SelectedCallContract::Concrete(machine, _) => program.machine_type_parameters(machine),
         SelectedCallContract::Signature(signature)
         | SelectedCallContract::DynamicSlot { signature, .. } => {
-            program.state_signature_type_parameters(signature)
+            program.requirement_invocation_contract_parameters(signature)
         }
     };
     let mut values = applied

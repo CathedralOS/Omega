@@ -28,7 +28,6 @@ pub mod dispatch_tables;
 pub mod native_bindings;
 pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
-mod fnv1a;
 mod intrinsic_requirements;
 mod native_provider_sources;
 pub use native_provider_sources::prepare_native_provider_sources;
@@ -50,7 +49,7 @@ pub mod service_schema;
 mod source_guards;
 pub mod target_machines;
 
-pub(crate) use provider_settlement::SettledTargetMachineDeclarations;
+pub use provider_settlement::SettledTargetMachineDeclarations;
 pub use provider_settlement::{
     CheckedProviderSelection, ProviderSettlement, settle_checked_providers,
     verify_selected_compositions_are_realized,
@@ -65,8 +64,8 @@ pub use intrinsic_requirements::{
 };
 pub use provider_planning::extract_native_external_binding_rows;
 pub use provider_planning::provider_rows::{
-    DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource, PreparedProviderRows,
-    ProviderPlanCandidate, ProviderRowDeclarations, UnpreparedProviderRows,
+    DeferredProviderRows, DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource,
+    PreparedProviderRows, ProviderPlanCandidate, ProviderRowDeclarations,
 };
 pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,

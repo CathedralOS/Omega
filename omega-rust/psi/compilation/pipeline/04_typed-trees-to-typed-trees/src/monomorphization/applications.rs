@@ -94,14 +94,28 @@ pub(super) fn candidate_bindings(
 }
 
 /// Bind a candidate from a recorded tuple, the inverse of `candidate_bindings`.
-/// A runtime operand is no part of an instance's static tuple, so a record that
-/// holds one cannot stand in for the provider and binds nothing usable.
+/// Runtime instances retain carrier coordinates with no source observation.
+/// A record containing an actual runtime subject cannot stand in for one.
 pub(super) fn bind_recorded_tuple(
     program: &TypedTrees,
     candidate: &mut Candidate<'_>,
     tuple: StaticMachineApplicationHandle,
 ) -> bool {
-    for binding in expressions_of(program).static_machine_application_bindings(tuple) {
+    bind_typed_tuple(
+        program,
+        candidate,
+        expressions_of(program).static_machine_application_bindings(tuple),
+    )
+}
+
+/// Bind produced typed operands. Runtime carrier coordinates contain no
+/// caller observation and instantiate only an ordinary receiving formal.
+pub(super) fn bind_typed_tuple(
+    program: &TypedTrees,
+    candidate: &mut Candidate<'_>,
+    bindings: &[StaticMachineBinding],
+) -> bool {
+    for binding in bindings {
         let parameter = binding.parameter;
         match &binding.value {
             StaticMachineBindingValue::Type(actual) => {
@@ -136,7 +150,32 @@ pub(super) fn bind_recorded_tuple(
                 };
                 candidate.evidence_bindings[slot] = Some(argument.clone());
             }
-            StaticMachineBindingValue::RuntimeValue { .. } => return false,
+            StaticMachineBindingValue::RuntimeValue {
+                type_reference,
+                subject,
+                expression,
+            } => {
+                if subject.is_valid()
+                    || expression.is_valid()
+                    || !program
+                        .data_type_parameter_by_symbol(parameter)
+                        .is_some_and(|parameter| {
+                            matches!(parameter.kind, TypeParameterKind::Value { .. })
+                        })
+                {
+                    return false;
+                }
+                let Some(slot) = candidate
+                    .template
+                    .const_parameters
+                    .iter()
+                    .position(|(symbol, _, _)| *symbol == parameter)
+                else {
+                    return false;
+                };
+                candidate.const_bindings[slot] = Some(*type_reference);
+                candidate.runtime_value_bindings[slot] = Some(super::RuntimeValueBinding::Carrier);
+            }
         }
     }
     true

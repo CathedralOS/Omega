@@ -53,8 +53,8 @@ pub use value_custody::places::binding_observations::{
 pub use value_custody::places::collection_operations;
 pub use value_custody::places::declared_reference_access;
 pub use value_custody::places::{
-    applied_data_member_field, corresponding_loan_owner_path, corresponding_place_projection,
-    declaration_type_reference, declared_case_projection_field, state_root_type,
+    applied_data_member_field, declaration_type_reference, declared_case_projection_field,
+    state_root_type,
 };
 pub use value_custody::static_inline_storage::{
     runtime_inline_array_extent, validate_prepared_inline_storage,
@@ -152,7 +152,8 @@ pub use proof_contracts::contract_entailment::{
     immutable_entry_integer_projection, instantiate_immutable_entry_indexed_read_identity,
 };
 pub use proof_contracts::contract_results::{
-    ReservedResultPlace, callable_contract_scopes, reserved_result_owner, reserved_result_place,
+    ReservedResultMember, ReservedResultPlace, callable_contract_scopes, reserved_result_owner,
+    reserved_result_place,
 };
 pub use proof_contracts::domains::{
     integer_domain_membership, scalar_domain_definition_predicate, scalar_domain_local_predicate,
@@ -273,6 +274,7 @@ pub use crate::declarations::selection_authority::{
     DeclarationSelectionAuthority, RecordedDeclarationAuthority, checked_selection_requirements,
     validate_authored_declaration_selections,
 };
+pub use crate::machine_calls::call_cycles::requirement_backing_machines;
 pub use crate::machine_calls::call_cycles::{
     RankRelevance, RuntimeRankApplicationBinding, RuntimeRankBodyWitness, RuntimeRankComponents,
     RuntimeRankInput, RuntimeRankOperand, ValidatedProofCallComponent, ValidatedProofRankInterval,
@@ -287,15 +289,14 @@ pub use crate::machine_calls::call_cycles::{
 };
 pub use crate::machine_calls::calls::{
     AssignmentStorageOrigins, AssignmentWriteTarget, CallFrameResolver, CallWriteOrigins,
-    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource, ReferenceResultLeafOrigin,
-    ReferenceResultTransport, ReferenceSlotContract, ReferenceViewFormation,
-    ScalarStorageCoordinate, StoredReferenceCallContext, StoredReferenceDestinationKind,
-    StoredReferenceEffect, StoredReferenceRelationRefusal, ValidatedSelfCallDescent,
-    assignment_stored_value_type, frame_coordinate_path, frame_length_coordinate_path,
-    frame_paths_overlap, operand_call_plans, state_reference_parameter_binding_is_stable,
-    storage_origin_types_match,
+    InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource,
+    ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceSlotContract,
+    ReferenceViewFormation, ScalarStorageCoordinate, StoredReferenceCallContext,
+    StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
+    ValidatedSelfCallDescent, assignment_stored_value_type, frame_coordinate_path,
+    frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
+    state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
-pub use crate::machine_calls::call_cycles::requirement_backing_machines;
 pub use crate::machine_calls::denotational_calls::{
     SpecificationCallRequest, admit_specification_calls, checked_value_call_candidate,
     expression_values_have_call_identity, normal_return_call_candidate, requirement_satisfiers,
@@ -487,6 +488,7 @@ pub use proof_contracts::contract_entailment::arithmetic_judgment::IntegerDenota
 pub use proof_contracts::contract_entailment::call_requirements::selected_value_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::call_requirements::structural_call_requirement_entailed;
 pub use proof_contracts::contract_entailment::collection_bounds::CollectionBoundsObservations;
+pub use proof_contracts::contract_entailment::exit_predicates::normal_exit_proves;
 pub use proof_contracts::contract_entailment::is_arm_pattern_marker;
 pub use proof_contracts::contract_entailment::law_conformance::{
     InheritedRequirementApplication, inherited_requirement_proposition_application,
@@ -529,6 +531,7 @@ pub use proof_contracts::contract_entailment::scoped_arithmetic::{
     scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
     scoped_arithmetic_values_relation, scoped_call_result_observations,
     scoped_completed_call_guarantees, scoped_declared_integer_application_formation,
+    scoped_integer_expression_formation,
 };
 pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
 pub use proof_contracts::contract_entailment::statement_predicates::StatementPredicateObservations;
@@ -626,7 +629,8 @@ pub use value_custody::places::{
     canonical_place_from_expression, canonical_place_from_expression_in_state,
     canonical_place_source_type_application, canonical_place_type_reference,
     canonical_qualification_path, collection_element_type_reference,
-    contextual_canonical_place_from_expression, data_member_symbol_by_name, declared_data_type,
+    contextual_canonical_place_from_expression, corresponding_loan_owner_path,
+    corresponding_place_projection, data_member_symbol_by_name, declared_data_type,
     effective_member_symbol, expression_place_type_reference, expression_root_symbol,
     expression_type_reference_in_state, expression_type_symbol, first_valid_name_path_symbol,
     index_place_segment, loan_carrier_has_owned_storage, machine_symbol_from_type_reference_handle,

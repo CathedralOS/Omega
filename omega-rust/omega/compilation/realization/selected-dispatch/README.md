@@ -31,7 +31,7 @@ Task activation instead consumes
 portable demands in the source-free native proposal join. The compiler supplies inputs and
 consumes the result; it does not implement these decisions.
 Callback roots use [source preparation](../provider-planning/src/provider_instances.rs)
-followed by [source-free selection](../provider-selection/src/callback_roots.rs).
+followed by [source-free selection](../provider-selection/src/bodies/callback_roots.rs).
 Psi freezes the complete final nominal-use roster once in its existing prepared
 declaration product, including dormant/symbolic uses, exact requirement and body
 declarations, separate published/actual/refinement contracts and entry-resource
@@ -64,7 +64,7 @@ review prepares an independent candidate catalog and compares complete records,
 never substitutes the custody projection for candidate evidence.
 The optional checked-tree interpreter prepares its exact adapter and
 float-comparison bindings beside its only consumer, the driver's corpus runner
-([checked interpreter dispatch](../../driver/tests/support/checked_interpreter_dispatch/mod.rs)),
+([checked interpreter dispatch](../../compiler/tests/support/checked_interpreter_dispatch/mod.rs)),
 immediately before reference execution. Ordinary compilation neither builds nor
 retains this oracle-only table.
 It never rewrites checked arenas. Terminal/native installation consumes the
@@ -88,3 +88,9 @@ This is still a checked-tree realization seam, not the completed Terminal-only
 architecture. Its source-dependent inputs must ultimately become retained
 Terminal evidence. Moving this owner out of the compiler does not claim that
 provider installation already occurs after Terminal production.
+
+Build admission owns [deferred constant evaluation](../../build-evaluation/src/admission/selected_constants.rs).
+It consumes selected numeric identities from this owner and invokes Psi evaluation
+under the exact admitted Build context. Product constants depending on runtime
+provider selection still require portable recipes; a target choice is never
+folded back into shared checked Product source.

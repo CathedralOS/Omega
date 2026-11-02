@@ -27,7 +27,7 @@ pub(crate) fn index(
         (MachineId, InvocationSite, BoundaryMachineId),
         InstalledProviderCallEvidence,
     >,
-    input: Option<&terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput>,
+    input: Option<&provider_admission::AdmittedLoweringFacts>,
 ) -> Result<SelectedCallsByCall, LoweringError> {
     let mut selected = SelectedCallsByCall::new();
     for function in &plan.functions {
@@ -68,7 +68,6 @@ pub(crate) fn index(
             let installed_call = installed.get(&key);
             let family = input.and_then(|input| {
                 input
-                    .context()
                     .module()
                     .target_machine_families
                     .iter()
@@ -81,7 +80,7 @@ pub(crate) fn index(
                     })
             });
             let entry_call = input
-                .and_then(|input| input.selected_program_entry_call())
+                .and_then(|input| input.program_entry())
                 .filter(|entry| entry.boundary() == *boundary);
             let (callee, origin) = if let Some(entry) = entry_call {
                 if installed_call.is_some()

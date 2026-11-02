@@ -19,10 +19,10 @@ use post_allocation_machine_to_selected_form_encoding::StagedOptimizedSelectedFo
 use register_homes_to_post_allocation_machine::StagedOptimizedPostAllocationMachinePlan;
 use resolved_layout_to_resolved_layout::ResolvedLayoutOptimization;
 use selected_form_encoding_to_resolved_layout::StagedOptimizedResolvedSelectedFormLayout;
+use selected_instructions_to_register_homes::SelectedProgramView;
 use selected_instructions_to_register_homes::ValidatedAllocatedCalleeSavedRequirements;
 use selected_instructions_to_register_homes::{
     AllocationEvidence, AllocationOutput, PostAllocationSelectedTransformation,
-    ValidatedSelectedAnalysis,
 };
 
 #[allow(clippy::too_many_arguments)]
@@ -69,30 +69,15 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
                 receipt.source().source().transformation(),
             )]
         }
-        AllocationEvidence::LiteralFolds(receipt) => receipt
-            .source()
-            .transformations()
-            .iter()
-            .copied()
-            .map(PostAllocationSelectedTransformation::LiteralFold)
-            .collect(),
-        AllocationEvidence::SelectedLowering(receipt) => receipt
-            .source()
-            .iterations()
-            .iter()
-            .map(|iteration| PostAllocationSelectedTransformation::LiteralFold(iteration.fold()))
-            .collect(),
+        AllocationEvidence::SelectedLowering(receipt) => {
+            receipt.source().transformations().to_vec()
+        }
         AllocationEvidence::ActiveResidentRematerialization(receipt) => vec![
             PostAllocationSelectedTransformation::PressureRematerialization(
                 receipt.rematerialization(),
             ),
         ],
-        AllocationEvidence::PreAllocation(receipt) => receipt
-            .source()
-            .iterations()
-            .iter()
-            .map(|iteration| iteration.transformation().into())
-            .collect(),
+        AllocationEvidence::PreAllocation(receipt) => receipt.source().transformations().to_vec(),
         AllocationEvidence::RuntimeSpill(identity) if *identity == post.identity => {
             // Runtime-spill recovery produced this manifest over its recorded
             // spill rewrites; its identity binds that cumulative history.
@@ -105,16 +90,12 @@ pub(in crate::function_realization) fn expected_fixed_frame_manifest(
     // empty selected-lowering phase, never a substituted suite.
     let (expected_lowering_selections, expected_lowering_completion) = match allocation.evidence() {
         AllocationEvidence::SelectedLowering(receipt) => (
-            receipt.source().selected_lowering_selections(),
+            receipt.source().phase_selections(),
             Some(receipt.source().identity()),
         ),
         _ => (OptimizationSelections::default().identity(), None),
     };
-    let pre_physical = target_input
-        .optimized()
-        .pre_physical_manifest()
-        .record()
-        .identity;
+    let pre_physical = target_input.optimized().pre_physical_manifest().identity;
     // The post-allocation phase run must have executed exactly this build's
     // projection of that phase and must have produced exactly the plan every
     // later stage consumed.

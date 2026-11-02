@@ -85,6 +85,126 @@ impl Engine<'_> {
         accepted
     }
 
+    /// A checked public proposition can contain further independently admitted
+    /// calls. Capture their actuals in the proposition's supplying namespace,
+    /// before its callee symbols become visible. Missing optional observations
+    /// remain opaque; they never authorize a load or establish a call premise.
+    pub(in crate::proof_contracts::contract_entailment) fn capture_contract_call_actuals(
+        &mut self,
+        expression: ExpressionHandle,
+        supplied: &[ScopedArithmeticBinding],
+        remaining: &mut usize,
+    ) -> Option<Vec<ScopedArithmeticBinding>> {
+        let call = expression_table(self.program).call_node(expression)?;
+        let owner = super::super::specification_calls::selected_call_contract(
+            self.program,
+            self.source_owner,
+            call,
+        )?;
+        let parameters = super::super::specification_calls::owner_parameters(self.program, &owner);
+        let arguments = expression_table(self.program).expression_handles(call.arguments);
+        if parameters.len() != arguments.len() {
+            return None;
+        }
+        let mut actuals = supplied.to_vec();
+        for (parameter, argument) in parameters.iter().zip(arguments) {
+            if parameter.is_mutable
+                || actuals
+                    .iter()
+                    .any(|binding| binding.binder == ScopedArithmeticBinder::Occurrence(*argument))
+            {
+                continue;
+            }
+            let captured = (|| {
+                let required = self.call_input_type(*argument, parameter.type_reference)?;
+                let input = if self
+                    .program
+                    .primitive_type_reference(parameter.type_reference)
+                    .is_some()
+                {
+                    self.contract_actual_is_captured(*argument, remaining)
+                        .then_some(())?;
+                    IntegerApplicationInput::Scalar(self.normalize(*argument)?)
+                } else {
+                    self.captured_record_call_input(*argument, expression)?
+                };
+                if !crate::has_anonymous_numeric_results(self.program, *argument) {
+                    let actual = match &input {
+                        IntegerApplicationInput::Scalar(_) => self.source_result_type(*argument)?,
+                        IntegerApplicationInput::Record { type_reference, .. } => *type_reference,
+                    };
+                    if !crate::declared_input_type_matches(self.program, actual, required) {
+                        return None;
+                    }
+                }
+                let mut bindings = input.scoped_bindings(parameter.symbol, |value| {
+                    captured_polynomial(value, &self.unsigned_atoms, remaining)
+                })?;
+                bindings.first_mut()?.binder = ScopedArithmeticBinder::Occurrence(*argument);
+                Some(bindings)
+            })();
+            if let Some(bindings) = captured {
+                actuals.extend(bindings);
+            }
+        }
+        Some(actuals)
+    }
+
+    /// Source type geometry alone is not a captured scalar read. Stop at
+    /// explicit occurrence/coordinate bindings and require every remaining
+    /// runtime leaf in this recipe to have its own supplying value.
+    fn contract_actual_is_captured(
+        &self,
+        expression: ExpressionHandle,
+        remaining: &mut usize,
+    ) -> bool {
+        let mut pending = vec![expression];
+        while let Some(expression) = pending.pop() {
+            let Some(next) = remaining.checked_sub(1) else {
+                return false;
+            };
+            *remaining = next;
+            if self
+                .strict_occurrences
+                .iter()
+                .any(|(bound, _)| *bound == expression)
+                || self.formal_coordinate_value(expression).is_some()
+            {
+                continue;
+            }
+            let node = expression_table(self.program).expression(expression);
+            match node {
+                ExpressionNode::Name(name) => {
+                    if self.strict_symbol_value(name.symbol).is_none()
+                        && !(crate::reserved_result_owner(self.program, expression).is_some()
+                            && self.strict_result_binding.is_some())
+                        && self
+                            .program
+                            .closed_integer_value_in(expression, self.source_owner)
+                            .is_none()
+                    {
+                        return false;
+                    }
+                }
+                ExpressionNode::Member(_)
+                | ExpressionNode::Indexed(_)
+                | ExpressionNode::Call(_) => {
+                    if self
+                        .program
+                        .closed_integer_value_in(expression, self.source_owner)
+                        .is_none()
+                    {
+                        return false;
+                    }
+                }
+                _ => crate::queries::expression_traversal::children(self.program, node, |child| {
+                    pending.push(child)
+                }),
+            }
+        }
+        true
+    }
+
     /// Prepare call results before normalization while keeping every actual in
     /// the original caller frame. Imported hypotheses are normalized values;
     /// their clause namespace must not replace the next operand's bindings.

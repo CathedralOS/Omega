@@ -42,7 +42,9 @@ impl CurrentScalarValues<'_> {
         frames
             .assignment_destination_remains_current(self.machine, statement)
             .then_some(())?;
-        let origins = frames.assignment_storage_origins(self.machine, statement)?;
+        let origins = frames
+            .assignment_storage_origins(self.machine, statement)
+            .ok()?;
         let [destination] = origins.destinations.as_slice() else {
             return None;
         };

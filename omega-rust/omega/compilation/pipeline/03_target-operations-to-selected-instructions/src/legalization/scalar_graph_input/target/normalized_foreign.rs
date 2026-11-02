@@ -49,6 +49,7 @@ pub(super) fn validate(
             scalar_arguments,
             structural_arguments,
             result: actual_result,
+            descriptor_input,
         },
         abstract_operations::AbstractOperation::BoundaryCall {
             psi_operation: expected_operation,
@@ -62,6 +63,25 @@ pub(super) fn validate(
     else {
         return Err(LegalizationError::custody());
     };
+    // The recorded count guard must be the one this call's binding, homes and
+    // the producer's retained buffer layout require.
+    let required = target_operations::descriptor_input_guard_for_call(
+        binding,
+        &plan.structural_types,
+        scalar_arguments,
+        structural_arguments,
+        actual_result,
+        |buffer| {
+            native
+                .borrowed_storage_layouts
+                .iter()
+                .find(|layout| layout.structural_type == buffer)
+        },
+    )
+    .map_err(|_| LegalizationError::custody())?;
+    if required != *descriptor_input {
+        return Err(LegalizationError::custody());
+    }
     let mut declarations = plan
         .boundary_machines
         .iter()

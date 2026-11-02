@@ -127,6 +127,7 @@ pub(super) fn publish(
             source_target: header.source_target.clone(),
             product_eligible: header.product_eligible,
             supplies_checked_body: header.supplies_checked_body,
+            type_parameter_count: header.type_parameter_count,
             compiler_evaluation: header.compiler_evaluation.clone(),
             synchronous_invocations,
         });

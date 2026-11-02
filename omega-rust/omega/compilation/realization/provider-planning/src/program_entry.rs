@@ -11,16 +11,17 @@
 use crate::provider_planning::entry_state;
 pub use build_time_evaluation::product_entries::RootBinding;
 use build_time_evaluation::product_entries::{
-    ArrivalRequirementContract, arrival_requirement_contract, core_arrival_requirement_contract,
     validate_source_compatibility, visible_entry_parameters,
 };
 use checked_trees::typed_trees::TypedTrees;
 use checked_trees::typed_trees::product_operand::ProductEntryDeclaration;
-use checked_trees::typed_trees::service_declarations::{ProviderSchemaDeclaration, ServiceCatalog};
+use checked_trees::typed_trees::service_declarations::ServiceCatalog;
 use diagnostics::Diagnostic;
 
+mod calling_plans;
 mod discovery;
 mod extent_layout;
+mod source_contract;
 pub use discovery::discover_explicit_entry_binding;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -263,40 +264,28 @@ struct SelectedEntryDeclaration {
 /// runs. Retaining it does not imply that physical arrival has been settled.
 /// The source producer can issue this judgment independently of ABI placement;
 /// completing it below consumes the subsequently evaluated calling plans.
-pub struct PreparedCompilerProgramEntry<'source> {
-    services: ServiceCatalog<'source>,
+pub struct PreparedCompilerProgramEntry {
     declaration: SelectedEntryDeclaration,
     slot: target::ProgramEntrySlotDeclaration,
+    calling_contract:
+        Result<Option<source_contract::PreparedEntryCallingContract>, Vec<Diagnostic>>,
 }
 
-impl PreparedCompilerProgramEntry<'_> {
+impl PreparedCompilerProgramEntry {
     pub fn source_signature(&self) -> &program_entry_plan::SelectedProgramEntrySignature {
         &self.declaration.signature
     }
 
+    /// Join target Calling results to the exact Source contract prepared from
+    /// this invocation's immutable package bindings. No Source is reopened.
     pub fn settle_calling_plans(
         self,
         realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
-        package_inputs: Option<&package_compilation::PackageCompilationInputs>,
     ) -> Result<SelectedCompilerProgramEntry, Vec<Diagnostic>> {
-        let selected = SelectedProgramEntry {
-            machine_name: self.declaration.signature.machine_name(),
-            machine_symbol: self.declaration.machine,
-            slot: self.slot,
+        let calling_plans = match self.calling_contract? {
+            Some(contract) => Some(calling_plans::settle(self.slot, contract, realizations)?),
+            None => None,
         };
-        let accepted_entry_binding = self
-            .slot
-            .physical_contract_package
-            .map(package_compilation::program_entry_semantic_binding_role)
-            .and_then(|role| {
-                package_inputs.and_then(|inputs| inputs.accepted_semantic_binding(role))
-            });
-        let calling_plans = validate_selected_program_entry_calling_plan(
-            self.services,
-            selected,
-            realizations,
-            accepted_entry_binding,
-        )?;
         Ok(SelectedCompilerProgramEntry::new(
             self.declaration,
             calling_plans,
@@ -308,7 +297,6 @@ impl PreparedCompilerProgramEntry<'_> {
 /// distinct from the validated ABI plans' own structural commitments.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntryCallingPlans {
-    pub physical_requirement: symbols::SymbolHandle,
     pub semantic_calling_application: calling_conventions::BoundaryCallingApplication,
     pub physical_calling_application: calling_conventions::BoundaryCallingApplication,
     pub storage_entry: program_entry_plan::SelectedProgramStorageEntryPlan,
@@ -325,7 +313,7 @@ pub struct SelectedProgramEntryCallingPlans {
 pub struct SelectedCompilerProgramEntry {
     declaration: SelectedEntryDeclaration,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,
-    physical_adapter: Option<symbols::SymbolHandle>,
+    physical_adapter: Option<terminal_psi::PreparedNominalRoot>,
 }
 
 impl SelectedCompilerProgramEntry {
@@ -347,27 +335,36 @@ impl SelectedCompilerProgramEntry {
     /// The explicitly selected checked implementation of physical arrival.
     /// This is separate from the semantic ProgramEntry: firmware cannot call
     /// the two-root continuation with its handle and System Table registers.
-    pub const fn physical_adapter(&self) -> Option<symbols::SymbolHandle> {
-        self.physical_adapter
+    pub fn physical_adapter(&self) -> Option<&terminal_psi::PreparedNominalRoot> {
+        self.physical_adapter.as_ref()
     }
 
     pub fn bind_physical_adapter(
         &mut self,
-        typed: &TypedTrees,
+        module: &terminal_psi::TerminalModule,
         providers: &[crate::SelectedProviderReviewProvenance],
+        declarations: &[backend_plan::TerminalTargetProviderPlan],
     ) -> Result<(), Vec<Diagnostic>> {
         let Some(plans) = &self.calling_plans else {
             return Ok(());
         };
+        let contract = plans.storage_entry.physical_contract().ok_or_else(|| {
+            vec![Diagnostic::error(
+                "selected entry lost its physical contract",
+            )]
+        })?;
+        let requirement = contract
+            .identities()
+            .text(contract.requirement_identity())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "physical contract lost its requirement identity",
+                )]
+            })?;
         let mut selected = None;
         for provider in providers {
-            for (requirement, implementation) in provider
-                .provider
-                .row_requirements
-                .iter()
-                .zip(&provider.provider.row_realizations)
-            {
-                if *requirement != plans.physical_requirement {
+            for row in &provider.plan.rows {
+                if provider.plan.identity_text(row.requirement_identity) != requirement {
                     continue;
                 }
                 if matches!(
@@ -378,23 +375,77 @@ impl SelectedCompilerProgramEntry {
                         "physical entry adapter requires an explicit provider selection",
                     )]);
                 }
-                let machine = typed
-                    .machines()
-                    .iter()
-                    .find(|machine| Some(machine.symbol) == implementation.authored())
-                    .ok_or_else(|| {
-                        vec![Diagnostic::error(
-                            "selected physical entry adapter is absent",
-                        )]
-                    })?;
-                if entry_state(typed, machine).is_none_or(|entry| !entry.symbol.is_valid())
-                    || !typed.machine_type_parameters(machine).is_empty()
-                {
+                if !matches!(
+                    row.binding,
+                    effects::provider_plan::ProviderBinding::CheckedAdapter { .. }
+                ) {
+                    return Err(vec![Diagnostic::error(
+                        "selected physical entry adapter is absent",
+                    )]);
+                }
+                let header =
+                    backend_plan::selected_checked_adapter_header(&provider.plan, row, module)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                if !header.supplies_checked_body || header.type_parameter_count != 0 {
                     return Err(vec![Diagnostic::error(
                         "physical entry adapter must have a checked source body",
                     )]);
                 }
-                if selected.replace(machine.symbol).is_some() {
+                let mut matching = declarations
+                    .iter()
+                    .filter(|declaration| declaration.plan == provider.plan);
+                let declaration = matching.next().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "physical entry adapter lost its exact selected declaration",
+                    )]
+                })?;
+                if matching.next().is_some() {
+                    return Err(vec![Diagnostic::error(
+                        "physical entry adapter has competing selected declarations",
+                    )]);
+                }
+                let owner = declaration.provider_declaration.as_deref().ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "physical entry adapter lost its selecting owner",
+                    )]
+                })?;
+                let rows =
+                    backend_plan::selected_provider_candidate_rows(&provider.plan, owner, module)
+                        .map_err(|reason| vec![Diagnostic::error(reason)])?;
+                let candidates = rows
+                    .iter()
+                    .find(|candidate| candidate.row == row)
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "physical entry adapter lost its exact requirement row",
+                        )]
+                    })?;
+                let [position] = candidates.candidate_positions.as_slice() else {
+                    return Err(vec![Diagnostic::error(format!(
+                        "physical entry requirement has {} canonical realizations instead of one",
+                        candidates.candidate_positions.len(),
+                    ))]);
+                };
+                let candidate = &module.provider_candidates[*position];
+                let machine = module.machine(candidate.candidate).ok_or_else(|| {
+                    vec![Diagnostic::error(
+                        "selected physical entry adapter is absent",
+                    )]
+                })?;
+                let declaration = machine
+                    .declaration
+                    .as_ref()
+                    .and_then(|declaration| module.identities.text(declaration.machine.identity()))
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "physical entry adapter lost its nominal declaration",
+                        )]
+                    })?;
+                // The shared program owns the adapter's diagnostic name/span.
+                // Absence here preserves that attribution instead of rebuilding it.
+                let root = terminal_psi::PreparedNominalRoot::new(declaration, "", None)
+                    .map_err(|reason| vec![Diagnostic::error(reason.to_string())])?;
+                if selected.replace(root).is_some() {
                     return Err(vec![Diagnostic::error(
                         "physical arrival has more than one selected adapter",
                     )]);
@@ -492,11 +543,12 @@ fn check_unrequested_program_entry_rows(
 /// Issue the exact selected entry's source contract without evaluating or
 /// consuming a calling policy. Slot selection and source-shape refusals retain
 /// their order; physical/semantic calling validation belongs to settlement.
-pub fn prepare_compiler_program_entry<'source>(
-    services: ServiceCatalog<'source>,
+pub fn prepare_compiler_program_entry(
+    services: ServiceCatalog<'_>,
     root_bindings: &[RootBinding],
     selected_profile: Option<target::TargetProfile>,
-) -> Result<Option<PreparedCompilerProgramEntry<'source>>, Vec<Diagnostic>> {
+    package_inputs: Option<&package_compilation::PackageCompilationInputs>,
+) -> Result<Option<PreparedCompilerProgramEntry>, Vec<Diagnostic>> {
     require_product_services(services)?;
     let typed = services.context().typed;
     let selected = selected_program_entry_machine(root_bindings, selected_profile)?;
@@ -529,10 +581,19 @@ pub fn prepare_compiler_program_entry<'source>(
         selected.machine_symbol = member.machine;
     }
     let declaration = validate_selected_program_entry_shape(typed, selected)?;
+    let accepted_binding = selected
+        .slot
+        .physical_contract_package
+        .map(program_entry_semantic_binding_role)
+        .and_then(|role| package_inputs.and_then(|inputs| inputs.accepted_semantic_binding(role)));
+    // Capture remains inert until after provider selection. Source formation,
+    // target Calling conventions and physical provenance keep their original
+    // refusal order even though no late Source borrow remains.
+    let calling_contract = source_contract::prepare(services, selected, accepted_binding);
     Ok(Some(PreparedCompilerProgramEntry {
-        services,
         declaration,
         slot: selected.slot,
+        calling_contract,
     }))
 }
 
@@ -546,404 +607,4 @@ fn require_product_services(services: ServiceCatalog<'_>) -> Result<(), Vec<Diag
     }
 }
 
-fn validate_selected_program_entry_calling_plan(
-    services: ServiceCatalog<'_>,
-    selected: SelectedProgramEntry<'_>,
-    realizations: &[crate::calling_policy_plans::BoundaryCallingPlanRealization],
-    accepted_entry_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-) -> Result<Option<SelectedProgramEntryCallingPlans>, Vec<Diagnostic>> {
-    let typed = services.context().typed;
-    let (
-        Some(schema_name),
-        Some(physical_requirement),
-        Some(physical_convention),
-        Some(semantic_convention),
-    ) = (
-        selected.slot.boundary_schema,
-        selected.slot.physical_arrival_requirement,
-        selected.slot.physical_calling_convention,
-        selected.slot.semantic_calling_convention,
-    )
-    else {
-        if selected.slot.boundary_schema.is_some()
-            || selected.slot.physical_arrival_requirement.is_some()
-            || selected.slot.physical_calling_convention.is_some()
-            || selected.slot.semantic_calling_convention.is_some()
-        {
-            return Err(vec![Diagnostic::error(format!(
-                "target root slot `{}::{}` has an incomplete two-surface entry declaration",
-                selected.slot.owner.root_slot_owner_name(),
-                selected.slot.slot_name,
-            ))]);
-        }
-        return Ok(None);
-    };
-    let schema = selected_entry_schema(typed, selected.slot, schema_name, accepted_entry_binding)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    let semantic =
-        core_arrival_requirement_contract(typed, selected.slot.semantic_arrival_requirement)
-            .map_err(|diagnostic| vec![diagnostic])?;
-    let physical = arrival_requirement_contract(typed, schema, physical_requirement)
-        .map_err(|diagnostic| vec![diagnostic])?;
-    if semantic.signature == physical.signature
-        || semantic.requirement_identity == physical.requirement_identity
-    {
-        return Err(vec![Diagnostic::error(format!(
-            "target root slot `{}::{}` conflates physical requirement `{physical_requirement}` with semantic requirement `{}`",
-            selected.slot.owner.root_slot_owner_name(),
-            selected.slot.slot_name,
-            selected.slot.semantic_arrival_requirement,
-        ))]);
-    }
-    let semantic_matching = realizations
-        .iter()
-        .filter(|realization| {
-            realization.boundary_trait == schema.symbol
-                && realization.requirement_machine == semantic.signature
-        })
-        .collect::<Vec<_>>();
-    let [semantic_realization] = semantic_matching.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "target boundary schema `{schema_name}` retains {} evaluated calling plans for semantic requirement `{}` instead of exactly one",
-            semantic_matching.len(),
-            selected.slot.semantic_arrival_requirement,
-        ))]);
-    };
-    let physical_matching = realizations
-        .iter()
-        .filter(|realization| {
-            realization.boundary_trait == schema.symbol
-                && realization.requirement_machine == physical.signature
-        })
-        .collect::<Vec<_>>();
-    let [physical_realization] = physical_matching.as_slice() else {
-        return Err(vec![Diagnostic::error(format!(
-            "target boundary schema `{schema_name}` retains {} evaluated calling plans for physical requirement `{physical_requirement}` instead of exactly one",
-            physical_matching.len(),
-        ))]);
-    };
-    for (role, realization) in [
-        ("semantic", *semantic_realization),
-        ("physical", *physical_realization),
-    ] {
-        let (validated, application_report_fingerprint, application_commitment) = realization
-            .replayed_validated_application()
-            .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "target boundary schema `{schema_name}` retains an invalid {role} calling plan: {error}"
-            ))]
-        })?;
-        if realization.exact_boundary_entry_plan() != validated.plan()
-            || realization.report_fingerprint != application_report_fingerprint
-            || realization.commitment != application_commitment
-        {
-            return Err(vec![Diagnostic::error(format!(
-                "target boundary schema `{schema_name}` does not retain exact {role} calling-plan identity and custody"
-            ))]);
-        }
-    }
-    let (validated_physical_plan, _, _) = physical_realization
-        .replayed_validated_application()
-        .map_err(|error| {
-            vec![Diagnostic::error(format!(
-                "target boundary schema `{schema_name}` lost its validated physical calling plan: {error}"
-            ))]
-        })?;
-    let expected_physical =
-        calling_conventions::CallingPolicy::for_program_entry_convention(physical_convention);
-    if physical_realization.boundary_entry_plan.call.policy != expected_physical {
-        return Err(vec![Diagnostic::error(format!(
-            "target boundary schema `{schema_name}` evaluates physical requirement `{physical_requirement}` with {:?}, but `{}::{}` requires {:?}",
-            physical_realization.boundary_entry_plan.call.policy,
-            selected.slot.owner.root_slot_owner_name(),
-            selected.slot.slot_name,
-            expected_physical,
-        ))]);
-    }
-    let expected_semantic =
-        calling_conventions::CallingPolicy::for_program_entry_convention(semantic_convention);
-    if semantic_realization.boundary_entry_plan.call.policy != expected_semantic {
-        return Err(vec![Diagnostic::error(format!(
-            "target boundary schema `{schema_name}` evaluates semantic requirement `{}` with {:?}, but `{}::{}` requires {:?}",
-            selected.slot.semantic_arrival_requirement,
-            semantic_realization.boundary_entry_plan.call.policy,
-            selected.slot.owner.root_slot_owner_name(),
-            selected.slot.slot_name,
-            expected_semantic,
-        ))]);
-    }
-    let prepared = services
-        .declaration(ProviderSchemaDeclaration::BoundaryTrait(schema.symbol))
-        .ok_or_else(|| {
-            vec![Diagnostic::error(format!(
-                "target entry schema `{schema_name}` is not a boundary service schema"
-            ))]
-        })?;
-    let service_schema = crate::service_schema::attach_calling(&prepared, realizations);
-    let physical_source = target_owned_physical_contract_source(
-        typed,
-        selected.slot,
-        schema.symbol,
-        &service_schema,
-        &physical,
-        accepted_entry_binding,
-    )
-    .map_err(|diagnostic| vec![diagnostic])?;
-    let storage_entry = program_entry_plan::SelectedProgramStorageEntryPlan::from_target_slot(
-        selected.slot,
-        service_schema,
-        semantic.requirement_identity,
-    )
-    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
-    let result_type_identity = physical.result_type_identity.ok_or_else(|| {
-        vec![Diagnostic::error(format!(
-            "physical entry requirement `{physical_requirement}` has no result"
-        ))]
-    })?;
-    let physical_contract = program_entry_plan::ProgramEntryPhysicalContractPlan::new(
-        selected.slot,
-        physical.requirement_identity,
-        physical_source.package,
-        physical_source.package_source_digest,
-        physical_source.non_authoritative_package_source_report_fingerprint,
-        physical
-            .parameters
-            .into_iter()
-            .map(|parameter| {
-                typed
-                    .type_identity_text(parameter.identity)
-                    .unwrap_or_default()
-            })
-            .collect(),
-        typed
-            .type_identity_text(result_type_identity)
-            .unwrap_or_default(),
-        validated_physical_plan.contract_report_fingerprint(),
-        physical_realization.boundary_entry_plan.clone(),
-    )
-    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])?;
-    let storage_entry = storage_entry
-        .with_physical_contract(physical_contract.clone())
-        .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
-    Ok(Some(SelectedProgramEntryCallingPlans {
-        physical_requirement: physical.signature,
-        semantic_calling_application: semantic_realization
-            .native_application()
-            .map_err(|reason| vec![Diagnostic::error(reason)])?,
-        physical_calling_application: physical_realization
-            .native_application()
-            .map_err(|reason| vec![Diagnostic::error(reason)])?,
-        storage_entry,
-    }))
-}
-
-/// Resolve only inside the slot's contract owner. Source custody identifies a
-/// bundled source unit; its leaf name selects a declaration inside that unit,
-/// never a candidate in the whole program. Package bindings already retain the
-/// complete declaration path and must not fall back to the bundled contract.
-fn selected_entry_schema<'program>(
-    typed: &'program TypedTrees,
-    slot: target::ProgramEntrySlotDeclaration,
-    schema_name: &str,
-    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-) -> Result<&'program checked_trees::typed_trees::trait_definition::TraitDefinition, Diagnostic> {
-    let package = slot.physical_contract_package.ok_or_else(|| {
-        Diagnostic::error("target entry slot has no physical contract package identity")
-    })?;
-    let context = crate::ProviderPlanningContext::new(typed, source::DependencyScope::Product);
-    let mut selected_symbols = Vec::new();
-    if let Some(binding) = accepted_binding {
-        if binding.role() == program_entry_semantic_binding_role(package)
-            && binding.selected_provider_plan_digest().is_none()
-        {
-            selected_symbols.extend(typed.traits().iter().filter_map(|definition| {
-                (context.contains(definition.symbol)
-                    && typed.symbols.symbol_package_identity(definition.symbol)
-                        == Some(binding.package())
-                    && typed.symbols.display_path(definition.symbol, "::")
-                        == binding.declaration_path())
-                .then_some(definition.symbol)
-            }));
-        }
-    } else {
-        let expected_digest =
-            program_entry_plan::exact_physical_contract_package_source_digest(package);
-        for source_file in typed.symbols.source_files().filter(|source_file| {
-            source_file.dependency_scope == source::DependencyScope::Product
-                && source_file.package_identity.is_none()
-                && source_file.path.strip_prefix(&source_file.package_root).ok()
-                    == Some(std::path::Path::new(package.package_relative_source()))
-                && program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-                    package,
-                    source_file.source.as_bytes(),
-                ) == expected_digest
-        }) {
-            selected_symbols.extend(typed.traits().iter().filter_map(|definition| {
-                (typed.symbols.symbol_source_span(definition.symbol)
-                    .is_some_and(|span| span.source_id == source_file.source_id)
-                    && definition.name.as_str() == schema_name)
-                    .then_some(definition.symbol)
-            }));
-        }
-    }
-    // An unlocked compile has no accepted binding, so a dependency's copy of
-    // the contract (std's, usually) is loaded but not selected. Name the
-    // review that supplies the binding instead of an empty candidate count.
-    let package_copy_loaded = || {
-        typed.symbols.source_files().any(|source_file| {
-            source_file.dependency_scope == source::DependencyScope::Product
-                && source_file.package_identity.is_some()
-                && source_file
-                    .path
-                    .strip_prefix(&source_file.package_root)
-                    .ok()
-                    == Some(std::path::Path::new(package.package_relative_source()))
-        })
-    };
-    if selected_symbols.is_empty() && accepted_binding.is_none() && package_copy_loaded() {
-        return Err(Diagnostic::error(format!(
-            "target root slot `{}::{}` takes boundary schema `{schema_name}` from a dependency's `{}`, which needs an accepted program-entry binding; run `omega update` to review and accept it",
-            slot.owner.root_slot_owner_name(),
-            slot.slot_name,
-            package.package_relative_source(),
-        )));
-    }
-    let [symbol] = selected_symbols.as_slice() else {
-        return Err(Diagnostic::error(format!(
-            "target root slot `{}::{}` requires one exact contract-owned boundary schema `{schema_name}`, but found {}",
-            slot.owner.root_slot_owner_name(),
-            slot.slot_name,
-            selected_symbols.len(),
-        )));
-    };
-    typed
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == *symbol && definition.is_boundary)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "target entry contract declaration `{schema_name}` is not a boundary schema"
-            ))
-        })
-}
-
-struct TargetOwnedPhysicalContractSource {
-    package: target::ProgramEntryPhysicalContractPackage,
-    package_source_digest: program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest,
-    non_authoritative_package_source_report_fingerprint: u64,
-}
-
-fn target_owned_physical_contract_source(
-    typed: &TypedTrees,
-    slot: target::ProgramEntrySlotDeclaration,
-    schema: symbols::SymbolHandle,
-    service_schema: &effects::provider_plan::ServiceSchema,
-    contract: &ArrivalRequirementContract,
-    accepted_binding: Option<&package_compilation::AcceptedSemanticBinding>,
-) -> Result<TargetOwnedPhysicalContractSource, Diagnostic> {
-    let expected_package = slot.physical_contract_package.ok_or_else(|| {
-        Diagnostic::error("target physical entry requirement has no owning package identity")
-    })?;
-    let source_span = typed
-        .symbols
-        .symbol_source_span(contract.signature)
-        .ok_or_else(|| {
-            Diagnostic::error(format!(
-                "target physical entry requirement `{}` has no authored source provenance",
-                contract.requirement_identity
-            ))
-        })?;
-    let source_file = typed.symbols.source_file(source_span).ok_or_else(|| {
-        Diagnostic::error("target physical entry requirement lost its source-file provenance")
-    })?;
-    let schema_source_span = typed.symbols.symbol_source_span(schema).ok_or_else(|| {
-        Diagnostic::error("target physical entry schema has no authored source provenance")
-    })?;
-    let schema_source_file = typed
-        .symbols
-        .source_file(schema_source_span)
-        .ok_or_else(|| {
-            Diagnostic::error("target physical entry schema lost its source-file provenance")
-        })?;
-    let package_relative_source = source_file
-        .path
-        .strip_prefix(&source_file.package_root)
-        .ok();
-    let package_source_digest =
-        program_entry_plan::ProgramEntryPhysicalContractPackageSourceDigest::from_package_source(
-            expected_package,
-            source_file.source.as_bytes(),
-        );
-    if schema_source_file.source_id != source_file.source_id {
-        return Err(Diagnostic::error(format!(
-            "target physical entry requirement `{}` and its selected schema must come from one exact source unit",
-            contract.requirement_identity,
-        )));
-    }
-    let expected_role = program_entry_semantic_binding_role(expected_package);
-    match accepted_binding {
-        Some(binding) => {
-            let exact_package_binding = binding.role() == expected_role
-                && binding.selected_provider_plan_digest().is_none()
-                && source_file.package_identity == Some(binding.package())
-                && schema_source_file.package_identity == Some(binding.package())
-                && typed.symbols.symbol_package_identity(schema) == Some(binding.package())
-                && typed.symbols.display_path(schema, "::") == binding.declaration_path()
-                && service_schema.declaration.trait_package_identity == Some(binding.package())
-                && package_compilation::accepted_service_schema_digest(
-                    binding.role(),
-                    service_schema,
-                ) == binding.normalized_schema_digest();
-            if !exact_package_binding {
-                return Err(Diagnostic::error(format!(
-                    "target physical entry schema `{}` does not match the exact accepted {expected_role:?} package binding",
-                    typed.symbols.display_path(schema, "::"),
-                )));
-            }
-        }
-        None => {
-            let exact_bundled_source = source_file.package_identity.is_none()
-                && schema_source_file.package_identity.is_none()
-                && package_relative_source
-                    == Some(std::path::Path::new(
-                        expected_package.package_relative_source(),
-                    ))
-                && package_source_digest
-                    == program_entry_plan::exact_physical_contract_package_source_digest(
-                        expected_package,
-                    );
-            if !exact_bundled_source {
-                return Err(Diagnostic::error(format!(
-                    "target physical entry requirement and schema `{}` require either the exact bundled {} contract or one accepted package-owned {} binding, not `{}`",
-                    contract.requirement_identity,
-                    expected_package.contract_name(),
-                    expected_package.contract_name(),
-                    source_file.path.display(),
-                )));
-            }
-        }
-    }
-    let package_source_report_fingerprint = physical_contract_package_source_report_fingerprint(
-        expected_package.manifest_identity().as_bytes(),
-        source_file.source.as_bytes(),
-    );
-    Ok(TargetOwnedPhysicalContractSource {
-        package: expected_package,
-        package_source_digest,
-        non_authoritative_package_source_report_fingerprint: package_source_report_fingerprint,
-    })
-}
-
 pub use package_compilation::program_entry_semantic_binding_role;
-
-fn physical_contract_package_source_report_fingerprint(identity: &[u8], source: &[u8]) -> u64 {
-    let mut hash = crate::fnv1a::Fnv1a::new();
-    for bytes in [
-        b"omega.program-entry-physical-package.v1".as_slice(),
-        identity,
-        source,
-    ] {
-        hash.bytes(bytes);
-    }
-    hash.finish()
-}

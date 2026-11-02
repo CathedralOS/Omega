@@ -30,7 +30,7 @@ pub(in crate::proof_contracts::contract_entailment) use graph_versions::{
 type StorageScope<'scope> = Option<(&'scope Machine, &'scope State)>;
 
 /// A canonical place with live selectors replaced by completed value identities.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct CapturedStorageCoordinate {
     root: facts::PlaceRoot,
     segments: Vec<CapturedStorageSegment>,
@@ -87,7 +87,7 @@ impl CapturedStorageCoordinate {
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum CapturedStorageSegment {
     Place(PlaceSegment),
     Index(super::StructuralTerm),
@@ -151,17 +151,6 @@ fn project_captured_value_by(
     ) -> Option<super::StructuralTerm>,
 ) -> Option<(TypeReferenceHandle, super::StructuralTerm)> {
     for segment in path {
-        // Invocation entry may already have observed the exact referent of an
-        // incoming reference. That owned snapshot is not a raw descriptor to
-        // dereference again. Preserve its independently checked carrier.
-        if let Some(observed) =
-            super::super::structural_terms::owned_observation_type(program, &value)
-            && let Some(shell) = crate::reference_shell(program, reference)
-            && shell.access.is_readable()
-            && crate::declared_carriers_match(program, shell.referee, observed)
-        {
-            reference = observed;
-        }
         let projected = segment.projected_type(program, reference)?;
         value = match segment {
             CapturedStorageSegment::Place(segment) => project_place(reference, value, segment)?,
@@ -397,17 +386,46 @@ impl StructuralJudge<'_> {
     /// Incoming by-value parameters own their scalar payload or inline cells.
     /// Retain that entry observation before the first effect, just as completed
     /// local bindings do. A disjoint write may erase pointee observations without
-    /// erasing this copy's descriptor words. No reference formal is seeded.
-    pub(super) fn retain_entry_owned_values(&mut self, state: &State) {
+    /// erasing this copy's descriptor words. Readable nominal reference formals
+    /// retain an authenticated referent observation through their frame backing.
+    pub(super) fn retain_entry_values(&mut self, state: &State) {
         if self.storage_version.is_none() {
             self.storage_version = self.incoming_storage_version(state);
         }
         for parameter in self.program.state_parameters(state) {
             let reference = parameter.type_reference;
+            let mut value = super::StructuralTerm::Variable(parameter.name.to_string());
+            let mut backing = None;
             if crate::reference_shell(self.program, reference).is_some() {
-                continue;
+                let Some(observed) =
+                    crate::value_custody::expression_types::readable_observation_type_reference(
+                        self.program,
+                        reference,
+                    )
+                else {
+                    continue;
+                };
+                // A nominal record's initialized inline cells are a complete
+                // entry observation, independently of which scalar leaves a
+                // declaration later demands. Views keep their descriptor-only
+                // contract; contained references acquire no pointee facts.
+                if self.program.closed_data_definition(observed).is_none() {
+                    continue;
+                }
+                let Some(machine) = self.program.machine(self.machine_symbol) else {
+                    continue;
+                };
+                let Some(read) = self.entry_read_backing(machine, state, parameter.symbol, &[])
+                else {
+                    continue;
+                };
+                backing = Some(self.freeze_entry_read_backing(state, read));
+                value = super::super::structural_terms::owned_projection_observation(
+                    self.program,
+                    observed,
+                    value,
+                );
             }
-            let value = super::StructuralTerm::Variable(parameter.name.to_string());
             // Entry permissions still expose readable pointees. The existing
             // write transfer masks them at the first effect; masking here
             // would lose independently declared entry contracts before use.
@@ -419,6 +437,16 @@ impl StructuralJudge<'_> {
                 value,
                 true,
             );
+            if let Some(backing) = backing
+                && let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
+                    .iter_mut()
+                    .find(|stored| {
+                        stored.coordinate.root == facts::PlaceRoot::Symbol(parameter.symbol)
+                            && stored.coordinate.segments.is_empty()
+                    })
+            {
+                stored.backing = Some(backing);
+            }
         }
     }
 
@@ -461,15 +489,14 @@ impl StructuralJudge<'_> {
             let Some(root) = place.root.as_symbol() else {
                 continue;
             };
-            let Some(backing) =
-                self.entry_scalar_read_backing(machine, state, root, &canonical.segments)
+            let Some(backing) = self.entry_read_backing(machine, state, root, &canonical.segments)
             else {
                 continue;
             };
             let Some(value) = self.declaration_term(expression) else {
                 continue;
             };
-            let backing = self.freeze_entry_scalar_read_backing(state, backing);
+            let backing = self.freeze_entry_read_backing(state, backing);
             self.retain_storage_value(place.clone(), value, true);
             if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
                 .iter_mut()
@@ -747,10 +774,24 @@ impl StructuralJudge<'_> {
         // An owned descriptor cell identifies the pointer, not its scalar
         // contents. A separately authenticated live backing read may observe
         // those contents; otherwise retain the descriptor's existing fence.
-        if current.as_ref().is_none_or(|value| {
+        let missing_contents = current.as_ref().is_none_or(|value| {
             super::super::structural_terms::term_is_unobserved_descriptor(self.program, value)
-        }) && let Some((machine, state)) = scope
-            && let Some(value) = self.current_backing_value(machine, state, expression)
+                || scope
+                    .and_then(|(machine, state)| {
+                        self.scalar_reference_read_type(machine, state, expression)
+                    })
+                    .is_some_and(|reference| {
+                        !super::super::structural_terms::scalar_operand_is_observed(
+                            self.program,
+                            reference,
+                            value,
+                        )
+                    })
+        });
+        if missing_contents
+            && let Some((machine, state)) = scope
+            && let Some(value) =
+                self.current_backing_value(machine, state, expression, read_version)
         {
             return Some(value);
         }
@@ -833,6 +874,29 @@ impl StructuralJudge<'_> {
                         }
                         projected
                     }
+                    CapturedStorageSegment::Place(segment @ PlaceSegment::Case { .. }) => {
+                        // A payload read traverses the classifier of this
+                        // current owned value. Consume the independent tag
+                        // through the shared typed projection owner; the path
+                        // itself establishes neither the tag nor its predicate.
+                        if self.require_closed_computation {
+                            let closed = if self.runtime_body_values {
+                                self.completed_value_identity(value.clone())
+                            } else {
+                                self.resolve_at(value.clone(), 1)
+                            };
+                            if !closed.is_closed_value() {
+                                return None;
+                            }
+                        }
+                        super::super::observed_projections::project_observed_value_in_scope(
+                            self.program,
+                            self,
+                            reference,
+                            value,
+                            std::slice::from_ref(segment),
+                        )?
+                    }
                     CapturedStorageSegment::Place(_) => return None,
                 };
                 reference = projected_type;
@@ -860,11 +924,20 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
+        let version = self
+            .read_storage_version(state, expression)
+            .or(self.storage_version);
         if !super::super::structural_terms::term_is_unobserved_descriptor(self.program, value)
             && let Some(case) = self
                 .stored_values
                 .iter()
-                .find(|stored| stored.coordinate == coordinate)
+                .find(|stored| {
+                    stored.coordinate == coordinate
+                        && (!self.graph_storage_mode()
+                            || version.is_some_and(|at| {
+                                self.current_value_valid(stored, &coordinate, at)
+                            }))
+                })
                 .and_then(|stored| stored.selected_case)
             && let Some((owner, _)) = self.program.variant_owner(case)
             && let Some(definition) = self.program.data_constructor_definition(
@@ -887,18 +960,20 @@ impl StructuralJudge<'_> {
                 case: selected.symbol,
             });
         }
-        self.intake_storage_field_observations(&coordinate, reference, value);
+        self.intake_storage_field_observations(&coordinate, reference, value, version);
     }
 
     /// Attach surviving child observations to a fresh aggregate identity. Both
     /// whole reads and normal-call handback must perform this join: replacing
     /// the whole observation alone would hide unchanged fields behind an opaque
-    /// new value. The write footprint has already retired overlapping children.
+    /// new value. Graph-backed observations retain their history after writes;
+    /// only the read cut can establish which children are still current.
     fn intake_storage_field_observations(
         &mut self,
         coordinate: &CapturedStorageCoordinate,
         reference: TypeReferenceHandle,
         value: &super::StructuralTerm,
+        version: Option<StorageVersion>,
     ) {
         let equations = self
             .stored_values
@@ -907,6 +982,10 @@ impl StructuralJudge<'_> {
                 if stored.coordinate.root != coordinate.root
                     || stored.coordinate.segments.len() <= coordinate.segments.len()
                     || !stored.coordinate.segments.starts_with(&coordinate.segments)
+                    || (self.graph_storage_mode()
+                        && !version.is_some_and(|at| {
+                            self.current_value_valid(stored, &stored.coordinate, at)
+                        }))
                 {
                     return None;
                 }
@@ -1149,7 +1228,21 @@ impl StructuralJudge<'_> {
         definition: &typed_trees::data::DataDefinition,
         mut field_place: impl FnMut(symbols::SymbolHandle) -> Option<CanonicalPlace>,
     ) -> Option<super::StructuralTerm> {
+        self.captured_data_subject_at(place, definition, &mut field_place, &mut Vec::new())
+    }
+
+    fn captured_data_subject_at(
+        &self,
+        place: &CanonicalPlace,
+        definition: &typed_trees::data::DataDefinition,
+        field_place: &mut dyn FnMut(symbols::SymbolHandle) -> Option<CanonicalPlace>,
+        active: &mut Vec<symbols::SymbolHandle>,
+    ) -> Option<super::StructuralTerm> {
         self.requires_value_preservation().then_some(())?;
+        if active.contains(&definition.symbol) {
+            return None;
+        }
+        active.push(definition.symbol);
         let coordinate = self.capture_storage_place(place.clone())?;
         let active_case = self
             .stored_values
@@ -1188,10 +1281,37 @@ impl StructuralJudge<'_> {
             variant,
             |field| {
                 let selected = field_place(field.symbol)?;
-                let value = self.captured_place_projection(
-                    &selected,
-                    language_semantics::content::ContentPlaceVersion::Current,
-                );
+                let value = self
+                    .captured_place_projection(
+                        &selected,
+                        language_semantics::content::ContentPlaceVersion::Current,
+                    )
+                    .or_else(|| {
+                        // A retired aggregate has no whole snapshot. Its inline
+                        // child may still have a complete current field roster.
+                        // Reference descriptors are never rebuilt from contents.
+                        crate::reference_shell(self.program, field.type_reference)
+                            .is_none()
+                            .then_some(())?;
+                        let child = crate::value_custody::places::data_definition_for_type(
+                            self.program,
+                            field.type_reference,
+                        )?;
+                        self.captured_data_subject_at(
+                            &selected,
+                            child,
+                            &mut |symbol| {
+                                let mut field = selected.clone();
+                                crate::value_custody::places::push_field_place_segments(
+                                    self.program,
+                                    &mut field.segments,
+                                    symbol,
+                                );
+                                Some(field)
+                            },
+                            active,
+                        )
+                    });
                 if super::super::struct_trace() {
                     eprintln!("STRUCT stored-subject field={} value={value:?}", field.name,);
                 }
@@ -1204,6 +1324,7 @@ impl StructuralJudge<'_> {
                 definition.name
             );
         }
+        active.pop();
         subject
     }
 
@@ -1318,7 +1439,7 @@ impl StructuralJudge<'_> {
             .then_some(())?;
         let program = self.program;
         let frames = self.frame_resolver()?;
-        let origins = frames.assignment_storage_origins(machine, statement)?;
+        let origins = frames.assignment_storage_origins(machine, statement).ok()?;
         let mut representation = None;
         let place = match origins.destinations.as_slice() {
             [origin]

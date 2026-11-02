@@ -24,6 +24,9 @@ pub(crate) struct AdmittedBuildProgram {
     /// bind executable roots or select boundary providers, and it must
     /// complete at least one required-output obligation.
     pub(crate) artifact_only: bool,
+    pub(crate) default_source: bool,
+    pub(crate) default_sources:
+        Option<std::sync::Arc<package_compilation::PackageCompilationSourceInputs>>,
 }
 
 impl AdmittedBuildProgram {
@@ -62,6 +65,7 @@ impl AdmittedBuildProgram {
             snapshot,
             &self.filesystem_scope,
             self.artifact_only,
+            self.default_source,
             crate::activation::measurement(),
             self.evaluation_sponsor.as_ref(),
         )
@@ -81,8 +85,19 @@ pub(crate) fn admit_build_program(
     evaluation_sponsor: Option<&BuildEvaluationSponsor>,
     execution_profile: Option<target::TargetProfile>,
     artifact_only: bool,
+    source: package_compilation::BuildSourceSelection,
+    package_inputs: Option<&package_compilation::PackageCompilationInputs>,
 ) -> Result<AdmittedBuildProgram, Vec<Diagnostic>> {
     let typed = prepared.typed();
+    if !typed
+        .symbols
+        .symbol_source_span(machine_symbol)
+        .is_some_and(|span| span.source_id == source.source_id())
+    {
+        return Err(vec![Diagnostic::error(
+            "Build entry differs from its source-owned selection",
+        )]);
+    }
     let operational_plan = validation::infer_operational_may(typed);
     let service_reach_plan = validation::infer_service_reaches(typed, &operational_plan);
 
@@ -99,5 +114,9 @@ pub(crate) fn admit_build_program(
         evaluation_sponsor: evaluation_sponsor.cloned(),
         execution_profile,
         artifact_only,
+        default_source: source.is_default(),
+        default_sources: package_inputs
+            .filter(|_| source.is_default())
+            .map(package_compilation::PackageCompilationInputs::source_inputs),
     })
 }

@@ -168,6 +168,61 @@ impl Resolver<'_> {
         if !capture.type_reference.is_valid() {
             return Selection::Unavailable;
         }
+        if let FlowOperandCompletion::IncomingContents { root, path: prefix } = capture.completion {
+            let Some(prefix) = self.control.operand_retained_paths.span(prefix) else {
+                return Selection::Unavailable;
+            };
+            if !crate::project_type_reference_from_segments(
+                self.program,
+                capture.type_reference,
+                path,
+            )
+            .is_some_and(|selected| crate::reference_shell(self.program, selected).is_some())
+            {
+                return Selection::Unavailable;
+            }
+            let Some(place) = super::project_captured_view_place(
+                crate::CanonicalPlace {
+                    root,
+                    segments: prefix.to_vec(),
+                },
+                path,
+            ) else {
+                return Selection::Unavailable;
+            };
+            // A changed or unavailable slot must remain changed/unavailable;
+            // the namespace never revives an older entry value. An unchanged
+            // slot remains explicitly incoming for the authority consumer.
+            return match super::at_snapshot(
+                self.program,
+                self.control,
+                self.current,
+                &place,
+                StoredObservation::Binding,
+            ) {
+                None => Selection::Sources {
+                    incoming: vec![place],
+                    values: Vec::new(),
+                },
+                Some(stored) => self.stored(stored, &[]),
+            };
+        }
+        if matches!(
+            capture.completion,
+            FlowOperandCompletion::InvocationResult { .. }
+        ) && path.is_empty()
+            && crate::reference_shell(self.program, capture.type_reference).is_some()
+        {
+            return Selection::Sources {
+                incoming: Vec::new(),
+                values: vec![StoredCapture {
+                    capture: value,
+                    reference: capture.type_reference,
+                    projection: Vec::new(),
+                    slot: None,
+                }],
+            };
+        }
         if let FlowOperandCompletion::Selected(alternatives) = capture.completion {
             let Some(rows) = self.control.operand_alternatives.span(alternatives) else {
                 return Selection::Unavailable;
@@ -219,9 +274,17 @@ impl Resolver<'_> {
         if view && self.control.operand_retentions.is_valid(capture.retention) {
             let profile = self.control.operand_retentions.get(capture.retention);
             if profile.descriptor.is_valid() || !profile.alternatives.is_empty() {
-                return self
-                    .profile_descriptor(capture.retention, capture.type_reference, path)
-                    .unwrap_or(Selection::Unavailable);
+                match self.profile_descriptor(capture.retention, capture.type_reference, path) {
+                    Some(selected) => return selected,
+                    None if path.is_empty() => return Selection::Unavailable,
+                    // No descriptor association is not an unavailable current
+                    // slot. A nonempty path crosses this pointer: its exact
+                    // referents below select the slot at the consumer's cut,
+                    // rather than replaying captured pointee contents from a
+                    // lifetime profile. Explicit unknown alternatives above
+                    // still return Unavailable and cannot take this route.
+                    None => {}
+                }
             }
         }
         if view && path.is_empty() {

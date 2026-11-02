@@ -1,5 +1,5 @@
 use crate::AllocationOutput;
-use selected_instructions_to_selected_instructions::ValidatedSelectedAnalysis;
+use selected_instruction_analyses::SelectedProgramView;
 
 use super::{
     AllocatedCalleeSavedRequirementError, AllocatedCalleeSavedRequirementPlan,

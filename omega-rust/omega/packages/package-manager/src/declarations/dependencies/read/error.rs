@@ -1,12 +1,8 @@
 use crate::declarations::BuildDeclarationError;
 use std::fmt;
-use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DependencyProjectionError {
-    MissingBuildFile { path: PathBuf },
-    ReadBuildFile { path: PathBuf, message: String },
-    InvalidBuildFileEncoding { path: PathBuf },
     Lex { message: String },
     Parse { message: String },
     BuildDeclaration(Box<BuildDeclarationError>),
@@ -40,15 +36,6 @@ pub(crate) enum DependencyProjectionError {
 impl fmt::Display for DependencyProjectionError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::MissingBuildFile { path } => {
-                write!(formatter, "package build file is missing: {}", path.display())
-            }
-            Self::ReadBuildFile { path, message } => {
-                write!(formatter, "cannot read {}: {message}", path.display())
-            }
-            Self::InvalidBuildFileEncoding { path } => {
-                write!(formatter, "{} is not UTF-8 Omega source", path.display())
-            }
             Self::Lex { message } => write!(formatter, "cannot lex package build: {message}"),
             Self::Parse { message } => write!(formatter, "cannot parse package build: {message}"),
             Self::BuildDeclaration(error) => {
@@ -74,7 +61,7 @@ impl fmt::Display for DependencyProjectionError {
                 "package build machine's first parameter must be `builder: &mut Build`",
             ),
             Self::UnsupportedDependencyShape => formatter.write_str(
-                "dependencies are statically projected before build execution and must be unconditional direct `Build::depend(builder, Source::...)` or `Build::depend_as(builder, alias, Source::...)` statements in the root build entry; dependency helpers, state transitions, `builder.target`, `depend_when`, and `depend_as_when` are not dependency declaration forms",
+                "automatic dependency editing requires unconditional direct `Build::depend(builder, Source::...)` or `Build::depend_as(builder, alias, Source::...)` statements in the root build entry; dependency helpers, state transitions, `builder.target`, `depend_when`, and `depend_as_when` are not dependency declaration forms",
             ),
             Self::WrongDependencyReceiver => formatter.write_str(
                 "dependency request must use a static Build call with the root build machine's first parameter as its first operand",

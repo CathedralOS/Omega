@@ -45,6 +45,33 @@ use checked_trees::CheckedCallScalarArgument;
 use state_emission::emit_state;
 
 pub(crate) mod cleanup_control;
+
+/// Evaluation records a snapshot at its own time; the receiving call reads
+/// those snapshots in its independent dense scalar-parameter order.
+#[derive(Clone, Default)]
+pub(crate) struct ScalarArgumentCaptures {
+    slots: Vec<Option<usize>>,
+}
+
+impl ScalarArgumentCaptures {
+    /// The checked schedule visits each declared scalar ordinal once.
+    pub(crate) fn record(&mut self, ordinal: usize, slot: usize) {
+        if self.slots.len() <= ordinal {
+            self.slots.resize(ordinal + 1, None);
+        }
+        self.slots[ordinal] = Some(slot);
+    }
+
+    /// Retain only completed observations. The ordinary call emitter still
+    /// owns the complete receiving scalar roster and its argument placement.
+    pub(crate) fn values(&self, values: &[ValueDeclaration]) -> Vec<ValueDeclaration> {
+        self.slots
+            .iter()
+            .filter_map(|slot| slot.and_then(|slot| values.get(slot)).copied())
+            .collect()
+    }
+}
+
 mod qualification_edge;
 mod record_captures;
 mod scalar_control;

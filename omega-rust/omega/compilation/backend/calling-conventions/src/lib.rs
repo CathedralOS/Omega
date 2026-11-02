@@ -20,11 +20,12 @@ mod aggregate_layout;
 mod boundary_application;
 mod boundary_values;
 mod callback_materializations;
-mod fnv1a;
 mod host_operations;
 mod hosts;
 mod plans;
+mod structural_shapes;
 pub mod terminal_layout;
+pub use structural_shapes::{InvalidStructuralShape, classified_boundary_shape};
 
 pub use aggregate_layout::{
     ConventionalSumCaseLayout, ConventionalSumLayout, PackedFieldLayout,

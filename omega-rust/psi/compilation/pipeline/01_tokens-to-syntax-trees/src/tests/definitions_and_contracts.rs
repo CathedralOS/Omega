@@ -995,6 +995,33 @@ fn parses_proof_quotient_data_declaration() {
 }
 
 #[test]
+fn parses_quotient_equivalence_selection_requirement() {
+    let source = r#"
+        data Carrier { case Value; }
+        data Quotient = Carrier % same
+        requires same satisfies Equivalence<Carrier, same> as Laws;
+    "#;
+    let parsed = super::parse_source(source, "quotient selection should parse");
+    let selection = parsed
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(data) if data.name.as_str(&parsed) == "Quotient" => {
+                data.quotient.as_ref()?.equivalence.as_ref()
+            }
+            _ => None,
+        })
+        .expect("quotient equivalence selection");
+    assert_eq!(selection.trait_name.as_str(&parsed), "Equivalence");
+    assert_eq!(selection.conformance_name.as_str(&parsed), "Laws");
+
+    let retired = super::parse_tokenized_error(
+        "data Carrier { case Value; }\ndata Quotient = Carrier % same\nwhere same satisfies Equivalence<Carrier, same> as Laws;",
+        "retired quotient `where` must reject",
+    );
+    super::expect_error(&retired, "found identifier `where`");
+}
+
+#[test]
 fn parses_static_machine_symbol_call_argument() {
     let source = r#"
         data Card {}

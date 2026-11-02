@@ -146,12 +146,8 @@ pub fn prepare_selected_execution(
         external_providers.selected_callback_roots(selected)
     };
     let service_declarations = Arc::new(ServiceDeclarations::prepare(
-        settlement
-            .provider_inventory
-            .services_for(&program)
-            .map_err(|error| vec![error])?,
+        settlement.provider_inventory.service_declarations(),
         settlement.boundary_calling_plan_realizations,
-        settlement.exact_toolchain_sources,
     ));
     let native_provider_sources = provider_planning::prepare_native_provider_sources(
         ProviderPlanningContext::new(&program.typed, source::DependencyScope::Product),

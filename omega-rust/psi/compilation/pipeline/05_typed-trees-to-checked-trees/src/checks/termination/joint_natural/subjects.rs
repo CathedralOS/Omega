@@ -126,6 +126,7 @@ impl Subject {
         let shape = application.shape(program)?;
         match self {
             Self::Scalar(coordinate) => Some(vec![validation::RuntimeRankApplicationBinding {
+                calls: Vec::new(),
                 formal: RankSubjectCoordinate {
                     parameter: application.parameter,
                     path: Vec::new(),
@@ -144,6 +145,7 @@ impl Subject {
                         .zip(reads)
                         .map(
                             |(read, coordinate)| validation::RuntimeRankApplicationBinding {
+                                calls: read.calls.clone(),
                                 formal: read.coordinate.clone(),
                                 actual: RankSubjectCoordinate {
                                     parameter: coordinate.parameter,
@@ -199,7 +201,7 @@ impl Subject {
                 for (read, coordinate) in shape.reads.iter().zip(reads) {
                     let captured = coordinate.bounded_value(value(coordinate)?)?;
                     bindings.push(ScopedArithmeticBinding {
-                        binder: Binder::Coordinate(read.coordinate.clone()),
+                        binder: Binder::DeclaredRead(read.clone()),
                         value: captured,
                     });
                 }

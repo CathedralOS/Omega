@@ -102,11 +102,16 @@ impl<'a> PackageReviewInput<'a> {
             ProviderPlanningContext::new(self.checking_input, source::DependencyScope::Product);
         // The supplied candidate is independent source, never the custody's
         // source-coordinate catalog. Keep the borrowed owner unchanged here.
-        let catalog = PreparedServiceCatalog::prepare(context);
-        Ok(ServiceDeclarations::prepare(
-            catalog.bind(context).map_err(|error| vec![error])?,
-            &self.custody.providers().boundary_calling_plan_realizations,
+        let catalog = std::sync::Arc::new(PreparedServiceCatalog::prepare(
+            context,
             self.custody.sources().exact_toolchain_sources(),
+        ));
+        Ok(ServiceDeclarations::prepare(
+            catalog
+                .bind(context)
+                .map_err(|error| vec![error])?
+                .declared_traits(),
+            &self.custody.providers().boundary_calling_plan_realizations,
         ))
     }
 

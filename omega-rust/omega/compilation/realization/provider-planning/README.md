@@ -2,7 +2,7 @@
 
 Omega realization prepares source provider declarations and calling/component
 plans here, beside selected execution settlement. Shared whole-provider choice
-and admission live in [provider-selection](../provider-selection/src/provider_selection.rs).
+and admission live in [provider-selection](../provider-selection/src/choice/provider_selection.rs).
 Exact provider-grant resolution
 belongs to [backend provider evidence](../../backend/plans/effects/src/provider_grants.rs),
 not compiler trust-report reconstruction.
@@ -50,7 +50,7 @@ authority.
 
 [Provider instances](src/provider_instances.rs) prepares original plan/row
 correspondence and exact adapter judgments. Psi projects checked inherited and
-generic declaration groups; [instance selection](../provider-selection/src/provider_instances.rs)
+generic declaration groups; [instance selection](../provider-selection/src/binding/provider_instances.rs)
 judges candidate counts, template agreement and complete closed-instance coverage
 without source. Psi retains checked identity handles; this plan boundary renders
 them into its existing normalized vocabulary. Check, callback preparation, reference interpretation and package

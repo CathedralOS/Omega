@@ -63,7 +63,10 @@ impl Engine<'_> {
             // possible. Congruence can expose contradictory public facts or
             // a constraint such as c == 2*c; a cyclic alias would lose that
             // obligation and repeatedly expand during normalization.
-            self.harvest_substitution(&previous, &canonical);
+            // The previous call may already denote a captured input read.
+            // Bind the refreshed opaque name to that known value, rather
+            // than replacing the input read with a fresh opaque application.
+            self.harvest_substitution(&canonical, &previous);
             comparisons.push((BinaryOperator::Equal, previous, canonical));
         }
         true
@@ -120,6 +123,14 @@ impl Engine<'_> {
         {
             return None;
         }
+        // A child call may already have established an exact public value.
+        // Reserve the parent under that completed value, as for declared
+        // applications. Keeping the child's pre-substitution atom invents a
+        // second operand identity when this denotation crosses a query.
+        let arguments = arguments
+            .into_iter()
+            .map(|input| input.mapped(|value| Some(self.substituted(value))))
+            .collect::<Option<Vec<_>>>()?;
         if let Some((atom, _)) = self.opaque_terms.iter().find(|(_, operation)| {
             matches!(operation, OpaqueTerm::Call { owner: existing_owner, expression: existing_expression,
                 target: existing_target, arguments: existing_arguments }

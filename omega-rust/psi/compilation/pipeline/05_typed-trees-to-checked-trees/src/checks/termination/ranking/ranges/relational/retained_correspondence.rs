@@ -166,7 +166,7 @@ impl RankArrivalAdmission {
                 let declaration = program
                     .measures()
                     .iter()
-                    .find(|definition| definition.symbol == first.measure())?;
+                    .find(|definition| definition.symbol == first.owner())?;
                 if program
                     .expression_table
                     .expression_handles(declaration.body)
@@ -223,6 +223,7 @@ impl RankArrivalAdmission {
                     .collect::<Vec<_>>();
                 let receiving = plan.receiving.insert_many(receiving);
                 bindings.push(CheckedRankCoordinateBinding {
+                    application_context: Default::default(),
                     entry,
                     destination,
                     transports,
@@ -232,7 +233,7 @@ impl RankArrivalAdmission {
             let bindings = plan.bindings.insert_many(bindings);
             let application = match state.application {
                 Some(application) => checked_trees::CheckedRankApplicationFacts {
-                    measure: application.measure(),
+                    owner: application.owner(),
                     definition_body: application.body(),
                     casts: plan
                         .application_casts
@@ -240,6 +241,9 @@ impl RankArrivalAdmission {
                     calls: plan
                         .application_calls
                         .insert_many(application.calls().iter().copied()),
+                    dispatches: plan
+                        .application_dispatches
+                        .insert_many(application.dispatches().iter().copied()),
                 },
                 None => Default::default(),
             };

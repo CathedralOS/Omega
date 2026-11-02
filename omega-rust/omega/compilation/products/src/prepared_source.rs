@@ -34,8 +34,8 @@ impl SourcePreparation {
 }
 
 /// Indexed declarations and completed Build-context bodies before admission.
-/// With authored Build, Product imports remain unopened under captured custody;
-/// otherwise the default-Build route retains pending Product implementations.
+/// Product imports remain unopened under captured custody while the selected
+/// authored or compiler-default Build executes.
 /// This is a reusable compilation checkpoint, not a portable program form.
 #[derive(Clone, compiler_storage::Record)]
 pub struct TypedCompilationFrontier {
@@ -47,7 +47,7 @@ pub struct TypedCompilationFrontier {
     /// Product imports and declarations are prepared only after Build's join.
     /// No checked identity or initial name-resolution context is rewritten.
     pub product_sources: Option<DeferredProductCompilation>,
-    pub build_source_id: Option<source::SourceId>,
+    pub build_source: Option<package_compilation::BuildSourceSelection>,
     pub source_file_count: usize,
     pub generated_source_custody: Vec<(source::SourceId, build_output::PackageGeneratedSource)>,
     pub base_sources: Arc<source::SourceMap>,

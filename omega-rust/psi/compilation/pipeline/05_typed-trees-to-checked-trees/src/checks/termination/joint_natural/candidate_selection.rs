@@ -233,9 +233,35 @@ pub(super) fn prepare(
                 };
                 Bound::Coordinate(coordinate.clone())
             } else {
+                let expression = values.integer_expression(upper.expression)?;
+                let Some((formation, entry_value)) =
+                    values.integer_expression_formation(machine, &expression)
+                else {
+                    return Some(Err("a rank upper expression lacks independent formation"));
+                };
+                // These are the upper expression's caller inputs. Its retained
+                // call formations own any callee contexts separately.
+                let bindings = inputs
+                    .iter()
+                    .filter(|input| input.observation == validation::RankPremiseObservation::Value)
+                    .map(|input| {
+                        let coordinate = validation::RankSubjectCoordinate {
+                            parameter: input.parameter,
+                            path: input.path.clone(),
+                        };
+                        validation::RuntimeRankApplicationBinding {
+                            calls: Vec::new(),
+                            formal: coordinate.clone(),
+                            actual: coordinate,
+                            entry_indexes: input.entry_indexes.clone(),
+                        }
+                    })
+                    .collect();
                 Bound::Authored {
                     expression: upper.expression,
-                    entry_value: values.current_value(upper.expression)?,
+                    entry_value,
+                    formation,
+                    bindings,
                 }
             };
             if view.order == Order::BoundedDistance

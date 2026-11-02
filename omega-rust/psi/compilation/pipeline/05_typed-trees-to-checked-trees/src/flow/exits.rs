@@ -220,6 +220,8 @@ pub(super) fn append_transition_flow_facts<'plans>(
     build: &mut FlowBuildContext<'plans>,
     machine: &typed_trees::machine::Machine,
     state: &typed_trees::state::State,
+    borrow_state: &checked_trees::StateBorrowFact,
+    execution_order: &typed_trees::statement::StatementExecutionOrder,
     statement_index: usize,
     statement_fact: arena::Handle<checked_trees::FlowStatementFact>,
     transition: &typed_trees::statement::TableTransition,
@@ -281,11 +283,16 @@ pub(super) fn append_transition_flow_facts<'plans>(
             &mut branch_contexts,
             &mut branch_constraints,
         );
+        let target_activation_start = execution.context.borrow_lifetimes.activations.frontier();
         execution.transition_target(
             transition,
             target,
             &mut branch_contexts,
             &mut branch_constraints,
+        );
+        let target_activations = super::reference_spans::appended_span_since(
+            &execution.context.borrow_lifetimes.activations,
+            target_activation_start,
         );
         append_state_exit_facts(
             program,
@@ -299,6 +306,26 @@ pub(super) fn append_transition_flow_facts<'plans>(
             branch_contexts,
             branch_constraints,
         );
+        // These permissions were formed only while executing this terminating
+        // target. Their completed exit retains the authority needed by its
+        // return; their local lifetime debt ends here, not on the missed guard.
+        for activation in execution
+            .context
+            .borrow_lifetimes
+            .activations
+            .span_or_empty(target_activations)
+        {
+            if borrow.state_owns_statement_resource(borrow_state, activation.loan) {
+                super::borrow_lifetimes::weaken_expired_loan(
+                    &mut execution.context.borrow_lifetimes.weakenings,
+                    borrow,
+                    activation.loan,
+                    state.statement_nodes.len(),
+                    execution_order,
+                    checked_trees::FlowBorrowWeakeningReason::StateExit,
+                );
+            }
+        }
     }
     execution.restore_write_prefix(guard_writes);
     *active_contexts = guard_contexts;

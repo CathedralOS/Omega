@@ -9,7 +9,6 @@ use super::super::canonical_place_segments_equal;
 use super::super::canonical_place_segments_may_overlap;
 use super::super::operand_values::captured_lifetime_roots;
 use super::super::operand_values::captured_retention_profiles_at_path;
-use super::super::operand_values::reference_captures_at_path;
 use super::super::stored_values::StoredObservation;
 use super::super::stored_values::StoredOperand;
 use super::super::stored_values::at_snapshot;
@@ -59,12 +58,26 @@ impl Execution<'_, '_, '_> {
                     return None;
                 }
                 let retention = self.incoming_value_retention(&source, capture.storage_snapshot)?;
+                let path = self
+                    .context
+                    .control
+                    .operand_retained_paths
+                    .insert_many(source.segments.iter().copied());
                 let contents = FlowOperandFact {
                     type_reference: carrier,
                     state_symbol: capture.state_symbol,
                     statement_index: capture.statement_index,
                     storage_snapshot: capture.storage_snapshot,
+                    constraints: capture.constraints,
+                    entry_origin_writes: capture.entry_origin_writes,
+                    entry_origin_unknown_write: capture.entry_origin_unknown_write,
+                    entry_binding_writes: capture.entry_binding_writes,
+                    entry_binding_unknown_write: capture.entry_binding_unknown_write,
                     retention,
+                    completion: FlowOperandCompletion::IncomingContents {
+                        root: source.root,
+                        path,
+                    },
                     ..Default::default()
                 };
                 let backing = self.context.control.operands.insert(*capture);
@@ -823,15 +836,17 @@ impl Execution<'_, '_, '_> {
             .is_some_and(|reference| self.is_view_type(reference))
         {
             let value = self.context.control.operands.insert(*receiver);
-            if let Some(selected) = reference_captures_at_path(
+            let selected = validation::completed_storage::reference_sources_at_path(
                 self.program,
                 &self.context.control,
                 value,
                 &path,
                 self.storage_snapshot,
-            ) {
-                return Some(self.retention_from_stored_operand(selected));
-            }
+            );
+            // A pointer read through a saved carrier still reads the current
+            // pointee slot. Retain the complete incoming/produced frontier;
+            // the captures-only query deliberately omits unchanged inputs.
+            return Some(self.retention_from_stored_operand(selected));
         }
         let captured = self.captured_retention_at_path(*receiver, &path);
         if captured.is_valid() {
@@ -1055,6 +1070,7 @@ impl Execution<'_, '_, '_> {
 
     pub(super) fn capture_returned_retention(
         &mut self,
+        invocation: Handle<checked_trees::FlowCallFact>,
         expression: ExpressionHandle,
         destination: TypeReferenceHandle,
         call: &TableCallExpression,
@@ -1249,6 +1265,7 @@ impl Execution<'_, '_, '_> {
                 Handle::invalid()
             };
             let descriptor = self.capture_returned_descriptor(
+                invocation,
                 call,
                 inputs,
                 returned,

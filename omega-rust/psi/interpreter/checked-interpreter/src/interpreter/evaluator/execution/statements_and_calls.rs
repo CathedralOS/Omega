@@ -193,6 +193,7 @@ impl<'program> Evaluator<'program> {
                     path.symbol,
                     &[],
                     self.program.statement_table.expression_handles(*arguments),
+                    None,
                     frame,
                 )? {
                     return Ok(TransitionDecision::Value(value));
@@ -222,6 +223,7 @@ impl<'program> Evaluator<'program> {
                 let arguments = self.eval_state_arguments(
                     state,
                     self.program.statement_table.expression_handles(*arguments),
+                    None,
                     frame,
                 )?;
 
@@ -246,6 +248,7 @@ impl<'program> Evaluator<'program> {
             return self.run_selected_realization(
                 call.target_symbol,
                 statement_table(self.program).expression_handles(call.arguments),
+                Some(validation::CallSite::Statement(call)),
                 frame,
             );
         }
@@ -261,6 +264,7 @@ impl<'program> Evaluator<'program> {
             call.target_symbol,
             &call.machine_arguments,
             statement_table(self.program).expression_handles(call.arguments),
+            Some(validation::CallSite::Statement(call)),
             frame,
         )? {
             return Ok(value);
@@ -337,6 +341,7 @@ impl<'program> Evaluator<'program> {
         let arguments = self.eval_state_arguments(
             state,
             statement_table(self.program).expression_handles(call.arguments),
+            Some(validation::CallSite::Statement(call)),
             frame,
         )?;
 

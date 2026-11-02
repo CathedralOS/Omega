@@ -104,9 +104,9 @@ surviving folding. The halves below separate those.
   rather than an unrelated refusal. The obligation's kind decides the class: it
   is a `where`-clause construction fact, so **no runtime trap is reachable**.
   Seeding the field from an opaque helper (`Window { used: seed() }`) is refused
-  at the *construction* gate — `a `where` fact is not established by the values
+  at the *construction* gate — `a `requires` fact is not established by the values
   observed at this construction` — and an out-of-domain literal (`used: 91`) is
-  refused at the same gate. `construction_bounds.rs` folds the `where` fact over
+  refused at the same gate. `construction_bounds.rs` folds the `requires` fact over
   field-value intervals, so seeding cannot defeat it. The refusal is STATIC.
 
 - **Shared borrow refuses a write (access mode is enforced).** Mutating through

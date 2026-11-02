@@ -107,7 +107,13 @@ pub fn selected_call_arguments<'program>(
         .ok_or("argument correspondence requires a retained selected application")?;
     let (_, applied) = requirement_contract_signature(program, caller, site)
         .ok_or("selected call has no admitted public application")?;
-    let logical = program.state_signature_parameters(applied);
+    let (_, declared) = program
+        .trait_machine_signature(dispatch.requirement)
+        .filter(|(owner, _)| owner.symbol == dispatch.declaring_trait)
+        .ok_or("selected call has no exact authored requirement")?;
+    let logical = program
+        .applied_signature_authored_parameters(declared, applied)
+        .ok_or("selected call lost its exact authored public formal projection")?;
     let state = program
         .state_by_symbol(site.target_symbol(program))
         .ok_or("selected call has no executable entry")?;
@@ -144,10 +150,6 @@ pub fn selected_call_arguments<'program>(
         .state_by_symbol(dispatch.realization_state)
         .ok_or("selected call has no authored realization entry")?;
     let source_parameters = program.state_parameters(source);
-    let (_, declared) = program
-        .trait_machine_signature(dispatch.requirement)
-        .filter(|(owner, _)| owner.symbol == dispatch.declaring_trait)
-        .ok_or("selected call has no exact authored requirement")?;
     let declared_parameters = program.state_signature_parameters(declared);
     if source_parameters.len() != declared_parameters.len()
         || logical.len() != declared_parameters.len()
@@ -225,7 +227,10 @@ pub fn selected_call_arguments<'program>(
             let source_machine = program
                 .machine_by_symbol(dispatch.realization_machine)
                 .ok_or("selected Value argument lost its authored machine")?;
-            let source_binders = program.machine_type_parameters(source_machine);
+            let source_binders = program.requirement_callable_parameters(
+                declared,
+                &program.machine_callable_parameters(source_machine),
+            );
             let declared_binders = program.requirement_invocation_contract_parameters(declared);
             if source_binders.len() != declared_binders.len() {
                 return Err("selected Value argument lost its admitted member telescope".into());
@@ -691,7 +696,7 @@ fn requirement_binding_correspondence(
                     && (supplied.lexical_owner != application.lexical_owner
                         || supplied.lifetime_binding_declaration
                             != application.lifetime_binding_declaration))
-                || header.iter().zip(arguments).any(|(parameter, argument)| {
+                || header.iter().zip(arguments).enumerate().any(|(ordinal, (parameter, argument))| {
                     let mut bindings = retained
                         .iter()
                         .filter(|binding| binding.parameter == parameter.symbol);
@@ -699,13 +704,19 @@ fn requirement_binding_correspondence(
                         return true;
                     };
                     bindings.next().is_some()
-                        || !program.static_binding_matches_argument(
+                        || !(match closed.local_arguments.get(ordinal) {
+                            Some(typed_trees::typed_trees::RequirementLocalArgument::RuntimeValue { carrier }) => {
+                                matches!((&parameter.kind, &binding.value),
+                                    (TypeParameterKind::Value { .. }, StaticMachineBindingValue::RuntimeValue { type_reference, .. })
+                                        if crate::declared_carriers_match(program, *carrier, *type_reference))
+                            }
+                            _ => program.static_binding_matches_argument(
                             &parameter.kind,
                             &binding.value,
                             argument,
                             supplied.lexical_owner,
                             application.lexical_owner,
-                        )
+                        ) })
                 })
             {
                 return Err("the applied requirement changed its exact closed invocation tuple");
@@ -759,7 +770,36 @@ fn requirement_binding_correspondence(
             if !matches!(parameter.kind, TypeParameterKind::Value { .. }) {
                 return Err("the open runtime operand does not belong to a Value binder");
             }
-            if program
+            let executable = program.state_signature_parameters(public);
+            let mut formals = executable
+                .iter()
+                .enumerate()
+                .filter(|(_, formal)| formal.symbol == selected);
+            if let Some((position, formal)) = formals.next() {
+                if formals.next().is_some() || formal.is_mutable || formal.is_const {
+                    return Err(
+                        "the runtime requirement projection has no unique immutable formal",
+                    );
+                }
+                let StaticMachineBindingValue::RuntimeValue {
+                    type_reference,
+                    subject,
+                    expression,
+                } = binding.value
+                else {
+                    unreachable!()
+                };
+                let actual = call_site_argument_expressions(program, site)
+                    .get(position)
+                    .ok_or("the runtime requirement projection lost its executable operand")?;
+                if !crate::declared_carriers_match(program, formal.type_reference, type_reference)
+                    || !runtime_source_matches(program, subject, expression, *actual)
+                {
+                    return Err(
+                        "the runtime requirement operand differs from its retained source binding",
+                    );
+                }
+            } else if program
                 .dynamic_slot_by_symbol(site.target_symbol(program))
                 .is_some()
             {

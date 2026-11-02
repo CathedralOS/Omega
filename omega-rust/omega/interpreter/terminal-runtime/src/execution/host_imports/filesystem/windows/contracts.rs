@@ -226,6 +226,46 @@ pub(super) fn select(
         ),
         (
             b"kernel32.dll",
+            b"SetFileInformationByHandle",
+            &[
+                Signed(64),
+                Unsigned(32),
+                IntegerRecord {
+                    fields: &[
+                        Scalar(U, 64),
+                        Scalar(U, 64),
+                        Scalar(U, 64),
+                        Scalar(U, 64),
+                        Scalar(U, 32),
+                        Scalar(U, 32),
+                    ],
+                    access: SharedBorrow,
+                },
+                Unsigned(32),
+            ],
+            Signed(32),
+            Effect::SetInformation {
+                class: 0,
+                bytes: 40,
+            },
+        ),
+        (
+            b"kernel32.dll",
+            b"SetFileInformationByHandle",
+            &[
+                Signed(64),
+                Unsigned(32),
+                IntegerRecord {
+                    fields: &[Scalar(I, 64)],
+                    access: SharedBorrow,
+                },
+                Unsigned(32),
+            ],
+            Signed(32),
+            Effect::SetInformation { class: 6, bytes: 8 },
+        ),
+        (
+            b"kernel32.dll",
             b"SetFilePointerEx",
             &[
                 Signed(64),
@@ -259,6 +299,18 @@ pub(super) fn select(
         ),
         (
             b"kernel32.dll",
+            b"GetFinalPathNameByHandleW",
+            &[
+                Signed(64),
+                UnsignedArray(4096, 16, MutableBorrow),
+                Unsigned(32),
+                Unsigned(32),
+            ],
+            Unsigned(32),
+            Effect::Use,
+        ),
+        (
+            b"kernel32.dll",
             b"SetFileAttributesW",
             &[path, Unsigned(32)],
             Signed(32),
@@ -273,7 +325,11 @@ pub(super) fn select(
         ),
     ];
     let mut candidates = Vec::new();
-    for &(library, symbol, parameters, result, effect) in rows {
+    for &(library, symbol, parameters, result, effect) in rows
+        .iter()
+        .chain(super::directory::ROWS.iter())
+        .chain(super::removal::ROWS.iter())
+    {
         if !matches_platform_c_symbol(binding, symbol, &[], Some(library))? {
             continue;
         }

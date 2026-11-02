@@ -415,7 +415,7 @@ pub(crate) fn lower_fixed_array_length(
             let child = lower_type_reference_child(lowerer, syntax_trees, *value)?;
             if syntax_type_references(&syntax_trees)
                 .const_argument_normalization(*value)
-                .is_some()
+                .is_some_and(|normalization| !normalization.materialized_expression.is_valid())
                 && let Some(name) = syntax_type_references(&syntax_trees)
                     .type_reference(*value)
                     .as_named()

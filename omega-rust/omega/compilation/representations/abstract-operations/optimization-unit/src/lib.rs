@@ -34,6 +34,8 @@ use terminal_psi::{
 pub(crate) use optimization_core::codec_bytes;
 mod cursor;
 mod optimization_unit;
+mod optimized_program;
+pub use optimized_program::OptimizedAbstractProgram;
 
 pub use optimization_unit::{
     AbstractOptimizationEvidence, AcceptedObligationFact, AcceptedObligationFactIndexError,

@@ -43,6 +43,22 @@ impl Default for DeclarationScopes {
 }
 
 impl DeclarationScopes {
+    /// Seed one simultaneous caller application. Its actuals belong to the
+    /// empty parent scope, so a formal cannot recursively substitute its own
+    /// supplied value or capture a sibling application's bindings.
+    pub(crate) fn from_bindings(bindings: TypeBindings) -> (Self, usize) {
+        let mut scopes = Self::default();
+        if bindings.is_empty() {
+            return (scopes, 0);
+        }
+        scopes.scopes.push(DeclarationScope {
+            bindings,
+            starts: vec![0],
+            parent: 0,
+        });
+        (scopes, 1)
+    }
+
     pub fn head(
         &self,
         program: &dyn crate::CheckingInput,
