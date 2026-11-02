@@ -5,7 +5,7 @@ use crate::tokens::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use syntax_trees::SyntaxTrees;
 use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchFieldAction, TableBinaryExpression,
-    TableMemberExpression, TableMembershipExpression, UnaryOperator,
+    TableMemberExpression, UnaryOperator,
 };
 use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::TableOutcomeProofSelector;
@@ -21,22 +21,9 @@ pub(super) use crate::grammar::patterns::bindings::{
 pub(super) struct DestructureBindings {
     pub(super) subject: ExpressionHandle,
     pub(super) fields: Vec<DestructureBinding>,
-    /// The SPELLED field set (bound AND waived) + variant + `..` flag -- the
-    /// exhaustiveness law's carrier.
-    pub(super) spelling: Option<ArmPatternSpelling>,
+    pub(super) pattern: Option<syntax_trees::statement::TransitionPattern>,
     /// Erased named proof outputs selected after the payload/proof `;` split.
     pub(super) proof_selectors: Vec<TableOutcomeProofSelector>,
-}
-
-/// What a destructure arm SPELLED, for the exhaustiveness law: a `..`-free
-/// pattern must mention every field of the record (variant `None`) or of the
-/// named case's payload. The block parser encodes this into a marker let
-/// (`__arm_destructure#V=<variant>#<f1>#<f2>`) that the typed-stage
-/// validation resolves against the data definition.
-pub(super) struct ArmPatternSpelling {
-    pub(super) variant: Option<Identifier>,
-    pub(super) members: Vec<Identifier>,
-    pub(super) has_rest: bool,
 }
 
 pub(super) fn parse_transition_guard_node<'tokens, 'source>(
@@ -112,28 +99,30 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         })
         .collect();
     let mut combined = ExpressionHandle::invalid();
+    let mut bindings = Vec::new();
     for (left, right) in subject.iter().copied().zip(patterns) {
         let Some(right) = right else {
             continue;
         };
-        // A bare two-member path arm (`Command::Move ->`, no binding braces) is
-        // a CLASSIFICATION like its braced sibling: the arm tests the tag,
-        // which is domain membership (decision 11). Desugaring to membership
-        // keeps the synthesized tag test distinct from user-written equality,
-        // which rejects bare payload-bearing case names.
         let equality = match exprs_of(syntax_trees).expression(right) {
-            ExpressionNode::Name(path)
-                if syntax_trees
-                    .expressions
-                    .identifier_path_members(*path)
-                    .len()
-                    == 2 =>
-            {
-                let domain = *path;
-                exprs(syntax_trees).insert(ExpressionNode::Membership(TableMembershipExpression {
-                    value: left,
-                    domain,
-                }))
+            ExpressionNode::Name(_) => {
+                let capture = exprs(syntax_trees).insert_transition_subject(left);
+                bindings.push(DestructureBindings {
+                    subject: left,
+                    fields: Vec::new(),
+                    pattern: Some(syntax_trees::statement::TransitionPattern {
+                        subject: left,
+                        capture,
+                        is_structural: false,
+                        pattern: syntax_trees::expression::TableDestructurePattern {
+                            head: right,
+                            has_rest: true,
+                            ..Default::default()
+                        },
+                    }),
+                    proof_selectors: Vec::new(),
+                });
+                continue;
             }
             // A condition-shaped pattern already evaluates to a decision:
             // `transition text.len { text.len == 0 -> .. }` guards by the
@@ -158,7 +147,7 @@ pub(super) fn parse_transition_guard_node<'tokens, 'source>(
         } else {
             TransitionGuardNode::Always
         },
-        Vec::new(),
+        bindings,
         bool_tuple,
         rest,
     ))
@@ -542,74 +531,43 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         .collect::<Vec<_>>();
     let has_rest = parsed_fields.has_rest;
     let proof_selectors = parsed_fields.proof_selectors;
-    // A `Type::Case { .. }` pattern (two-member path) binds payload fields of that
-    // specific CASE, so tag each binding with the variant -- the rewritten field
-    // access must resolve to this variant's field, not a same-named field at a
-    // different offset in another variant.
-    let case_variant: Option<Identifier> = {
-        let members = exprs_of(syntax_trees).identifier_path_members(path);
-        if members.len() == 2 {
-            members.last().cloned()
-        } else {
-            None
-        }
-    };
-    if !proof_selectors.is_empty() && case_variant.is_none() {
-        return Err(pattern_input.error_here(
-            "outcome proof selectors require an exact `Result::Case { payload; selector: local }` arm",
-        ));
-    }
+    let head = exprs(syntax_trees).insert(ExpressionNode::Name(path));
+    let capture = exprs(syntax_trees).insert_transition_subject(subject);
+    let saved = exprs(syntax_trees).insert(ExpressionNode::SavedSubject(
+        syntax_trees::expression::TableSavedSubject {
+            capture,
+            pattern_head: head,
+        },
+    ));
     // Waived fields (`as _`) are spelled but introduce NO binding; renamed
     // fields (`as name`) bind the new name to the same `subject.member` read.
-    let spelled_members: Vec<Identifier> =
-        fields.iter().map(|(member, _)| member.clone()).collect();
     let fields = fields
         .into_iter()
         .filter_map(|(member, binding)| {
             binding.map(|binding| DestructureBinding {
                 binding,
                 member,
-                case_variant: case_variant.clone(),
+                case_variant: None,
             })
         })
         .collect::<Vec<_>>();
-    let spelling = Some(ArmPatternSpelling {
-        variant: case_variant.clone(),
-        members: spelled_members,
-        has_rest,
-    });
     if !pattern_rest.tokens.is_empty() {
         return Err(pattern_rest.error_here("expected data destructure pattern"));
     }
 
-    // A two-member path names a case of the subject's type: the arm matches
-    // on the TAG, which is DOMAIN membership (decision 11), so the guard
-    // starts with `subject in Type::Case`. Desugaring to membership (not
-    // `==`) keeps the synthesized tag test distinct from user-written
-    // equality, which rejects bare payload-bearing case names.
-    let mut combined = match exprs_of(syntax_trees).identifier_path_members(path).len() {
-        1 => ExpressionHandle::invalid(),
-        2 => exprs(syntax_trees).insert(ExpressionNode::Membership(TableMembershipExpression {
-            value: subject,
-            domain: path,
-        })),
-        _ => {
-            return Err(pattern_input.error_here(
-                "destructure pattern path must be `Type { .. }` or `Type::Case { .. }`",
-            ));
-        }
-    };
-
+    // Head classification belongs to declaration selection. Record and case
+    // patterns retain the same source shape regardless of path length.
+    let mut combined = ExpressionHandle::invalid();
     // A value-bearing field pattern is ordinary equality over an attenuated
     // field projection.  Keeping it as a real guard means the existing proof
     // and flow machinery establishes `subject.field == expected` inside the
     // arm; no pattern-only fact channel exists.
     for (member, expected) in matched_fields {
         let projected = exprs(syntax_trees).insert(ExpressionNode::Member(TableMemberExpression {
-            receiver: subject,
+            receiver: saved,
             access_source_span: Default::default(),
             member,
-            case_variant: case_variant.clone(),
+            case_variant: None,
         }));
         let equality = exprs(syntax_trees).insert(ExpressionNode::Binary(TableBinaryExpression {
             left: projected,
@@ -625,7 +583,7 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
         if !rest.tokens.is_empty() {
             return Err(rest.error_here("expected transition pattern guard"));
         }
-        let guard = rewrite_destructure_guard_expression(syntax_trees, guard, subject, &fields);
+        let guard = rewrite_destructure_guard_expression(syntax_trees, guard, saved, &fields);
         combined = join_guard_conjunction(syntax_trees, combined, guard);
     }
 
@@ -637,9 +595,20 @@ fn parse_destructure_pattern_arm<'tokens, 'source>(
     Ok(Some((
         guard,
         DestructureBindings {
-            subject,
+            subject: saved,
             fields,
-            spelling,
+            pattern: Some(syntax_trees::statement::TransitionPattern {
+                subject,
+                capture,
+                is_structural: true,
+                pattern: syntax_trees::expression::TableDestructurePattern {
+                    head,
+                    fields: exprs(syntax_trees).insert_match_fields(parsed_fields.fields),
+                    has_rest,
+                    guard: combined,
+                    proof_selectors: Default::default(),
+                },
+            }),
             proof_selectors,
         },
     )))

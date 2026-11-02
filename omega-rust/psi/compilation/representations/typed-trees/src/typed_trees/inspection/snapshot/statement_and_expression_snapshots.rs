@@ -79,6 +79,8 @@ pub enum StatementSnapshot {
         relevance: &'static str,
     },
     Transition {
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        patterns: Vec<(bool, ExpressionSnapshot, MatchPatternSnapshot)>,
         target: TransitionTargetSnapshot,
         continuation: Option<TransitionTargetSnapshot>,
         guard: TransitionGuardSnapshot,
@@ -384,6 +386,21 @@ pub(crate) fn statement_snapshot(
             relevance: super::declaration_snapshots::snapshot_binding_relevance(local.relevance),
         },
         StatementNode::Transition(transition) => StatementSnapshot::Transition {
+            patterns: program
+                .statement_table
+                .transition_patterns(transition.patterns)
+                .iter()
+                .map(|retained| {
+                    (
+                        retained.is_structural,
+                        expression_snapshot(program, retained.subject),
+                        snapshot_match_pattern(
+                            program,
+                            MatchPattern::Destructure(retained.pattern),
+                        ),
+                    )
+                })
+                .collect(),
             target: transition_target_snapshot(program, transition.target),
             continuation: transition
                 .continuation
@@ -487,54 +504,7 @@ pub(crate) fn expression_snapshot(
                     source_id: arm.source_span.source_id.0,
                     source_start: arm.source_span.span.start,
                     source_end: arm.source_span.span.end,
-                    pattern: match arm.pattern {
-                        MatchPattern::Value(value) => MatchPatternSnapshot::Value {
-                            value: Box::new(expression_snapshot(program, value)),
-                        },
-                        MatchPattern::Destructure(pattern) => MatchPatternSnapshot::Destructure {
-                            head: Box::new(expression_snapshot(program, pattern.head)),
-                            fields: program
-                                .expression_table
-                                .match_fields(pattern.fields)
-                                .iter()
-                                .map(|field| MatchFieldSnapshot {
-                                    member: field.member.as_str().to_owned(),
-                                    action: match &field.action {
-                                        MatchFieldAction::Bind(binding) => {
-                                            MatchFieldActionSnapshot::Bind {
-                                                binding: binding.as_str().to_owned(),
-                                            }
-                                        }
-                                        MatchFieldAction::Equal(value) => {
-                                            MatchFieldActionSnapshot::Equal {
-                                                value: Box::new(expression_snapshot(
-                                                    program, *value,
-                                                )),
-                                            }
-                                        }
-                                        MatchFieldAction::Waive => MatchFieldActionSnapshot::Waive,
-                                    },
-                                })
-                                .collect(),
-                            has_rest: pattern.has_rest,
-                            guard: pattern
-                                .guard
-                                .is_valid()
-                                .then(|| Box::new(expression_snapshot(program, pattern.guard))),
-                            proof_selectors: program
-                                .expression_table
-                                .match_proof_selectors(pattern.proof_selectors)
-                                .iter()
-                                .map(|selector| {
-                                    (
-                                        selector.output_field.as_str().to_owned(),
-                                        selector.binding.as_str().to_owned(),
-                                    )
-                                })
-                                .collect(),
-                        },
-                        MatchPattern::Wildcard => MatchPatternSnapshot::Wildcard,
-                    },
+                    pattern: snapshot_match_pattern(program, arm.pattern),
                     value: expression_snapshot(program, arm.value),
                 })
                 .collect(),
@@ -722,4 +692,52 @@ fn statement_expression_span_snapshot(
         .iter()
         .map(|expression| expression_snapshot(program, *expression))
         .collect()
+}
+
+pub(super) fn snapshot_match_pattern(
+    program: &TypedTrees,
+    pattern: MatchPattern,
+) -> MatchPatternSnapshot {
+    match pattern {
+        MatchPattern::Value(value) => MatchPatternSnapshot::Value {
+            value: Box::new(expression_snapshot(program, value)),
+        },
+        MatchPattern::Destructure(pattern) => MatchPatternSnapshot::Destructure {
+            head: Box::new(expression_snapshot(program, pattern.head)),
+            fields: program
+                .expression_table
+                .match_fields(pattern.fields)
+                .iter()
+                .map(|field| MatchFieldSnapshot {
+                    member: field.member.as_str().to_owned(),
+                    action: match &field.action {
+                        MatchFieldAction::Bind(binding) => MatchFieldActionSnapshot::Bind {
+                            binding: binding.as_str().to_owned(),
+                        },
+                        MatchFieldAction::Equal(value) => MatchFieldActionSnapshot::Equal {
+                            value: Box::new(expression_snapshot(program, *value)),
+                        },
+                        MatchFieldAction::Waive => MatchFieldActionSnapshot::Waive,
+                    },
+                })
+                .collect(),
+            has_rest: pattern.has_rest,
+            guard: pattern
+                .guard
+                .is_valid()
+                .then(|| Box::new(expression_snapshot(program, pattern.guard))),
+            proof_selectors: program
+                .expression_table
+                .match_proof_selectors(pattern.proof_selectors)
+                .iter()
+                .map(|selector| {
+                    (
+                        selector.output_field.as_str().to_owned(),
+                        selector.binding.as_str().to_owned(),
+                    )
+                })
+                .collect(),
+        },
+        MatchPattern::Wildcard => MatchPatternSnapshot::Wildcard,
+    }
 }

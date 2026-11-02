@@ -270,11 +270,28 @@ pub(in crate::symbols) fn assign_member_symbol(
         chain.push(member_name.as_str().to_string());
         member_symbol = nested_receiver_leaf_field_symbol(symbols, machine, &chain);
     }
+    let case_variant =
+        if let ExpressionNode::SavedSubject(saved) = expression_table.expression(receiver) {
+            expression_table
+                .name_path_node(saved.pattern_head)
+                .filter(|head| {
+                    head.symbol.is_valid() && symbols.get(head.symbol).kind == SymbolKind::Variant
+                })
+                .and_then(|head| {
+                    expression_table
+                        .name_path_members(head.members)
+                        .last()
+                        .cloned()
+                })
+        } else {
+            None
+        };
     if let (symbol, ExpressionNode::Member(member)) =
         (member_symbol, expression_table.expression_mut(expression))
         && symbol.is_valid()
     {
         member.member_symbol = symbol;
+        member.case_variant = case_variant;
     }
 }
 

@@ -1145,3 +1145,5 @@ pub(crate) fn report_place_value_mismatches(
         diagnostics,
     );
 }
+
+pub(crate) use match_dispatch::validate_transition_patterns;

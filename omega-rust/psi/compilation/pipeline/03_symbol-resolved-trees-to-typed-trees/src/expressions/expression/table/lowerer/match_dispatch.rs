@@ -33,7 +33,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
                     }
                     resolved::expression::MatchPattern::Destructure(pattern) => {
                         typed::expression::MatchPattern::Destructure(
-                            self.lower_destructure_pattern(pattern, capture)?,
+                            self.lower_destructure_pattern(pattern, capture, None)?,
                         )
                     }
                 };
@@ -63,6 +63,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         &mut self,
         pattern: resolved::expression::TableDestructurePattern,
         capture: Handle<typed::expression::CompletedValueCapture>,
+        completed_subject: Option<typed::expression::ExpressionHandle>,
     ) -> Result<typed::expression::TableDestructurePattern, Diagnostic> {
         let program = self.program.ok_or_else(|| {
             Diagnostic::error(
@@ -102,12 +103,13 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         use typed::expression::{
             BinaryOperator, ExpressionNode, TableBinaryExpression, TableSavedSubject,
         };
-        let saved = self
-            .target()
-            .insert(ExpressionNode::SavedSubject(TableSavedSubject {
-                capture,
-                pattern_head: head,
-            }));
+        let saved = completed_subject.unwrap_or_else(|| {
+            self.target()
+                .insert(ExpressionNode::SavedSubject(TableSavedSubject {
+                    capture,
+                    pattern_head: head,
+                }))
+        });
         let case = expression_table(&self.target_trees)
             .name_path_node(head)
             .map(|name| name.symbol)
@@ -153,10 +155,30 @@ impl ExpressionTableLowerer<'_, '_, '_> {
         })
     }
 
+    pub(super) fn lower_transition_pattern(
+        &mut self,
+        retained: resolved::statement::TransitionPattern,
+    ) -> Result<typed::statement::TransitionPattern, Diagnostic> {
+        let subject = self.lower_value(retained.subject)?;
+        let pattern =
+            self.lower_destructure_pattern(retained.pattern, Handle::invalid(), Some(subject))?;
+        Ok(typed::statement::TransitionPattern {
+            is_structural: retained.is_structural,
+            subject,
+            pattern,
+        })
+    }
+
     pub(super) fn lower_saved_subject(
         &mut self,
         saved: resolved::expression::TableSavedSubject,
     ) -> Result<typed::expression::ExpressionHandle, Diagnostic> {
+        let definition = self.source.match_subject(saved.capture);
+        if definition.purpose == resolved::expression::SubjectCapturePurpose::Transition {
+            // This is an alias of the dispatch's already completed local, not
+            // another expression-match capture or an additional evaluation.
+            return self.lower_value(definition.subject);
+        }
         let capture = self
             .match_captures
             .iter()

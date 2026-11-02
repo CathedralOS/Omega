@@ -221,6 +221,77 @@ pub(super) fn assign_statement_symbols(
             }
         }
         symbol_resolved_trees::statement::Statement::Transition(transition) => {
+            use symbol_resolved_trees::expression::{
+                BinaryOperator, ExpressionNode, TableBinaryExpression, TableMembershipExpression,
+            };
+            let mut selected_guard = None;
+            for retained in &transition.patterns {
+                assign_expr!(retained.subject);
+                assign_expr!(retained.pattern.head);
+                let head = expression_table
+                    .name_path_node(retained.pattern.head)
+                    .cloned();
+                let selected = head.as_ref().map(|head| head.symbol).unwrap_or_default();
+                for position in 0..retained.pattern.fields.count() {
+                    let handle = retained.pattern.fields.handle_at(position);
+                    let field =
+                        &expression_table.match_fields(retained.pattern.fields)[position as usize];
+                    let symbol = crate::symbols::expression_paths::pattern_field_symbol(
+                        symbols,
+                        selected,
+                        field.member.as_str(),
+                    );
+                    expression_table.match_field_mut(handle).field_symbol = symbol;
+                }
+                assign_expr!(retained.pattern.condition);
+                let test =
+                    if selected.is_valid() && symbols.get(selected).kind == SymbolKind::Variant {
+                        let head = head.as_ref().expect("selected named case");
+                        Some(expression_table.insert(ExpressionNode::Membership(
+                            TableMembershipExpression {
+                                value: retained.subject,
+                                domain: head.members,
+                                domain_symbol: SymbolHandle::invalid(),
+                                case_type_symbol: symbols.get(selected).parent,
+                                case_symbol: selected,
+                            },
+                        )))
+                    } else if !retained.is_structural {
+                        Some(expression_table.insert(ExpressionNode::Binary(
+                            TableBinaryExpression {
+                                left: retained.subject,
+                                operator: BinaryOperator::Equal,
+                                right: retained.pattern.head,
+                            },
+                        )))
+                    } else {
+                        None
+                    };
+                if let Some(test) = test {
+                    selected_guard = Some(if let Some(prior) = selected_guard {
+                        expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                            left: prior,
+                            operator: BinaryOperator::And,
+                            right: test,
+                        }))
+                    } else {
+                        test
+                    });
+                }
+            }
+            if let Some(test) = selected_guard {
+                transition.guard = TransitionGuard::When(match transition.guard {
+                    TransitionGuard::Always => test,
+                    TransitionGuard::When(predicate) => {
+                        expression_table.insert(ExpressionNode::Binary(TableBinaryExpression {
+                            left: test,
+                            operator: BinaryOperator::And,
+                            right: predicate,
+                        }))
+                    }
+                });
+            }
+
             if let TransitionGuard::When(expression) = &mut transition.guard {
                 assign_expr!(*expression);
             }

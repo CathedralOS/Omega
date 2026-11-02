@@ -42,97 +42,13 @@ pub(super) fn lower_match(
                 MatchPattern::Value(lower_expression_into_table(lowerer, syntax_trees, value)?)
             }
             syntax::MatchPattern::Wildcard => MatchPattern::Wildcard,
-            syntax::MatchPattern::Destructure(pattern) => {
-                let head = lower_expression_into_table(lowerer, syntax_trees, pattern.head)?;
-                let mut fields = Vec::new();
-                for field in syntax_trees.expressions.match_fields(pattern.fields) {
-                    use symbol_resolved_trees::expression::MatchFieldAction;
-                    let action = match &field.action {
-                        syntax::MatchFieldAction::Bind(binding) => {
-                            MatchFieldAction::Bind(lower_name(syntax_trees, binding))
-                        }
-                        syntax::MatchFieldAction::Equal(value) => MatchFieldAction::Equal(
-                            lower_expression_into_table(lowerer, syntax_trees, *value)?,
-                        ),
-                        syntax::MatchFieldAction::Waive => MatchFieldAction::Waive,
-                    };
-                    fields.push(TableMatchField {
-                        member: lower_name(syntax_trees, &field.member),
-                        field_symbol: Handle::invalid(),
-                        action,
-                    });
-                }
-                let selectors = syntax_trees
-                    .statements
-                    .outcome_proof_selectors(pattern.proof_selectors)
-                    .iter()
-                    .map(|selector| OutcomeProofSelector {
-                        output_field: lower_name(syntax_trees, &selector.output_field),
-                        binding: lower_name(syntax_trees, &selector.binding),
-                    });
-                let proof_selectors =
-                    expression_table(lowerer).insert_match_proof_selectors(selectors);
-                lowerer.expression_match_captures.push(MatchArmCapture {
-                    syntax_capture: dispatch.capture,
-                    syntax_head: pattern.head,
-                    resolved_capture: capture,
-                    resolved_head: head,
-                });
-                let guard = lower_expression_into_table(lowerer, syntax_trees, pattern.guard);
-                lowerer.expression_match_captures.pop();
-                let guard = guard?;
-                let saved = expression_table(lowerer).insert(ExpressionNode::SavedSubject(
-                    TableSavedSubject {
-                        capture,
-                        pattern_head: head,
-                    },
-                ));
-                let mut condition = expression_table(lowerer).insert(ExpressionNode::Boolean(true));
-                for field in &fields {
-                    if let MatchFieldAction::Equal(expected) = field.action {
-                        let projected = expression_table(lowerer).insert(ExpressionNode::Member(
-                            TableMemberExpression {
-                                receiver: saved,
-                                member_symbol: field.field_symbol,
-                                member: field.member.clone(),
-                                case_variant: None,
-                            },
-                        ));
-                        let equality = expression_table(lowerer).insert(ExpressionNode::Binary(
-                            TableBinaryExpression {
-                                left: projected,
-                                operator: BinaryOperator::Equal,
-                                right: expected,
-                            },
-                        ));
-                        condition = expression_table(lowerer).insert(ExpressionNode::Binary(
-                            TableBinaryExpression {
-                                left: condition,
-                                operator: BinaryOperator::And,
-                                right: equality,
-                            },
-                        ));
-                    }
-                }
-                if guard.is_valid() {
-                    condition = expression_table(lowerer).insert(ExpressionNode::Binary(
-                        TableBinaryExpression {
-                            left: condition,
-                            operator: BinaryOperator::And,
-                            right: guard,
-                        },
-                    ));
-                }
-                let fields = expression_table(lowerer).insert_match_fields(fields);
-                MatchPattern::Destructure(TableDestructurePattern {
-                    head,
-                    fields,
-                    has_rest: pattern.has_rest,
-                    guard,
-                    condition,
-                    proof_selectors,
-                })
-            }
+            syntax::MatchPattern::Destructure(pattern) => lower_destructure_pattern(
+                lowerer,
+                syntax_trees,
+                pattern,
+                dispatch.capture,
+                capture,
+            )?,
         };
         let has_aliases = if let (
             syntax::MatchPattern::Destructure(source),
@@ -190,4 +106,95 @@ pub(super) fn lower_saved_subject(
             pattern_head: binding.resolved_head,
         })),
     )
+}
+
+pub(crate) fn lower_destructure_pattern(
+    lowerer: &mut Lowerer,
+    syntax_trees: &SyntaxTrees,
+    pattern: syntax::TableDestructurePattern,
+    syntax_capture: Handle<syntax::MatchSubjectCapture>,
+    capture: Handle<symbol_resolved_trees::expression::MatchSubjectCapture>,
+) -> Result<MatchPattern, Diagnostic> {
+    let head = lower_expression_into_table(lowerer, syntax_trees, pattern.head)?;
+    let mut fields = Vec::new();
+    for field in syntax_trees.expressions.match_fields(pattern.fields) {
+        use symbol_resolved_trees::expression::MatchFieldAction;
+        let action = match &field.action {
+            syntax::MatchFieldAction::Bind(binding) => {
+                MatchFieldAction::Bind(lower_name(syntax_trees, binding))
+            }
+            syntax::MatchFieldAction::Equal(value) => {
+                MatchFieldAction::Equal(lower_expression_into_table(lowerer, syntax_trees, *value)?)
+            }
+            syntax::MatchFieldAction::Waive => MatchFieldAction::Waive,
+        };
+        fields.push(TableMatchField {
+            member: lower_name(syntax_trees, &field.member),
+            field_symbol: Handle::invalid(),
+            action,
+        });
+    }
+    let selectors = syntax_trees
+        .statements
+        .outcome_proof_selectors(pattern.proof_selectors)
+        .iter()
+        .map(|selector| OutcomeProofSelector {
+            output_field: lower_name(syntax_trees, &selector.output_field),
+            binding: lower_name(syntax_trees, &selector.binding),
+        });
+    let proof_selectors = expression_table(lowerer).insert_match_proof_selectors(selectors);
+    lowerer.expression_match_captures.push(MatchArmCapture {
+        syntax_capture: syntax_capture,
+        syntax_head: pattern.head,
+        resolved_capture: capture,
+        resolved_head: head,
+    });
+    let guard = lower_expression_into_table(lowerer, syntax_trees, pattern.guard);
+    lowerer.expression_match_captures.pop();
+    let guard = guard?;
+    let saved = expression_table(lowerer).insert(ExpressionNode::SavedSubject(TableSavedSubject {
+        capture,
+        pattern_head: head,
+    }));
+    let mut condition = expression_table(lowerer).insert(ExpressionNode::Boolean(true));
+    for field in &fields {
+        if let MatchFieldAction::Equal(expected) = field.action {
+            let projected =
+                expression_table(lowerer).insert(ExpressionNode::Member(TableMemberExpression {
+                    receiver: saved,
+                    member_symbol: field.field_symbol,
+                    member: field.member.clone(),
+                    case_variant: None,
+                }));
+            let equality =
+                expression_table(lowerer).insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: projected,
+                    operator: BinaryOperator::Equal,
+                    right: expected,
+                }));
+            condition =
+                expression_table(lowerer).insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: condition,
+                    operator: BinaryOperator::And,
+                    right: equality,
+                }));
+        }
+    }
+    if guard.is_valid() {
+        condition =
+            expression_table(lowerer).insert(ExpressionNode::Binary(TableBinaryExpression {
+                left: condition,
+                operator: BinaryOperator::And,
+                right: guard,
+            }));
+    }
+    let fields = expression_table(lowerer).insert_match_fields(fields);
+    Ok(MatchPattern::Destructure(TableDestructurePattern {
+        head,
+        fields,
+        has_rest: pattern.has_rest,
+        guard,
+        condition,
+        proof_selectors,
+    }))
 }

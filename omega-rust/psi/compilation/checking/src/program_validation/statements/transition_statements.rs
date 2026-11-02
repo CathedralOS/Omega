@@ -22,6 +22,15 @@ pub(super) fn validate(
     let value_environment = &mut *outputs.value_environment;
     let arithmetic_decisions = &mut *outputs.arithmetic_decisions;
     let diagnostics = &mut *outputs.diagnostics;
+    if let Some(state) = current_state {
+        crate::value_custody::expression_types::validate_transition_patterns(
+            program,
+            machine,
+            state,
+            transition,
+            diagnostics,
+        );
+    }
     if let TransitionGuardNode::When(guard) = transition.guard {
         // Every Exact operation in a guard owes its representability proof,
         // as it would in a `let` or a return, under the facts its evaluation

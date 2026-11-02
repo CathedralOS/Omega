@@ -941,6 +941,28 @@ impl ExpressionTable {
         copied
     }
 
+    pub(crate) fn copy_transition_pattern_from(
+        &mut self,
+        source: &ExpressionTable,
+        retained: crate::statement::TransitionPattern,
+    ) -> crate::statement::TransitionPattern {
+        let copies = &mut CopyGraph::default();
+        let source = CopySource::Table(source);
+        let subject = self.copy_subtree_with_occurrences(
+            source,
+            retained.subject,
+            &retain_every_field,
+            copies,
+        );
+        let pattern =
+            self.copy_destructure_pattern(source, retained.pattern, &retain_every_field, copies);
+        crate::statement::TransitionPattern {
+            is_structural: retained.is_structural,
+            subject,
+            pattern,
+        }
+    }
+
     fn copy_match_subject<RetainField>(
         &mut self,
         source: CopySource<'_>,

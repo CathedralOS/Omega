@@ -2426,6 +2426,13 @@ fn visit_statement(
             }
         }
         StatementNode::Transition(transition) => {
+            for pattern in program
+                .statement_table
+                .transition_patterns(transition.patterns)
+            {
+                visit_expression(program, retained, pattern.pattern.head);
+            }
+
             for target in transition.targets() {
                 if let TransitionTargetNode::Named {
                     path,

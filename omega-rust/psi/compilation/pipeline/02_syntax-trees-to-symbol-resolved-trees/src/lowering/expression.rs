@@ -28,7 +28,7 @@ use syntax::types::TypeReferenceNode;
 use syntax_trees as syntax;
 use syntax_trees::SyntaxTrees;
 
-mod match_dispatch;
+pub(crate) mod match_dispatch;
 
 pub(crate) fn lower_expression_into_table(
     lowerer: &mut Lowerer,

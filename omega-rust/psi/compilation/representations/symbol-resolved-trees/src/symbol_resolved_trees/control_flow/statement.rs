@@ -214,6 +214,7 @@ deref_to_storage!(Call => CallStorage);
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct Transition {
+    pub patterns: Box<[TransitionPattern]>,
     pub target: TransitionTarget,
     pub continuation: Option<TransitionTarget>,
     pub guard: TransitionGuard,
@@ -277,6 +278,7 @@ pub struct StatementTable {
 struct StatementNodeStorage {
     statements: Arena<StatementNode>,
     transition_targets: Arena<TransitionTargetNode>,
+    transition_patterns: Arena<TransitionPattern>,
     outcome_proof_selectors: Arena<TableOutcomeProofSelector>,
 }
 
@@ -287,11 +289,26 @@ struct StatementPathStorage {
 }
 
 impl StatementTable {
+    pub fn insert_transition_patterns(
+        &mut self,
+        patterns: impl IntoIterator<Item = TransitionPattern>,
+    ) -> HandleSpan<TransitionPattern> {
+        self.nodes.transition_patterns.insert_many(patterns)
+    }
+
+    pub fn transition_patterns(
+        &self,
+        patterns: HandleSpan<TransitionPattern>,
+    ) -> &[TransitionPattern] {
+        self.nodes.transition_patterns.span_or_empty(patterns)
+    }
+
     pub fn new() -> Self {
         Self {
             nodes: StatementNodeStorage {
                 statements: Arena::new(),
                 transition_targets: Arena::new(),
+                transition_patterns: Arena::new(),
                 outcome_proof_selectors: Arena::new(),
             },
             paths: StatementPathStorage {
@@ -626,7 +643,21 @@ impl StatementTable {
                             binding: selector.binding.clone(),
                         }),
                 );
+                let patterns = transition
+                    .patterns
+                    .iter()
+                    .map(|pattern| {
+                        if transplant.copy_expression_handles {
+                            expressions
+                                .copy_transition_pattern(transplant.source_expressions, *pattern)
+                        } else {
+                            *pattern
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                let patterns = self.insert_transition_patterns(patterns);
                 self.insert(StatementNode::Transition(TableTransition {
+                    patterns,
                     target,
                     continuation,
                     guard,
@@ -842,7 +873,18 @@ pub struct TableLocalData {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub struct TransitionPattern {
+    /// Braced structural pattern, versus an ordinary value/case pattern.
+    pub is_structural: bool,
+    pub subject: ExpressionHandle,
+    pub capture: Handle<crate::expression::MatchSubjectCapture>,
+    pub pattern: crate::expression::TableDestructurePattern,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub struct TableTransition {
+    /// Retained structural heads, independent of arrival/value target spelling.
+    pub patterns: HandleSpan<TransitionPattern>,
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
     pub guard: TransitionGuardNode,
@@ -857,6 +899,7 @@ pub struct TableTransition {
 impl Default for TableTransition {
     fn default() -> Self {
         Self {
+            patterns: HandleSpan::empty(),
             target: TransitionTargetHandle::invalid(),
             continuation: TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::Always,
@@ -1020,6 +1063,7 @@ mod tests {
         let mut source_statement_path_members = Arena::new();
         let path = source_statement_path_members.insert_many([DiagnosticName::generated("next")]);
         let statement = Statement::Transition(Transition {
+            patterns: Default::default(),
             target: TransitionTarget::Named(NamedTransitionTarget {
                 receiver_symbol: Default::default(),
                 head_symbol: target_symbol,

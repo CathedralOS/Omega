@@ -21,7 +21,16 @@ pub fn structural_match_subject_type(
     state: &State,
     dispatch: &TableMatchExpression,
 ) -> Option<TypeReferenceHandle> {
-    let reference = super::declared_value_type(program, machine, state, dispatch.subject)?;
+    structural_match_subject_type_for_subject(program, machine, state, dispatch.subject)
+}
+
+pub(crate) fn structural_match_subject_type_for_subject(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    subject: typed_trees::expression::ExpressionHandle,
+) -> Option<TypeReferenceHandle> {
+    let reference = super::declared_value_type(program, machine, state, subject)?;
     crate::value_custody::places::data_definition_for_type(program, reference)?;
     Some(reference)
 }
@@ -35,7 +44,17 @@ pub fn structural_match_pattern_case(
     dispatch: &TableMatchExpression,
     pattern: MatchPattern,
 ) -> Option<SymbolHandle> {
-    let reference = structural_match_subject_type(program, machine, state, dispatch)?;
+    structural_match_pattern_case_for_subject(program, machine, state, dispatch.subject, pattern)
+}
+
+pub(crate) fn structural_match_pattern_case_for_subject(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    subject: typed_trees::expression::ExpressionHandle,
+    pattern: MatchPattern,
+) -> Option<SymbolHandle> {
+    let reference = structural_match_subject_type_for_subject(program, machine, state, subject)?;
     let data = crate::value_custody::places::data_definition_for_type(program, reference)?;
     let head = match pattern {
         MatchPattern::Value(value) => value,
@@ -140,7 +159,28 @@ pub(super) fn validate(
     source_span: source::SourceSpan,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<(SymbolHandle, bool)> {
-    let Some(case) = structural_match_pattern_case(program, machine, state, dispatch, pattern)
+    validate_for_subject(
+        program,
+        machine,
+        state,
+        dispatch.subject,
+        pattern,
+        source_span,
+        diagnostics,
+    )
+}
+
+pub(crate) fn validate_for_subject(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    subject: typed_trees::expression::ExpressionHandle,
+    pattern: MatchPattern,
+    source_span: source::SourceSpan,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Option<(SymbolHandle, bool)> {
+    let Some(case) =
+        structural_match_pattern_case_for_subject(program, machine, state, subject, pattern)
     else {
         diagnostics.push(
             Diagnostic::error(
@@ -153,7 +193,7 @@ pub(super) fn validate(
     let MatchPattern::Destructure(pattern) = pattern else {
         return Some((case, true));
     };
-    let reference = structural_match_subject_type(program, machine, state, dispatch)?;
+    let reference = structural_match_subject_type_for_subject(program, machine, state, subject)?;
     let data = crate::value_custody::places::data_definition_for_type(program, reference)?;
     let mut declared = program
         .data_members(data)
@@ -317,4 +357,42 @@ fn variant_is_impossible(program: &dyn crate::CheckingInput, variant: &DataVaria
             },
             None => false,
         })
+}
+
+/// Transition patterns share exact carrier/field validation with expression
+/// matches. The already completed dispatch local remains the runtime subject.
+pub(crate) fn validate_transition_patterns(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    transition: &typed_trees::statement::TableTransition,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    for retained in program
+        .statement_table
+        .transition_patterns(transition.patterns)
+    {
+        let is_case = expression_table(program)
+            .name_path_node(retained.pattern.head)
+            .is_some_and(|head| {
+                head.symbol.is_valid()
+                    && program.symbols.get(head.symbol).kind == SymbolKind::Variant
+            });
+        if retained.is_structural || is_case {
+            let pattern = if retained.is_structural {
+                MatchPattern::Destructure(retained.pattern)
+            } else {
+                MatchPattern::Value(retained.pattern.head)
+            };
+            validate_for_subject(
+                program,
+                machine,
+                state,
+                retained.subject,
+                pattern,
+                transition.source_span,
+                diagnostics,
+            );
+        }
+    }
 }

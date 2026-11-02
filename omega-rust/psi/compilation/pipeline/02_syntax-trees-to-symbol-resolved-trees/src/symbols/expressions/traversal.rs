@@ -234,7 +234,15 @@ impl ExpressionSymbolContext<'_, '_> {
             }
             // The definition's subject and each head are visited by Match.
             // An alias is not another use/evaluation of that source subtree.
-            ExpressionNode::SavedSubject(_) => {}
+            ExpressionNode::SavedSubject(saved) => {
+                if self.expression_table.match_subject(saved.capture).purpose
+                    == symbol_resolved_trees::expression::SubjectCapturePurpose::Transition
+                {
+                    let subject = self.expression_table.match_subject(saved.capture).subject;
+                    self.assign_expression_table_symbols(subject);
+                    self.assign_expression_table_symbols(saved.pattern_head);
+                }
+            }
             ExpressionNode::Atomic(atomic) => {
                 // The instruction-observed prior has its own destination expression,
                 // distinct from references inside the arithmetic-shaped carrier.

@@ -17,6 +17,7 @@ use typed_trees::state::State;
 use typed_trees::types::PrimitiveType;
 
 mod structural_patterns;
+pub(crate) use structural_patterns::validate_transition_patterns;
 pub use structural_patterns::{
     structural_match_cases_are_covered, structural_match_pattern_case,
     structural_match_pattern_is_total, structural_match_subject_type,

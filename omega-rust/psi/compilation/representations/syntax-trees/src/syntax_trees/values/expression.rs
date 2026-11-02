@@ -109,7 +109,20 @@ impl ExpressionTable {
         &mut self,
         subject: ExpressionHandle,
     ) -> Handle<MatchSubjectCapture> {
-        self.match_subjects.insert(MatchSubjectCapture { subject })
+        self.match_subjects.insert(MatchSubjectCapture {
+            purpose: SubjectCapturePurpose::Match,
+            subject,
+        })
+    }
+
+    pub fn insert_transition_subject(
+        &mut self,
+        subject: ExpressionHandle,
+    ) -> Handle<MatchSubjectCapture> {
+        self.match_subjects.insert(MatchSubjectCapture {
+            purpose: SubjectCapturePurpose::Transition,
+            subject,
+        })
     }
 
     pub fn match_subject(&self, capture: Handle<MatchSubjectCapture>) -> &MatchSubjectCapture {
@@ -599,7 +612,25 @@ pub struct TableMatchExpression {
     syntax_trees_derive::PlainSyntaxEquivalent,
     compiler_storage::Record,
 )]
+pub enum SubjectCapturePurpose {
+    #[default]
+    Match,
+    /// The transition already established its ordinary DispatchSubject local.
+    Transition,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct MatchSubjectCapture {
+    pub purpose: SubjectCapturePurpose,
     pub subject: ExpressionHandle,
 }
 

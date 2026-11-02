@@ -29,12 +29,27 @@ paged_roster! {
         arena expression_handles: ExpressionHandle,
         arena identifier_path_members: Identifier,
         arena transition_targets: TransitionTargetNode,
+        arena transition_patterns: TransitionPattern,
         arena outcome_proof_selectors: TableOutcomeProofSelector,
         roster assembly: AssemblyTable => super::assembly::AssemblyTableAppendCheckpoint,
     }
 }
 
 impl StatementTable {
+    pub fn insert_transition_patterns(
+        &mut self,
+        patterns: impl IntoIterator<Item = TransitionPattern>,
+    ) -> HandleSpan<TransitionPattern> {
+        self.transition_patterns.insert_many(patterns)
+    }
+
+    pub fn transition_patterns(
+        &self,
+        patterns: HandleSpan<TransitionPattern>,
+    ) -> &[TransitionPattern] {
+        self.transition_patterns.span_or_empty(patterns)
+    }
+
     pub fn new() -> Self {
         Self::new_with_generation(1)
     }
@@ -282,7 +297,26 @@ pub struct TableLocalData {
     syntax_trees_derive::PlainSyntaxEquivalent,
     compiler_storage::Record,
 )]
+pub struct TransitionPattern {
+    /// Braced structural pattern, versus an ordinary value/case pattern.
+    pub is_structural: bool,
+    pub subject: ExpressionHandle,
+    pub capture: Handle<crate::expression::MatchSubjectCapture>,
+    pub pattern: crate::expression::TableDestructurePattern,
+}
+
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    syntax_trees_derive::PlainSyntaxEquivalent,
+    compiler_storage::Record,
+)]
 pub struct TableTransition {
+    /// Retained structural heads, independent of arrival/value target spelling.
+    pub patterns: HandleSpan<TransitionPattern>,
     pub target: TransitionTargetHandle,
     pub continuation: TransitionTargetHandle,
     pub guard: TransitionGuardNode,
@@ -307,6 +341,7 @@ impl TableTransition {
 impl Default for TableTransition {
     fn default() -> Self {
         Self {
+            patterns: HandleSpan::empty(),
             target: TransitionTargetHandle::invalid(),
             continuation: TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::Always,
@@ -380,6 +415,7 @@ mod tests {
         });
         let guard = expressions.insert(ExpressionNode::Boolean(true));
         let statement = statements.insert(StatementNode::Transition(TableTransition {
+            patterns: Default::default(),
             target,
             continuation: super::TransitionTargetHandle::invalid(),
             guard: TransitionGuardNode::When(guard),

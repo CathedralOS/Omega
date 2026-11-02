@@ -76,14 +76,8 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         TransitionTargetHandle,
         arena::HandleSpan<syntax_trees::statement::TableOutcomeProofSelector>,
         source::SourceSpan,
+        HandleSpan<syntax_trees::statement::TransitionPattern>,
     )> = Vec::new();
-    // (marker name, subject) per destructure arm. Computed transition subjects
-    // have already become generated places above, so every arm has a declared
-    // type carrier for the missing/unknown-field law. Deduplicated by name
-    // (identical patterns share one marker; duplicate local names would
-    // collide in symbol resolution).
-    let mut pattern_markers: Vec<(String, ExpressionHandle)> = Vec::new();
-
     while !input.at_punctuation(PunctuationKind::RightBrace) {
         let (guard, bindings, bool_tuple, rest) =
             parse_transition_guard_node(syntax_trees, input, &subject)?;
@@ -106,44 +100,8 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         };
         input = rest;
 
-        // Exhaustiveness law (owner spec 2026-07-18): a `..`-free destructure
-        // arm must spell every field of its record/case. The spelled set is
-        // encoded into a marker let (`__arm_destructure#V=<variant>#<f1>...`;
-        // `#`/`=` cannot appear in identifiers, so the split is unambiguous)
-        // whose initializer is the subject place -- the typed-stage
-        // validation resolves it against the data definition.
-        for arm_binding in &bindings {
-            let Some(spelling) = arm_binding.spelling.as_ref() else {
-                continue;
-            };
-            let mut marker_name = String::from("__arm_destructure#V=");
-            if let Some(variant) = spelling.variant.as_ref() {
-                marker_name.push_str(variant.as_str(syntax_trees));
-            }
-            for member in &spelling.members {
-                marker_name.push('#');
-                marker_name.push_str(member.as_str(syntax_trees));
-            }
-            // Two tuple axes may spell the same pattern. Keep validation
-            // carriers keyed by subject without exposing the generated id as
-            // an authored field name; validation strips this sentinel.
-            marker_name.push_str("#~subject=");
-            marker_name.push_str(&arm_binding.subject.arena_index().to_string());
-            // `..` opts out of the MISSING-field law but spelled fields must
-            // still EXIST -- the trailing `#~rest` sentinel tells validation
-            // to skip only the exhaustiveness half (`~` cannot appear in an
-            // identifier).
-            if spelling.has_rest {
-                marker_name.push_str("#~rest");
-            }
-            if !pattern_markers
-                .iter()
-                .any(|(name, subject)| *name == marker_name && *subject == arm_binding.subject)
-            {
-                pattern_markers.push((marker_name, arm_binding.subject));
-            }
-        }
-
+        let patterns = stmts(syntax_trees)
+            .insert_transition_patterns(bindings.iter().filter_map(|binding| binding.pattern));
         let proof_selectors = bindings
             .first()
             .map(|bindings| {
@@ -151,7 +109,7 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
                     .insert_outcome_proof_selectors(bindings.proof_selectors.iter().cloned())
             })
             .unwrap_or_else(HandleSpan::empty);
-        parsed_arms.push((guard, target, proof_selectors, source_span));
+        parsed_arms.push((guard, target, proof_selectors, source_span, patterns));
         arm_bool_tuples.push(bool_tuple);
     }
 
@@ -177,21 +135,9 @@ pub(crate) fn parse_transition_block_handles<'tokens, 'source>(
         statements.push(handle);
     }
 
-    for (marker_name, subject_place) in pattern_markers {
-        let marker = stmts(syntax_trees).insert(StatementNode::LocalData(TableLocalData {
-            role: language_core::LocalBindingRole::ArmPattern,
-            name: syntax_trees::identifier::Identifier::generated(marker_name),
-            type_reference: syntax_trees::types::TypeReferenceHandle::invalid(),
-            initial_value: subject_place,
-            is_mutable: false,
-            relevance: language_core::BindingRelevance::Relevant,
-        }));
-        let handle = items(syntax_trees).append_statement_handle(marker);
-        statements.push(handle);
-    }
-
-    for (guard, target, proof_selectors, source_span) in parsed_arms {
+    for (guard, target, proof_selectors, source_span, patterns) in parsed_arms {
         let statement = stmts(syntax_trees).insert(StatementNode::Transition(TableTransition {
+            patterns,
             target,
             continuation: TransitionTargetHandle::invalid(),
             guard,

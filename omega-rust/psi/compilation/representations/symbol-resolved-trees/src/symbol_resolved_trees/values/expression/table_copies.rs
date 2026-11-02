@@ -384,6 +384,23 @@ impl ExpressionTable {
         span
     }
 
+    pub(crate) fn copy_transition_pattern(
+        &mut self,
+        source: ExpressionSource<'_>,
+        retained: crate::statement::TransitionPattern,
+    ) -> crate::statement::TransitionPattern {
+        let copies = &mut CopyGraph::default();
+        let subject = self.copy_graph(source, retained.subject, copies);
+        let capture = self.copy_match_subject(source, retained.capture, copies);
+        let pattern = self.copy_destructure_pattern(source, retained.pattern, copies);
+        crate::statement::TransitionPattern {
+            is_structural: retained.is_structural,
+            subject,
+            capture,
+            pattern,
+        }
+    }
+
     fn copy_match_subject(
         &mut self,
         source: ExpressionSource<'_>,
@@ -401,7 +418,10 @@ impl ExpressionTable {
         }
         let subject = source.table(self).match_subject(capture).subject;
         let subject = self.copy_graph(source, subject, copies);
-        let copied = self.insert_match_subject(subject);
+        let copied = match source.table(self).match_subject(capture).purpose {
+            super::SubjectCapturePurpose::Match => self.insert_match_subject(subject),
+            super::SubjectCapturePurpose::Transition => self.insert_transition_subject(subject),
+        };
         if copies.subjects.len() <= position {
             copies
                 .subjects
