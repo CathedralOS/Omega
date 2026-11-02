@@ -334,7 +334,6 @@ fn select_checked_providers(
     deployment: Result<(), Vec<Diagnostic>>,
     timings: &mut CompileTimings,
 ) -> Result<(SelectedExecution, provider_planning::ProviderSettlement), Vec<Diagnostic>> {
-    let typed = &source.program.typed;
     let build_config = &source.computed_build_config.config;
     let x86_scalar_fma_provider = build_config
         .settings
@@ -376,8 +375,7 @@ fn select_checked_providers(
         &selected_provider_provenance,
     )?;
     let root_grants = build_config.root_grant_selectors();
-    let providers =
-        providers.prepare_row_declarations(typed, source.sources.exact_toolchain_sources())?;
+    let providers = providers.finish_row_declarations()?;
     let execution = prepare_selected_execution(
         Arc::clone(&source.program),
         ProviderBindingRequest {
