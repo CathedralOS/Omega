@@ -191,6 +191,7 @@ pub(crate) fn shared_reference_observation<'facts>(
                 backings.places.iter().all(|saved| {
                     super::overlap::captured_place_compatibility(
                         program,
+                        &facts.borrow,
                         &saved.place,
                         &BorrowAccessKind::Read,
                         &grant.place,

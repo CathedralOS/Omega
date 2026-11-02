@@ -375,6 +375,7 @@ fn select_checked_providers(
         services,
         &build_config.root_bindings,
         selected_target_profile,
+        package_inputs,
     );
     let provider_planning::CheckedProviderSelection {
         settlement: providers,
@@ -387,12 +388,7 @@ fn select_checked_providers(
         timings,
     )?;
     let mut selected_program_entry = entry?
-        .map(|entry| {
-            entry.settle_calling_plans(
-                &providers.boundary_calling_plan_realizations,
-                package_inputs,
-            )
-        })
+        .map(|entry| entry.settle_calling_plans(&providers.boundary_calling_plan_realizations))
         .transpose()?;
     if let Some(entry) = &mut selected_program_entry {
         entry.bind_physical_adapter(typed, &selected_provider_provenance)?;
@@ -450,19 +446,8 @@ fn prepare_target_provider_selection(
     );
     let code = crate::terminal::retain_calling_program(source, timings)?;
     let calling = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
-        &source.program,
-        one_refusal(source.provider_inventory.services_for(&source.program))?,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-        &build_config.opaque_representation_selections,
         package_inputs,
-        provider_planning::calling_policy_plans::CallingPolicyProviderInputs {
-            body_declarations: one_refusal(
-                source.provider_inventory.direct_calls_for(&source.program),
-            )?,
-            defaults: &settled_target_machines.provider_defaults,
-            requested: &build_config.provider_selections,
-            exact_toolchain_sources: source.sources.exact_toolchain_sources(),
-        },
         &code,
     )?;
     let boundary_calling_plan_realizations = calling.evaluate(&code)?;

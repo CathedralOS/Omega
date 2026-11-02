@@ -176,6 +176,7 @@ crashes Trap
             PlaceKind::Parameter -> yes()
             PlaceKind::Binder -> yes()
             PlaceKind::Call -> yes()
+            PlaceKind::View -> yes()
             PlaceKind::Construction -> yes()
             PlaceKind::Snapshot -> yes()
             PlaceKind::Local -> local(syntax, entry.handle)

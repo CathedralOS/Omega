@@ -185,12 +185,16 @@ impl PreparedBuildMachineProgram {
                 let toolchain_sources = source::source_identity::toolchain_source_identities(
                     program.checked.symbols.source_files(),
                 )?;
-                let produced = psi_terminal_production::TerminalProductionRequest::new(
+                let mut production = psi_terminal_production::TerminalProductionRequest::new(
                     &program.checked,
                     psi_terminal_production::TerminalMachineSelection::Symbol(symbol),
                     &toolchain_sources,
-                )
-                .produce(
+                );
+                // A constant job returns its checked value, never a portable
+                // code product. An anonymous Build has only its live invocation
+                // owner until dependency settlement and source sealing finish.
+                production.publication = terminal_codec::TerminalPublication::Invocation;
+                let produced = production.produce(
                     Default::default(),
                     &mut psi_terminal_production::UnmeasuredProduction,
                 )

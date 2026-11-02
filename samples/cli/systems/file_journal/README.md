@@ -11,7 +11,11 @@ and its directory. macOS ARM64 and both Linux targets select the POSIX portable
 provider; matching-host execution remains separate evidence.
 
 Windows selects the portable provider over its retained raw-family closure.
-Matching-host Windows and Linux evidence remains separate under
+[Windows x86-64 run 41444385907](https://github.com/CathedralOS/Omega/actions/runs/41444385907)
+passed the unchanged application with native exit 7 and Terminal exit 7. Its
+[qualification](../../../../wiki/drafts/measurements/windows_file_journal_2026_11_02/README.md)
+retains ordinary package review, original source/dependency paths and the explicit
+current-drive `\tmp` provision. Linux execution remains separate under
 **FILESYSTEM-PLATFORM-SERVICES**.
 
 On macOS ARM64, the CLI explicitly delegates the host filesystem namespace to

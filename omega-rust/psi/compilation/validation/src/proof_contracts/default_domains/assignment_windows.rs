@@ -231,15 +231,18 @@ pub(crate) fn handle_assignment<'program>(
     let Some(frames) = call_frames else {
         return;
     }; // Symbol diagnostics already prevent admission.
-    let Some(origins) = frames.assignment_storage_origins(machine, statement) else {
-        diagnostics.push(
-            Diagnostic::error(format!(
-                "cannot establish assignment invariants: performed write has unknown destination origins in machine `{}` state `{}` at statement {statement_index}",
-                machine.name.as_str(), state.name.as_str(),
-            ))
-            .with_source_span(program.expression_table.source_span(target)),
-        );
-        return;
+    let origins = match frames.assignment_storage_origins(machine, statement) {
+        Ok(origins) => origins,
+        Err(reason) => {
+            diagnostics.push(
+                Diagnostic::error(format!(
+                    "cannot establish assignment invariants: performed write has unknown destination origins in machine `{}` state `{}` at statement {statement_index}: {reason}",
+                    machine.name.as_str(), state.name.as_str(),
+                ))
+                .with_source_span(program.expression_table.source_span(target)),
+            );
+            return;
+        }
     };
     let definite = origins.destinations.len() == 1;
     for origin in origins.destinations {

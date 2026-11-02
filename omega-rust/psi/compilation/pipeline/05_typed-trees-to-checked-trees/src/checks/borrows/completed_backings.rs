@@ -243,6 +243,118 @@ impl Resolver<'_> {
             }
             _ => {}
         }
+        if path.is_empty() && operand.descriptor_loan.is_valid() {
+            let handle = operand.descriptor_loan;
+            let (_, owner) = self
+                .facts
+                .borrow
+                .first_state_borrow(self.state.machine_symbol, self.state.state_symbol)
+                .ok_or("the loaded descriptor has no borrow owner")?;
+            if !self.facts.borrow.state_owns_loan(owner, handle) {
+                return Err("the loaded descriptor carries a foreign permission");
+            }
+            let loan = self.facts.borrow.loans.get(handle);
+            if !self
+                .facts
+                .borrow
+                .incoming_references
+                .is_valid(loan.incoming_reference)
+            {
+                return Err("the loaded descriptor has no supplied pointer identity");
+            }
+            let incoming = self
+                .facts
+                .borrow
+                .incoming_references
+                .get(loan.incoming_reference);
+            if !matches!(incoming.origin,
+                checked_trees::IncomingReferenceOrigin::DescriptorLoad { expression }
+                    if expression == operand.expression)
+                || incoming.state_symbol != operand.state_symbol
+                || loan.statement_index != operand.statement_index
+                || !self
+                    .facts
+                    .flow
+                    .borrow_loan_constraints(operand.constraints)
+                    .any(|active| active == handle)
+                || !control.case_accesses.is_valid(operand.case_access)
+            {
+                return Err("the loaded descriptor has no exact completed permission");
+            }
+            let access = control.case_accesses.get(operand.case_access);
+            if access.expression != operand.expression
+                || access.state_symbol != operand.state_symbol
+                || access.statement_index != operand.statement_index
+                || self
+                    .facts
+                    .flow
+                    .borrow_loan_constraints(access.constraints)
+                    .any(|active| active == handle)
+            {
+                return Err("the loaded descriptor cannot authorize its own formation");
+            }
+            let mut activations = self
+                .facts
+                .flow
+                .borrow_lifetimes
+                .activations
+                .span_or_empty(self.state.borrow_activations)
+                .iter()
+                .filter(|activation| activation.loan == handle);
+            let activation = activations
+                .next()
+                .ok_or("the loaded descriptor has no completed activation")?;
+            if activations.next().is_some()
+                || !control.operands.is_valid(activation.formation_value)
+                || !control.value_observations.is_valid(operand.descriptor_read)
+            {
+                return Err("the loaded descriptor has an ambiguous activation or source read");
+            }
+            let formed = control.operands.get(activation.formation_value);
+            let read = control.value_observations.get(operand.descriptor_read);
+            if formed.descriptor_loan != handle
+                || formed.descriptor_read != operand.descriptor_read
+                || formed.expression != operand.expression
+                || formed.state_symbol != operand.state_symbol
+                || formed.statement_index != operand.statement_index
+                || formed.backing != operand.backing
+                || formed.case_access != operand.case_access
+                || formed.retention != operand.retention
+                || formed.referents != operand.referents
+                || read.expression != operand.expression
+                || read.evaluation != access.evaluation
+                || read.receiver != operand.backing
+                || read.constraints != access.constraints
+                || read.places.is_empty()
+                || self
+                    .facts
+                    .flow
+                    .borrow_loan_constraints(read.constraints)
+                    .any(|active| active == handle)
+                || !validation::declared_carriers_match(
+                    self.program,
+                    incoming.carrier_type,
+                    formed.type_reference,
+                )
+                || crate::borrow::reference_borrow_access_kind(self.program, formed.type_reference)
+                    .as_ref()
+                    != Some(&loan.kind)
+                || control.retained_roots(formed.retention).is_none()
+            {
+                return Err(
+                    "the loaded descriptor disagrees with its completed read, carrier or lifetime",
+                );
+            }
+            return Ok(BackingFrontier::borrowed(vec![ResolvedAlias {
+                place: CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
+                    root: loan.root,
+                    segments: self.facts.borrow.loan_segments(loan).to_vec(),
+                    ..Default::default()
+                },
+                lineage: vec![handle],
+            }]));
+        }
         let coordinate = place_at(
             self.program,
             self.state.state_symbol,

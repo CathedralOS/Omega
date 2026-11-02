@@ -75,7 +75,6 @@ pub struct BuildConfig {
 /// deployment, not permission to select every dormant declaration.
 pub struct ProviderDeployment {
     pub roots: Option<Vec<(String, symbols::SymbolHandle)>>,
-    pub scopes: Vec<String>,
 }
 
 impl BuildConfig {
@@ -102,25 +101,8 @@ impl BuildConfig {
                 ))
             })
             .collect::<Result<Vec<_>, Vec<diagnostics::Diagnostic>>>()?;
-        let mut scopes = roots
-            .iter()
-            .map(|(scope, _)| scope.clone())
-            .collect::<Vec<_>>();
-        for choice in self
-            .provider_selections
-            .iter()
-            .chain(&self.package_provider_selections)
-        {
-            if let Some(scope) = choice.target {
-                let name = scope.canonical_name();
-                if !scopes.iter().any(|scope| scope == name) {
-                    scopes.push(name.to_owned());
-                }
-            }
-        }
         Ok(ProviderDeployment {
             roots: deployed.then_some(roots),
-            scopes,
         })
     }
 

@@ -120,6 +120,7 @@ pub(in crate::checks::borrows) fn check_exclusive_place_use<'p>(
             };
             if !captured_place_compatibility(
                 program,
+                &facts.borrow,
                 &receiver.place,
                 &BorrowAccessKind::Mutable,
                 &access.place,

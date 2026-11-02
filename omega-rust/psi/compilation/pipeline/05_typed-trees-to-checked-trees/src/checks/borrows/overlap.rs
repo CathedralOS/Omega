@@ -94,8 +94,10 @@ pub(crate) fn captured_storage_paths_are_disjoint(
         })
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn captured_place_compatibility<'p>(
     program: &'p dyn ::validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
     left: &checked_trees::CapturedPlace,
     left_access: &checked_trees::BorrowAccessKind,
     right: &checked_trees::CapturedPlace,
@@ -121,6 +123,19 @@ pub(super) fn captured_place_compatibility<'p>(
     let same_family = roots_valid
         && left_place.root == right_place.root
         && left_place.incoming_reference == right_place.incoming_reference;
+    let descriptor_load = |place: &checked_trees::CapturedPlace| {
+        borrow
+            .incoming_references
+            .is_valid(place.incoming_reference)
+            && matches!(
+                &borrow
+                    .incoming_references
+                    .get(place.incoming_reference)
+                    .origin,
+                checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
+            )
+    };
+    let has_descriptor_load = descriptor_load(left_place) || descriptor_load(right_place);
     let (owners_overlap, owner_containment) = if same_family {
         place_segments_compatibility(
             program,
@@ -148,14 +163,18 @@ pub(super) fn captured_place_compatibility<'p>(
             checked_trees::CapturedPlaceContainment::None,
         )
     };
-    // Distinct selected ingress leaves are independent admitted permissions,
-    // never a claim that their physical referents occupy different bytes.
+    // Distinct selected ingress leaves retain their existing admitted
+    // permissions. A loaded descriptor instead names an opaque pointer, not
+    // another independently admitted permission or a separate allocation.
     // Unknown selector relations cannot split one family into permissions.
     let independent_input_permissions = roots_valid
+        && !has_descriptor_load
         && (left_place.incoming_reference.is_valid() || right_place.incoming_reference.is_valid())
         && (!same_family || !owners_overlap);
-    let disjoint =
-        roots_valid && !independent_input_permissions && (!same_family || !segments_may_overlap);
+    let disjoint = roots_valid
+        && !independent_input_permissions
+        && (!has_descriptor_load || same_family)
+        && (!same_family || !segments_may_overlap);
     let shares_dependent_fact = same_root
         && place_segments_share_dependent_fact(
             program,
@@ -307,6 +326,7 @@ pub(super) fn canonical_place_loan_compatibility<'p>(
     };
     captured_place_compatibility(
         program,
+        borrow,
         &left,
         &checked_trees::BorrowAccessKind::Mutable,
         &right,
@@ -436,6 +456,7 @@ pub(super) fn borrow_loan_compatibility<'p>(
 ) -> checked_trees::CapturedPlaceCompatibility {
     captured_place_compatibility(
         program,
+        &facts.borrow,
         &captured_loan_place(&facts.borrow, left),
         &left.kind,
         &captured_loan_place(&facts.borrow, right),

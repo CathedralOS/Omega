@@ -34,7 +34,7 @@ use crate::execution::terminal_unit::{
     CheckFacts, CheckedStructuralScalarParameterPlan, CheckedUnitCallCoordinate,
     CheckedUnitEffectOperationPlan, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan, CheckedUnitStructuralParameterPlan,
-    CheckedUnitStructuralResultBindingPlan, SymbolHandle, is_reference,
+    CheckedUnitStructuralResultBindingPlan, SymbolHandle,
 };
 
 /// Authored requirement declarations share one call planner. This is a
@@ -491,28 +491,24 @@ pub(super) fn build(
         return None;
     }
     phase("call operation: boundary parameter custody");
-    if source_parameters
-        .iter()
-        // `is_mutable` is set by a `mut` binding and by an exclusive
-        // borrow alike, and the requirement's exclusive borrow is
-        // already carried exactly by the argument's presented access.
-        // An owned mutable scalar is an argument destination, not
-        // mutable storage in this Unit caller. Other owned mutable
-        // carriers remain outside this call surface.
-        .any(|parameter| {
-            parameter.is_const
-                || (parameter.is_mutable
-                    && !is_reference(
+    // `mut` on an owned formal governs the callee's binding, not the
+    // caller's access. Structural arguments above already retain their exact
+    // owned transfer or reference loan; mutable aggregates use that same
+    // custody. Only the scalar lane needs the separate current-value storage
+    // admission used by ordinary calls. Static formals still have no runtime
+    // boundary presentation.
+    if source_parameters.iter().any(|parameter| {
+        parameter.is_const
+            || (parameter.is_mutable
+                && program
+                    .primitive_type_reference(substituted_formal_type(
                         program,
-                        substituted_formal_type(
-                            program,
-                            parameter.type_reference,
-                            substitutions.as_slice(),
-                        ),
-                    )
-                    && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
-        })
-    {
+                        parameter.type_reference,
+                        substitutions.as_slice(),
+                    ))
+                    .is_some()
+                && crate::values::mutable_scalar_parameter_type(program, parameter).is_none())
+    }) {
         return None;
     }
     phase("call operation: boundary receiver");

@@ -219,6 +219,11 @@ pub struct FlowOperandRetainedLeaf {
 /// at invocation, including ones a later operand established.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandFact {
+    /// Permission supplied by this exact completed descriptor load. Copies
+    /// retain the association; a type or a descriptor home cannot supply it.
+    pub descriptor_loan: Handle<super::super::BorrowLoanFact>,
+    /// The ordinary evaluated slot read that supplied this pointer.
+    pub descriptor_read: Handle<FlowValueObservationFact>,
     pub expression: ExpressionHandle,
     /// The state and statement whose evaluation produced this observation.
     /// Retained stores can outlive their statement-local write prefix.

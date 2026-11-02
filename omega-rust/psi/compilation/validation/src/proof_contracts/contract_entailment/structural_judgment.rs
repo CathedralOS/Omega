@@ -495,17 +495,17 @@ struct StaticObservations<'scope> {
     body_parameters: &'scope [typed_trees::data::TypeParameter],
 }
 
-/// Admission belongs to one completed owned snapshot, inside its Match scope.
+/// Admission belongs to one completed owned value and its producing occurrence.
 /// A source name or equal reconstructed value cannot recover this receipt.
 #[derive(Clone)]
-struct CompletedNominalCapture {
+struct CompletedNominalValue {
     anchor: ExpressionHandle,
     reference: TypeReferenceHandle,
     value: StructuralTerm,
     observed_value: StructuralTerm,
 }
 
-impl CompletedNominalCapture {
+impl CompletedNominalValue {
     fn same_admission(&self, other: &Self) -> bool {
         self.anchor == other.anchor
             && self.reference == other.reference
@@ -548,7 +548,7 @@ pub(super) struct StructuralJudge<'program> {
     // deep StructuralTerm copies; writers go through Arc::make_mut and pay
     // one copy only for the field they actually change.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
-    completed_nominal_captures: Arc<Vec<CompletedNominalCapture>>,
+    completed_nominal_values: Arc<Vec<CompletedNominalValue>>,
     // Declaration-level field correspondence never recursively re-enters an
     // active body. This belongs to the query, including all cloned path judges.
     returned_field_owners: Arc<Vec<SymbolHandle>>,
@@ -627,7 +627,7 @@ impl Clone for StructuralJudge<'_> {
             body_type_parameters: self.body_type_parameters,
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
-            completed_nominal_captures: Arc::clone(&self.completed_nominal_captures),
+            completed_nominal_values: Arc::clone(&self.completed_nominal_values),
             returned_field_owners: Arc::clone(&self.returned_field_owners),
             returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
@@ -686,14 +686,13 @@ impl<'program> StructuralJudge<'program> {
             && self.returned_field_owners.len() == base.returned_field_owners.len()
             && self.normal_memberships.len() == base.normal_memberships.len()
             && (Arc::ptr_eq(
-                &self.completed_nominal_captures,
-                &base.completed_nominal_captures,
-            ) || (self.completed_nominal_captures.len()
-                == base.completed_nominal_captures.len()
+                &self.completed_nominal_values,
+                &base.completed_nominal_values,
+            ) || (self.completed_nominal_values.len() == base.completed_nominal_values.len()
                 && self
-                    .completed_nominal_captures
+                    .completed_nominal_values
                     .iter()
-                    .zip(base.completed_nominal_captures.iter())
+                    .zip(base.completed_nominal_values.iter())
                     .all(|(current, original)| current.same_admission(original))))
             && self.normal_content_guarantees.len() == base.normal_content_guarantees.len()
             && self.case_facts.len() == base.case_facts.len()
@@ -944,16 +943,16 @@ impl<'program> StructuralJudge<'program> {
             }
             rejoined.normal_results = Arc::new(intersected);
         }
-        rejoined.completed_nominal_captures = Arc::new(
+        rejoined.completed_nominal_values = Arc::new(
             first
-                .completed_nominal_captures
+                .completed_nominal_values
                 .iter()
                 .filter(|row| {
                     let Some(key) = row.value.observation_identity_key() else {
                         return false;
                     };
                     outcomes.iter().all(|judge| {
-                        judge.completed_nominal_captures.iter().any(|other| {
+                        judge.completed_nominal_values.iter().any(|other| {
                             other.anchor == row.anchor
                                 && other.reference == row.reference
                                 && other.value.observation_identity_key().as_ref() == Some(&key)
@@ -1011,7 +1010,7 @@ impl<'program> StructuralJudge<'program> {
         judge.body_type_parameters = program.machine_type_parameters(machine);
         if let Some(state) = state {
             judge.declaration_state = state.symbol;
-            judge.retain_entry_owned_values(state);
+            judge.retain_entry_values(state);
             judge.retain_entry_scalar_parameters(machine, state);
         }
         judge.premise_facts.extend_from_slice(requires);
@@ -1108,7 +1107,7 @@ impl<'program> StructuralJudge<'program> {
             body_type_parameters: &[],
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
-            completed_nominal_captures: Arc::new(Vec::new()),
+            completed_nominal_values: Arc::new(Vec::new()),
             returned_field_owners: Arc::new(Vec::new()),
             returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
@@ -1785,6 +1784,16 @@ impl<'program> StructuralJudge<'program> {
                         continue;
                     }
                     return resolved;
+                }
+                StructuralTerm::BoundProjection { .. } => {
+                    // Header-field observations keep their declaration-rooted
+                    // identity. An independently admitted scalar equality may
+                    // relate them just like another completed projection.
+                    if let Some((_, replacement)) = self.rewrites.find(&term) {
+                        term = replacement.clone();
+                        continue;
+                    }
+                    return term;
                 }
                 StructuralTerm::Projection { subject, path } => {
                     let subject = self.resolve_with_at(*subject, depth + 1, purpose);
