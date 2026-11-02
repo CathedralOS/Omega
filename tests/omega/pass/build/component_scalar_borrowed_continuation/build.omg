@@ -1,0 +1,15 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "component_scalar_lending_local");
+    Build::select_provider<Lending, Writer>(builder, linux_x86_64);
+    Build::select_provider<Observation, NoObservation>(builder, linux_x86_64);
+    Build::bind(builder, linux_x86_64::ProgramEntry, main);
+    Build::select_provider<Lending, Writer>(builder, windows_x86_64);
+    Build::select_provider<Observation, NoObservation>(builder, windows_x86_64);
+    Build::bind(builder, windows_x86_64::ProgramEntry, main);
+    Build::select_provider<Lending, Writer>(builder, macos_arm64);
+    Build::select_provider<Observation, NoObservation>(builder, macos_arm64);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+    Build::select_provider<Lending, Writer>(builder, linux_arm64);
+    Build::select_provider<Observation, NoObservation>(builder, linux_arm64);
+    Build::bind(builder, linux_arm64::ProgramEntry, main);
+}

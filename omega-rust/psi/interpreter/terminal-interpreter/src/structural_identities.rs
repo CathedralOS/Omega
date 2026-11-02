@@ -47,6 +47,13 @@ impl LocalStructuralIdentities {
         result
     }
 
+    /// Only committed guest formations own this allocator's non-reserved homes.
+    /// Declared place numbers and public host input identities are reservations,
+    /// even when they happen to be below the current allocation cursor.
+    pub(crate) fn owns_allocated(&self, identity: u64) -> bool {
+        self.next.is_none_or(|next| identity < next) && !self.reserved.contains(&identity)
+    }
+
     pub(crate) fn cursor(&self) -> Option<u64> {
         self.next
     }
