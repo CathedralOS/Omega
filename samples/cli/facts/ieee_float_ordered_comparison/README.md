@@ -84,7 +84,7 @@ All 18 positive and reject places are pinned as byte-identical copies in the com
 ## Measured discrimination
 
 - **Runtime oracle discrimination:** A 1-token perturbation of the demanded verification result in `local/main.omg` (`transition probe(reading) == 0` perturbed to `transition probe(reading) == 1`) routes execution to `machine bad() { crash Trap; }` and traps both engines identically: `native exit -1073741795` (`0xC000001D` illegal instruction trap on `windows_x86_64`) and `interp crash: Trap (host presentation agrees)`.
-- **Static domain-construction discrimination:** A 1-token perturbation of the float literal at `Reading` construction in `local/main.omg` (`Reading { value: 2.0 }` perturbed to `Reading { value: 3.25 }`) fails closed before code generation with ``error: data `Reading` literal violates the default domain: a `where` fact evaluates FALSE at this construction (ch12: construction is the gate)``.
+- **Static domain-construction discrimination:** A 1-token perturbation of the float literal at `Reading` construction in `local/main.omg` (`Reading { value: 2.0 }` perturbed to `Reading { value: 3.25 }`) fails closed before code generation with ``error: data `Reading` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)``.
 - **Static contract-refinement discrimination:** A 1-token perturbation of the interval upper bound from `2.5` to `3.5` in `<place>/invalid/main.omg` fails closed at the consuming `verify_window` call with ``error: cannot prove requires contract for call verify_window ... (needs fact `reading >= 1.0 && reading <= 3.0` here)``.
 
 ## Run record

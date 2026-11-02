@@ -1,2 +1,2 @@
 data `Slot` case `Found` literal violates the case constraint
-`where` fact evaluates FALSE at this construction
+`requires` fact evaluates FALSE at this construction
