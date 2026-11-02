@@ -3,6 +3,7 @@
 //! caller-owed requirements. Copies and writes use ordinary payload history;
 //! a receiving annotation never participates in this entry judgment.
 use super::*;
+#[cfg(test)]
 use proof_admission::check_certificate;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Segment, Proposition};
 use terminal_psi::{ProofNode, ProofRule, StructuralDomainDeclaration};

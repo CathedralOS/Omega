@@ -47,6 +47,7 @@ struct Owners<'program> {
     substitutions: InputOwner<'program>,
     rewrites: InputOwner<'program>,
     disequalities: InputOwner<'program>,
+    admitted_disjunctions: InputOwner<'program>,
     case_facts: InputOwner<'program>,
     case_substitutions: InputOwner<'program>,
 }
@@ -123,6 +124,7 @@ impl<'program> StructuralJudge<'program> {
             substitutions,
             rewrites,
             disequalities,
+            admitted_disjunctions,
             case_facts,
             case_substitutions,
             hypotheses_contradictory,
@@ -156,6 +158,7 @@ impl<'program> StructuralJudge<'program> {
                 substitutions: InputOwner::new(substitutions),
                 rewrites: InputOwner::new(rewrites),
                 disequalities: InputOwner::new(disequalities),
+                admitted_disjunctions: InputOwner::new(admitted_disjunctions),
                 case_facts: InputOwner::new(case_facts),
                 case_substitutions: InputOwner::new(case_substitutions),
             },

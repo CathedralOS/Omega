@@ -2121,3 +2121,68 @@ pub(in crate::proof_contracts::contract_entailment) fn data_application_static_b
         })
         .collect()
 }
+
+#[cfg(test)]
+mod resolution_context_tests {
+    use super::*;
+    use std::sync::Arc;
+
+    #[test]
+    fn admitted_disjunctions_do_not_reuse_another_proof_contexts_answer() {
+        let program = typed_trees::TypedTrees::default();
+        let mut judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let question = StructuralTerm::Variable("retained-disjunction-query".to_owned());
+        let calls = std::cell::Cell::new(0);
+        let compute = |context: &StructuralJudge<'_>, _| {
+            calls.set(calls.get() + 1);
+            StructuralTerm::Integer(numerics::bignum::BigInt::from_u64(
+                context.admitted_disjunctions.len() as u64,
+            ))
+        };
+        let before = judge.completed_resolution(question.clone(), 0, compute);
+        let snapshot = judge.clone();
+        Arc::make_mut(&mut judge.admitted_disjunctions).push(AdmittedDisjunction {
+            owner: SymbolHandle::invalid(),
+            parameters: Vec::new(),
+            expression: ExpressionHandle::invalid(),
+            bindings: Vec::new(),
+            type_bindings: Vec::new(),
+        });
+        let after = judge.completed_resolution(question.clone(), 0, compute);
+        assert!(!before.same_resolution_payload(&after));
+        let retained = snapshot.completed_resolution(question.clone(), 0, compute);
+        assert!(before.same_resolution_payload(&retained));
+        let repeated = judge.completed_resolution(question, 0, compute);
+        assert!(after.same_resolution_payload(&repeated));
+        assert_eq!(calls.get(), 2);
+    }
+
+    #[test]
+    fn active_resolution_distinguishes_new_admitted_disjunction_contexts() {
+        let program = typed_trees::TypedTrees::default();
+        let judge = StructuralJudge::from_declaration_requires(
+            &program,
+            SymbolHandle::invalid(),
+            &[],
+            &[],
+            true,
+        );
+        let question = StructuralTerm::Variable("active-disjunction-query".to_owned());
+        let mut active = judge.resolving_application(&question, 0).unwrap();
+        assert!(active.resolving_application(&question, 0).is_none());
+        Arc::make_mut(&mut active.admitted_disjunctions).push(AdmittedDisjunction {
+            owner: SymbolHandle::invalid(),
+            parameters: Vec::new(),
+            expression: ExpressionHandle::invalid(),
+            bindings: Vec::new(),
+            type_bindings: Vec::new(),
+        });
+        assert!(active.resolving_application(&question, 0).is_some());
+    }
+}

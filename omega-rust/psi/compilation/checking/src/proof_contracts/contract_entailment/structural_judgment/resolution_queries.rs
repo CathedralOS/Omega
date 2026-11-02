@@ -312,7 +312,9 @@ impl<'program> StructuralJudge<'program> {
         phase_profile::count(
             match kind {
                 StructuralQueryKind::Resolution => "psi.05.resolution.completed.miss",
-                StructuralQueryKind::IntegerProjection => "psi.05.resolution.integer_projection.miss",
+                StructuralQueryKind::IntegerProjection => {
+                    "psi.05.resolution.integer_projection.miss"
+                }
                 StructuralQueryKind::Predicate => "psi.05.resolution.predicate.miss",
             },
             1,
@@ -335,7 +337,10 @@ impl<'program> StructuralJudge<'program> {
             .ok()
             .and_then(|reads| reads.clone());
         if let Some(reads) = reads {
-            phase_profile::count("psi.05.resolution.dependencies.retained", reads.len() as u64);
+            phase_profile::count(
+                "psi.05.resolution.dependencies.retained",
+                reads.len() as u64,
+            );
             if let Ok(mut cache) = cache.lock() {
                 cache.insert(CompletedResolution {
                     fingerprint,
@@ -608,6 +613,7 @@ impl<'program> StructuralJudge<'program> {
             address(&*self.substitutions),
             address(&*self.rewrites),
             address(&*self.disequalities),
+            address(&*self.admitted_disjunctions),
             address(&*self.case_facts),
             address(&*self.case_substitutions),
         ]
@@ -667,6 +673,7 @@ impl<'program> StructuralJudge<'program> {
             && Arc::ptr_eq(&self.substitutions, &other.substitutions)
             && Arc::ptr_eq(&self.rewrites, &other.rewrites)
             && Arc::ptr_eq(&self.disequalities, &other.disequalities)
+            && Arc::ptr_eq(&self.admitted_disjunctions, &other.admitted_disjunctions)
             && Arc::ptr_eq(&self.case_facts, &other.case_facts)
             && Arc::ptr_eq(&self.case_substitutions, &other.case_substitutions)
             && self.hypotheses_contradictory == other.hypotheses_contradictory
