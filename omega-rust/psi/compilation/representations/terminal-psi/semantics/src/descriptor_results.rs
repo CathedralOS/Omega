@@ -176,6 +176,22 @@ pub enum DescriptorSourceOrigin {
     },
 }
 
+impl DescriptorSourceOrigin {
+    /// An exact descriptor value captured on invocation entry. A static
+    /// contents query with no further projection names that same namespace.
+    /// This is neither its current storage address nor permission to load it;
+    /// receiving consumers still authenticate the actual pointer traversal.
+    pub fn captured_entry_slot(&self) -> Option<std::borrow::Cow<'_, DescriptorLocation>> {
+        match self {
+            Self::IncomingSlot(slot) => Some(std::borrow::Cow::Borrowed(slot)),
+            Self::IncomingContents { query, projection } if *projection == Projection::new(&[]) => {
+                Some(std::borrow::Cow::Owned(query.exact_location()?))
+            }
+            _ => None,
+        }
+    }
+}
+
 /// Opaque provider storage and its captured lifetime obligations are independent.
 /// Invocation paths distinguish calls through wrappers, but never establish
 /// freshness or disjointness, including repeated execution of one call site.

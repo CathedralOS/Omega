@@ -26,8 +26,10 @@ pub(super) enum SimultaneousHoldConflict {
     DependentReads,
 }
 
+#[allow(clippy::too_many_arguments)]
 pub(super) fn simultaneous_hold_conflict<'p>(
     program: &'p dyn ::validation::CheckingInput,
+    borrow: &checked_trees::BorrowFacts,
     first: &CapturedPlace,
     first_kind: &BorrowAccessKind,
     second: &CapturedPlace,
@@ -37,6 +39,7 @@ pub(super) fn simultaneous_hold_conflict<'p>(
 ) -> Option<SimultaneousHoldConflict> {
     if captured_place_compatibility(
         program,
+        borrow,
         first,
         first_kind,
         second,

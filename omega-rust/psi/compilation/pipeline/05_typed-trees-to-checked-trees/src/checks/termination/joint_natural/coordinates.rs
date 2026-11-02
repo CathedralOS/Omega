@@ -10,6 +10,8 @@ pub(super) enum Bound {
     Authored {
         expression: ExpressionHandle,
         entry_value: ScopedArithmeticValue,
+        formation: validation::IntegerApplicationFormation,
+        bindings: Vec<validation::RuntimeRankApplicationBinding>,
     },
     Coordinate(Coordinate),
     Closed(ScopedArithmeticValue),
@@ -43,16 +45,15 @@ impl Bound {
         match self {
             Self::Authored { expression, .. } => {
                 let state = &program.machine_states(machine)[0];
-                Some(ScopedArithmeticValue::Term(
-                    edge.values.bind_call_parameters(
-                        machine,
-                        state,
-                        *expression,
-                        program.state_parameters(state),
-                        edge.arguments,
-                        edge.site,
-                    )?,
-                ))
+                let expression = edge.values.bind_integer_expression_parameters(
+                    machine,
+                    state,
+                    *expression,
+                    edge.arguments,
+                )?;
+                edge.values
+                    .integer_expression_formation(edge.values.machine(), &expression)
+                    .map(|(_, value)| value)
             }
             Self::Coordinate(coordinate) => coordinate.current(
                 &edge.values,
@@ -90,6 +91,8 @@ impl Bound {
             Self::Authored {
                 expression,
                 entry_value,
+                formation,
+                bindings,
             } => {
                 if let ScopedArithmeticValue::Integer(value) = entry_value {
                     Operand::Literal(value.to_u64()?)
@@ -103,6 +106,8 @@ impl Bound {
                         state,
                         expression: *expression,
                         primitive_type,
+                        application: Some(formation.clone()),
+                        bindings: bindings.clone(),
                     }
                 }
             }

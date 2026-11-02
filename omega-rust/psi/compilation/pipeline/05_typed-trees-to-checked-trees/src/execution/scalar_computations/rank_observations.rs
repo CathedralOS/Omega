@@ -323,7 +323,7 @@ fn observation<'program>(
                 if proof.machine != builder.machine
                     || proof.machine_body != owner.states
                     || proof.state != builder.state
-                    || proof.application.measure != measure
+                    || proof.application.owner != measure
                     || proof.application.definition_body != *body
                     || proof.bindings != application_inputs
                 {

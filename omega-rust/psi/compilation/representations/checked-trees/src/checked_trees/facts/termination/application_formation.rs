@@ -23,7 +23,7 @@ pub struct CheckedDeclarationCall {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankApplicationFacts {
-    pub measure: SymbolHandle,
+    pub owner: SymbolHandle,
     pub definition_body: ExpressionHandle,
     pub casts: HandleSpan<crate::operators::ExactIntegerCastFact>,
     pub calls: HandleSpan<CheckedDeclarationCall>,

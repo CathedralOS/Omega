@@ -15,6 +15,10 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 /// alone permits invalidation, not transfer of a numerical guarantee.
 pub struct ScalarStorageCoordinate {
     pub place: CanonicalPlace,
+    /// Logical leaf before recasts translate it to physical storage. Its full
+    /// carrier and arithmetic policy survive reference crossings; an owned-only
+    /// second projection would discard that completed scalar interpretation.
+    pub view_reference: TypeReferenceHandle,
     pub source_primitive: PrimitiveType,
     pub view_primitive: PrimitiveType,
     pub preserves_scalar_value: bool,
@@ -81,7 +85,7 @@ impl LocalWriteSource {
                 self.segments.as_slice(),
             ),
         };
-        let view_primitive = scalar_primitive(program, view, path)
+        let (view_reference, view_primitive) = scalar_leaf(program, view, path)
             .ok_or("logical view path has no declared scalar type")?;
         let coordinate = self.storage_coordinate(program, state)?;
         let root = coordinate
@@ -91,10 +95,11 @@ impl LocalWriteSource {
             .ok_or("translated source has no declaration root")?;
         let carrier = source_root_type(program, state, root)
             .ok_or("translated source root has no declared type")?;
-        let source_primitive = scalar_primitive(program, carrier, &coordinate.place.segments)
+        let (_, source_primitive) = scalar_leaf(program, carrier, &coordinate.place.segments)
             .ok_or("translated source path has no declared scalar type")?;
         Ok(ScalarStorageCoordinate {
             place: coordinate.place,
+            view_reference,
             source_primitive,
             view_primitive,
             preserves_scalar_value: coordinate.preserves_scalar_value,
@@ -243,13 +248,12 @@ fn source_root_type(
         .or_else(|| crate::value_custody::places::declaration_type_reference(program, root))
 }
 
-fn scalar_primitive(
+fn scalar_leaf(
     program: &dyn crate::CheckingInput,
     carrier: TypeReferenceHandle,
     path: &[PlaceSegment],
-) -> Option<PrimitiveType> {
+) -> Option<(TypeReferenceHandle, PrimitiveType)> {
     let leaf = crate::project_type_reference_from_segments(program, carrier, path)?;
-    program.primitive_type_reference(crate::value_custody::places::assignment_value_type(
-        program, leaf,
-    ))
+    let reference = crate::value_custody::places::assignment_value_type(program, leaf);
+    Some((reference, program.primitive_type_reference(reference)?))
 }

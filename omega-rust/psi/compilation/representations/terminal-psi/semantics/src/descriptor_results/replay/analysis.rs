@@ -53,9 +53,6 @@ impl<'a> DescriptorAnalysis<'a> {
             })
             .flatten()
             .collect::<Vec<_>>();
-        if slots.is_empty() {
-            return BTreeMap::new();
-        }
         machine
             .flow
             .iter()
@@ -71,13 +68,44 @@ impl<'a> DescriptorAnalysis<'a> {
                             .flat_map(|edge| edge.derivations().map(|(source, _)| source)),
                     )
                     .collect::<Vec<_>>();
-                let current = slots
+                let mut requested = slots
                     .iter()
                     .filter(|slot| {
                         demanded
                             .iter()
                             .any(|source| source.contains(slot) || slot.contains(source))
                     })
+                    .cloned()
+                    .collect::<BTreeSet<_>>();
+                // Owned inventories stop at pointer words. An actual source
+                // operation can also load a descriptor behind those pointers.
+                // Request each typed pointer boundary that operation traverses;
+                // replay below still owes its value at this exact cut. This
+                // neither recursively seeds an input inventory nor creates a
+                // pointer value, permission or concrete backing from a type.
+                for source in &demanded {
+                    let Some(root) = machine.place_types.get(&source.root) else {
+                        continue;
+                    };
+                    for length in 0..=source.path.len() {
+                        let path = &source.path[..length];
+                        if descriptor_location_type(self.replay.types, *root, path)
+                            .and_then(|leaf| {
+                                terminal_psi::find_structural_type(self.replay.types, leaf)
+                            })
+                            .is_some_and(|declaration| {
+                                matches!(declaration.shape, StructuralTypeShape::Reference { .. })
+                            })
+                        {
+                            requested.insert(DescriptorLocation {
+                                root: source.root,
+                                path: path.to_vec(),
+                            });
+                        }
+                    }
+                }
+                let current = requested
+                    .iter()
                     .map(|slot| {
                         (
                             slot.clone(),

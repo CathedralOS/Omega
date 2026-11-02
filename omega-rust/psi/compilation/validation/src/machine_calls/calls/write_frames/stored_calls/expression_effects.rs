@@ -10,9 +10,7 @@ use super::{
 };
 use crate::frozen_program::expression_table;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode, MatchPattern};
-use typed_trees::statement::{
-    StatementNode, TransitionGuardNode, TransitionTargetHandle, TransitionTargetNode,
-};
+use typed_trees::statement::{StatementNode, TransitionGuardNode, TransitionTargetNode};
 
 /// One value and its evaluated operands. For Calls, context is the call-entry
 /// inventory after all actuals and before its own invocation effects, so the
@@ -60,12 +58,6 @@ impl SlotArgumentCapture {
         }
         found
     }
-}
-
-pub(super) struct CompletedTarget {
-    pub target: TransitionTargetHandle,
-    pub arguments: Vec<SlotArgumentCapture>,
-    pub context: CollectedStatementPrefix,
 }
 
 /// Arguments have completed, but an arrival's own slot effects belong to the
@@ -177,11 +169,6 @@ struct ObservedValue {
     call_entry: Option<(CollectedStatementPrefix, FrameInference)>,
 }
 
-struct StatementEvaluation {
-    transfers: StatementSlotTransfers,
-    targets: Vec<CompletedTarget>,
-}
-
 /// Outgoing operands belong to their selected edge. Only the guard's effects
 /// reach a transition's lexical successor; ordinary statements have one route.
 pub(in super::super) enum StatementSlotTransfers {
@@ -208,32 +195,6 @@ impl StatementSlotTransfers {
     }
 }
 
-pub(super) fn completed_targets(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &typed_trees::state::State,
-    statement: &StatementNode,
-    context: &CollectedStatementPrefix,
-    symbols: &TopLevelSymbols<'_>,
-    inference: &mut FrameInference,
-) -> Option<Vec<CompletedTarget>> {
-    let evaluated = evaluate_statement(
-        program,
-        machine,
-        state,
-        statement,
-        context,
-        symbols,
-        inference,
-        &mut Capture::default(),
-    )?;
-    evaluated
-        .transfers
-        .all_routes()
-        .is_complete()
-        .then_some(evaluated.targets)
-}
-
 pub(in super::super) fn statement_effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -253,7 +214,6 @@ pub(in super::super) fn statement_effects(
         inference,
         &mut Capture::default(),
     )
-    .map(|evaluated| evaluated.transfers)
 }
 
 pub(in super::super) fn effects_at_expression(
@@ -405,7 +365,7 @@ fn evaluate_statement(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     capture: &mut Capture,
-) -> Option<StatementEvaluation> {
+) -> Option<StatementSlotTransfers> {
     let query = Evaluation {
         program,
         machine,
@@ -415,7 +375,6 @@ fn evaluate_statement(
     let mut context = context.clone();
     let mut effects = SlotRelationTransfer::default();
     let mut fallthrough = None;
-    let mut targets = Vec::new();
     let empty_prefix = SlotRelationTransfer::default();
     if let StatementNode::Transition(transition) = statement {
         if let TransitionGuardNode::When(guard) = transition.guard {
@@ -439,7 +398,6 @@ fn evaluate_statement(
             let mut branch = SlotRelationTransfer::default();
             let mut branch_context = context.clone();
             let mut branch_inference = inference.clone();
-            let mut completed_arguments = Vec::new();
             if program.statement_table.transition_target_is_valid(target) {
                 let arguments = match program.statement_table.transition_target(target) {
                     TransitionTargetNode::Named { arguments, .. } => {
@@ -449,20 +407,16 @@ fn evaluate_statement(
                     TransitionTargetNode::Terminal => &[],
                 };
                 for argument in arguments {
-                    completed_arguments.push(query.observe(
+                    // Observation still publishes requested completed-value cuts.
+                    query.observe(
                         *argument,
                         &mut branch_context,
                         &mut branch,
                         &mut branch_inference,
                         &prefix,
                         capture,
-                    )?);
+                    )?;
                 }
-                targets.push(CompletedTarget {
-                    target,
-                    arguments: completed_arguments,
-                    context: branch_context,
-                });
             }
             alternatives.push(branch);
             if capture.collect_calls {
@@ -537,7 +491,7 @@ fn evaluate_statement(
         },
         None => StatementSlotTransfers::SingleRoute(effects),
     };
-    Some(StatementEvaluation { transfers, targets })
+    Some(transfers)
 }
 
 struct Evaluation<'request, 'symbols> {

@@ -530,6 +530,7 @@ pub use proof_contracts::contract_entailment::scoped_arithmetic::{
     scoped_arithmetic_implication, scoped_arithmetic_value_bounds,
     scoped_arithmetic_values_relation, scoped_call_result_observations,
     scoped_completed_call_guarantees, scoped_declared_integer_application_formation,
+    scoped_integer_expression_formation,
 };
 pub use proof_contracts::contract_entailment::specification_calls::call_contract_parameter_position;
 pub use proof_contracts::contract_entailment::statement_predicates::StatementPredicateObservations;
