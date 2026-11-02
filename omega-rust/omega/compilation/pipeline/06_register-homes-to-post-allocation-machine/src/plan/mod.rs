@@ -10,10 +10,10 @@ pub(crate) use validate::seal_post_allocation_machine_plan;
 
 use optimization_core::PostAllocationOptimizationManifestIdentity;
 use physical_instructions::{PostAllocationMachineIdentity, PostAllocationMachinePlan};
+use register_homes::RegisterHomeIdentity;
 use register_model::TargetRegisterEnvironmentIdentity;
 use selected_instructions::PreAllocationMachineEffectIdentity;
 use selected_instructions::SelectedInstructionPlanIdentity;
-use selected_instructions_to_register_homes::RegisterHomeIdentity;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

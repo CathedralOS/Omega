@@ -31,5 +31,36 @@ plus every field and canary; its twin removes only the decoder guard.
 [Run 41412055228](https://github.com/CathedralOS/Omega/actions/runs/41412055228)
 qualifies the field pair and ordinary samples on Linux x86_64, checks the local
 roundtrip and nested-result loan control, and records native/Terminal agreement
-with optimized producer `cfcadebbcc85`. The other seven transport places and
-other hosted targets remain open.
+with optimized producer `cfcadebbcc85`.
+
+The [parameter](parameter/main.omg), [call-result](call_result/main.omg), and
+[match-join](match_join/main.omg) programs carry the same guarded view through a
+typed consumer, a returned `Saved` record, and a join of direct construction with
+a helper result. Each runs payloads 42 and 41, checks results 1 and 0 and every
+field/canary, and has the same guard-only rejection twin.
+[Run 41422238131](https://github.com/CathedralOS/Omega/actions/runs/41422238131)
+qualifies those three pairs and ordinary samples on Linux x86_64, with three
+native/Terminal exit-0 agreements and the nested-result loan rejection control.
+The optimized Rust producer is `dd84cfd469ed`; its returned-loan joins use the
+same exact applied-owner correspondence as local stored descriptors, preserving
+root, site, access, lineage and complete-capture requirements.
+
+The [const-name](const_name/main.omg), [nested-machine](other_state/main.omg),
+[other-machine](other_machine/main.omg) and [selected-target](target_body/main.omg)
+places complete the row. Constants carry fully initialized source representations
+as ordinary copied values; runtime materialization owns their backing. A real
+terminal handoff carries `Saved` and the independently read canaries into the
+nested machine. Build chooses the named decoder, with marker17/29 independently
+checking the selected body.
+[Run 41436633328](https://github.com/CathedralOS/Omega/actions/runs/41436633328)
+qualifies those four pairs and ordinary samples with optimized producer
+`e1c62c271d9e`: eleven checking observations, four native/Terminal exit-0
+agreements, and eight ordinary sample observations. The three existing escape
+controls still reject. Retained-home analysis follows the common concrete
+invocation graph and each callee's actual machine, preserving complete operand
+captures, escape checks and the ban on re-establishing a still-borrowed home.
+
+All nine places have Rust-reference Linux x86_64 observations at the recorded
+producer epochs above. Earlier places retain their original accepted records;
+this run adds only the final four. Other hosted execution, the Omega-written
+producer and the broader representation-family requirements remain open.

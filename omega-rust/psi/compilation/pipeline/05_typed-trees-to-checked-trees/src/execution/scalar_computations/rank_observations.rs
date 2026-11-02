@@ -132,7 +132,7 @@ pub(super) fn record(
                 };
                 declaration_bindings.extend(inputs);
                 if admitted.application_formations.is_valid(formation)
-                    && let Some(input) = admitted.application_formations.get(formation).owned_input
+                    && let Some(input) = admitted.application_formations.get(formation).input_home
                 {
                     let coordinate = admitted.coordinates.get(input.actual);
                     let Some(path) = admitted.path_segments.span(coordinate.path) else {
@@ -324,7 +324,7 @@ fn observation<'program>(
                 if proof.machine != builder.machine
                     || proof.machine_body != owner.states
                     || proof.state != builder.state
-                    || proof.application.measure != measure
+                    || proof.application.owner != measure
                     || proof.application.definition_body != *body
                     || proof.bindings != application_inputs
                 {

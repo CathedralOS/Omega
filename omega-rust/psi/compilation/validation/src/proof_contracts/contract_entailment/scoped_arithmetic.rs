@@ -18,7 +18,9 @@
 
 pub(super) mod calls;
 mod formation;
-pub use formation::scoped_declared_integer_application_formation;
+pub use formation::{
+    scoped_declared_integer_application_formation, scoped_integer_expression_formation,
+};
 
 use super::arithmetic_judgment::{Engine, Judgment, Polynomial};
 use crate::proof_contracts::arithmetic_domains::BigIntInterval;

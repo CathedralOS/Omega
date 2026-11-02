@@ -5,10 +5,9 @@
 //! Omega declaration semantics for named members, and [`binding`] joins the
 //! selected immutable snapshot to package identity and dependency rows.
 
-mod binding;
 mod recorded;
 mod request;
 pub(crate) mod workspace;
 
-pub(crate) use recorded::resolve_selected_git_source_at_revision_in_lanes;
+pub(crate) use recorded::{RecordedGitPackage, recover_recorded_git_source};
 pub(crate) use request::GitPackageSourceRequest;

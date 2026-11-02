@@ -164,7 +164,7 @@ retired-syntax deletions to completion.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
     declaration calls needing exclusive-loan arguments or owned affine transfers,
-    borrowed outer input homes, other remaining declared body forms,
+    owned copies from borrowed outer input homes, other remaining declared body forms,
     nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
@@ -503,8 +503,7 @@ narrows realization only.
     declarations: host classification's catalog-local source join, typed
     constant/comparison evaluation (including Early Build's typed-only
     comparison path), general review call coordinates, source-dependent
-    direct-call preparation, calling-policy request
-    enumeration and checked target-body correspondence.
+    direct-call preparation.
   - Move review-only products' complete conformance evidence from checked
     source custody into Terminal Psi.
   - Publish portable dormant-use records and the trust-model accepted-machine
@@ -642,11 +641,11 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   `omega-rust/omega/packages/{build-declarations,compilation-inputs,source-acquisition,build-output,package-manager}/`,
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
-    remaining host operations (including an admitted loan-carrier interface for
-    explicit host loan returns), and the staged dependency preparation/provider
-    park/resume contract to the production Build scheduler, replacing checked-tree Build
-    evaluation and the live-source/Git static syntax projections in
-    `omega-rust/omega/packages/build-declarations`.
+    remaining host operations (including admitted carriers for reference results from
+    opaque host providers), and the staged dependency preparation/provider
+    park/resume contract to the production Build scheduler, and replace the
+    Rust-supplied default declaration for a missing `build.omg` with ordinary
+    source Build execution.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final
@@ -818,10 +817,10 @@ helper that passes does not close an item.
     exposure, acyclic expansion and canonical type/ABI identity through both
     compiler producers and retained artifacts.
     The Rust reference [qualified-case row](samples/cli/facts/transparent_generic_aliases/qualified_cases/README.md)
-    preserves imported alias applications through construction and matching in
-    local, field, parameter and call-result places; the remaining five places
-    and broader pattern inference remain open.
-    The complete alias row, remaining binder/case/pattern cases, alias-RHS
+    now preserves imported alias applications through construction and matching
+    in all nine places on Linux x86-64, with exact payload reject twins.
+    Broader pattern inference remains open. The other alias-form rows,
+    remaining binder/case/pattern cases and alias-RHS
     expression operands beyond the [Const-formal](samples/cli/facts/transparent_generic_aliases/rhs_const_expression/README.md),
     [declaration-scope](samples/cli/facts/transparent_generic_aliases/rhs_const_scope/README.md),
     and [captured-supplier nine-place row](samples/cli/facts/transparent_generic_aliases/rhs_captured_supplier/README.md)
@@ -832,8 +831,9 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
-    Complete byte roundtrips, including the [guarded fixed-layout row](samples/cli/facts/fixed_layout_byte_roundtrip/README.md),
-    broader reference composition, and other-host
+    The [guarded fixed-layout byte-roundtrip row](samples/cli/facts/fixed_layout_byte_roundtrip/README.md)
+    covers all nine Rust/Linux places with rejection twins. Complete its
+    other-host execution, broader reference composition, and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete remaining schema/case composition support and platform ABI
@@ -1864,16 +1864,14 @@ defines the complete product bar.
   end to end (`Psi 05–08` and `Omega 00–09`):
   - Validate the Windows portable `FilesystemService` implementation natively
     (anonymous SQOS on owned path opens, HANDLE storage, explicit permissions and
-    data sync), run `file_journal` (exit 7), `note_vault` (exit 14), Windows raw
-    breadth fixture (exit 70), and provide trusted
+    data sync), run `file_journal` (exit 7) and `note_vault` (exit 14), and provide trusted
     Terminal adapters for the exact authored foreign bindings.
-  - Run `tests/omega/pass/filesystem/windows_canonicalize_exit` (exit 70 on
-    Windows) and wire the occurrence-bound close proof helpers in
+  - Wire the occurrence-bound close proof helpers in
     `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
     so a proved close earns an empty authority classification (with
     `tests/omega/pass/filesystem/native_close` as the unconstrained control).
-  Acceptance: `file_journal`, `note_vault`, `windows_canonicalize_exit`, and the
-  remaining Windows filesystem fixtures pass `omega run --both` on their matching
+  Acceptance: `file_journal`, `note_vault`, and the remaining Windows filesystem
+  fixtures pass `omega run --both` on their matching
   hosts with nested raw-provider closure checks and occurrence-bound close
   classifications, while failed acquisition, handle escape, or unproved close
   retains conservative authority.

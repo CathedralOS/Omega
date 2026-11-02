@@ -1,13 +1,15 @@
 //! Retain calling declarations and policy entries in the shared Product publication.
 //!
-//! Target-specific admission and signature preparation remain with provider
-//! planning. All target children borrow this one immutable code catalog; no
+//! Original review correspondence and inert helper choices are captured once
+//! after publication. All target children borrow this immutable catalog; no
 //! policy invocation compiles source or falls back to the checked interpreter.
 //! This owner publishes no policy-only artifact.
 
 use compilation_products::CheckedProductSource;
 use diagnostics::Diagnostic;
-use provider_planning::calling_policy_plans::CallingProgram;
+use provider_planning::calling_policy_plans::{
+    CallingPolicyProviderInputs, CallingProgram, CallingSourcePreparation,
+};
 use std::sync::Arc;
 
 pub(crate) fn retain_calling_program(
@@ -29,10 +31,35 @@ fn prepare(
         source.terminal_publication.optimizations(),
         &mut crate::observations::PsiStageTimings::new(timings),
     )?;
+    let source_preparation = CallingSourcePreparation::capture(
+        &source.program,
+        source
+            .provider_inventory
+            .services_for(&source.program)
+            .map_err(|error| vec![error])?,
+        &source
+            .computed_build_config
+            .config
+            .opaque_representation_selections,
+        CallingPolicyProviderInputs {
+            body_declarations: source
+                .provider_inventory
+                .direct_calls_for(&source.program)
+                .map_err(|error| vec![error])?,
+            origins: source
+                .provider_inventory
+                .origins_for(&source.program)
+                .map_err(|error| vec![error])?,
+            defaults: &source.provider_defaults,
+            requested: &source.computed_build_config.config.provider_selections,
+            exact_toolchain_sources: source.sources.exact_toolchain_sources(),
+        },
+    )?;
     Ok(Arc::new(CallingProgram {
         source_owner: Arc::downgrade(&source.program),
         artifact: Arc::clone(program.artifact()),
         source_records: program.source_records().to_vec().into(),
+        source_preparation: Arc::new(source_preparation),
         evaluator: build_evaluation::evaluate_terminal_calling_policy,
     }))
 }

@@ -226,6 +226,7 @@ pub(super) fn inspect(retained: &RetainedTerminalArtifact, target: &str) -> Resu
             row.binding = ProviderBinding::TableFunction {
                 table: "OpaqueTable".into(),
                 field: "read".into(),
+                storage: Err("this control observes only invocation cycles".into()),
             };
         }
     }

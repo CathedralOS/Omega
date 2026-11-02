@@ -102,6 +102,44 @@ impl CallingAbiStorageDemand {
         &self.scope.applications
     }
 
+    /// A boundary operation may read a borrowed formal's storage (for example
+    /// a function-address field). Pointer transport alone does not demand that
+    /// storage. Select it explicitly from this exact ABI, never an arbitrary
+    /// type root supplied by a caller or another artifact.
+    pub fn with_borrowed_parameter(
+        mut self,
+        artifact: TerminalArtifactView<'_>,
+        ordinal: usize,
+    ) -> Result<Self, String> {
+        self.require_artifact(artifact)?;
+        let module = artifact.module();
+        let storage = module
+            .calling_abi_signature(self.declaration().id())
+            .ok_or("borrowed storage demand lost its exact ABI")?
+            .storage
+            .as_ref()
+            .map_err(Clone::clone)?;
+        let parameter = storage
+            .parameters
+            .get(ordinal)
+            .ok_or("borrowed storage demand has no such semantic formal")?;
+        if !matches!(
+            parameter.access,
+            terminal_psi::reading_borrow_pair_pattern!()
+        ) {
+            return Err("borrowed storage demand requires a readable formal".into());
+        }
+        let dependencies = terminal_semantics::foreign_storage_extent_dependencies(
+            module,
+            [parameter.structural_type],
+            &self.target,
+        )?;
+        self.scope.applications.extend(dependencies);
+        self.scope.applications.sort_unstable();
+        self.scope.applications.dedup();
+        Ok(self)
+    }
+
     fn require_artifact(&self, artifact: TerminalArtifactView<'_>) -> Result<(), String> {
         if self.terminal != artifact.identity() {
             return Err("ABI storage demand belongs to another Terminal artifact".into());

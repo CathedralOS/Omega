@@ -2115,6 +2115,25 @@ impl TerminalExecution<'_> {
         };
         let projection =
             self.resolve_live_storage_projection(source, prefix, StructuralAccess::SharedBorrow)?;
+        self.scalar_field_projection_read(
+            source,
+            projection,
+            field_path,
+            scalar_type,
+            self.aggregate_argument_backings
+                .get(&source)
+                .and_then(|backing| backing.collection_home.as_ref()),
+        )
+    }
+
+    fn scalar_field_projection_read(
+        &self,
+        source: PlaceId,
+        projection: crate::storage::reference::ResolvedStructuralProjection,
+        field_path: &[StructuralPathSegment],
+        scalar_type: ScalarType,
+        fallback_collection_home: Option<&crate::storage::element_views::ElementViewHome>,
+    ) -> Result<Option<TerminalScalarValue>, TerminalInterpretError> {
         let carrier = projection.value;
         let view = projection.view_tip;
         if let Some(view) = view {
@@ -2122,11 +2141,10 @@ impl TerminalExecution<'_> {
                 &carrier,
                 view,
                 field_path,
-                projection.collection_home.as_ref().or_else(|| {
-                    self.aggregate_argument_backings
-                        .get(&source)
-                        .and_then(|backing| backing.collection_home.as_ref())
-                }),
+                projection
+                    .collection_home
+                    .as_ref()
+                    .or(fallback_collection_home),
                 false,
             )?;
             return self
@@ -2161,6 +2179,40 @@ impl TerminalExecution<'_> {
             value = scalar_reference_observation(value, scalar_type)?;
         }
         Ok(Some(value))
+    }
+
+    /// Observe a retained reference without reconstructing a live frame home
+    /// for its already-returned carrier. Fields and inline primitive endpoints
+    /// retain the same reader, codecs and access checks as guest loads.
+    pub(crate) fn read_retained_reference_scalar(
+        &self,
+        source: PlaceId,
+        owner: &TerminalStructuralValue,
+        path: &[StructuralPathSegment],
+        expected: ScalarType,
+    ) -> Result<TerminalScalarValue, TerminalInterpretError> {
+        if let Some((prefix, field_path)) = scalar_field_projection(path) {
+            let projection = self
+                .resolve_reference_storage_projection(
+                    owner,
+                    prefix,
+                    StructuralAccess::SharedBorrow,
+                )?
+                .ok_or_else(malformed)?;
+            if let Some(value) =
+                self.scalar_field_projection_read(source, projection, field_path, expected, None)?
+            {
+                return if terminal_scalar_belongs_to_type(value) {
+                    Ok(value)
+                } else {
+                    Err(malformed())
+                };
+            }
+        }
+        let (storage, scalar, shared) = self
+            .reference_primitive_access(owner, false, path)?
+            .ok_or_else(malformed)?;
+        self.read_primitive_storage(source, storage, scalar, expected, shared)
     }
 
     pub(crate) fn execute_primitive_read(

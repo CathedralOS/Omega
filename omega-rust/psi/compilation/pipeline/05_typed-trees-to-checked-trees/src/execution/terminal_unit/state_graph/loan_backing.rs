@@ -1217,6 +1217,7 @@ impl Dependencies<'_> {
             if matches!(
                 incoming.origin,
                 checked_trees::IncomingReferenceOrigin::Output { .. }
+                    | checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
             ) {
                 if self.question != StorageQuestion::RetainForArrival
                     || incoming.machine_symbol != self.borrow_state.machine_symbol
@@ -1477,6 +1478,100 @@ impl Dependencies<'_> {
         let loan = self.facts.borrow.loans.get(handle);
         if self.forbidden.contains(&loan.root) {
             return false;
+        }
+        if self
+            .facts
+            .borrow
+            .incoming_references
+            .is_valid(loan.incoming_reference)
+            && let identity = self
+                .facts
+                .borrow
+                .incoming_references
+                .get(loan.incoming_reference)
+            && let checked_trees::IncomingReferenceOrigin::DescriptorLoad { expression } =
+                identity.origin
+        {
+            // A loaded pointer continues its completed value's lifetime. Its
+            // descriptor receiver is not its pointee, and a fresh namespace
+            // proves no relocation independence or spatial separation.
+            if self.question != StorageQuestion::RetainForArrival
+                || identity.machine_symbol != self.borrow_state.machine_symbol
+                || identity.state_symbol != self.state
+                || loan.root != PlaceRoot::Expression(expression)
+                || active_loans.contains(&handle)
+            {
+                return false;
+            }
+            let Some(state) = self
+                .facts
+                .flow
+                .control
+                .state(identity.machine_symbol, identity.state_symbol)
+            else {
+                return false;
+            };
+            let mut completions = self
+                .facts
+                .flow
+                .borrow_lifetimes
+                .activations
+                .span_or_empty(state.borrow_activations)
+                .iter()
+                .filter(|activation| {
+                    self.facts
+                        .borrow
+                        .loans
+                        .get(activation.loan)
+                        .incoming_reference
+                        == loan.incoming_reference
+                        && self
+                            .facts
+                            .flow
+                            .control
+                            .operands
+                            .is_valid(activation.formation_value)
+                        && self
+                            .facts
+                            .flow
+                            .control
+                            .operands
+                            .get(activation.formation_value)
+                            .descriptor_loan
+                            == activation.loan
+                });
+            let Some(activation) = completions.next() else {
+                return false;
+            };
+            if completions.next().is_some()
+                || !self
+                    .facts
+                    .flow
+                    .control
+                    .operands
+                    .is_valid(activation.formation_value)
+            {
+                return false;
+            }
+            let capture = self
+                .facts
+                .flow
+                .control
+                .operands
+                .get(activation.formation_value);
+            if capture.expression != expression || capture.descriptor_loan != activation.loan {
+                return false;
+            }
+            let Some(roots) = shared_leaf_lifetime_roots(self.program, self.facts, capture, &[])
+            else {
+                return false;
+            };
+            active_loans.push(handle);
+            let retained = roots
+                .into_iter()
+                .all(|root| self.root(root, constraints, active_roots, captured));
+            active_loans.pop();
+            return retained;
         }
         // Incoming referents predate this state's independent local storage.
         // Their identity is not the descriptor slot named by their root.

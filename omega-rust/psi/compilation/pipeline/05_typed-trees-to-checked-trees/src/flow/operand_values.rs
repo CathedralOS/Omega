@@ -24,7 +24,7 @@ use facts::{FactPlan, PlaceRoot, PlaceSegment};
 use typed_trees::types::TypeReferenceHandle;
 pub(crate) use validation::completed_storage::{
     captured_operand_child_at_path, captured_retention_profiles_at_path, finite_projection_paths,
-    operand_child_type, project_captured_view_place, reference_captures_at_path,
+    operand_child_type, project_captured_view_place,
 };
 
 /// Contextual construction uses the bound destination declaration. A source

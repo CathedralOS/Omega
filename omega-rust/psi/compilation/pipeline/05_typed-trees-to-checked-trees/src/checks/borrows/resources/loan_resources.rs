@@ -129,6 +129,25 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
         }
 
         for (loan_handle, loan) in borrow.state_loans(state) {
+            if borrow.incoming_references.is_valid(loan.incoming_reference)
+                && matches!(
+                    borrow
+                        .incoming_references
+                        .get(loan.incoming_reference)
+                        .origin,
+                    checked_trees::IncomingReferenceOrigin::DescriptorLoad { .. }
+                )
+                && !flow
+                    .borrow_lifetimes
+                    .activations
+                    .span_or_empty(flow_state.borrow_activations)
+                    .iter()
+                    .any(|activation| activation.loan == loan_handle)
+            {
+                // Syntactic preparation does not establish a permission on an
+                // unevaluated route. Only actual completions have resources.
+                continue;
+            }
             match &loan.lineage {
                 BorrowLoanLineage::DirectRoot => {
                     // A direct-root loan formed on a reference-typed binding is

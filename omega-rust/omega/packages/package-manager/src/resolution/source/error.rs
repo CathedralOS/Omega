@@ -1,48 +1,19 @@
-use crate::declarations::BuildDeclarationError;
-use crate::declarations::dependencies::read::DependencyProjectionError;
-use crate::resolution::source::git::workspace::GitWorkspaceSelectionError;
-use package_source::IdentityError;
-use package_source::SourceRelativePath;
 use package_source::SourceResolveError;
 use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum ResolvePackageSourceError {
     Source(SourceResolveError),
-    Declaration(BuildDeclarationError),
-    DependencyProjection(DependencyProjectionError),
-    Identity(IdentityError),
-    GitWorkspaceSelection(GitWorkspaceSelectionError),
     RecordedGitPin {
         locator: String,
         revision: String,
         message: String,
     },
-    GitWorkspaceMemberNavigation {
-        member_path: SourceRelativePath,
-        message: String,
-    },
 }
-
 impl fmt::Display for ResolvePackageSourceError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Source(error) => write!(formatter, "cannot resolve package source: {error}"),
-            Self::Declaration(error) => {
-                write!(formatter, "cannot establish package declaration: {error}")
-            }
-            Self::DependencyProjection(error) => {
-                write!(formatter, "cannot project package dependencies: {error}")
-            }
-            Self::Identity(error) => {
-                write!(formatter, "cannot establish package identity: {error}")
-            }
-            Self::GitWorkspaceSelection(error) => {
-                write!(
-                    formatter,
-                    "cannot select package from Git workspace: {error}"
-                )
-            }
             Self::RecordedGitPin {
                 locator,
                 revision,
@@ -51,46 +22,12 @@ impl fmt::Display for ResolvePackageSourceError {
                 formatter,
                 "cannot retain Git pin for `{locator}` at `{revision}`: {message}"
             ),
-            Self::GitWorkspaceMemberNavigation {
-                member_path,
-                message,
-            } => write!(
-                formatter,
-                "cannot navigate declared Git workspace member `{}`: {message}",
-                member_path.as_str()
-            ),
         }
     }
 }
-
 impl std::error::Error for ResolvePackageSourceError {}
-
 impl From<SourceResolveError> for ResolvePackageSourceError {
     fn from(error: SourceResolveError) -> Self {
         Self::Source(error)
-    }
-}
-
-impl From<BuildDeclarationError> for ResolvePackageSourceError {
-    fn from(error: BuildDeclarationError) -> Self {
-        Self::Declaration(error)
-    }
-}
-
-impl From<DependencyProjectionError> for ResolvePackageSourceError {
-    fn from(error: DependencyProjectionError) -> Self {
-        Self::DependencyProjection(error)
-    }
-}
-
-impl From<IdentityError> for ResolvePackageSourceError {
-    fn from(error: IdentityError) -> Self {
-        Self::Identity(error)
-    }
-}
-
-impl From<GitWorkspaceSelectionError> for ResolvePackageSourceError {
-    fn from(error: GitWorkspaceSelectionError) -> Self {
-        Self::GitWorkspaceSelection(error)
     }
 }

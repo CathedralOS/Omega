@@ -377,11 +377,13 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         raise ValueError("candidate changed during validation")
 
 
-def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None, samples=None, cli_fixtures=None):
+def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fixtures=None, samples=None, cli_fixtures=None, check_only=False):
     output = ROOT / "build" / name
     output.mkdir(parents=True, exist_ok=True)
     summary = dict(schema="omega-compiler-pilot-v1", passed=False)
     try:
+        if check_only and (fixtures is None or samples is not None or cli_fixtures is not None):
+            raise ValueError("checking-only requires exact fixtures without samples or ordinary CLI projects")
         selected_samples = select_samples(samples) if samples is not None else ()
         selected_cli = select_cli_fixtures(cli_fixtures) if cli_fixtures is not None else ()
         if (samples is not None or cli_fixtures is not None) and fixtures is None:
@@ -389,6 +391,8 @@ def run_suite(name, positives, negatives, *, checking_only=(), producer=None, fi
         if fixtures is not None:
             positives, negatives = select_fixtures(fixtures)
             checking_only = ()
+        if check_only:
+            checking_only, positives = positives, ()
         execute(output, summary, positives=positives, negatives=negatives,
                 checking_only=checking_only, producer=producer, samples=selected_samples,
                 cli_fixtures=selected_cli)
@@ -408,6 +412,9 @@ def main(arguments=None):
     parser.add_argument("--fixtures", help="comma-separated exact pass/... or fail/... fixture IDs")
     parser.add_argument("--samples", help="comma-separated exact samples/cli/facts project paths (includes descendants)")
     parser.add_argument("--cli-fixtures", help="exact pass/... normal-exit projects through ordinary CLI review/run")
+    parser.add_argument("--checking-only", action="store_true",
+                        default=os.environ.get("OMEGA_COMPILER_PILOT_CHECKING_ONLY") == "true",
+                        help="check exact --fixtures and rejection controls without executing positives")
     options = parser.parse_args(arguments)
     fixtures = options.fixtures
     if fixtures is None:
@@ -416,7 +423,7 @@ def main(arguments=None):
     cli_fixtures = (options.cli_fixtures if options.cli_fixtures is not None
                     else os.environ.get(CLI_FIXTURE_ENVIRONMENT) or None)
     return run_suite("compiler-pilot", POSITIVES, NEGATIVES, fixtures=fixtures,
-                     samples=samples, cli_fixtures=cli_fixtures)
+                     samples=samples, cli_fixtures=cli_fixtures, check_only=options.checking_only)
 
 
 if __name__ == "__main__":

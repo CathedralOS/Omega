@@ -29,6 +29,9 @@ use selected_instructions_to_register_homes::{RetainedAllocation, ValidatedSelec
 /// This checks their joins and exit contract without running a compiler stage.
 pub fn assemble_fixed_frame_realization(
     allocation: RetainedAllocation,
+    target_input: std::sync::Arc<
+        abstract_operations_to_target_operations::ValidatedOptimizedTargetOperations,
+    >,
     machine: StagedOptimizedPostAllocationMachinePlan,
     frame: super::FunctionRelativeFrame,
     encoding: StagedOptimizedSelectedFormEncoding,
@@ -55,6 +58,7 @@ pub fn assemble_fixed_frame_realization(
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_fixed_frame_manifest(
         &current,
+        &target_input,
         &machine,
         &encoding,
         &baseline_layout,
@@ -75,6 +79,7 @@ pub fn assemble_fixed_frame_realization(
     );
     Ok(StagedFixedFrameFunctionRelativeRealization {
         allocation,
+        target_input,
         machine,
         encoding,
         baseline_layout,
@@ -147,6 +152,7 @@ pub(crate) fn validate_fixed_frame_function_relative_realization(
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
     let manifest = expected_fixed_frame_manifest(
         &current,
+        &staged.target_input,
         &staged.machine,
         &staged.encoding,
         &staged.baseline_layout,

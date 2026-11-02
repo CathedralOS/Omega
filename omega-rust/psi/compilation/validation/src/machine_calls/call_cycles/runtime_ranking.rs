@@ -738,7 +738,7 @@ fn admit_ranked_edge(
                     .values
                     .get_mut(index)
                     .ok_or("the captured rank application lost its ordered component")?;
-                if row.measure != application.measure()
+                if row.measure != application.owner()
                     || row
                         .application
                         .as_ref()
