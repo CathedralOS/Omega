@@ -130,8 +130,10 @@ ordinary CLI update/review/resume followed by `run --both --keep`; it does not
 repeat that package check in the corpus runner. It freezes
 tracked fixture/library inputs and requires explicit native and Terminal exit
 markers. It preserves raw logs for both review phases; managed acceptance is
-ordinary pending-row decisions, not a copied lock. Stream, inspection and RAM
-oracles are refused before building rather than silently omitted. For example:
+ordinary pending-row decisions, not a copied lock. Plain names in `expected_terminal_inspections.txt` run through public named
+inspection and canonical artifact reload with matching program identity. Stream,
+RAM and debug/runtime/control inspection oracles remain refused before building
+rather than silently omitted. For example:
 
 ```sh
 gh workflow run compiler-pilot.yml --ref work/NAME \
