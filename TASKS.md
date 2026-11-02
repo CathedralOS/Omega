@@ -199,6 +199,10 @@ retired-syntax deletions to completion.
     as requested by the owner; Terminal comparison currently declines the
     Objective-C adapter's additional service demands. Scalar-range syntax
     migration and the remaining aggregate handback obligations below stay open.
+    Applied case predicates now retain saved scalar endpoints through an invalid
+    intermediate payload write and exact restoration across all nine places in
+    `samples/cli/facts/case_dependent_default_domain` (`macos_arm64` native/Terminal
+    exit 0); missing-ceiling and stale-snapshot controls still reject.
     Carry those facts through reads, calls, state joins,
     [mutable recasts](omega-rust/psi/compilation/checking/recasts.md), and
     returns, preserving the audited inventories in
