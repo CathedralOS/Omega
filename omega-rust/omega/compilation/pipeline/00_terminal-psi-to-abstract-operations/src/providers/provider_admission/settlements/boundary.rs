@@ -3,7 +3,7 @@ use super::{
     normalized_foreign_call::rejoin_normalized_foreign_call,
 };
 use crate::AdmittedBoundarySettlement;
-use crate::provider_admission::{
+use crate::providers::provider_admission::{
     NativeBoundaryRealization, NativeProviderSettlement, NativeRealizationInput,
     ProviderAdmissionRequest,
 };

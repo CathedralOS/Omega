@@ -553,7 +553,7 @@ fn selected_numeric_admission_binds_facts_after_requiring_the_owner() {
 #[test]
 fn boundary_application_policy_has_one_source_free_owner() {
     let settlement = include_str!(
-        "../../pipeline/00_terminal-psi-to-abstract-operations/src/boundary_application_settlement.rs"
+        "../../pipeline/00_terminal-psi-to-abstract-operations/src/settlement/boundary_application_settlement.rs"
     );
     assert_absent(
         &[settlement],

@@ -8,7 +8,7 @@
 //! compiler supplies policy and consumes the result; it does not rebuild this
 //! admission between stages.
 
-use crate::provider_admission::{
+use crate::providers::provider_admission::{
     AdmittedNativeProviders, ProviderAdmissionRequest, admit_native_providers, realization_error,
 };
 use crate::{ArtifactLoweringError, VerifiedNativeArtifactInput};

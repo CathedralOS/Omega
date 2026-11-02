@@ -12,7 +12,7 @@ use std::collections::BTreeSet;
 pub(crate) fn validate_retained_package_terminal_authority_permissions(
     retained: &[ServiceTerminalAuthorityPermission],
     retained_identities: &terminal_psi::TerminalIdentityTable,
-    accepted: &crate::provider_admission::TerminalAuthorityPermissionPolicy,
+    accepted: &crate::providers::provider_admission::TerminalAuthorityPermissionPolicy,
 ) -> Result<(), Vec<Diagnostic>> {
     let mut seen = BTreeSet::new();
     let mut diagnostics = Vec::new();

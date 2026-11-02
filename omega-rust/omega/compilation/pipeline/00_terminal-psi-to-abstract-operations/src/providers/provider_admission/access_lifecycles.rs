@@ -13,7 +13,9 @@ use super::{
     AdmittedBoundaryExecution, AdmittedBoundarySettlement, AdmittedTerminalMechanism,
     SettledCompilerBuiltin,
 };
-use crate::provider_installation::{AdmittedInstalledProviderCall, AdmittedProviderInstallation};
+use crate::providers::provider_installation::{
+    AdmittedInstalledProviderCall, AdmittedProviderInstallation,
+};
 use diagnostics::Diagnostic;
 use semantic_vocabulary::{InvocationSite, MachineId, OperationId};
 use terminal_psi::{

@@ -406,7 +406,7 @@ canonical row encoder, preserving the existing byte format and identities.
 
 ## Intrinsic settlement conversion
 
-[Native builtin projection](../pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/compiler_builtins/proposals.rs) validates all
+[Native builtin projection](../pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/compiler_builtins/proposals.rs) validates all
 selected plan provenance, then joins sorted borrowed intrinsic rows to lexical
 Terminal demand. Original plan indices remain attached to each row. Duplicate
 demanded rows reject; undemanded rows need no executable proposal. One exhaustive
@@ -570,7 +570,7 @@ of carrying a second plan copy and separately supplied identity fields.
 Independent fragment, object, and image replay still check the complete join.
 
 Direct compilation and retained Terminal re-entry share the Terminal entry stage's
-[source-binding preparation](../pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/source_evaluated_bindings.rs).
+[source-binding preparation](../pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/source_evaluated_bindings.rs).
 It joins demanded imports and syscalls to exact selected plans, derives import execution and stack
 inputs when none are supplied, and rejects incomplete or substituted supplied
 rosters. The coordinator forwards the prepared settlements; it does not derive
@@ -586,12 +586,12 @@ alone is not evidence that a syscall-backed program runs.
 ### Program-entry settlement
 
 [Entry roots](../../../../wiki/spec/build/entry_roots.md) owns the source/arrival
-contract. [entry_settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/mod.rs) independently replays
+contract. [entry_settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/settlement/entry_settlement/mod.rs) independently replays
 target, source signature, calling/storage plans, canonical artifact, exact
 Terminal entry, and service establishment before issuing the validated carrier.
 It does not call the Psi receipt producer to validate that producer's output.
 
-[service_establishment.rs](../pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/service_establishment.rs) joins
+[service_establishment.rs](../pipeline/00_terminal-psi-to-abstract-operations/src/settlement/entry_settlement/service_establishment.rs) joins
 selected Fused service evidence to the Terminal receiver's attachment and exact
 erased fields, then to the selected provider plans. Semantic receiver identity
 and retained Terminal attachment identity are separate facts and need not have
@@ -645,7 +645,7 @@ result, and resource custody; metadata-only receipt tests do not close the route
 
 Canonical callback applications and target calling applications enter the
 realization request separately. Omega 00's
-[callback settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/callback_settlement/placement.rs)
+[callback settlement](../pipeline/00_terminal-psi-to-abstract-operations/src/settlement/callback_settlement/placement.rs)
 joins their exact requirement and static binder ordinal, then produces the
 [backend placement](../backend/plans/backend-plan/src/callback_placements.rs):
 a direct callback parameter or record-field root with its native ordinal and
