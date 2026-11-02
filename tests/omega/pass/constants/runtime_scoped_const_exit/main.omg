@@ -6,7 +6,7 @@
 // Expected exit: 70.
 use omega_language_std::console;
 
-data Limits [copy] where ceiling >= 0 && ceiling <= 100 {
+data Limits [copy] requires ceiling >= 0 && ceiling <= 100 {
     ceiling: i32;
 }
 

@@ -275,7 +275,7 @@ impl<'program> StructuralJudge<'program> {
                 return None;
             };
             let source =
-                crate::expression_result_type_reference(program, scope.0, scope.1, cast.value)?;
+                crate::expression_result_type_reference(program, scope.0, scope.1, cast.value);
             // The operand has completed once. Carry its exact observed
             // value through the conversion, never reread its old home.
             value = match structural_terms::conversion_term(

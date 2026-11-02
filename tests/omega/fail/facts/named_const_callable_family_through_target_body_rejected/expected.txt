@@ -1,0 +1,3 @@
+Const slot
+named(integer-const(5))
+named(integer-const(4))

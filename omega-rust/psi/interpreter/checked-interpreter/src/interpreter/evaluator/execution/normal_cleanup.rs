@@ -442,7 +442,7 @@ impl<'program> Evaluator<'program> {
                     drop(value);
                     source = selected;
                 }
-                CheckedUnitStructuralPathSegment::FixedByteRange { .. }
+                CheckedUnitStructuralPathSegment::FixedRange { .. }
                 | CheckedUnitStructuralPathSegment::RuntimeIndex(_)
                 | CheckedUnitStructuralPathSegment::ComputedIndex(_) => {
                     return unsupported("normal cleanup requires a retained static receiver path");

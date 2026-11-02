@@ -421,7 +421,7 @@ impl StructuralJudge<'_> {
                 .any(|contract| contract.kind == SignatureContractKind::Ensures)
             && resolving.recorded_body_boolean(&owner, depth + 1).is_none()
         {
-            phase_profile::count("05.selected.empty_result_equations", 1);
+            phase_profile::count("psi.05.selected.empty_result_equations", 1);
             return None;
         }
         let StructuralTerm::Application { arguments, .. } = application else {
@@ -913,6 +913,22 @@ pub(super) fn selected_requirement_judgment(
         }
         // Data Id is a proposition over these completed values, not an
         // executable Boolean operator to rediscover under the public signature.
+        // Resolve through already admitted prefix equations, as declaration
+        // equality does, before judging the completed pair. The raw map
+        // application is not yet its value under the caller's requires.
+        let left = judge.resolve_at(left, depth + 1);
+        let right = judge.resolve_at(right, depth + 1);
+        if !super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            references[0],
+            &left,
+        ) || !super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            references[1],
+            &right,
+        ) {
+            return StructuralJudgment::Unknown;
+        }
         let judgment = judge.judge_equation(left, right, depth + 1);
         return if binary.operator == BinaryOperator::NotEqual {
             match judgment {

@@ -28,7 +28,7 @@ The governing contracts are [live storage and mutation summaries](../../../../wi
 2. Identity and lifetime: the owned carrier stores the cursor's captured referent. The invalid twin changes that referent to the index; its prior bound is stale.
 3. Composition: the preserved bound feeds indexing directly, through a field, a parameter, a result contract, a match join, a named constant, a state arrival, a forwarding machine or a target-scoped body.
 4. Soundness: write footprints never authorize loans, moves, linear claims or a reference load behind another reference. Unknown origins stay opaque.
-5. Psi 05–07: the ordinary generated codec and carried cursor lower into Terminal Psi and execute with `--both`.
+5. Psi 06–08: the ordinary generated codec and carried cursor lower into Terminal Psi and execute with `--both`.
 6. Omega 00–02: all hosted entry bindings use the ordinary checked callee, reference placement and selected realization.
 7. Omega 03–06: native execution writes the codec cursor through the carrier's reference and reloads the independent index.
 8. Omega 07–09 and emission: the native image and Terminal interpreter must both observe exit `0` on the actual host.

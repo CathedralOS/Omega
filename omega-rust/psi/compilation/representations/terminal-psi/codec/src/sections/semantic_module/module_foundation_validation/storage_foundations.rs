@@ -32,10 +32,10 @@ use terminal_semantics::{
     projected_field_declaration, reference_byte_field_compatible, reference_carrier_memberships,
     reference_preserves_ancestor_qualifications, reference_source_projection_accessible,
     reference_source_projection_compatible, reference_source_storage_path,
-    reference_storage_source_compatible, resident_reference_plan, runtime_structural_field,
-    scalar_field_store_preserves_content, scalar_field_store_preserves_domain_content,
-    scalar_projection_entails_membership, store_preserves_content,
-    structural_memberships_disjoint_from_write,
+    reference_storage_region_source_compatible, reference_storage_source_compatible,
+    resident_reference_plan, runtime_structural_field, scalar_field_store_preserves_content,
+    scalar_field_store_preserves_domain_content, scalar_projection_entails_membership,
+    store_preserves_content, structural_memberships_disjoint_from_write,
 };
 
 /// Resolve only the reference shell's declared geometry. Origin, live loan
@@ -259,6 +259,26 @@ pub(super) fn validate_establish_reference(
         }
     }
     let compatible = match storage {
+        Some(storage)
+            if matches!(
+                source_path.last(),
+                Some(StructuralPathSegment::FixedRange { .. })
+            ) =>
+        {
+            // The prefix still owes the ordinary namespace/path validation.
+            // The range owns no fabricated type; its geometry is replayed
+            // against that original backing and its exact element ordinals.
+            let (_, prefix) = source_path.split_last().expect("matched range");
+            let array = validate_structural_path(module, source_type, prefix)?;
+            validate_storage_interpretation(module, array, result.structural_type, *access)?;
+            reference_storage_region_source_compatible(
+                module.structural_types.iter(),
+                source_type,
+                source_path,
+                result.structural_type,
+                storage.stored_scalar,
+            )
+        }
         Some(storage) => {
             // An explicit storage interpretation still observes a shared
             // restricted scalar through its read carrier. The stored codec,

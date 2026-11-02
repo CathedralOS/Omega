@@ -29,7 +29,7 @@ SignedByte satisfies FixedLayout<PortableByte> {
 data PortableByte [copy] { value: i64; }
 data RawView { value: LayoutStorage<PortableByte, SignedByte>; }
 data Main
-where
+requires
     -128 <= source,
     source <= 127,
 {

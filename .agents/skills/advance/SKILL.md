@@ -122,7 +122,7 @@ Apply [requirements and evidence](../../../AGENTS.md#requirements-and-evidence):
 each sample fact README lists how its nine places and reject twins prove out
 the eight end-to-end specification requirement layers—**establishment**,
 **identity and lifetime**, **composition**, **soundness boundaries**,
-**checked-to-Terminal Psi lowering (`Psi 05–07`)** (proof-term erasure, affine
+**checked-to-Terminal Psi lowering (`Psi 06–08`)** (proof-term erasure, affine
 cleanup actions, borrow restoration windows, `dyn` selector vs. data lanes,
 strongly connected ranking/control edges, boundary demands, and `PSITERM\0`
 interpreter execution), **provider settlement, layout geometry, and ABI calling
@@ -143,9 +143,9 @@ consuming operation itself: never re-establish the fact in the caller after the
 construct completes using a post-hoc equality guard (`transition x == 100`), and
 verify via `git diff` that `<place>/main.omg` vs. `<place>/invalid/main.omg`
 differ only in the construct's own value, domain, or contract. Just as
-`<place>/invalid/main.omg` is the static falsifier for `Psi 01–04`, `main()` in
+`<place>/invalid/main.omg` is the static falsifier for `Psi 01–05`, `main()` in
 `<place>/main.omg` must be a runtime falsifier that traps (`crash Trap`) if
-`Psi 05–07` or `Omega 00–09` mis-lowers the construct: exercise both matching
+`Psi 06–08` or `Omega 00–09` mis-lowers the construct: exercise both matching
 and fallback paths with distinct runtime outcomes (never testing only a
 boundary value where both arms evaluate to the same number), make affine
 cleanup (`DiscardRoot`, `DiscardResidual`, `InvokeNominal`, `RetireHome`) or
@@ -570,7 +570,7 @@ Invoking advance authorizes committing and publishing the change through
 [the landing protocol](../../../tools/landing.md).
 
 Validate the submitted change, push HEAD directly to origin (`git push origin HEAD:refs/heads/work/<name>`), open or reuse a draft PR, and use
-the native merge queue under the linked protocol. Mark the draft ready only when that protocol says it can be enqueued. Put actual agent/model
+the native merge queue under the linked protocol. When the work is finished, run `tools/landing.py land`, which marks it ready and lets the queue take it when `compiler-check` passes. Put actual agent/model
 provenance in the PR body when known. Do not invent unknown metadata. Release
 local build slots before waiting. Never chase main with gates, rebases, or rebuilds:
 GitHub Actions CI does the integration build and checks in the merge queue. No local publication

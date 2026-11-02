@@ -35,7 +35,7 @@ X86ObserveTarget satisfies SelectedObserveTarget {
     {
         SelectedBodyCheck::require_tag(17u64);
      let mut snapshot: u64 = 0;
-     asm where clobbers rax, rflags, r10, r15 {
+     asm clobbers rax, rflags, r10, r15 {
      entry:
       mov eax, 4294967295;
       add eax, 1;
@@ -56,7 +56,7 @@ ArmObserveTarget satisfies SelectedObserveTarget {
     {
         SelectedBodyCheck::require_tag(29u64);
      let mut snapshot: u64 = 0;
-     asm where clobbers rax, rflags, r10, r15 {
+     asm clobbers rax, rflags, r10, r15 {
      entry:
       mov eax, 4294967295;
       add eax, 1;

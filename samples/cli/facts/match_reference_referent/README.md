@@ -99,7 +99,7 @@ and nine fail fixtures (each a byte-identical copy of its place twin plus the pi
 4. **Soundness boundaries:** every twin rejects during proof checking with
    ``cannot prove requires contract for call read_through …``; the recorded referent is not
    widened to "either candidate", and ownership/access of the borrowed referees is preserved.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the join, the borrow of each candidate and
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the join, the borrow of each candidate and
    the consumer call lower without loss into Terminal Psi; the Terminal interpreter agrees with
    native execution on all nine places plus the root (`omega run --both`).
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** each place

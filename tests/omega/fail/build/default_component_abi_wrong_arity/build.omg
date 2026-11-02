@@ -1,0 +1,6 @@
+machine build(builder: &mut Build) {
+    Build::application(builder, "default_component_abi_wrong_arity");
+    Build::depend_as(builder, "producer", Source::Path { location: "../../../pass/build/default_component_abi_extents/producer" });
+    Build::select_provider<producer::main::Inspect<u8, u16>, producer::main::Inspector>(builder, macos_arm64, CompositionMode::Independent);
+    Build::bind(builder, macos_arm64::ProgramEntry, main);
+}

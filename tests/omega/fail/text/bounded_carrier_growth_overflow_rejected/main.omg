@@ -2,7 +2,7 @@
 // must fail the capacity precondition before any write, without truncation.
 domain [u8; 16]::Ascii requires ascii_only(self);
 domain [u8]::Ascii requires ascii_only(self);
-data Buffer where used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
+data Buffer requires used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
 machine copy(buffer: &mut [u8; 16] in Ascii, bytes: &[u8] in Ascii, start: u64)
 requires start <= 16, bytes.len <= 16 - start
 ensures buffer in Ascii

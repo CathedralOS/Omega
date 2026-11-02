@@ -167,6 +167,29 @@ pub(crate) enum HostStructuralPayload {
 }
 
 impl crate::execution::TerminalExecution<'_> {
+    /// Lending an opaque host value does not supply cells for guest stores.
+    /// Creating local payload here would detach the write from the frozen
+    /// lender, while its caller could still forward the unchanged host object.
+    /// Actual host effects remain on their admitted original-object route;
+    /// general guest mutation needs the original storage transfer carrier.
+    pub(crate) fn require_guest_storage_mutation(
+        &self,
+        changed: &StructuralRuntimePlace,
+    ) -> Result<(), crate::errors::TerminalInterpretError> {
+        if self.component_lent_host_atoms.keys().any(|lender| {
+            lender.opaque_identity == changed.opaque_identity
+                && (changed.path.starts_with(&lender.path)
+                    || lender.path.starts_with(&changed.path))
+        }) {
+            return Err(
+                crate::errors::TerminalInterpretError::UnsupportedSemanticVariant(
+                    "opaque component loan lacks original guest storage for mutation",
+                ),
+            );
+        }
+        Ok(())
+    }
+
     /// A write invalidates assertions about the complete original value.
     /// Disjoint children retain their own provenance. Replacement of an
     /// ancestor invalidates descendant profile occurrences as well.

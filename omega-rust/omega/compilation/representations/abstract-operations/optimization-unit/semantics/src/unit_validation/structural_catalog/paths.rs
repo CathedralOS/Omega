@@ -146,8 +146,30 @@ fn resolve_path<'types>(
 ) -> Option<StructuralTypeId> {
     declaration(structural_type)?;
     let mut payload_fields = None;
-    for segment in path {
+    for (ordinal, segment) in path.iter().enumerate() {
         let declaration = declaration(structural_type)?;
+        if let StructuralPathSegment::FixedRange { start, end } = segment {
+            let terminal_psi::StructuralTypeShape::FixedArray {
+                length: terminal_psi::ArrayExtent::Literal(length),
+                ..
+            } = declaration.shape
+            else {
+                return None;
+            };
+            if payload_fields.is_some()
+                || start > end
+                || *end > length
+                || !matches!(
+                    path.get(ordinal + 1),
+                    Some(StructuralPathSegment::RepresentationView { .. })
+                )
+            {
+                return None;
+            }
+            // A region has no standalone type. Its explicit interpretation
+            // supplies the next namespace without creating an array value.
+            continue;
+        }
         if let StructuralPathSegment::Case(case) = segment {
             if payload_fields.is_some() {
                 return None;

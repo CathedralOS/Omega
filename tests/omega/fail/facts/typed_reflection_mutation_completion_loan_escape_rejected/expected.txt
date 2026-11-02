@@ -1,0 +1,1 @@
+stores a borrowed value without a complete normal-exit backing relation

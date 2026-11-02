@@ -98,7 +98,7 @@ fn decode_path(
             1 => Field(terminal_psi::TerminalIdentityIndex(cursor.u32()?)),
             2 => terminal_psi::StructuralPathSegment::FixedIndex(cursor.u64()?),
             3 => terminal_psi::StructuralPathSegment::Referent,
-            4 => terminal_psi::StructuralPathSegment::FixedByteRange {
+            4 => terminal_psi::StructuralPathSegment::FixedRange {
                 start: cursor.u64()?,
                 end: cursor.u64()?,
             },
@@ -188,7 +188,7 @@ mod tests {
                 StructuralPathSegment::Field(TerminalIdentityIndex(1)),
                 StructuralPathSegment::FixedIndex(3),
                 StructuralPathSegment::Referent,
-                StructuralPathSegment::FixedByteRange { start: 4, end: 8 },
+                StructuralPathSegment::FixedRange { start: 4, end: 8 },
                 StructuralPathSegment::RuntimeIndex {
                     index: semantic_vocabulary::ValueId::new(5).unwrap(),
                     obligation: ObligationId::new(6).unwrap(),

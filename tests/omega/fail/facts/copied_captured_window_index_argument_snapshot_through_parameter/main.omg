@@ -4,7 +4,7 @@
 data Counter { value: bool; }
 data View<'storage> [copy] { bytes: &'storage [u8]; sibling: &'storage [u8]; }
 data Counted<'storage, Count: u64> [copy]
-where view.bytes.len == Count
+requires view.bytes.len == Count
 { view: View<'storage>; }
 machine end_and_reset(start: &mut u64) -> u64
 ensures result == 8, start == 0

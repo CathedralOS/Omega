@@ -24,7 +24,9 @@ pub use callback_placements::{
     PrivateCallbackDestinationApplication,
 };
 pub use target_providers::{
-    TerminalTargetProviderPlan, TerminalTargetProviderProposal, TerminalTargetProviderSelection,
-    admit_selected_checked_providers, close_checked_provider_specializations,
-    matching_folded_constant_dependencies, require_selected_provider_declarations,
+    SelectedProviderCandidateRow, TerminalTargetProviderPlan, TerminalTargetProviderProposal,
+    TerminalTargetProviderSelection, admit_selected_checked_providers,
+    close_checked_provider_specializations, matching_folded_constant_dependencies,
+    require_selected_provider_declarations, selected_checked_adapter_header,
+    selected_provider_candidate_rows,
 };

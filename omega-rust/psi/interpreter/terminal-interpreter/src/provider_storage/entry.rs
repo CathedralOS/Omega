@@ -126,6 +126,14 @@ impl TerminalExecution<'_> {
             return Err("provider storage handback changed the bound extent geometry".into());
         }
         let handle = binding.allocation;
+        let ProviderStorageSlot::Live { allocation, .. } =
+            self.provider_storage.allocations.get_mut(handle)
+        else {
+            return Err("provider storage result allocation retired during handback".into());
+        };
+        // Host retirement may refuse. Do not spend returned custody or remove
+        // the descriptor until the bytes have actually been handed back.
+        let bytes = allocation.bytes.take().map_err(|reason| reason.reason)?;
         let ProviderStorageSlot::Live {
             allocation,
             profile,
@@ -139,9 +147,8 @@ impl TerminalExecution<'_> {
             .descriptors
             .retain(|_, binding| binding.allocation != handle);
         self.returned_claims.remove(returned_claim);
-        let (extent, bytes) = allocation.into_parts();
         Ok(TerminalReturnedProviderStorage {
-            extent,
+            extent: allocation.extent,
             profile,
             bytes,
         })
@@ -155,6 +162,10 @@ impl TerminalExecution<'_> {
         if !self.provider_storage.binding_is_live(*binding) {
             return false;
         }
+        self.is_live_provider_owner(home)
+    }
+
+    pub(crate) fn is_live_provider_owner(&self, home: &StructuralRuntimePlace) -> bool {
         // Borrowed helpers retain the owner in a suspended caller. Its claim
         // remains authoritative there; a descriptor association alone is not.
         self.call_stack
@@ -186,6 +197,14 @@ impl TerminalExecution<'_> {
         base: u64,
         length: u64,
     ) -> Result<bool, TerminalInterpretError> {
+        Ok(self.provider_storage_geometry(home, storage)? == Some((base, length)))
+    }
+
+    pub(crate) fn provider_storage_geometry(
+        &self,
+        home: &StructuralRuntimePlace,
+        storage: &terminal_psi::TerminalAccessStorage,
+    ) -> Result<Option<(u64, u64)>, TerminalInterpretError> {
         let integer = |field| -> Result<Option<u64>, TerminalInterpretError> {
             let value = self
                 .structural_scalar_fields
@@ -200,7 +219,7 @@ impl TerminalExecution<'_> {
                 _ => None,
             })
         };
-        Ok(integer(storage.base)? == Some(base) && integer(storage.length)? == Some(length))
+        Ok(integer(storage.base)?.zip(integer(storage.length)?))
     }
 
     /// Supply actual backing after ordinary entry binding and before execution.
@@ -214,29 +233,7 @@ impl TerminalExecution<'_> {
             Ok(home) => home,
             Err(reason) => return Err(TerminalProviderStorageRejection { input, reason }),
         };
-        let TerminalProviderStorageInput {
-            argument_index,
-            path,
-            extent,
-            profile,
-            bytes,
-        } = input;
-        let allocation = match ProviderByteAllocation::from_admitted_provider(extent, bytes) {
-            Ok(allocation) => allocation,
-            Err(rejected) => {
-                return Err(TerminalProviderStorageRejection {
-                    input: TerminalProviderStorageInput {
-                        argument_index,
-                        path,
-                        extent: rejected.extent,
-                        profile,
-                        bytes: rejected.bytes,
-                    },
-                    reason: rejected.reason.into(),
-                });
-            }
-        };
-        let length = allocation.extent().length();
+        let length = input.extent.length();
         // No allocation handle is published until both owned records are paid.
         // Returning the original inputs on refusal leaves entry binding retryable.
         let lease = self
@@ -262,15 +259,8 @@ impl TerminalExecution<'_> {
         let (lease, descriptor) = match receiving {
             Ok(receiving) => receiving,
             Err(reason) => {
-                let (extent, bytes) = allocation.into_parts();
                 return Err(TerminalProviderStorageRejection {
-                    input: TerminalProviderStorageInput {
-                        argument_index,
-                        path,
-                        extent,
-                        profile,
-                        bytes,
-                    },
+                    input,
                     reason: format!("provider storage admission: {reason:?}"),
                 });
             }
@@ -279,8 +269,11 @@ impl TerminalExecution<'_> {
             self.provider_storage
                 .allocations
                 .insert(ProviderStorageSlot::Live {
-                    allocation,
-                    profile,
+                    allocation: ProviderByteAllocation {
+                        extent: input.extent,
+                        bytes: super::backing::ProviderBytes::Owned(input.bytes),
+                    },
+                    profile: input.profile,
                     _lease: lease,
                 });
         Ok(())
@@ -292,6 +285,12 @@ impl TerminalExecution<'_> {
     ) -> Result<StructuralRuntimePlace, String> {
         if !self.entry_storage_open {
             return Err("provider entry storage must be bound before the first resume".into());
+        }
+        if input.extent.provider_issuance().is_none() {
+            return Err("provider byte storage requires an admitted provider-issued extent".into());
+        }
+        if usize::try_from(input.extent.length()).ok() != Some(input.bytes.len()) {
+            return Err("provider byte storage must cover the exact complete extent".into());
         }
         let machine = self
             .program

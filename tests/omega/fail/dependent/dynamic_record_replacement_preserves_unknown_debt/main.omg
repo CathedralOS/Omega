@@ -1,4 +1,4 @@
-data Cell where left == right, { left: i32; right: i32; }
+data Cell requires left == right, { left: i32; right: i32; }
 data Grid { cells: [Cell; 2]; }
 domain u64::Positive requires 1 <= self;
 data Gated { value: u64 in Positive; }

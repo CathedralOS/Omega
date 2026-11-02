@@ -47,7 +47,7 @@ input/output labels; the Omega caller only merges their measured rows.
 implementation, incomplete proof search and ordinary rejection. Neither requires
 a dependency on the Omega reporting accumulator.
 
-The [stage-07 entry receipt owner](../../pipeline/07_lowered-psi-to-terminal-psi/src/entry_receipt.rs) checks the
+The [stage-07 entry receipt owner](../../pipeline/08_lowered-psi-to-terminal-psi/src/entry_receipt.rs) checks the
 unique Unit entry in the published artifact and binds its exact semantic identity.
 Source preparation delegates explicit context eligibility to its own child.
 
@@ -72,16 +72,16 @@ still supply the distinct ABI and installation evidence.
 ## Lowering owners
 
 This coordinator does not own the lowerers' feature dispatch. Start with
-[checked execution selection](../../pipeline/04_typed-trees-to-checked-trees/src/execution/terminal_unit/mod.rs),
-then [machine lowering](../../pipeline/05_checked-trees-to-lowered-psi/src/machine_lowering.rs).
-[Source custody](../../pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/mod.rs)
+[checked execution selection](../../pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/mod.rs),
+then [machine lowering](../../pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering.rs).
+[Source custody](../../pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/mod.rs)
 prepares expressions and places; the
-[call catalog](../../pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit/call_catalog.rs)
+[call catalog](../../pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/call_catalog.rs)
 owns shared call lowering.
 
 ### Partial ownership and cleanup
 
-[Cleanup lowering](../../pipeline/05_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs)
+[Cleanup lowering](../../pipeline/06_checked-trees-to-lowered-psi/src/unit/unit_cleanup.rs)
 and its partial-cleanup children own residual destruction.
 The [ownership contract](../../../../../wiki/spec/terminal-psi/ownership.md) defines
 what must survive into Terminal Psi; successful helper tests do not establish
@@ -114,15 +114,15 @@ exercise both alternatives without duplicating or renaming the inherited claim.
 
 ### Structural predicate production
 
-[Contract predicates](../../pipeline/05_checked-trees-to-lowered-psi/src/proofs/contract_predicates.rs)
+[Contract predicates](../../pipeline/06_checked-trees-to-lowered-psi/src/proofs/contract_predicates.rs)
 lower checked facts under the
 [structural-predicate contract](../../../../../wiki/spec/terminal-psi/structural_predicates.md).
 Claim identity, projection path, and equal scalar values are not interchangeable.
 
 ### Structural access and stores
 
-[Structural source custody](../../pipeline/05_checked-trees-to-lowered-psi/src/expression_preparation/bindings/structural_paths.rs)
-prepares accesses; [store emission](../../pipeline/05_checked-trees-to-lowered-psi/src/emission/structural_scalar_store.rs)
+[Structural source custody](../../pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/bindings/structural_paths.rs)
+prepares accesses; [store emission](../../pipeline/06_checked-trees-to-lowered-psi/src/emission/structural_scalar_store.rs)
 consumes prepared subjects.
 The [structural-access contract](../../../../../wiki/spec/terminal-psi/structural_access.md)
 is authoritative, not the current bounded producer vocabulary.
@@ -130,8 +130,8 @@ is authoritative, not the current bounded producer vocabulary.
 ### Structural results and suspension
 
 A structural or scalar result is an ordinary body lowered through the
-[Unit closure](../../pipeline/05_checked-trees-to-lowered-psi/src/unit/attached_unit.rs).
-[Suspension retention](../../pipeline/05_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs)
+[Unit closure](../../pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit.rs).
+[Suspension retention](../../pipeline/06_checked-trees-to-lowered-psi/src/retention/suspension_call_plan.rs)
 owns retained call plans. Native task planning remains downstream;
 a retained call plan alone does not establish native execution coverage.
 

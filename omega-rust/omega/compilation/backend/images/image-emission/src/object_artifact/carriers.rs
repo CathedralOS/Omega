@@ -14,6 +14,8 @@ use terminal_psi::TerminalPsiIdentity;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ObjectArtifact {
+    /// Only fragment projection can supply this; see `ProjectedObject`.
+    pub(crate) projected: crate::function_fragments::ProjectedObject,
     pub(crate) hosted_receiver: Option<HostedReceiverBinding>,
     pub(crate) physical_entry: Option<crate::PhysicalEntryBinding>,
     /// Unresolved entry-residence address symbol; defined by physical image preparation.

@@ -13,4 +13,4 @@ data Player [copy] {
 }
 
 // Names retain their original owned sixteen-byte capacity.
-data PlayerName [copy] where used <= 16 { storage: [u8; 16] in Ascii; used: u64; }
+data PlayerName [copy] requires used <= 16 { storage: [u8; 16] in Ascii; used: u64; }

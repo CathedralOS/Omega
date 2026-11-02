@@ -9,8 +9,8 @@ path = "validation_driver.rs"
 
 [dependencies]
 compiler = { path = "../../../../omega-rust/omega/compilation/driver" }
-omega-build = { path = "../../../../omega-rust/omega/application/build" }
-terminal-runtime = { path = "../../../../omega-rust/omega/application/terminal-runtime" }
+omega-build = { path = "../../../../omega-rust/omega/compilation/build" }
+terminal-runtime = { path = "../../../../omega-rust/omega/interpreter/terminal-runtime" }
 compilation-products = { path = "../../../../omega-rust/omega/compilation/products" }
 package-evidence = { path = "../../../../omega-rust/omega/packages/review-evidence" }
 optimization-core = { path = "../../../../omega-rust/omega/foundation/optimization-core" }

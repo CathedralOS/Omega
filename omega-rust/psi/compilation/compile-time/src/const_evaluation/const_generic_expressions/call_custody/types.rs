@@ -81,6 +81,12 @@ impl<'program> Collector<'program> {
                 context,
             )?;
         }
+        // Every endpoint here is owned by a type or by a callable signature's
+        // contract: a static argument's const expression keeps its own
+        // normalization, and a static machine argument's premises are that
+        // callee's checked evidence. Neither is an operator authored in the
+        // initializer, and source preparation lists neither, so both leave
+        // the initializer context even when the walk started at its root.
         self.expressions
             .extend(
                 inventory
@@ -91,6 +97,7 @@ impl<'program> Collector<'program> {
                             expression,
                             Context {
                                 lexical_owner,
+                                initializer: false,
                                 ..context
                             },
                         )

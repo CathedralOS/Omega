@@ -2,7 +2,7 @@
 // only while `left + right <= 12` — the fact reasons over a computed
 // operand, not just a bare field.
 data Pair
-where
+requires
     left + right <= 12,
 {
     left: u64;

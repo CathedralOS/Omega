@@ -166,7 +166,7 @@ supersedes them.
    positive places demonstrate that the same checker admits the read the join
    actually records. Corrupting the selected payload (`kept: 17` to
    `kept: 41`) refuses the same obligation from the other direction.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** The once-only subject
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The once-only subject
    evaluation, the borrowed join, the recorded selected place, and the
    projection read lower without loss into canonical target-neutral Terminal
    Psi (`PSITERM\0`); the Terminal Psi interpreter executes all nine positive

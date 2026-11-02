@@ -12,38 +12,32 @@ use crate::proof_contracts::contract_entailment::{
 };
 use std::sync::Arc;
 use symbols::SymbolHandle;
-use typed_trees::data::DataMember;
+use typed_trees::data::{DataDefinition, DataMember, DataVariant};
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::types::TypeReferenceHandle;
 
-impl StructuralJudge<'_> {
-    /// The subject's exact result type selects its applied case. A classifier
-    /// spelling retains its template, not a second application's variant.
-    pub(super) fn applied_case_classifier(
-        &self,
-        reference: Option<TypeReferenceHandle>,
-        data: SymbolHandle,
-        case: SymbolHandle,
-    ) -> (SymbolHandle, SymbolHandle) {
-        reference
-            .and_then(|reference| {
-                let reference = self
-                    .program
-                    .type_reference_table
-                    .peeled_type_reference(reference);
-                Some((
-                    self.program
-                        .data_constructor_definition(reference, data)?
-                        .symbol,
-                    self.program
-                        .data_constructor_case(reference, data, case)?
-                        .symbol,
-                ))
-            })
-            .unwrap_or((data, case))
-    }
+/// Translate an authenticated classifier into its subject's exact application.
+/// The premise supplies tag truth; carrier correspondence supplies only identity.
+pub(super) fn applied_case_classifier(
+    program: &dyn crate::CheckingInput,
+    classifier: ExpressionHandle,
+    subject_type: Option<TypeReferenceHandle>,
+) -> Option<(&DataDefinition, &DataVariant)> {
+    let (definition, variant) = structural_terms::case_classifier(program, classifier)?;
+    let Some(reference) = subject_type else {
+        return Some((definition, variant));
+    };
+    let reference = program
+        .type_reference_table
+        .peeled_type_reference(reference);
+    Some((
+        program.data_constructor_definition(reference, definition.symbol)?,
+        program.data_constructor_case(reference, definition.symbol, variant.symbol)?,
+    ))
+}
 
+impl StructuralJudge<'_> {
     pub(super) fn is_case_membership(
         &self,
         expression: ExpressionHandle,
@@ -120,31 +114,13 @@ impl StructuralJudge<'_> {
         ) {
             return None;
         }
-        let Some((definition, variant)) =
-            structural_terms::case_classifier(self.program, binary.right)
-        else {
-            return None;
-        };
-        // A subject whose declared type is a closed generic application
-        // observes its prepared carrier's tags. The authored case reference
-        // names the template; rejoin it on the exact applied declaration the
-        // same way `applied_case_membership_variant` does for machine scopes.
-        let mut subject_expression = binary.left;
-        while let ExpressionNode::Borrow(borrow) =
-            self.program.expression_table.expression(subject_expression)
-        {
-            subject_expression = borrow.target;
-        }
-        let (case_owner, case_symbol) = self.applied_case_classifier(
-            crate::parameter_expression_result_type_reference(
-                self.program,
-                scope,
-                parameters,
-                subject_expression,
-            ),
-            definition.symbol,
-            variant.symbol,
+        let reference = crate::parameter_expression_result_type_reference(
+            self.program,
+            scope,
+            parameters,
+            binary.left,
         );
+        let (definition, variant) = applied_case_classifier(self.program, binary.right, reference)?;
         let Some(subject) = structural_terms::structural_term(
             self.program,
             None,
@@ -156,8 +132,8 @@ impl StructuralJudge<'_> {
         };
         Some(CaseGuarantee {
             subject: Self::substitute_call_term(&subject, map, machine_map),
-            data: case_owner,
-            case: case_symbol,
+            data: definition.symbol,
+            case: variant.symbol,
         })
     }
 
@@ -217,8 +193,14 @@ impl StructuralJudge<'_> {
         if !exact {
             return;
         }
+        let reference = crate::parameter_expression_result_type_reference(
+            self.program,
+            scope,
+            parameters,
+            binary.left,
+        );
         let Some((definition, variant)) =
-            structural_terms::case_classifier(self.program, binary.right)
+            applied_case_classifier(self.program, binary.right, reference)
         else {
             return;
         };
@@ -235,20 +217,10 @@ impl StructuralJudge<'_> {
         else {
             return;
         };
-        let (data, case) = self.applied_case_classifier(
-            crate::parameter_expression_result_type_reference(
-                self.program,
-                scope,
-                parameters,
-                binary.left,
-            ),
-            definition.symbol,
-            variant.symbol,
-        );
         guarantees.push(CaseGuarantee {
             subject,
-            data,
-            case,
+            data: definition.symbol,
+            case: variant.symbol,
         });
     }
 

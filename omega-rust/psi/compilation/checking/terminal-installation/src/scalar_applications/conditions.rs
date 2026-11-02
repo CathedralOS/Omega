@@ -62,9 +62,12 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
                 let declarations = scope.plan.declaration_closure(&dependencies);
                 (machines, declarations)
             }
+            super::ScalarConditionScope::AbiStorage(_) => (Vec::new(), Vec::new()),
         };
-        let source_formation =
-            !matches!(condition_scope, super::ScalarConditionScope::Invocation(_));
+        let source_formation = !matches!(
+            condition_scope,
+            super::ScalarConditionScope::Invocation(_) | super::ScalarConditionScope::AbiStorage(_)
+        );
         let all_declarations = applications.declarations();
         let applies = |subject, address_model| match subject {
             ScalarConditionSubject::Module => true,
@@ -142,7 +145,7 @@ impl<'artifact> ScalarConditionSelection<'artifact> {
     pub fn include_evaluation_entry(&mut self, entry: MachineId) -> Result<(), String> {
         if !matches!(
             self.condition_scope,
-            super::ScalarConditionScope::Invocation(_)
+            super::ScalarConditionScope::Invocation(_) | super::ScalarConditionScope::AbiStorage(_)
         ) {
             return Ok(());
         }

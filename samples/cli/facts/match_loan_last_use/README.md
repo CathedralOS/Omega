@@ -132,7 +132,7 @@ are byte-identical copies of their twins, so sample and fixture cannot drift.
    that the same checker admits the write after the death point. Ownership and
    access authority are preserved; the generated write goes through the loan,
    and the replaced source is observed exactly.
-5. **Checked-to-Terminal Psi lowering (`Psi 05–07`):** The match, the exclusive
+5. **Checked-to-Terminal Psi lowering (`Psi 06–08`):** The match, the exclusive
    range loan, its last-use death, and the successor source write lower without
    loss into canonical target-neutral Terminal Psi (`PSITERM\0`); the Terminal
    Psi interpreter executes root and all nine positive places in complete

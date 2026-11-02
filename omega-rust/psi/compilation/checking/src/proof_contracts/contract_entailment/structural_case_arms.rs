@@ -322,6 +322,30 @@ pub(super) fn recognize_structural_state_prefix<'a>(
     diagnostics: &mut Vec<Diagnostic>,
     mut requirement: &mut dyn StructuralPrefixVisitor,
 ) -> Option<Vec<StructuralCaseArm<'a>>> {
+    recognize_structural_state_prefix_batched(
+        program,
+        machine,
+        state,
+        judge,
+        classification,
+        diagnostics,
+        std::slice::from_mut(&mut requirement),
+    )
+}
+
+/// One state-prefix walk for several visitors. The walk prunes by each
+/// visitor's site and completion, and its verdict and diagnostics are shared,
+/// so it matches every visitor's solo walk only when they all sit at one site
+/// and complete alike.
+pub(super) fn recognize_structural_state_prefix_batched<'a>(
+    program: &'a dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    judge: &StructuralJudge<'a>,
+    classification: &typed_trees::proof_only::ProofOnlyClassification,
+    diagnostics: &mut Vec<Diagnostic>,
+    visitors: &mut [&mut (dyn StructuralPrefixVisitor + '_)],
+) -> Option<Vec<StructuralCaseArm<'a>>> {
     let parameters = program.state_parameters(state);
     let parameter_names = parameters
         .iter()
@@ -349,7 +373,7 @@ pub(super) fn recognize_structural_state_prefix<'a>(
         &mut StructuralArrivalLog::new(),
         usize::MAX,
         &mut 0,
-        std::slice::from_mut(&mut requirement),
+        visitors,
         CitationFacts::default(),
     )
 }
@@ -634,7 +658,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         );
                         if active_paths[idx].checked_contradiction_state != Some(current_state) {
                             let is_contradictory = active_paths[idx].judge.hypotheses_contradictory
-                                || phase_profile::scope("05.num.visit.2_contra", || {
+                                || phase_profile::scope("psi.05.numeric.visit.contra", || {
                                     active_paths[idx].judge.integer_premises_contradictory()
                                 });
                             if is_contradictory {
@@ -645,7 +669,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                             active_paths[idx].checked_contradiction_state = Some(current_state);
                         }
                         let path = &active_paths[idx];
-                        phase_profile::scope("05.num.2a_visitor_visit", || {
+                        phase_profile::scope("psi.05.numeric.visitor_visit", || {
                             if completion_visitors[visitor_idx]
                                 && let Some(completed) = &path.completion
                             {
@@ -700,8 +724,8 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
         if saw_transition {
             return valid;
         }
-        let _step_guard = phase_profile::guard("05.num.2b_step_statement");
-        phase_profile::count("05.num.2b_active_paths_stepped", active_paths.len() as u64);
+        let _step_guard = phase_profile::guard("psi.05.numeric.step_statement");
+        phase_profile::count("psi.05.numeric.active_paths_stepped", active_paths.len() as u64);
         let call_write_frame = if let StatementNode::Call(call) = statement
             && active_paths
                 .first()
@@ -1044,7 +1068,7 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                         );
                     } else {
                         let is_contradictory = path.judge.hypotheses_contradictory
-                            || phase_profile::scope("05.num.visit.2_contra", || {
+                            || phase_profile::scope("psi.05.numeric.visit.contra", || {
                                 path.judge.integer_premises_contradictory()
                             });
                         if is_contradictory {
@@ -1451,7 +1475,7 @@ fn recognize_structural_state_leaves_from<'a>(
             if judge.requires_value_preservation()
                 && let StatementNode::Call(call) = statement
             {
-                let _s = phase_profile::guard("05.d.7.3b.1.cap.2d.call_writes");
+                let _s = phase_profile::guard("psi.05.check_checked_facts.check_flow_call_contracts.cap.call_writes");
                 let frames = judge.frame_resolver()?;
                 let mut writes = Vec::new();
                 let mut complete = true;
@@ -1482,7 +1506,7 @@ fn recognize_structural_state_leaves_from<'a>(
                     judge.has_runtime_body_values(),
                 )
             {
-                let _s = phase_profile::guard("05.d.7.3b.1.cap.2d.citation");
+                let _s = phase_profile::guard("psi.05.check_checked_facts.check_flow_call_contracts.cap.citation");
                 // Value-position runtime calls, including their tag facts,
                 // belong to the normal-return traversal below. Termifying
                 // their operands here would replay an execution and rejects
@@ -1528,7 +1552,7 @@ fn recognize_structural_state_leaves_from<'a>(
             match statement {
                 StatementNode::LocalData(local) if !saw_transition => {
                     let mut outcomes =
-                        phase_profile::scope("05.d.7.3b.1.cap.2d.local_init", || {
+                        phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.cap.local_init", || {
                             judge
                                 .complete_prefix_statement(
                                     statement,
@@ -1669,7 +1693,7 @@ fn recognize_structural_state_leaves_from<'a>(
                 StatementNode::Assignment(_)
                     if !saw_transition && judge.has_runtime_body_values() =>
                 {
-                    let outcomes = phase_profile::scope("05.d.7.3b.1.cap.2d.assign", || {
+                    let outcomes = phase_profile::scope("psi.05.check_checked_facts.check_flow_call_contracts.cap.assign", || {
                         judge.normal_assignment_paths(
                             statement,
                             &environment,
@@ -1894,7 +1918,7 @@ fn recognize_structural_state_leaves_from<'a>(
         // Boolean guard as false, while the chosen arm alone receives its
         // positive refinement. Keep those completed observations on the
         // remaining path, never in a sibling's selected branch environment.
-        let _s_trans = phase_profile::guard("05.d.7.3b.1.cap.2d.transitions");
+        let _s_trans = phase_profile::guard("psi.05.check_checked_facts.check_flow_call_contracts.cap.transitions");
         let mut leaves = Vec::new();
         let mut remaining_paths = vec![(judge.clone(), case_equations.clone())];
         let transition_order: Vec<usize> = transitions.iter().map(|(index, _)| *index).collect();

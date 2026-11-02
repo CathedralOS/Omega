@@ -455,6 +455,9 @@ pub(super) struct MachineScope<'program> {
     pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
     /// Alias headers supply argument roles, never runtime receiver members.
     pub(super) type_aliases: &'program OrderedRootArena<TypeAliasDefinition>,
+    pub(super) conformances:
+        &'program OrderedRootArena<symbol_resolved_trees::trait_definition::Conformance>,
+    pub(super) operand_owners: &'program Arena<symbol_resolved_trees::types::OperandLifetimeOwner>,
     pub(super) data_members: &'program Arena<DataMember>,
     pub(super) data_type_parameters: &'program Arena<TypeParameter>,
     pub(super) data_payload_fields: &'program Arena<symbol_resolved_trees::data::DataField>,
@@ -469,6 +472,9 @@ pub(super) struct ContractScopeContext<'program> {
     pub(super) resolution_indexes: &'program ResolvedIndexes,
     pub(super) data_definitions: &'program OrderedRootArena<DataDefinition>,
     pub(super) type_aliases: &'program OrderedRootArena<TypeAliasDefinition>,
+    pub(super) conformances:
+        &'program OrderedRootArena<symbol_resolved_trees::trait_definition::Conformance>,
+    pub(super) operand_owners: &'program Arena<symbol_resolved_trees::types::OperandLifetimeOwner>,
     pub(super) data_members: &'program Arena<DataMember>,
     pub(super) data_type_parameters: &'program Arena<TypeParameter>,
     pub(super) data_payload_fields: &'program Arena<symbol_resolved_trees::data::DataField>,
@@ -497,11 +503,59 @@ impl<'program> ContractScopeContext<'program> {
             prior_statements: &[],
             data_definitions: self.data_definitions,
             type_aliases: self.type_aliases,
+            conformances: self.conformances,
+            operand_owners: self.operand_owners,
             data_members: self.data_members,
             data_type_parameters: self.data_type_parameters,
             data_payload_fields: self.data_payload_fields,
             type_constraints: self.type_constraints,
         }
+    }
+}
+
+impl<'program> MachineScope<'program> {
+    pub(super) fn declaration_scope(
+        &self,
+        declaration: SymbolHandle,
+        parameters: &'program [TypeParameter],
+    ) -> Self {
+        Self {
+            symbol: declaration,
+            lexical_requirements: LexicalRequirements::none(),
+            type_parameters: parameters,
+            attached_data_symbol: SymbolHandle::invalid(),
+            inherited_data_members: None,
+            owned_data: &[],
+            prior_statements: &[],
+            ..*self
+        }
+    }
+
+    /// A copied type operand's existing input receipt owns its names. An
+    /// omitted/ambiguous header or malformed span supplies no lexical context.
+    pub(super) fn supplied_scope(
+        &self,
+        owner: symbol_resolved_trees::types::OperandLifetimeOwnerHandle,
+    ) -> Option<Self> {
+        let declaration = self.operand_owners.get(owner).declaration;
+        if !declaration.is_valid() {
+            return None;
+        }
+        let mut declarations = self
+            .conformances
+            .iter()
+            .filter(|header| header.symbol == declaration);
+        let header = declarations.next()?;
+        if declarations.next().is_some() {
+            return None;
+        }
+        let parameters = self
+            .data_type_parameters
+            .span_or_empty(header.type_parameters);
+        if parameters.len() != header.type_parameters.count() as usize {
+            return None;
+        }
+        Some(self.declaration_scope(declaration, parameters))
     }
 }
 

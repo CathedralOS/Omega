@@ -1,0 +1,21 @@
+// A public token-bound body delegates to a private helper of its package. The consumer
+// reaches the sum through the operator without naming, or being able to select, the
+// helper.
+module reader;
+use lib::ops;
+
+machine combine(left: &lib::ops::Wrapped, right: &lib::ops::Wrapped) -> u64 {
+    left + right
+}
+
+machine main() crashes Trap {
+    let left: lib::ops::Wrapped = lib::ops::Wrapped { value: 250 };
+    let right: lib::ops::Wrapped = lib::ops::Wrapped { value: 10 };
+    let total: u64 = combine(&left, &right);
+    transition total == 260 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

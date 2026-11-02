@@ -1,0 +1,30 @@
+// A token-bound body's result qualification survives the call. The body establishes
+// membership in a predicate domain, and the consumer subtracts 256 exactly, an
+// operation that needs the membership: no caller guard establishes it after the call.
+domain u64::Large requires self > 255;
+
+data Wrapped { value: u8; }
+
+machine + Wrapped::add(left: &Wrapped, right: &Wrapped) -> u64 in Large {
+    (left.value as u64) + (right.value as u64) + 256
+}
+
+machine decode(sum: u64 in Large) -> u64 {
+    sum - 256
+}
+
+machine combine(left: &Wrapped, right: &Wrapped) -> u64 {
+    decode(left + right)
+}
+
+machine main() crashes Trap {
+    let left: Wrapped = Wrapped { value: 250 };
+    let right: Wrapped = Wrapped { value: 10 };
+    let total: u64 = combine(&left, &right);
+    transition total == 260 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

@@ -4,9 +4,12 @@
 Git and `gh pr create` publish the author's branch and evidence. GitHub owns
 integration and required checks. This adapter supplies expected-head fencing,
 bounded waiting, and JSON reads on Windows, macOS and Linux. `land` is the one
-step a session runs right after its first push: it waits for the required check
-on the exact head, marks the draft ready, enqueues, and waits for MERGED. The
-old lease and build-receipt publication path is retired; see landing.md.
+step a session runs once its work is finished and pushed: it marks the draft
+ready and hands the wait to GitHub, which adds the PR to the merge queue when
+the required check passes on that head. It returns at once, so no session has
+to stay alive or poll CI for its work to land; `--wait-seconds` also waits for
+MERGED where a host allows that. The old lease and build-receipt publication
+path is retired; see landing.md.
 """
 
 import argparse
@@ -20,7 +23,6 @@ import time
 
 REQUIRED_CHECK = "compiler-check"
 CHECK_POLL_SECONDS = 15
-LAND_DEFAULT_SECONDS = 7200
 LAND_MAX_SECONDS = 86400
 
 
@@ -62,7 +64,7 @@ def pull_request(repository, remote, number):
     query = """query($owner:String!,$name:String!,$number:Int!){
       repository(owner:$owner,name:$name){pullRequest(number:$number){
         id number url state isDraft baseRefName headRefOid mergeStateStatus mergeable
-        mergeCommit{oid} mergeQueueEntry{position state}
+        mergeCommit{oid} mergeQueueEntry{position state} autoMergeRequest{enabledAt}
       }}
     }"""
     result = graphql(repository, query, owner=owner, name=name, number=number)["repository"]["pullRequest"]
@@ -148,8 +150,12 @@ def wait(repository, remote, number, expected, seconds):
         if pull["state"] == "CLOSED" or pull["mergeStateStatus"] == "DIRTY":
             return pull, 1
         if not pull["mergeQueueEntry"]:
+            # Armed and waiting for its check is pending; a red check is not.
             # Never silently re-enqueue a removed or failed group.
-            return pull, 1
+            if not pull.get("autoMergeRequest"):
+                return pull, 1
+            if check_outcome(head_check(repository, remote, expected))[0] == "red":
+                return pull, 1
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             return pull, 2
@@ -160,37 +166,67 @@ def mark_ready(repository, remote, number):
     command(repository, "gh", "pr", "ready", str(number), "--repo", repository_name(repository, remote))
 
 
-def land(repository, remote, number, expected, seconds, interval=CHECK_POLL_SECONDS):
-    """Wait for the required check, mark ready, enqueue, wait for MERGED.
+def merge_when_green(repository, pull, expected):
+    """Ask GitHub to add the PR to the queue once the required check passes.
 
-    Returns (pull, 0) when merged and (pull, 2) at the deadline. Every other
-    ending raises LandingError naming the reason. Reads only: nothing repeats a
-    mutation, so a rerun after an interruption resumes from whatever state the
-    PR is in.
+    On a merge-queue branch an auto-merge request means "add to the queue when
+    ready". GitHub accepts it only when the repository allows auto-merge, which
+    it does since 2026-11-01. The request is fenced by the head; a red check
+    leaves the PR out of the queue.
     """
+    query = """mutation($pullRequest:ID!,$head:GitObjectID!){enablePullRequestAutoMerge(
+      input:{pullRequestId:$pullRequest,expectedHeadOid:$head}){
+        pullRequest{autoMergeRequest{enabledAt} mergeQueueEntry{position state}}}}"""
+    return graphql(repository, query, pullRequest=pull["id"], head=expected)["enablePullRequestAutoMerge"]
+
+
+def arm(repository, remote, number, expected):
+    """Mark ready and hand the wait for compiler-check to GitHub.
+
+    Enqueues at once when the check is already green. Refuses a red check, a
+    conflict, a closed PR or a changed head without any mutation. A PR that is
+    already merged, queued or armed is returned unchanged, so a rerun repeats
+    nothing.
+    """
+    pull = pull_request(repository, remote, number)
+    validate_head(pull, expected)
+    if pull["state"] == "MERGED" or pull["mergeQueueEntry"] or pull.get("autoMergeRequest"):
+        return pull
+    if pull["state"] != "OPEN":
+        raise LandingError(f"PR {number} was closed without merging.")
+    if has_conflict(pull):
+        raise LandingError(f"PR {number} has a merge conflict with main; resolve it and push.")
+    verdict, description = check_outcome(head_check(repository, remote, expected))
+    if verdict == "red":
+        raise LandingError(f"{description} on {expected}; inspect the failed run before changing source.")
+    if pull["isDraft"]:
+        mark_ready(repository, remote, number)
+    if verdict == "green":
+        enqueue(repository, remote, number, expected)
+    else:
+        try:
+            merge_when_green(repository, pull, expected)
+        except LandingError:
+            # The check may have passed between the read and the request, and
+            # GitHub refuses to arm a PR it could queue now.
+            if check_outcome(head_check(repository, remote, expected))[0] != "green":
+                raise
+            enqueue(repository, remote, number, expected)
+    return pull_request(repository, remote, number)
+
+
+def land(repository, remote, number, expected, seconds, interval=CHECK_POLL_SECONDS):
+    """Arm the PR, then optionally wait up to `seconds` for MERGED.
+
+    Returns (pull, 0) when armed, queued or merged with no wait asked for, or
+    when merged within the wait; (pull, 2) at the deadline. Every other ending
+    raises LandingError naming the reason.
+    """
+    pull = arm(repository, remote, number, expected)
+    if pull["state"] == "MERGED" or not seconds:
+        return pull, 0
     deadline = time.monotonic() + seconds
     remaining = lambda: max(0.0, deadline - time.monotonic())
-    pull = pull_request(repository, remote, number)
-    while not pull["mergeQueueEntry"]:
-        validate_head(pull, expected)
-        if pull["state"] == "MERGED":
-            return pull, 0
-        if pull["state"] != "OPEN":
-            raise LandingError(f"PR {number} was closed without merging.")
-        if has_conflict(pull):
-            raise LandingError(f"PR {number} has a merge conflict with main; resolve it and push.")
-        verdict, description = check_outcome(head_check(repository, remote, expected))
-        if verdict == "red":
-            raise LandingError(f"{description} on {expected}; inspect the failed run before changing source.")
-        if verdict == "green":
-            if pull["isDraft"]:
-                mark_ready(repository, remote, number)
-            enqueue(repository, remote, number, expected)
-            break
-        if not remaining():
-            return pull, 2
-        time.sleep(min(interval, remaining()))
-        pull = pull_request(repository, remote, number)
     confirmed = False
     while True:
         pull, code = wait(repository, remote, number, expected, remaining())
@@ -200,6 +236,10 @@ def land(repository, remote, number, expected, seconds, interval=CHECK_POLL_SECO
             raise LandingError(f"PR {number} was closed without merging.")
         if has_conflict(pull):
             raise LandingError(f"PR {number} has a merge conflict with main; resolve it and push.")
+        if pull.get("autoMergeRequest"):
+            description = check_outcome(head_check(repository, remote, expected))[1]
+            raise LandingError(f"{description} on {expected}; the merge request stays armed, so a "
+                               "pushed fix lands when its check passes.")
         if confirmed:
             raise LandingError(f"PR {number} left the merge queue without merging; inspect the queue "
                                "run with gh run list and do not re-enqueue blindly.")
@@ -216,7 +256,8 @@ def main(arguments=None):
     parser.add_argument("--remote", default="origin")
     parser.add_argument("--expected-head")
     parser.add_argument("--wait-seconds", type=int,
-                        help="deadline in seconds (wait: default 60, at most 3600; land: default 7200, at most 86400)")
+                        help="deadline in seconds (wait: default 60, at most 3600; land: default 0, "
+                             "meaning return once armed, at most 86400)")
     options = parser.parse_args(arguments)
     try:
         if options.command == "status":
@@ -233,7 +274,7 @@ def main(arguments=None):
                 landing = options.command == "land"
                 seconds = options.wait_seconds
                 if seconds is None:
-                    seconds = LAND_DEFAULT_SECONDS if landing else 60
+                    seconds = 0 if landing else 60
                 limit = LAND_MAX_SECONDS if landing else 3600
                 if not 0 <= seconds <= limit:
                     raise LandingError(f"Wait must be between 0 and {limit} seconds.")

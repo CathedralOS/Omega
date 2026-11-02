@@ -510,17 +510,10 @@ fn direct_storage_type(
     types: &StructuralTypeLookup<'_>,
     source: &StructuralArgument,
 ) -> Option<StructuralTypeId> {
-    if !source.path.iter().all(|segment| {
-        matches!(
-            segment,
-            StructuralPathSegment::Field(_)
-                | StructuralPathSegment::FixedIndex(_)
-                | StructuralPathSegment::RuntimeIndex { .. }
-                | StructuralPathSegment::RepresentationView { .. }
-        )
-    }) {
-        return None;
-    }
+    // Terminal's typed projection grammar owns storage geometry, including
+    // case-qualified payload fields. A second segment whitelist discarded
+    // admitted case paths before that query. Resolving their type supplies
+    // neither active-discriminator evidence nor new borrow authority.
     let (structural_type, access) =
         if let Some(parameter) = function.arrival_parameter(source.place) {
             (parameter.structural_type, parameter.access)
@@ -1013,6 +1006,22 @@ pub(super) fn establish(
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
     let compatible = match storage {
+        Some(storage)
+            if matches!(
+                source.path.last(),
+                Some(StructuralPathSegment::FixedRange { .. })
+            ) =>
+        {
+            source_contract(function, live, source.place).is_some_and(|root| {
+                terminal_semantics::reference_storage_region_source_compatible(
+                    types.values().copied(),
+                    root,
+                    &source.path,
+                    result.structural_type,
+                    storage.stored_scalar,
+                )
+            })
+        }
         Some(storage) => {
             reference_source_type(function, live, types, source).is_some_and(|actual| {
                 terminal_semantics::reference_storage_source_compatible(

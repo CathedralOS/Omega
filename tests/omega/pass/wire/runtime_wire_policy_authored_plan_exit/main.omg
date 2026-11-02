@@ -101,7 +101,7 @@ machine Main::main(main: &mut Main) reaches Console {
 // --- The grammar policy (std layout vocabulary, inlined) -----------------
 data FieldKind [copy] { case Scalar; case Text; case Nested; case Repeated; }
 data WireSchemaField [copy] { number: i64; kind: FieldKind; }
-data WireSchema [copy] where field_count <= 32 { fields: [WireSchemaField; 32]; field_count: u64; }
+data WireSchema [copy] requires field_count <= 32 { fields: [WireSchemaField; 32]; field_count: u64; }
 data FieldPlan [copy] {
     case At(offset: u64);
     case Bits(container: u64, container_width: u64, lsb: u64, width: u64);
@@ -122,13 +122,15 @@ machine AuthoredCompactBinary::plan(compact_binary: &mut AuthoredCompactBinary, 
 machine AuthoredCompactBinary::evaluate(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64) -> Plan
 requires 1 <= fuel
 requires fuel <= 128
-terminates by fuel
 {
     transition { _ -> fill(compact_binary, schema, fuel, 0) }
 
+    // The fuel witness belongs to the recursive fill/place component.
     machine fill(compact_binary: &mut AuthoredCompactBinary, schema: WireSchema, fuel: u64, index: u64 in Wrapping) -> Plan
     requires 1 <= fuel
-    requires fuel <= 128 {
+    requires fuel <= 128
+    terminates by fuel
+    {
         transition fuel > 1 && index < 32 && index < schema.field_count {
             true -> place(compact_binary, schema, fuel - 1, index)
             _ -> done(compact_binary, schema)

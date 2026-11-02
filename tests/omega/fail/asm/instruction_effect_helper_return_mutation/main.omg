@@ -5,11 +5,11 @@ machine replace_and_emit(cell: &mut PortCell, byte: u8) reaches PortIo
 ensures port_written(cell.port, byte)
 {
     cell.port = 33;
-    asm where ensures port_written(cell.port, byte) { out cell.port, byte }
+    asm ensures port_written(cell.port, byte) { out cell.port, byte }
 }
 machine observe(cell: &mut PortCell, byte: u8) reaches PortIo {
     replace_and_emit(cell, byte);
     cell.port = 34;
-    asm where ensures port_written(cell.port, byte) { nop }
+    asm ensures port_written(cell.port, byte) { nop }
 }
 machine main() {}

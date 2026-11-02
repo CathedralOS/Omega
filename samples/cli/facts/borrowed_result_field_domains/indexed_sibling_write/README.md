@@ -46,7 +46,7 @@ inner slot were executed: both yielded Terminal Trap and native signal 5.
 | Identity and lifetime | Independent cell/stamp selectors, four stamp canaries and eight payload bytes distinguish both selected values, preserved neighbors and writes. Only complete aligned possible storage is projected; it does not become exact pointer identity or access authority. |
 | Composition | All nine transports retain the sentence, bound and operation. Both match arms run; parameter and selected-provider contracts include both selector bounds. The provider performs selection/write/inspection internally and returns u8. |
 | Soundness | All nine twins reject inspect's missing Ascii obligation after the sole added overlapping byte write. Stale descriptor, overwritten result, recast backing and borrowed-storage controls retain their expected behavior. |
-| Psi 05–07 | All nine positives execute through Terminal Psi with exit 0, preserving calls, views, indexed stores and crash routes. |
+| Psi 06–08 | All nine positives execute through Terminal Psi with exit 0, preserving calls, views, indexed stores and crash routes. |
 | Omega 00–02 | All nine positives realize their authored macos_arm64 entry and agree with Terminal Psi. Four hosted entries are authored; execution on the other three hosts is unverified. |
 | Omega 03–06 | Native exit 0 establishes selected-cell and independent stamp-slot behavior across calls, with the canaries and payload bytes checked afterward. |
 | Omega 07–09 and emission | Retained native images execute with exit 0 and agree with Terminal Psi. Deliberately missing and misdirected stores trap in both engines. |

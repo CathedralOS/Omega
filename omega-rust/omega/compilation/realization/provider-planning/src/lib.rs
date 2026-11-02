@@ -25,6 +25,7 @@
 mod boundary_value_recipes;
 pub mod calling_policy_plans;
 pub mod data_layout_queries;
+pub mod dispatch_tables;
 pub mod native_bindings;
 pub(crate) use optimization_core::digest_encoder;
 pub mod evaluated_via_bindings;
@@ -63,6 +64,7 @@ pub use build_time_evaluation::provider_declarations::{
 pub use intrinsic_requirements::{
     IntrinsicRequirement, IntrinsicRequirementKind, primitive_numeric_type,
 };
+pub(crate) use provider_planning::extract_native_external_binding_rows;
 pub use provider_planning::provider_rows::{
     DirectBoundaryInput, DirectBoundaryMechanism, DirectBoundarySource, PreparedProviderRows,
     ProviderPlanCandidate, ProviderRowDeclarations, UnpreparedProviderRows,
@@ -71,17 +73,13 @@ pub use provider_planning::{
     CompilerIntrinsicExecutionIdentity, CompilerNumericType, CompilerPrimitiveFloatBinaryOperation,
     CompilerPrimitiveIntegerComparisonOperation, ProviderPlanDerivation, ProviderSchemaDeclaration,
     ProviderSelectionProvenance, SelectedProviderReviewProvenance, derive_satisfies_plans,
-    exact_checked_adapter, prepare_selected_plan_declarations, same_semantic_name,
-    satisfies_plan_name, select_derived_provider_plans, selected_checked_operator_body,
-    selected_provider_plan_facts, selected_requirement_checked_adapter, selected_requirement_plan,
-    selected_use_plan,
+    exact_checked_adapter, prepare_selected_build_time_provider_body,
+    prepare_selected_plan_declarations, same_semantic_name, satisfies_plan_name,
+    select_derived_provider_plans, selected_checked_operator_body, selected_provider_plan_facts,
+    selected_requirement_checked_adapter, selected_requirement_plan, selected_use_plan,
 };
 pub(crate) use provider_planning::{
     DerivedProviderPlan, ProviderPlanProvenance, SelectedTargetMachineOrigin,
-    selected_provider_plan_facts_with_independent_components,
-};
-pub(crate) use provider_planning::{
-    extract_native_external_binding_rows, validate_selected_synchronous_invocation_cycles,
 };
 
 pub use provider_planning::ProviderRowRealization;

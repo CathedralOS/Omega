@@ -34,7 +34,7 @@ linux_x86_64 machine compare_binding() -> ForeignBinding<9, 6, 11> {
 }
 linux_x86_64 machine compare(left: &i64, right: &i64, count: u64) -> i32
 satisfies Compare::compare via compare_binding();
-data Main where index < 2 { bytes: [u8; 2]; index: u64; }
+data Main requires index < 2 { bytes: [u8; 2]; index: u64; }
 machine Main::main(main: &mut Main) reaches Compare {
     let view: &RawView = &main.bytes[0] as &RawView;
     let narrow: &i64 = &view.value.value;

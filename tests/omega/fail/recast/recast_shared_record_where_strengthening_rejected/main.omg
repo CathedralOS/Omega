@@ -5,14 +5,14 @@
 use omega::language::core::float_operations;
 
 data Reading
-where
+requires
     value >= 0.0 && value <= 1.0,
 {
     value: f32;
 }
 
 data TightReading
-where
+requires
     value >= 0.0 && value <= 0.5,
 {
     value: f32;

@@ -2,7 +2,7 @@
 // dispatches while the record's `a >= 1, b >= a, b <= 9` invariant holds —
 // subjects see constrained fields like any other.
 data Band
-where
+requires
     a >= 1,
     b >= a,
     b <= 9,

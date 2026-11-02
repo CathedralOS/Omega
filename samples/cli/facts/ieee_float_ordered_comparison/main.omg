@@ -1,7 +1,7 @@
 // Fact: an IEEE f64 ordered comparison guard (reading >= 1.5 && reading <= 2.5) establishes a finite, non-NaN sub-interval that satisfies a downstream contract requiring reading >= 1.0 && reading <= 3.0 across all nine places.
 // Expected exit: 0
 
-data Reading [copy] where value >= 1.5 && value <= 2.5 {
+data Reading [copy] requires value >= 1.5 && value <= 2.5 {
     value: f64;
 }
 

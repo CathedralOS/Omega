@@ -2,9 +2,28 @@
 // Fact: GenericPolicy<Box<u64>, 8> places all eight bytes of boundary result 42 before the same value is observed.
 use omega_language_std::calling;
 public data Box<Element> { value: Element; }
+boundary trait ValuePlan {
+    machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult reaches;
+}
+SysVValuePlan satisfies ValuePlan {
+    machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
+    scalar_plan(signature, allow_vectors, width, CallingConvention::SystemVAMD64, MachineRegister::X86Rax, MachineRegime::X86Long64, 0)
+    }
+}
+MicrosoftValuePlan satisfies ValuePlan {
+    machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
+    scalar_plan(signature, allow_vectors, width, CallingConvention::MicrosoftX64, MachineRegister::X86Rax, MachineRegime::X86Long64, 32)
+    }
+}
+AapcsValuePlan satisfies ValuePlan {
+    machine plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
+    scalar_plan(signature, allow_vectors, width, CallingConvention::Aapcs64, MachineRegister::Aarch64X { index: 0 }, MachineRegime::Aarch64A64 { exception_level: 0 }, 0)
+    }
+}
+
 public GenericPolicy<Element, const Width: u64> satisfies CallingPolicy {
     machine plan(signature: BoundarySignature) -> BoundaryPlanResult {
-        value_plan(signature, false, Width)
+        ValuePlan::plan(signature, false, Width)
     }
 }
 public const PolicyWidth: u64 = 4;
@@ -50,26 +69,14 @@ machine scalar_plan(signature: BoundarySignature, allow_vectors: bool, width: u6
 }
 
 
-data Providers {}
-machine Providers::provider_defaults(defaults: &mut Providers) {
-    Providers::select_provider<LocalEntry, LocalMap>(defaults);
-}
 
-linux_x86_64 machine value_plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
-    scalar_plan(signature, allow_vectors, width, CallingConvention::SystemVAMD64, MachineRegister::X86Rax, MachineRegime::X86Long64, 0)
-}
 
-windows_x86_64 machine value_plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
-    scalar_plan(signature, allow_vectors, width, CallingConvention::MicrosoftX64, MachineRegister::X86Rax, MachineRegime::X86Long64, 32)
-}
 
-macos_arm64 machine value_plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
-    scalar_plan(signature, allow_vectors, width, CallingConvention::Aapcs64, MachineRegister::Aarch64X { index: 0 }, MachineRegime::Aarch64A64 { exception_level: 0 }, 0)
-}
 
-linux_arm64 machine value_plan(signature: BoundarySignature, allow_vectors: bool, width: u64) -> BoundaryPlanResult {
-    scalar_plan(signature, allow_vectors, width, CallingConvention::Aapcs64, MachineRegister::Aarch64X { index: 0 }, MachineRegime::Aarch64A64 { exception_level: 0 }, 0)
-}
+
+
+
+
 machine relay(value: u64) -> u64 { value }
 machine main() reaches LocalEntry crashes Trap {
     let value: u64 = relay(LocalEntry::value());

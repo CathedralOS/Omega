@@ -52,6 +52,14 @@ pub(crate) struct ElementViewHome {
     pub(crate) path: Vec<StructuralPathSegment>,
 }
 
+/// A collection's original storage, including any re-view window. Packed local
+/// arrays have an activation home instead of an ordinary structural carrier.
+pub(crate) struct CollectionStorage {
+    pub(crate) collection: Option<TerminalStructuralValue>,
+    pub(crate) home: Option<ElementViewHome>,
+    pub(crate) view: Option<crate::reference::AggregateViewTip>,
+}
+
 impl ElementViewHome {
     fn selected_path(
         &self,
@@ -776,7 +784,7 @@ impl TerminalExecution<'_> {
         // used by a subsequent subslice.
         let formation_path = &source.path;
         let (backing_path, selected_window) = match source.path.split_last() {
-            Some((StructuralPathSegment::FixedByteRange { start, end }, backing)) => {
+            Some((StructuralPathSegment::FixedRange { start, end }, backing)) => {
                 if region != ElementViewRegion::WholeCollection || start > end {
                     return Err(malformed());
                 }
@@ -810,7 +818,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         }
         let declared_backing_path = match declared_source.path.split_last() {
-            Some((StructuralPathSegment::FixedByteRange { .. }, prefix)) => prefix,
+            Some((StructuralPathSegment::FixedRange { .. }, prefix)) => prefix,
             _ => declared_source.path.as_slice(),
         };
         let collection_shape = crate::custody::resolve_structural_path_shape(
@@ -845,7 +853,9 @@ impl TerminalExecution<'_> {
                         .ok_or_else(malformed)?
                 }
                 terminal_semantics::CollectionExtent::Fixed(length) => {
-                    let (collection, home) = self.element_collection_storage(source)?;
+                    let CollectionStorage {
+                        collection, home, ..
+                    } = self.element_collection_storage(source)?;
                     let collection = match collection {
                         Some(collection) => collection,
                         None => {
@@ -1157,7 +1167,9 @@ impl TerminalExecution<'_> {
                 let view = if let Some(view) = borrowed_view {
                     view.with_descriptor_home(descriptor_value.clone())
                 } else {
-                    let (collection, home) = self.element_collection_storage(source)?;
+                    let CollectionStorage {
+                        collection, home, ..
+                    } = self.element_collection_storage(source)?;
                     let collection = match collection {
                         Some(collection) => collection,
                         None => {
@@ -1197,21 +1209,21 @@ impl TerminalExecution<'_> {
     pub(crate) fn element_collection_storage(
         &self,
         source: &terminal_psi::StructuralArgument,
-    ) -> Result<(Option<TerminalStructuralValue>, Option<ElementViewHome>), TerminalInterpretError>
-    {
+    ) -> Result<CollectionStorage, TerminalInterpretError> {
         let root_type = self.live_structural_type(source.place)?;
         let authority = self.reference_carrier_access(source.place, root_type, &source.path)?;
         if !crate::reference::access_covers(authority, source.access) {
             return Err(malformed());
         }
         if self.scalar_array_values.contains_key(&source.place) {
-            return Ok((
-                None,
-                Some(ElementViewHome {
+            return Ok(CollectionStorage {
+                collection: None,
+                home: Some(ElementViewHome {
                     storage: self.capture_primitive_home(source.place)?,
                     path: source.path.clone(),
                 }),
-            ));
+                view: None,
+            });
         }
         let selected =
             self.resolve_live_storage_projection(source.place, &source.path, source.access)?;
@@ -1229,7 +1241,11 @@ impl TerminalExecution<'_> {
                 .transpose()?
                 .flatten(),
         };
-        Ok((Some(selected.value), home))
+        Ok(CollectionStorage {
+            collection: Some(selected.value),
+            home,
+            view: selected.view_tip,
+        })
     }
 
     fn resident_element_storage(

@@ -1,0 +1,19 @@
+// Expected exit: 0
+// A default component ABI transports its complete owned record, not a size-only approximation.
+use producer::main::Inspect;
+use producer::main::Packet;
+
+machine main() reaches Inspect crashes Trap {
+    let value: Packet = Packet {
+        before: 19u64,
+        bytes: [11u8, 22u8, 33u8, 44u8, 55u8, 66u8, 77u8, 88u8],
+        after: 97u64,
+    };
+    let observed: u64 = Inspect<u8>::inspect(value);
+    transition observed == 42u64 {
+        true -> done()
+        _ -> wrong()
+    }
+    machine done() {}
+    machine wrong() { crash Trap; }
+}

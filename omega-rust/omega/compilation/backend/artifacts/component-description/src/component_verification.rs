@@ -374,10 +374,10 @@ impl VerifiedComponent {
     /// This is the consumer-side half of an `Independent` selection: the
     /// consumer selected `plan` (one provider type covering one boundary
     /// slot) and this component claims to be that provider's deployable
-    /// closure. Every plan row must be a `CheckedAdapter` whose requirement,
-    /// provider type, and machine identity name exactly one provider
-    /// candidate in the *verified* module (never a description row), and
-    /// the description must export that realization. External, syscall, or
+    /// closure. Every plan row must be a `CheckedAdapter` whose original
+    /// requirement and body join the exact selecting owner, receiver, package
+    /// and target in the *verified* module (never a description row). Each
+    /// resulting closed application must be exported. External, syscall, or
     /// evaluated rows are not exported callable surfaces of a checked
     /// closure and reject. A component whose module still retains
     /// unresolved installation-bound reach rows also rejects: its declared
@@ -391,8 +391,10 @@ impl VerifiedComponent {
     pub fn realizes_selected_plan(
         &self,
         plan: &ProviderPlan,
+        selecting_declaration: &str,
     ) -> Result<(), IndependentRealizationMismatch> {
-        self.selected_plan_export_positions(plan).map(|_| ())
+        self.selected_plan_export_positions(plan, selecting_declaration)
+            .map(|_| ())
     }
 
     /// Join the complete plan and return positions in this component's immutable
@@ -402,6 +404,7 @@ impl VerifiedComponent {
     pub fn selected_plan_export_positions(
         &self,
         plan: &ProviderPlan,
+        selecting_declaration: &str,
     ) -> Result<Vec<usize>, IndependentRealizationMismatch> {
         if plan.provider_type.is_empty() {
             return Err(IndependentRealizationMismatch::EmptyProviderType {
@@ -419,98 +422,53 @@ impl VerifiedComponent {
                 detail: coverage.join("; "),
             });
         }
-        let mut exports = Vec::with_capacity(plan.rows.len());
         for row in &plan.rows {
-            let ProviderBinding::CheckedAdapter {
-                machine_identity,
-                machine_package_identity,
-            } = &row.binding
-            else {
+            if !matches!(row.binding, ProviderBinding::CheckedAdapter { .. }) {
                 return Err(IndependentRealizationMismatch::UncheckedRow {
                     requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
                 });
-            };
-            let for_requirement = self
-                .module()
-                .provider_candidates
-                .iter()
-                .enumerate()
-                .filter(|(_, candidate)| {
-                    self.module()
-                        .identities
-                        .text(candidate.requirement_identity)
-                        == Some(plan.identities.text(row.requirement_identity))
-                })
-                .collect::<Vec<_>>();
-            if for_requirement.is_empty() {
+            }
+        }
+        let rows = backend_plan::selected_provider_candidate_rows(
+            plan,
+            selecting_declaration,
+            self.module(),
+        )
+        .map_err(|detail| IndependentRealizationMismatch::InvalidPlan {
+            plan: plan.name.clone(),
+            detail,
+        })?;
+        let mut exports = Vec::new();
+        for projected in rows {
+            if projected.candidate_positions.is_empty() {
                 return Err(IndependentRealizationMismatch::MissingRealization {
-                    requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
+                    requirement_identity: plan
+                        .identity_text(projected.row.requirement_identity)
+                        .to_owned(),
                 });
-            }
-            let for_provider = for_requirement
-                .iter()
-                .copied()
-                .filter(|(_, candidate)| {
-                    self.module().identities.text(candidate.provider_identity)
-                        == Some(plan.provider_type.as_str())
-                })
-                .collect::<Vec<_>>();
-            if for_provider.is_empty() {
-                return Err(IndependentRealizationMismatch::ProviderTypeMismatch {
-                    requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
-                    selected_provider: plan.provider_type.clone(),
-                });
-            }
-            let machine_identity = plan.identity_text(*machine_identity);
-            let exact = for_provider
-                .iter()
-                .copied()
-                .filter(|(_, candidate)| {
-                    self.module().identities.text(candidate.candidate_identity)
-                        == Some(machine_identity)
-                        // Two packages can declare the same provider/method
-                        // spelling. The selected adapter retains its package;
-                        // None is an exact coordinate, never a wildcard.
-                        && candidate.source_candidate_package_identity == *machine_package_identity
-                })
-                .collect::<Vec<_>>();
-            match exact.as_slice() {
-                [] => {
-                    return Err(IndependentRealizationMismatch::MachineMismatch {
-                        requirement_identity: plan
-                            .identities
-                            .text(row.requirement_identity)
-                            .to_owned(),
-                        selected_machine: machine_identity.to_owned(),
-                    });
-                }
-                [(position, _)] => exports.push(*position),
-                _ => {
-                    return Err(IndependentRealizationMismatch::DuplicateRealization {
-                        requirement_identity: plan
-                            .identities
-                            .text(row.requirement_identity)
-                            .to_owned(),
-                    });
-                }
             }
             // Verification already proved the export roster equals the
             // module-derived roster; requiring the row here keeps the join
             // honest if a later description schema ever narrows exports.
-            let export = requirement_export_identity(
-                plan.identities.text(row.requirement_identity),
-                &plan.provider_type,
-                machine_identity,
-            );
-            if !self
-                .description
-                .exports
-                .iter()
-                .any(|surface| surface.identity == export)
-            {
-                return Err(IndependentRealizationMismatch::MissingExport {
-                    requirement_identity: plan.identities.text(row.requirement_identity).to_owned(),
-                });
+            for position in projected.candidate_positions {
+                let candidate = &self.module().provider_candidates[position];
+                let requirement = identity_text(self.module(), candidate.requirement_identity);
+                let export = requirement_export_identity(
+                    requirement,
+                    identity_text(self.module(), candidate.provider_identity),
+                    identity_text(self.module(), candidate.candidate_identity),
+                );
+                if !self
+                    .description
+                    .exports
+                    .iter()
+                    .any(|surface| surface.identity == export)
+                {
+                    return Err(IndependentRealizationMismatch::MissingExport {
+                        requirement_identity: requirement.to_owned(),
+                    });
+                }
+                exports.push(position);
             }
         }
         // Only after every row matched is the component's own closure in

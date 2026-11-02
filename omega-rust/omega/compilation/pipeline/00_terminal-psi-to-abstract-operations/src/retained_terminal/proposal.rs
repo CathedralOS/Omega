@@ -38,16 +38,12 @@ pub struct TerminalNativeProposalRequest<'input> {
 
 fn close_family_realizations(
     artifact: &terminal_codec::CanonicalTerminalArtifact,
-    profile: target::TargetProfile,
+    selections: &terminal_installation::AdmittedTargetMachineSelections,
     selected: &effects::SelectedProviderPlanFacts,
     sources: &[SelectedFamilyRealizationSource],
 ) -> Result<effects::SelectedProviderPlanFacts, Vec<Diagnostic>> {
     use terminal_psi::TargetMachineCallable;
     let error = |message: String| vec![Diagnostic::error(message)];
-    let selections = terminal_installation::admit_target_machine_selections(
-        artifact.view(),
-        profile.target_name(),
-    );
     let module = artifact.semantic_module();
     let mut rows = Vec::new();
     // The requirement text is provider-side and absent from the module table,
@@ -173,18 +169,18 @@ fn project_terminal_native_body(
     request: &TerminalNativeProposalRequest<'_>,
 ) -> Result<TerminalNativeBodyProposal, Vec<Diagnostic>> {
     let terminal_module = artifact.semantic_module();
+    let targets = terminal_installation::admit_target_machine_selections(
+        artifact.view(),
+        target_profile.target_name(),
+    );
     let selected = backend_plan::close_checked_provider_specializations(
         request.boundaries.selected_provider_plans.clone(),
         request.provider_declarations,
         terminal_module,
     )
     .map_err(|message| vec![Diagnostic::error(message)])?;
-    let selected = close_family_realizations(
-        artifact,
-        target_profile,
-        &selected,
-        request.family_realizations,
-    )?;
+    let selected =
+        close_family_realizations(artifact, &targets, &selected, request.family_realizations)?;
     // This closes static activation obligations, not executor installation.
     // The proposal is process-local: loaded code takes this same join once.
     task_plans::realize_task_activations(
@@ -254,6 +250,7 @@ fn project_terminal_native_body(
         .unzip();
     let callback_placements = crate::settle_native_callback_placements(
         terminal_module,
+        Some(&targets),
         &selected,
         &request.boundaries.calling_applications,
     )
@@ -276,6 +273,7 @@ fn project_terminal_native_body(
     )?;
     let external_binding_rows = crate::settle_callback_registrar_imports(
         terminal_module,
+        Some(&targets),
         &selected,
         &callback_placements,
         callback_occurrences
@@ -357,20 +355,16 @@ fn bind_direct_boundary_leaves(
             })?;
         let mut leaf = (*candidate).clone();
         let declaration = std::sync::Arc::make_mut(&mut leaf.plan.schema.declaration);
-        let previous_requirement = declaration.methods[0].requirement_identity;
         let terminal_requirement = declaration.identities.intern(identity);
         declaration.trait_name = terminal_requirement;
         leaf.plan.rows[0].requirement_identity = leaf.plan.identities.intern(identity);
         declaration.methods[0].requirement_identity = terminal_requirement;
-        for application in &mut leaf.plan.schema.calling_applications {
-            if application.requirement == previous_requirement {
-                application.requirement = terminal_requirement;
-            }
-        }
         if let backend_plan::DirectBoundaryExecution::Foreign(Ok(binding)) = &mut leaf.execution {
             binding.trait_name = identity.to_owned();
             binding.requirement_identity = identity.to_owned();
         }
+        leaf.validate_bound_calling_custody(module)
+            .map_err(|reason| vec![Diagnostic::error(reason)])?;
         bound.push(leaf);
     }
     Ok(bound)

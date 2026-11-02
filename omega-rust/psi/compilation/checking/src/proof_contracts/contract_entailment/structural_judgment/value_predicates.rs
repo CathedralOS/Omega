@@ -19,6 +19,29 @@ use numerics::literals::FloatFormat;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
 use typed_trees::types::PrimitiveType;
 
+type FloatBoundWorld = Vec<(StructuralTerm, facts::FloatPredicate)>;
+
+fn conjoin_float_bound_worlds(
+    left: &[FloatBoundWorld],
+    right: &[FloatBoundWorld],
+) -> Option<Vec<FloatBoundWorld>> {
+    if left.len().checked_mul(right.len())? > 32 {
+        return None;
+    }
+    let mut worlds = Vec::new();
+    for first in left {
+        for second in right {
+            if first.len().checked_add(second.len())? > 64 {
+                return None;
+            }
+            let mut world = first.clone();
+            world.extend(second.iter().cloned());
+            worlds.push(world);
+        }
+    }
+    Some(worlds)
+}
+
 impl StructuralJudgment {
     /// Truth composition only. Each operand is judged by its own authenticated
     /// meaning and observation environment before it reaches this table.
@@ -538,7 +561,123 @@ impl StructuralJudge<'_> {
                 return Some(true);
             }
         }
+        if self.float_bound_from_prefix_alternatives(&subject, required, depth + 1) == Some(true) {
+            return Some(true);
+        }
         None
+    }
+
+    /// Prefix alternatives are private entailment worlds, not new formation
+    /// facts. Each admitted world must imply the bound on this exact completed
+    /// subject and format; one favorable alternative cannot speak for the rest.
+    fn float_bound_from_prefix_alternatives(
+        &self,
+        subject: &StructuralTerm,
+        required: facts::FloatPredicate,
+        depth: usize,
+    ) -> Option<bool> {
+        if super::super::struct_trace() {
+            eprintln!(
+                "STRUCT ieee-prefix-alternatives owner={:?} runtime={} cases={} depth={depth} subject={subject:?} required={required:?} rewrites={:?}",
+                self.machine_symbol, self.runtime_body_values, self.case_facts_only, self.rewrites
+            );
+        }
+        if !self.runtime_body_values || self.case_facts_only || depth >= 32 {
+            return None;
+        }
+        let mut remaining = 64usize;
+        let mut worlds = vec![FloatBoundWorld::new()];
+        for (predicate, truth) in self.rewrites.iter() {
+            if boolean_value(truth) != Some(true) {
+                continue;
+            }
+            let choices = self.float_prefix_alternatives(predicate, depth + 1, &mut remaining)?;
+            worlds = conjoin_float_bound_worlds(&worlds, &choices)?;
+            if !worlds.is_empty()
+                && worlds.iter().all(|world| {
+                    world.iter().any(|(observed_subject, observed)| {
+                        observed_subject == subject && observed.implies(required)
+                    })
+                })
+            {
+                return Some(true);
+            }
+        }
+        Some(false)
+    }
+
+    fn float_prefix_alternatives(
+        &self,
+        predicate: &StructuralTerm,
+        depth: usize,
+        remaining: &mut usize,
+    ) -> Option<Vec<FloatBoundWorld>> {
+        if depth >= 32 {
+            return None;
+        }
+        *remaining = remaining.checked_sub(1)?;
+        let predicate = predicate.semantic_value();
+        let connective =
+            match predicate {
+                StructuralTerm::ScalarBinary {
+                    references,
+                    operator,
+                    meaning,
+                    left,
+                    right,
+                } if matches!(operator, BinaryOperator::And | BinaryOperator::Or) => {
+                    if !meaning.iter().all(|(primitive, domain)| {
+                        *primitive == PrimitiveType::Bool
+                            && *domain == numerics::arithmetic::ArithmeticDomain::Exact
+                    }) || ![left, right].into_iter().zip(references).all(
+                        |(operand, reference)| {
+                            scalar_operand_is_observed(self.program, *reference, operand)
+                        },
+                    ) {
+                        return None;
+                    }
+                    Some((*operator, left.as_ref(), right.as_ref()))
+                }
+                // Checked mathematical definitions retain compiler-owned logical
+                // structure. The leaves still owe their own selected IEEE meaning;
+                // an opaque neighboring proposition contributes no bound.
+                StructuralTerm::MathematicalBinary {
+                    operator,
+                    left,
+                    right,
+                } if matches!(operator, BinaryOperator::And | BinaryOperator::Or) => {
+                    Some((*operator, left.as_ref(), right.as_ref()))
+                }
+                _ => None,
+            };
+        if let Some((operator, left, right)) = connective {
+            let left = self.float_prefix_alternatives(left, depth + 1, remaining)?;
+            let right = self.float_prefix_alternatives(right, depth + 1, remaining)?;
+            if operator == BinaryOperator::And {
+                return conjoin_float_bound_worlds(&left, &right);
+            }
+            if left.len().checked_add(right.len())? > 32 {
+                return None;
+            }
+            let mut worlds = left;
+            worlds.extend(right);
+            return Some(worlds);
+        }
+        if let Some((comparison, left, right)) =
+            self.completed_float_comparison(predicate, depth + 1)
+            && let Some(observation) = self.float_bound_observation(comparison, &left, &right)
+        {
+            return Some(vec![vec![observation]]);
+        }
+        if let Some(normal) = self.selected_contract_normal_form(predicate, depth + 1)
+            && normal != *predicate
+        {
+            return self.float_prefix_alternatives(&normal, depth + 1, remaining);
+        }
+        // Unknown leaves retain a possible world with no bound. In particular
+        // neither inequality nor a negated ordered comparison excludes NaN.
+        // No branch is installed in the judge to justify its own operands.
+        Some(vec![FloatBoundWorld::new()])
     }
 
     /// Enclose an authenticated completed operand, independent of its source

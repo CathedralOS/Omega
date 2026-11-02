@@ -2,7 +2,7 @@
 // u64 width: `Mirror` is valid only while `copy == source` — field-field
 // equality on the widest scalar.
 data Mirror
-where
+requires
     copy == source,
 {
     copy: u64;

@@ -1,7 +1,7 @@
 // Fact: returning a 24-byte three-field structural record (Triple { a: u64, b: u64, c: u64 }) through an indirect sret aggregate return slot preserves its postcondition bound (result.c <= 90u64), discharging exact subtraction 90u64 - result.c across all nine places.
 // Expected exit: 0
 
-data Triple [copy] where
+data Triple [copy] requires
     a >= 20u64 && a <= 20u64,
     b >= 30u64 && b <= 30u64,
     c <= 90u64 && c >= 40u64 && c <= 40u64

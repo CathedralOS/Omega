@@ -1,7 +1,7 @@
 // A bounded shift count shift < 4 on a Wrapping u32 value preserves in-width shift validity and recovers the original scalar across all nine places.
 // Place: field. Bounded record fields carry the Wrapping u32 value and shift count into the shift.
 // Expected exit: 0
-data ShiftPayload where shift < 4 {
+data ShiftPayload requires shift < 4 {
     val: u32 in Wrapping;
     shift: u32;
 }

@@ -9,7 +9,8 @@ same bound before it can be issued. No caller guard reconstructs the fact.
 Owning migration: **BUILD-OWNED-TARGET-SELECTION**, alongside the filesystem
 prerequisite below. The four identical issuer bodies now share one ordinary
 `issue` machine with the same signature, `value >= 100` precondition, `{ value }`
-body, and concrete `established by issue` route. This preserves exact-machine
+body, and concrete issuer route selected by the domain's access policy through
+`reflect::callable(issue)`. This preserves exact-machine
 origin authority; it does not replace it with a trait route or let arbitrary
 providers mint the qualification. Every caller still receives `u64 in AtLeast100`
 before `Consume::subtract` consumes the bound.
@@ -51,7 +52,7 @@ Requirements and limits:
   provider, where `value - 100` consumes the retained fact directly.
 - Soundness: numeric predicate rows cannot replace the independent domain
   identity. Provider selection cannot weaken the requirement or mint an input.
-- Psi 05–07: retain ordered scalar-domain admission rows and the complete
+- Psi 06–08: retain ordered scalar-domain admission rows and the complete
   operand type through statement and nested calls. Terminal artifacts retain
   those rows without adding a runtime tag or replaying source proof.
 - Omega 00–02: select the checked `Actual` provider with an unchanged

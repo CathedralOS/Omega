@@ -101,7 +101,7 @@ Applicable obligations and acceptance:
    still admit the complete `Pi(position). IW(next(label,position))` function.
    Predicate derivations, transitive assumptions and source correspondence keep
    their independent owners; source recursion is not a trusted certificate.
-5. **Psi 05–07:** mathematical child functions and actual arguments remain in
+5. **Psi 06–08:** mathematical child functions and actual arguments remain in
    checked canonical certificates and source-bound receiving; runtime erasure
    contributes no executable child lane. Terminal execution must retain the
    scalar bound's behavior and agree with the native result.

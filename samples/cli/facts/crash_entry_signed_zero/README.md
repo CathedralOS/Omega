@@ -89,7 +89,7 @@ local with `1.0`, which makes `value != 0.0` live, so the route stays uncovered
   bit-identical compare would keep `-0.0 != 0.0` live and lose the positive; an
   entry proved equal to `1.0` keeps the route and rejects. Proof-only terms
   cannot authorize executable guards.
-- **Checked-to-Terminal Psi lowering (`Psi 05–07`):** the recorded equality
+- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** the recorded equality
   lowers into the crash guard's float predicate, the crash entry and its
   uncovered route lower unchanged, and `omega run --both` executes the same
   program in the Terminal Psi interpreter and natively with agreement

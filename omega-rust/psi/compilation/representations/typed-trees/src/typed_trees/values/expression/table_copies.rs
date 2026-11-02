@@ -307,10 +307,19 @@ impl ExpressionTable {
         let destination_index = super::source_span_index(destination);
         let occurrences = self.authored_selection_occurrences[source_index];
         let source_span = self.source_span(source);
+        let materialization_source = self.materialization_source(source);
+        // Replacing the computation itself must retain its pre-replacement
+        // occurrence, rather than creating a self edge to the produced value.
+        let materialization_source = if materialization_source == destination {
+            self.insert_copy(materialization_source)
+        } else {
+            materialization_source
+        };
         let carrier = self.constructed_value_type_reference(source);
         *self.expression_mut(destination) = node;
         self.set_source_span(destination, source_span);
         self.authored_selection_occurrences[destination_index] = occurrences;
+        self.materialization_sources[destination_index] = materialization_source;
         // Replacement invalidates both an absent source result and the old
         // receiving context. Neither may survive as authority on a new node.
         if carrier.is_valid() {
@@ -378,6 +387,7 @@ impl ExpressionTable {
             return;
         }
         visited.push(root);
+        self.remap_symbols_in_inner(self.materialization_source(root), symbols, visited);
 
         let mut tests = self.executable_domain_tests(root).to_vec();
         for test in &mut tests {
@@ -647,6 +657,7 @@ impl ExpressionTable {
         }
         let origin = source.table(self);
         let source_span = origin.source_span(expression);
+        let materialization_source = origin.materialization_source(expression);
         let authority = origin.index_expression_authority(expression).cloned();
         let domain_tests = origin.executable_domain_tests(expression).to_vec();
         let query_carrier = matches!(origin.expression(expression), ExpressionNode::Call(call)
@@ -895,6 +906,11 @@ impl ExpressionTable {
             *self.index_expression_authority_mut(copied) = authority;
         }
         copies.expressions.push((expression, copied));
+        if materialization_source.is_valid() {
+            let authored =
+                self.copy_subtree_with_occurrences(source, materialization_source, retain, copies);
+            self.retain_materialization_source(copied, authored);
+        }
         // Register the copied root first: a predicate such as `bool::True`
         // may be its own tested subject. That semantic back-edge must retain
         // the same occurrence instead of recursively cloning it.
@@ -1153,5 +1169,43 @@ impl ExpressionTable {
         }
 
         copied
+    }
+}
+
+#[cfg(test)]
+mod materialization_tests {
+    use super::*;
+
+    #[test]
+    fn replacing_the_computation_retains_its_original_occurrence() {
+        let mut table = ExpressionTable::default();
+        let authored = table.insert(ExpressionNode::Boolean(false));
+        let value = table.insert(ExpressionNode::Boolean(true));
+        table.retain_materialization_source(value, authored);
+        table.replace_with_existing(authored, value);
+        let original = table.materialization_source(authored);
+        assert!(original.is_valid() && original != authored);
+        assert_eq!(table.expression(authored), &ExpressionNode::Boolean(true));
+        assert_eq!(table.expression(original), &ExpressionNode::Boolean(false));
+    }
+
+    #[test]
+    fn materialized_value_copy_retains_its_distinct_authored_computation() {
+        let mut source = ExpressionTable::default();
+        let authored = source.insert(ExpressionNode::Boolean(false));
+        let value = source.insert(ExpressionNode::Boolean(true));
+        source.retain_materialization_source(value, authored);
+        let own = source.insert_copy(value);
+        let mut destination = ExpressionTable::default();
+        for _ in 0..8 {
+            destination.insert(ExpressionNode::Boolean(true));
+        }
+        let copied = destination.copy_from(&source, value);
+        for (table, copied) in [(&source, own), (&destination, copied)] {
+            let authored = table.materialization_source(copied);
+            assert!(authored.is_valid() && authored != copied);
+            assert_eq!(table.expression(copied), &ExpressionNode::Boolean(true));
+            assert_eq!(table.expression(authored), &ExpressionNode::Boolean(false));
+        }
     }
 }

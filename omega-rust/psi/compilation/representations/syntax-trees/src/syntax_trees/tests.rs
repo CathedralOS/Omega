@@ -224,7 +224,6 @@ fn single_state_machine(state: arena::Handle<StateHandle>) -> Machine {
         target: None,
         authored_target: None,
         boundary: false,
-        is_top_level_boundary_requirement: false,
         bodyless: false,
         target_family_interface: false,
         lifetime_parameters: Vec::new(),
@@ -1072,7 +1071,6 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         target: None,
         authored_target: None,
         boundary: false,
-        is_top_level_boundary_requirement: true,
         bodyless: true,
         target_family_interface: false,
         lifetime_parameters: Vec::new(),
@@ -1104,14 +1102,10 @@ fn syntax_trees_extend_from_preserves_root_payload_handles() {
         panic!("expected machine root item");
     };
     assert!(machine.is_public, "syntax assembly must retain visibility");
-    assert!(
-        machine.is_top_level_boundary_requirement,
-        "syntax assembly must retain the explicit top-level requirement kind"
-    );
     assert!(matches!(
         &assembled.snapshot().root_items[0],
         ItemSnapshot::Machine {
-            is_top_level_boundary_requirement: true,
+            is_public: true,
             ..
         }
     ));
@@ -1454,4 +1448,50 @@ fn constant_destination_debt_is_remapped_without_settling_or_refreshing_stale_in
         .expect("stale debt cannot vanish");
     assert_eq!(pending, stale);
     assert_ne!(pending.initializer, copied.value);
+}
+
+#[test]
+fn copying_const_result_preserves_distinct_computation_and_materialized_value() {
+    let mut source = SyntaxTrees::new(Default::default());
+    let authored = source.expressions.insert(ExpressionNode::Boolean(true));
+    let materialized = source.expressions.insert(ExpressionNode::Boolean(false));
+    let argument = source
+        .type_references
+        .insert_named(Identifier::generated("result"));
+    source.type_references.retain_const_argument_normalization(
+        argument,
+        Default::default(),
+        String::new(),
+        [],
+        [],
+    );
+    source
+        .type_references
+        .retain_const_argument_expression(argument, authored);
+    source
+        .type_references
+        .retain_const_argument_materialized_expression(argument, materialized);
+    let mut copied = SyntaxTrees::new(Default::default());
+    for _ in 0..8 {
+        copied.expressions.insert(ExpressionNode::Boolean(true));
+    }
+    let argument = copied.copy_type_reference_handle(&source, argument);
+    let normalization = copied
+        .type_references
+        .const_argument_normalization(argument)
+        .unwrap();
+    assert_ne!(normalization.authored_expression, authored);
+    assert_ne!(normalization.materialized_expression, materialized);
+    assert!(matches!(
+        copied
+            .expressions
+            .expression(normalization.authored_expression),
+        ExpressionNode::Boolean(true)
+    ));
+    assert!(matches!(
+        copied
+            .expressions
+            .expression(normalization.materialized_expression),
+        ExpressionNode::Boolean(false)
+    ));
 }

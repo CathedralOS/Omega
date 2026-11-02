@@ -177,6 +177,7 @@ a supported selected application, executable call, or native realization.
 | --- | --- |
 | Pure call / member path | One exact public-interface selection joined to checked owner environment. Retain receiver ordinal and qualified case/field chain, or optional receiver, exact entry target, and arguments. No global name fallback; helper bodies remain source-content identity. |
 | Contract static argument | Exact selected callee telescope/category: concrete type, canonical const, caller binder ordinal, or exact machine entry. Recursive generic data applications retain checked base/telescope and caller lifetime ordinals; forwarded type/const binders rejoin caller categories. True nested machine applications and general mathematical arguments remain unsupported. |
+| Generic binder | Zero-based ordinal into one static telescope: a trait's declared parameters, then the requirement's own; every other declaration starts at its own first parameter. A trait has no implicit subject binder, so capture and recovery number the same declared statics, and type identities spell the same ordinal as `type-parameter:N`. Recovery rejects an ordinal outside that telescope or in another category. |
 | Byte literal | Typed decoded octets without an invented text encoding; escape-equivalent spelling is stable. |
 | Array literal | Ordered recursive elements; an unsupported child rejects the complete row. |
 | Record/case constructor | Exact qualified data, case, fields and recursive values, sorted by semantic field identity rather than source order. |
@@ -252,7 +253,7 @@ callable policy 8 and complete baseline 9. Other policy components, text grammar
 normalized-row framing and ledger versions are unchanged.
 
 This is the evidence vocabulary, not a claim that every authored requirement
-already reaches it. Stage 04's `EntryOperands::scalar` currently declines
+already reaches it. Stage 05's `EntryOperands::scalar` currently declines
 indexed reads, nonempty-path lengths, policy casts and representation views
 when normalizing ordinary expression requirements. Whole-view entry lengths
 cross that boundary; membership-derived requirements have a separate checked

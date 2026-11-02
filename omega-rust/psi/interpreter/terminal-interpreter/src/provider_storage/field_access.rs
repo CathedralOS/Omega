@@ -265,7 +265,11 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?;
         let length = usize::try_from(footprint.length_bytes()).map_err(|_| malformed())?;
         let end = start.checked_add(length).ok_or_else(malformed)?;
-        let bytes = allocation.bytes.get(start..end).ok_or_else(malformed)?;
+        let backing = allocation
+            .bytes
+            .read()
+            .map_err(TerminalInterpretError::ResidentStorage)?;
+        let bytes = backing.get(start..end).ok_or_else(malformed)?;
         let mut transfer = if needs_read {
             ByteSequenceStorage::copy(bytes, self.account.as_ref())?
         } else {
@@ -348,6 +352,7 @@ impl TerminalExecution<'_> {
             }
             TerminalEffectResult::Scalar(value)
         };
+        drop(backing);
         if write.is_some() {
             // All semantic and codec refusals precede the single exact-footprint
             // commit. The original resident and its allocation remain in place.
@@ -360,6 +365,8 @@ impl TerminalExecution<'_> {
             };
             allocation
                 .bytes
+                .write()
+                .map_err(TerminalInterpretError::ResidentStorage)?
                 .get_mut(start..end)
                 .ok_or_else(malformed)?
                 .copy_from_slice(transfer.bytes());

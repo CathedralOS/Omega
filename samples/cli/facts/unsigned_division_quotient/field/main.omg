@@ -2,7 +2,7 @@
 // Place: field. A record field carries the quotient into the subtraction check.
 // Expected exit: 0
 
-data DivResult where quotient >= 100 && quotient <= 100 {
+data DivResult requires quotient >= 100 && quotient <= 100 {
     quotient: u64;
 }
 

@@ -63,7 +63,7 @@ public data TypeRow [copy] {
 }
 
 public data TypeTable
-where
+requires
     row_count <= 8192,
     argument_count <= 4096,
 {
@@ -176,7 +176,7 @@ public data MemberTarget [copy] {
 // adaptation and anonymous value. `unit`, `boolean` and `anonymous` are the
 // handles of those types in `types`.
 public data Typing
-where
+requires
     reference_count <= 65536,
     expression_count <= 131072,
     binder_count <= 2048,

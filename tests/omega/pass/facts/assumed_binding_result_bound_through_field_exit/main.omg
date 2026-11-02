@@ -3,7 +3,7 @@
 boundary trait Required { machine get() -> u32 reaches ensures result <= 1; }
 boundary trait Supplied { machine get() -> u32 reaches; }
 Actual satisfies Supplied { machine get() -> u32 { 1 } }
-data Index [copy] where value <= 1 { value: u32; }
+data Index [copy] requires value <= 1 { value: u32; }
 machine read(index: Index) -> u32 { let values: [u32; 2] = [7, 11]; values[index.value] }
 machine main() reaches Required crashes Trap {
     let observed: u32 = read(Index { value: Required::get() });

@@ -1,5 +1,5 @@
 // Copying established elements cannot manufacture their destination bounds.
-data Bounded [copy] where value <= 2 {
+data Bounded [copy] requires value <= 2 {
     value: u64;
 }
 

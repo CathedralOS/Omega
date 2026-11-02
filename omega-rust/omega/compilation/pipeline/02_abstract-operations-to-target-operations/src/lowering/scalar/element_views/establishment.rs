@@ -36,11 +36,11 @@ pub(super) fn source(
         )
     };
     // A `&[u8]` view over `collection[a..b]` ends its projection in a
-    // `FixedByteRange` window: the field path still names the fixed byte
+    // `FixedRange` window: the field path still names the fixed byte
     // array and the window contributes the descriptor's own byte offset and
     // extent, leaving the backing stride at the `u8` element's.
     let (field_path, byte_window) = match source.path.last() {
-        Some(StructuralPathSegment::FixedByteRange { start, end }) => {
+        Some(StructuralPathSegment::FixedRange { start, end }) => {
             (&source.path[..source.path.len() - 1], Some((*start, *end)))
         }
         _ => (&source.path[..], None),

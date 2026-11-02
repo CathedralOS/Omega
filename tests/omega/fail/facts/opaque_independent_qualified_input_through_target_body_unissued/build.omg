@@ -15,4 +15,9 @@ machine build(builder: &mut Build) {
  Build::bind(builder, linux_arm64::ProgramEntry, main);
  Build::bind(builder, macos_arm64::ProgramEntry, main);
  Build::bind(builder, windows_x86_64::ProgramEntry, main);
+
+    Build::select_provider<ExchangeObservation, UnissuedExchangeObservationCode>(builder, linux_x86_64);
+    Build::select_provider<ExchangeObservation, ClassifiedExchangeObservationCode>(builder, linux_arm64);
+    Build::select_provider<ExchangeObservation, ClassifiedExchangeObservationCode>(builder, windows_x86_64);
+    Build::select_provider<ExchangeObservation, ClassifiedExchangeObservationCode>(builder, macos_arm64);
 }

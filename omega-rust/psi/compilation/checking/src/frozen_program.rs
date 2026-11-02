@@ -1,6 +1,6 @@
 //! Invocation-owned memos over the immutable program being checked.
 //!
-//! Stage 04 borrows its prepared typed program in CheckingContext at the frozen
+//! Stage 05 borrows its prepared typed program in CheckingContext at the frozen
 //! boundary. Read-only checking inputs carry that context through every query;
 //! neither a thread's current scope nor a program address finds it. Queries on
 //! bare TypedTrees remain one-shot, so mutation passes cannot borrow frozen
@@ -697,6 +697,28 @@ pub struct CheckingMemos {
     pub(crate) expression_result_types: Mutex<
         symbols::SymbolKeyMap<
             (u32, u32, typed_trees::expression::ExpressionHandle),
+            Option<typed_trees::types::TypeReferenceHandle>,
+        >,
+    >,
+    /// A parameter telescope's place types are a function of its owner and
+    /// each parameter's symbol and type, so equal rosters share one dense id.
+    /// Proof intake rebuilds the same roster for every observed value; without
+    /// the id, a deep `||`/`&&` predicate retypes each subtree at every node.
+    pub(crate) parameter_telescopes: Mutex<
+        symbols::SymbolKeyMap<
+            (
+                symbols::SymbolHandle,
+                Vec<(
+                    symbols::SymbolHandle,
+                    typed_trees::types::TypeReferenceHandle,
+                )>,
+            ),
+            u32,
+        >,
+    >,
+    pub(crate) parameter_result_types: Mutex<
+        symbols::SymbolKeyMap<
+            (u32, typed_trees::expression::ExpressionHandle),
             Option<typed_trees::types::TypeReferenceHandle>,
         >,
     >,

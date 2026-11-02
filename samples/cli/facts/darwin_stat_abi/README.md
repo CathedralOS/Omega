@@ -17,14 +17,14 @@ alignment must agree with 144/8. Every C checker field has a self-test mutation.
 On Mac the fixture includes the installed SDK's `sys/stat.h`; other hosts use
 an explicit Darwin-format fixture replica and make no native SDK claim.
 
-Local, owned-field and by-value parameter places are the first transport chunk.
+All nine transport places are qualified on the matching Mac host.
 Each twin changes only the receiving policy to an equal-geometry distinct
 implementation. All four hosted entry bindings remain explicit. Field values
 are established by a mutable C exchange; the compiler cannot substitute stale
 zero initializer facts or assume the foreign checker succeeds.
 
-Psi 00–04 retains the exact public std type, selected child plans and policy
-identity; borrowed inputs retain source backing and copy obligations. Psi 05–07
+Psi 00–05 retains the exact public std type, selected child plans and policy
+identity; borrowed inputs retain source backing and copy obligations. Psi 06–08
 and Omega 00–02 must preserve the complete selected C field geometry and ABI
 pointer lane. Omega 03–09 must emit the stores, copies, projections and foreign
 calls so any wrong offset, signed carrier, omitted timestamp half, wrong branch
@@ -39,12 +39,27 @@ The same retained compiler then completed all four ordinary public package
 reviews and `omega run --both` executions at exit 0, including canonical Terminal
 inspection, with a measured 600-second allowance for each review phase.
 
+
+The [six-control follow-on run](https://github.com/CathedralOS/Omega/actions/runs/41349339798)
+at exact `79f174854e30` passed the call-result, match-join and const-name checks,
+their exact policy-mismatch twins, and all three native/Terminal executions at
+exit 0 against SDK 15.5. Private specializations retain unique labels when a
+constant's demanded checking closure projects the declaration roster; their
+complete semantic applications and source commitments remain unchanged.
+
 The existing portable metadata/set-times control also checks and exits 0
 natively. Its Terminal `_futimens` adapter gap predates this migration and remains
 under FILESYSTEM-PLATFORM-SERVICES in [TASKS.md](../../../../TASKS.md); the
 private native sponsor does not grant extra filesystem capability.
 
-The other six stat transports and other-host observations remain open; the
+The final nested-machine, other-machine and selected-target programs at source
+`f19844409a95` also passed all six checking controls and all three native/Terminal
+executions at exit 0. They reused the qualified optimized `79f174854e30` runner;
+compiler and program revisions are retained separately, and their complete
+source/library input trees are identical. The selected implementations carry
+distinct markers so the wrong selection traps.
+
+Other-host observations remain open. The
 complete parent also retains conversions and Product parity.
 
 `file_times` checks the same shared two-element C timestamp array

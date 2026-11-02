@@ -15,8 +15,8 @@ ensures finished(token)
 {
     let mut index: u32 = 2059;
     let value: u64 = 0;
-    asm where ensures finished(token) { wrmsr index, value }
-    asm where ensures finished(other) { mov index, index }
+    asm ensures finished(token) { wrmsr index, value }
+    asm ensures finished(other) { mov index, index }
 }
 machine main() reaches MachineControl {
     let token: Token = Token { identity: 7 };

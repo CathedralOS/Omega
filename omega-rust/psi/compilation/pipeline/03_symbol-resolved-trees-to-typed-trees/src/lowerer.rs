@@ -72,7 +72,7 @@ use crate::signatures::lexical_context::captured_arguments;
 use crate::tables::resolved_expressions;
 use crate::type_reference::domain_constraints::normalize_domain_constraints;
 use crate::type_reference::{
-    lower_type_reference_into_table, normalize_const_argument_carriers, validate_range_arguments,
+    lower_type_reference_into_table, normalize_const_argument_carriers, validate_computed_arguments,
 };
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
@@ -401,7 +401,7 @@ pub(crate) fn close_typed_cohort(
         && cohort.operators == lowerer.source_trees.operators.len()
         && cohort.data_definitions == lowerer.source_trees.data_definitions.len())
     {
-        validate_range_arguments(lowerer.source_trees, &lowerer.typed_trees)?;
+        validate_computed_arguments(lowerer.source_trees, &lowerer.typed_trees)?;
     }
     finalize_provider_default_calls(&mut lowerer.typed_trees)?;
     target_machine_families::append(

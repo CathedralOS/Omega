@@ -2,7 +2,7 @@
 // shared loan of one of that cell's fields.
 use omega_language_std::console;
 
-data Cell where value >= 0 && value <= 100 { stamp: i32; value: i32; }
+data Cell requires value >= 0 && value <= 100 { stamp: i32; value: i32; }
 data View<'a> { writer: &'a mut Cell; reader: &'a i32; }
 data Main {
     first: Cell;

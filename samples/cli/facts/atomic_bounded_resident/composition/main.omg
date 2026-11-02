@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // A shared atomic store preserves its resident bound and ordering, and a load carries that bound into Exact subtraction.
 use omega::language::core::atomic;
-data Cell where value <= 100 { value: AtomicU32; }
+data Cell requires value <= 100 { value: AtomicU32; }
 machine swap_bounded(cell: &Cell) -> u32
 ensures result <= 100
 {

@@ -5,7 +5,7 @@ use omega::language::core::float_operations;
 // The data clause preserves
 // the former field suffix's [0.0..=100.0] contract without a range type.
 use omega_language_std::console;
-data Main where bounded >= 0.0 && bounded <= 100.0 {
+data Main requires bounded >= 0.0 && bounded <= 100.0 {
     bounded: f64;
     unbounded: f64;
     a: i32;

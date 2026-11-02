@@ -1,4 +1,4 @@
-data Main where position <= 1 { position: u64; }
+data Main requires position <= 1 { position: u64; }
 machine replace(position: &mut u64)
 requires position <= 1
 ensures position <= 1

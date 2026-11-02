@@ -1,4 +1,4 @@
-data Cell where value >= 0 && value <= 9 { value: i32; }
+data Cell requires value >= 0 && value <= 9 { value: i32; }
 
 machine value() -> i32 ensures result == 12 { 12 }
 

@@ -30,6 +30,42 @@ type? [Layout](chapter_20_memory_layout_abi.md) separately answers where that
 member is represented. Geometry requires a validated selected layout. A layout
 planner cannot observe its own unfinished result.
 
+## Typed Field And Callable Selectors
+
+Select declarations directly when a policy needs one member rather than a full
+schema walk:
+
+```omega
+reflect::field(Controller::status)          // FieldInfo
+reflect::field(Buffer<u32>::used)           // FieldInfo for this application
+reflect::callable(Controller::update)       // CallableInfo: concrete machine
+reflect::callable(ControllerWriter::write)  // CallableInfo: trait requirement
+```
+
+These queries do not require an instance. `&controller.status` borrows live
+storage; `reflect::field(Controller::status)` describes a declaration. The
+descriptor has no address or offset. Layout correspondence supplies geometry
+when an actual storage operation needs it.
+
+One `CallableInfo` type permits a mixed list without erasing the difference
+between a concrete machine and a requirement:
+
+```omega
+AccessPlan::allow_writers(&mut plan, reflect::field(Controller::status), [
+    reflect::callable(Controller::update),
+    reflect::callable(ControllerWriter::write)
+]);
+```
+
+A requirement entry authorizes invocation through that requirement and its
+selected implementation, not unrelated direct calls to a satisfier. A field
+descriptor in this list is a type error. A bare trait, ambiguous overload or
+wrong declaration category rejects; reflection does not guess from a name.
+These are descriptive values, not runtime function pointers, selected providers
+or grants. Identity/scope checks remain required when a policy consumes them.
+The [selector contract](../spec/language/reflection.md#typed-declaration-selectors)
+defines owner, application, revision and visibility obligations.
+
 ## Inspecting Actual Values
 
 Consider an owner-authored inspector for this record:

@@ -266,7 +266,7 @@ pub enum CheckedScalarExpression {
     /// A §5b representation re-view of one whole scalar place
     /// (`&place as &T`, or a read through a loan local bound to one). The
     /// operand is the source place's own read at its declared carrier; the
-    /// view observes the same bytes as `primitive_type`. Stage 04 retains
+    /// view observes the same bytes as `primitive_type`. Stage 05 retains
     /// this form only after the recast judgment admitted the pair and only
     /// when the carriers differ -- a same-carrier view changes facts, not
     /// representation, and reads the place directly. Consumers replay the

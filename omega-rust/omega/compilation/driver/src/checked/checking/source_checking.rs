@@ -140,7 +140,7 @@ pub(crate) fn check_product_source(
         program,
         provider_inventory,
         terminal_publication,
-        calling_policy_code: Arc::default(),
+        calling_program: Arc::default(),
         external_declarations: Arc::default(),
         provider_defaults: provider_defaults.into(),
         computed_build_config,

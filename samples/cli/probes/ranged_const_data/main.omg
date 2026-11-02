@@ -8,7 +8,7 @@
 // Compile-checked only: no standard-library dependency, no ProcessExit
 // provider.
 
-data Buffer<const Capacity: u64> where Capacity >= 1 && Capacity <= 64 {
+data Buffer<const Capacity: u64> requires Capacity >= 1 && Capacity <= 64 {
     items: [i32; Capacity];
 }
 

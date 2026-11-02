@@ -1,6 +1,7 @@
 # Access policies, views, and resident custody
 
-Named decision: `access-policy-vocabulary`, settled 2026-10-30.
+Named decision: `domain-access-unification`, settled 2026-11-01. This supersedes
+the layout-containing plan and separate view surface of `access-policy-vocabulary`.
 
 [Content custody](content_custody.md) defines claim-local roles.
 [Boundary realization](../terminal-psi/boundary_calls.md) defines demanded
@@ -9,37 +10,84 @@ applications and selected provider evidence.
 ## Plans and admitted supply
 
 `LayoutPlan` defines representation and physical geometry, with no access rights.
-`AccessPlan { layout, fields, reach }` contains one `LayoutPlan`, per-field
-operation/exposure decisions, and required static boundary reach. An access plan
-contains a layout plan; a layout plan carries no access policy. `FieldEntry` uses
-`representation: FieldPlan`: the alternatives describe offsets, bit fragments,
-integer representations, and wire encodings, not merely positions.
+`AccessPlan` describes a domain's establishment authorization, whole-subject and
+field access restrictions, observation/operation demands, exposure, and required
+static boundary reach. It contains no layout. Semantic fields belong to the
+type's schema; layouts represent them. Establishment joins the normalized access
+plan, an independently selected validated layout, and actual backing evidence.
+`FieldEntry.representation: FieldPlan` remains layout geometry, not permission.
+
+```omega
+domain Controller::Controlled
+    requires self.configuration <= 100
+    access ControllerAccess;
+```
+
+The `access` clause selects one ordinary named policy implementation. Predicates
+remain propositions, including relationships across several fields. Policy
+authorization cannot prove those predicates. Cleanup, multiplicity, and semantic
+domain contributions keep their existing judgments. The source clauses
+`established by`, `read by`, and `written by`, and the `Access<P, T>` source wrapper
+are retired; their obligations belong to this one domain contract.
 
 An ordinary named implementation of `AccessPolicy` supplies
-`plan(schema: Schema) -> AccessPlan`. Its complete checked execution closure is
+`plan(schema: reflect::TypeSchema) -> AccessPlan`. This is the semantic schema,
+not the target-resolved `layout::Schema`. Its complete checked execution closure is
 effect-free and terminating under compile-time admission: no boundary services,
 suspension, blocking, or unadmitted linear carriers. It may call ordinary layout
-policies and helpers; there is no separate two-argument composition trait. Such a
-call returns plan data, not a validation certificate. The final validator
-independently establishes layout, field coverage, operation, and reach obligations;
-it trusts no intermediate calculation or asserted property of the policy result.
+helpers; no layout argument or two-argument composition trait is required.
+The returned data is not a validation certificate. Validation establishes exact
+schema/region correspondence, callable identity, operation and reach obligations;
+establishment checks the independent layout and supply join. Neither trusts
+intermediate calculations or asserted properties of the policy result.
 Runtime range provenance proves that the declared reach may access the region;
 constructing a plan grants no reach and never edits a machine's reach row.
 
-`AccessPlan::inaccessible(layout)` retains the supplied layout, starts with empty
-required reach, and seeds one inaccessible decision for each distinct schema-field
-key appearing in its entries. Several fragments of one field seed one decision.
-Erased bindings have no physical entries and seed none. `AccessPlan::with` changes
-the decision for an existing key; it does not authorize an unknown field. Final
-validation independently requires exactly one decision for every runtime-relevant
-schema field, no decisions for erased or foreign fields, and valid complete layout
-coverage. An omitted field cannot become valid merely because both the layout and
-the seeded decisions omitted it. Access decisions use schema-field identity, not the
-layout entry count or entry positions.
+`AccessPlan::new(&schema)` binds the semantic schema and adds no caller restrictions.
+It starts with empty additional reach and no fabricated backing capabilities.
+Omitting a policy, or omitting one authorization axis in a policy, adds no
+restriction on that axis; it is not deny-all. This default says nothing about
+whether an operation is supported by the carrier, loan, observation contract or
+backing. An unspecified observation never manufactures Stable, External or Atomic
+supply. The ordinary carrier/source contract remains applicable.
 
-`Access<P, T>`, `Accessor<T>`, `AccessPolicy`, `AccessPlan`, and `LayoutPlan` are
-core names, not language keywords. Ordinary name resolution and import rules apply;
-there is no special local-wins rule for a user declaration named `Access`.
+The policy-construction operations are ordinary core/library APIs, not keywords:
+
+| Operation | Meaning |
+| --- | --- |
+| `AccessPlan::establish(&mut plan, callers)` | Restrict who may introduce this domain qualification. |
+| `AccessPlan::allow_readers(&mut plan, region, callers)` | Restrict readers of this semantic region. |
+| `AccessPlan::allow_writers(&mut plan, region, callers)` | Restrict writers of this semantic region. |
+
+`TypeSchema::root(&schema)` denotes the whole semantic subject. A field region comes
+from `reflect::field(Type::field)`, not a string, field ordinal, address or layout
+offset. Caller lists contain `reflect::callable(...)` results for exact machines
+or exact trait machine requirements. These are homogeneous `CallableInfo`
+descriptors, not executable callback values; `FieldInfo` is a different type.
+See [typed declaration reflection](../language/reflection.md#typed-declaration-selectors).
+
+A list contains alternative authorized callers. An empty list admits nobody;
+absence of a list imposes no additional restriction. Whole-subject rules cover
+structural subplaces. Parent, child, repeated and independently inherited rules
+intersect; policy construction order cannot restore a permission. Adding a caller
+to a later rule is not an override. A field-only rule is valid without an explicit
+whole-subject row. Normalization retains the difference between no restriction
+and an explicit empty set. A constructor may initialize fresh storage before
+qualification; whole-object replacement of governed storage is a write to its
+affected fields, not fresh establishment exempt from policy.
+
+The policy may carry per-region observation demands using the existing Stable,
+External and Atomic operation descriptions below. `AccessPlan::observe(&mut plan,
+field, behavior)` denotes ordinary construction of such a demand, not authority
+to implement it. Caller authorization has no special atomic grammar or second
+atomic caller allowlist: load needs read permission, store needs write permission,
+and read-modify-write needs both. Supported atomic operations, ordering and
+custody are independently checked by their operation/backing contracts.
+
+`Accessor<T>`, `AccessPolicy`, `AccessPlan`, `LayoutPlan`, `FieldInfo`, and
+`CallableInfo` are core names, not language keywords. Ordinary name resolution
+and import rules apply. A domain-qualified value/view replaces the separate
+`Access<P, T>` surface; restricted projections and their checked operations remain.
 
 Ordinary `&T`, `&mut T`, and `&write T` loans, together with domain-owned access
 restrictions, suffice when the whole-value loan and ordinary projections express
@@ -64,12 +112,15 @@ Neither route dispenses with content validity, resident custody, lifetime, or
 operation-specific obligations. Policy evaluation and the demand/supply join are
 checked against the evidence; constructing their data cannot establish it.
 
-Opaque compiler-issued field keys bind the exact canonical layout with a
-domain-separated strong commitment; compact layout coordinates are report-only. Each
-runtime-relevant field has exactly one access decision; erased bindings retain
-semantic identity but have no physical key or decision. An inaccessible default
-makes omission deny access. Private bootstrap capacity does not enter source
-semantics or normalized identity; overflow rejects.
+Semantic region identities bind exact owner, type application, member and schema
+revision. A checked correspondence maps them to the separately validated layout;
+several physical fragments of one field remain one semantic field. Effective
+operation decisions are complete for every runtime field after composing the
+carrier/source contract and all restrictions; omitted authored caller rows are
+not missing physical coverage. Erased bindings retain semantic/custody identity
+but receive no physical transfer key or event. Compact coordinates are report-only.
+Private bootstrap capacity does not enter source semantics or normalized identity;
+overflow rejects rather than truncating the plan.
 
 | Field access | Requested operations |
 | --- | --- |
@@ -138,22 +189,32 @@ that the schema describes the physical device.
 
 ## Establishment and retirement
 
-`Access<P, T>` interprets one exact qualified owned extent or ordinary borrow;
-it adds no authority. There is no source `ExtentLoan` or accepted-admission
+An access-qualified value/view interprets one exact qualified owned extent or
+ordinary borrow; the qualification adds no authority. There is no source
+`ExtentLoan` or accepted-admission
 object. Weakening a borrow to unqualified `&Extent` loses `Granted` and cannot
 establish an access view. Ordinary owned RAM remains ordinary `T` and lvalue
 borrows; access views retain the selected field policy and exact source authority.
 
-The ordinary-RAM routes are `Access::view<P, T>(&T)` and
-`Access::view_mut<P, T>(&mut T)`. Existing resident backing uses
-`Access::view_resident_mut<P, T>(&mut Extent in Granted & Resident<P, T>)`.
-These routes preserve their distinct source polarity and custody contracts;
-they are not an overloaded `over` operation. The whole handle is `Access<P, T>`;
-field projection returns `Accessor<FieldType>`, not an unrestricted field loan.
-Even `&mut Access<P, T>` cannot enable a field operation the policy denies.
-There is no unwrap to unrestricted `&mut T`. An ordinary lender resumes its
-original access when the view's loan ends; attenuation does not permanently
-restrict the lender's ownership.
+Ordinary shared, mutable and write-only loans may establish a domain-qualified
+view with no stronger authority than their source. Existing resident backing
+retains its exact `Extent in Granted & Resident<P, T>` custody. These routes keep
+their distinct source polarity, establishment evidence and custody contracts;
+removing the source wrapper does not collapse them into a permission-granting cast.
+Here and below `P` in custody/evidence families identifies the exact normalized
+domain policy; the independently selected layout is retained in occurrence
+evidence rather than embedded in that policy.
+
+Ordinary Stable field projection remains ordinary projection subject to policy.
+An External/Atomic interpretation uses restricted accessors where ordinary field
+loans would falsely promise stable/exclusive backing. It never turns hardware
+mutation into an ordinary exclusive reference merely by qualifying `T`.
+Borrowing a view descriptor mutably cannot enable a denied field operation or
+prove exclusive ownership of the device. There is no unwrap to unrestricted
+`&mut T`. Casts retain access and observation restrictions, including during an
+invariant window; a window relaxes predicate establishment, not authorization.
+An ordinary lender resumes its original access only after the complete temporary
+qualified loan cohort ends.
 
 | Family | Meaning |
 | --- | --- |
@@ -235,23 +296,25 @@ paths, non-runtime custody, active operation, and provider dependencies. It prov
 neither `Vacant` nor `Resident`. Reclamation requires structural isolation plus
 admitted reset, recovery, quarantine, or custody exit; otherwise it stays abandoned.
 
-Package-aware `Access<P, S>` discovery resolves exact policy/schema identities
-and checks both declarations' visibility and direct-dependency authority before
-synthesis. Because the compiler shell is erased before ordinary type-selection
-capture, both inputs must be public even for local use. The inert opaque field
-carrier follows shell visibility; operation visibility follows exact
-`AccessExposure`, and binding-private access stays inside the policy package.
-Statement operations retain their exact generated target. Equal spellings cannot
-launder private declarations through a source-free shell.
+Package-aware domain-policy discovery resolves exact domain, policy and schema
+identities under ordinary visibility and direct-dependency authority. Local use
+does not require publishing a declaration merely to accommodate an erased shell.
+Public interface exposure and the limited private-route metadata exception follow
+the domain rules. Operation visibility follows exact exposure, and binding-private
+access stays inside the policy package. Statement operations retain their exact
+generated target. Equal spellings cannot launder private declarations through
+reflection or a source-free artifact.
 
 ## Occurrences and views
 
 Terminal Psi does not serialize a concrete address as authority or re-resolve
 source fields, access policy `P`, or resident type `T`. An `AccessOccurrenceId`
-binds the qualified root occurrence, normalized access plan, provider/profile
+binds the qualified root occurrence, normalized domain access plan, independently
+validated layout and semantic-to-physical correspondence, provider/profile
 receipt, mapping/revision, range, lifetime, and boundary reach without an address.
 
-`TerminalAccessViewPlan` retains the composite plan for its consumers. These
+`TerminalAccessViewPlan` retains that checked join for its consumers, not a
+source-level layout-containing `AccessPlan`. These
 semantic identifiers do not prescribe a new wire tag or digest merely because
 an implementation identifier is renamed; the encoding contract specifies the
 serialized fields and canonical commitments independently.
@@ -274,7 +337,9 @@ inputs or active carrier unchanged.
 
 ## Projected events
 
-Projection is pure and returns `Accessor<T>`, not lvalues. `read`, `write`,
+Projection of operation-governed backing is pure and returns `Accessor<T>`, not
+unrestricted lvalues. Ordinary Stable lvalues retain their domain restrictions.
+`read`, `write`,
 `take`, `swap`, and the atomic families retain their exact operation requirements;
 the accessor's value type alone grants none of them. No public primitive takes
 an arbitrary base/offset. A sealed operation authorization binds exact plan,
@@ -383,7 +448,7 @@ selection/installation, or Terminal/native lowering authority.
 
 [Deferred-establishment recasts](../layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
 provide an ordinary exclusive-storage route to initializing a stricter shape.
-They do not recast `Access<P, T>` or bypass its access plan. Only a legitimate
+They do not bypass a domain's access or observation plan. Only a legitimate
 underlying storage claim with the required geometry, authority and custody can
 support that ordinary route. Opening a pending view does not mint `Resident`,
 discard occupied content or infer `Vacant`; the declared content-establishment

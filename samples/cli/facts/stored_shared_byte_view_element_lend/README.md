@@ -91,7 +91,7 @@ executed, and only the Windows provider of `Observe` executes here.
   implementation.
 - **Soundness:** a window longer than the callee requires is refused before
   execution in every place.
-- **Psi 05–07 through Omega 07–09:** the lend lowers to the same call on both
+- **Psi 06–08 through Omega 07–09:** the lend lowers to the same call on both
   engines and they agree on the byte read. A lend that reached the wrong window
   leaves a different byte and `main` crashes.
 

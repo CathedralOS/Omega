@@ -13,7 +13,7 @@ machine bounded(value: u64) -> u64
 requires value <= limit()
 ensures result <= limit()
 { value }
-data Holder where self.value <= limit() { value: u64; changed: u64; }
+data Holder requires self.value <= limit() { value: u64; changed: u64; }
 machine change(value: &mut u64) -> u64 { value = 8; 0 }
 public machine main() crashes Trap {
     let mut produced: u64 = bounded(7);

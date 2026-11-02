@@ -7,7 +7,7 @@ requires
     self <= 4;
 
 data Pair
-where
+requires
     n >= 2,
 {
     n: u64 in Tiny;

@@ -1,7 +1,7 @@
 // A `data where` bound applies at i8 width: `Delta` is valid only while
 // `value <= 10` — the ceiling proves against the narrow signed field.
 data Delta
-where
+requires
     value <= 10,
 {
     value: i8;

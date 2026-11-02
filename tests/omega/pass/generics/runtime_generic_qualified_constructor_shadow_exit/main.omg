@@ -1,7 +1,7 @@
 use shapes::Box;
 data Holder<Value [copy]> [copy] { value: Value; }
 data Nested<Payload [copy], Element [copy], Box> [copy]
-where Payload == [Element; 4] {
+requires Payload == [Element; 4] {
     nested: Holder<shapes::Box<u64>>;
     payload: Payload;
 }

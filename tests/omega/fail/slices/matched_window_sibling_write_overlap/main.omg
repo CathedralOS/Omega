@@ -1,4 +1,4 @@
-data Holder where which <= 2 { which: u64; values: [u8; 4]; }
+data Holder requires which <= 2 { which: u64; values: [u8; 4]; }
 machine reset(value: &mut u64) -> i64
 requires value <= 2
 ensures value <= 2

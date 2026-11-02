@@ -1,0 +1,3 @@
+module values;
+public const MARKER: u64 = 7;
+public const ALIAS: u64 = MARKER;

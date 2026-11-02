@@ -56,7 +56,7 @@ pub fn selected_provider_plan_facts(
     ),
     Vec<diagnostics::Diagnostic>,
 > {
-    selected_provider_plan_facts_with_independent_components(context, selected, &[])
+    selected_provider_plan_facts_with_independent_components(context, selected, &[], &[])
 }
 
 /// Keep rootless Check/review on exact invocation declarations. No canonical
@@ -65,6 +65,7 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
     context: crate::ProviderPlanningContext<'_>,
     selected: Vec<SelectedProviderPlanWithProvenance>,
     independent_components: &[VerifiedComponent],
+    exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<
     (
         effects::SelectedProviderPlanFacts,
@@ -91,8 +92,15 @@ pub(crate) fn selected_provider_plan_facts_with_independent_components(
             provider_selection::SelectionProvenance::UniqueCoveringCandidate
             | provider_selection::SelectionProvenance::NativeBuild => {}
         }
+        let selecting_declaration = crate::native_provider_sources::close_selecting_declaration(
+            context,
+            exact_toolchain_sources,
+            &selected.derived.provenance,
+        );
+        let mut candidate = super::selection_declarations::source_candidate(selected.derived);
+        candidate.declarations.selecting_declaration = selecting_declaration;
         choices.push(provider_selection::SelectedProvider {
-            candidate: super::selection_declarations::source_candidate(selected.derived),
+            candidate,
             selected_by: provenance,
         });
     }

@@ -5,6 +5,7 @@ use crate::byte_sequences::ByteSequenceView;
 use crate::byte_sequences::binding::ByteSequenceBinding;
 use crate::byte_sequences::storage::ByteSequenceStorage;
 use crate::custody::resolve_single_structural_argument;
+use crate::element_views::CollectionStorage;
 use crate::errors::{TerminalInterpretError, malformed};
 use crate::execution::TerminalExecution;
 use crate::runtime_rows::RuntimeRows;
@@ -275,7 +276,11 @@ impl TerminalExecution<'_> {
         identity_cursor: &mut Option<u64>,
         local_array_roots: &mut RuntimeRows<semantic_vocabulary::PlaceId, TerminalStructuralValue>,
     ) -> Result<(TerminalStructuralValue, ArrayStorage), TerminalInterpretError> {
-        let (selected, home) = self.element_collection_storage(source)?;
+        let CollectionStorage {
+            collection: selected,
+            home,
+            ..
+        } = self.element_collection_storage(source)?;
         let referent = match selected {
             Some(selected) => selected,
             None => {
@@ -643,7 +648,7 @@ impl TerminalExecution<'_> {
         // Keep the range out of the storage key so repeated and forwarded calls
         // update the same array and leave bytes outside the loan untouched.
         let backing_path = match argument.path.split_last() {
-            Some((StructuralPathSegment::FixedByteRange { .. }, backing)) => backing,
+            Some((StructuralPathSegment::FixedRange { .. }, backing)) => backing,
             _ => &argument.path,
         };
         let Some(array_type) = array_path_type(&self.structural_types(), root_type, backing_path)
@@ -716,7 +721,7 @@ impl TerminalExecution<'_> {
         }
         referent.structural_type = parameter.structural_type;
         referent.qualifications = parameter.qualifications.clone();
-        if let Some(segment @ StructuralPathSegment::FixedByteRange { .. }) = argument.path.last() {
+        if let Some(segment @ StructuralPathSegment::FixedRange { .. }) = argument.path.last() {
             referent.path.push(segment.clone());
         }
         if parameter.access == StructuralAccess::SharedBorrow {

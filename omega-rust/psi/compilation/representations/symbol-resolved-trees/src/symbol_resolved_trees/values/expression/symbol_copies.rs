@@ -122,6 +122,11 @@ impl SymbolCopy<'_, '_> {
                 .resize(position + 1, Handle::invalid());
         }
         self.visited_payloads[position] = copied;
+        let authored = self
+            .program
+            .expression_table()
+            .materialization_source(copied);
+        self.expression_payloads(authored);
         let mut node = self.program.expression_table().expression(copied).clone();
         match &mut node {
             ExpressionNode::Match(dispatch) => {

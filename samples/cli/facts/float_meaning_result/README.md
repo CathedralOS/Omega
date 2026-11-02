@@ -24,7 +24,7 @@ All positive projects bind `ProgramEntry` for all four hosted targets. On the av
 2. **Identity and lifetime.** The equation names the captured result and operand observations. An empty completion write frame preserves those observations without making runtime calls repeatable or granting Float substitution identity.
 3. **Composition.** The same equation reaches a local, record field, parameter, call result, match join, named constants, successor state, forwarding machine and target body. `require_min` consumes it without a new guard establishing the fact.
 4. **Soundness boundaries.** The negative twins retain the claimed minimum equation but select maximum. Focused mutable-argument and effectful-operand controls retain invalidation independently of this scalar row.
-5. **Checked-to-Terminal Psi (Psi 05–07).** The equation justifies the consumer; the actual minimum and result branch execute under the interpreter.
+5. **Checked-to-Terminal Psi (Psi 06–08).** The equation justifies the consumer; the actual minimum and result branch execute under the interpreter.
 6. **Provider settlement, layout and ABI (Omega 00–02).** Hosted entry bindings and ordinary f32 value lanes follow the selected target program.
 7. **Instructions, register homes and activations (Omega 03–06).** Native execution computes minimum and transports the returned scalar through each source place.
 8. **Encoding and native image emission (Omega 07–09).** Native and interpreter exit zero agree for every positive. No execution is claimed for unavailable foreign hosts.

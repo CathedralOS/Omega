@@ -34,7 +34,7 @@ pub use boundary_application::{
     BoundaryCallbackBinding, BoundaryCallbackLayout, BoundaryCallingApplication,
     BoundaryCallingApplicationCandidate, BoundaryNativeParameterGeometry,
     BoundaryNativeParameterShape, BoundaryOpaqueApplication, BoundarySignatureGeometry,
-    CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry,
+    CallbackDataGeometry, CallbackInlineFieldGeometry, CallbackSlotGeometry, NativeCallProjection,
     NativeParameterTelescope, TerminalCallingTelescope, validate_fresh_native_parameter_identity,
 };
 pub use boundary_values::{

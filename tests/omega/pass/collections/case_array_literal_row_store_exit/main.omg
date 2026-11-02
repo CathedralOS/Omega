@@ -10,7 +10,7 @@ data Cell {
     case Door;
 }
 data Main
-where
+requires
     i <= 1,
 {
     rows: [[Cell; 2]; 2];

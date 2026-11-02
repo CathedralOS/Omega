@@ -1937,6 +1937,10 @@ pass/expressions/call_result_comparison_operands_exit built 7997ms exit:70 @5f66
 pass/expressions/comparison_result_integer_conversion_exit built 11839ms exit:70 @5f668826adf3+wt
 pass/expressions/dead_trapping_let_traps built 12453ms exit:-1073741795 @5f668826adf3+wt
 pass/expressions/declared_operator_match_result built 9571ms exit:70 @5f668826adf3+wt
+pass/expressions/declared_operator_private_helper_exit built 4245ms exit:0 @630d0f945fc2
+pass/expressions/declared_operator_result_loan_exit built 4210ms exit:0 @630d0f945fc2
+pass/expressions/declared_operator_result_qualification_exit built 4227ms exit:0 @630d0f945fc2
+pass/expressions/declared_operator_stateful_body_exit built 4191ms exit:0 @630d0f945fc2
 pass/expressions/deep_paren_nesting checked 2220ms @5f668826adf3+wt
 pass/expressions/derives_helper_return checked 2800ms @5f668826adf3+wt
 pass/expressions/entry_mut_scalar_param checked 2328ms @5f668826adf3+wt
@@ -2618,6 +2622,18 @@ pass/facts/data_where_standing_through_other_machine_exit built 4182ms exit:0 @5
 pass/facts/data_where_standing_through_other_state_exit built 4128ms exit:0 @5f668826adf3+wt
 pass/facts/data_where_standing_through_parameter_exit built 4352ms exit:0 @5f668826adf3+wt
 pass/facts/data_where_standing_through_target_body_exit built 3527ms exit:0 @5f668826adf3+wt
+pass/facts/dependency_type_qualified_call_by_value_exit built 6604ms exit:0 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_operator_token_exit built 6705ms exit:0 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_private_helper_exit built 6595ms exit:0 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_call_result_exit built 7342ms exit:0 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_const_name_exit built 6646ms exit:0 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_field_exit built 7391ms exit:0 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_local_exit built 6623ms exit:0 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_match_join_exit built 7364ms exit:0 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_other_machine_exit built 7432ms exit:0 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_other_state_exit built 6548ms exit:0 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_parameter_exit built 6573ms exit:0 @900e2e7ae6af
+pass/facts/dependency_type_qualified_call_through_target_body_exit built 6681ms exit:0 @900e2e7ae6af
 pass/facts/dependent_subtract_through_call_result_exit built 4042ms exit:0 @5f668826adf3+wt
 pass/facts/dependent_subtract_through_const_name_exit built 3798ms exit:0 @5f668826adf3+wt
 pass/facts/dependent_subtract_through_field_exit built 3288ms exit:0 @5f668826adf3+wt
@@ -3345,6 +3361,18 @@ pass/facts/named_conformance_dispatch_through_parameter_exit rejected 3183ms @5f
 	cannot prove ensures contract for exit from apply$specialized$abaf361fafff1d4e$0 at statement 0: result == left + right
 pass/facts/named_conformance_dispatch_through_target_body_exit rejected 3132ms @5f668826adf3+wt
 	cannot prove ensures contract for exit from apply$specialized$abaf361fafff1d4e$0 at statement 0: result == left + right
+pass/facts/named_const_callable_family_cross_module_alias_exit built 14129ms exit:0 @75dd4e483f7a
+pass/facts/named_const_callable_family_forwarded_family_exit built 12964ms exit:0 @75dd4e483f7a
+pass/facts/named_const_callable_family_implementation_scope_exit built 13392ms exit:0 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_call_result_exit built 9947ms exit:0 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_const_name_exit built 12788ms exit:0 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_field_exit built 14470ms exit:0 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_local_exit built 10618ms exit:0 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_match_join_exit built 39688ms exit:0 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_other_machine_exit built 13050ms exit:0 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_other_state_exit built 14801ms exit:0 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_parameter_exit built 41232ms exit:0 @75dd4e483f7a
+pass/facts/named_const_callable_family_through_target_body_exit built 10029ms exit:0 @75dd4e483f7a
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_call_result_exit built 4553ms exit:0 @5f668826adf3+wt
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_const_name_exit built 6282ms exit:0 @5f668826adf3+wt
 pass/facts/narrow_to_narrow_truncation_64to8_mask_bound_through_field_exit built 6215ms exit:0 @5f668826adf3+wt
@@ -5193,6 +5221,7 @@ pass/generics/selected_member_shared_runtime_subject_exit built 3173ms exit:0 @5
 pass/generics/selected_open_capture_carriers_exit built 3809ms exit:0 @5f668826adf3+wt
 pass/generics/seq_map_filter checked 2977ms @5f668826adf3+wt
 pass/generics/static_callable_local_type_argument_exit built 2980ms exit:0 @5f668826adf3+wt
+pass/generics/static_dispatch_public_ensures_reaches_caller_exit built 4522ms exit:0 @24bfc5388538+wt
 pass/generics/static_machine_borrowed_parameter_refines_after_substitution checked 1881ms @5f668826adf3+wt
 pass/generics/swapped_type_parameter_result checked 1890ms @5f668826adf3+wt
 pass/generics/type_index_forwarding_exit rejected 2728ms @5f668826adf3+wt

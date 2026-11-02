@@ -298,6 +298,16 @@ pub(super) fn project<'a>(
         }
     };
 
+    // An opaque realization has no body to infer from: it publishes the
+    // contract it inherits from the requirement it satisfies, which checking
+    // joined into its realized behavior, so its own omitted clauses are not its
+    // ceiling (language/effects.md, "Opaque supplies inherit").
+    let inherits_governing_contract = !machine.body_is_present
+        && matches!(
+            machine.supply_mode,
+            MachineSupplyMode::ExternalRealization { .. }
+        );
+
     Ok(ProjectedSurface {
         surface: CallableSurface {
             identity,
@@ -323,11 +333,15 @@ pub(super) fn project<'a>(
             checked_may_suspend: realized.checked_may_suspend,
             checked_may_block: realized.checked_may_block,
             declared_may_suspend: match suspension.interface {
-                SuspensionInterface::PublishedMaySuspend(ceiling) => Some(ceiling),
+                SuspensionInterface::PublishedMaySuspend(ceiling) => {
+                    Some(ceiling || (inherits_governing_contract && realized.checked_may_suspend))
+                }
                 SuspensionInterface::InternalInferred => None,
             },
             declared_may_block: match blocking.interface {
-                BlockingInterface::PublishedMayBlock(ceiling) => Some(ceiling),
+                BlockingInterface::PublishedMayBlock(ceiling) => {
+                    Some(ceiling || (inherits_governing_contract && realized.checked_may_block))
+                }
                 BlockingInterface::InternalInferred => None,
             },
         },
