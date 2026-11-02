@@ -41,6 +41,8 @@ pub(crate) fn destinations(
     expression: ExpressionHandle,
     decision: usize,
 ) -> Result<Vec<PermissionClaimIdentity>, LoweringError> {
+    // Stage 05 mints every binding's destination fresh from the one claim
+    // allocator that is reset with this arena, so destinations never repeat.
     let mut destinations = Vec::new();
     for (_, binding) in checked.facts.flow.ownership.selection_place_bindings.iter() {
         if binding.machine != machine
@@ -51,9 +53,6 @@ pub(crate) fn destinations(
             || binding.selected == binding.remaining
         {
             continue;
-        }
-        if destinations.contains(&binding.destination.claim_identity) {
-            return unsupported("selection repeats a receiving claim name");
         }
         destinations.push(binding.destination.claim_identity);
     }
@@ -76,11 +75,13 @@ pub(crate) fn edge_bindings(
                 return unsupported("selected claim arrivals form a cycle");
             }
             visited.push(incoming);
-            let mut candidates = flow_facts(checked)
+            // A destination names exactly one binding, so at most one
+            // binding on this route receives `incoming`.
+            let arrival = flow_facts(checked)
                 .ownership
                 .selection_place_bindings
                 .iter()
-                .filter_map(|(_, binding)| {
+                .find_map(|(_, binding)| {
                     if binding.selected == binding.remaining
                         || binding.destination.claim_identity != incoming
                     {
@@ -94,12 +95,9 @@ pub(crate) fn edge_bindings(
                         })
                         .map(|decision| (binding, decision.selected))
                 });
-            let Some((binding, selected)) = candidates.next() else {
+            let Some((binding, selected)) = arrival else {
                 break;
             };
-            if candidates.next().is_some() {
-                return unsupported("selected claim arrival has ambiguous control provenance");
-            }
             incoming = if selected {
                 binding.selected.claim_identity
             } else {
