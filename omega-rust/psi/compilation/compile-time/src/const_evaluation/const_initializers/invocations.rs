@@ -1071,22 +1071,6 @@ impl Invocation<'_> {
             leaf_call_custody(typed, self.machine, self.state, &roots, public, syntax)?;
         let (value, warnings, materialized_expression) = match destination {
             Some(destination) => {
-                // An expected const binder lands anonymous values, but cannot
-                // reinterpret a value whose producing expression already has
-                // a different scalar carrier. Preserve that selected carrier
-                // before reifying its canonical value as literal syntax.
-                if let Some(actual) =
-                    expression_result_type_reference(typed, self.machine, self.state, expression)
-                    && let Some(actual) =
-                        validation::arithmetic_result_type_reference(typed, actual)
-                    && type_reference_table(typed)
-                        .primitive_type(actual)
-                        .is_some_and(|actual| actual != destination)
-                {
-                    return Err(
-                        "application scalar result carrier differs from its destination".into(),
-                    );
-                }
                 let (value, warnings) = self.evaluate(expression, destination)?;
                 // A scalar result has the same computation custody as an
                 // aggregate result. Retain both sides of materialization;
