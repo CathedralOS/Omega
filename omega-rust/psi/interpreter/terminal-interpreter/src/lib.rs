@@ -25,7 +25,10 @@
 //! `invoke` and release on `close`), and `adapters` (the typed contract a
 //! host implementation declares so a slot can be checked before any effect
 //! runs). Embedding a program goes through `TerminalProgram::load` or `borrow`,
-//! `instantiate`, `bind_import`, `invoke`, `close`; the raw
+//! `instantiate`, `bind_import`, `invoke`, `close`. Entries returning checked
+//! loans additionally require `retain_returned_loans` before execution;
+//! `returned_loan` then borrows actual completed storage until the instance
+//! closes. Its read-only observations grant no new guest value or authority. The raw
 //! `TerminalExecution`/`TerminalEffectHandler` surface remains the low-level
 //! control the embedding layer is built over, not a binding API.
 //! Shared `AdmittedProviderSelections` records only exact checked providers
@@ -95,7 +98,8 @@ pub use embedding::adapters::{
 pub use embedding::instance::{
     TerminalBindingRejection, TerminalComponentBinding, TerminalInstance,
     TerminalInstanceCloseError, TerminalInstanceError, TerminalProcessExitAdmission,
-    TerminalStorageObservationError, TerminalStorageObservationValue,
+    TerminalReturnedLoan, TerminalReturnedLoanError, TerminalStorageObservationError,
+    TerminalStorageObservationValue,
 };
 pub use embedding::program::{
     TerminalInstantiation, TerminalProgram, TerminalProgramEntry, TerminalScalarApplicationRequest,

@@ -295,7 +295,11 @@ impl Captures<'_> {
                 }
                 let expression = expression?;
                 for leaf in &leaves {
-                    let owner_path = loan_owner_path(self.program, state.return_type, &leaf.path)?;
+                    let owner_path = crate::corresponding_loan_owner_path(
+                        self.program,
+                        state.return_type,
+                        &loan_owner_path(self.program, state.return_type, &leaf.path)?,
+                    )?;
                     let mut captured = false;
                     // Declared keepalive debts remain in borrow custody, but
                     // only descriptor rows participate in spatial coverage.
@@ -304,7 +308,7 @@ impl Captures<'_> {
                             && loan.statement_index == statement_index
                             && loan.transition_target == transition_target
                     }) {
-                        if self.facts.borrow.owner_segments.span(loan.owner_path)? != owner_path {
+                        if self.returned_loan_owner_path(state, loan)? != owner_path {
                             continue;
                         }
                         if leaf.source.access.borrow_access_kind()? != loan.kind {
@@ -527,7 +531,7 @@ impl Captures<'_> {
         if referents.is_empty() {
             return None;
         }
-        let owner_path = self.facts.borrow.owner_segments.span(loan.owner_path)?;
+        let owner_path = self.returned_loan_owner_path(state, loan)?;
         let mut output = Vec::new();
         for referent in referents {
             let captured = self
@@ -547,8 +551,8 @@ impl Captures<'_> {
                     && candidate.root == referent.root
                     && candidate.kind == loan.kind
                     && !candidate.incoming_reference.is_valid()
-                    && self.facts.borrow.owner_segments.span(candidate.owner_path)
-                        == Some(owner_path)
+                    && self.returned_loan_owner_path(state, candidate).as_deref()
+                        == Some(owner_path.as_slice())
                     && self
                         .facts
                         .borrow
@@ -822,7 +826,7 @@ impl Captures<'_> {
             // supplies it. An unresolved root cannot disappear behind a known
             // source. Per-loan publication below then authenticates every
             // covered candidate's declaration path and presented endpoint.
-            let owner_path = self.facts.borrow.owner_segments.span(loan.owner_path)?;
+            let owner_path = self.returned_loan_owner_path(state, loan)?;
             for origin in origins
                 .iter()
                 .filter(|origin| origin.result_path == result_path)
@@ -831,8 +835,8 @@ impl Captures<'_> {
                     || !loans.iter().any(|candidate| {
                         candidate.root == facts::PlaceRoot::Symbol(origin.source.root)
                             && candidate.kind == loan.kind
-                            && self.facts.borrow.owner_segments.span(candidate.owner_path)
-                                == Some(owner_path)
+                            && self.returned_loan_owner_path(state, candidate).as_deref()
+                                == Some(owner_path.as_slice())
                             && self.origin_matches_returned_loan(state, candidate, &origin.source)
                     })
                 {
@@ -1192,6 +1196,21 @@ impl Captures<'_> {
             .filter_map(|(_, flow)| (flow.state_symbol == state).then_some(flow));
         let flow = states.next()?;
         states.next().is_none().then_some(flow)
+    }
+
+    /// Compare every returned loan in the declared result owner's coordinates.
+    /// Prepared occurrences retain their full applied declaration identity;
+    /// rebasing selectors supplies neither active-case nor borrowing authority.
+    fn returned_loan_owner_path(
+        &self,
+        state: &State,
+        loan: &checked_trees::BorrowReturnedLoanFact,
+    ) -> Option<Vec<checked_trees::BorrowLoanOwnerSegment>> {
+        crate::corresponding_loan_owner_path(
+            self.program,
+            state.return_type,
+            self.facts.borrow.owner_segments.span(loan.owner_path)?,
+        )
     }
 
     fn reference_leaves(&self, state: &State) -> Option<Vec<CheckedReferenceResultSourcePlan>> {

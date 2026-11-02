@@ -111,7 +111,9 @@ pub(super) fn project_external_binding(
             if provider_planning::dispatch_tables::dispatch_table(&compilation.typed, machine)
                 .is_err() =>
         {
-            rejected("has table-field supply without a first parameter borrowing its dispatch table")
+            rejected(
+                "has table-field supply without a first parameter borrowing its dispatch table",
+            )
         }
         ExternalBindingIdentity::Syscall { number } => {
             Ok(PackageReviewExternalBinding::Syscall { number: *number })
@@ -213,15 +215,35 @@ pub(super) fn external_binding_matches_provider_binding(
             effects::provider_plan::ProviderBinding::VtableField {
                 table,
                 field: selected_field,
+                storage,
             },
-        ) => table == &expected_table && field == selected_field,
+        ) => {
+            table == &expected_table
+                && field == selected_field
+                && storage
+                    == &provider_planning::dispatch_tables::field_storage(
+                        &compilation.typed,
+                        machine,
+                        field,
+                    )
+        }
         (
             PackageReviewExternalBinding::TableFunction { field },
             effects::provider_plan::ProviderBinding::TableFunction {
                 table,
                 field: selected_field,
+                storage,
             },
-        ) => table == &expected_table && field == selected_field,
+        ) => {
+            table == &expected_table
+                && field == selected_field
+                && storage
+                    == &provider_planning::dispatch_tables::field_storage(
+                        &compilation.typed,
+                        machine,
+                        field,
+                    )
+        }
         _ => false,
     }
 }

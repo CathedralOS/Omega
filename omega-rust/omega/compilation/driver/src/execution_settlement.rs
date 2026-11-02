@@ -450,19 +450,8 @@ fn prepare_target_provider_selection(
     );
     let code = crate::terminal::retain_calling_program(source, timings)?;
     let calling = provider_planning::calling_policy_plans::prepare_boundary_calling_plans(
-        &source.program,
-        one_refusal(source.provider_inventory.services_for(&source.program))?,
         selected_target_profile.unwrap_or_else(target::TargetProfile::host),
-        &build_config.opaque_representation_selections,
         package_inputs,
-        provider_planning::calling_policy_plans::CallingPolicyProviderInputs {
-            body_declarations: one_refusal(
-                source.provider_inventory.direct_calls_for(&source.program),
-            )?,
-            defaults: &settled_target_machines.provider_defaults,
-            requested: &build_config.provider_selections,
-            exact_toolchain_sources: source.sources.exact_toolchain_sources(),
-        },
         &code,
     )?;
     let boundary_calling_plan_realizations = calling.evaluate(&code)?;
@@ -482,7 +471,6 @@ fn prepare_target_provider_selection(
         &build_config.accepted_component_assumption_digests(),
         boundary_calling_plan_realizations,
         code,
-        &build_config.opaque_representation_selections,
     )
 }
 

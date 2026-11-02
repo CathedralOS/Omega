@@ -391,7 +391,6 @@ pub fn settle_checked_providers(
     accepted_component_assumptions: &std::collections::BTreeSet<[u8; 32]>,
     boundary_calling_plan_realizations: Vec<BoundaryCallingPlanRealization>,
     calling_program: std::sync::Arc<crate::calling_policy_plans::CallingProgram>,
-    opaque_representation_selections: &[representation_selections::OpaqueRepresentationSelection],
 ) -> Result<CheckedProviderSelection, Vec<Diagnostic>> {
     if !std::ptr::eq(services.context().typed, &*checked.typed)
         || services.context().scope != source::DependencyScope::Product
@@ -495,12 +494,12 @@ pub fn settle_checked_providers(
         selected_target: target_name,
         native_target: provider_selection_target,
         boundary_calling_plan_realizations: &boundary_calling_plan_realizations,
-        services,
-        opaque_representation_selections,
     };
     let mut provider_candidates = derived_provider_plans
         .into_iter()
-        .map(|source| crate::provider_planning::provider_rows::prepare(source, &direct_context))
+        .map(|source| {
+            crate::provider_planning::provider_rows::prepare(source, services, &direct_context)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     // The canonical `FilesystemHost` slot admits no authored conformance or
     // selection row; the toolchain mints the per-target realization plan
@@ -534,13 +533,15 @@ pub fn settle_checked_providers(
         provider_selection_target,
         &selected_provider_plans
             .iter()
-            .map(|selected| &selected.derived)
-            .chain(toolchain_filesystem_plan.iter())
+            .map(|selected| &selected.derived.plan)
+            .chain(
+                toolchain_filesystem_plan
+                    .iter()
+                    .map(|derived| &derived.plan),
+            )
             .collect::<Vec<_>>(),
         &boundary_calling_plan_realizations,
-        services,
         &calling_program,
-        opaque_representation_selections,
     )?;
     // Component-closure join. The verified components come only from the
     // descriptions attached to this compilation's package inputs, each

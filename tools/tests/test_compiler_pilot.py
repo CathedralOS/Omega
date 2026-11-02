@@ -16,6 +16,25 @@ import compiler_retained_foreign as retained
 
 
 class CompilerPilotTests(unittest.TestCase):
+    def test_checking_only_retains_exact_roster_without_execution_defaults(self):
+        positive, negative = "pass/copy/value", "fail/copy/value"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.fixture_root(root, positive, negative)
+            with patch.object(pilot, "ROOT", root), patch.object(pilot, "execute") as execute:
+                request = positive + "," + negative
+                self.assertEqual(pilot.run_suite("checks", pilot.POSITIVES, pilot.NEGATIVES,
+                                                fixtures=request, check_only=True), 0)
+                self.assertEqual(execute.call_args.kwargs["positives"], ())
+                self.assertEqual(execute.call_args.kwargs["checking_only"], (positive,))
+                self.assertEqual(execute.call_args.kwargs["negatives"], (negative,))
+                for selectors in ({}, {"fixtures": request, "samples": "samples/cli/facts/copy"},
+                                  {"fixtures": request, "cli_fixtures": positive}):
+                    execute.reset_mock()
+                    self.assertEqual(pilot.run_suite("refused", pilot.POSITIVES, pilot.NEGATIVES,
+                                                    check_only=True, **selectors), 1)
+                    execute.assert_not_called()
+
     def fixture_root(self, root, *fixtures):
         for fixture in fixtures:
             directory = root / "tests" / "omega" / fixture

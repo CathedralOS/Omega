@@ -92,6 +92,7 @@ impl CallProgress {
                 judge.normal_argument_entries(
                     arguments,
                     formal,
+                    OperationOperandDemand::All,
                     environment,
                     (machine, state, state.return_type),
                     Some(site),

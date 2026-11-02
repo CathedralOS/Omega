@@ -190,7 +190,7 @@ pub struct CandidateDeclarations<Declaration> {
     pub selecting_declaration: Result<Option<String>, Vec<Diagnostic>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderCandidate<Declaration, Owner = ()> {
     pub plan: ProviderPlan,
     pub declarations: CandidateDeclarations<Declaration>,

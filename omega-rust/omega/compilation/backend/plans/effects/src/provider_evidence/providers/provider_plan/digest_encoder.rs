@@ -51,7 +51,7 @@ pub(crate) trait DigestFeed {
     }
 }
 
-pub(super) const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v6\0";
+pub(super) const PROVIDER_PLAN_DOMAIN: &[u8] = b"omega.provider-plan.sha256.v7\0";
 
 pub(crate) struct ProviderPlanDigestEncoder(Sha256, Option<Vec<u8>>);
 
@@ -321,15 +321,25 @@ impl ProviderPlanDigestEncoder {
                 self.byte(4);
                 self.i64(*index);
             }
-            ProviderBinding::VtableField { table, field } => {
+            ProviderBinding::VtableField {
+                table,
+                field,
+                storage,
+            } => {
                 self.byte(5);
                 self.string(table);
                 self.string(field);
+                self.table_field_storage(storage);
             }
-            ProviderBinding::TableFunction { table, field } => {
+            ProviderBinding::TableFunction {
+                table,
+                field,
+                storage,
+            } => {
                 self.byte(6);
                 self.string(table);
                 self.string(field);
+                self.table_field_storage(storage);
             }
             ProviderBinding::CheckedAdapter {
                 machine_identity,
@@ -339,6 +349,17 @@ impl ProviderPlanDigestEncoder {
                 self.string(identities.text(*machine_identity));
                 self.package_identity(*machine_package_identity);
             }
+        }
+    }
+
+    fn table_field_storage(&mut self, storage: &Result<super::TableFieldStorage, String>) {
+        self.bool(storage.is_ok());
+        match storage {
+            Ok(storage) => {
+                self.string(&storage.table_application);
+                self.string(&storage.field_declaration);
+            }
+            Err(reason) => self.string(reason),
         }
     }
 }

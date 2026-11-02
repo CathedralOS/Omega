@@ -46,23 +46,33 @@ pub(super) fn validate(
 ) -> Result<(), Error> {
     let record = normalized_foreign_call_record(target, instruction, kind, selected_function)?;
     if record.call.binding.table_dispatch().is_some() {
-        if target.architecture != Architecture::X86_64
-            || !matches!(row.state, SelectedFormEncodingState::Encoded)
-        {
+        if !matches!(row.state, SelectedFormEncodingState::Encoded) {
             return Err(Error::ArtifactMismatch);
         }
         let (bytes, retained) = encoded.encoded(row).ok_or(Error::ArtifactMismatch)?;
         let accesses = operand_accesses(machine);
-        let decoded = decoded_row_footprint!(
-            isa_x86_64::validate_x86_64_selected_table_call_form(
-                record,
-                machine.alternative.key,
-                &operand_views(machine),
-                &accesses,
-                bytes,
+        let decoded = match target.architecture {
+            Architecture::X86_64 => decoded_row_footprint!(
+                isa_x86_64::validate_x86_64_selected_table_call_form(
+                    record,
+                    machine.alternative.key,
+                    &operand_views(machine),
+                    &accesses,
+                    bytes,
+                ),
+                Error::X86_64
             ),
-            |_| Error::ArtifactMismatch
-        );
+            Architecture::Aarch64 => decoded_row_footprint!(
+                isa_aarch64::validate_aarch64_selected_table_call_form(
+                    record,
+                    machine.alternative.key,
+                    &operand_views(machine),
+                    &accesses,
+                    bytes,
+                ),
+                Error::Aarch64
+            ),
+        };
         admit_decoded_footprint(instruction, machine, bytes.len(), retained, &decoded)?;
         return Ok(());
     }

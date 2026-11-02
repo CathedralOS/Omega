@@ -1,6 +1,5 @@
-//! Ordered dependency request records and legacy literal projection adapters.
-//! Executed Build ledgers supply the records directly; static extraction remains
-//! only until production package preparation migrates to that executed route.
+//! Executed dependency ledgers and conservative source-edit parsing.
+//! Source syntax locates edits; it supplies no package-resolution authority.
 
 mod aliases;
 mod error;
@@ -11,10 +10,10 @@ mod source_literal;
 
 pub(crate) use aliases::DependencyAliasError;
 pub(crate) use error::DependencyProjectionError;
-pub(crate) use extraction::extract_build_dependency_projection;
 
 use crate::declarations::{AliasName, PackageName};
 use aliases::validate_alias_uniqueness;
+use build_declarations::BuildRequest;
 /// Which authorized context one direct dependency edge serves.
 ///
 /// `depend`/`depend_as` rows authorize product imports. `build_depend`/
@@ -23,9 +22,7 @@ use aliases::validate_alias_uniqueness;
 /// falls back to the other. The vocabulary lives in `build_declarations`
 /// so package management and the compiler share one grammar.
 pub use build_declarations::DependencyPurpose;
-use build_declarations::{BuildDeclaration, BuildRequest};
 pub(crate) use extraction::extract_scoped_from_source;
-pub(crate) use projection::validate_static_dependency_source;
 
 /// Package selection inside one acquired repository source.
 ///
@@ -241,26 +238,5 @@ impl DependencySourceRequest {
         self.explicit_alias()
             .cloned()
             .unwrap_or_else(|| package_name.default_alias())
-    }
-}
-
-/// One authoritative project role and its direct dependency requests,
-/// projected from the same parsed `build.omg` tree.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BuildDependencyProjection {
-    declaration: BuildDeclaration,
-    dependencies: DependencyProjections,
-}
-
-impl BuildDependencyProjection {
-    fn new(declaration: BuildDeclaration, dependencies: DependencyProjections) -> Self {
-        Self {
-            declaration,
-            dependencies,
-        }
-    }
-
-    pub fn into_parts(self) -> (BuildDeclaration, DependencyProjections) {
-        (self.declaration, self.dependencies)
     }
 }
