@@ -156,17 +156,17 @@ fn package_commands_schedule_work_outside_package_policy() {
 #[test]
 fn application_depends_on_facades_not_language_stages() {
     assert_absent(
-        &[include_str!("../../cli/src/cli/compilation.rs")],
+        &[include_str!("../../../application/cli/src/cli/compilation.rs")],
         "CLI reaches behind Build:",
         &["publish_compilation("],
     );
     assert_absent(
-        &[include_str!("../../cli/src/execution/compilation.rs")],
+        &[include_str!("../../../application/cli/src/execution/compilation.rs")],
         "CLI reaches behind Build:",
         &["compiler::compile("],
     );
     assert_absent(
-        &[include_str!("../../cli/src/inspection/mod.rs")],
+        &[include_str!("../../../application/cli/src/inspection/mod.rs")],
         "CLI reaches behind Build:",
         &["CompilationSession::default()"],
     );

@@ -16,7 +16,7 @@ fn compilation_and_cli_do_not_own_runtime_integration() {
     let production = manifest.split("[dev-dependencies]").next().unwrap();
     assert!(!production.contains("terminal-interpreter ="));
     assert!(!production.contains("terminal-runtime ="));
-    let cli = include_str!("../../cli/Cargo.toml");
+    let cli = include_str!("../../../application/cli/Cargo.toml");
     assert!(!cli.contains("terminal-interpreter ="));
     assert!(cli.contains("terminal-runtime ="));
     let runtime = include_str!("../Cargo.toml");

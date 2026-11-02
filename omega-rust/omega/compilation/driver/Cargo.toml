@@ -67,8 +67,8 @@ package-manager = { path = "../../packages/package-manager" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 bounded-process = { path = "../../foundation/bounded-process" }
 
-omega-build = { path = "../../application/build" }
-terminal-runtime = { path = "../../application/terminal-runtime" }
+omega-build = { path = "../build" }
+terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 numerics = { path = "../../../psi/foundation/numerics" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }
 terminal-interpreter = { path = "../../../psi/interpreter/terminal-interpreter" }

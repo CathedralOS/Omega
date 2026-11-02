@@ -22,4 +22,4 @@ diagnostics = { path = "../../../psi/foundation/diagnostics" }
 terminal-codec = { path = "../../../psi/compilation/representations/terminal-psi/codec" }
 
 [dev-dependencies]
-terminal-runtime = { path = "../terminal-runtime" }
+terminal-runtime = { path = "../../interpreter/terminal-runtime" }
