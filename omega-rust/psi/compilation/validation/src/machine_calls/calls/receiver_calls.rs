@@ -142,6 +142,7 @@ fn validate_signature_result_and_arguments(
         writable_roots.statements,
         false,
         &[],
+        &bindings,
         call_carrier_matcher(program, current_machine.symbol, &bindings),
         diagnostics,
         formation_obligations,

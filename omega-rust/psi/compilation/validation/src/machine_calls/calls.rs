@@ -292,6 +292,7 @@ fn report_argument_reference_access(
     prior_statements: &[typed_trees::statement::StatementNode],
     argument: ExpressionHandle,
     parameter: &StateParameter,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     target_name: &str,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> bool {
@@ -307,6 +308,7 @@ fn report_argument_reference_access(
         prior_statements,
         argument,
         parameter.type_reference,
+        required_substitutions,
     ) else {
         return false;
     };
@@ -593,6 +595,7 @@ pub(crate) fn validate_call_arguments(
     prior_statements: &[typed_trees::statement::StatementNode],
     retains_float_result_policy: bool,
     argument_environments: &[ValueEnvironment],
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
     type_matches: impl Fn(ExpressionHandle, TypeReferenceHandle) -> bool,
     diagnostics: &mut Vec<Diagnostic>,
     formation_obligations: &mut Vec<checked_trees::IntegerRangeObligation>,
@@ -634,6 +637,7 @@ pub(crate) fn validate_call_arguments(
             prior_statements,
             *argument,
             parameter,
+            required_substitutions,
             target_name,
             diagnostics,
         ) {
@@ -933,6 +937,7 @@ fn validate_value_call_arguments(
         prior_statements,
         selected_float_operation_retains_argument_policy(program, callee_machine.symbol),
         &[],
+        &type_bindings,
         call_carrier_matcher(program, current_machine.symbol, &type_bindings),
         diagnostics,
         formation_obligations,

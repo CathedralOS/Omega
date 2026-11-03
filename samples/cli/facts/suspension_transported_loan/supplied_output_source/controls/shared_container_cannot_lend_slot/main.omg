@@ -16,8 +16,8 @@ machine read(message: Message) -> i32 {
 machine exercise() -> i32 suspends reaches Scheduler {
     let backing: Backing = Backing { cell: Cell { value: 73 } };
     let sentinel: Cell = Cell { value: 11 };
-    let owner: Holder = Holder { body: &sentinel };
-    let holder: &Holder = &owner;
+    let mut owner: Holder = Holder { body: &sentinel };
+    let mut holder: &Holder = &owner;
     install(&backing, &mut holder.body);
     let saved: &Cell = holder.body;
     let message: Message = Message { left: 5, body: saved, right: 9 };

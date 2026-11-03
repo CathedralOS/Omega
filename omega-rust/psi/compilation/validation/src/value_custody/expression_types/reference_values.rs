@@ -769,6 +769,38 @@ pub(super) fn declared_value_type(
     )
 }
 
+/// `&mut pointer` may lend the pointer's slot or the data it points to. The
+/// complete receiving type selects which value is borrowed; it supplies no
+/// permission to read or replace that value.
+pub(crate) fn borrow_selects_reference_storage(
+    program: &dyn crate::CheckingInput,
+    source: ExpressionHandle,
+    required: TypeReferenceHandle,
+    required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
+) -> bool {
+    let (required, required_substitutions) =
+        substituted_required_reference(program, required, required_substitutions);
+    let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(required)
+    else {
+        return false;
+    };
+    let mut substitutions = Vec::new();
+    let Some(actual) = declared_value_type(program, source, &mut substitutions)
+        .and_then(|actual| substituted_reference(program, actual, &substitutions))
+    else {
+        return false;
+    };
+    matches!(
+        program.type_reference_table.type_reference(actual),
+        TypeReferenceNode::Reference { .. }
+    ) && substituted_identity(program, actual, &substitutions)
+        == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: required_substitutions,
+            ..TypeIdentityRequest::ordinary(*referee)
+        })
+}
+
 /// A projection off an owned rvalue forwards the leaf's declared exclusive
 /// access. `helper(..).window` and `Record { window: &mut items[..] }.window`
 /// name that leaf inside fresh result storage; they are not a new loan of a
@@ -921,7 +953,26 @@ pub(crate) fn place_storage_write_access(
     root: facts::PlaceRoot,
     root_type: TypeReferenceHandle,
 ) -> Option<StorageWriteAccess> {
-    let mut projection = ProjectionContext::requiring(ReferenceAccess::WriteOnly);
+    place_storage_borrow_access(
+        program,
+        expression,
+        root,
+        root_type,
+        ReferenceAccess::WriteOnly,
+    )
+}
+
+/// Check the references crossed to reach a slot, without using the authority
+/// of a reference stored in that slot. Its owned binding's mutability remains
+/// the caller's separate obligation.
+pub(crate) fn place_storage_borrow_access(
+    program: &dyn crate::CheckingInput,
+    expression: ExpressionHandle,
+    root: facts::PlaceRoot,
+    root_type: TypeReferenceHandle,
+    access: ReferenceAccess,
+) -> Option<StorageWriteAccess> {
+    let mut projection = ProjectionContext::requiring(access);
     selected_value_type(
         program,
         expression,

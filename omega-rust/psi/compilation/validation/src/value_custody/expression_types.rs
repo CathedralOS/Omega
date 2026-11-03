@@ -88,9 +88,9 @@ pub use result_type::{
 
 pub(crate) use delivered_types::report_delivered_type_mismatch;
 pub(crate) use reference_values::{
-    StorageWriteAccess, owned_rvalue_exclusive_reference_access,
+    StorageWriteAccess, borrow_selects_reference_storage, owned_rvalue_exclusive_reference_access,
     place_forwarded_exclusive_reference_access, place_permits_reference_borrow,
-    place_storage_write_access,
+    place_storage_borrow_access, place_storage_write_access,
 };
 // The declared borrow a reference type spells is a place query; the expression
 // module's consumers read it through this re-export.
@@ -350,12 +350,12 @@ fn argument_matches_type_reference_using(
             // that exact descriptor. This checks type correspondence only;
             // ordinary place/permission/loan admission still has to supply
             // its storage. Reborrows below retain their existing relation.
-            if substituted_identity(program, actual, &substitutions)
-                == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
-                    substitutions: required_substitutions,
-                    ..TypeIdentityRequest::ordinary(*referee)
-                })
-            {
+            if reference_values::borrow_selects_reference_storage(
+                program,
+                inner_expression.target,
+                type_reference,
+                required_substitutions,
+            ) {
                 return true;
             }
             // Explicit attenuation changes access, not the selected referent.

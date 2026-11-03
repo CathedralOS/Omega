@@ -149,6 +149,7 @@ pub(super) fn validate_requirement_call_arguments(
         writable_roots.statements,
         false,
         &[],
+        &requirement.application.substitutions,
         |argument, required| {
             let raw_actual = crate::value_custody::places::declared_place_type_raw(
                 program, machine, state, argument,
