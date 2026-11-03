@@ -1,5 +1,5 @@
 // Expected exit: 0
-// A granted vacant extent retains actual backing through transport, initialization, permitted writes, and extraction.
+// A helper reads an initialized word through a borrowed extent; the owner then writes and extracts it without changing its neighbors.
 use omega::language::core::extent;
 use omega::language::core::layout;
 use omega::language::core::process_exit;
@@ -51,7 +51,6 @@ TestVacant satisfies VacantContentTransfer {
     { storage as Extent }
 }
 
-// Place: other_state.
 const CAPACITY: u64 = 64;
 machine main() crashes Trap {
     let address: addr = NativeAllocation::allocate(1, CAPACITY);

@@ -108,6 +108,17 @@ pub(crate) fn capture_source(
         typed_trees::expression::ExpressionHandle,
     ) -> Option<checked_trees::CheckedUnitStructuralPathSegment>,
 ) -> Option<ReferenceCapture> {
+    let trace = |phase: &str| {
+        if std::env::var_os("OMEGA_TRACE_REFERENCE_CAPTURE").is_some()
+            && program
+                .symbols
+                .display_path(machine.symbol, "::")
+                .contains("check_mapping_region")
+        {
+            eprintln!("REFCAP {phase} statement={statement_index} reference={reference:?}");
+        }
+    };
+    trace("entry");
     // Formation captures borrowed storage for every reference descriptor.
     // The pointer-roster query excludes byte/slice descriptors by design;
     // using it here would erase a fixed-byte local's actual establishment.
@@ -125,6 +136,7 @@ pub(crate) fn capture_source(
     {
         return None;
     }
+    trace("formation");
     let target = formation.source;
     let place = place_at(program, state.symbol, statement_index, target)?;
     let (backing_type, mut path) = match calls::projected_evaluated_path(
@@ -149,6 +161,7 @@ pub(crate) fn capture_source(
             (referent, Vec::new())
         }
     };
+    trace("path");
     // An exclusive reference cannot erase a field's receiving restriction,
     // and an atomic cell cannot become ordinary scalar storage. Shared scalar
     // loans can attenuate to the declared carrier while retaining their exact
@@ -169,9 +182,21 @@ pub(crate) fn capture_source(
     // A borrowed parameter keeps its promise about the storage it lends.
     // Crossing its ingress reference does not change that storage, so retain
     // qualifications wrapped around the reference as well as its referee.
-    // A later stored-reference crossing selects different storage and takes
-    // that referee's own contract instead.
+    // Loading through another reference replaces this with that reference's
+    // contract, so a promise about one pointer cannot authorize another.
     let mut storage_contract = backing_type;
+    if std::env::var_os("OMEGA_TRACE_REFERENCE_CAPTURE").is_some()
+        && program
+            .symbols
+            .display_path(machine.symbol, "::")
+            .contains("check_mapping_region")
+    {
+        eprintln!(
+            "REFCAP backing={:?} type={:?} place={place:?}",
+            backing_type,
+            program.type_reference_table.type_reference(backing_type)
+        );
+    }
     // A whole borrowed formal denotes ingress referent storage, not a stored
     // pointer value. Only subsequent reference shells are physical crossings.
     if place.segments.is_empty()
@@ -184,6 +209,7 @@ pub(crate) fn capture_source(
         }
         endpoint = shell.referee;
     }
+    trace("ingress");
     let mut crossings = 0;
     let requested_storage =
         validation::stored_structural_type_identity(program, referent, &[], &[]);
@@ -209,8 +235,8 @@ pub(crate) fn capture_source(
             return None;
         }
         crossings += 1;
+        storage_contract = endpoint;
         endpoint = shell.referee;
-        storage_contract = shell.referee;
     }
     path.extend(std::iter::repeat_n(
         checked_trees::CheckedUnitStructuralPathSegment::Referent,
@@ -225,6 +251,7 @@ pub(crate) fn capture_source(
     {
         return None;
     }
+    trace("geometry");
     let access_storage = if is_access_view {
         let named_symbol = |reference| {
             let reference = program
@@ -252,6 +279,7 @@ pub(crate) fn capture_source(
         None
     };
 
+    trace("access_storage");
     let source = match place.root {
         // The value owner must establish this producer before lending it.
         // Its captured path and storage interpretation are otherwise the same
@@ -375,6 +403,7 @@ pub(crate) fn capture_source(
         }
         _ => return None,
     };
+    trace("source");
     let storage = if let Some(storage) = access_storage {
         storage
     } else if is_view {
@@ -382,6 +411,7 @@ pub(crate) fn capture_source(
     } else {
         CheckedReferenceStorage::Declared
     };
+    trace("done");
     Some(ReferenceCapture {
         source: CheckedUnitStructuralArgumentPlan {
             source,
