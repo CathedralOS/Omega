@@ -24,6 +24,17 @@ def encode(rows):
 
 
 class BuildConsentEvidence(unittest.TestCase):
+    def test_windows_sdk_linker_gets_the_existing_cli_stack_budget(self):
+        arguments = ["build", "--locked", "-p", "compiler", "--example", "build_charge"]
+        command = controls.build_command("cargo", "build_charge", arguments, windows=True)
+        self.assertEqual(command, ["cargo", "rustc", *arguments[1:], "--message-format=json",
+                                   "--", "-C", "link-arg=/STACK:268435456"])
+        self.assertEqual(controls.build_command("cargo", "build_charge", arguments, windows=False),
+                         ["cargo", *arguments, "--message-format=json"])
+        unit = ["test", "--locked", "-p", "package-compilation", "--lib", "--no-run"]
+        self.assertEqual(controls.build_command("cargo", "package_compilation", unit, windows=True),
+                         ["cargo", *unit, "--message-format=json"])
+
     def test_both_source_produced_sdk_observations_are_required(self):
         controls.validate_sdk_output("\n".join(controls.MARKERS))
         for output in ("", controls.MARKERS[0], controls.MARKERS[1],

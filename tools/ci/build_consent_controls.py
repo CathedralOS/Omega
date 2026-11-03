@@ -28,6 +28,9 @@ COMMON_TESTS = (
     "live_source_tests::independent_live_root_admissions_cannot_exchange_effects",
 )
 LINK_TEST = "live_source_tests::admitted_live_source_cannot_be_retargeted_by_root_or_descendant_links"
+# Match the production CLI's compiler stack budget. RUST_MIN_STACK controls
+# spawned Rust threads, not a Windows executable's process entry stack.
+COMPILER_STACK_BYTES = 256 * 1024 * 1024
 
 
 def validate_sdk_output(output):
@@ -52,10 +55,22 @@ def git(*arguments):
     return subprocess.check_output(["git", *arguments], cwd=ROOT, text=True).strip()
 
 
+def build_command(tool, name, arguments, *, windows):
+    if windows and name == "build_charge":
+        if arguments[0] != "build":
+            raise ValueError("SDK stack provisioning requires its ordinary build selection")
+        return [tool, "rustc", *arguments[1:], "--message-format=json", "--", "-C",
+                "link-arg=/STACK:" + str(COMPILER_STACK_BYTES)]
+    return [tool, *arguments, "--message-format=json"]
+
+
 def build(output, name, arguments):
     tool = "mbx" if shutil.which("mbx") else "cargo"
+    command = build_command(tool, name, arguments, windows=os.name == "nt")
+    (output / (name + "-build-command.json")).write_text(json.dumps(command) + "\n",
+                                                        encoding="utf-8")
     with build_slot.hold(ROOT):
-        result = subprocess.run([tool, *arguments, "--message-format=json"], cwd=ROOT,
+        result = subprocess.run(command, cwd=ROOT,
                                 capture_output=True, text=True,
                                 env=compiler_profile.optimized_environment(), timeout=5400)
     (output / (name + "-build.jsonl")).write_text(result.stdout, encoding="utf-8")
@@ -96,7 +111,8 @@ def main():
             raise ValueError("Build controls require the clean exact candidate")
         target = host_target()
         report.update(candidate=revision, tree=git("rev-parse", "HEAD^{tree}"), target=target,
-                      toolchain=subprocess.check_output(["rustc", "-Vv"], text=True).strip())
+                      toolchain=subprocess.check_output(["rustc", "-Vv"], text=True).strip(),
+                      sdk_process_stack_bytes=COMPILER_STACK_BYTES if os.name == "nt" else None)
         sdk, sdk_profile = build(output, "build_charge",
                                  ["build", "--locked", "-p", "compiler", "--example", "build_charge"])
         reported_profile = compiler_profile.require_optimized(sdk)
