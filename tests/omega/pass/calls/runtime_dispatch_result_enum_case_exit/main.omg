@@ -12,7 +12,7 @@ data Verdict {
     case Yes(score: i32 in Wrapping);
 }
 data Main { result: Verdict; }
-machine Main::count(main: &mut Main, i: u64, j: u64, acc: i32 in Wrapping) -> Verdict
+machine count(main: &mut Main, i: u64, j: u64, acc: i32 in Wrapping) -> Verdict
 terminates by (j, i) -> Nat::BoundedDistance
 {
     transition j < i {
@@ -22,8 +22,8 @@ terminates by (j, i) -> Nat::BoundedDistance
     // ENUM-case terminal with a payload from a param.
     machine leaf(acc: i32 in Wrapping) -> Verdict { Verdict::Yes { score: acc } }
 }
-machine Main::main(main: &mut Main) reaches Console {
-    main.result = Main::count(main, 3, 0, 0);
+machine main(main: &mut Main) reaches Console {
+    main.result = count(main, 3, 0, 0);
     transition main.result {
         Verdict::Yes { score } -> ck(main, score)
         Verdict::Nope -> bad(main, 71)
@@ -38,5 +38,5 @@ machine Main::main(main: &mut Main) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

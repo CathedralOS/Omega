@@ -68,25 +68,25 @@ machine Main::main(main: &mut Main) reaches DescriptorIo blocks crashes Trap {
     let written: i64 = DescriptorIo::write(1, &main.holder.choice, 6);
     let moved: i64 = block receive(&mut main.holder.choice, 12);
     transition written == 6 && moved == 12 {
-        true -> check_other(main)
+        true -> block check_other(main)
         false -> bad()
     }
     machine check_other(main: &mut Main) {
         transition other_contents(&main.holder.choice) {
-            true -> empty(main)
+            true -> block empty(main)
             false -> bad()
         }
     }
     machine empty(main: &mut Main) {
         let moved: i64 = block receive(&mut main.holder.choice, 4);
         transition moved == 4 {
-            true -> check_empty(main)
+            true -> block check_empty(main)
             false -> bad()
         }
     }
     machine check_empty(main: &mut Main) {
         transition main.holder.choice {
-            Choice::Empty -> refill(main)
+            Choice::Empty -> block refill(main)
             _ -> bad()
         }
     }

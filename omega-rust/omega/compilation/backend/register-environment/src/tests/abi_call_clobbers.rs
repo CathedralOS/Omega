@@ -293,11 +293,14 @@ fn sole_alternative(
 
 /// The selected constraint row and the effect declaration one selected rule
 /// is checked through: the environment owns the row, the produced catalog the
-/// declaration, both addressed by the same key.
+/// declaration. Several semantics share one constraint key (see
+/// [`declaration_mut`]), so the declaration is addressed by the key and the
+/// semantic the rule realizes; the row by the key alone.
 fn row_and_declaration<'a>(
     environment: &'a ValidatedTargetRegisterEnvironment,
     catalog: &'a ValidatedMachineEffectCatalog,
     key: RegisterConstraintKey,
+    semantic: MachineSemanticKind,
 ) -> (
     &'a RegisterInstructionConstraint,
     &'a MachineEffectDeclaration,
@@ -307,8 +310,10 @@ fn row_and_declaration<'a>(
         .unwrap_or_else(|| panic!("environment selects no constraint row {key:?}"));
     let declaration = catalog
         .catalog()
-        .declaration(key)
-        .unwrap_or_else(|| panic!("effect catalog declares no rule for {key:?}"));
+        .declarations
+        .iter()
+        .find(|declaration| declaration.constraint == key && declaration.semantic == semantic)
+        .unwrap_or_else(|| panic!("effect catalog declares no {semantic:?} rule for {key:?}"));
     (row, declaration)
 }
 

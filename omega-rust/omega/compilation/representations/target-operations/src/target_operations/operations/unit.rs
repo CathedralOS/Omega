@@ -802,6 +802,16 @@ impl TargetUnitOperation {
                 result_home,
                 ..
             }
+            | Self::SplitActivationClaim {
+                psi_operation,
+                result_home,
+                ..
+            }
+            | Self::MergeActivationClaim {
+                psi_operation,
+                result_home,
+                ..
+            }
             | Self::AccessLifecycle {
                 psi_operation,
                 result_home,

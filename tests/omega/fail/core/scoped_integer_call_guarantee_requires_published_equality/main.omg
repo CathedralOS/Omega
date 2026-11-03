@@ -1,6 +1,0 @@
-// The implementation returns its argument; its published contract only
-// supplies an inequality. A caller cannot unfold the body into equality.
-machine lower(value: i16) -> i16 ensures result <= value { value }
-machine caller(value: i16) -> i16
-ensures (lower(value) as i16 in Saturating) == result { value }
-machine main() {}

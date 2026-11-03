@@ -465,7 +465,7 @@ impl PlanLaidGeometry {
                     slot_identity: demand.slot_identity.clone(),
                     layout_subject_identity: demand.layout_subject_identity.clone(),
                     callback_requirement_identity: demand.callback_requirement_identity.clone(),
-                    offset: demand.offset,
+                    placements: demand.placements.clone(),
                 })
                 .collect(),
         }
