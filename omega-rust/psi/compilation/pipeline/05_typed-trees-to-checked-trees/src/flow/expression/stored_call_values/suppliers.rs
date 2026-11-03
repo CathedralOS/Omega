@@ -505,7 +505,7 @@ impl Execution<'_, '_, '_> {
                                                 .get(loan.incoming_reference);
                                             (
                                                 handle,
-                                                incoming.origin,
+                                                &incoming.origin,
                                                 incoming.carrier_type,
                                                 self.borrow
                                                     .owner_segments
