@@ -478,9 +478,10 @@ mod tests {
     use terminal_psi::{
         Block, BoundaryCompletion, MachineContract, NominalAffineCleanup,
         NominalDeclarationIdentity, Operation, OperationResult, StructuralAccess,
-        StructuralArgument, StructuralMultiplicity, StructuralReferenceResultSource,
-        StructuralResultDeclaration, TerminalAffineCleanupAction, TerminalDynamicSlot,
-        TerminalMachine, TerminalMachineResult, TerminalModule,
+        StructuralArgument, StructuralMultiplicity, StructuralPlaceDeclaration,
+        StructuralReferenceResultSource, StructuralResultDeclaration, StructuralTypeDeclaration,
+        StructuralTypeShape, TerminalAffineCleanupAction, TerminalDynamicSlot, TerminalMachine,
+        TerminalMachineResult, TerminalModule,
     };
     fn machine(selected_origins: usize, operations: Vec<OperationKind>) -> TerminalMachine {
         let result = if selected_origins == 0 {
@@ -546,7 +547,16 @@ mod tests {
             parameters: Vec::new(),
             parameter_order: Vec::new(),
             structural_parameters: Vec::new(),
-            structural_places: Vec::new(),
+            // A structural return reads its result place, so that place keeps
+            // the declared carrier the reached-storage walk resolves.
+            structural_places: if selected_origins > 0 {
+                vec![StructuralPlaceDeclaration {
+                    id: PlaceId::new(1).unwrap(),
+                    kind: semantic_vocabulary::StructuralPlaceKind::Result,
+                }]
+            } else {
+                Vec::new()
+            },
             entry_claims: Vec::new(),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
@@ -580,7 +590,40 @@ mod tests {
         let catalogs = program.fixture_module_mut();
         let declaration = boundary_declaration(catalogs, boundary);
         catalogs.boundary_machines.push(declaration);
+        // Reached storage operands contribute their carriers' inline extents,
+        // so the borrowed result carrier and its referent are declared.
+        let referent = StructuralTypeId::new(2).unwrap();
+        catalogs.structural_types = vec![
+            structural_type(
+                StructuralTypeId::new(1).unwrap(),
+                StructuralTypeShape::Reference {
+                    referent,
+                    access: StructuralAccess::MutableBorrow,
+                },
+            ),
+            structural_type(
+                referent,
+                StructuralTypeShape::PrimitiveScalar(semantic_vocabulary::ScalarType::Boolean),
+            ),
+        ];
         program
+    }
+
+    fn structural_type(
+        id: StructuralTypeId,
+        shape: StructuralTypeShape,
+    ) -> StructuralTypeDeclaration {
+        StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id,
+            identity: terminal_psi::TerminalIdentityIndex(0),
+            owns_linear_claim: false,
+            copyable: false,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: true,
+            shape,
+            scalar_restriction: None,
+        }
     }
 
     // Graph fixtures deliberately omit unrelated typing evidence. Keep their
@@ -684,39 +727,28 @@ mod tests {
         let descriptor = StructuralTypeId::new(2).unwrap();
         let array = StructuralTypeId::new(3).unwrap();
         let borrowed = StructuralTypeId::new(4).unwrap();
-        let declaration = |id, shape| terminal_psi::StructuralTypeDeclaration {
-            quotient_carrier: None,
-            id,
-            identity: terminal_psi::TerminalIdentityIndex(0),
-            owns_linear_claim: false,
-            copyable: false,
-            no_code_affine_cleanup: true,
-            descriptor_cleanup: true,
-            shape,
-            scalar_restriction: None,
-        };
         catalogs.structural_types = vec![
-            declaration(
+            structural_type(
                 scalar,
                 terminal_psi::StructuralTypeShape::PrimitiveScalar(
                     semantic_vocabulary::ScalarType::Boolean,
                 ),
             ),
-            declaration(
+            structural_type(
                 descriptor,
                 terminal_psi::StructuralTypeShape::Reference {
                     referent: scalar,
                     access: StructuralAccess::WriteOnlyBorrow,
                 },
             ),
-            declaration(
+            structural_type(
                 array,
                 terminal_psi::StructuralTypeShape::FixedArray {
                     element: descriptor,
                     length: terminal_psi::ArrayExtent::Literal(0),
                 },
             ),
-            declaration(
+            structural_type(
                 borrowed,
                 terminal_psi::StructuralTypeShape::Reference {
                     referent: descriptor,
