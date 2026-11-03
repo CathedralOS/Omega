@@ -169,9 +169,19 @@ retired-syntax deletions to completion.
     nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
-  - Update Terminal production, codecs/checking, both interpreters, native
-    lowering, and WCSU together so runtime cycles remain constant-stack with all
-    live backing accounted for.
+  - Bring the composed state-graph planner
+    (`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph`)
+    to parity with the ordinary call plan, starting with temporary cleanup
+    actions, so every statically known terminal call can lower as a transfer
+    in the caller's activation rather than only recursive components and
+    calls that move activation claims. Witness: fusing all terminal targets
+    refuses `LinuxArm64::plan` with "has no executable body: this compiler does
+    not lower a state of it yet (temporary cleanup actions)".
+  - Lower completion-carrier retirement order for nested machines that join
+    activation-claim attempts (`bounded_activation` `through_match_join`,
+    `claim_split_through_match_join`, `named_attempt`: "`main` has no
+    executable body ... (statement sequence: completion carrier retirement
+    order)").
   - Complete the corresponding declaration-model migration in linked
     application repositories.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
