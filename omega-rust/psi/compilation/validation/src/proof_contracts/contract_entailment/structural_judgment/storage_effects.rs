@@ -408,8 +408,15 @@ impl StructuralJudge<'_> {
                 // A nominal record's initialized inline cells are a complete
                 // entry observation, independently of which scalar leaves a
                 // declaration later demands. Views keep their descriptor-only
-                // contract; contained references acquire no pointee facts.
-                if self.program.closed_data_definition(observed).is_none() {
+                // contract. A record that stores references is not complete
+                // this way: its contained references carry no pointee facts,
+                // and a whole-record entry value would answer reads through
+                // them before their own descriptor loads can.
+                if self.program.closed_data_definition(observed).is_none()
+                    || !self
+                        .frame_resolver()
+                        .is_some_and(|frames| frames.value_is_reference_free(observed))
+                {
                     continue;
                 }
                 let Some(machine) = self.program.machine(self.machine_symbol) else {
