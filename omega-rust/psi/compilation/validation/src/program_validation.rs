@@ -1266,8 +1266,7 @@ fn validate_machine_scalar_loan_handbacks(
                 diagnostics,
             );
             if diagnostics.len() > mark
-                && let Some(source_span) =
-                    statements::statement_source_span(program, statement)
+                && let Some(source_span) = statements::statement_source_span(program, statement)
             {
                 for diagnostic in &mut diagnostics[mark..] {
                     if diagnostic.source_span.is_none() {
