@@ -305,6 +305,7 @@ impl CurrentScalarValues<'_> {
                 value: self.capture(self.program, self.machine, self.state, *argument),
                 alternatives: Vec::new(),
                 immutable_coordinate: true,
+                unwritable: true,
             })
             .collect::<Vec<_>>();
         // A selector may read a field of an explicitly supplied structural
