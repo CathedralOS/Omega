@@ -79,12 +79,13 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
             && geometry.projections.iter().all(|step| {
                 matches!(
                     step,
-                    crate::ScalarCoordinateProjection::Storage(
-                        checked_trees::CheckedUnitStructuralPathSegment::Field(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::Case(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
-                            | checked_trees::CheckedUnitStructuralPathSegment::Referent
-                    )
+                    crate::ScalarCoordinateProjection::Element { .. }
+                        | crate::ScalarCoordinateProjection::Storage(
+                            checked_trees::CheckedUnitStructuralPathSegment::Field(_)
+                                | checked_trees::CheckedUnitStructuralPathSegment::Case(_)
+                                | checked_trees::CheckedUnitStructuralPathSegment::FixedIndex(_)
+                                | checked_trees::CheckedUnitStructuralPathSegment::Referent
+                        )
                 )
             })
             && super::super::super::declaration_projection_cases_hold(
@@ -101,9 +102,10 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
             let loads_pointer = geometry.projections.iter().any(|step| {
                 matches!(
                     step,
-                    crate::ScalarCoordinateProjection::Storage(
-                        checked_trees::CheckedUnitStructuralPathSegment::Referent
-                    )
+                    crate::ScalarCoordinateProjection::Element { extent: None, .. }
+                        | crate::ScalarCoordinateProjection::Storage(
+                            checked_trees::CheckedUnitStructuralPathSegment::Referent
+                        )
                 )
             });
             let backing = if loads_pointer {

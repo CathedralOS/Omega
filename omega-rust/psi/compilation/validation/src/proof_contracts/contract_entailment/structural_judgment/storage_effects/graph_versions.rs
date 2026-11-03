@@ -21,7 +21,7 @@ use typed_trees::state::State;
 
 /// One position in the storage graph: a state's history and the version after
 /// the last effect observed there. The invalid snapshot is incoming storage.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(in crate::proof_contracts::contract_entailment) struct StorageVersion {
     pub(in crate::proof_contracts::contract_entailment) state: SymbolHandle,
     pub(in crate::proof_contracts::contract_entailment) snapshot: Handle<FlowStorageSnapshot>,

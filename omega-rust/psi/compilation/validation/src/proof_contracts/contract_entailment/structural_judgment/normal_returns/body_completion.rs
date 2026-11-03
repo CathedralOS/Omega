@@ -21,9 +21,14 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
     ) -> Option<Vec<NormalReturnPath<'program>>> {
         match target {
-            typed_trees::statement::TransitionTargetNode::Value(expression) => {
-                self.normal_return_paths(*expression, environment, scope)
-            }
+            typed_trees::statement::TransitionTargetNode::Value(expression) => self
+                .normal_return_paths(*expression, environment, scope)
+                .map(|paths| {
+                    paths
+                        .into_iter()
+                        .map(|path| path.at_return(*expression, scope))
+                        .collect()
+                }),
             typed_trees::statement::TransitionTargetNode::Terminal
                 if matches!(
                     self.program.type_reference_table.type_reference(scope.2),

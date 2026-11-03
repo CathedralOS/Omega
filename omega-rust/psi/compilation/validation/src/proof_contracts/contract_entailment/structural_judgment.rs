@@ -548,6 +548,7 @@ pub(super) struct StructuralJudge<'program> {
     // deep StructuralTerm copies; writers go through Arc::make_mut and pay
     // one copy only for the field they actually change.
     normal_results: Arc<Vec<(ExpressionHandle, StructuralTerm)>>,
+    returned_value_source: Option<normal_returns::CompletedValueSource<'program>>,
     completed_nominal_values: Arc<Vec<CompletedNominalValue>>,
     // Declaration-level field correspondence never recursively re-enters an
     // active body. This belongs to the query, including all cloned path judges.
@@ -627,6 +628,7 @@ impl Clone for StructuralJudge<'_> {
             body_type_parameters: self.body_type_parameters,
             premise_facts: self.premise_facts.clone(),
             normal_results: Arc::clone(&self.normal_results),
+            returned_value_source: self.returned_value_source.clone(),
             completed_nominal_values: Arc::clone(&self.completed_nominal_values),
             returned_field_owners: Arc::clone(&self.returned_field_owners),
             returned_field_trace: self.returned_field_trace.clone(),
@@ -1118,6 +1120,7 @@ impl<'program> StructuralJudge<'program> {
             body_type_parameters: &[],
             premise_facts: requires.to_vec(),
             normal_results: Arc::new(Vec::new()),
+            returned_value_source: None,
             completed_nominal_values: Arc::new(Vec::new()),
             returned_field_owners: Arc::new(Vec::new()),
             returned_field_trace: None,
@@ -2541,6 +2544,14 @@ impl<'program> StructuralJudge<'program> {
     ) -> Option<StructuralTerm> {
         if depth >= 32 {
             return None;
+        }
+        if self.specification_terms
+            && let Some(place) = crate::reserved_result_place(self.program, expression)
+            && place.machine_symbol == self.machine_symbol
+            && let Some(source) = self.returned_value_source.as_ref()
+            && let Some(value) = self.completed_return_read(source, &place.segments)
+        {
+            return Some(value);
         }
         if let Some((_, value)) = self
             .normal_results

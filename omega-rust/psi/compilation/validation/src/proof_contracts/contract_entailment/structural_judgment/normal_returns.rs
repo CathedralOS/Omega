@@ -50,7 +50,7 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 use typed_trees::signature::SignatureContractKind;
 use typed_trees::types::TypeReferenceHandle;
 
-impl StructuralJudge<'_> {
+impl<'program> StructuralJudge<'program> {
     /// A postcondition's `result` names the value this path actually returns.
     /// Bind it in both proof stores: case facts deliberately do not follow
     /// general value substitutions. Callers have checked that an input
@@ -58,7 +58,9 @@ impl StructuralJudge<'_> {
     pub(in crate::proof_contracts::contract_entailment) fn bind_returned_value(
         &mut self,
         value: &StructuralTerm,
+        source: Option<CompletedValueSource<'program>>,
     ) {
+        self.returned_value_source = source;
         self.intake_case_equation(
             StructuralTerm::Variable(super::super::RESULT_BINDER.to_owned()),
             value.clone(),
@@ -72,8 +74,30 @@ impl StructuralJudge<'_> {
 pub(in crate::proof_contracts::contract_entailment) struct NormalReturnPath<'program> {
     pub value: StructuralTerm,
     pub judge: StructuralJudge<'program>,
+    pub source: Option<CompletedValueSource<'program>>,
     observation: NormalValueObservation,
     value_requested: bool,
+}
+
+/// A return promise observes bytes after the function's last writes. Keep that
+/// actual completion and its observations; the view may have been built earlier.
+#[derive(Clone)]
+pub(in crate::proof_contracts::contract_entailment) struct CompletedValueSource<'program> {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub expression: ExpressionHandle,
+    pub storage_version: Option<super::storage_effects::StorageVersion>,
+    pub context: Arc<StructuralJudge<'program>>,
+}
+
+impl CompletedValueSource<'_> {
+    pub(super) fn same_observation(&self, other: &Self) -> bool {
+        self.machine == other.machine
+            && self.state == other.state
+            && self.expression == other.expression
+            && self.storage_version == other.storage_version
+            && Arc::ptr_eq(&self.context, &other.context)
+    }
 }
 
 /// Fresh normal-exit storage is installed only after the invocation retires
@@ -2637,10 +2661,31 @@ fn discarded_value_has_no_own_effects(
 }
 
 impl<'program> NormalReturnPath<'program> {
+    fn at_return(mut self, expression: ExpressionHandle, scope: ValueScope<'_>) -> Self {
+        if !self.judge.requires_value_preservation() || self.observed_value().is_none() {
+            return self;
+        }
+        // Preserve the observations made when this result completes, even
+        // after its local scope ends. Their old storage cells do not become
+        // current caller storage.
+        let mut context = self.judge.clone();
+        context.returned_value_source = None;
+        context.completed_resolutions = None;
+        self.source = Some(CompletedValueSource {
+            machine: scope.0.symbol,
+            state: scope.1.symbol,
+            expression,
+            storage_version: self.judge.storage_version,
+            context: Arc::new(context),
+        });
+        self
+    }
+
     fn observed(value: StructuralTerm, judge: StructuralJudge<'program>) -> Self {
         Self {
             value,
             judge,
+            source: None,
             observation: NormalValueObservation::Observed,
             value_requested: false,
         }
@@ -2652,6 +2697,7 @@ impl<'program> NormalReturnPath<'program> {
             // Operation entries carry its absence explicitly as None.
             value: StructuralTerm::Opaque("unobserved traversal".to_owned()),
             judge,
+            source: None,
             observation: NormalValueObservation::NotObserved,
             value_requested: false,
         }

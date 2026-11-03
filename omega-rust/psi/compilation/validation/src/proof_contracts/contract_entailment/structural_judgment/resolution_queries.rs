@@ -596,6 +596,18 @@ impl<'program> StructuralJudge<'program> {
         )
             .hash(&mut hash);
         self.premise_facts.hash(&mut hash);
+        self.returned_value_source
+            .as_ref()
+            .map(|source| {
+                (
+                    source.machine,
+                    source.state,
+                    source.expression,
+                    source.storage_version,
+                    address(&*source.context),
+                )
+            })
+            .hash(&mut hash);
         [
             address(&*self.entry_machines),
             address(&*self.declaration_parameters),
@@ -642,6 +654,11 @@ impl<'program> StructuralJudge<'program> {
             && Arc::ptr_eq(&self.declaration_parameters, &other.declaration_parameters)
             && std::ptr::eq(self.body_type_parameters, other.body_type_parameters)
             && self.premise_facts == other.premise_facts
+            && match (&self.returned_value_source, &other.returned_value_source) {
+                (None, None) => true,
+                (Some(left), Some(right)) => left.same_observation(right),
+                _ => false,
+            }
             && Arc::ptr_eq(&self.normal_results, &other.normal_results)
             && Arc::ptr_eq(
                 &self.completed_nominal_values,

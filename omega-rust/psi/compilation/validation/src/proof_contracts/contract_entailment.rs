@@ -478,7 +478,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         let paths: Vec<_> = case_arms
             .as_ref()?
             .iter()
-            .map(|arm| (&arm.normal_judge, &arm.value))
+            .map(|arm| (&arm.normal_judge, &arm.value, arm.value_source.clone()))
             .collect();
         // A conditional normal-return contract may be vacuous. An empty
         // observation frontier is not an independently established theorem.
@@ -488,7 +488,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
         let mut verdict = StructuralJudgment::Proven;
         let mut dependencies = Vec::new();
         let mut complete_candidate = true;
-        for (judge, value) in paths {
+        for (judge, value, source) in paths {
             let (judgment, dependency) = if let Some(plan) = content_plan {
                 content_conservation::judge_content_conservation_with_dependencies(
                     program,
@@ -500,7 +500,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             } else {
                 let mut bound = judge.clone();
                 if !result_is_parameter {
-                    bound.bind_returned_value(value);
+                    bound.bind_returned_value(value, source);
                 }
                 (bound.judge(program, fact), None)
             };
@@ -565,7 +565,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
             }
             if paths.iter().all(|path| {
                 let mut bound = path.normal_judge.clone();
-                bound.bind_returned_value(&path.value);
+                bound.bind_returned_value(&path.value, path.value_source.clone());
                 matches!(bound.judge(program, fact), StructuralJudgment::Proven)
             }) {
                 return StructuralJudgment::Proven;
@@ -689,7 +689,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
                 }
             }
             if !result_is_parameter {
-                bound.bind_returned_value(&arm.value);
+                bound.bind_returned_value(&arm.value, arm.value_source.clone());
             }
             match bound.judge(program, fact) {
                 StructuralJudgment::Proven => {}

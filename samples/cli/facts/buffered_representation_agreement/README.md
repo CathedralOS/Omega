@@ -38,30 +38,31 @@ the only failure case, and it loses the saved public decoder call when selecting
 its implementation. The corrupt twin fails for those same unrelated reasons, so
 that refusal is not preservation evidence.
 
-No completed place is claimed. The authored programs and their corpus mirrors
-vary the input Pair's origin, but they all consume the returned result through
-the same local path. Their compiler and runtime observations remain pending.
-They do not close the nine-place row: the completed preservation guarantee
-still needs transport through the remaining places before consumption, with
-fact-sensitive reject twins and checks of the actual returned value and storage.
+No completed place is claimed. The programs now carry the completed Result
+through their respective places before consumption. Forwarding promises preserve
+the incoming Result; they never require equality to the expected Pair. Their
+compiler proofs, native/Terminal observations and intended reject diagnostics
+remain pending, so the nine-place row stays open.
 The full standard Representation interface, reflection adapters, other hosts
 and the Omega-written producer also remain parent work.
 
-The following table records input-origin coverage. The output buffer remains a
-runtime borrow; a constant contributes a pair rather than permission to access
-storage. Completed-result transport is separate remaining acceptance.
+The constant place runs the same operation and its full borrowed consumers over
+local storage during semantic evaluation. Only owned observations cross the
+constant boundary: Pair checks, byte snapshots, extent checks and write markers.
+The live mutable reference stays inside that evaluation. Main verifies those
+constant observations and runs the same observer at runtime.
 
-| Place | Semantic input | Reject twin |
+| Place | Completed-result transport | Reject twin |
 | --- | --- | --- |
-| [Local](local/main.omg) | Local request construction | [Wrong last-byte load](local/invalid/main.omg) |
-| [Field](field/main.omg) | Field between nonzero neighbors | [Wrong last-byte load](field/invalid/main.omg) |
-| [Parameter](parameter/main.omg) | Forwarded parameter | [Wrong last-byte load](parameter/invalid/main.omg) |
-| [Call result](call_result/main.omg) | Completed call, both inputs | [Wrong last-byte load](call_result/invalid/main.omg) |
-| [Match join](match_join/main.omg) | Distinct results from both arms | [Wrong last-byte load](match_join/invalid/main.omg) |
-| [Constant name](const_name/main.omg) | Two owned constants | [Wrong last-byte load](const_name/invalid/main.omg) |
-| [Nested machine](other_state/main.omg) | Explicit nested machine | [Wrong last-byte load](other_state/invalid/main.omg) |
-| [Other machine](other_machine/main.omg) | Another named implementation | [Wrong last-byte load](other_machine/invalid/main.omg) |
-| [Selected implementation](target_body/main.omg) | Build-selected body, checked marker | [Wrong last-byte load](target_body/invalid/main.omg) |
+| [Local](local/main.omg) | Local completed result | [Wrong last-byte load](local/invalid/main.omg) |
+| [Field](field/main.omg) | Result field between checked neighbors | [Wrong last-byte load](field/invalid/main.omg) |
+| [Parameter](parameter/main.omg) | Affine Result parameter | [Wrong last-byte load](parameter/invalid/main.omg) |
+| [Call result](call_result/main.omg) | Returned Result consumed directly | [Wrong last-byte load](call_result/invalid/main.omg) |
+| [Match join](match_join/main.omg) | Result through both arms, distinct markers | [Wrong last-byte load](match_join/invalid/main.omg) |
+| [Constant name](const_name/main.omg) | Owned observations of the completed operation | [Wrong last-byte load](const_name/invalid/main.omg) |
+| [Nested machine](other_state/main.omg) | Result returned by a nested machine | [Wrong last-byte load](other_state/invalid/main.omg) |
+| [Other machine](other_machine/main.omg) | Result forwarded by another named implementation | [Wrong last-byte load](other_machine/invalid/main.omg) |
+| [Selected implementation](target_body/main.omg) | Result through a Build-selected body, marker and neighbors | [Wrong last-byte load](target_body/invalid/main.omg) |
 
 Governing contracts: [codecs](../../../../wiki/spec/layouts/codecs.md),
 [completed returns](../../../../wiki/spec/language/state_contracts.md#returns-and-proof-use),

@@ -297,6 +297,81 @@ impl StructuralJudge<'_> {
             .then(|| first.clone())
     }
 
+    /// A return contract observes the current backing through the value that
+    /// actually completed here. Its descriptor may have been stored earlier;
+    /// neither that earlier expression nor the contract goal supplies this cut.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn completed_return_read(
+        &self,
+        source: &super::super::normal_returns::CompletedValueSource<'_>,
+        path: &[facts::PlaceSegment],
+    ) -> Option<super::super::super::StructuralTerm> {
+        if !self.requires_value_preservation()
+            || !std::ptr::eq(self.program, source.context.program)
+            || source.storage_version != source.context.storage_version
+        {
+            if super::super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT returned-read-refused expression={:?} path={path:?} phase=completion-cut source={:?} current={:?}",
+                    source.expression, source.storage_version, source.context.storage_version,
+                );
+            }
+            return None;
+        }
+        let machine = self.program.machine_by_symbol(source.machine)?;
+        let state = self.program.state_in_machine(machine, source.state)?;
+        let reference = crate::expression_result_type_reference(
+            self.program,
+            machine,
+            state,
+            source.expression,
+        )?;
+        let geometry = crate::structural_scalar_coordinate_in_type(
+            self.program,
+            facts::PlaceRoot::Expression(source.expression),
+            reference,
+            path,
+        )?;
+        let dependencies = source
+            .context
+            .frame_resolver()?
+            .completed_value_read_backing(machine, state, source.expression, path);
+        let Some(dependencies) = dependencies else {
+            if super::super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT returned-read-refused expression={:?} path={path:?} phase=completed-backing",
+                    source.expression,
+                );
+            }
+            return None;
+        };
+        let values = source
+            .context
+            .backing_values_at(
+                state,
+                source.expression,
+                geometry.primitive_type,
+                dependencies,
+                source.storage_version,
+            )?
+            .into_iter()
+            // A stored scalar can still name a local value or field. Resolve
+            // it before leaving its producing environment; the caller cannot
+            // reinterpret those names while comparing the returned contents.
+            .map(|value| source.context.resolve(value))
+            .collect::<Vec<_>>();
+        let first = values.first()?;
+        if super::super::super::struct_trace() {
+            eprintln!(
+                "STRUCT returned-read expression={:?} path={path:?} values={values:?}",
+                source.expression,
+            );
+        }
+        values
+            .iter()
+            .all(|value| value == first)
+            .then(|| first.clone())
+    }
+
     /// Observe every possible scalar cell at the performed read's cut. This
     /// frontier supplies proof alternatives, never one physical alias identity.
     /// Missing or expired suppliers leave the whole observation unavailable.
@@ -334,6 +409,17 @@ impl StructuralJudge<'_> {
                 &place.segments,
             )?
         };
+        self.backing_values_at(state, expression, primitive, dependencies, at)
+    }
+
+    fn backing_values_at(
+        &self,
+        state: &State,
+        expression: ExpressionHandle,
+        primitive: PrimitiveType,
+        dependencies: CapturedStorageReadBacking,
+        at: Option<super::StorageVersion>,
+    ) -> Option<Vec<super::super::super::StructuralTerm>> {
         if dependencies.sources.is_empty() {
             return None;
         }

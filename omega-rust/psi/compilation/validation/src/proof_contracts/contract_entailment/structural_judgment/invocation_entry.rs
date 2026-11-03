@@ -42,6 +42,7 @@ impl<'program> StructuralJudge<'program> {
         if parameters.len() != arguments.len() {
             return None;
         }
+        self.returned_value_source = None;
         if !self.requires_value_preservation() {
             return Some((
                 parameters
@@ -100,6 +101,7 @@ impl<'program> StructuralJudge<'program> {
         subjects: &[InvocationEntrySubject],
         writes: &facts::NormalizedWriteFrame,
     ) -> Option<Self> {
+        self.returned_value_source = caller.returned_value_source.clone();
         if !self.requires_value_preservation() {
             return Some(self);
         }

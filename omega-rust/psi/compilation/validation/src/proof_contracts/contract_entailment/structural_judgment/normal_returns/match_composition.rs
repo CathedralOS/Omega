@@ -83,6 +83,7 @@ impl<'program> StructuralJudge<'program> {
                                 Some(vec![NormalReturnPath {
                                     value: observed.clone(),
                                     judge,
+                                    source: subject.source.clone(),
                                     observation,
                                     value_requested: subject.value_requested,
                                 }])
@@ -149,6 +150,7 @@ impl<'program> StructuralJudge<'program> {
                             next_remaining.push(NormalReturnPath {
                                 value: subject.value.clone(),
                                 judge: skipped,
+                                source: subject.source.clone(),
                                 observation: subject.observation,
                                 value_requested: subject.value_requested,
                             });
