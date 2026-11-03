@@ -470,6 +470,33 @@ fn retained_formation_sources(
         .collect()
 }
 
+/// A shared-reference parameter cannot be written through, so a statement
+/// loan it carries at its own root was installed by rebinding the parameter
+/// (`selected = &local`), not by a store into the caller's referent. Reading
+/// the parameter then reads that new descriptor; forwarding the formal would
+/// let a returned view of an invocation-local slot pass as the caller's
+/// referent. Entry leaves keep their incoming identity and are not rebinds.
+fn shared_parameter_rebound(
+    program: &dyn ::validation::CheckingInput,
+    root: facts::PlaceRoot,
+    loan_trackers: &[StateLoanTracker],
+) -> bool {
+    let Some(symbol) = root.as_symbol() else {
+        return false;
+    };
+    let shared = program
+        .state_by_symbol(program.symbols.get(symbol).parent)
+        .and_then(|state| program.state_parameter_by_symbol(state, symbol))
+        .and_then(|parameter| validation::reference_shell(program, parameter.type_reference))
+        .is_some_and(|shell| shell.access == language_semantics::ReferenceAccess::Shared);
+    shared
+        && loan_trackers.iter().any(|loan| {
+            loan.storage_owner == root
+                && loan.owner_path.is_empty()
+                && !loan.place.incoming_reference.is_valid()
+        })
+}
+
 fn rebase_borrow_places_following(
     program: &dyn ::validation::CheckingInput,
     geometry: accesses::BorrowAccessGeometry,
@@ -487,7 +514,8 @@ fn rebase_borrow_places_following(
     // Keep every entry leaf in the roster for actual inner loads/restoration.
     let parameter_referent = !place.incoming_reference.is_valid()
         && place.segments.is_empty()
-        && accesses::is_borrowed_parameter_root(program, place.root);
+        && accesses::is_borrowed_parameter_root(program, place.root)
+        && !shared_parameter_rebound(program, place.root, loan_trackers);
     let source_loans: Vec<&StateLoanTracker> = loan_trackers
         .iter()
         .rev()
