@@ -1,2 +1,2 @@
-requires builtin operator meaning
-an authored operator cannot redefine an instruction
+only the core semantic-home owner may publish a primitive operator meaning
+into the compiler-owned primitive carrier `u32`

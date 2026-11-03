@@ -80,36 +80,59 @@ use syntax_trees::operator_spelling::OperatorSpelling;
 /// the operand tuple, and trait-homed operators participate through
 /// conformance, not operand selection. Whether the operator form keeps that
 /// looser admission or retires behind the machine rule is an
-/// OPERATOR-MACHINE-SUPPLY question, not one this check settles.
+/// OPERATOR-MACHINE-SUPPLY question, not one this check settles. The one
+/// home rule every form answers is custody of a compiler-owned home
+/// ([`CompilerOwnedHomes`]): no authored declaration of any introducer may
+/// publish a primitive operator meaning.
 pub(crate) fn reject_duplicate_direct_token_bindings(
     program: &SymbolResolvedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
+    let machine_bindings = program
+        .machines
+        .iter()
+        .filter_map(|machine| {
+            machine
+                .spelling
+                .map(|spelling| machine_token_binding(program, machine, spelling))
+        })
+        .collect::<Vec<_>>();
+    let mut operator_bindings = program
+        .operators
+        .iter()
+        .filter_map(|operator| {
+            operator
+                .spelling
+                .map(|spelling| operator_token_binding(program, operator, None, spelling))
+        })
+        .collect::<Vec<_>>();
+    for domain in program.domain_definitions.iter() {
+        operator_bindings.extend(
+            program
+                .operator_definitions(domain.operators)
+                .iter()
+                .filter_map(|operator| {
+                    operator.spelling.map(|spelling| {
+                        operator_token_binding(program, operator, Some(domain), spelling)
+                    })
+                }),
+        );
+    }
+    let compiler_homes = CompilerOwnedHomes::published_by(
+        program,
+        machine_bindings.iter().chain(operator_bindings.iter()),
+    );
     let mut bindings: Vec<TokenBinding<'_>> = Vec::new();
     let mut diagnostics = Vec::new();
-    for machine in program.machines.iter() {
-        let Some(spelling) = machine.spelling else {
-            continue;
-        };
-        let binding = TokenBinding {
-            machine: Some(machine),
-            name: machine.name.as_str().to_owned(),
-            name_span: machine.name.source_span(),
-            owner_spelling: machine
-                .attached_data
-                .as_ref()
-                .map_or_else(String::new, |attached| attached.as_str().to_owned()),
-            spelling,
-            owner: binding_owner(program, machine),
-            operand_shape: ShapeNormalizer::new(program, machine.type_parameters)
-                .operand_shape(entry_parameters(program, machine)),
-            operand_display: ShapeNormalizer::for_display(program, machine.type_parameters)
-                .operand_shape(entry_parameters(program, machine)),
-        };
+    for binding in machine_bindings {
         if let Some(diagnostic) = binding.missing_semantic_home(program) {
             diagnostics.push(diagnostic);
             continue;
         }
         if let Some(diagnostic) = binding.foreign_semantic_home(program) {
+            diagnostics.push(diagnostic);
+            continue;
+        }
+        if let Some(diagnostic) = binding.forged_compiler_home(program, &compiler_homes) {
             diagnostics.push(diagnostic);
             continue;
         }
@@ -122,36 +145,105 @@ pub(crate) fn reject_duplicate_direct_token_bindings(
         }
         bindings.push(binding);
     }
-    for operator in program.operators.iter() {
-        let Some(spelling) = operator.spelling else {
+    for binding in &operator_bindings {
+        if let Some(diagnostic) = binding.forged_compiler_home(program, &compiler_homes) {
+            diagnostics.push(diagnostic);
             continue;
-        };
-        let binding = operator_token_binding(program, operator, None, spelling);
+        }
         if let Some(earlier) = bindings
             .iter()
-            .find(|earlier| earlier.repeats(program, &binding))
+            .find(|earlier| earlier.repeats(program, binding))
         {
-            diagnostics.push(duplicate_diagnostic(&binding, earlier));
-        }
-    }
-    for domain in program.domain_definitions.iter() {
-        for operator in program.operator_definitions(domain.operators) {
-            let Some(spelling) = operator.spelling else {
-                continue;
-            };
-            let binding = operator_token_binding(program, operator, Some(domain), spelling);
-            if let Some(earlier) = bindings
-                .iter()
-                .find(|earlier| earlier.repeats(program, &binding))
-            {
-                diagnostics.push(duplicate_diagnostic(&binding, earlier));
-            }
+            diagnostics.push(duplicate_diagnostic(binding, earlier));
         }
     }
     if diagnostics.is_empty() {
         Ok(())
     } else {
         Err(diagnostics)
+    }
+}
+
+/// Build the binding identity of a `machine <token>` declaration.
+fn machine_token_binding<'program>(
+    program: &'program SymbolResolvedTrees,
+    machine: &'program Machine,
+    spelling: OperatorSpelling,
+) -> TokenBinding<'program> {
+    TokenBinding {
+        machine: Some(machine),
+        symbol: machine.symbol,
+        name: machine.name.as_str().to_owned(),
+        name_span: machine.name.source_span(),
+        owner_spelling: machine
+            .attached_data
+            .as_ref()
+            .map_or_else(String::new, |attached| attached.as_str().to_owned()),
+        spelling,
+        owner: binding_owner(program, machine),
+        operand_shape: ShapeNormalizer::new(program, machine.type_parameters)
+            .operand_shape(entry_parameters(program, machine)),
+        operand_display: ShapeNormalizer::for_display(program, machine.type_parameters)
+            .operand_shape(entry_parameters(program, machine)),
+    }
+}
+
+/// The semantic homes a primitive operator meaning lives in. Only the core
+/// semantic-home owner -- the sealed toolchain sources -- publishes into them
+/// ([executable supply](../../../../../../../wiki/spec/language/expressions.md#executable-supply):
+/// compiler ownership is exact declaration custody, "not a recognized
+/// spelling or a package opting in").
+///
+/// Two kinds of home qualify. A builtin carrier (`u32::replacement`) is a
+/// primitive family no authored package declares. A namespace that resolves
+/// to no declaration (`Float::equal`, `Slice::index`) is homed by whoever
+/// publishes into it; once a toolchain source publishes a token binding
+/// there, the namespace is core-owned, and the same path in an authored
+/// package would otherwise join the primitive candidate set or duplicate a
+/// sealed requirement under the core's name.
+struct CompilerOwnedHomes {
+    namespaces: Vec<String>,
+}
+
+impl CompilerOwnedHomes {
+    fn published_by<'binding, 'program: 'binding>(
+        program: &SymbolResolvedTrees,
+        bindings: impl Iterator<Item = &'binding TokenBinding<'program>>,
+    ) -> Self {
+        let mut namespaces = Vec::new();
+        for binding in bindings {
+            if binding.is_toolchain_declaration(program) == Some(true)
+                && let Some(namespace) = binding.undeclared_namespace_home()
+                && !namespaces.iter().any(|known| known == namespace)
+            {
+                namespaces.push(namespace.to_owned());
+            }
+        }
+        Self { namespaces }
+    }
+
+    /// How `binding`'s home is compiler-owned, or `None` for an authored home.
+    fn ownership(
+        &self,
+        program: &SymbolResolvedTrees,
+        binding: &TokenBinding,
+    ) -> Option<&'static str> {
+        let namespace = binding.undeclared_namespace_home()?;
+        if program
+            .symbols
+            .find_top_level_by_name_and_kinds_from_source(
+                namespace,
+                &[SymbolKind::BuiltinType],
+                binding.name_span,
+            )
+            .is_some()
+        {
+            return Some("the compiler-owned primitive carrier");
+        }
+        self.namespaces
+            .iter()
+            .any(|known| known == namespace)
+            .then_some("the core-owned semantic home")
     }
 }
 
@@ -173,6 +265,9 @@ struct TokenBinding<'program> {
     /// `operator`-form bindings carry `None` and skip the semantic-home rule
     /// per the module contract above.
     machine: Option<&'program Machine>,
+    /// The declaring machine or operator symbol, whose source custody decides
+    /// whether it may publish into a compiler-owned home.
+    symbol: SymbolHandle,
     /// The declaration's display path (`Vec2::add`, or the leaf for a
     /// domain-homed operator).
     name: String,
@@ -214,6 +309,57 @@ impl TokenBinding<'_> {
             }
             _ => self.owner == other.owner,
         }
+    }
+
+    /// Whether the declaration comes from a toolchain source; `None` for
+    /// source-free trees, which cannot prove custody either way.
+    fn is_toolchain_declaration(&self, program: &SymbolResolvedTrees) -> Option<bool> {
+        program
+            .symbols
+            .symbol_source_origin(self.symbol)
+            .map(|origin| origin == source::SourceOrigin::Toolchain)
+    }
+
+    /// The authored owner path when it names no data declaration: a builtin
+    /// carrier or a bare namespace. Domain-homed and free bindings, and owners
+    /// that resolved to a declaration, keep the ordinary home rules.
+    fn undeclared_namespace_home(&self) -> Option<&str> {
+        match self.owner {
+            BindingOwner::AttachedData(owner)
+                if !owner.is_valid() && !self.owner_spelling.is_empty() =>
+            {
+                Some(self.owner_spelling.as_str())
+            }
+            _ => None,
+        }
+    }
+
+    /// The rejection for an authored binding that publishes an operator
+    /// meaning into a compiler-owned home, or `None` otherwise. Every binding
+    /// form answers this rule -- direct machines, `operator` declarations and
+    /// `boundary` requirement slots alike -- because each one becomes a
+    /// candidate for the primitive token at a use site, and a requirement
+    /// slot's provider is no more the core owner than a checked body is.
+    fn forged_compiler_home(
+        &self,
+        program: &SymbolResolvedTrees,
+        homes: &CompilerOwnedHomes,
+    ) -> Option<Diagnostic> {
+        if self.is_toolchain_declaration(program)? {
+            return None;
+        }
+        let ownership = homes.ownership(program, self)?;
+        Some(
+            Diagnostic::error(format!(
+                "`{}` binds the fixed operator token `{}` into {ownership} `{}`; only the core \
+                 semantic-home owner may publish a primitive operator meaning, so an authored \
+                 operator needs its own declared home among its operands",
+                self.name,
+                self.spelling.symbol(),
+                self.owner_spelling,
+            ))
+            .with_source_span(self.name_span),
+        )
     }
 
     /// The rejection for a binding whose operand tuple carries no semantic
@@ -425,6 +571,7 @@ fn operator_token_binding<'program>(
     };
     TokenBinding {
         machine: None,
+        symbol: operator.symbol,
         name,
         name_span,
         owner_spelling,
