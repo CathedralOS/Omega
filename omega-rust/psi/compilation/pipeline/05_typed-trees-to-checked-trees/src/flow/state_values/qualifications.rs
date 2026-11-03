@@ -15,7 +15,6 @@ use checked_trees::name::Identifier;
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
-use std::hash::{Hash, Hasher};
 use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
 
@@ -112,11 +111,8 @@ impl CarriedPredicate {
 }
 
 impl QualifiedInput {
-    fn place_fingerprint(&self) -> u64 {
-        let mut fingerprint = std::hash::DefaultHasher::new();
-        self.subject.hash(&mut fingerprint);
-        self.segments.hash(&mut fingerprint);
-        fingerprint.finish()
+    fn subject_key(&self) -> SubjectKey {
+        self.subject.group_key()
     }
 
     fn same_subject(&self, other: &Self) -> bool {
@@ -132,22 +128,28 @@ impl QualifiedInput {
     }
 }
 
-/// Scratch positions group a batch by its exact storage subject without
-/// reordering published evidence. Fingerprints only narrow comparisons: the
-/// ordinary subject/evidence checks still decide every match, including collisions.
-fn subject_positions(inputs: &[QualifiedInput]) -> Vec<(u64, usize)> {
+/// The storage root's group key: every equal subject shares it.
+type SubjectKey = (u8, u32, u32);
+
+/// Scratch positions group a batch by its storage root without reordering
+/// published evidence. Keys only narrow comparisons: the ordinary
+/// subject/evidence checks still decide every match, including shared keys.
+fn subject_positions(inputs: &[QualifiedInput]) -> Vec<(SubjectKey, usize)> {
     let mut positions: Vec<_> = inputs
         .iter()
         .enumerate()
-        .map(|(position, input)| (input.place_fingerprint(), position))
+        .map(|(position, input)| (input.subject_key(), position))
         .collect();
     positions.sort_unstable();
     positions
 }
 
-fn matching_positions(positions: &[(u64, usize)], fingerprint: u64) -> &[(u64, usize)] {
-    let start = positions.partition_point(|(candidate, _)| *candidate < fingerprint);
-    let end = positions.partition_point(|(candidate, _)| *candidate <= fingerprint);
+fn matching_positions(
+    positions: &[(SubjectKey, usize)],
+    key: SubjectKey,
+) -> &[(SubjectKey, usize)] {
+    let start = positions.partition_point(|(candidate, _)| *candidate < key);
+    let end = positions.partition_point(|(candidate, _)| *candidate <= key);
     &positions[start..end]
 }
 
@@ -157,7 +159,7 @@ fn deduplicate(inputs: &mut Vec<QualifiedInput>) {
         .iter()
         .enumerate()
         .map(|(position, input)| {
-            !matching_positions(&positions, input.place_fingerprint())
+            !matching_positions(&positions, input.subject_key())
                 .iter()
                 .take_while(|(_, previous)| *previous < position)
                 .any(|(_, previous)| inputs[*previous].same_claim(input))
@@ -188,7 +190,7 @@ pub(super) fn meet(previous: &mut Vec<QualifiedInput>, incoming: &[QualifiedInpu
     let positions = subject_positions(incoming);
     previous.retain_mut(|claim| {
         let mut common: Option<CarriedPredicate> = None;
-        for next in matching_positions(&positions, claim.place_fingerprint())
+        for next in matching_positions(&positions, claim.subject_key())
             .iter()
             .map(|(_, position)| &incoming[*position])
             .filter(|next| claim.same_subject(next))

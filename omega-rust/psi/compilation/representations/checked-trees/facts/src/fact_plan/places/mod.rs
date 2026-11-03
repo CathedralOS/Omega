@@ -101,6 +101,25 @@ impl PlaceRoot {
         }
     }
 
+    /// A sort key every equal root shares, so rows grouped by root can be
+    /// found by binary search. Distinct roots may share a key; readers still
+    /// compare the whole root.
+    pub fn group_key(&self) -> (u8, u32, u32) {
+        match self {
+            Self::Unknown => (0, 0, 0),
+            Self::Symbol(symbol) => (1, symbol.arena_index(), symbol.generation()),
+            Self::InvocationReferent { parameter, .. } => {
+                (2, parameter.arena_index(), parameter.generation())
+            }
+            Self::InvocationOutput(output) => {
+                let parameter = output.parameter_symbol;
+                (3, parameter.arena_index(), parameter.generation())
+            }
+            Self::Expression(expression) => (4, expression.arena_index(), expression.generation()),
+            Self::TypeReference(reference) => (5, reference.arena_index(), reference.generation()),
+        }
+    }
+
     place_root_handle_accessors!(
         Symbol => as_symbol -> SymbolHandle,
         Expression => as_expression -> ExpressionHandle,
