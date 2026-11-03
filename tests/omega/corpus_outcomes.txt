@@ -63,6 +63,14 @@ fail/build/terminal_calling_policy_unrelated_constant rejected 42791ms expected 
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 5
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/calls/nested_machine_duplicate_helper_overload rejected 2717ms expected @11bdd2fe41ff+wt
+	duplicate named machine overload `outer::helper` with parameter signature `parameter(mutable(no),const(no),named(name(u64)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
+	machine `outer` state `entry`: value call `helper(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/calls/nested_machine_qualified_call_carriers rejected 1056ms expected @11bdd2fe41ff+wt
+	call `outer::value_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
+	call `outer::generic_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
+	call `outer::subject_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
+	call `outer::terminal_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
 fail/calls/runtime_guarded_reference_return_nested_local_escape rejected 4129ms expected @c79bb8268163+wt
 	machine `failed` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/calls/selected_crash_argument_snapshot_rejected rejected 8318ms expected @feef96dc297d
@@ -4823,7 +4831,7 @@ pass/comptime/selected_float_array_length_layout_query_exit rejected 19883ms che
 	constant checking: scalar evaluation needs an unavailable provider or external effect
 pass/concurrency/boundary_suspension_inline_completion_exit rejected 26987ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	call to `work` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/concurrency/host_boundary_readiness_exit checked 3126ms check-target:macos_arm64 @ccdb99ca2214
+pass/concurrency/host_boundary_readiness_exit checked 11020ms check-target:macos_arm64 @11bdd2fe41ff+wt
 pass/concurrency/incoming_aggregate_loan_after_suspend checked 3127ms check-target:macos_arm64 @ccdb99ca2214
 pass/concurrency/incoming_loan_after_suspend checked 2925ms check-target:macos_arm64 @ccdb99ca2214
 pass/concurrency/ref_array_suspend checked 3628ms @ccdb99ca2214
@@ -17644,7 +17652,7 @@ fail/calls/copied_nominal_argument_precedes_field_repair rejected 755ms expected
 	machine `main` state `entry` statement 1: reading `gauge.level` crosses an open default-domain invariant window before data `Gauge` is established: the zeroed representation is not yet a `Gauge` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/calls/discarded_call_result rejected 813ms expected @ccdb99ca2214
 	call to `roll` discards its non-unit `bool` result; consume the value or discard it explicitly with `_ = roll(...);`
-fail/calls/duplicate_named_machine_overload_rejected rejected 688ms expected @ccdb99ca2214
+fail/calls/duplicate_named_machine_overload_rejected rejected 2716ms expected @11bdd2fe41ff+wt
 	duplicate named machine overload `add` with parameter signature `parameter(mutable(no),const(no),named(name(u32))),parameter(mutable(no),const(no),named(name(u32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 fail/calls/effectful_result_outside_captured_requirement rejected 1566ms expected @ccdb99ca2214
 	cannot prove requires contract for call accept from main: produce(21, mut counter) <= 20 (needs fact `value <= 20` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -17708,8 +17716,8 @@ fail/calls/nested_call_argument_constraints_unproven rejected 2002ms expected @c
 	machine `nested` state `entry` value call to `admit` violates required fact `value >= 0.0 && value <= 0.5`: the instantiated fact is structurally false (`40.0 >= 0.0 && 40.0 <= 0.5`)
 fail/calls/nested_call_footprint_retires_second_argument rejected 1747ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from write: cells.second <= 8 (needs fact `value <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/calls/nested_machine_private_descendant rejected 949ms expected @ccdb99ca2214
-	qualified call `hidden` has no resolved callable declaration
+fail/calls/nested_machine_private_descendant rejected 966ms expected @11bdd2fe41ff+wt
+	call `outer::hidden` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
 fail/calls/nested_machine_runtime_capture rejected 1858ms expected @ccdb99ca2214
 	machine `read` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/calls/nested_range_call_out_of_bounds rejected 1918ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
@@ -23700,8 +23708,8 @@ fail/facts/domain_selected_cleanup_nested_after_declaration_rejected rejected 2m
 	tests/omega/fail/facts/domain_selected_cleanup_nested_after_declaration_rejected/main.omg:1:38: executable statements cannot follow nested machine declarations
 fail/facts/domain_selected_cleanup_nested_capture_rejected rejected 951ms expected @ccdb99ca2214
 	machine `helper` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/facts/domain_selected_cleanup_nested_external_access_rejected rejected 778ms expected @ccdb99ca2214
-	qualified call `helper` has no resolved callable declaration
+fail/facts/domain_selected_cleanup_nested_external_access_rejected rejected 985ms expected @11bdd2fe41ff+wt
+	call `outer::helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
 fail/facts/domain_selected_cleanup_suspending_hook_rejected rejected 900ms expected @ccdb99ca2214
 	cleanup machine `finish` must be non-suspending and nonblocking
 fail/facts/domain_selected_cleanup_through_call_result_rejected rejected 1723ms expected @ccdb99ca2214
@@ -33303,7 +33311,7 @@ fail/modules/continued_domain_membership rejected 2981ms expected @ccdb99ca2214
 fail/modules/duplicate_data_keeps_guard_facts rejected 517ms expected @ccdb99ca2214
 	duplicate data `Zed`
 	duplicate data `Zed`
-fail/modules/duplicate_imported_machine_overload_rejected rejected 953ms expected @ccdb99ca2214
+fail/modules/duplicate_imported_machine_overload_rejected rejected 2688ms expected @11bdd2fe41ff+wt
 	duplicate named machine overload `seed` with parameter signature `` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	call `seed` has an invalid argument correspondence: call has no retained parameter telescope
 fail/modules/external_boundary_private_signature rejected 1054ms expected @ccdb99ca2214

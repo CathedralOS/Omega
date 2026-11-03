@@ -8,6 +8,7 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 16, "jobs": "1", "load1_end": 10.89, "load1_start": 12.57, "machine": "x86_64", "platform": "darwin", "schema": "omega-corpus-context-v1"}
+pass/concurrency/host_boundary_readiness_exit built 31932ms exit:0 @11bdd2fe41ff+wt
 pass/facts/checked_asm_countdown_through_call_result_exit built 4162ms exit:0 @fa165e504cfa
 pass/facts/checked_asm_countdown_through_const_name_exit built 3901ms exit:0 @fa165e504cfa
 pass/facts/checked_asm_countdown_through_field_exit built 3839ms exit:0 @fa165e504cfa
