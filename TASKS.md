@@ -415,13 +415,24 @@ retired-syntax deletions to completion.
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
   [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
   [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-  - Record zero/one identity law evidence on `OpenIndexOperationSelection`
-    (`omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/values/expression/index_authority.rs`),
-    normalize `N + 0` and `N * 1` under it, and carry it through
-    `monomorphization::finalize_domain_instance_identities`. The law shape
-    waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 1; question 2
-    asks whether the landed distributivity expansion advances the normalizer
-    version.
+  - Implement [literal-linked index identities](wiki/spec/proofs/contracts.md#literal-linked-index-identities):
+    record identity and nullary-to-literal law evidence on
+    `OpenIndexOperationSelection`, collect the complete selected conformance's
+    inherited slots with exact requirement identities and substitutions, and
+    support qualified integer carriers without an unselected fallback.
+    Normalize `N + 0` and `N * 1` through signatures, conformance arguments,
+    value transfers, and `monomorphization::finalize_domain_instance_identities`.
+  - Preserve authored and newly introduced formation obligations, left/right
+    identity distinctions, and exact carrier/policy authority. Simplify operands
+    before budgeted expansion and normalize generated terms again; retain
+    rejection of unsafe Exact intermediates, conditional or foreign laws, and
+    unproved literal connections. Prove these cases through nine-place fact
+    witnesses, fact-sensitive reject twins, and their pinned corpus fixtures.
+  - Apply the eventual [distributivity representative decision](OWNER_QUESTIONS.md#1-is-the-expanded-sum-of-products-the-canonical-form-of-an-open-index-under-a-declared-distributivity-law).
+    Identity-law ratification does not choose that representative or a new
+    expansion limit. Internal normalizer provenance and rebuilding unreleased
+    development artifacts are implementation bookkeeping, not a legacy support
+    requirement.
   - Migrate top-level library/corpus/embedded declarations off the `operator`
     introducer ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
@@ -1985,8 +1996,8 @@ defines the complete product bar.
   ([acceptance](wiki/spec/packages/acceptance.md)), and package review's
   [review cache](omega-rust/omega/packages/package-manager/src/review/candidate/review_cache.rs)
   is a different artifact. Layouts used only inside unselected library code
-  are a separate share of the cost, tracked by owner question 6 in
-  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
+  are a separate share of the cost, covered by the
+  [layout-demand question](OWNER_QUESTIONS.md#3-is-a-layout-used-only-inside-unselected-library-code-a-psi-obligation-under-every-target).
   - Persist an admitted dependency's checked representation under its exact
     identity. Bind it to an applicability proof over the premises the
     specification lists: the target, the provider closure, root-sensitive
