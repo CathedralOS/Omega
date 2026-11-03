@@ -190,12 +190,9 @@ impl AllocationImport {
         if matches!(operation, AllocationOperation::Initialize)
             && declaration.parameter_order.first()
                 == Some(&terminal_psi::BoundaryParameterKind::Structural)
-            && signature
-                .structural_parameters
-                .first()
-                .is_some_and(|parameter| {
-                    parameter.access == terminal_psi::StructuralAccess::MutableBorrow
-                })
+            && signature.structural_parameters.first().is_some_and(|parameter| {
+                parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+            })
         {
             return Ok(None);
         }
@@ -230,7 +227,8 @@ impl TerminalEffectHandler for AllocationImport {
     ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
         terminal_interpreter::TerminalCallStorageRequirements {
             original: false,
-            arguments: if matches!(self.location, admission::AddressLocation::OwnedArgument(_)) {
+            arguments: if matches!(self.location, admission::AddressLocation::OwnedArgument(_))
+            {
                 &[0]
             } else {
                 &[]
@@ -304,45 +302,46 @@ impl TerminalEffectHandler for AllocationImport {
                 })
             }
             AllocationOperation::Release => {
-                let pointer =
-                    if let admission::AddressLocation::OwnedArgument(path) = &self.location {
-                        let [TerminalBoundaryStorageBuffer::Structural(buffer)] = storage else {
-                            return Err(invalid());
-                        };
-                        let [argument] = call.structural_arguments else {
-                            return Err(invalid());
-                        };
-                        let [cell] = buffer.values() else {
-                            return Err(invalid());
-                        };
-                        if !call.arguments.is_empty()
-                            || buffer.argument_index() != 0
-                            || buffer.access() != terminal_psi::StructuralAccess::Owned
-                            || buffer.structural_type() != argument.structural_type
-                            || cell.path != *path
-                        {
-                            return Err(invalid());
-                        }
-                        let TerminalStorageContents::Scalar {
-                            value,
-                            stored_scalar,
-                        } = cell.contents
-                        else {
-                            return Err(invalid());
-                        };
-                        if stored_scalar != semantic_vocabulary::ScalarType::Integer(address_type) {
-                            return Err(invalid());
-                        }
-                        value
-                    } else {
-                        let [pointer] = call.arguments else {
-                            return Err(invalid());
-                        };
-                        if !call.structural_arguments.is_empty() || !storage.is_empty() {
-                            return Err(invalid());
-                        }
-                        *pointer
+                let pointer = if let admission::AddressLocation::OwnedArgument(path) =
+                    &self.location
+                {
+                    let [TerminalBoundaryStorageBuffer::Structural(buffer)] = storage else {
+                        return Err(invalid());
                     };
+                    let [argument] = call.structural_arguments else {
+                        return Err(invalid());
+                    };
+                    let [cell] = buffer.values() else {
+                        return Err(invalid());
+                    };
+                    if !call.arguments.is_empty()
+                        || buffer.argument_index() != 0
+                        || buffer.access() != terminal_psi::StructuralAccess::Owned
+                        || buffer.structural_type() != argument.structural_type
+                        || cell.path != *path
+                    {
+                        return Err(invalid());
+                    }
+                    let TerminalStorageContents::Scalar {
+                        value,
+                        stored_scalar,
+                    } = cell.contents
+                    else {
+                        return Err(invalid());
+                    };
+                    if stored_scalar != semantic_vocabulary::ScalarType::Integer(address_type) {
+                        return Err(invalid());
+                    }
+                    value
+                } else {
+                    let [pointer] = call.arguments else {
+                        return Err(invalid());
+                    };
+                    if !call.structural_arguments.is_empty() || !storage.is_empty() {
+                        return Err(invalid());
+                    }
+                    *pointer
+                };
                 let TerminalScalarValue::Integer {
                     scalar_type,
                     value: IntegerValue::Unsigned(address),
@@ -370,7 +369,8 @@ impl TerminalEffectHandler for AllocationImport {
                 else {
                     return Err(invalid());
                 };
-                let signed = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
+                let signed =
+                    IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
                 let unsigned =
                     IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
                 if *fill_type != signed || *length_type != unsigned {
