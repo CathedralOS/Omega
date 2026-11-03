@@ -14,5 +14,8 @@ SecondProvider satisfies Pick {
 
 machine main() -> i32 { Pick::choose() }
 
-// Give the executable an ordinary Unit entry while retaining the original call.
-machine entry() { let result: i32 = main(); }
+// Keep the original choice observable through an ordinary Unit entry.
+machine entry() crashes Trap {
+    let result: i32 = main();
+    transition result == 1 { true -> {} _ -> crash Trap }
+}
