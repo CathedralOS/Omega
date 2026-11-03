@@ -2,7 +2,7 @@
 
 A selected implementation initializes a word by calling another implementation
 directly. Package review must keep those two calls distinct: selecting the outer
-implementation does not also select it for the inner implementation's receiver.
+implementation does not select it for every checked application of the helper.
 
 The program allocates real memory, reads the initial value 17 through a borrowed
 view, writes 29, and extracts the value. It checks that adjacent fields retain

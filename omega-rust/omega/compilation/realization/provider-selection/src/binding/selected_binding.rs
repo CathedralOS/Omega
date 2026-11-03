@@ -199,7 +199,7 @@ fn enrich_selected_plans(
                     provider_plan_digest: plan.identity_digest(),
                     selected_requirement_identity: identities
                         .intern(plan.identities.text(row.requirement_identity)),
-                    requirement_identity: identities.intern(&application.requirement),
+                    requirement_identity: identities.intern(application),
                 });
             }
         }
