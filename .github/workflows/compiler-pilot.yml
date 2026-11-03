@@ -28,6 +28,10 @@ on:
         description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
         type: string
         default: ''
+      retained_slice_trace:
+        description: Temporary exact-source diagnostic replay without a build
+        type: boolean
+        default: false
       native_host:
         description: Matching native host for manual executable observations
         type: choice
@@ -44,11 +48,12 @@ permissions:
 # A new PR revision supersedes its old check; never cancel a merge-group check
 # merely because another PR entered the queue.
 concurrency:
-  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
+  group: ${{ inputs.retained_slice_trace && format('slice-window-trace-{0}', github.run_id) || format('compiler-pilot-{0}-{1}', github.event.pull_request.number || github.ref, github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64') }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   compiler-pilot:
+    if: ${{ !inputs.retained_slice_trace }}
     runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
     timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
     env:
@@ -140,3 +145,56 @@ jobs:
             ~/.cargo/git
             ${{ env.CARGO_TARGET_DIR }}
           key: ${{ steps.build-cache.outputs.cache-primary-key }}
+
+  retained-slice-trace:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.retained_slice_trace }}
+    permissions:
+      contents: read
+      actions: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: 45c23b543577c22b7a592d109a91fe371ad27832
+          path: measured
+          persist-credentials: false
+      - name: Restore the exact retained producer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 41640292831 --repo CathedralOS/Omega --name compiler-pilot-linux_x86_64-45c23b543577c22b7a592d109a91fe371ad27832-1 --dir "$RUNNER_TEMP/retained-slice-producer"
+      - name: Authenticate and replay the unchanged failing program
+        working-directory: measured
+        run: |
+          python3 - <<'PYTRACE'
+          from pathlib import Path
+          import hashlib,json,os,subprocess,sys
+          sys.path.insert(0, 'tools')
+          import corpus_gate
+          root=Path.cwd();retained=Path(os.environ['RUNNER_TEMP'])/'retained-slice-producer'
+          output=Path(os.environ['RUNNER_TEMP'])/'slice-window-trace';output.mkdir()
+          source='45c23b543577c22b7a592d109a91fe371ad27832'
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==source
+          assert not subprocess.check_output(['git','status','--porcelain'],text=True).strip()
+          producer_path=next(retained.glob('producer-*/producer.json'))
+          original=json.loads(producer_path.read_text());cli=producer_path.parent/'omega';cli.chmod(0o755)
+          profile=corpus_gate.require_optimized(cli)
+          assert original['revision']==source and original['tree']==subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()
+          assert profile['sha256']=='ee8625a68855f0b1db2305f40a06894ee542c74f501a7e324b545d224de68e51' and profile['sha256']==original['cli_profile']['sha256'] and profile['profile']==original['cli_profile']['profile'] and profile['profile']['opt_level']=='1'
+          project=root/'samples/cli/facts/computed_subslice_extent/call_result'
+          paths=subprocess.check_output(['git','ls-files','source/library',str(project.relative_to(root))],text=True).splitlines()
+          inputs={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in paths}
+          env=dict(os.environ,OMEGA_STRUCT_TRACE='1',OMEGA_LIBRARY_ROOT=str(root/'source/library'))
+          with (output/'trace.stdout').open('wb') as out,(output/'trace.stderr').open('wb') as err:
+              result=subprocess.run([str(cli),'--check',str(project/'main.omg')],cwd=root,env=env,stdout=out,stderr=err,timeout=240)
+          for p,digest in inputs.items():assert hashlib.sha256((root/p).read_bytes()).hexdigest()==digest
+          record={'diagnostic_replay':True,'measured_source':source,'producer_run':41640292831,'producer':original,'restored_profile':profile,'inputs':inputs,'exit_code':result.returncode,'runtime':'No engine observation requested or claimed.'}
+          (output/'replay.json').write_text(json.dumps(record,indent=2)+'\n')
+          print('Authenticated retained optimized compiler and replayed frozen source; diagnostic exit',result.returncode)
+          PYTRACE
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: slice-window-trace-${{ github.run_id }}
+          path: ${{ runner.temp }}/slice-window-trace
+          if-no-files-found: error
