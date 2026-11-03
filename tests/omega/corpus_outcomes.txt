@@ -3400,9 +3400,9 @@ fail/proofs/normal_call_replaced_nested_record rejected 4354ms expected @b7a1f6a
 	cannot prove requires contract for call need from main: value == 2 (needs fact `value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/outcome_selector_on_record_result rejected 1217ms expected @c6a756120d23+wt
 	outcome proof selectors require an exact guarded result-case arm
-fail/proofs/quotient_case_arm_rejected rejected 2157ms expected @ccbc260fd6c2
+fail/proofs/quotient_case_arm_rejected rejected 1324ms expected @e3f7e6ae3d69
 	destructure arm in machine `expose_pattern` state `entry` cannot pattern-match quotient `EquivalenceClass`: retained representatives are opaque and pattern matching requires a named lifted operation
-fail/proofs/quotient_match_expression_rejected rejected 2157ms expected @ccbc260fd6c2
+fail/proofs/quotient_match_expression_rejected rejected 1537ms expected @e3f7e6ae3d69
 	destructure arm in machine `expose_pattern` state `entry` cannot pattern-match quotient `EquivalenceClass`: retained representatives are opaque and pattern matching requires a named lifted operation
 fail/proofs/refined_conversion_does_not_strengthen_base_view rejected 4347ms expected @e97ed21415d9
 	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
@@ -13931,6 +13931,7 @@ pass/proofs/proposition_const_operand_application checked 2494ms @ccdb99ca2214
 pass/proofs/proposition_reference_operand_application checked 2647ms @ccdb99ca2214
 pass/proofs/proposition_relation_hierarchy_compile checked 2530ms @ccdb99ca2214
 pass/proofs/qualified_scalar_operand_exit checked 4118ms check-target:macos_arm64 @ccdb99ca2214
+pass/proofs/quotient_condition_arm_compile checked 6551ms @e3f7e6ae3d69
 pass/proofs/quotient_define_managed_compile rejected 456ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @41e5eea428cb+wt
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_define_managed_compile`; found Package
 pass/proofs/quotient_equivalence_compile checked 14678ms @41e5eea428cb+wt
@@ -34426,7 +34427,7 @@ fail/proofs/quotient_linear_property rejected 17ms expected @e97ed21415d9
 	tests/omega/fail/proofs/quotient_linear_property/main.omg:1:34: a quotient data declaration cannot declare linear or carry properties; the initial quotient surface excludes custody
 fail/proofs/quotient_missing_symmetry rejected 8210ms expected @41e5eea428cb+wt
 	quotient data `EquivalenceClass` conformance `RepresentativeEquivalence` row `Symmetric::symmetric` strengthens or changes the sealed equivalence law premises; quotient formation requires the exact inherited contract
-fail/proofs/quotient_pattern_rejected rejected 1074ms expected regressed-from:checked @ccbc260fd6c2
+fail/proofs/quotient_pattern_rejected rejected 1354ms expected regressed-from:checked @e3f7e6ae3d69
 	destructure arm in machine `expose_pattern` state `entry` cannot pattern-match quotient `EquivalenceClass`: retained representatives are opaque and pattern matching requires a named lifted operation
 fail/proofs/quotient_private_crash_rejected rejected 408ms unexpected @41e5eea428cb+wt
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_private_crash_rejected`; found Package
