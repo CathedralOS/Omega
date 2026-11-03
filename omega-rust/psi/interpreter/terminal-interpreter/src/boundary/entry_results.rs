@@ -35,8 +35,8 @@ fn failure(reason: &'static str) -> TerminalInterpretError {
 }
 
 impl EntryResults {
-    /// Pending entry checks may read a completed root occurrence before the
-    /// root returns. This private view never publishes an observation to callers.
+    /// Make a completed operation's value available to checks that must run
+    /// before the entry finishes. Keep it private until the entry succeeds.
     fn captured_value(
         &self,
         result: ValueId,

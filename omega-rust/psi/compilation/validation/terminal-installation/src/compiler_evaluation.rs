@@ -191,8 +191,8 @@ pub fn admit_compiler_evaluation(
     })
 }
 
-/// The same selected call closure determines effects and the prerequisites that
-/// must already hold. Include state owners so their checks cannot escape admission.
+/// Include state-level preconditions when admitting a constant invocation.
+/// Use the same selected calls for effect checks and prerequisite checks.
 pub(crate) struct CompilerInvocationScope {
     pub selected: Vec<(ProofDeclarationId, ProofDeclarationId)>,
     pub closure:

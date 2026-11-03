@@ -1,9 +1,8 @@
 # Form arithmetic after the earlier provider result
 
-An unused constant declaration still has to be formed correctly. This control
-keeps an earlier provider call and a later exact addition inside that constant's
-evaluation entry, so admission cannot require the call's result before the call
-has run.
+Even when a constant is never read, the compiler must check the calculation
+that defines it. This example adds one to a provider's result. The compiler can
+check that addition once the call returns, before the addition runs.
 
 The declaration is `const selected: u64 = Endpoint::upper<13u64>() + 1u64`.
 The selected provider returns seven. Its exact captured result must justify the
@@ -41,6 +40,9 @@ materialization of eight is made. The separate attempted consumer that compared
 `selected` with eight refused in R6 at an arithmetic proof in main; that failure
 remains preserved and is not substituted for this supported source.
 
-Fresh current-candidate source qualification, native/Terminal execution of the
-tracked control, independent review and landing remain pending. Execution on
-the other hosted targets and broader scalar-range acceptance are unverified.
+The optimized R12 compiler checks the tracked control and observes native exit
+zero and Terminal exit zero on macOS ARM64. Its exact inputs and raw results are
+retained under `pending-admission-r12-integrated-earlier_operand-positive-*` in
+the claim evidence. This confirms the unused declaration is still checked; it
+does not add a runtime observation of eight. Execution on other hosted targets
+and broader scalar-range acceptance remain unverified.

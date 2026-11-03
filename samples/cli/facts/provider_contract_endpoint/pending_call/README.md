@@ -1,9 +1,9 @@
 # Admit the call before computing its bound
 
-To calculate a bound, a helper may first call another function. The compiler
-must prove that function's precondition before running the helper. These
-programs catch a bug where the helper uses its own unfinished result as that
-proof, then carry the resulting bound into subtraction.
+A bound helper can call another function only after establishing that call's
+precondition. These programs distinguish a precondition proved from an
+independent calculation from one that relies on the helper's unfinished result.
+The resulting bound must still justify subtraction.
 
 The selected provider makes limit() equal to 7; requires value <= limit() preserves the bound needed to prove 7 - value.
 
@@ -37,7 +37,7 @@ A later successful return cannot retroactively authorize an earlier call.
 
 The `main.omg` and `build.omg` files in each sample and its corpus pin are exact
 copies. All positives declare `Expected exit: 0` and bind all four hosted
-`ProgramEntry` targets. Rejection pins initially require the diagnostic fragment
+`ProgramEntry` targets. Rejection pins require the diagnostic fragment
 `cannot establish its own pending target condition`; a setup error or unrelated
 refusal does not establish that obligation.
 
@@ -98,6 +98,15 @@ updates, and all command results are retained in
 `build/scalar-continue-20261102`. Those are baseline observations, not results
 from the compiler repair.
 
-Current-candidate checks, rejection results, native/Terminal execution,
-independent review and landing remain pending. Crash-capable helper admission
-and the broader scalar-range migration remain open under the same parent task.
+The optimized R12 compiler checks all nine positives and runs each with native
+exit zero and Terminal exit zero on macOS ARM64. Every twin rejects during its
+normal package update with `cannot establish its own pending target condition`.
+A later direct check of these rejected projects stops at the compiler-identity
+review fence; that setup refusal is not counted as proof of the obligation.
+The original circular control also rejects with both expected diagnostic
+fragments. Raw results and the exact compiler inputs are retained in the claim
+evidence under `pending-admission-r12-integrated-qualification-*`.
+
+This closes circular call admission for this fact. Crash-capable helper
+admission and the broader scalar-range migration remain open under the same
+parent task. Execution on the other hosted targets is unverified.

@@ -335,12 +335,16 @@ mod tests {
 
     #[test]
     fn scalar_conditions_reject_semantic_marker_without_explicit_roles() {
-        let mut bytes = super::super::super::MAGIC.to_vec();
-        bytes.extend_from_slice(&236_u16.to_le_bytes());
-        assert!(matches!(
-            super::super::super::decode_module(&bytes),
-            Err(CodecError::UnsupportedFormatMarker(236))
-        ));
+        // Earlier 237 layouts recorded only one of these requirements:
+        // scalar prerequisite roles or public returned-borrow regions.
+        for marker in [236_u16, 237] {
+            let mut bytes = super::super::super::MAGIC.to_vec();
+            bytes.extend_from_slice(&marker.to_le_bytes());
+            assert!(matches!(
+                super::super::super::decode_module(&bytes),
+                Err(CodecError::UnsupportedFormatMarker(actual)) if actual == marker
+            ));
+        }
     }
 
     #[test]

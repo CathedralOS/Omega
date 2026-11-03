@@ -14,8 +14,8 @@ neighbors at runtime.
 
 The [pending-call production](pending_call/README.md) keeps that same bound when
 the helper first makes a call with its own requirement. Its twins require that
-same pending helper result to admit the call; independent admission and all
-nine-place runtime checks remain to be qualified.
+same pending helper result to admit the call. All nine positives run with
+native/Terminal agreement, and every circular twin rejects during checking.
 
 The frozen [local positive](local/main.omg) is the discovery program. Its public
 acceptance command is:

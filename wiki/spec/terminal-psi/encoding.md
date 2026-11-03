@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 237 even when every table
+order below. This layout uses semantic format marker 238 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -162,8 +162,9 @@ checked when it becomes available, before execution resumes. An entry with an
 unresolved prerequisite cannot return a publishable result. A completed-result
 judgment may use observations from independently admitted execution; it cannot
 justify that execution's own prerequisites. The role is explicit and does not
-follow from the observation kind or diagnostic description. Completion remains
-separate work debt and carries no role tag.
+follow from the observation kind or diagnostic description. A completion row
+requires the named calculation to finish. It carries the application identity
+and no role tag.
 
 Predicate node tags are integer literal (1),
 Boolean literal (2), scalar observation (3), forwarding (4), negation (5), and
@@ -810,7 +811,7 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 237 + `u16` vocabulary
+Module bytes are `PSITERM\0` + `u16` format marker 238 + `u16` vocabulary
 marker 130 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
@@ -923,10 +924,12 @@ Older markers are rejected before their payload is read.
 | 44 | boundary application candidates | counted checked bodies for closed applications |
 | 45 | task activation demands | counted task activation demand rows |
 
-Marker 237 adds the explicit prerequisite/result role byte after the subject
-of every integer-range and predicate condition. Completion rows keep their
-separate work-debt encoding. Marker 236 lacks these role bytes and rejects
-rather than defaulting a condition's role.
+Marker 238 requires the explicit prerequisite/result role byte after the
+subject of every integer-range and predicate condition, together with complete
+public returned-borrow regions in boundary declarations. Completion rows require
+the named calculation to finish and carry no role byte. Earlier 236 and 237
+layouts lack one of these requirements and reject rather than supplying a
+default role or inferring a returned-borrow region.
 
 Marker 236 additionally retains the remaining source type-parameter count in
 each callable header, as a `u32` after the checked-body flag and before the
@@ -2297,7 +2300,7 @@ outside this codec.
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 237 | yes |
+| semantic module | `PSITERM\0` | 238 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |
