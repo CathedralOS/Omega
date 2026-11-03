@@ -1504,6 +1504,25 @@ fn entry_collection_length(
     fixed_length(program, reference, identity)
 }
 
+/// A descriptor length is read as a `u64` count, so a private length atom lies
+/// in the `u64` interval whenever it is transported into a scoped expression.
+/// Without that interval an exact `items.len - 1` or `items.len + 1` in a
+/// declaration (such as a rank endpoint) could never prove it fits its carrier,
+/// even under a `requires items.len > 0` hypothesis. A known length is already
+/// an exact integer and needs no interval.
+fn carrier_bounded_length(length: ScopedArithmeticValue) -> ScopedArithmeticValue {
+    let ScopedArithmeticValue::Atom { .. } = length else {
+        return length;
+    };
+    ScopedArithmeticValue::BoundedInteger {
+        value: Box::new(length),
+        interval: validation::BigIntInterval {
+            low: Some(numerics::bignum::BigInt::zero()),
+            high: Some(numerics::bignum::BigInt::from_u64(u64::MAX)),
+        },
+    }
+}
+
 fn fixed_length(
     program: &dyn ::validation::CheckingInput,
     reference: TypeReferenceHandle,
@@ -2092,6 +2111,7 @@ fn scoped_operations(
                     .or_else(|| {
                         length_occurrence(program, expression, lengths)
                             .and_then(|length| length.value.clone())
+                            .map(carrier_bounded_length)
                     })
                     .or_else(|| scalar_field_occurrence(occurrence, expression, bindings, fields))
                     .or_else(|| field_occurrence(program, machine, state, expression))
