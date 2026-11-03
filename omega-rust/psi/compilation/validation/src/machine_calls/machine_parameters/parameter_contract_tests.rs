@@ -129,3 +129,70 @@ fn alias_and_data_contracts_rejoin_full_owned_binders_and_nested_telescopes() {
         assert!(signature.suspends);
     }
 }
+
+/// A declaration-identity parameter has no signature. Searching a binder list
+/// that holds one must step past it to later callables and their nested
+/// parameters, and still find the identity parameter when it is the target.
+#[test]
+fn search_steps_past_identity_only_parameters() {
+    let mut builder = SymbolTableBuilder::default();
+    let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+    let owner = builder
+        .insert_children(root, [(SymbolKind::Data, SymbolNameRef::Static("Owner"))])
+        .start();
+    let parameters = builder.insert_children(
+        owner,
+        [
+            (SymbolKind::MachineParameter, SymbolNameRef::Static("Named")),
+            (
+                SymbolKind::MachineParameter,
+                SymbolNameRef::Static("Selected"),
+            ),
+        ],
+    );
+    let named = parameters.handle_at(0);
+    let selected = parameters.handle_at(1);
+    let nested = builder
+        .insert_children(
+            selected,
+            [(SymbolKind::MachineParameter, SymbolNameRef::Static("Inner"))],
+        )
+        .start();
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    let inner = program.tables.data_type_parameters.insert_many([callable(
+        nested,
+        arena::HandleSpan::empty(),
+        false,
+    )]);
+    let own = program.tables.data_type_parameters.insert_many([
+        TypeParameter {
+            symbol: named,
+            name: Identifier::generated("Named"),
+            kind: TypeParameterKind::Machine {
+                contract: MachineParameterContract::RequirementIdentity,
+            },
+            ..Default::default()
+        },
+        callable(selected, inner, false),
+    ]);
+    program.push_data_definition(DataDefinition {
+        symbol: owner,
+        type_parameters: own,
+        ..Default::default()
+    });
+    for symbol in [selected, nested] {
+        let (parameter, _) =
+            machine_parameter_contract_definition(&program, symbol).expect("callable after it");
+        assert_eq!(parameter.symbol, symbol);
+    }
+    let (parameter, contract) =
+        machine_parameter_contract_definition(&program, named).expect("identity parameter");
+    assert_eq!(parameter.symbol, named);
+    assert!(matches!(
+        contract,
+        MachineParameterContract::RequirementIdentity
+    ));
+}

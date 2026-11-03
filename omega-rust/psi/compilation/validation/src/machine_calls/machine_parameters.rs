@@ -961,14 +961,6 @@ fn validate_declaration_machine_selection(
     }
 }
 
-fn machine_parameter_contract(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<(&TypeParameter, &typed_trees::signature::StateSignature)> {
-    let (parameter, contract) = machine_parameter_contract_definition(program, symbol)?;
-    Some((parameter, machine_parameter_signature(program, contract)))
-}
-
 fn machine_parameter_contract_definition(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
@@ -1037,6 +1029,12 @@ fn machine_parameter_contract_definition_in<'program>(
         };
         if parameter.symbol == symbol {
             return Some((parameter, contract));
+        }
+        // This search visits every machine parameter in the program, not only
+        // callable ones. A declaration-identity parameter names a machine or
+        // requirement and has no signature, so it has no nested parameters.
+        if matches!(contract, MachineParameterContract::RequirementIdentity) {
+            continue;
         }
         let signature = machine_parameter_signature(program, contract);
         if let Some(found) = machine_parameter_contract_definition_in(

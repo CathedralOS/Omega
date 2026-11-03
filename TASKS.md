@@ -242,7 +242,6 @@ retired-syntax deletions to completion.
     restoring hidden argument insertion.
   - Complete checked per-value loan carry evidence for suspension production
     without restoring hidden argument insertion: joins still refuse
-    projected call referents,
     supplied-output and lifetime-dependency descriptors, and backings with no
     enclosing owner; Terminal loan rows label accepted transfers `Unresolved`.
   - Retire `machine Data::operation` spellings across compiler/toolchain
