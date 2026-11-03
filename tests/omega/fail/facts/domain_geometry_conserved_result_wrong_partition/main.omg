@@ -3,8 +3,8 @@
 // Numeric return-proof witness only; Region owns no storage authority.
 use omega::language::core::content;
 use omega::language::core::drop;
-data Region [linear] { base: addr; length: u64; }
-machine Region::drop(region: &mut Region) {}
+data Region [linear] dropped by drop_region { base: addr; length: u64; }
+machine drop_region(region: &mut Region) {}
 let no_wrap(base: addr, length: u64): core::Strict<0> =
     embed(base) + embed(length) <= addr::Bound;
 domain Region::Bounded requires no_wrap(self.base, self.length);

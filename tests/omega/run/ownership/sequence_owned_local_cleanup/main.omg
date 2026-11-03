@@ -28,15 +28,15 @@ CleanupConsole satisfies Console {
 }
 
 data Unit {}
-data Receipt [linear] { code: u64; }
+data Receipt [linear] dropped by drop_receipt { code: u64; }
 domain Receipt::Owned;
 machine Owned::content(receipt: &Receipt) -> CountedQuantity<Unit>
 satisfies Content<Receipt, CountedQuantity<Unit>>::project {
     CountedQuantity { magnitude: embed(receipt.code) as Nat }
 }
-machine Receipt::drop(receipt: &mut Receipt) {}
-data Note { code: i32; }
-machine Note::drop(note: &mut Note) reaches Console {
+machine drop_receipt(receipt: &mut Receipt) {}
+data Note dropped by drop_note { code: i32; }
+machine drop_note(note: &mut Note) reaches Console {
     Console::write_byte(note.code);
 }
 data Bundle { receipt: Receipt in Owned; note: Note; }

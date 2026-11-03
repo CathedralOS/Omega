@@ -2,8 +2,8 @@
 // expecting whole custody again: the backedge must be rejected.
 use omega::language::core::drop;
 
-data Token [linear] { value: u32; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u32; }
+machine drop_token(token: &mut Token) {}
 data Holder { token: Token; rest: i32; }
 
 machine main() {

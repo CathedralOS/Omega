@@ -1,7 +1,7 @@
 use omega::language::core::drop;
 
-data Token<'storage> [linear] { reference: &'storage i32; }
-machine Token::drop(token: &mut Token<'storage>) {}
+data Token<'storage> [linear] dropped by drop_token<'storage> { reference: &'storage i32; }
+machine drop_token<'storage>(token: &mut Token<'storage>) {}
 
 machine retain<'storage>(token: Token<'storage>) -> &'storage i32 {
     let reference: &'storage i32 = token.reference;

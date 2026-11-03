@@ -1,8 +1,8 @@
 use omega::language::core::drop;
 
-data Token [linear] { value: u64; }
+data Token [linear] dropped by drop_token { value: u64; }
 data Holder { guard: u64; token: Token; }
-machine Token::drop(token: &mut Token) {}
+machine drop_token(token: &mut Token) {}
 
 machine abandon(token: &mut Token) -> u64 crashes Trap {
     let retained: &mut Token = token;

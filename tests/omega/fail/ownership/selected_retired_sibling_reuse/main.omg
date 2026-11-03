@@ -1,8 +1,8 @@
 // Historical establishment cannot revive a sibling whose storage was moved.
-data Receipt [linear] { value: u64; }
+data Receipt [linear] dropped by drop_receipt { value: u64; }
 data Token { value: u64; }
 data Pair { receipt: Receipt; token: Token; }
-machine Receipt::drop(receipt: &mut Receipt) { receipt.value = 0; }
+machine drop_receipt(receipt: &mut Receipt) { receipt.value = 0; }
 machine consume_receipt(receipt: Receipt) -> u64 { receipt.value }
 machine consume_token(token: Token) -> u64 { token.value }
 

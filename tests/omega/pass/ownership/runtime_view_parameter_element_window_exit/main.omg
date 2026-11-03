@@ -7,10 +7,10 @@
 // that a later store repairs without disposal. The zeroing hook would expose
 // cleanup applied to a new value instead of the displaced one.
 data Exit [copy] { code: u64; open: bool; }
-data Token { byte: i32; }
+data Token dropped by drop_token { byte: i32; }
 data Room { token: Token; cell: u64; }
 
-machine Token::drop(token: &mut Token) { token.byte = 0; }
+machine drop_token(token: &mut Token) { token.byte = 0; }
 
 machine blank_exit(code: u64) -> Exit {
     Exit { code: code, open: true }

@@ -9,8 +9,8 @@ public domain Cell::Issued established by mint_cell;
 machine mint_cell(value: u64 in ResidentValue) -> Cell
 ensures result in Cell::Issued { Cell { value: value } }
 machine observe_cell(cell: &Cell in Cell::Issued) -> u64 { cell.value }
-public data Buffer<'cells> [linear] { marker: u64; cells: &'cells mut [Cell in Cell::Issued; 3]; }
-machine Buffer::drop(buffer: &mut Buffer<'cells>) {}
+public data Buffer<'cells> [linear] dropped by drop_buffer<'cells> { marker: u64; cells: &'cells mut [Cell in Cell::Issued; 3]; }
+machine drop_buffer<'cells>(buffer: &mut Buffer<'cells>) {}
 public domain Buffer::Owned;
 machine Owned::content<'cells>(buffer: &Buffer<'cells>) -> CountedQuantity<ByteUnit>
 satisfies Content<Buffer<'cells>, CountedQuantity<ByteUnit>>::project {

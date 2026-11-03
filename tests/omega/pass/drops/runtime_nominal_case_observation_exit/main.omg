@@ -2,16 +2,16 @@
 // Reading a sum tag leaves its nominal owner whole. Its active linear child
 // is disposed exactly once, including after alternatives rejoin.
 data Counter { drops: u64 in Wrapping; }
-data Leaf<'storage> [linear] { counter: &'storage mut Counter; }
-machine Leaf::drop(leaf: &mut Leaf<'storage>) {
+data Leaf<'storage> [linear] dropped by drop_leaf<'storage> { counter: &'storage mut Counter; }
+machine drop_leaf<'storage>(leaf: &mut Leaf<'storage>) {
     leaf.counter.drops = leaf.counter.drops + 1;
 }
-data AffineLeaf<'storage> { counter: &'storage mut Counter; }
-machine AffineLeaf::drop(leaf: &mut AffineLeaf<'storage>) {
+data AffineLeaf<'storage> dropped by drop_affine_leaf<'storage> { counter: &'storage mut Counter; }
+machine drop_affine_leaf<'storage>(leaf: &mut AffineLeaf<'storage>) {
     leaf.counter.drops = leaf.counter.drops + 1;
 }
-data Envelope<Value> { case Held(value: Value); case Empty; }
-machine Envelope::drop(envelope: &mut Envelope<Value>) {}
+data Envelope<Value> dropped by drop_envelope<Value> { case Held(value: Value); case Empty; }
+machine drop_envelope<Value>(envelope: &mut Envelope<Value>) {}
 
 machine inspect(envelope: Envelope<Leaf>) -> u64 {
     transition envelope {

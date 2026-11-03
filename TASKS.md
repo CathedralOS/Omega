@@ -253,9 +253,8 @@ retired-syntax deletions to completion.
     joined, projected call referents,
     supplied-output and lifetime-dependency descriptors, and backings with no
     enclosing owner; Terminal loan rows label accepted transfers `Unresolved`.
-  - Retire `machine Data::operation` and reserved `T::drop` spellings across
-    compiler/toolchain helper namespaces, operator/proof declarations, and
-    fixtures.
+  - Retire `machine Data::operation` spellings across compiler/toolchain
+    helper namespaces, operator/proof declarations, and fixtures.
   - Carry `dropped by` on named domains and data default domains through
     `source/psi/` product-producer parity, and qualify
     `samples/cli/facts/domain_selected_cleanup` execution across remaining

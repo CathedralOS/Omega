@@ -2,9 +2,9 @@
 // helper/state forwarding, fresh result construction and projected arguments.
 use omega::language::core::drop;
 
-public data Receipt [linear] { code: i32; }
+public data Receipt [linear] dropped by drop_receipt { code: i32; }
 public data Pair { left: Receipt; right: Receipt; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+machine drop_receipt(receipt: &mut Receipt) {}
 
 public boundary trait Relay {
     machine forward(receipt: Receipt) -> Receipt reaches;

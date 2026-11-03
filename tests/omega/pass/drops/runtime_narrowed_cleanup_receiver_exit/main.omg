@@ -1,17 +1,17 @@
 // A local subslice changes the receiver's coordinates, not the cleanup
 // contract. Its selected element keeps the original collection's prerequisite.
-data Child { value: u64; ready: bool; }
-data Element { marker: u64; child: Child; }
+data Child dropped by drop_child { value: u64; ready: bool; }
+data Element dropped by drop_element { marker: u64; child: Child; }
 data Cursor { index: u64; calls: u64 in Wrapping; }
 
-machine Child::drop(child: &mut Child)
+machine drop_child(child: &mut Child)
 requires child.value == 9 && child.ready
 {
     child.value = 0;
     child.ready = false;
 }
 
-machine Element::drop(element: &mut Element)
+machine drop_element(element: &mut Element)
 requires element.child.value == 9 && element.child.ready
 ensures element.child.value == 9 && element.child.ready
 {

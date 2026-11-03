@@ -3,7 +3,7 @@
 use omega::language::core::content;
 use omega::language::core::drop;
 
-data Region [linear] { base: u64; length: u64; }
+data Region [linear] dropped by drop_region { base: u64; length: u64; }
 
 domain Region::Owned established by issue;
 
@@ -17,7 +17,7 @@ machine issue() -> Region in Owned
 ensures result.base == 10, result.length == 48
 { Region { base: 10, length: 48 } }
 
-machine Region::drop(region: &mut Region) {}
+machine drop_region(region: &mut Region) {}
 
 data Parts { left: Region in Owned; right: Region in Owned; }
 

@@ -201,10 +201,8 @@ fn append_type_dependencies(
                 kind: Kind::AutomaticCleanup,
             },
         );
-        if let Some(cleanup_machine) =
-            crate::checks::nominal_drop_machine_symbol(program, dependency)
-        {
-            push_cleanup_machine(rows, consumer_machine, cleanup_machine, exposure);
+        if let Some(cleanup_machine) = ::validation::data_cleanup_machine(program, dependency) {
+            push_cleanup_machine(rows, consumer_machine, cleanup_machine.symbol, exposure);
         }
     }
 }

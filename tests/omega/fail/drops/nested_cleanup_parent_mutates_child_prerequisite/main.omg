@@ -1,13 +1,13 @@
-data Token { value: u64; }
-data Owner { token: Token; }
+data Token dropped by drop_token { value: u64; }
+data Owner dropped by drop_owner { token: Token; }
 
-machine Token::drop(token: &mut Token)
+machine drop_token(token: &mut Token)
 requires token.value == 7
 {
     token.value = 0;
 }
 
-machine Owner::drop(owner: &mut Owner) {
+machine drop_owner(owner: &mut Owner) {
     // Parent cleanup runs first. Its write invalidates the following child's
     // prerequisite; the child's old value cannot prove that later obligation.
     owner.token.value = 8;

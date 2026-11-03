@@ -1,7 +1,7 @@
 // Expected exit: 0. Selected custody follows actual completed values.
 use omega::language::core::drop;
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 machine valid(enabled: bool) -> Token {
     let saved: Token = match enabled {
         true -> Token { value: 1 },

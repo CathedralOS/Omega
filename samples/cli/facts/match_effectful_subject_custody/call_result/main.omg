@@ -2,9 +2,9 @@
 // Place: call_result.
 // Expected exit: 0
 data Counter { count: u64 in Wrapping; }
-data Token<'c> { counter: &'c mut Counter; mark: u64; }
+data Token<'c> dropped by drop_token<'c> { counter: &'c mut Counter; mark: u64; }
 
-machine Token::drop(token: &mut Token<'c>) {
+machine drop_token<'c>(token: &mut Token<'c>) {
     token.counter.count = token.counter.count + (token.mark as u64 in Wrapping);
 }
 

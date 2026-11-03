@@ -1,6 +1,6 @@
 use omega::language::core::drop;
-data Receipt [linear] { value: u64; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+data Receipt [linear] dropped by drop_receipt { value: u64; }
+machine drop_receipt(receipt: &mut Receipt) {}
 machine make() -> Receipt { Receipt { value: 7 } }
 machine main() {
     let receipt: Receipt = make();

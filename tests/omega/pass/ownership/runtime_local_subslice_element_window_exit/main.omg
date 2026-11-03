@@ -1,9 +1,9 @@
 // A narrowed local view keeps its own loan and element coordinates. It is
 // neither a new collection owner nor a spelling of its parent's element zero.
 data Exit [copy] { code: u64; open: bool; }
-data Token { byte: i32; }
+data Token dropped by drop_token { byte: i32; }
 
-machine Token::drop(token: &mut Token) { token.byte = 0; }
+machine drop_token(token: &mut Token) { token.byte = 0; }
 
 machine blank_exit(code: u64) -> Exit {
     Exit { code: code, open: true }

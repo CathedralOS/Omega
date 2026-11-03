@@ -1,6 +1,6 @@
-data Token { value: u64; }
+data Token dropped by drop_token { value: u64; }
 
-machine Token::drop(token: &mut Token) {
+machine drop_token(token: &mut Token) {
     transition { _ -> finish(token) }
     machine finish(token: &mut Token) { token.value = 0; }
 }

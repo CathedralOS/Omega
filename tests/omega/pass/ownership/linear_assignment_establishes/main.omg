@@ -1,6 +1,6 @@
 // PASS canary (decision 21): a bare declaration owns only zeroed storage;
 // explicit assignment establishes the value and creates the obligation.
-// `Receipt` declares no `Receipt::drop` cleanup plan, so the linear
+// `Receipt` selects no `dropped by` cleanup, so the linear
 // obligation's authorized terminal disposition is the consuming contract —
 // the call edge transfers custody and the requirement discharges it.
 data Receipt [linear] { code: i32; }

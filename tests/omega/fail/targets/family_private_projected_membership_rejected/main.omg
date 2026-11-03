@@ -1,8 +1,8 @@
 // A selected member's qualified local is not a public result promise.
 use omega::language::core::drop;
 
-data Receipt [linear] { code: u64; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+data Receipt [linear] dropped by drop_receipt { code: u64; }
+machine drop_receipt(receipt: &mut Receipt) {}
 domain Receipt::Positive requires self.code > 0;
 data Slot { receipt: Receipt; }
 

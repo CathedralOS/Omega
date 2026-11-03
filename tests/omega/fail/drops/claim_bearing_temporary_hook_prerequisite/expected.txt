@@ -1,2 +1,2 @@
 cannot prove automatic cleanup requires
-Receipt::drop clause `receipt.code == 7`
+drop_receipt clause `receipt.code == 7`

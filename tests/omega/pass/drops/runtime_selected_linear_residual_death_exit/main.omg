@@ -1,8 +1,8 @@
 // Expected exit: 0. Selected custody follows actual completed values.
 use omega::language::core::drop;
 data Counter { count: u64 in Wrapping; }
-data Token [linear] { counter: &mut Counter; value: u64; }
-machine Token::drop(token: &mut Token) { token.counter.count = token.counter.count + 1; }
+data Token [linear] dropped by drop_token { counter: &mut Counter; value: u64; }
+machine drop_token(token: &mut Token) { token.counter.count = token.counter.count + 1; }
 machine scenario(enabled: bool, original: &mut Counter, fresh: &mut Counter) -> u64 {
     let old: Token = Token { counter: original, value: 1 };
     let selected: Token = match enabled {
