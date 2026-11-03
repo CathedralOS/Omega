@@ -157,11 +157,11 @@ that no path reaches it. Unknown or incomplete observations still refuse.
 The five existing zero-length failures in the guard-floor program also occurred
 with the fixed-base compiler; they remain part of the required validation.
 
-The same run confirms that an implementation merely being in scope cannot fill
-an omitted target row. The shared provider-selection repair requires authored
-supply while retaining explicit overrides, declared defaults and native Build
-bindings. That repair is now included; its effect on this control still needs
-fresh measurement.
+The wrong acceptance requires a provider-selection repair: an implementation
+merely being in scope must not fill an omitted target row. The shared repair
+requires authored supply while retaining explicit overrides, declared defaults
+and native Build bindings. It is included here; fresh observations of this
+control remain pending.
 
 Two external rejection expectations needed investigation. A negative index
 already refuses when -1 cannot form an unsigned index, before the later bounds
