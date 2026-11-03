@@ -19,6 +19,8 @@ fail/borrows/inline_carried_reference_holds_backing rejected 9683ms expected @6b
 	state `observe` receives `bytes` as both mutable and read-only
 fail/borrows/match_effectful_subject_fresh_overlap_rejected rejected 16803ms expected @ee4dbb4b2d56
 	statement 2 creates local borrow `slot` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 3 and it is released at state exit)
+fail/borrows/rebound_parameter_returns_local_view rejected 6974ms expected @649e5c490a8f
+	machine `observe` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/suspension_saved_reference_view_earlier_operand_original_forbidden_rejected rejected 2533ms expected @24e82dfa56fd
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/borrows/suspension_saved_reference_view_forbidden_alternative_rejected rejected 2654ms expected @24e82dfa56fd
