@@ -77,7 +77,9 @@ observable through their direct writes. Application identities remain unchanged.
 
 This follows [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
 and [multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation).
-The public requirement declares no crashes or further service use.
+The public requirement declares no crashes or service use. The entry records its
+direct synchronous call with `invokes SelectedCombine`, preserving that empty
+service promise under [service reach and direct invocation](../../../../wiki/spec/language/effects.md).
 All implementations are checked independently of the host selected for execution.
 
 ## Requirements established

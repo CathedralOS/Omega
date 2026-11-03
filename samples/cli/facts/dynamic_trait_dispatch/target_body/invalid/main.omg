@@ -57,7 +57,7 @@ HostedCombine satisfies SelectedCombine {
     { invoke_selected(selected, a, b, observation) }
 }
 
-machine main() reaches SelectedCombine crashes Trap {
+machine main() crashes Trap invokes SelectedCombine {
     let first_selector: dyn WeightedCombine = UnitCombine as dyn WeightedCombine;
     let second_selector: dyn WeightedCombine = OtherCombine as dyn WeightedCombine;
     let mut first_observation: u64 = 0;
