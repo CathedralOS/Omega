@@ -1,4 +1,4 @@
-# Keep array sizes and bytes through a selected call
+# Keep array sizes and endpoint bytes through a selected call
 
 These programs pass arrays of 16 and 32 bytes through a function selected at
 runtime. Each result must keep its exact array size and the input's first and
@@ -121,50 +121,75 @@ missing static type or bounds guarantee.
 
 ## Validation and remaining scope
 
-The current source `8ee83f0096a1bba23c8cea85e89ac2219ded3f42` passed focused
-[Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41692844459) and
-[macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/41692849408) runs.
-Each host checked four positives, matched 14 intended source refusals, and ran
-all four corpus positives with exit 0 in native and Terminal execution. All 29
-ordinary projects also met their oracles: 14 exit-zero agreements, 14 intended
-source refusals, and one source-valid publication refusal. The latter checks
-source successfully, then refuses to publish for the exact missing-provider
-reason; it never executes.
+The measured records combine runs at `a01810ff60d85`, `3bbbd01499e0` and
+`a2b3692b2360`. Every row keeps the compiler revision actually observed.
 
-The focused cases include the original bounds loop and guard-floor program,
-a private division helper and a guarded enum helper. A private helper whose
-only call is excluded by a checked false guard may be unreachable even after
-specialization at size zero. That proof creates no helper input or body promise.
-Every possible call must still have an actual entry or its own checked exclusion.
-The [live size-zero control](../../../../tests/omega/fail/generics/const_extent_guard_live_zero_helper/main.omg)
-changes only the caller guard so that the helper really runs, and still rejects
-its reads. Existing mixed-arrival, unknown-input, unguarded-cycle and partial
-operand controls also retain their intended refusals.
+| Host | Corpus checking | Native/Terminal results | Ordinary fact projects |
+| --- | --- | --- | --- |
+| Linux x86-64 | 28 checked, 45 intended refusals | 28 agreements, 2 publication refusals | 14 exit-zero agreements, 14 source refusals, 1 publication refusal |
+| macOS ARM64 | 28 checked, 45 intended refusals | 28 agreements, 2 publication refusals | 14 exit-zero agreements, 14 source refusals, 1 publication refusal |
 
-Earlier source `f46fd26947374b1be54321f88df54e14949afd40` supplies applicable
-observations for 39 other corpus source rows and 19 other BOTH rows on each
-host. Those rows keep that producer's stamp. The 19 BOTH rows contain 18 actual
-native/Terminal agreements (17 exit 0 and one authored exit 70), plus the
-compile-only missing-supply refusal. Their array, reference and provider
-operations are unchanged by the private-call repair. The current producer also
-executes their matching ordinary fact programs above. Together these scopes
-cover 57 source fixtures and 23 BOTH fixtures per host; they are separate runs,
-not a fresh 57-fixture run at the current revision.
+Each set of 28 actual engine agreements contains 24 exit-zero results and four
+other programs' authored exit 70. Every positive in this fact exits 0. Publication
+refusals have no engine result. Ordinary publication controls first pass the
+portable source check, then refuse target compilation for the exact missing
+provider. The corpus checking route also evaluates target publication.
 
-The supplied-target pair also passed on
-[Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41682297753) at
-`f46fd26947374b1be54321f88df54e14949afd40`: both corpus programs and both ordinary
-projects exited 0 in both engines. Its separate corpus checking leg used macOS
-ARM64 and correctly refused the control there. This qualifies only that pair on
-Linux ARM64. Windows native execution and the rest of the row on Linux ARM64
-remain unmeasured here.
+The [Linux](https://github.com/CathedralOS/Omega/actions/runs/41697815800) and
+[macOS](https://github.com/CathedralOS/Omega/actions/runs/41697821789) a018 runs
+replayed the complete 57-fixture core after an actual merge conflict with main.
+All 286 original authored hashes and 58 Main/Build pairs remained unchanged.
+Those runs supply 49 retained checking rows and 15 retained native rows per host.
 
-All producer profiles use optimization level 1. The current reports authenticate
-286 authored input hashes and 58 matching Main/Build pairs. Independent source
-reviews cover the array, reference-slot, provider-selection and private-call
-repairs. The shared publication-oracle tools passed 219 focused Python tests,
-with two existing skips. Independent review records and exact producer identities
-are retained with [PR #1721](https://github.com/CathedralOS/Omega/pull/1721).
+Later [Linux](https://github.com/CathedralOS/Omega/actions/runs/41718008302) and
+[macOS](https://github.com/CathedralOS/Omega/actions/runs/41718012273) 3bb jobs
+supply 22 applicable checking rows and 13 actual engine agreements per host.
+They measure the named missing-helper errors, supplied policies, record fields,
+case payloads and cleanup after the interpreter's subtree-scan repair. Both
+supplied policies check and execute within the unchanged 120-second case limit.
+Their checks took at most 65 seconds on Linux and 80 seconds on macOS in these
+runs; these are individual observations, not a general speed ratio.
+
+Those surrounding jobs remain failed. The added provider-choice control still
+had malformed arm syntax; fresh a2b observations below replace only that control's
+rows. An additional returned-record probe declined in Terminal on Linux and timed
+out on macOS. The same Linux decline is independently reproduced with the old
+a018 compiler and with a compiler matching published main `108f8a95dcd8`.
+Its source, oracle and existing recorded row stay unchanged. It supplies no
+passing storage evidence. The existing owned-snapshot program instead checks
+Member byte-field replacement, the saved copy and a disjoint sibling; this
+changes none of the original fact's places or projects.
+
+At a2b, the corrected publication control and all 29 ordinary fact projects pass
+on [Linux](https://github.com/CathedralOS/Omega/actions/runs/41722369908) and
+[macOS](https://github.com/CathedralOS/Omega/actions/runs/41725743952). The separate
+owned-snapshot check passes with native and Terminal exit 70 on
+[Linux](https://github.com/CathedralOS/Omega/actions/runs/41723253579) and
+[macOS](https://github.com/CathedralOS/Omega/actions/runs/41723406704). These supply
+the final two checking and two native/publication rows per host. Rust and library
+code are unchanged from 3bb; only the control's named helpers changed.
+
+The private-call cases include the original bounds loop and guard-floor program,
+a private division helper and a guarded enum helper. A checked false caller guard
+may exclude its exact private call without inventing helper inputs. Every possible
+call still needs an actual entry or its own checked exclusion. The
+[live size-zero control](../../../../tests/omega/fail/generics/const_extent_guard_live_zero_helper/main.omg)
+changes only the caller guard and still rejects its reads. Mixed-arrival,
+unknown-input, unguarded-cycle and partial-operand controls retain their causes.
+
+The supplied-target pair passed on
+[Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41697827253) at a018:
+both corpus programs and both ordinary projects exited 0 in both engines. Its
+separate corpus checking leg used macOS ARM64 and refused missing supply there.
+This qualifies only that pair on Linux ARM64. Windows native execution and the
+rest of the row on Linux ARM64 remain unmeasured here.
+
+All measured producer profiles use optimization level 1. The final input roster
+contains 343 authored hashes and 58 matching Main/Build pairs. Every unrelated
+recorded block is preserved. Independent source and raw-evidence reviews, failed
+attempts and exact source archives are retained with
+[PR #1721](https://github.com/CathedralOS/Omega/pull/1721). The shared publication
+oracles passed 219 focused Python tests, with two existing skips.
 
 <details>
 <summary>Original baseline and earlier failed observations</summary>
