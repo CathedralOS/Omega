@@ -353,21 +353,16 @@ fn argument_contract(
                     place,
                     selectors,
                 )
+                .map(|projection| (projection.storage_type, projection.path))
             })
-            .and_then(
-                |ProjectedArgumentPath {
-                     storage_type: selected,
-                     path,
-                     ..
-                 }| {
-                    super::argument_paths::borrowed_argument_endpoint(
-                        program,
-                        selected,
-                        path,
-                        parameter.type_reference,
-                    )
-                },
-            )
+            .and_then(|(selected, path)| {
+                super::argument_paths::borrowed_argument_endpoint(
+                    program,
+                    selected,
+                    path,
+                    parameter.type_reference,
+                )
+            })
     } else {
         None
     };
