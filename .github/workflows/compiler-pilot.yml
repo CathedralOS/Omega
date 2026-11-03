@@ -1,142 +1,65 @@
-name: Compiler queue pilot
-
+name: Native code layout fixed baseline
 on:
-  pull_request:
-    branches: [integration-pilot]
-  merge_group:
-    branches: [integration-pilot]
-    types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      smoke:
-        description: Also build executables and run the native/Terminal smoke (not admission)
-        type: boolean
-        default: false
-      fixtures:
-        description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
-        type: string
-        default: ''
-      checking_only:
-        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
-        type: boolean
-        default: false
-      samples:
-        description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
-        type: string
-        default: ''
-      cli_fixtures:
-        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
-        type: string
-        default: ''
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
-
 permissions:
   contents: read
-
-# A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue.
-concurrency:
-  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
+  actions: read
 jobs:
-  compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+  baseline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
     env:
-      CARGO_BUILD_JOBS: '2'
-      CARGO_INCREMENTAL: '0'
-      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-      CARGO_BUILD_FINGERPRINT: content
-      OMEGA_CORPUS_JOBS: '2'
+      GH_TOKEN: ${{ github.token }}
       RUST_MIN_STACK: '67108864'
-      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: d4c693b8b0f429a49b3f2d77a331bad656d8cda4
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
-      - name: Validate exact fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - name: Validate exact fact sample selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
-        env:
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-        run: python -c "from tools.ci.compiler_pilot import select_samples; import os; print(select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES']))"
-      - name: Validate exact ordinary CLI fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.cli_fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
-      - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && inputs.cli_fixtures != ''
-        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: build-cache
+      - name: Measure frozen row with authenticated retained producer
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          from pathlib import Path
+          import hashlib,json,os,platform,subprocess,sys,time
+          settings={'source': 'd4c693b8b0f429a49b3f2d77a331bad656d8cda4', 'tree': '3e808847cdc3b58c75b290bf676dc14429628983', 'fixed_base': '108f8a95dcd8095d67ce22178ba8ab1f67ee75e1', 'run': 41705562039, 'artifact': 'compiler-pilot-linux_x86_64-d4c693b8b0f429a49b3f2d77a331bad656d8cda4-1', 'runner_sha256': 'ed4923cc2b62ab7e7195f49be018f45dcc6978d5172955231ee4b11ffc695fbe', 'inputs': {'samples/cli/facts/selected_native_code_layout/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/README.md': 'f9355d69b415d7692e7fbb4e345970dc225d8da7957f60864be5bc1f574d49ae', 'samples/cli/facts/selected_native_code_layout/build.omg': '2163e37d9e4a957eedd8691dcd2e54a22c4c202f423770833ca23409bcd1bdf5', 'samples/cli/facts/selected_native_code_layout/call_result/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/call_result/build.omg': '22ecec2497928651ec6a1257dfdf45b5382b5afb13770ae82414c259c9b978cc', 'samples/cli/facts/selected_native_code_layout/call_result/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'samples/cli/facts/selected_native_code_layout/call_result/invalid/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/call_result/invalid/build.omg': '24a3b7b7a65748cd7ed464c7d7890cb17054fbc2e00196bb1cbca520a0de0ff4', 'samples/cli/facts/selected_native_code_layout/call_result/invalid/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'samples/cli/facts/selected_native_code_layout/call_result/invalid/main.omg': '0a116d6f9260ed18bdd0f1feb17e0dcff8f89c2f106273b49bf756d74ad0e3ff', 'samples/cli/facts/selected_native_code_layout/call_result/invalid/sample.json': '0b3051e27bfc6d3b758bf421fc7e1b850be4b84c3a1c45f73f69dfd363ef0313', 'samples/cli/facts/selected_native_code_layout/call_result/main.omg': '452a927f027dad901862feda39b5fafe7151c5ca5cd1b6c7e4ba8a25e4dcec40', 'samples/cli/facts/selected_native_code_layout/const_name/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/const_name/build.omg': '1ae3a2ca4ee1430e434261feae935b72f340795f652e5e206d57993c90daa063', 'samples/cli/facts/selected_native_code_layout/const_name/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'samples/cli/facts/selected_native_code_layout/const_name/invalid/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/const_name/invalid/build.omg': 'a86cf91191c7d24e851689bef5b6ce7216ab9e3b2a925383b13295e94598a948', 'samples/cli/facts/selected_native_code_layout/const_name/invalid/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'samples/cli/facts/selected_native_code_layout/const_name/invalid/main.omg': '8c04b2fb09b04628dfd9ad82938d0bf6e67029f31ee2499d7e6b7fbe2d048d4b', 'samples/cli/facts/selected_native_code_layout/const_name/invalid/sample.json': '0b3051e27bfc6d3b758bf421fc7e1b850be4b84c3a1c45f73f69dfd363ef0313', 'samples/cli/facts/selected_native_code_layout/const_name/main.omg': '97613ab2db357de349b9f7b5643564ead38bb2e0baad2b7185515d041ff6b7a2', 'samples/cli/facts/selected_native_code_layout/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'samples/cli/facts/selected_native_code_layout/field/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/field/build.omg': '0fb88d46409b389b6d54392143fc4049f40e9e01b57cf6068d5bfaecb958923a', 'samples/cli/facts/selected_native_code_layout/field/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'samples/cli/facts/selected_native_code_layout/field/invalid/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/field/invalid/build.omg': '86464a5da9a9e8a76dfe431d7fc77454523a5df9a5cd4deefca4c49af022f0fd', 'samples/cli/facts/selected_native_code_layout/field/invalid/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'samples/cli/facts/selected_native_code_layout/field/invalid/main.omg': '96044937d983d6a18c4ae42ce12ab2fee58c38578df34986346a20e19395de09', 'samples/cli/facts/selected_native_code_layout/field/invalid/sample.json': '0b3051e27bfc6d3b758bf421fc7e1b850be4b84c3a1c45f73f69dfd363ef0313', 'samples/cli/facts/selected_native_code_layout/field/main.omg': '1ca870b0384f5f08264697a6c7d4f797925ac6d17ce1b8712b5e301a8c5a71e2', 'samples/cli/facts/selected_native_code_layout/local/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/local/build.omg': 'c70d61838d86077544be7a28dac9f661695bfd19bdec7777de954fa6c920d4f4', 'samples/cli/facts/selected_native_code_layout/local/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'samples/cli/facts/selected_native_code_layout/local/invalid/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/local/invalid/build.omg': '8dfad6c0a065bb5b64bd808a5845fa612e24512ddc41f8dd3756ed4c785c1eba', 'samples/cli/facts/selected_native_code_layout/local/invalid/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'samples/cli/facts/selected_native_code_layout/local/invalid/main.omg': '7b0d05d985fdd545da5373816d9d173b98c1ab0f645a752209f94dfd3674d564', 'samples/cli/facts/selected_native_code_layout/local/invalid/sample.json': '0b3051e27bfc6d3b758bf421fc7e1b850be4b84c3a1c45f73f69dfd363ef0313', 'samples/cli/facts/selected_native_code_layout/local/main.omg': 'e6f99887007e7e79947480519c8fd8f4096059c69353fd044fec133654bd80c8', 'samples/cli/facts/selected_native_code_layout/main.omg': '303d9f30f0851209124502a9a1cb272e7693962f460542b1a4d809e314613bd4', 'samples/cli/facts/selected_native_code_layout/match_join/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/match_join/build.omg': '1b25cbfaef46a4d942a21a7d52dc1ee1f63d24eaccc8dbb35c57446c9fa48fa5', 'samples/cli/facts/selected_native_code_layout/match_join/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'samples/cli/facts/selected_native_code_layout/match_join/invalid/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/match_join/invalid/build.omg': 'cfdb01b982010a1e9b7e62d0cf2bf7bbef91176d9e60063137bbd2ebc848f0ab', 'samples/cli/facts/selected_native_code_layout/match_join/invalid/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'samples/cli/facts/selected_native_code_layout/match_join/invalid/main.omg': 'f05c5106ec0adaae0085dfb271d4e84b35d6aef9e22c3d41c308e7fb9c25658c', 'samples/cli/facts/selected_native_code_layout/match_join/invalid/sample.json': '0b3051e27bfc6d3b758bf421fc7e1b850be4b84c3a1c45f73f69dfd363ef0313', 'samples/cli/facts/selected_native_code_layout/match_join/main.omg': '993a93c46a87470da39163dd12251b2bb3a83e76a5bd4176f3314d05e2f6e9b5', 'samples/cli/facts/selected_native_code_layout/other_machine/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/other_machine/build.omg': 'eda257190e4ed264969ecdc7e73e8f010d743b96a899bbe10a45460bc849fba6', 'samples/cli/facts/selected_native_code_layout/other_machine/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'samples/cli/facts/selected_native_code_layout/other_machine/invalid/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/other_machine/invalid/build.omg': '68bb39c391cf068d653ed464f0e9e214ca8b7bc65b91887e10de816c15529cfd', 'samples/cli/facts/selected_native_code_layout/other_machine/invalid/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'samples/cli/facts/selected_native_code_layout/other_machine/invalid/main.omg': 'ffe68cc5cd4ec86e358d3b44f4e39ba586b794982f2ef7192d742e532ac03b0e', 'samples/cli/facts/selected_native_code_layout/other_machine/invalid/sample.json': '0b3051e27bfc6d3b758bf421fc7e1b850be4b84c3a1c45f73f69dfd363ef0313', 'samples/cli/facts/selected_native_code_layout/other_machine/main.omg': '2e53368efcb5d2c6e57442da922285a79b52b1718345ac252573e56c75b22e9f', 'samples/cli/facts/selected_native_code_layout/other_state/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/other_state/build.omg': '395a27f29b7d2926dcb50720cc45ebf36b38534a99c984bc121be1454b1c4fff', 'samples/cli/facts/selected_native_code_layout/other_state/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'samples/cli/facts/selected_native_code_layout/other_state/invalid/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/other_state/invalid/build.omg': '8b862e35c3c25f1068684a5610ff3afd2f3aa69541fc3dadcfcb4dd848ba74d3', 'samples/cli/facts/selected_native_code_layout/other_state/invalid/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'samples/cli/facts/selected_native_code_layout/other_state/invalid/main.omg': 'f7b627f4617f59b49919ed47e99c5e55e6c6242b9bb4ebb47ebf73fa0ea96381', 'samples/cli/facts/selected_native_code_layout/other_state/invalid/sample.json': '0b3051e27bfc6d3b758bf421fc7e1b850be4b84c3a1c45f73f69dfd363ef0313', 'samples/cli/facts/selected_native_code_layout/other_state/main.omg': 'bd7d44b8f7270e9e93e6ce6f15b80da4d424726a6bc06ceb3b07af9128009a51', 'samples/cli/facts/selected_native_code_layout/parameter/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/parameter/build.omg': '1e1a158742d07045a9913c41992a658d2dcd83ada2617ef31a440779c160dfee', 'samples/cli/facts/selected_native_code_layout/parameter/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'samples/cli/facts/selected_native_code_layout/parameter/invalid/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/parameter/invalid/build.omg': 'fd19a0eb664d0ea2ecd4cf598177d154219ae8740b289be22b7bbe4ed21a5cd3', 'samples/cli/facts/selected_native_code_layout/parameter/invalid/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'samples/cli/facts/selected_native_code_layout/parameter/invalid/main.omg': 'f71665dca64151fcb99de7712c74c5b9b5b107a73cdc0238621e214d77e28821', 'samples/cli/facts/selected_native_code_layout/parameter/invalid/sample.json': '0b3051e27bfc6d3b758bf421fc7e1b850be4b84c3a1c45f73f69dfd363ef0313', 'samples/cli/facts/selected_native_code_layout/parameter/main.omg': '1f7816dcb567af5fed96645b733fc597be9584101d049eba933ae8e8a0cbd45d', 'samples/cli/facts/selected_native_code_layout/target_body/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/target_body/build.omg': '085af481a53d2a372e323bc744236fa499294c028c95eb12577128aa37ca81f8', 'samples/cli/facts/selected_native_code_layout/target_body/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'samples/cli/facts/selected_native_code_layout/target_body/invalid/.gitignore': 'd260c571483724a47161e6ce0488b61a7014a9819f88f23878cfed8b5692964c', 'samples/cli/facts/selected_native_code_layout/target_body/invalid/build.omg': 'fd40946d15d5a23fad80a2a3146e2b2bfa7c83e5376f279f7b9a903e7e5d2a24', 'samples/cli/facts/selected_native_code_layout/target_body/invalid/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'samples/cli/facts/selected_native_code_layout/target_body/invalid/main.omg': 'bab35e48aa0a77162f6914c7b87264e6eefffe320f9654348c04d006317cb28d', 'samples/cli/facts/selected_native_code_layout/target_body/invalid/sample.json': '0b3051e27bfc6d3b758bf421fc7e1b850be4b84c3a1c45f73f69dfd363ef0313', 'samples/cli/facts/selected_native_code_layout/target_body/main.omg': 'a859ce3a13631941817c710fa55bac62e1b67947f0aa3a76fa9f790117da8c40', 'tests/omega/fail/facts/selected_native_code_layout_through_call_result_rejected/build.omg': '24a3b7b7a65748cd7ed464c7d7890cb17054fbc2e00196bb1cbca520a0de0ff4', 'tests/omega/fail/facts/selected_native_code_layout_through_call_result_rejected/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'tests/omega/fail/facts/selected_native_code_layout_through_call_result_rejected/main.omg': '0a116d6f9260ed18bdd0f1feb17e0dcff8f89c2f106273b49bf756d74ad0e3ff', 'tests/omega/fail/facts/selected_native_code_layout_through_const_name_rejected/build.omg': 'a86cf91191c7d24e851689bef5b6ce7216ab9e3b2a925383b13295e94598a948', 'tests/omega/fail/facts/selected_native_code_layout_through_const_name_rejected/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'tests/omega/fail/facts/selected_native_code_layout_through_const_name_rejected/main.omg': '8c04b2fb09b04628dfd9ad82938d0bf6e67029f31ee2499d7e6b7fbe2d048d4b', 'tests/omega/fail/facts/selected_native_code_layout_through_field_rejected/build.omg': '86464a5da9a9e8a76dfe431d7fc77454523a5df9a5cd4deefca4c49af022f0fd', 'tests/omega/fail/facts/selected_native_code_layout_through_field_rejected/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'tests/omega/fail/facts/selected_native_code_layout_through_field_rejected/main.omg': '96044937d983d6a18c4ae42ce12ab2fee58c38578df34986346a20e19395de09', 'tests/omega/fail/facts/selected_native_code_layout_through_local_rejected/build.omg': '8dfad6c0a065bb5b64bd808a5845fa612e24512ddc41f8dd3756ed4c785c1eba', 'tests/omega/fail/facts/selected_native_code_layout_through_local_rejected/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'tests/omega/fail/facts/selected_native_code_layout_through_local_rejected/main.omg': '7b0d05d985fdd545da5373816d9d173b98c1ab0f645a752209f94dfd3674d564', 'tests/omega/fail/facts/selected_native_code_layout_through_match_join_rejected/build.omg': 'cfdb01b982010a1e9b7e62d0cf2bf7bbef91176d9e60063137bbd2ebc848f0ab', 'tests/omega/fail/facts/selected_native_code_layout_through_match_join_rejected/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'tests/omega/fail/facts/selected_native_code_layout_through_match_join_rejected/main.omg': 'f05c5106ec0adaae0085dfb271d4e84b35d6aef9e22c3d41c308e7fb9c25658c', 'tests/omega/fail/facts/selected_native_code_layout_through_other_machine_rejected/build.omg': '68bb39c391cf068d653ed464f0e9e214ca8b7bc65b91887e10de816c15529cfd', 'tests/omega/fail/facts/selected_native_code_layout_through_other_machine_rejected/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'tests/omega/fail/facts/selected_native_code_layout_through_other_machine_rejected/main.omg': 'ffe68cc5cd4ec86e358d3b44f4e39ba586b794982f2ef7192d742e532ac03b0e', 'tests/omega/fail/facts/selected_native_code_layout_through_other_state_rejected/build.omg': '8b862e35c3c25f1068684a5610ff3afd2f3aa69541fc3dadcfcb4dd848ba74d3', 'tests/omega/fail/facts/selected_native_code_layout_through_other_state_rejected/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'tests/omega/fail/facts/selected_native_code_layout_through_other_state_rejected/main.omg': 'f7b627f4617f59b49919ed47e99c5e55e6c6242b9bb4ebb47ebf73fa0ea96381', 'tests/omega/fail/facts/selected_native_code_layout_through_parameter_rejected/build.omg': 'fd19a0eb664d0ea2ecd4cf598177d154219ae8740b289be22b7bbe4ed21a5cd3', 'tests/omega/fail/facts/selected_native_code_layout_through_parameter_rejected/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'tests/omega/fail/facts/selected_native_code_layout_through_parameter_rejected/main.omg': 'f71665dca64151fcb99de7712c74c5b9b5b107a73cdc0238621e214d77e28821', 'tests/omega/fail/facts/selected_native_code_layout_through_target_body_rejected/build.omg': 'fd40946d15d5a23fad80a2a3146e2b2bfa7c83e5376f279f7b9a903e7e5d2a24', 'tests/omega/fail/facts/selected_native_code_layout_through_target_body_rejected/expected.txt': '8c15e28b69b43db09699826a5679e8af10c96b3a120e1fa8ee6a1e6b4be479e7', 'tests/omega/fail/facts/selected_native_code_layout_through_target_body_rejected/main.omg': 'bab35e48aa0a77162f6914c7b87264e6eefffe320f9654348c04d006317cb28d', 'tests/omega/pass/facts/selected_native_code_layout_through_call_result_exit/build.omg': '22ecec2497928651ec6a1257dfdf45b5382b5afb13770ae82414c259c9b978cc', 'tests/omega/pass/facts/selected_native_code_layout_through_call_result_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/selected_native_code_layout_through_call_result_exit/main.omg': '452a927f027dad901862feda39b5fafe7151c5ca5cd1b6c7e4ba8a25e4dcec40', 'tests/omega/pass/facts/selected_native_code_layout_through_const_name_exit/build.omg': '1ae3a2ca4ee1430e434261feae935b72f340795f652e5e206d57993c90daa063', 'tests/omega/pass/facts/selected_native_code_layout_through_const_name_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/selected_native_code_layout_through_const_name_exit/main.omg': '97613ab2db357de349b9f7b5643564ead38bb2e0baad2b7185515d041ff6b7a2', 'tests/omega/pass/facts/selected_native_code_layout_through_field_exit/build.omg': '0fb88d46409b389b6d54392143fc4049f40e9e01b57cf6068d5bfaecb958923a', 'tests/omega/pass/facts/selected_native_code_layout_through_field_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/selected_native_code_layout_through_field_exit/main.omg': '1ca870b0384f5f08264697a6c7d4f797925ac6d17ce1b8712b5e301a8c5a71e2', 'tests/omega/pass/facts/selected_native_code_layout_through_local_exit/build.omg': 'c70d61838d86077544be7a28dac9f661695bfd19bdec7777de954fa6c920d4f4', 'tests/omega/pass/facts/selected_native_code_layout_through_local_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/selected_native_code_layout_through_local_exit/main.omg': 'e6f99887007e7e79947480519c8fd8f4096059c69353fd044fec133654bd80c8', 'tests/omega/pass/facts/selected_native_code_layout_through_match_join_exit/build.omg': '1b25cbfaef46a4d942a21a7d52dc1ee1f63d24eaccc8dbb35c57446c9fa48fa5', 'tests/omega/pass/facts/selected_native_code_layout_through_match_join_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/selected_native_code_layout_through_match_join_exit/main.omg': '993a93c46a87470da39163dd12251b2bb3a83e76a5bd4176f3314d05e2f6e9b5', 'tests/omega/pass/facts/selected_native_code_layout_through_other_machine_exit/build.omg': 'eda257190e4ed264969ecdc7e73e8f010d743b96a899bbe10a45460bc849fba6', 'tests/omega/pass/facts/selected_native_code_layout_through_other_machine_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/selected_native_code_layout_through_other_machine_exit/main.omg': '2e53368efcb5d2c6e57442da922285a79b52b1718345ac252573e56c75b22e9f', 'tests/omega/pass/facts/selected_native_code_layout_through_other_state_exit/build.omg': '395a27f29b7d2926dcb50720cc45ebf36b38534a99c984bc121be1454b1c4fff', 'tests/omega/pass/facts/selected_native_code_layout_through_other_state_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/selected_native_code_layout_through_other_state_exit/main.omg': 'bd7d44b8f7270e9e93e6ce6f15b80da4d424726a6bc06ceb3b07af9128009a51', 'tests/omega/pass/facts/selected_native_code_layout_through_parameter_exit/build.omg': '1e1a158742d07045a9913c41992a658d2dcd83ada2617ef31a440779c160dfee', 'tests/omega/pass/facts/selected_native_code_layout_through_parameter_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/selected_native_code_layout_through_parameter_exit/main.omg': '1f7816dcb567af5fed96645b733fc597be9584101d049eba933ae8e8a0cbd45d', 'tests/omega/pass/facts/selected_native_code_layout_through_target_body_exit/build.omg': '085af481a53d2a372e323bc744236fa499294c028c95eb12577128aa37ca81f8', 'tests/omega/pass/facts/selected_native_code_layout_through_target_body_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa', 'tests/omega/pass/facts/selected_native_code_layout_through_target_body_exit/main.omg': 'a859ce3a13631941817c710fa55bac62e1b67947f0aa3a76fa9f790117da8c40'}}
+          out=Path('build/code-layout-baseline');out.mkdir(parents=True,exist_ok=True)
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==settings['source']
+          assert subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()==settings['tree']
+          for name,digest in settings['inputs'].items(): assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==digest,name
+          retained=Path('build/retained-code-layout-producer')
+          subprocess.run(['gh','run','download',str(settings['run']),'--name',settings['artifact'],'--dir',str(retained)],check=True)
+          runners=list(retained.glob('**/corpus_runner'));assert len(runners)==1
+          runner=runners[0].resolve();runner.chmod(0o755)
+          sys.path.insert(0,'tools');import corpus_gate,corpus_records
+          profile=corpus_gate.require_optimized(runner)
+          assert profile['sha256']==settings['runner_sha256'] and profile['profile']['opt_level']=='1'
+          (out/'producer.json').write_text(json.dumps(dict(settings=settings,actual_profile=profile,platform=platform.platform()),indent=2)+'\n')
+          rows=[]
+          for leg,expected in [('source',18),('both',9)]:
+           cache=(out/('cache-'+leg)).resolve();cache.mkdir()
+           env=dict(os.environ,OMEGA_CORPUS_JOBS='1',XDG_CACHE_HOME=str(cache),OMEGA_CORPUS_ROOT=str(Path.cwd()),OMEGA_LIBRARY_ROOT=str(Path('source/library').resolve()),OMEGA_CORPUS_FIXTURE_FILTER=('facts/selected_native_code_layout_through_' if leg=='source' else 'pass/facts/selected_native_code_layout_through_'),OMEGA_CORPUS_RECORDS=str((out/(leg+'.records.txt')).resolve()))
+           for key in ['NEXTEST','OMEGA_CORPUS_NATIVE','OMEGA_CORPUS_INTERPRET','OMEGA_CORPUS_CHECKED_INTERPRETER']:env.pop(key,None)
+           if leg=='both':env.update(OMEGA_CORPUS_NATIVE='1',OMEGA_CORPUS_INTERPRET='1',OMEGA_CORPUS_NATIVE_TARGET='linux_x86_64')
+           start=time.monotonic()
+           with (out/(leg+'.stdout')).open('w') as stdout,(out/(leg+'.stderr')).open('w') as stderr: result=subprocess.run([str(runner)],env=env,stdout=stdout,stderr=stderr)
+           records=corpus_records.read(out/(leg+'.records.txt'));assert len(records)==expected,(leg,len(records))
+           rows.append(dict(leg=leg,process_exit=result.returncode,seconds=time.monotonic()-start,observations=records))
+           (out/'observations.json').write_text(json.dumps(rows,indent=2)+'\n')
+           print(leg,result.returncode,len(records),'actual observations',flush=True)
+           assert corpus_gate.require_optimized(runner)==profile
+          for name,digest in settings['inputs'].items():assert hashlib.sha256(Path(name).read_bytes()).hexdigest()==digest,name
+          assert not subprocess.check_output(['git','status','--porcelain'],text=True).strip()
+          PYTHON
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
+          name: code-layout-fixed-baseline-${{ github.run_id }}
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Check the exact integration candidate
-        id: compiler-check
-        run: cargo check --locked -p omega
-      - name: Optional executable observations
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py
-      - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json') if (root / name).is_file()]"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
-          if-no-files-found: warn
-          compression-level: 0
-          retention-days: 7
-      # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
-      # rows without downloading the retained producer (350-520 MB).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
-          if-no-files-found: warn
-          retention-days: 7
-      # A source/runtime fixture failure does not invalidate compiled Cargo
-      # objects. Retain them for the next correction; check outcomes stay red.
-      - name: Save build cache after fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
+            build/code-layout-baseline/*.json
+            build/code-layout-baseline/*.stdout
+            build/code-layout-baseline/*.stderr
+            build/code-layout-baseline/*.txt
