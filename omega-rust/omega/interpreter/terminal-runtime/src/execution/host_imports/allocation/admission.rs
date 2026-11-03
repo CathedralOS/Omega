@@ -75,8 +75,7 @@ pub(super) fn validate(
                 ));
             }
             match &signature.result {
-                BoundaryMachineResult::Scalar(actual)
-                    if *actual == address.into() => {}
+                BoundaryMachineResult::Scalar(actual) if *actual == address.into() => {}
                 BoundaryMachineResult::Structural(result) => {
                     // An address-token record such as `Allocation { pointer }`
                     // carries the minted address in exactly one payload field.
@@ -106,7 +105,7 @@ pub(super) fn validate(
                 _ => {
                     return Err(invalid(
                         "calloc requires two u64 sizes and an address result",
-                    ))
+                    ));
                 }
             }
             CallSignature {
@@ -221,10 +220,7 @@ pub(super) fn validate(
                     "memset calling application has a different argument roster",
                 ));
             }
-            for (index, (byte_size, alignment)) in [(8, 8), (4, 4), (8, 8)]
-                .iter()
-                .enumerate()
-            {
+            for (index, (byte_size, alignment)) in [(8, 8), (4, 4), (8, 8)].iter().enumerate() {
                 let envelope = super::super::native_word::native_word_envelope(
                     &application.signature,
                     application.signature.parameters[index],
@@ -244,12 +240,13 @@ pub(super) fn validate(
                 .shapes
                 .get(usize::from(result_root))
                 .ok_or(invalid("memset result references an absent shape"))?;
-            if shape.class
-                != calling_conventions::BoundaryValueClass::Reference
+            if shape.class != calling_conventions::BoundaryValueClass::Reference
                 || shape.byte_size != 8
                 || shape.alignment != 8
             {
-                return Err(invalid("memset result must occupy one aligned pointer word"));
+                return Err(invalid(
+                    "memset result must occupy one aligned pointer word",
+                ));
             }
             location = AddressLocation::OwnedArgument(path);
             CallSignature {

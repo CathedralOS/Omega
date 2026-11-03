@@ -1185,7 +1185,14 @@ fn cleanup_field_type(
         Some(terminal_psi::ByteSequenceCarrier::BoundedOwned { .. }) | None => Ok(None),
         Some(_) => terminal_semantics::inline_carrier_declaration(structural_types.values(), field)
             .map(|declaration| Some(declaration.id))
-            .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable),
+            .ok_or_else(
+                || TerminalInterpretError::AffineProjectionNotRepresentable {
+                    context: format!(
+                        "inline view field has no descriptor declaration: {:?}",
+                        field.field_type
+                    ),
+                },
+            ),
     }
 }
 
@@ -1300,7 +1307,14 @@ pub(crate) fn split_affine_frontier_at_projection(
         | StructuralTypeShape::ElementView { .. }
         | StructuralTypeShape::FixedArray { .. } => None,
     }
-    .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)?;
+    .ok_or_else(
+        || TerminalInterpretError::AffineProjectionNotRepresentable {
+            context: format!(
+                "cannot split affine type {:?} at {:?} toward {:?}",
+                current.structural_type, current.path, projected_path
+            ),
+        },
+    )?;
     split_affine_frontier_at_projection(
         structural_types,
         frontier,
@@ -1380,7 +1394,11 @@ pub(crate) fn resolve_structural_path_shape<'types>(
     }
     terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
         .map(|declaration| std::borrow::Cow::Borrowed(&declaration.shape))
-        .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)
+        .ok_or_else(
+            || TerminalInterpretError::AffineProjectionNotRepresentable {
+                context: format!("no structural shape for type {:?} at {:?}", root, path),
+            },
+        )
 }
 
 pub(crate) fn resolve_structural_path_type_with_leaf(
@@ -1410,11 +1428,25 @@ pub(crate) fn resolve_structural_path_type_with_leaf(
             expected,
             leaf_type(&field.field_type),
         )
-        .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable);
+        .ok_or_else(
+            || TerminalInterpretError::AffineProjectionNotRepresentable {
+                context: format!(
+                    "inline field {:?} has no presentation {:?}",
+                    field.field_type, expected
+                ),
+            },
+        );
     }
     terminal_semantics::runtime_structural_path_tip(structural_types.values(), root, path)
         .map(|declaration| declaration.id)
-        .ok_or(TerminalInterpretError::AffineProjectionNotRepresentable)
+        .ok_or_else(
+            || TerminalInterpretError::AffineProjectionNotRepresentable {
+                context: format!(
+                    "no structural endpoint for type {:?} at {:?}, expected {:?}",
+                    root, path, expected
+                ),
+            },
+        )
 }
 
 /// Resolve an inline field endpoint without manufacturing a standalone type.

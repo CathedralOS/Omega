@@ -46,7 +46,14 @@ impl ReferenceStateImport {
             return Ok(None);
         };
         let signature = TerminalImportSignature::from(declaration);
-        let result = validate(program, declaration, binding, application, &signature, operation)?;
+        let result = validate(
+            program,
+            declaration,
+            binding,
+            application,
+            &signature,
+            operation,
+        )?;
         Ok(Some(Self { signature, result }))
     }
 }
@@ -262,22 +269,22 @@ fn locale_view(
         let path =
             super::native_word::scalar_payload_path(program, *nested, ScalarType::Integer(byte))?;
         references.push((
-            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(field.id)],
+            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                field.id,
+            )],
             TerminalReferenceResult {
-                referent: TerminalReferencePayload::ScalarAggregate(
-                    TerminalScalarAggregateValue {
-                        structural_type: *nested,
-                        result_case: None,
-                        // "." under the "C" locale.
-                        fields: vec![(
-                            path,
-                            TerminalScalarValue::Integer {
-                                scalar_type: byte,
-                                value: IntegerValue::Unsigned(46),
-                            },
-                        )],
-                    },
-                ),
+                referent: TerminalReferencePayload::ScalarAggregate(TerminalScalarAggregateValue {
+                    structural_type: *nested,
+                    result_case: None,
+                    // "." under the "C" locale.
+                    fields: vec![(
+                        path,
+                        TerminalScalarValue::Integer {
+                            scalar_type: byte,
+                            value: IntegerValue::Unsigned(46),
+                        },
+                    )],
+                }),
                 references: Vec::new(),
             },
         ));

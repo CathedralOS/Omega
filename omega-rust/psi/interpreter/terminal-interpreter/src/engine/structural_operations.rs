@@ -183,10 +183,9 @@ impl TerminalExecution<'_> {
             if aggregate.structural_type != referent {
                 return Err(malformed());
             }
-            aggregate.validate_against(
-                self.structural_declaration(referent)?,
-                |identity| self.structural_types().get(&identity),
-            )?;
+            aggregate.validate_against(self.structural_declaration(referent)?, |identity| {
+                self.structural_types().get(&identity)
+            })?;
         }
         // The host must supply every `&` field beneath the referent exactly
         // once; an unsupplied member would read back as an empty descriptor.
@@ -223,9 +222,11 @@ impl TerminalExecution<'_> {
                         self.structural_types().values(),
                         referent,
                     )
-                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "host referent's zeroed leaves cannot be materialized",
-                    ))?;
+                    .ok_or(
+                        TerminalInterpretError::UnsupportedSemanticVariant(
+                            "host referent's zeroed leaves cannot be materialized",
+                        ),
+                    )?;
                     self.materialize_zeroed_leaves(&view, &leaves)?;
                 }
             }
@@ -266,8 +267,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(StructuralTypeId, StructuralAccess), TerminalInterpretError> {
         let mut current = referent;
         for segment in path {
-            let CanonicalStructuralPathSegment::Field(identity) = segment
-            else {
+            let CanonicalStructuralPathSegment::Field(identity) = segment else {
                 return Err(malformed());
             };
             let StructuralTypeShape::Record { fields, .. } =
@@ -1791,7 +1791,9 @@ impl TerminalExecution<'_> {
             && result.multiplicity != StructuralMultiplicity::Unrestricted
             && !shared_descriptor
         {
-            return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
+            return Err(TerminalInterpretError::AffineProjectionNotRepresentable {
+                context: "an affine case payload requires its owned frontier".into(),
+            });
         }
         if (result.multiplicity != StructuralMultiplicity::Unrestricted
             && !(result.multiplicity == StructuralMultiplicity::Affine && shared_descriptor))
