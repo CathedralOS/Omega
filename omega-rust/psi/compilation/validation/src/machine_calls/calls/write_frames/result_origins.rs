@@ -761,7 +761,15 @@ fn merge_relative_origins(
         let origins = match &leaf.origin {
             // These are callee-state summaries. A caller observation cannot
             // escape without its own inventory finishing the demanded path.
-            Some(ReferenceSource::Captured(_)) => return None,
+            Some(ReferenceSource::Captured(_)) => {
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!(
+                        "STRUCT state-result-origins-refused machine={} state={:?} leaf={:?} phase=unsettled-returned-descriptor",
+                        machine.name, state.symbol, leaf.origin,
+                    );
+                }
+                return None;
+            }
             origin => canonical_result_reference_origins(
                 program,
                 state,

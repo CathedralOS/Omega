@@ -455,7 +455,18 @@ pub(in crate::machine_calls::calls::write_frames) fn reference_leaves(
                 inference,
                 include_shared,
                 inputs,
-            )?;
+            );
+            if moved.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT aggregate-origins-refused caller={} expression={expression:?} value={:?} reference={reference:?} suffix={suffix:?} phase=completed-owned-value",
+                    caller_machine.name,
+                    program
+                        .expression_table
+                        .expression_is_valid(expression)
+                        .then(|| program.expression_table.display_name(expression)),
+                );
+            }
+            let moved = moved?;
             if !demand_is_declared(program, reference, suffix) {
                 return None;
             }
