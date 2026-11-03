@@ -12849,8 +12849,7 @@ pass/inline_asm/asm_msr_multi checked 4572ms @0af7c594a1c0
 pass/inline_asm/asm_port_contract checked 4430ms @0af7c594a1c0
 pass/inline_asm/asm_port_immediate checked 6234ms @0af7c594a1c0
 pass/inline_asm/asm_port_out_final_validation checked 5187ms check-target:linux_x86_64 @0af7c594a1c0
-pass/inline_asm/asm_processor_halt_compositions_compile rejected 2246ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @ccdb99ca2214
-	machine `idle` uses asm instruction `hlt` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
+pass/inline_asm/asm_processor_halt_compositions_compile checked 4168ms check-target:linux_x86_64 @03522ca11fdf
 pass/inline_asm/asm_reach_inherit checked 3497ms @ccdb99ca2214
 pass/inline_asm/asm_reach_wrapper checked 3666ms @ccdb99ca2214
 pass/inline_asm/asm_runtime_port_msr_final_validation checked 5947ms check-target:linux_x86_64 @0af7c594a1c0
@@ -12859,8 +12858,7 @@ pass/inline_asm/asm_runtime_register_scalar_variants_compile rejected 2228ms che
 	machine `next` uses asm instruction `rdmsr` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
 	machine `next` uses asm instruction `wrmsr` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
 	machine `next` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
-pass/inline_asm/asm_selected_port_write_compositions_compile rejected 3037ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @0af7c594a1c0
-	machine `selected` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+pass/inline_asm/asm_selected_port_write_compositions_compile checked 4591ms check-target:linux_x86_64 @03522ca11fdf
 pass/inline_asm/asm_state_jmp checked 4093ms @ccdb99ca2214
 pass/inline_asm/asm_sysreg_rw checked 4591ms @0af7c594a1c0
 pass/inline_asm/asm_sysregs checked 4583ms @0af7c594a1c0
@@ -12871,9 +12869,7 @@ pass/inline_asm/asm_system_register_scalar_variants_compile rejected 2534ms chec
 pass/inline_asm/asm_typed_places checked 3553ms @ccdb99ca2214
 pass/inline_asm/asm_where_contract checked 6826ms @0af7c594a1c0
 pass/inline_asm/asm_where_exact_clobbers_compile checked 7171ms @0af7c594a1c0
-pass/inline_asm/port_write_terminal_sequences rejected 6682ms terminal-inspections:failed regressed-from:checked+terminal-inspections:match @0af7c594a1c0
-	machine `emit` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
-	inspection emit_sequence admission: [Diagnostic { severity: Error, message: "machine `emit` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/inline_asm/port_write_terminal_sequences checked 17549ms terminal-inspections:match @03522ca11fdf
 pass/inline_asm/target_family_control_observation checked 3733ms check-target:linux_x86_64 @ccdb99ca2214
 pass/inline_asm/target_family_instruction_exit checked 3668ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/access_plan_inaccessible_seed checked 4395ms @b43a5fa574e6
@@ -17379,9 +17375,8 @@ fail/build/uefi_storage_entry_reused_root rejected 15480ms expected @ccdb99ca221
 fail/build/uefi_storage_entry_unadmitted_provider rejected 17420ms unexpected @ccdb99ca2214
 	machine `report` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
 	machine `wrong` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
-fail/build/uefi_storage_entry_undeclared_port rejected 17358ms expected @ccdb99ca2214
-	machine `report` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
-	machine `wrong` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+fail/build/uefi_storage_entry_undeclared_port rejected 20870ms expected @03522ca11fdf
+	machine `selected_continuation` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/build/unit_statement_cannot_create_prefix rejected 158ms expected @ccdb99ca2214
 	anonymous integer value `18446744073709551616` does not fit destination `addr` in machine `build` state `entry` local `address`
 fail/build/unjoined_executed_dependency rejected 318ms unexpected @ccdb99ca2214
@@ -32804,8 +32799,8 @@ fail/inline_asm/asm_msr_index_width rejected 796ms expected @0af7c594a1c0
 	asm instruction `rdmsr` operand `MSR index` requires an exact `u32` for target register `ecx`, found `u64`
 fail/inline_asm/asm_msr_machine_authority rejected 452ms expected @0af7c594a1c0
 	machine `Main::main` uses asm instruction `wrmsr`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
-fail/inline_asm/asm_port_io_service_required rejected 3009ms expected @ccdb99ca2214
-	machine `Main::main` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+fail/inline_asm/asm_port_io_service_required rejected 3482ms expected @03522ca11fdf
+	machine `Main::main` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/inline_asm/asm_port_out_wrong_value_type rejected 2669ms expected @ccdb99ca2214
 	asm instruction `out` operand `value` requires an exact `u8` for target register `al`, found `u16`
 fail/inline_asm/asm_runtime_register_excluded_port_io rejected 6189ms expected @0af7c594a1c0
@@ -32813,7 +32808,7 @@ fail/inline_asm/asm_runtime_register_excluded_port_io rejected 6189ms expected @
 	authority subject `toolchain::PortIo` exercises excluded physical authority class PortIo through mechanism CompilerIntrinsic(BuiltinFunction(AsmPortOut))
 fail/inline_asm/asm_runtime_register_wrong_target rejected 6098ms expected @0af7c594a1c0
 	native artifact provider supply failed: reachable machine `nominal(package-owner(32:2edfa8c9eaa87af8be6fd1bb6bc34b0bdf127c0f47bd777a1d19d70478695716),path(Main::main))` carries checked assembly whose catalog requires x86_64, which the realized target `linux_arm64` does not provide; scope that assembly to a target the catalog admits for x86_64, or build a target that provides it
-fail/inline_asm/asm_sti_requires_machine_authority rejected 112ms expected @ccdb99ca2214
+fail/inline_asm/asm_sti_requires_machine_authority rejected 288ms expected @03522ca11fdf
 	machine `main` uses asm instruction `sti`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
 fail/inline_asm/asm_system_register_destination_predicate rejected 6794ms expected @46cdd6b85b82+wt
 	machine `Main::main` state `main` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
@@ -32837,8 +32832,8 @@ fail/inline_asm/asm_where_contract rejected 742ms expected @0af7c594a1c0
 	machine `Main::main` state `main` asm fact `main.value` is not boolean-shaped
 fail/inline_asm/asm_where_missing_clobber rejected 1105ms expected @0af7c594a1c0
 	\\\\?\\tests\\omega\\fail\\inline_asm\\asm_where_missing_clobber\\main.omg:10:1: asm `clobbers` must exactly match the realized instruction contract: missing `r11`, `r15`
-fail/inline_asm/port_write_selected_state_service_required rejected 3517ms expected @0af7c594a1c0
-	machine `emit` uses asm instruction `out` but does not declare its service contract: add `reaches PortIo` (every asm instruction's service reach must be declared where it is emitted)
+fail/inline_asm/port_write_selected_state_service_required rejected 4372ms expected @03522ca11fdf
+	machine `emit` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/inline_asm/target_family_control_authority rejected 450ms expected @ccdb99ca2214
 	machine `observe` uses asm instruction `read_cr0`, which requires a FREESTANDING boundary root (the contract requires machine-owner authority, and this build's privileged-service admission does not supply it). Set `b.freestanding = true` in build.omg, or remove the asm block
 fail/inline_asm/target_family_control_width rejected 1562ms expected @ccdb99ca2214
