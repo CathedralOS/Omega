@@ -23,8 +23,8 @@ returned, passed back through that API, and checked for multiplicity.
 
 Carrying it does not grant access to its owner's methods, fields, cases,
 operators, conformances, or ordinary consuming machines. Compiler-planned layout
-and automatic cleanup are carried type semantics. The reserved owner-attached
-`T::drop` hook is compiler-only; an authored `omega::core::drop(value)` is an
+and automatic cleanup are carried type semantics. The hook a type selects
+with `dropped by` is compiler-only; an authored `omega::core::drop(value)` is an
 ordinary consuming call whose resulting cleanup plan remains carried semantics.
 Borrowed erased views never acquire cleanup ownership of their referents.
 

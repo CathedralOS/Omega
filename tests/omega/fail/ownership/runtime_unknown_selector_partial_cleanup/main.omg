@@ -1,5 +1,5 @@
-data Token { value: u64; }
-machine Token::drop(token: &mut Token) { token.value = 0; }
+data Token dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 machine replace(index: u64) requires index < 2 {
     let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];
     let first: Token = tokens[0];

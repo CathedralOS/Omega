@@ -31,5 +31,5 @@ fi
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
-# The gate builds the opt-level 1 CLI it measures into build/gate-cli/.
+# The gate builds the opt-level 1 CLI it measures in the checkout's target/.
 exec python3 tools/sample_native_gate.py

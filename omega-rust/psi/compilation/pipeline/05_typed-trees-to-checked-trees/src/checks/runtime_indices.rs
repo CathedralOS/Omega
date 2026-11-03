@@ -453,12 +453,12 @@ impl Scope<'_> {
         &self,
         parameters: &[StateParameter],
         arguments: &[ExpressionHandle],
+        values: Option<&CurrentScalarValues<'_>>,
+        inert: bool,
     ) -> (
         Vec<(SymbolHandle, Option<ScopedArithmeticValue>)>,
         Vec<(SymbolHandle, Option<ExpressionHandle>)>,
     ) {
-        let inert = self.arguments_inert(arguments);
-        let values = self.values(self.statement);
         parameters
             .iter()
             .zip(arguments)
@@ -471,7 +471,7 @@ impl Scope<'_> {
                         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
                     );
                 let value = stable
-                    .then(|| values.as_ref()?.current(*argument))
+                    .then(|| values?.current(*argument))
                     .flatten()
                     .map(ScopedArithmeticValue::Term);
                 (
@@ -491,9 +491,12 @@ impl Scope<'_> {
         Vec<(SymbolHandle, Option<ScopedArithmeticValue>)>,
         Vec<(SymbolHandle, Option<ExpressionHandle>)>,
     ) {
-        let (mut substitutions, captured_arguments) =
-            self.argument_substitutions(parameters, arguments);
+        // Every argument and generic binding observes the same call position.
+        // Replay its preceding writes once, then share that immutable snapshot.
+        let values = self.values(self.statement);
         let inert = self.arguments_inert(arguments);
+        let (mut substitutions, captured_arguments) =
+            self.argument_substitutions(parameters, arguments, values.as_ref(), inert);
         let target = site.target_symbol(self.program);
         let static_arguments = match site {
             CallSite::Expression { call, .. } => call.machine_arguments.as_ref(),
@@ -512,7 +515,6 @@ impl Scope<'_> {
         {
             let locals = self.program.state_signature_type_parameters(signature);
             if locals.len() == static_arguments.len() {
-                let values = self.values(self.statement);
                 for (formal, actual) in locals.iter().zip(static_arguments.iter()) {
                     if matches!(
                         formal.kind,
@@ -529,7 +531,7 @@ impl Scope<'_> {
             }
         }
         if let Some(callee) = self.program.machine_by_own_or_state_symbol(target)
-            && let Some(values) = self.values(self.statement)
+            && let Some(values) = values.as_ref()
             && let Some(bindings) = values.machine_value_bindings(callee, site)
         {
             // Generic value coordinates share the ordinary call's

@@ -2,8 +2,8 @@
 // expression cannot be used again afterward.
 use omega::language::core::drop;
 
-public data Receipt [linear] { code: i32; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+public data Receipt [linear] dropped by drop_receipt { code: i32; }
+machine drop_receipt(receipt: &mut Receipt) {}
 public boundary trait Settlement { machine settle(value: Receipt) -> i32 reaches; }
 data Context { }
 machine consume(value: Receipt) { drop(value); }

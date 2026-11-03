@@ -1,7 +1,7 @@
 // PASS canary (decision 21): one established linear obligation transfers
 // through multiple bindings and is terminally consumed by a by-value-subject
 // consuming contract — the call edge transfers custody and the requirement
-// discharges it. `Receipt` declares no `Receipt::drop` plan, so no edge
+// discharges it. `Receipt` selects no `dropped by` cleanup, so no edge
 // cleanup may retire the claim.
 //
 // The requirement's provider is an external sink. Each bound target's C

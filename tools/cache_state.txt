@@ -87,7 +87,7 @@
 3 omega-rust/psi/compilation/representations/terminal-psi/src/terminal_module/identity/table.rs
 5 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees.rs
 3 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/data_definitions.rs
-11 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declaration_index.rs
+10 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/declaration_index.rs
 5 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/machine_declarations.rs
 3 omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/type_parameters.rs
 2 omega-rust/psi/compilation/validation/src/machine_calls/calls/write_frames/boundary_calls.rs

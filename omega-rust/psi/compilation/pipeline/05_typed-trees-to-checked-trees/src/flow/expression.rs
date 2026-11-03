@@ -1761,11 +1761,13 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                         *constraints,
                     );
                 }
+                // Flow reads no arithmetic decisions: a closed comparison
+                // folds without exact-cast facts.
                 return crate::values::evaluate_closed_boolean_expression(
                     self.program,
                     self.context.operators,
                     expression,
-                    self.context.exact_integer_casts,
+                    &[],
                 );
             }
             ExpressionNode::Call(call)

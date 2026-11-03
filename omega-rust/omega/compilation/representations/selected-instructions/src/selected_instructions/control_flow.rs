@@ -33,24 +33,37 @@ impl SelectedFunction {
     }
 
     /// The position of the block keyed `id`, when the function declares it.
+    /// A block's ID is its position ([`Self::ids_are_positions`]).
     pub fn block_index(&self, id: SelectedBlockId) -> Option<usize> {
-        let direct = id.0 as usize;
-        if self.blocks.get(direct).is_some_and(|block| block.id == id) {
-            return Some(direct);
-        }
-        self.blocks.iter().position(|block| block.id == id)
+        let index = id.0 as usize;
+        self.blocks
+            .get(index)
+            .is_some_and(|block| block.id == id)
+            .then_some(index)
     }
 
     /// The virtual register keyed `register`, when the function declares it.
+    /// A register's ID is its position ([`Self::ids_are_positions`]).
     pub fn virtual_register(&self, register: VirtualRegisterId) -> Option<&VirtualRegister> {
-        if let Some(pos) = self
-            .virtual_registers
-            .binary_search_by_key(&register, |row| row.id)
-            .ok()
-        {
-            return Some(&self.virtual_registers[pos]);
-        }
-        self.virtual_registers.iter().find(|row| row.id == register)
+        self.virtual_registers
+            .get(register.0 as usize)
+            .filter(|row| row.id == register)
+    }
+
+    /// Whether every block and virtual register ID equals its row's position.
+    /// Selection allocates both densely and copy removal renumbers registers
+    /// to keep them so; selection and decoding check it once, and lookups
+    /// index directly instead of searching.
+    pub fn ids_are_positions(&self) -> bool {
+        self.blocks
+            .iter()
+            .enumerate()
+            .all(|(index, block)| block.id.0 as usize == index)
+            && self
+                .virtual_registers
+                .iter()
+                .enumerate()
+                .all(|(index, register)| register.id.0 as usize == index)
     }
 
     /// The call contract covering `instruction`, when the function carries one.

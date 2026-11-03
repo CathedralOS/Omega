@@ -45,9 +45,9 @@ boundary trait WindowsConsoleIo {
 
 
 data Kind [copy] { case Keep; case Pass; }
-data Item { ready: bool; kind: Kind; byte: i32; }
+data Item dropped by drop_item { ready: bool; kind: Kind; byte: i32; }
 
-machine Item::drop(item: &mut Item)
+machine drop_item(item: &mut Item)
 requires item.ready
 reaches Console
 {

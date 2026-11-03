@@ -7,7 +7,7 @@
 //     `_ -> consume_second(main, receipt)` — same obligation, two
 //     destinations.
 //   * `Acknowledgement::ack` is a one-member boundary trait requirement
-//     with a consuming contract. `Receipt` declares no `Receipt::drop`
+//     with a consuming contract. `Receipt` selects no `dropped by` cleanup
 //     plan, so no edge cleanup may retire the claim: each arm must hand
 //     the receipt to the requirement.
 //   * The selected provider is an external sink: each bound target's C

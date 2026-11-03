@@ -46,7 +46,7 @@ fn selected_call_capture<Value: CapturedValue>(
     source: typed_trees::expression::ExpressionHandle,
     active: HandleSpan<FlowSemanticContextRef>,
 ) -> Option<Option<Value>> {
-    let selected = selected_call(program, context.exact_integer_casts, source)?;
+    let selected = selected_call(program, source)?;
     Some(
         capture_call(
             program,
@@ -266,7 +266,7 @@ pub(super) fn capture_bounds(
             // contract at this occurrence. Constructors consume the same
             // facts; assignment adds only its admitted conversion, not another
             // declaration-only shortcut or a read of the mutated actuals.
-            let selected = selected_call(program, context.exact_integer_casts, source)?;
+            let selected = selected_call(program, source)?;
             let place = place_at(program, state, statement_index, selected.expression)?;
             selected.convert(crate::values::integer_bounds_at_place(
                 program,
@@ -329,13 +329,7 @@ fn selected_live_capture<Value: CapturedValue>(
     statement_index: usize,
     source: ExpressionHandle,
 ) -> Option<Value> {
-    let operand = selected_operand(
-        program,
-        context.exact_integer_casts,
-        state,
-        statement_index,
-        source,
-    )?;
+    let operand = selected_operand(program, state, statement_index, source)?;
     let live = LiveValues {
         program,
         semantic,

@@ -1,9 +1,9 @@
 // A nominal cleanup still uses the exclusive child. Last explicit use does
 // not restore its parent for a call evaluated before the cleanup.
 data Counter { value: u64; }
-data Cleanup { counter: &mut Counter; }
+data Cleanup dropped by drop_cleanup { counter: &mut Counter; }
 
-machine Cleanup::drop(cleanup: &mut Cleanup) {
+machine drop_cleanup(cleanup: &mut Cleanup) {
     cleanup.counter.value = 17;
 }
 

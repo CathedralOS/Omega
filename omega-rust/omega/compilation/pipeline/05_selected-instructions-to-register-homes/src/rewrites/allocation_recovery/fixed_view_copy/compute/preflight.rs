@@ -6,7 +6,7 @@ use super::{
     ValidatedPhysicalRegisterModel, ValidatedRegisterConstraintCatalog,
     ValidatedRegisterReservationProfile, VirtualRegisterId, target_register_environment_identity,
 };
-use crate::rewrites::block_edges::{block_instruction_ids, virtual_register_ids_are_dense};
+use crate::rewrites::block_edges::block_instruction_ids;
 use crate::{
     FixedViewCopyError, FixedViewCopyPolicy, ValidatedAllocationLegality, ValidatedLiveRanges,
 };
@@ -128,7 +128,7 @@ pub(super) fn next_register_id(
     function_index: usize,
     function: &selected_instructions::SelectedFunction,
 ) -> Result<u32, FixedViewCopyError> {
-    if !virtual_register_ids_are_dense(function) {
+    if !function.ids_are_positions() {
         return Err(FixedViewCopyError::FunctionMismatch {
             function: function_index,
         });

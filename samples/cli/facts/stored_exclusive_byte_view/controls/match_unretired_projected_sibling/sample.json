@@ -1,1 +1,1 @@
-{"role":"intended-invalid","rejection_contains":["original.fourth does not establish Token::drop"]}
+{"role":"intended-invalid","rejection_contains":["original.fourth does not establish drop_token"]}

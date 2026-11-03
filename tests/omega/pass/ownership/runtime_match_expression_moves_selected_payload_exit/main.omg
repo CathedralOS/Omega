@@ -4,8 +4,8 @@
 // cleanup is skipped, the moved token is disposed once by its new owner, and
 // each arm yields its own payload (5 for Success, 6 for Failure).
 use omega::language::core::drop;
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 data Outcome { case Success(token: Token); case Failure(token: Token); }
 machine make(succeed: bool) -> Outcome {
     transition succeed {

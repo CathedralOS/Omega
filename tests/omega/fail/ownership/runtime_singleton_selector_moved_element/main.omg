@@ -1,5 +1,5 @@
-data Token { value: u64; }
-machine Token::drop(token: &mut Token) { token.value = 0; }
+data Token dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 machine select() -> u64 ensures result == 0 { 0 }
 machine main() {
     let mut tokens: [Token; 2] = [Token { value: 11 }, Token { value: 7 }];

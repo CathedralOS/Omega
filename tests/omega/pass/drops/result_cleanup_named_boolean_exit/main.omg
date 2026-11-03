@@ -1,6 +1,6 @@
 // Expected exit: 0
-data Token { ready: bool; value: u64; }
-machine Token::drop(token: &mut Token)
+data Token dropped by drop_token { ready: bool; value: u64; }
+machine drop_token(token: &mut Token)
 requires token.ready { token.ready = false; }
 machine make_token(count: &mut u64) -> Token
 ensures result.ready == true {

@@ -439,7 +439,7 @@ pub(super) fn prepare_storage_deaths(
                                 root: event.root,
                                 segments: path[..prefix_len].to_vec(),
                             };
-                            let Some(type_name) = nominal_drop_place_name(
+                            let Some((type_name, hook)) = nominal_drop_place_name(
                                 program,
                                 state.symbol,
                                 event_statement_index(event.source).unwrap_or(0),
@@ -448,7 +448,7 @@ pub(super) fn prepare_storage_deaths(
                                 continue;
                             };
                             diagnostics.push(Diagnostic::error(format!(
-                                "cannot partially move a value of `{type_name}` because `{type_name}::drop` requires the whole value"
+                                "cannot partially move a value of `{type_name}` because `{hook}` requires the whole value"
                             )));
                             break;
                         }
@@ -590,52 +590,16 @@ pub(crate) fn type_reference_is_reference(
     crate::checks::reference_access(program, type_reference).is_some()
 }
 
+/// The owned type at `place` and the hook its `dropped by` selection names.
 fn nominal_drop_place_name<'program>(
     program: &'program dyn ::validation::CheckingInput,
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &validation::CanonicalPlace,
-) -> Option<&'program str> {
-    if place.segments.is_empty()
-        && let Some(root) = place.root.as_symbol()
-        && let Some(attached) =
-            validation::find_state(program, state_symbol).and_then(|(machine, _)| {
-                (machine.symbol == root)
-                    .then_some(machine.attached_data.as_deref())
-                    .flatten()
-            })
-    {
-        return data_name(program, attached);
-    }
+) -> Option<(&'program str, &'program str)> {
     let type_reference =
         validation::canonical_place_type_reference(program, state_symbol, statement_index, place)?;
     nominal_drop_type_name(program, type_reference)
-}
-
-fn data_name<'program>(
-    program: &'program dyn ::validation::CheckingInput,
-    name: &str,
-) -> Option<&'program str> {
-    let definition = program.data_definition_by_name_str(name)?;
-    nominal_drop_machine_symbol(program, definition.symbol)
-        .is_some()
-        .then_some(definition.name.as_str())
-}
-
-/// The one reserved cleanup machine attached to an exact nominal declaration.
-/// Presentation names never choose the carrier: the retained attachment symbol
-/// must agree first, preventing an unrelated same-named machine from becoming
-/// automatic cleanup authority.
-pub(crate) fn nominal_drop_machine_symbol(
-    program: &dyn ::validation::CheckingInput,
-    data_symbol: SymbolHandle,
-) -> Option<SymbolHandle> {
-    let mut matches = program.machines().iter().filter(|machine| {
-        machine.attached_data_symbol == data_symbol
-            && machine.name.as_str().rsplit("::").next() == Some("drop")
-    });
-    let selected = matches.next()?;
-    matches.next().is_none().then_some(selected.symbol)
 }
 
 pub(super) fn move_event_is_production_target(
@@ -684,21 +648,31 @@ pub(super) fn move_event_is_production_target(
 fn nominal_drop_type_name(
     program: &dyn ::validation::CheckingInput,
     type_reference: TypeReferenceHandle,
-) -> Option<&str> {
-    let (symbol, name) = match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. }
-        | TypeReferenceNode::Reference {
-            referee: base_type, ..
-        } => return nominal_drop_type_name(program, *base_type),
-        TypeReferenceNode::Named { symbol, name } => (*symbol, name),
-        TypeReferenceNode::Generic {
-            base_symbol,
-            base_name,
-            ..
-        } => (*base_symbol, base_name),
-        _ => return None,
+) -> Option<(&str, &str)> {
+    let mut owned = type_reference;
+    while let TypeReferenceNode::Reference { referee, .. } =
+        program.type_reference_table.type_reference(owned)
+    {
+        owned = *referee;
+    }
+    let hook = validation::nominal_cleanup_machine_for_type(program, owned, &[])?;
+    let mut nominal = owned;
+    let (symbol, name) = loop {
+        match program.type_reference_table.type_reference(nominal) {
+            TypeReferenceNode::Constrained { base_type, .. } => nominal = *base_type,
+            TypeReferenceNode::Named { symbol, name } => break (*symbol, name),
+            TypeReferenceNode::Generic {
+                base_symbol,
+                base_name,
+                ..
+            } => break (*base_symbol, base_name),
+            _ => return None,
+        }
     };
     let definition =
         ::validation::field_domains::data_definition_by_symbol_or_name(program, symbol, name)?;
-    data_name(program, definition.name.as_str())
+    // A specialized hook's minted name carries its selection fingerprint; the
+    // reader wrote the generic declaration.
+    let authored = program.symbols.authored_origin(hook.symbol);
+    Some((definition.name.as_str(), program.symbols.name(authored)))
 }

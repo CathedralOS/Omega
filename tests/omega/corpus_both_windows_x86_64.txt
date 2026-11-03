@@ -1114,7 +1114,7 @@ pass/collections/runtime_stored_reference_array_owned_record_contract_exit incom
 pass/collections/runtime_stored_reference_array_replacement_contract_exit incomplete 2186ms interpreter:unchecked @5f668826adf3+wt
 	`observe` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `observe::entry`
 pass/collections/runtime_three_indexed_record_float_read_exit built 18223ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/collections/runtime_vec_u32_growth_exit built 21631ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/collections/runtime_vec_u32_growth_exit built 39681ms exit:0 interpreter-exit:0 interpreter:agrees @9569dace81fc+wt
 pass/collections/runtime_view_element_structural_replacement_exit built 2305ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/collections/runtime_whole_array_value_copy_exit built 13773ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/collections/shared_slice_view_dropped_receiver built 12702ms exit:181 interpreter-exit:181 interpreter:agrees @5f668826adf3+wt

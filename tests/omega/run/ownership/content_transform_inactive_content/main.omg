@@ -2,8 +2,8 @@
 use omega::language::core::content;
 use omega::language::core::drop;
 data Units {}
-data Ticket [linear] { quantity: u64; }
-machine Ticket::drop(value: &mut Ticket) {}
+data Ticket [linear] dropped by drop_ticket { quantity: u64; }
+machine drop_ticket(value: &mut Ticket) {}
 domain Ticket::Counted;
 machine Counted::content(value: &Ticket) -> CountedQuantity<Units>
 satisfies Content<Ticket, CountedQuantity<Units>>::project {
@@ -14,7 +14,7 @@ ensures Counted::content(old(&value)) == Counted::content(&result) {
     Ticket { quantity: value.quantity }
 }
 data Box<T> { value: T; }
-data Envelope [linear] {
+data Envelope [linear] dropped by drop_envelope {
     quantity: u64;
     case Occupied(storage: Box<Ticket in Counted>);
     case Empty;
@@ -29,7 +29,7 @@ requires whole in Envelope::Empty
 ensures Accounted::content(old(&whole)) == Accounted::content(&result) {
     Envelope::Empty { quantity: whole.quantity }
 }
-machine Envelope::drop(value: &mut Envelope) {}
+machine drop_envelope(value: &mut Envelope) {}
 machine main() crashes Trap {
     let ticket: Ticket in Counted = identity_ticket(Ticket { quantity: 7 });
     let renewed: Envelope in Accounted = renew_empty(Envelope::Empty { quantity: 19 });

@@ -5,10 +5,10 @@ data Token { value: u64; }
 data Wrapped { token: Token; }
 data Holder<Value> { value: Value; }
 data Pair { left: Token; right: Token; }
-data Receipt [linear] { value: u64; }
+data Receipt [linear] dropped by drop_receipt { value: u64; }
 data MixedPair { receipt: Receipt; token: Token; }
 
-machine Receipt::drop(receipt: &mut Receipt) { receipt.value = 0; }
+machine drop_receipt(receipt: &mut Receipt) { receipt.value = 0; }
 machine consume_receipt(receipt: Receipt) -> u64 { receipt.value }
 
 machine consume(value: Wrapped) -> u64 { value.token.value }

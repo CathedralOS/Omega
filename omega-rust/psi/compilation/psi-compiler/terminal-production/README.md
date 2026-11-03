@@ -93,7 +93,7 @@ ordinary terminal calls, including selected conditional and guarded arms with
 scalar or Unit completion. Each arm retains its exact authored invocation and
 transfers the inherited owner only on that executed path. An explicit consuming
 call may finish
-through the exact owner-designated `T::drop` plan for the admitted scalar-record
+through the exact `dropped by` cleanup plan for the admitted scalar-record
 carrier. The cleanup edge consumes
 that live claim while the hook receives only a temporary exclusive loan; an
 ordinary borrowed method does not gain disposition authority. Source checking

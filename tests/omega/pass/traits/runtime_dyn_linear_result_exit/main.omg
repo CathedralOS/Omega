@@ -1,7 +1,7 @@
 // A dynamic return transports the input's exact nested linear claim.
 use omega::language::core::drop;
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 domain Token::Issued;
 data Packet { token: Token in Token::Issued; marker: u64; }
 machine issue(value: u64) -> Token in Token::Issued {

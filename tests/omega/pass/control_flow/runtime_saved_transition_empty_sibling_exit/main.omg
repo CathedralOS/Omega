@@ -1,7 +1,7 @@
 // Expected exit: 0. Both linear payloads leave one evaluated provider result.
 use omega::language::core::drop;
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 data Extracted<Value> { case Moved(storage: Token, value: Value, padding: [u8; 0]); }
 data Returned<Value> { storage: Token; value: Value; }
 boundary trait Extract<Value> {

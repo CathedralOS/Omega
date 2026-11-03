@@ -1,8 +1,8 @@
 // Moving an element out of an exclusive slice parameter leaves a hole in the
 // caller's storage. Storing it at a different index does not restore the
 // vacated element before the borrow ends.
-data Token { byte: i32; }
-machine Token::drop(token: &mut Token) { token.byte = 0; }
+data Token dropped by drop_token { byte: i32; }
+machine drop_token(token: &mut Token) { token.byte = 0; }
 machine mint(byte: i32) -> Token { Token { byte: byte } }
 machine refill(tokens: &mut [Token])
 requires tokens.len >= 2

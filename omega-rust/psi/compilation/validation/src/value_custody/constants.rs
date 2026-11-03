@@ -242,7 +242,7 @@ fn eligible_type(
                         _ => false,
                     }
                 })
-                || program.attached_drop_machine_exists(*symbol)
+                || program.data_selects_cleanup(*symbol)
             {
                 return false;
             }
@@ -279,7 +279,7 @@ fn eligible_type(
                         _ => false,
                     }
                 })
-                || program.attached_drop_machine_exists(*base_symbol)
+                || program.data_selects_cleanup(*base_symbol)
             {
                 return false;
             }

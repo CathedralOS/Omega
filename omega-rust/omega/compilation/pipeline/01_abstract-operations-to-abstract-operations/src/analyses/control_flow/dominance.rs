@@ -12,10 +12,11 @@ pub(crate) fn block_dominates(
     dominator: BlockId,
     block: BlockId,
 ) -> bool {
+    // Rows and each dominator set are ascending: both come out of the ordered
+    // sets `dominators` builds.
     dominators
-        .iter()
-        .find(|(candidate, _)| *candidate == block)
-        .is_some_and(|(_, rows)| rows.contains(&dominator))
+        .binary_search_by_key(&block, |(candidate, _)| *candidate)
+        .is_ok_and(|index| dominators[index].1.binary_search(&dominator).is_ok())
 }
 
 pub(in crate::analyses) fn dominators(

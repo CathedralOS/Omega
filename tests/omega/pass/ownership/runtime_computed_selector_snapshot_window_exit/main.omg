@@ -1,5 +1,5 @@
-data Token { byte: i32; }
-machine Token::drop(token: &mut Token) { token.byte = 0; }
+data Token dropped by drop_token { byte: i32; }
+machine drop_token(token: &mut Token) { token.byte = 0; }
 
 machine restore(tokens: &mut [Token])
 requires tokens.len >= 2

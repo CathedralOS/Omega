@@ -496,9 +496,8 @@ fn check_program(
         || validation::reference_result_custody::classify_program_reference_custody(&finalized),
     );
     // Content classification rides the same placement, and for the same
-    // reason. Both memos it leans on -- the data-definition index and the
-    // attached-`::drop` index -- are owned by `program` and keyed by table
-    // revision, so they still answer from cache here.
+    // reason. The data-definition index it leans on is owned by `program`
+    // and keyed by table revision, so it still answers from cache here.
     facts.content_classes = phase_profile::scope(
         "psi.05.selections_custody_types_boundaries.content_classes",
         || validation::classify_program_content_classes(&finalized),

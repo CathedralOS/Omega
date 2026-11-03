@@ -20,6 +20,8 @@ pass/calls/runtime_mutable_owned_computation_arguments_exit built 1107ms exit:0 
 pass/collections/runtime_stored_reference_array_owned_record_contract_exit built 1343ms exit:0 @4ce70cb5f8a0
 pass/collections/runtime_stored_reference_array_replacement_contract_exit built 1176ms exit:0 @4ce70cb5f8a0
 pass/comptime/const_recursive_counter_survives_unrelated_writes built 3640ms exit:0 @dafa99045a79+wt
+pass/contracts/recursive_private_arrival_exit built 3199ms exit:0 @7391b2ce665a
+pass/contracts/returned_case_geometry_domain_exit built 4290ms exit:0 @12dc24de59c1+wt
 pass/drops/copied_scalar_temporary_completion_exit built 1004ms exit:0 @7fd97495b148+wt
 pass/expressions/runtime_owned_match_borrowed_subject_exit built 1198ms exit:0 @4ce70cb5f8a0
 pass/expressions/runtime_owned_match_effectful_subject_exit built 1137ms exit:0 @4ce70cb5f8a0

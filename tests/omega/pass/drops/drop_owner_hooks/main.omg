@@ -1,18 +1,18 @@
 use omega::language::core::drop;
 // `drop(g)` is the ordinary generic consuming machine: the caller's path
 // is proved by transfer, and the checked cleanup edge selects the exact
-// owner-attached `Guard::drop` hook. An `[erased]` member carries no
+// `dropped by` hook `drop_guard`. An `[erased]` member carries no
 // runtime representation, so `drop(c)` consumes `Carrier` without
-// requiring `Carrier::drop` or running `Evidence::drop`.
-data Evidence {
+// requiring a `dropped by` hook on `Carrier` or running `drop_evidence`.
+data Evidence dropped by drop_evidence {
     tag: i32;
 }
-machine Evidence::drop(evidence: &mut Evidence) {
+machine drop_evidence(evidence: &mut Evidence) {
 }
-data Guard {
+data Guard dropped by drop_guard {
     handle: i32;
 }
-machine Guard::drop(guard: &mut Guard) {
+machine drop_guard(guard: &mut Guard) {
 }
 data Carrier {
     payload: i32;

@@ -4,8 +4,8 @@
 use omega::language::core::content;
 use omega::language::core::drop;
 public data ByteUnit {}
-public data Buffer [linear] { value: u64; }
-machine Buffer::drop(buffer: &mut Buffer) {}
+public data Buffer [linear] dropped by drop_buffer { value: u64; }
+machine drop_buffer(buffer: &mut Buffer) {}
 public domain Buffer::Owned;
 machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
 satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
@@ -29,8 +29,8 @@ public boundary trait Reader {
     ensures result in Capacity::Available crashes Trap;
     machine release(capacity: Capacity in Capacity::Available) reaches crashes Trap;
 }
-data Envelope [linear] { prefix: u64; payload: Buffer in Buffer::Owned; }
-machine Envelope::drop(envelope: &mut Envelope) {}
+data Envelope [linear] dropped by drop_envelope { prefix: u64; payload: Buffer in Buffer::Owned; }
+machine drop_envelope(envelope: &mut Envelope) {}
 data Main {}
 machine run_main(main: &mut Main) reaches Reader crashes Trap {
     let capacity: Capacity in Capacity::Available = Reader::acquire();

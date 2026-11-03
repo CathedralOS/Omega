@@ -1,13 +1,13 @@
-data Receipt [linear] { value: u64; }
-data Owner { first: Receipt; second: Receipt; }
+data Receipt [linear] dropped by drop_receipt { value: u64; }
+data Owner dropped by drop_owner { first: Receipt; second: Receipt; }
 
-machine Receipt::drop(receipt: &mut Receipt)
+machine drop_receipt(receipt: &mut Receipt)
 requires receipt.value == 9
 {
     receipt.value = 0;
 }
 
-machine Owner::drop(owner: &mut Owner)
+machine drop_owner(owner: &mut Owner)
 requires owner.first.value == 7 && owner.second.value == 13
 ensures owner.first.value == 9 && owner.second.value == 9
 {
@@ -21,8 +21,8 @@ machine inspect(owner: &Owner) -> bool {
 
 // Empty arrays contribute no child debt; completing the other field must
 // establish this parent so its guarantee precedes the Receipt hook.
-data EmptyOwner { empty: [Receipt; 0]; receipt: Receipt; }
-machine EmptyOwner::drop(owner: &mut EmptyOwner)
+data EmptyOwner dropped by drop_empty_owner { empty: [Receipt; 0]; receipt: Receipt; }
+machine drop_empty_owner(owner: &mut EmptyOwner)
 requires owner.receipt.value == 7
 ensures owner.receipt.value == 9
 {
@@ -35,8 +35,8 @@ machine empty_array() -> bool {
 }
 
 // Once every element is written, the array belongs to the complete parent.
-data ArrayOwner { receipts: [Receipt; 2]; }
-machine ArrayOwner::drop(owner: &mut ArrayOwner)
+data ArrayOwner dropped by drop_array_owner { receipts: [Receipt; 2]; }
+machine drop_array_owner(owner: &mut ArrayOwner)
 requires owner.receipts[0].value == 7 && owner.receipts[1].value == 13
 ensures owner.receipts[0].value == 9 && owner.receipts[1].value == 9
 {

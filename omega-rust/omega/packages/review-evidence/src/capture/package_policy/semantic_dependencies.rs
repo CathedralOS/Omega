@@ -77,8 +77,8 @@ pub(super) fn project(
         };
         let dependencies =
             if fact.kind == checked_trees::CheckedSemanticDependencyKind::AutomaticCleanupMachine {
-                // Cleanup authority retains the exact selected callable and its
-                // application; declaration-family projection never selects it.
+                // The checked dependency owner selected this exact cleanup hook
+                // with `dropped by`; declaration-family projection never selects it.
                 vec![policy_callable_identity(compilation, fact.dependency)?]
             } else {
                 nominal_declarations(compilation, fact.dependency)?

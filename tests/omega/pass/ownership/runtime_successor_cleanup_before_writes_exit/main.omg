@@ -2,10 +2,10 @@
 // Internal arrival: outgoing argument calls finish, departed storage is
 // cleaned, then the destination body executes.
 data Counter { value: u64; }
-data Cleanup { counter: &mut Counter; }
+data Cleanup dropped by drop_cleanup { counter: &mut Counter; }
 data Wrapper { cleanup: Cleanup; }
 
-machine Cleanup::drop(cleanup: &mut Cleanup) {
+machine drop_cleanup(cleanup: &mut Cleanup) {
     cleanup.counter.value =
         ((cleanup.counter.value as u64 in Wrapping) + 10) as u64;
 }
