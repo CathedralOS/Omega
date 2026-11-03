@@ -340,10 +340,11 @@ pub struct BorrowLoanFact {
     /// the whole owner; dynamic indexes conservatively overlap every element.
     pub owner_path: HandleSpan<BorrowLoanOwnerSegment>,
     pub source_owner_symbol: SymbolHandle,
-    /// Immediate historical descriptor alternatives transported into this
-    /// leaf, in `BorrowFacts::loan_suppliers`. These are not reborrow parents.
-    /// A shared dependency graph retains every supplier without enumerating
-    /// complete histories when conditional replacements repeatedly converge.
+    /// Immediate saved-descriptor alternatives supplying this value or its
+    /// captured source, in `BorrowFacts::loan_suppliers`. A pure transfer
+    /// copies permission; a real view also retains this forwarding route beside
+    /// its borrowing parent. These descriptor edges are not reborrow events.
+    /// The shared graph keeps every supplier without expanding whole histories.
     pub supplying_loans: HandleSpan<Handle<BorrowLoanFact>>,
     /// Checked formation lineage for this loan occurrence.
     ///
@@ -543,10 +544,11 @@ pub struct CheckedReborrowRestorationObligation {
 /// Exact checked-flow boundary at which an explicit direct reborrow suspends
 /// use through its immediate parent occurrence.
 ///
-/// The parent constraint is the unique occurrence present immediately before
-/// the child activation. This checked-only join says nothing about the parent
-/// after formation: it is not interval containment, reactivation, completed
-/// restoration, or Terminal authority.
+/// The source constraint names the current descriptor immediately before child
+/// activation. A saved descriptor may forward the actual parent's permission;
+/// its frozen capture is checked separately and does not revive the old slot.
+/// This join establishes no later parent activity, restoration, or Terminal
+/// authority.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedReborrowParentSuspensionBoundary {
     pub child_loan: Handle<BorrowLoanFact>,

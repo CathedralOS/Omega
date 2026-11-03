@@ -1,8 +1,8 @@
-//! Resolve a reached descriptor's permission supplier without rereading its
-//! former slot. Call stores retain exact source captures and projections; a
-//! temporary call access can end while its installed descriptor continues to
-//! carry that supplier. Neither equal geometry nor lifetime roots create this
-//! association. Every alternative must resolve, and cycles withhold coverage.
+//! A saved reference keeps access to its original data after its source slot
+//! changes. Follow that saved value to the checked borrow that permits its use.
+//! Completed captures and projections identify every possible supplier; equal
+//! geometry and lifetime roots cannot create that permission association.
+//! A temporary call access may end while its stored descriptor retains it.
 
 use super::retained_backing::retained_places;
 use crate::borrow::{owner_path_from_place_segments, owner_place_segments};

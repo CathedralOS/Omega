@@ -34,6 +34,13 @@ through all nine places after forming a compatible record view. It preserves
 the original backing's carry floor rather than acquiring the target type's
 default permissions.
 
+The [copied-source production](copied_source/README.md) first selects and copies
+stored references, then forms the view. It retains the original data and access
+when the source slot changes, including later argument effects, and keeps
+shared descendants and the complete originating call input borrowed until they
+finish. Its nine places and fact-sensitive twins are pinned alongside the
+inherited-policy, access and restoration controls.
+
 Twins change only the backing's declaration to
 `carry(suspension: forbidden, ...)`. No twin reads the backing after the call;
 it is live only because the transported descriptor retains it, so its

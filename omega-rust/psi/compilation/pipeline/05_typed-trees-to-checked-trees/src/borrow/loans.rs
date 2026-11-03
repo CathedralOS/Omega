@@ -20,12 +20,10 @@
 //! (`helper_call_borrow_loan_place`, which resolves the call's returned-view
 //! source through `view_link`). A place rooted at a local that already holds
 //! a loan in this state is rebased onto that loan's place, once per such
-//! loan. Locals, stored leaves and replacements use the same formation rule:
-//! `retained_reference_lineage` gives a cast, or a call that declares
-//! no direct view source, `UnretainedDerived` unless it is an explicit
-//! reborrow; otherwise a place that was not rebased is `DirectRoot`, an
-//! explicit reborrow through a single retained parent loan is `Reborrow`,
-//! and the rest are `UnretainedDerived`.
+//! loan. A copied reference carries its existing borrowing occurrence into
+//! later view formation. Each selected supplier retains its nearest real
+//! borrowing parent and the exact saved descriptor used to reach it. Copies
+//! add no borrow event; unknown source relationships remain unretained.
 //!
 //! `owner_paths` matches owner field paths against place segments, and
 //! `types` answers whether a type is a reference and with which access.
@@ -109,10 +107,9 @@ pub(super) struct StatementBorrowLoan {
     pub(super) supplying_loans: Vec<Handle<checked_trees::BorrowLoanFact>>,
     pub(super) lineage: checked_trees::BorrowLoanLineage,
     pub(super) kind: checked_trees::BorrowAccessKind,
-    /// The loan's retained root was captured from a call result, not from a
-    /// borrow expression. It resolves receivers like any direct root, but it
-    /// is not borrow ancestry: children formed through it stay derived rather
-    /// than claiming `Reborrow` lineage.
+    /// A call result may forward an established descriptor. Its captured root
+    /// is not itself a new borrowing authority; only the retained source
+    /// association can supply a later view's real parent.
     pub(super) call_result: bool,
 }
 

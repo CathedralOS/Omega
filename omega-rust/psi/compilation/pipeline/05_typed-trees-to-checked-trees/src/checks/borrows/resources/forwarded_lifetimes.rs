@@ -1,6 +1,6 @@
-//! Keep a borrowing occurrence held until all its saved descriptors retire.
-//! Replacing the original slot still ends that descriptor generation in flow;
-//! it does not release permission that an earlier copy continues to carry.
+//! Replacing a reference slot must not end access held by an earlier copy.
+//! Keep the original borrow held until all surviving copies finish. Lexical
+//! slot retirement remains separate from the final holder's resource closure.
 
 use arena::Handle;
 use checked_trees::{

@@ -1,6 +1,7 @@
-//! A view formed from a saved reference must use that completed descriptor,
-//! including all selected suppliers. Its old storage slot and backing geometry
-//! cannot identify or authorize the new view's borrowing parent.
+//! When a new view is made from a copied reference, check the reference that
+//! was actually read. Its old slot may now contain a different reference.
+//! Every selected supplier must retain its established borrowing parent and
+//! presented access; neither the old slot nor equal backing authorizes a view.
 
 use arena::Handle;
 use checked_trees::{BorrowLoanFact, BorrowLoanLineage, CheckFacts, FlowOperandFact};

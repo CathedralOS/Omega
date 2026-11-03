@@ -1,6 +1,6 @@
-//! Resolve the original storage and permission dependencies retained by a
-//! completed reference. This shared capture query owns no call destination
-//! and creates no new access or restoration authority.
+//! Find the original storage behind a saved reference, including references
+//! inside records. Resolve its completed storage and permission dependencies
+//! without creating access, restoration authority, or call destinations.
 
 use crate::checks::borrows::access_sources::resolve_captured_all;
 use crate::checks::borrows::aliases::ResolvedAlias;
