@@ -11,7 +11,6 @@ use crate::engine::execution::TerminalExecution;
 use crate::storage::element_views::{ElementView, immutable_sequence::ImmutableStructuralSequence};
 use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
 use crate::storage::record::storage::ConstructorStorage;
-use crate::storage::runtime_rows::RuntimeRows;
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment, IntegerType, IntegerValue, MachineId, ScalarType,
 };
@@ -69,7 +68,7 @@ impl TerminalExecution<'_> {
             return Err(malformed());
         };
         let entry_field = entry.id;
-        let regions_field = regions.id;
+        let regions_identity = regions.identity;
         let StructuralTypeShape::ElementView { element, .. } =
             self.structural_declaration(view_type)?.shape
         else {
@@ -147,7 +146,7 @@ impl TerminalExecution<'_> {
         descriptor.structural_type = view_type;
         descriptor
             .path
-            .push(StructuralPathSegment::Field(regions_field));
+            .push(StructuralPathSegment::Field(regions_identity));
         let view = ElementView::immutable_sequence(elements, descriptor.clone(), result.place);
         storage.publish(self)?;
         self.structural_element_view_fields
