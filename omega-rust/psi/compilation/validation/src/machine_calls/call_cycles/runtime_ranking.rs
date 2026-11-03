@@ -78,7 +78,11 @@ pub(super) fn require_tail_component(
     program: &dyn CheckingInput,
     component: &[usize],
 ) -> Result<(), &'static str> {
-    let dispatched = dispatched_implementations(program);
+    // A boundary requirement call, like a selector call, is one occurrence
+    // that can enter any of its implementations, so it owes the same tail
+    // classification whichever one a target selects.
+    let mut dispatched = dispatched_implementations(program);
+    dispatched.extend(supplied_requirement_implementations(program));
     for position in component {
         let machine = &program.machines()[*position];
         for state in program.machine_states(machine) {
