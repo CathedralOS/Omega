@@ -19186,8 +19186,8 @@ fail/data/closed_literal_omitted_zero_invalid rejected 2442ms expected @911f6617
 	data `Cell` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/data/closed_literal_selected_case_false rejected 1463ms unexpected @911f6617ba9e
 	data `Packet` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/data/constructor_case_payload_call_result_window rejected 524ms unexpected @d83ddecd7693+wt
-	tests/omega/fail/data/constructor_case_payload_call_result_window/main.omg:8:43: expected `:` after data field `where` (alternatives are spelled `case where;`)
+fail/data/constructor_case_payload_call_result_window rejected 6429ms expected @8bffc84d2ff9
+	data `Outcome` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/data/constructor_distinct_field_versions rejected 1152ms expected @911f6617ba9e
 	data `Snapshot` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/data/constructor_prior_operand_write rejected 14474ms expected @911f6617ba9e
@@ -19542,11 +19542,8 @@ fail/domains/completed_membership_before_later_guarantee rejected 1962ms expecte
 	construction of `Selection` field `amount` is not proven in domain `Amount::Positive` in selected state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/completed_routed_record_join_unissued_arm rejected 1640ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from select_ticket: selected in Ticket::Issued in state `entry`
-fail/domains/computed_qualification_requires_operand_facts rejected 1851ms unexpected @ccdb99ca2214
-	machine `wrong_conversion` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `counterfeit` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `false_predicate` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	`as ... in Three` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/domains/computed_qualification_requires_operand_facts rejected 6149ms expected @8bffc84d2ff9
+	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Positive` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
@@ -27322,8 +27319,8 @@ fail/facts/nested_machine_private_arithmetic_match_join_rejected rejected 1493ms
 	exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_machine_private_arithmetic_multiple_arrivals_rejected rejected 1618ms expected @ccdb99ca2214
 	exact arithmetic in machine `apply` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/nested_machine_private_arithmetic_mutable_alias_overlap_rejected rejected 1115ms expected @ccdb99ca2214
-	exact arithmetic in machine `apply` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/nested_machine_private_arithmetic_mutable_alias_overlap_rejected rejected 3407ms expected @8bffc84d2ff9
+	exact arithmetic in machine `apply` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_machine_private_arithmetic_mutable_call_result_rejected rejected 1626ms expected @ccdb99ca2214
 	exact arithmetic in machine `apply` state `entry` local `result` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_machine_private_arithmetic_mutable_const_name_rejected rejected 1357ms expected @ccdb99ca2214
@@ -31931,7 +31928,7 @@ fail/float/float_semantics_lookalike_grants_no_primitive rejected 109ms expected
 	`FloatSemantics::add` names a compiler primitive, but only the sealed toolchain declaration supplies it; merely naming a declaration `FloatSemantics::add` grants no primitive implementation or proof authority
 fail/float/format_conversion_exclusive_upper rejected 5315ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from exclusive at statement 0: result >= 0.0 && result < 1.0
-fail/float/format_conversion_lookalike rejected 5131ms unexpected @ccdb99ca2214
+fail/float/format_conversion_lookalike rejected 11859ms expected @8bffc84d2ff9
 	cannot prove ensures contract for exit from lookalike at statement 0: result >= 0.10000000149011612 && result <= 0.10000000149011612
 fail/float/format_conversion_requires_result_proof rejected 1870ms expected @ccdb99ca2214
 	cannot prove initializer `F32.from_f64(huge())` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
@@ -32128,7 +32125,7 @@ fail/float/trapping_raw_finite_predicate_invalidated_by_write rejected 3809ms ex
 	`multiply(value, 2.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/float/trapping_raw_finite_predicate_keeps_operand_identity rejected 4019ms expected @ccdb99ca2214
 	`multiply(value, 3.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
-fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 4131ms expected @ccdb99ca2214
+fail/float/trapping_raw_finite_proof_keeps_operation_identity rejected 10957ms expected @8bffc84d2ff9
 	`divide(value, 0.0)` in machine `scale` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 	`F32.from_f64(value)` in machine `wrong_format` state `entry` has an uncovered Trap result-policy site (FloatTrappingNonFinite { format: FloatFormat { radix: 2, precision: 24, minimum_normal_exponent: -126, maximum_normal_exponent: 127, minimum_subnormal_exponent: -149, specials: FloatSpecialValues { signed_zero: true, subnormals: true, infinity: true, nan: true }, rounds_to_nearest_ties_to_even: true } }); publish a same-cause `crashes` route covering this operation or prove its raw result finite
 fail/float/unbounded_result_does_not_prove_guarantee rejected 9334ms expected @ccdb99ca2214
