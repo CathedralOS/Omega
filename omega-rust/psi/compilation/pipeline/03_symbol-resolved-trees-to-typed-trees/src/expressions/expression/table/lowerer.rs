@@ -1096,6 +1096,19 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return Ok(None);
         }
         let spelling = kind.target_name();
+        if kind == language_core::data_layout_queries::DataLayoutQueryKind::Align
+            && call.arguments.len() == 1
+            && call.machine_arguments.is_empty()
+        {
+            // `align_of(place)` observes that place's storage location. The
+            // operand stays on the call until typed preparation resolves the
+            // place's declared storage type in its state; this request then
+            // answers through the same selected-layout route as `align_of<T>()`.
+            return Ok(Some(typed::expression::DataLayoutQueryRequest {
+                kind,
+                operand: typed::expression::StaticMachineArgument::default(),
+            }));
+        }
         if !call.arguments.is_empty() {
             return Err(Diagnostic::error(format!(
                 "`{spelling}` takes no value arguments; the queried type is its single `<T>` operand"
