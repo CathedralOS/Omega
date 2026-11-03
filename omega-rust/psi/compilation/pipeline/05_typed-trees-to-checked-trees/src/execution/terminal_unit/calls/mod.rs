@@ -96,7 +96,6 @@ pub(crate) use argument_paths::{
 };
 pub(crate) use boundary_admission::{
     boundary_authority_refusal, boundary_trait_receiver_is_namespace,
-    provider_attachment_receiver_field, provider_attachment_receiver_matches,
 };
 pub(in super::super) use call_operations::ExpectedCallValueResult;
 pub(in super::super) use call_operations::build_call_operation;

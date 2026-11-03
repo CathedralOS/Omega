@@ -64,7 +64,7 @@ pub use self::terminal::{
     CheckedNormalCleanupAction, CheckedNormalCompletion, CheckedNormalExitCleanupPlan,
     CheckedNormalExitCleanups, CheckedOpaqueRepresentation, CheckedOperandSequence,
     CheckedPartialAffineUnitCleanupMachinePlan, CheckedPartialAffineUnitCleanupPlans,
-    CheckedPlaceLoanPlan, CheckedPlaceLoanRoot, CheckedProviderAttachmentRequirementPlan,
+    CheckedPlaceLoanPlan, CheckedPlaceLoanRoot, 
     CheckedRankEdgeCoordinate, CheckedReferenceOriginProjection, CheckedReferenceOriginRoot,
     CheckedReferenceOriginSourcePlan, CheckedReferenceOwnerCleanup,
     CheckedReferenceResultSourcePlan, CheckedReferenceStorage, CheckedReturnedReferencePlan,

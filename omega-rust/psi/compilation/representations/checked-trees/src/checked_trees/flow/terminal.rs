@@ -55,7 +55,7 @@ pub use boundary_machine_plans::{
     CheckedBoundaryLifetimeDependency, CheckedBoundaryMachinePlan,
     CheckedBoundaryMachineResultPlan, CheckedBoundaryReferenceDestination,
     CheckedBoundaryReferenceOutput, CheckedBoundaryScalarDomainRequirementPlan,
-    CheckedBoundaryScalarGuarantee, CheckedProviderAttachmentRequirementPlan,
+    CheckedBoundaryScalarGuarantee, 
 };
 pub use composed_unit_control_plans::{
     CheckedClosedSumCaseOutcomePlan, CheckedClosedSumCasePlan, CheckedClosedSumPayloadTransferPlan,

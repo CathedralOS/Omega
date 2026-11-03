@@ -95,7 +95,6 @@ pub(crate) use operation_frame::completed_arguments::{
 pub(crate) use operation_frame::{BoundaryParameters, OperationEnvironment};
 mod normal_guarantees;
 mod ordinary_machine;
-mod provider_attachments;
 mod quotients;
 mod structural_returns;
 

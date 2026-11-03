@@ -36,7 +36,6 @@ use crate::unit::TerminalMachineResult;
 use crate::unit::attached_unit::claims::LoweredUnitClaims;
 use crate::unit::attached_unit::operation_frame::claim_established_here;
 use crate::unit::attached_unit::parameters::lower_unit_scalar_parameter_declarations;
-use crate::unit::attached_unit::provider_attachments::lower_provider_attachment_places;
 use crate::unit::attached_unit::signatures::find;
 use crate::unit::claim_id;
 use checked_trees::CheckedErasedProofParameterPlan;
@@ -999,27 +998,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         .as_ref()
         .map(|identity| lookup_type_id(&catalogs.type_ids, identity))
         .transpose()?;
-    if let Some(attachment) = attachment {
-        let declaration =
-            terminal_psi::find_structural_type(catalogs.structural_types.as_ref(), attachment)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit graph attachment declaration is absent",
-                ))?;
-        let boundaries = catalogs
-            .lowered_boundaries
-            .iter()
-            .map(|boundary| (boundary.source, boundary.id))
-            .collect::<Vec<_>>();
-        structural_places.extend(lower_provider_attachment_places(
-            identities,
-            checked,
-            attachment,
-            declaration,
-            &plan.provider_attachment_requirements,
-            &boundaries,
-            &mut catalogs.next_place,
-        )?);
-    }
     crate::emission::claim_bindings::seal_block_entry_claims(&mut block_entry_claims)?;
     let mut machine = TerminalMachine {
         assembly_target_requirement: checked

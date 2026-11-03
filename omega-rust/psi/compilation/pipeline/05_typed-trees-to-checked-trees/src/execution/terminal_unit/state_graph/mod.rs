@@ -24,7 +24,6 @@ use crate::execution::terminal_unit::ScalarCalleeClosure;
 use crate::execution::terminal_unit::calls::{
     entry_claims, free_structural_scalar_entry_signature_traced, structural_scalar_signature_traced,
 };
-use crate::execution::terminal_unit::providers::checked_composed_provider_attachment_requirements;
 use crate::execution::terminal_unit::structural_value_calls::PreparedCalls;
 use crate::execution::terminal_unit::types::erased_proof_parameter_plans;
 use crate::execution::terminal_unit::types::erased_scalar_parameter_plans;
@@ -660,35 +659,12 @@ pub(super) fn build_traced(
             }
         }
     }
-    // Retain only this machine's direct provider-field calls. Each ordinary
-    // callee owns its own attachment requirements, even through a receiver loan.
-    trace.phase("state graph: provider attachment requirements");
-    trace.state(None);
-    let provider_attachment_requirements = if let Some(identity) = &attachment {
-        let flows = fused
-            .iter()
-            .zip(&planned)
-            .map(|(&(owner, state), plan)| {
-                let flow = state_flow(facts, owner.symbol, state.symbol)?;
-                Some((
-                    owner,
-                    state,
-                    facts.flow.control.calls.span_or_empty(flow.calls),
-                    plan.operations.as_slice(),
-                ))
-            })
-            .collect::<Option<Vec<_>>>()?;
-        checked_composed_provider_attachment_requirements(program, shapes, *identity, &flows)?
-    } else {
-        Vec::new()
-    };
     trace.phase("state graph: finish");
     let mut plan = composed_control::finish_state_graph(
         program,
         facts,
         machine,
         attachment,
-        provider_attachment_requirements,
         planned,
     )
     .map_err(|reason| trace.phase(reason))

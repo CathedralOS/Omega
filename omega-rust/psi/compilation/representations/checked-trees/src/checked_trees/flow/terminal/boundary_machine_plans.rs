@@ -1,7 +1,6 @@
 //! Boundary machine plans: the boundary machine, its result and its
 //! provider attachment requirements.
 
-use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
     CheckedStructuralScalarParameterPlan, CheckedUnitStructuralDomainRequirementPlan,
     CheckedUnitStructuralParameterPlan,
@@ -46,13 +45,6 @@ impl CheckedBoundaryMachineResultPlan {
             Self::Unit | Self::Scalar(_) => None,
         }
     }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
-pub struct CheckedProviderAttachmentRequirementPlan {
-    pub field_identity: CheckedMemberIdentity,
-    pub provider_type_identity: TypeIdentityId,
-    pub boundary: SymbolHandle,
 }
 
 /// A normal-return fact in the boundary's input/result scalar namespace.

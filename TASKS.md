@@ -237,12 +237,6 @@ retired-syntax deletions to completion.
     `Build::select_provider`, `Build::exclude_service`,
     `Build::select_representation`, `Build::accept_boundary`,
     `Build::require_wire_compatibility`, `Build::assume_binding_contract`).
-  - Delete the provider-backed field machinery that checking now leaves
-    unreachable: `provider_backed_field` and
-    `CheckedUnitStructuralFieldType::ProviderBacked`,
-    `checked_provider_attachment_requirements`, stage 06
-    `attached_unit/provider_attachments.rs`, and
-    `fused_service_field_matches`/`fused_service_field_carrier`.
   - Retire remaining attachment helpers in checking/lowering without
     restoring hidden argument insertion.
   - Complete checked per-value loan carry evidence for suspension production

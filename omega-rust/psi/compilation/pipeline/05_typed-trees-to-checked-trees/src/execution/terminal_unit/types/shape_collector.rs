@@ -1617,16 +1617,6 @@ impl<'program> ShapeCollector<'program> {
             CheckedUnitStructuralFieldType::Erased {
                 type_identity: receiving_type_identity,
             }
-        } else if let Some(provider_node) =
-            provider_backed_field(self.program, field_type_reference)
-        {
-            CheckedUnitStructuralFieldType::ProviderBacked {
-                provider_type_identity: self.program.type_identity(TypeIdentityRequest {
-                    binders,
-                    substitutions,
-                    ..TypeIdentityRequest::ordinary(provider_node)
-                }),
-            }
         } else if let Some(carrier) =
             byte_sequence_carrier(self.program, field_type_reference, substitutions).filter(|_| {
                 !stores_reference_shape(self.program, field_type_reference, substitutions)
@@ -1857,36 +1847,4 @@ fn authored_field_storage(
     layout
         .invariant_geometry()?
         .authored_field_storage(field_index, scalar_field)
-}
-
-/// The type node whose identity names a provider-backed field's provider:
-/// the unwrapped boundary-trait referent of a `&'a mut <boundary trait>` field.
-pub(super) fn provider_backed_field(
-    program: &dyn ::validation::CheckingInput,
-    type_reference: TypeReferenceHandle,
-) -> Option<TypeReferenceHandle> {
-    // Attached data stores a provider as `&'a mut <boundary trait>`: look
-    // through the reference (and any qualifications wrapped around it) to the
-    // trait symbol before deciding the field is not a provider handle.
-    let mut unwrapped = type_reference;
-    let provider_symbol = loop {
-        match program.type_reference_table.type_reference(unwrapped) {
-            TypeReferenceNode::Constrained {
-                base_type: inner, ..
-            } => unwrapped = *inner,
-            TypeReferenceNode::Reference {
-                referee: inner,
-                access: language_core::ReferenceAccess::Mutable,
-                ..
-            } => unwrapped = *inner,
-            TypeReferenceNode::Named { symbol, .. }
-            | TypeReferenceNode::DynamicTrait { symbol, .. } => break *symbol,
-            _ => return None,
-        }
-    };
-    program
-        .traits()
-        .iter()
-        .any(|definition| definition.symbol == provider_symbol && definition.is_boundary)
-        .then_some(unwrapped)
 }
