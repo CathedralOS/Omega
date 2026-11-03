@@ -3472,6 +3472,8 @@ fail/termination/private_rank_endpoint_effectful_rejected rejected 20140ms expec
 	specification call `endpoint` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/termination/private_rank_endpoint_missing_call_premise_rejected rejected 17486ms expected @4449c9d8ccc0
 	machine call cycle: `count`, `forward` -- a rank upper expression lacks independent formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/traits/declaration_identity_forwarded_as_callable rejected 2244ms expected @3e8279ff0db3
+	machine parameter `Requirement` forwarded into `apply`: declaration identity and callable requirement are different parameter roles
 fail/traits/dyn_selected_reach_callee_rebind_rejected rejected 50577ms expected @863cdf432f5d+wt
 	machine `observe` publishes service reach `<none>` but its checked body reaches undeclared service `Journal`
 fail/traits/dyn_selected_reach_public_helper_rejected rejected 24943ms expected @863cdf432f5d+wt
