@@ -1,183 +1,144 @@
-# Dynamic Trait Dispatch
+# Runtime function selection with an exact result
 
-The current **BUILD-OWNED-TARGET-SELECTION** migration keeps the exact 60 and
-40 inputs, result 100, and subtraction by 100. Its remaining target-prefixed
-positive and two controls will use ordinary implementations chosen in Build.
-The complete selection includes all 46 projects and 45 fixtures here, including
-the input-arithmetic production and every uninitialized-selector control.
-Fresh baseline observations are pending. Historical observations below describe
-their original source and do not validate this migration.
+These programs choose a function at runtime, pass it the numbers 60 and 40,
+and rely on its promise to return 100. Subtracting 100 must remain safe after
+that choice passes through every place below.
 
-Parent task: `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`
-Ticket: `e5f8ec0912314fa78f865ec38c7c5b2d`
+Fact: a runtime dyn trait selector dispatches an inline conformance member over explicit data arguments to establish 100u64 when subtracting 100u64.
 
-## Governing requirement
+**BUILD-OWNED-TARGET-SELECTION** owns replacing the remaining platform-prefixed
+functions with ordinary named implementations chosen in Build.
+**RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY** owns preserving the chosen
+implementation, explicit arguments and public contract through both engines.
+The input-arithmetic examples are another production of this same fact.
+Neither parent task closes with this migration.
 
-Dispatching inline conformance members through a runtime `dyn` trait selector over explicit data arguments without an implicit `Self` or receiver attachment, preserving exact contracts, bounds, and values across all nine places.
+`WeightedCombine` requires exactly 60 and 40 and guarantees exactly 100.
+`UnitCombine` and `OtherCombine` both meet that contract. To observe which
+`combine` actually runs, each also receives an ordinary mutable reference to a
+scalar owned by the caller. One writes its left argument there; the other writes
+its right argument. The caller checks 60 and 40 in its two original scalars after
+the calls, alongside both `total - 100` results. This detects a fixed or swapped
+selection, reordered data arguments, a missing store, or a store to the wrong
+place. A separate call returning a marker would not observe the actual
+`combine` call.
 
-**Fact: a runtime dyn trait selector dispatches an inline conformance member over explicit data arguments to establish 100u64 when subtracting 100u64.**
+The result promise justifies subtraction directly. The later runtime checks do
+not establish a missing proof. The function choice (`dyn WeightedCombine`) and
+all data, including the mutable output, stay explicit and independent under
+[dynamic dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md)
+and [named implementations](../../../../wiki/spec/language/conformances.md#data-and-code-are-independent).
 
-Every place performs the same operation: dispatch the inline `combine` member of named implementation `UnitCombine satisfies WeightedCombine` via a runtime trait selector `selector: dyn WeightedCombine = UnitCombine as dyn WeightedCombine;` over explicit `u64` arguments `(60u64, 40u64)` under precondition bounds `left >= 60u64 && left <= 60u64` and `right >= 40u64 && right <= 40u64`, returning the sum under postcondition guarantee `ensures result >= 100u64 && result <= 100u64`. Exact subtraction `total - 100u64` evaluates to 0, establishing exit code 0 under native and Terminal Psi execution. Only the transport of the `dyn` selector or dispatched result changes across the nine places.
+## Places and controls
 
-## Places
+| Place | Positive | Right-operand control | Uninitialized-selector control |
+| --- | --- | --- | --- |
+| local | [program](local/main.omg) | [reject](local/invalid/main.omg) | [reject](local/controls/uninitialized_selector/main.omg) |
+| field | [program](field/main.omg) | [reject](field/invalid/main.omg) | [reject](field/controls/uninitialized_selector/main.omg) |
+| parameter | [program](parameter/main.omg) | [reject](parameter/invalid/main.omg) | [reject](parameter/controls/uninitialized_selector/main.omg) |
+| call_result | [program](call_result/main.omg) | [reject](call_result/invalid/main.omg) | [reject](call_result/controls/uninitialized_selector/main.omg) |
+| match_join | [program](match_join/main.omg) | [reject](match_join/invalid/main.omg) | [reject](match_join/controls/uninitialized_selector/main.omg) |
+| const_name | [program](const_name/main.omg) | [reject](const_name/invalid/main.omg) | [reject](const_name/controls/uninitialized_selector/main.omg) |
+| other_state | [program](other_state/main.omg) | [reject](other_state/invalid/main.omg) | [reject](other_state/controls/uninitialized_selector/main.omg) |
+| other_machine | [program](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) | [reject](other_machine/controls/uninitialized_selector/main.omg) |
+| target_body | [program](target_body/main.omg) | [reject](target_body/invalid/main.omg) | [reject](target_body/controls/uninitialized_selector/main.omg) |
 
-| Place | Project | Transport | Positive Witness | Reject Twin |
-| --- | --- | --- | --- | --- |
-| root | `.` | canonical root witness creating dyn WeightedCombine selector and dispatching combine over explicit operands | [`main.omg`](main.omg) | - |
-| local | `local/` | the dyn trait selector is bound to a local before dispatching combine | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
-| field | `field/` | the dyn trait selector is stored in a record field before dispatching combine | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
-| parameter | `parameter/` | the dispatching probe reads its dyn trait selector as an explicit parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
-| call result | `call_result/` | the dyn trait selector is obtained from a call result before dispatching combine | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
-| match join | `match_join/` | both arms of a match join yield the dyn trait selector before dispatching combine | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
-| const name | `const_name/` | a named constant defines the exact target value for subtraction | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| a nested machine | `other_state/` | a successor machine receives the dyn trait selector and bounded operands to dispatch combine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
-| another machine | `other_machine/` | a forwarding machine transports the dyn trait selector and bounded operands to dispatch combine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
-| another target body | `target_body/` | each hosted target body dispatches combine through the dyn trait selector | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+The [root](main.omg) uses the local production. Every positive binds all four
+hosted targets and expects exit 0. Both match branches run with distinct choices.
+The field place also checks the scalar neighbors 17 and 29 around its selector.
+The `other_state` path retains the nested-machine place.
 
-## Verification commands
+Each ordinary reject twin changes only the transported right operand and its
+bounds from 40 to 39. The public `WeightedCombine` requirement still demands
+40, so rejection must identify its unproved call precondition. Each additional
+uninitialized-selector control removes one establishing assignment; it must
+reject at the ordinary validity check before an unestablished choice can be
+used. Neither control substitutes a different caller guard.
 
-Each positive place is an application that exits 0 in both native and Terminal Psi execution:
+The [input-arithmetic production](input_arithmetic/README.md) keeps all nine
+positives and twins. Its caller proves the same exact left-operand requirement
+from an independently representable bounded addition. Its existing distinct
+markers, both match choices and field neighbors remain unchanged. The complete
+selection is 46 sample projects and 45 corpus fixtures, including every control.
+Sample Main and Build files match their pins under
+`tests/omega/{pass,fail}/facts/dynamic_trait_dispatch_through_*`,
+`dynamic_trait_input_arithmetic_through_*`, and
+`uninitialized_dyn_selection_through_*`.
 
-```sh
-omega run --both samples/cli/facts/dynamic_trait_dispatch/main.omg
-omega run --both samples/cli/facts/dynamic_trait_dispatch/local/main.omg
-omega run --both samples/cli/facts/dynamic_trait_dispatch/field/main.omg
-omega run --both samples/cli/facts/dynamic_trait_dispatch/parameter/main.omg
-omega run --both samples/cli/facts/dynamic_trait_dispatch/call_result/main.omg
-omega run --both samples/cli/facts/dynamic_trait_dispatch/match_join/main.omg
-omega run --both samples/cli/facts/dynamic_trait_dispatch/const_name/main.omg
-omega run --both samples/cli/facts/dynamic_trait_dispatch/other_state/main.omg
-omega run --both samples/cli/facts/dynamic_trait_dispatch/other_machine/main.omg
-omega run --both samples/cli/facts/dynamic_trait_dispatch/target_body/main.omg
-```
+## Selection by Build
 
-All 10 samples report `native exit 0` and `interp exit: 0`.
+The target place calls the ordinary `SelectedCombine::probe` requirement. It
+forwards the caller's function choice, scalar arguments and output reference;
+the inner `WeightedCombine::combine` call then uses that choice.
+Build selects `X86Combine` for the two x86-64 targets and `ArmCombine` for the two
+ARM64 targets. The corresponding entries pass 17 or 29, which each implementation
+checks before calling the shared helper. Swapping the selected implementation
+therefore traps. Application identities remain unchanged.
 
-Each place has an `invalid/` twin whose transported right operand violates the combine precondition contract `right >= 40u64 && right <= 40u64`. The invalid control must reject with `cannot prove requires contract for call dyn WeightedCombine::combine`. Check each twin with:
+This follows [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
+and [multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation).
+The public requirement permits the tag-check crash and names no further service.
+All implementations are checked independently of the host selected for execution.
 
-```sh
-omega --check samples/cli/facts/dynamic_trait_dispatch/local/invalid/main.omg
-omega --check samples/cli/facts/dynamic_trait_dispatch/field/invalid/main.omg
-omega --check samples/cli/facts/dynamic_trait_dispatch/parameter/invalid/main.omg
-omega --check samples/cli/facts/dynamic_trait_dispatch/call_result/invalid/main.omg
-omega --check samples/cli/facts/dynamic_trait_dispatch/match_join/invalid/main.omg
-omega --check samples/cli/facts/dynamic_trait_dispatch/const_name/invalid/main.omg
-omega --check samples/cli/facts/dynamic_trait_dispatch/other_state/invalid/main.omg
-omega --check samples/cli/facts/dynamic_trait_dispatch/other_machine/invalid/main.omg
-omega --check samples/cli/facts/dynamic_trait_dispatch/target_body/invalid/main.omg
-```
+## Requirements established
 
-## Requirements and Evidence
+- **Establishment:** checked members prove the exact result under the public input
+  bounds. A selector is established by a named implementation or an accepted copy;
+  zeroed storage does not establish one.
+- **Identity and lifetime:** every place preserves its actual function choice and
+  scalar arguments. The output is an explicit mutable reference to the caller's
+  storage, whose value is read after the call completes. Choosing code grants no
+  hidden receiver, data ownership or loan.
+- **Composition:** calls substitute the actual inputs, joins keep the actual
+  choice from each branch, and nested calls preserve their own arrival obligations.
+  The result guarantee directly proves subtraction. The operand twins and
+  uninitialized controls challenge those separate obligations.
+- **Soundness:** public contracts remain mandatory independently of the selected
+  member. No stronger private promise or post-call equality guard proves an
+  otherwise invalid call.
+- **Terminal Psi:** the program retains the selector separately from data
+  arguments, the indirect call, its scalar result and the store through the
+  caller's mutable reference. Both engines must observe that original storage.
+- **Providers, layout and calling plans:** explicit Build rows choose the target
+  implementations. The selector is its own scalar word; scalar data and output
+  references retain their ordinary layouts and argument positions.
+- **Instructions and activation storage:** indirect calls must deliver the right
+  arguments and write the original output home. Selector fields and their checked
+  neighbors must use their declared offsets.
+- **Encoding and execution:** dispatch-table references and emitted calls must
+  select the authored implementation. Source acceptance or successful image
+  emission alone does not demonstrate the runtime requirement.
 
-- **Parent outcome:** `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION` (`TASKS.md`).
-- **Ticket:** `e5f8ec0912314fa78f865ec38c7c5b2d`.
-- **Requirement established:** End-to-end nine-place fact preservation and dynamic trait object dispatch (`dyn Trait`). Dispatching inline conformance members through a runtime `dyn` trait selector over explicit data arguments without an implicit `Self` or receiver attachment, preserving exact contracts, bounds, and values across all nine places with differential agreement between native and Terminal Psi execution.
-- **Pinned fixtures:**
-  - Pass: `tests/omega/pass/facts/dynamic_trait_dispatch_through_*_exit`.
-  - Fail: `tests/omega/fail/facts/dynamic_trait_dispatch_through_<place>_rejected`.
-- **Authority:** [Dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md) and [Conformance](wiki/spec/language/conformance.md).
+## Validation and remaining scope
 
-Full 8-layer specification and lowering evidence:
+The unchanged [Linux baseline](https://github.com/CathedralOS/Omega/actions/runs/41547276197)
+checks eighteen positives and rejects twenty-seven intended controls. All eighteen
+fixture executions exit 0 in both engines; all forty-six sample projects meet
+their oracles (nineteen executions and twenty-seven intended rejections).
+The producer uses verified optimization level 1. Migration observations remain
+pending. The fixed warm-chain
+integration is `15dfb9e3dff868befb2ddec587b0ed51d5accbf8`, whose tree matches the
+published predecessor `4f3360c7e2e3869002c325fc1157780209e9a599`. Documentation-only
+checkpoint `1cc1fb70bc837a91b4adbf4061d4869695460d4d` retains all original compiler,
+library and authored program inputs. Existing accepted platform prefixes are
+migration inputs, rather than a newly demonstrated compiler defect.
 
-- **Establishment:** The trait `WeightedCombine` defines inline member `combine(left: u64, right: u64) -> u64` with precondition `requires left >= 60u64 && left <= 60u64 && right >= 40u64 && right <= 40u64` and postcondition `ensures result >= 100u64 && result <= 100u64`. Named implementation `UnitCombine satisfies WeightedCombine` establishes conformance satisfaction through its verified inline body `left + right`. Coercing the named implementation `UnitCombine as dyn WeightedCombine` constructs a runtime dynamic trait selector referencing `UnitCombine`'s closed requirement map. Invoking the trait method `WeightedCombine::combine(selector, a, b)` with satisfied actual bounds directly establishes the postcondition guarantee `result >= 100u64 && result <= 100u64` at the call edge without any post-hoc caller equality guard (`transition x == 100`).
-- **Identity and lifetime:** The dynamic selector `dyn WeightedCombine` carries package-scoped implementation selection identity without an implicit `Self` data receiver or hidden heap allocation. In existential trait objects with data payloads, the 16-byte `(data_ptr, selector)` carrier retains exact pointer-to-data and selector coherence across all 9 places. Here, the explicit arguments `60u64` and `40u64` are immutable scalar values transported independently with distinct lifetimes and disjoint value facts, maintaining their identity across variable bindings and call boundaries.
-- **Composition:** Dynamic calls `WeightedCombine::combine(selector, left, right)` substitute exact actuals, verify preconditions strictly at every call site, and rejoin the guaranteed postcondition `result >= 100u64 && result <= 100u64` on every incoming path across all nine standard places: local variable binding (`local`), nominal struct field projection (`field`), explicit parameter passing (`parameter`), function call return value (`call_result`), match branch convergence join (`match_join`), named constant value definition (`const_name`), state transition arrival (`other_state`), forwarding machine routing (`other_machine`), and target-scoped body candidates (`target_body`). The established guarantee composes directly into exact subtraction `total - 100u64 == 0u64`. Each `<place>/main.omg` vs. `<place>/invalid/main.omg` differs only in the right argument violating the required precondition bound (`right >= 40u64 && right <= 40u64`), never in a caller guard.
-- **Soundness boundaries:** All nine `<place>/invalid/main.omg` reject twins fail closed at compile time with `cannot prove requires contract for call dyn WeightedCombine::combine: right >= 40u64 && right <= 40u64`. When a dynamic dispatch call violates the trait's `requires` contract or when the trait `guarantees` bound is insufficient for the consuming operation, the compiler refuses to lower the program to Terminal Psi or emit native code.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source coercion `UnitCombine as dyn WeightedCombine` lowers to `SelectImplementation`, producing an explicit implementation table reference. Dynamic invocation `WeightedCombine::combine(selector, a, b)` lowers directly to canonical target-neutral `PSITERM\0` as `CallDynamic`, cleanly separating the explicit `dyn` selector lane from the explicit data argument lanes without synthetic receiver parameters or existential type packing. Proof-only obligations and preconditions are erased after verification. The resulting Terminal Psi executes identically in the reference interpreter (`omega run --both`), observing exit code 0.
-- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Concrete layout geometry for 16-byte `(data_ptr, selector/vtable)` `dyn` trait carriers (or bare implementation selectors) is evaluated and validated. `CallPlan` and `StatePlan` lower dynamic calls and indirect dispatch-table placements across target ABI registers (passing selector and arguments in standard integer registers: `rcx`/`rdx`/`r8` on Windows x86-64, `rdi`/`rsi`/`rdx` on Linux x86-64, and `x0`-`x2` on ARM64) and stack slots.
-- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions for dispatch-table / selector resolution, indirect function call execution (`call [rax]` on x86-64 / `blr x8` on ARM64), and integer arithmetic (`add`, `sub`). The register allocator assigns register homes and disjoint stack-frame activation storage for locals and spilled call parameters, computing worst-case stack usage (WCSU) and inserting entry prologues and callee-saved epilogues.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Immutable `dyn` dispatch tables are emitted with symbol relocations (`physical children`) pointing to `UnitCombine::combine`. Relocations and symbolic stack-frame displacements resolve, basic blocks and branch offsets relax with reflow, machine-state footprint evidence validates (`actual_transitive_footprint ⊆ permitted_transitive_use`), and direct PE/ELF/Mach-O images are emitted that execute and exit with code 0 on `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64` in full differential agreement with Terminal Psi (`omega run --both`).
+Earlier documentation reports macOS ARM64 observations at `2d783d092d9d` and
+fixture-name/record updates at `114906953e1`, with runner SHA-256
+`f14e17c7521b980e193ba6929baec279dd843ec8144214f42e19e4e94cacfe5a`.
+Those records describe their original programs. The earlier uninitialized-selector
+repair reports that producer `2214d8` accepted invalid storage and a direct
+projection reached native signal 11 and Terminal `VerifiedOperationMalformed`;
+its checked-establishment repair and existing array/store controls remain retained.
+None of those observations validates the changed programs here.
 
-## What remains open
+The previous README also described a body returning 101 under the exact-100
+contract as a runtime selector test. Such a body cannot be a valid implementation
+of that contract, and no retained run here establishes the claimed observation.
+That description supplies no qualification evidence. The current direct stores
+allow both implementations to remain valid while their actual calls are observable.
 
-Remaining open scope under `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION`: multi-method dynamic vtable dispatch, finite generic method families with canonical value tuples, and cross-package dynamic conformance visibility export.
-
-### Recorded measurements
-
-Producer `2d783d092d9d`, target `macos_arm64`, CLI opt-level 1.
-
-| Check | Command | Observed |
-| --- | --- | --- |
-| nine places plus root run | `omega run --both <place>/main.omg` | native exit 0 and Terminal exit 0, 10/10 |
-| nine reject twins | `omega --check <place>/invalid/main.omg` | `cannot prove requires contract for call dyn WeightedCombine::combine`, 9/9 |
-| sample gate | `python3 tools/sample_native_gate.py --facts --filter dynamic_trait_dispatch` | 10/10 meet the oracle, 9/9 intended-invalid matched |
-| fixture native leg | `python3 tools/corpus_gate.py --native --filter dynamic_trait_dispatch` | clean; 9 built, 9 executed, exit codes `{0: 9}` |
-
-Every sample place and the root carry `expected_native_exit.txt` of `0`
-beside the `Expected exit: 0` header. The executed oracle for the row is the
-one the corpus gate reads: `tests/omega/pass/facts/dynamic_trait_dispatch_through_<place>_exit/expected_native_exit.txt`,
-whose nine rows are recorded in `tests/omega/corpus_native_macos_arm64.txt`.
-
-**Canonical fixture names.** The nine fail fixtures were originally pinned as
-`dynamic_trait_dispatch_unproved_<place>`, a shape a fact-row census that counts
-fail fixtures only as `<fact>_through_<place>_rejected` reads as zero. They were
-renamed to `dynamic_trait_dispatch_through_<place>_rejected` with the nine
-golden keys rewritten in place (9 insertions, 9 deletions, 0 continuation
-lines touched), and all three golden legs were then re-recorded at
-`114906953e1` with the corpus runner built at that base (sha256
-`f14e17c7521b980e193ba6929baec279dd843ec8144214f42e19e4e94cacfe5a`):
-`python3 tools/corpus_gate.py --filter facts/dynamic_trait_dispatch` reads 18
-fixtures — nine `checked` with `check-target:macos_arm64` and nine `rejected`
-with their authored fragment — with 0 structural moves, and the native and
-both legs re-record each `_exit` fixture as a host success
-(`built ... exit:0`, `built ... exit:0 interpreter-exit:0 interpreter:agrees`).
-
-**Oracle discrimination.** The recorded `0` is measured, not assumed. The
-selector is the only input that decides the value: holding the trait contract
-and both data arguments fixed, `UnitCombine as dyn WeightedCombine` gives
-`native exit 0` / `interp exit: 0`, while swapping in a second conformance
-`AltCombine satisfies WeightedCombine` — same declared contract, body
-`left + right + 1u64` — gives `native signal 5` / `interp crash: Trap
-(host presentation agrees)`. Both engines move together with the selector, and
-neither agrees with the recorded `0` for the wrong selection. The compiler also
-refuses to declare a realization that does not guarantee the requirement's
-`ensures`, so a conforming implementation cannot silently return the wrong
-value.
-
-**Fixture oracle enforcement.** Corrupting one recorded expectation to `7`
-makes the gate refuse with `expected native 7, observed built {'exit': '0'}`,
-so the pinned rows are enforced rather than inert.
-
-
-## Ordinary storage establishment (EXPLICIT-ENTRY-STORAGE)
-
-A dynamic selector is a value only after construction from an exact named
-implementation, including when ordinary local storage carries it into a call.
-This discharges the owning task's invalid-initialization obligation under
-[entry roots](../../../../wiki/spec/build/entry_roots.md),
-[storage](../../../../wiki/spec/resources/storage.md), and
-[dynamic dispatch](../../../../wiki/spec/language/conformances.md).
-Zero bits supply neither a named implementation nor its checked dispatch table.
-
-Each of the nine places retains its original positive and bound-operand reject
-twin. Its additional `controls/uninitialized_selector/main.omg` removes only
-the selector's establishing construction (the field place reserves its record
-without the constructor). These controls are pinned as
-`tests/omega/fail/facts/uninitialized_dyn_selection_through_<place>`.
-The frozen 2214d8 producer accepted all nine controls; a direct uninitialized
-record projection also produced native signal 11 and Terminal
-`VerifiedOperationMalformed`. The repaired checker refuses at the ordinary
-default-domain invariant window before an unestablished selector is consumed.
-
-Establishment comes from exact construction or accepted stores, with parameter,
-call-result, match, constant, state, machine and target transport retaining that
-value identity. Projecting an initialized element does not consume unfinished
-siblings. Named record composition remains the existing child-store judgment;
-an authored qualification still fences address traversal. The nine unchanged
-positives execute with native exit 0 and Terminal exit 0 on macOS ARM64; all nine
-original operand twins and nine uninitialized-selector controls reject. Ordinary
-field stores, fixed-array literals, and exact indexed stores retain native and
-Terminal agreement in the companion `runtime_dyn_*_establishment_exit` fixtures.
-The source check is target-neutral; native execution on the other three hosts
-has not been measured here. This row does not alone close the parent task's
-installed-backing, partition, cleanup or other hosted-entry obligations.
-
-Whole fixed arrays also compose from exact established elements before a borrow
-of the array. A completed two-element selector array executes on both engines;
-omitting one store or writing the same element twice rejects at the ordinary
-invariant window. These preserve ordinary construction under the selector
-validity repair, rather than treating the array's zero representation as a
-selection or counting stores without their element identities.
-
-The [input-arithmetic production](input_arithmetic/README.md) verifies the public
-selector requirement from an independently formed bounded addition.
+Broader dynamic operational contracts, generic method families, cross-package
+visibility, product-compiler parity, and the remaining target-prefixed source
+families remain parent acceptance. Other-host execution is unverified until
+recorded. No owner design decision was required for this migration.
