@@ -1,0 +1,22 @@
+{
+  "bundles": [
+    {
+      "file": "4b50ded92ae9cb9f5216e8e8ed6115f9054d7cc2.bundle",
+      "sha256": "fb6eed91a5346d5a0f377866b47184518f4f99e8e7684218a14b5fdd73704ec5",
+      "exported_commit": "4b50ded92ae9cb9f5216e8e8ed6115f9054d7cc2",
+      "exported_ref": "refs/corpus-observations/4b50ded92ae9cb9f5216e8e8ed6115f9054d7cc2",
+      "prerequisites": [
+        "e3c4ae4fb406f0a40e8988e2b79100ceeeaff5b3"
+      ]
+    }
+  ],
+  "archive": {
+    "file": "observations.tar.gz",
+    "sha256": "44913f28d15c26dd205d97536b13bc3cd3c0f9626a410e44740e21abdbb7446d",
+    "bytes": 730047,
+    "receipt_files": 840
+  },
+  "source_checkpoint": "4b50ded92ae9cb9f5216e8e8ed6115f9054d7cc2",
+  "compiler": "R13: exact source 4b50ded92ae9cb9f5216e8e8ed6115f9054d7cc2, empty compiler-input patch. Both optimized producer hashes are retained in their original receipts.",
+  "scope": "Raw evidence only; this parentless evidence commit is separate from the feature branch and main."
+}
