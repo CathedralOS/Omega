@@ -13738,8 +13738,7 @@ pass/providers/runtime_provider_mutable_reference_exit checked 3397ms check-targ
 pass/providers/runtime_provider_mutable_reference_forward_exit checked 2716ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/runtime_provider_owned_reference_exit checked 4360ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/runtime_provider_reference_alias_exit checked 3534ms check-target:linux_x86_64 @ccdb99ca2214
-pass/providers/runtime_provider_reference_allocation_exit checked 3776ms check-target:linux_x86_64 @c668038334ff+wt
-	machine `initialize_frame` state `entry` statement 4: cannot prove selected case for payload access `frame.result.value`: no captured source place is available
+pass/providers/runtime_provider_reference_allocation_exit checked 19158ms check-target:linux_x86_64 @b67195dbc8f8
 pass/providers/runtime_provider_reference_computed_exit checked 3248ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/runtime_provider_reference_deep_exit checked 3554ms check-target:linux_x86_64 @ccdb99ca2214
 pass/providers/runtime_provider_reference_nested_exit checked 3181ms check-target:linux_x86_64 @ccdb99ca2214
