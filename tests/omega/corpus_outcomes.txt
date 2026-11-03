@@ -3966,6 +3966,8 @@ pass/borrows/foreign_output_captured_reference_exit checked 9150ms check-target:
 pass/borrows/foreign_output_copied_lifetime_last_use checked 2399ms @ccdb99ca2214
 pass/borrows/foreign_output_exclusive_anchor_exit checked 7469ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/formed_mutable_slice_argument_completion_exit checked 3970ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/generic_record_slice_referent_exit rejected 6792ms check-target:macos_arm64 @ac4821665951+wt
+	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "loan retirement requires a descriptor carrier", gap: None })
 pass/borrows/guard_subject_ends_before_returning_call_exit checked 3938ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/incoming_reference_slot_replacement_exit checked 4353ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/indexed_record_field_replacement_exit checked 16352ms check-target:macos_arm64 @ccdb99ca2214
