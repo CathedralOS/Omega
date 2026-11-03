@@ -1,10 +1,16 @@
-# May-write nested machine
+# A nested helper writes one input and preserves the other input’s bound
 
 An outer helper that calls an inner helper to pick one of two mutable inputs and write through that result preserves a disjoint index-bound fact on the other input.
 
-`choose` returns either mutable `u64`. `relay` returns that choice from the nested machine `hand`. `overwrite` writes `9` through the nested-machine result while evaluating an operand of `add`. The other input starts at `1` and stays there. Indexing `[4, 7, 8, 9]` with that preserved bound reads `7`. Exit is `0` only when the marker stays `1`, the chosen slot becomes `9`, and the index reads `7`. Each reject twin changes only the Boolean passed to `relay` from `true` to `false`.
+`relay` passes both mutable inputs and its Boolean choice to the nested machine `hand`, which returns `choose`’s selected reference. `overwrite` stores `9` through that result while evaluating an operand of `add`. The other input stays `1`, below the array length `4`, so the indexed read returns `7`. Every positive retains the marker `1`, chosen value `9`, indexed byte `7` and exit `0`. Every reject twin changes only `relay`’s choice from `true` to `false`, making the write overlap the indexed input.
 
-This witnesses the nested-machine part of **R5** in `TASKS.md`: caller-visible may-write summaries under [invocation contracts](../../../../wiki/spec/language/state_contracts.md). It does not close codec arguments, finite write cycles, parameter-permutation write sets, or parser convergence.
+The array read now precedes the runtime marker and written-slot comparisons. Those comparisons cannot supply its bound. The match place executes both choices and checks a separate path marker, so taking the wrong arm traps even though both paths return the same valid index.
+
+## Owning requirement and source migration
+
+This row advances **BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md). Four identical target-prefixed `probe` declarations become one ordinary `NestedStateProbe` implementation of `SelectedProbe`. Each target has an explicit typed `Build::select_provider` row. The requirement and implementation both retain `chosen < 4 && other < 4` and an empty service ceiling (`reaches`). The public call returns a byte; it exposes no private returned-reference or write guarantee to the caller.
+
+The nested `relay → hand → choose` calls retain explicit runtime arguments and their original storage lifetime. Ordinary helpers remain free or lexically nested machines. This source migration follows [Build-owned selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection), [nested machines](../../../../wiki/spec/language/machines.md), and [mutation and subject identity](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity).
 
 | Place | Positive | Reject twin | Transport |
 | --- | --- | --- | --- |
@@ -17,50 +23,29 @@ This witnesses the nested-machine part of **R5** in `TASKS.md`: caller-visible m
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `LIMIT` names the index bound |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the index |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | another machine receives the index |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body reloads the index |
+| selected implementation | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | one checked implementation is selected by four Build rows |
 
-## Execution
+## Validation
 
-Every positive place, including root `main.omg`, binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`, and declares `Expected exit: 0`. None depends on `source/library/std`.
+The unchanged original row was measured at `45a95a51f7e69a9f311a6e0a00415847f8fa8d06`, against published base `75119cb23a6452b1889847b02a79015f2df2d5ea`, in [baseline run 41627538646](https://github.com/CathedralOS/Omega/actions/runs/41627538646). All 18 Source cases passed their oracles: nine checked positives and nine intended rejections. All nine pinned positives and all ten positive public projects, including root, produced native/Terminal exit-zero agreement. All nine invalid public projects rejected as intended. Optimized producer profiles, source hashes and raw observations were audited. The original source was already working; no compiler defect is claimed.
+
+Fresh execution of the migrated source is pending. Earlier macOS records at `b9060c9ca30d` and `8128744a9d77` remain historical observations, with their original source stamps.
+
+All nine positive/twin Main and Build files match their pins under `tests/omega/{pass,fail}/facts/may_write_named_state_through_<place>_*`. Each twin differs only in the Boolean passed to `relay`, and retains `cannot prove` as its diagnostic fragment. Every positive and root binds `ProgramEntry` for all four hosted targets and declares `Expected exit: 0`. There is no `std` dependency.
 
 ```sh
-omega run --both samples/cli/facts/may_write_named_state/local/main.omg
+omega run --both samples/cli/facts/may_write_named_state/target_body/main.omg
 ```
 
-The same command covers `field`, `parameter`, `call_result`, `match_join`, `const_name`, `other_state`, `other_machine`, and `target_body`.
+## Requirements established by this row
 
-## Reject twins
+1. **Establishment.** Initialization or an explicit parameter contract establishes the untouched input’s bound before the write. The index consumes that preserved bound directly.
+2. **Identity and lifetime.** The bound names the other input’s current storage. The nested returned reference keeps its exact input alternatives and lifetime; write summaries grant no loan or additional access.
+3. **Composition.** The nested call and operand write preserve only the proven disjoint input. Calls, match joins and state arrivals retain their original index contracts. Each twin writes the indexed input instead and must lose its stale bound.
+4. **Soundness boundaries.** Public selection publishes the original bounds and empty service ceiling. It does not infer guarantees from a selected implementation’s private body or strengthen caller authority.
+5. **Checked-to-Terminal Psi.** The nested returned choice, operand write and proved array read must lower into one checked portable artifact and execute in Terminal Psi.
+6. **Provider settlement, layouts and ABI.** Four Build rows select one checked implementation. The two mutable numbers and fixed byte array keep ordinary reference and value calling lanes.
+7. **Instructions and activation storage.** Native execution must store `9` into the chosen input and read `7` through the untouched index. The match path marker detects incorrect branch selection.
+8. **Encoding and native emission.** Actual matching-host native execution must agree with Terminal Psi on the authored exit result.
 
-Each `invalid/` project is `intended-invalid`. The source differs only by passing `false` to `relay`. The overlapping index bound is then stale. The pinned diagnostic fragment is `cannot prove`.
-
-## Pinned fixtures
-
-Positive places are byte-identical to `tests/omega/pass/facts/may_write_named_state_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_named_state_through_<place>_overlapping`.
-
-Corpus rows: nine `checked` (check-target:macos_arm64) positives and nine `rejected` (`expected`) twins in `tests/omega/corpus_outcomes.txt`, recorded at `b9060c9ca30d` and re-measured clean; nine `built ... exit:0` positives in `tests/omega/corpus_native_macos_arm64.txt` and nine `exit:0 interpreter-exit:0 interpreter:agrees` positives in `tests/omega/corpus_both_macos_arm64.txt`, recorded at `8128744a9d77`.
-
-## Requirements and evidence
-
-Parent outcome: **R5** (`TASKS.md`). This folder establishes nested-machine may-write summaries.
-
-1. **Establishment.** `other` is initialized to `1`, or a parameter requires `other < 4`, before the write. The index uses that bound. No later equality guard re-establishes it.
-2. **Identity and lifetime.** The bound names the other mutable input. Writing the chosen input invalidates only that input. The reject twin writes the other input and retires the bound.
-3. **Composition.** `relay` jumps to `hand`, `hand` returns `choose`, `overwrite` writes through that nested-machine result, and `add` evaluates that write as an operand. The preserved bound is then used by a local, field, parameter, call result, match join, const bound, state arrival, forwarding machine, or target body.
-4. **Soundness boundaries.** The summary is a may-write footprint. It does not grant a loan, a move, or a linear claim. The overlapping candidate cannot keep the stale index bound.
-5. **Checked-to-Terminal Psi lowering (`Psi 06–08`).** The nested-machine choice, operand write, and proved index lower into Terminal Psi and execute with the interpreter on `omega run --both`.
-6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`).** Each positive binds `ProgramEntry` on all four hosted targets. The two `u64` inputs and the fixed byte array use ordinary value and reference lanes.
-7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`).** Native execution stores `9` through the chosen referent and reloads the other input as the index.
-8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission).** `omega run --both` agrees on exit `0` for every positive place.
-
-## Target-selection migration baseline
-
-`BUILD-OWNED-TARGET-SELECTION` owns the remaining target-body migration.
-The four identical bodies will become one ordinary named implementation selected
-by explicit target-keyed Build rows. Nested-machine arguments, returned-reference
-selection, store `9`, untouched index `1 < 4`, indexed byte `7`, marker `1` and
-exit `0` stay fixed. Each twin continues to change only `relay`’s choice.
-
-The complete source/oracle row is frozen against published base `75119cb23a6452b1889847b02a79015f2df2d5ea`.
-A focused optimized baseline is pending before feature or compiler edits. Earlier
-records above keep their original producer identities; no new compiler defect or
-current execution success is claimed yet.
+Other-host runtime qualification and the remaining library, product, source-family retirement and adversarial selection acceptance stay open under the parent task. A completed row does not close that task.
