@@ -3253,7 +3253,7 @@ pass/facts/match_join_multi_variant_bound_through_call_result_exit built 12327ms
 pass/facts/match_join_multi_variant_bound_through_const_name_exit built 11255ms exit:0 @d89ddb8f4ce9+wt
 pass/facts/match_join_multi_variant_bound_through_field_exit built 8841ms exit:0 @d89ddb8f4ce9+wt
 pass/facts/match_join_multi_variant_bound_through_local_exit built 9520ms exit:0 @d89ddb8f4ce9+wt
-pass/facts/match_join_multi_variant_bound_through_match_join_exit built 2477ms exit:0 @a92f16431042
+pass/facts/match_join_multi_variant_bound_through_match_join_exit built 10067ms exit:0 @98d86c84991c
 pass/facts/match_join_multi_variant_bound_through_other_machine_exit built 2486ms exit:0 @a92f16431042
 pass/facts/match_join_multi_variant_bound_through_other_state_exit built 10460ms exit:0 @d89ddb8f4ce9+wt
 pass/facts/match_join_multi_variant_bound_through_parameter_exit built 8868ms exit:0 @d89ddb8f4ce9+wt
