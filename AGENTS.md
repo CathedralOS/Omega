@@ -49,48 +49,50 @@ the time goes and remove the cause rather than waiting on it or working around i
 
 ## Explain the change
 
-Write for a programmer who has not read the diff or worked on this subsystem.
+Write for a reader who knows what the project does but has not read the diff
+or worked on this subsystem.
 Use an inverted pyramid in PR descriptions, commit bodies, progress/final
-reports, explanatory documentation and comments. The first one or two sentences
-explain the concrete problem and what changes, in ordinary language. A reader
-who stops there should understand why the change matters.
+reports, explanatory documentation and comments. Start with the specific
+situation and what changes for the person using or maintaining the software.
+The first one or two sentences must make the problem and result clear in
+ordinary language. Apply this to the title too, within the commit-lane rules.
 
-Next, explain a small before/after example in words. Use code when it helps the
-reader see that behavior; unfamiliar syntax also needs an introduction. Explain
-why the change produces the result, then add implementation detail as the reader
-gains the context to follow it.
-A plain opening followed by a wall of internal terms still fails this reading
-order. Each paragraph should answer a question raised by the preceding one,
-rather than assume the reader already knows the implementation.
+An opening such as "Preserve post-call facts through returned scalar views"
+requires subsystem knowledge. "Keep value information after calls" removes
+some jargon but loses the situation. Prefer: "The compiler rejected safe
+subtraction after a helper updated a number. It now remembers the helper's
+promise about the new value, so the calculation compiles." Then explain that
+the caller used a reference supplied by another function, and why that hid the
+update. Avoid abstract aspirations such as "programs should be able to rely on
+guarantees" when the actual failure is known.
 
-For example, "Preserve post-call facts through returned scalar views" names a
-mechanism. "Keep value information after calls" is simpler but still explains
-little. Instead: "A caller can rely on a function's promise about the number it
-writes when doing later calculations. This fixes cases where the compiler
-forgot that promise and rejected safe subtraction." The next paragraph can show
-why a promise to write 9 makes subtracting 9 safe, while an earlier copy keeps
-its old value. Explain saved references and collection slots afterward. Test
-values illustrate the purpose; they do not supply it.
+Build the explanation in the order the reader needs it. A small example can
+make the behavior clear; explain its meaning before showing unfamiliar syntax.
+Then explain the cause and repair, introducing each necessary technical term
+where it becomes useful. A plain opening followed by a list of internal terms
+still fails. Each paragraph should answer a question the preceding text raises.
+Test values demonstrate a useful property; "the example now returns 73" does
+not explain that property. For internal work, describe the actual maintenance
+or development benefit without inventing an end-user feature.
 
-Introduce a technical term with its meaning when it becomes useful, then use the
-canonical term consistently. Replacing "lineage" with "permission information"
-does not explain which data may be used or why. For an internal repair, state
-the real effect on a program or development workflow; do not invent a user
-benefit. Source comments start with the local purpose or failure they prevent,
-then explain the invariant. Match their detail to the surrounding code.
+Simplify the explanation, not just the vocabulary. "Permission information" is
+still opaque unless the reader learns who may read or write which data and for
+how long. Once a term is explained, use its canonical name consistently. Source
+comments begin with the local reason for the code, then the constraint that
+must hold; use the surrounding code's context rather than adding a tutorial.
 
-Put validation and detailed provenance after the explanation, linking existing
-evidence or using a details section for long records. Keep any limitation that
-materially qualifies the result beside that result. Preserve exact evidence
-identities, failures and unverified cases. A small change may need only one
-paragraph; this is a reading order, not a form to fill with headings.
+Put validation and detailed provenance after the explanation. Keep a limitation
+beside any result it materially qualifies, and preserve exact evidence
+identities, failures and unverified cases. Link long records or use details
+sections. A small change may need only one paragraph; do not inflate it to fill
+a template.
 
-Before publishing, read only the opening, then read through one paragraph at a
-time. Does each stopping point leave a useful, accurate understanding without
-requiring a definition from later in the text? Rewrite where it does not. Check
-the explanation against the final diff and observed behavior. If the purpose
-is unclear, inspect the code and witness before making a claim. Rewrite when
-the scope changes rather than appending the session's history.
+Before publishing, read the title and opening alone: can someone describe the
+specific improvement without reading the diff? Then read a paragraph at a time:
+does each stopping point leave a useful understanding, with no definition
+deferred until later? Check the claims against the final diff and observed
+behavior. Inspect unclear code or examples rather than filling gaps with a
+plausible story. Rewrite when scope changes; omit the session's chronology.
 
 ## Law of completion
 
