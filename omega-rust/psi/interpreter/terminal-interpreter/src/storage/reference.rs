@@ -2106,14 +2106,16 @@ impl TerminalExecution<'_> {
                             .filter(|_| path.is_empty())
                         {
                             Some(binding) => binding.clone(),
-                            None => self.byte_descriptor_binding(
+                            None => self.retained_byte_descriptor_binding(
                                 &StructuralArgument {
                                     place: parameter.place,
                                     path: path.to_vec(),
                                     access: source.access,
                                 },
                                 &expected,
-                            )?,
+                            )?.ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "returned byte reference source has no retained descriptor binding",
+                            ))?,
                         };
                         if !access_covers(binding.access(), source.access) {
                             return Err(malformed());
