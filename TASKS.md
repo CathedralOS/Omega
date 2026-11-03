@@ -1148,6 +1148,13 @@ defines the complete product bar.
     [temporary qualified-view retirement](wiki/spec/language/domains.md#temporary-qualified-views)
     across loan cohorts, and scalar reads/results under
     [copy and publication rules](wiki/spec/language/domains.md#establishment-transport-and-helper-calls).
+  - Stop an erasing cast read directly from recovering its routed membership:
+    `consume(issued as Ticket)`, a record field, return, transition argument,
+    array element or case payload still finds `issued`'s fact, because
+    validation's canonical place lookup answers both which facts a value
+    carries and where its bytes live. Split the two and move every storage
+    consumer to the storage lookup, starting with the borrow-overlap twin
+    `both(&mut t, &(t as Ticket))` and linear lowering.
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
