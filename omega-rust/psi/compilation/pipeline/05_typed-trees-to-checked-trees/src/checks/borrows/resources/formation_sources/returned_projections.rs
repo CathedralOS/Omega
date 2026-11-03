@@ -2,8 +2,9 @@
 //! The checked normal-return relation identifies the completed source; its
 //! borrowing permission, presentation and lifetime remain separate obligations.
 
-use super::{formation_capture, nearest_parents, refusal};
-use arena::{Arena, Handle};
+use super::super::formation_captures::formation_capture;
+use super::{nearest_parents, refusal};
+use arena::Handle;
 use checked_trees::{
     BorrowLoanFact, BorrowLoanFormation, BorrowLoanLineage, CheckFacts, FlowOperandFact,
 };
@@ -84,6 +85,18 @@ pub(super) fn validate(
             else {
                 return refusal("returned projection is not bound to a completed invocation");
             };
+            if !facts.flow.control.calls.is_valid(invocation)
+                || !flow_state.calls.handles().any(|call| call == invocation)
+                || descriptor.state_symbol != state.state_symbol
+                || descriptor.statement_index != row.statement_index
+                || !facts
+                    .flow
+                    .control
+                    .operand_retentions
+                    .is_valid(descriptor.retention)
+            {
+                return refusal("returned projection has no current invocation identity");
+            }
             let call = facts.flow.control.calls.get(invocation);
             if call.authored_expression != row.formation_expression
                 || call.statement_index != row.statement_index
@@ -176,9 +189,7 @@ fn validate_source(
     if projection.is_empty() || access.direct_reborrow_effect(&row.kind).is_none() {
         return refusal("returned projection exceeds its source presentation");
     }
-    let mut suppliers = Vec::new();
-    let mut parent_rows = Arena::new();
-    if !super::super::permission_sources::collect(
+    let Some((suppliers, parent_rows)) = super::super::permission_sources::lending_sources(
         program,
         facts,
         flow_state,
@@ -186,14 +197,9 @@ fn validate_source(
         source.operand,
         source_path,
         &access,
-        false,
-        &mut Vec::new(),
-        &mut suppliers,
-        &mut parent_rows,
-    ) || suppliers.is_empty()
-    {
+    ) else {
         return refusal("returned projection has incomplete captured source permission");
-    }
+    };
     let mut selected = false;
     for supplier in suppliers {
         let mut place = supplier.backing;

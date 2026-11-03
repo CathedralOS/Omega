@@ -19,6 +19,106 @@ pub(super) struct PermissionSupplier {
     pub(super) backing: checked_trees::CapturedPlace,
 }
 
+/// Find the permission lending a new view, separately from the complete call
+/// input debt. Stored descriptor alternatives retain their own parents; the
+/// call's conservative ancestry union cannot choose a parent for one leaf.
+/// An explicit argument borrow supplies its checked access when it has no
+/// stored descriptor occurrence. Both routes must establish complete coverage.
+pub(super) fn lending_sources(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: Handle<FlowCallFact>,
+    source: Handle<FlowOperandFact>,
+    projection: &[facts::PlaceSegment],
+    access: &checked_trees::BorrowAccessKind,
+) -> Option<(Vec<PermissionSupplier>, Arena<Handle<BorrowLoanFact>>)> {
+    use super::formation_captures::{AddressReceiver, address_receiver, formation_capture};
+    let capture = facts.flow.control.operands.get(source);
+    let mut lending = source;
+    let mut lending_path = projection.to_vec();
+    let mut actual_projection = Vec::new();
+    let mut argument_grant = projection.is_empty() && has_captured_incoming_contents(facts, source);
+    if projection.is_empty()
+        && let Some(formation) = validation::reference_formation_source(program, capture.expression)
+    {
+        let target = formation_capture(facts, source, formation.source)?;
+        match address_receiver(program, facts, target) {
+            AddressReceiver::Reference {
+                capture: receiver,
+                projection,
+            } => {
+                let target_type = facts.flow.control.operands.get(target).type_reference;
+                let result = validation::reference_shell(program, capture.type_reference)?;
+                if formation.interpretation
+                    == validation::ReferenceFormationInterpretation::Declared
+                    && validation::storage_origin_types_match(program, result.referee, target_type)
+                {
+                    // This forms a borrow of descriptor storage, rather than
+                    // forwarding the reference stored in that descriptor.
+                    argument_grant = true;
+                } else {
+                    lending = receiver;
+                    lending_path.clear();
+                    actual_projection = projection;
+                    argument_grant = has_captured_incoming_contents(facts, receiver);
+                }
+            }
+            AddressReceiver::InlineValue => argument_grant = true,
+            AddressReceiver::Unavailable => return None,
+        }
+    }
+    // An explicit argument formation or incoming association can request the
+    // checked CallAccess grant. Stored-source failure never switches routes.
+    let (invocation, lending, lending_path) = if argument_grant {
+        (call, source, projection)
+    } else {
+        (Handle::invalid(), lending, lending_path.as_slice())
+    };
+    let mut suppliers = Vec::new();
+    let mut parents = Arena::new();
+    let complete = collect(
+        program,
+        facts,
+        state,
+        invocation,
+        lending,
+        lending_path,
+        access,
+        false,
+        &mut Vec::new(),
+        &mut suppliers,
+        &mut parents,
+    );
+    if !complete || suppliers.is_empty() {
+        return None;
+    }
+    if !argument_grant {
+        for supplier in &mut suppliers {
+            supplier
+                .backing
+                .segments
+                .extend_from_slice(&actual_projection);
+            crate::flow::compose_captured_view_segments(&mut supplier.backing.segments)?;
+        }
+    }
+    Some((suppliers, parents))
+}
+
+fn has_captured_incoming_contents(facts: &CheckFacts, source: Handle<FlowOperandFact>) -> bool {
+    let mut source = source;
+    let mut visited = Vec::new();
+    while facts.flow.control.operands.is_valid(source) && !visited.contains(&source) {
+        visited.push(source);
+        let capture = facts.flow.control.operands.get(source);
+        if let checked_trees::FlowOperandCompletion::IncomingContents { .. } = capture.completion {
+            return true;
+        }
+        source = capture.value_source;
+    }
+    false
+}
+
 pub(super) fn collect(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
