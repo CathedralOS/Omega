@@ -90,9 +90,6 @@ fn type_may_carry_selector(
         return true;
     }
     let table = &program.type_reference_table;
-    if table.primitive_type(type_reference).is_some() {
-        return false;
-    }
     match table.type_reference(type_reference) {
         TypeReferenceNode::Unit | TypeReferenceNode::ConstExpression(_) => false,
         TypeReferenceNode::Reference { referee, .. } => {
@@ -108,6 +105,9 @@ fn type_may_carry_selector(
         TypeReferenceNode::DynamicTrait { .. } => {
             program.normalized_type_identity(type_reference) == interface
         }
+        // A named primitive scalar holds no selector; `dyn` is itself
+        // classified as the primitive `Selector`, so it is matched above.
+        TypeReferenceNode::Named { .. } if table.primitive_type(type_reference).is_some() => false,
         TypeReferenceNode::Named { symbol, .. } => {
             data_may_carry_selector(program, *symbol, interface, visiting)
         }
