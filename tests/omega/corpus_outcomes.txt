@@ -177,6 +177,10 @@ fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected 
 fail/domains/routed_qualification_cast_computed_operand rejected 10634ms expected @0754243baf42+wt
 	`as ... in i32::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove scalar result domain for return from counterfeit at statement 0: i32::Issued
+fail/domains/routed_qualification_erased_call_argument rejected 5379ms expected @f3c3d4bbfcc4
+	cannot prove requires contract for call consume from main: issued as Ticket in Ticket::Held in state `entry`
+fail/domains/routed_qualification_erased_literal_field rejected 5256ms expected @f3c3d4bbfcc4
+	cannot prove requires contract for call consume from main: holder.ticket in Ticket::Held in state `entry`
 fail/drops/retired_attached_drop rejected 2739ms expected @ee4dbb4b2d56
 	`machine Token::drop` attaches cleanup to data `Token`, which is retired: data owns no cleanup machines; declare an independent static machine taking `&mut Token` and select it with `data Token dropped by <machine>`
 fail/effects/opaque_leaf_inherited_reach_exceeds_ceiling rejected 1453ms @409a3e82132d+wt
@@ -5643,6 +5647,7 @@ pass/domains/domain_pattern_match_bound_routed_boolean_retained_exit checked 370
 pass/domains/domain_pattern_match_bound_routed_retained_exit checked 3288ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/domains/domain_signed_clamp checked 3218ms @ccdb99ca2214
 pass/domains/domain_subslice_carry checked 2896ms @ccdb99ca2214
+pass/domains/erasing_cast_keeps_predicates_and_named_domains_exit checked 10051ms check-target:macos_arm64 @f3c3d4bbfcc4
 pass/domains/established_by_domain checked 2632ms @ccdb99ca2214
 pass/domains/executable_domain_membership_expression_exit checked 12605ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/executable_domain_membership_union_guard_exit checked 17146ms check-target:macos_arm64 @ccdb99ca2214
@@ -19950,9 +19955,8 @@ fail/domains/routed_qualification_cast_after_erasure rejected 7587ms expected re
 	cannot prove initializer of `forged` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
 fail/domains/routed_qualification_cast_constant rejected 64ms unexpected @ccdb99ca2214
 	failed to finalize semantic qualification-cast domain custody: AlreadyResolved
-fail/domains/routed_qualification_cast_wrong_family_instance rejected 1980ms expected @ccdb99ca2214
+fail/domains/routed_qualification_cast_wrong_family_instance rejected 7415ms expected @f3c3d4bbfcc4
 	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
-	cannot prove default-domain field requirement for return from forge, state entry, at statement 0: ticket requires Issued
 fail/domains/routed_qualification_cast_wrong_occurrence rejected 2255ms expected @ccdb99ca2214
 	`as ... in Ticket::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove initializer of `forged` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification

@@ -716,7 +716,9 @@ pub(super) fn cast_preserves_place(
                 && !crate::field_domains::domain_constraint_identities(program, operand_ref)
                     .into_iter()
                     .any(|(symbol, identity)| {
-                        crate::field_domains::cast_erases_membership(program, cast, symbol, identity)
+                        crate::field_domains::cast_erases_membership(
+                            program, cast, symbol, identity,
+                        )
                     })
         }
         super::member_resolution::MemberPosition::Declaration(symbol) => {
