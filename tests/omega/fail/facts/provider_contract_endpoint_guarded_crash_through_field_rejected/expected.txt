@@ -1,1 +1,3 @@
+a checked crash route remains possible (Trap)
+calls: [limit]
 constant evaluation requires proof that no crash route can occur before execution

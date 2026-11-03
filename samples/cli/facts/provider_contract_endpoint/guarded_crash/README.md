@@ -81,4 +81,14 @@ Before the repair, the frozen optimized R13 producer ran all nine positives with
 native and Terminal exit zero. All nine twins reached an interpreted `Trap`
 during constant calculation. That observation establishes the missing admission
 check; it does not count as the required rejection before execution. Fresh repair
-qualification and independent review remain required.
+qualification is recorded in the
+[admission measurement](../../../../../wiki/drafts/measurements/constant_call_failure_admission_2026_11_02.md).
+
+The repaired optimized producer runs all nine positives with native and Terminal
+exit zero. Each twin rejects before execution and names the `Trap` route through
+`limit`; the original crashing endpoint names the same route. The runtime-only
+zero-divisor control still produces native signal 5 and Terminal `Trap` on
+macOS ARM64. The array and layout customers retain their authored exits zero
+and 70. The focused corpus covers 32 fixtures with 16 checks and 16 intended
+rejects, including actual execution of the saved calling policy. Independent
+review and normal main landing remain separate publication requirements.

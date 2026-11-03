@@ -7,15 +7,16 @@ by this repair rather than adding transport matrices.
 - `circular_endpoint_formation` rejects a helper that uses its own pending
   result to admit a call. The [pending-call examples](../pending_call/README.md)
   exercise the same requirement across all nine places.
-- `crashing_endpoint` must reject a helper before constant evaluation because
-  it can crash. An incomplete lowering error or an interpreted trap does not
-  prove admission. The [guarded-crash examples](../guarded_crash/README.md) add
-  safe calls and zero-divisor twins; fresh qualification is still required.
+- `crashing_endpoint` rejects before constant evaluation and names the `Trap`
+  route through `limit`. The [guarded-crash examples](../guarded_crash/README.md)
+  run safe calls across all nine places and reject their zero-divisor twins
+  before execution. An unrelated lowering error or an interpreted trap does not
+  establish that admission check.
 - `false_result_guarantee` and `mutated_scalar_return` reject an actual returned
   value outside the selected endpoint. The source-model test
   `identical_runtime_calls_do_not_identify_distinct_static_denotations` also
-  distinguishes raw constant actuals and retained applications after erasure;
-  runtime call shape alone never identifies closed denotation.
+  checks that two calls with identical runtime shapes retain their distinct
+  static arguments.
 - `field_snapshot_before_sibling_write` preserves the value captured before a
   sibling mutates its source. `field_snapshot_after_sibling_write` rejects the
   changed value; `field_false_conjunct` cannot discard another default-domain
@@ -28,10 +29,10 @@ by this repair rather than adding transport matrices.
   `unrelated_pending_target_contract` does not treat an unrelated pending
   declaration as a demanded invocation.
 - `computed_composition_mode`, `forwarded_provider_selection` and
-  `generic_forwarded_provider_selection` execute ordinary computed mode,
-  forwarded original Build identity and two closed generic helper instances
-  through the landed source-issued Product selection protocol. The raw
-  `direct_provider_protocol` call lacks that compiler-issued request and rejects.
+  `generic_forwarded_provider_selection` check that computed and forwarded selections retain the Build identity that
+  authorized them, including two distinct generic instances. The direct
+  `direct_provider_protocol` call lacks a compiler-issued selection request and
+  rejects.
 - `public_header_private_endpoint` rejects exposing a private endpoint.
   `runtime_self_forbidden`, `machine_contract_self_forbidden` and
   `nested_self_forbidden` retain predicate-only logical-subject scope.
