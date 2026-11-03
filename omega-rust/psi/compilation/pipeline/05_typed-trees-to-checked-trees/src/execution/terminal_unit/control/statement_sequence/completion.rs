@@ -497,23 +497,6 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         trace,
     )?;
     trace.phase("statement sequence: call count agreement");
-    if call_count != calls.len() && std::env::var_os("OMEGA_TRACE_CALL_CUSTODY").is_some() {
-        eprintln!(
-            "CALLCUSTODY count owner={} state={} planned={call_count} expected={} calls={:?}",
-            program.symbols.display_path(machine.symbol, "::"),
-            state.name,
-            calls.len(),
-            calls
-                .iter()
-                .map(|call| (
-                    call.statement_index,
-                    call.call_ordinal,
-                    program.symbols.display_path(call.target_symbol, "::"),
-                    call.authored_expression
-                ))
-                .collect::<Vec<_>>()
-        );
-    }
     (call_count == calls.len()).then_some(StatementSequence {
         scalar_result: returned_scalar_call,
         scalar_control,

@@ -184,16 +184,6 @@ fn plan_inner(
         statement_index,
         local.initial_value,
     );
-    if std::env::var_os("OMEGA_TRACE_CALL_CUSTODY").is_some() {
-        eprintln!(
-            "CALLCUSTODY local owner={} statement={statement_index} local={} expression={:?} reference_capture={} structural_root={:?}",
-            program.symbols.display_path(machine.symbol, "::"),
-            local.name,
-            local.initial_value,
-            reference_capture.is_some(),
-            structural_root.map(|root| root.root)
-        );
-    }
     if (reference_capture.is_none()
         && structural_root.is_none()
         && erased_locals.contains(&local.symbol))

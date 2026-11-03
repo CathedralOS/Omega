@@ -166,6 +166,12 @@ pub(crate) fn capture_source(
     // owes the corresponding load. Equal peeled identities cannot distinguish
     // those operations. Stage05 consumes these explicit physical crossings.
     let mut endpoint = backing_type;
+    // A borrowed parameter keeps its promise about the storage it lends.
+    // Crossing its ingress reference does not change that storage, so retain
+    // qualifications wrapped around the reference as well as its referee.
+    // A later stored-reference crossing selects different storage and takes
+    // that referee's own contract instead.
+    let mut storage_contract = backing_type;
     // A whole borrowed formal denotes ingress referent storage, not a stored
     // pointer value. Only subsequent reference shells are physical crossings.
     if place.segments.is_empty()
@@ -204,6 +210,7 @@ pub(crate) fn capture_source(
         }
         crossings += 1;
         endpoint = shell.referee;
+        storage_contract = shell.referee;
     }
     path.extend(std::iter::repeat_n(
         checked_trees::CheckedUnitStructuralPathSegment::Referent,
@@ -239,7 +246,7 @@ pub(crate) fn capture_source(
         Some(
             formation
                 .interpretation
-                .access_storage(program, endpoint, plan)?,
+                .access_storage(program, storage_contract, plan)?,
         )
     } else {
         None
