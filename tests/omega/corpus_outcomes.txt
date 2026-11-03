@@ -20153,8 +20153,8 @@ fail/drops/composed_cleanup_authored_hook_transition rejected 3045ms expected @e
 	reserved cleanup machine `drop_token` is compiler-selected and cannot be selected by source; consume the value with `omega::core::drop(value)` or call an ordinary owner-published protocol operation
 fail/drops/composed_cleanup_crash_outcome rejected 5213ms expected @ee4dbb4b2d56
 	cleanup machine `drop_token` may not declare a crash outcome
-fail/drops/composed_cleanup_external_hook_state rejected 2046ms expected @ee4dbb4b2d56
-	terminal call `drop_token::finish` does not select a declared machine entry or callable requirement
+fail/drops/composed_cleanup_external_hook_state rejected 1235ms expected @18fc751d0060+wt
+	call `drop_token::finish` names a nested machine private to `drop_token`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
 fail/drops/copied_argument_cannot_delay_nominal_cleanup rejected 11049ms expected @ee4dbb4b2d56
 	cannot prove automatic cleanup requires at selected edge from main state entry after statement 1: room does not establish drop_room clause `room.count == 10`
 fail/drops/drop_ensures_unlocked_predicate rejected 11520ms expected @ee4dbb4b2d56
