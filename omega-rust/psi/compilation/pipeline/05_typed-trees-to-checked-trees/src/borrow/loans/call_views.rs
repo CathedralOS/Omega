@@ -512,10 +512,13 @@ fn rebase_borrow_places_following(
     // Its own borrowed grant supplies this namespace; an entry leaf at owner[]
     // is the next pointer stored in that referent, not this pointer's supplier.
     // Keep every entry leaf in the roster for actual inner loads/restoration.
+    // Only the read itself sees today's binding. A carried place naming the
+    // formal was captured before any rebind (a capture after one already
+    // followed the rebind's loan), so it keeps meaning the caller's referent.
     let parameter_referent = !place.incoming_reference.is_valid()
         && place.segments.is_empty()
         && accesses::is_borrowed_parameter_root(program, place.root)
-        && !shared_parameter_rebound(program, place.root, loan_trackers);
+        && !(active.is_empty() && shared_parameter_rebound(program, place.root, loan_trackers));
     let source_loans: Vec<&StateLoanTracker> = loan_trackers
         .iter()
         .rev()
