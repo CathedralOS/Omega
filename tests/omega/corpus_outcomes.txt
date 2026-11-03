@@ -3472,6 +3472,8 @@ fail/termination/private_rank_endpoint_effectful_rejected rejected 20140ms expec
 	specification call `endpoint` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/termination/private_rank_endpoint_missing_call_premise_rejected rejected 17486ms expected @4449c9d8ccc0
 	machine call cycle: `count`, `forward` -- a rank upper expression lacks independent formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/unselected_implementation_nontail_reentry_rejected rejected 7018ms expected @d23ce4c17141
+	machine call cycle: `ArmSelection::selected`, `again` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/unselected_implementation_reentry_rejected rejected 6640ms expected @c807f05bace3
 	machine call cycle: `ArmSelection::selected`, `walk`, `done` -- a bounded cursor rank lacks independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/traits/declaration_identity_forwarded_as_callable rejected 2062ms expected @a03fad3bb4a0
@@ -36231,8 +36233,8 @@ fail/traits/dyn_selector_reentry_unranked rejected 1712ms expected @ccdb99ca2214
 	machine call cycle: `Loop::walk`, `rewalk` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/traits/dyn_selector_requirement_precondition_unproven rejected 1874ms expected @ccdb99ca2214
 	cannot prove requires contract for call dyn Shrink<1 argument>::shrink from probe: 200 >= 3 && 200 <= 100 (needs fact `value >= 3 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/traits/dyn_selector_self_reentry_unranked rejected 761ms expected @ccdb99ca2214
-	machine call cycle: `Loop::walk` can re-enter itself through a selector call; termination across runtime implementation selection is not yet ranked
+fail/traits/dyn_selector_self_reentry_unranked rejected 2963ms expected @d23ce4c17141
+	machine call cycle: `Loop::walk` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked
 fail/traits/dyn_selector_wrong_application rejected 1413ms expected @ccdb99ca2214
 	`Primary` implements `Shape<Item>`, not `dyn Shape<Other>`; a selector names exactly the trait application its implementation satisfies
 fail/traits/dyn_structural_result_contract_mismatch rejected 1988ms expected @ccdb99ca2214
