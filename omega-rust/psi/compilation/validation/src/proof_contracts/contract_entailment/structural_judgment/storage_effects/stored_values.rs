@@ -56,8 +56,33 @@ impl StoredValues {
         first
     }
 
+    /// Every value stored at `coordinate`, in stored order, for readers that
+    /// select among them by more than the coordinate.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn values_at(
+        &self,
+        coordinate: &CapturedStorageCoordinate,
+    ) -> impl Iterator<Item = &CapturedStorageValue> {
+        let mut positions = Vec::new();
+        let mut candidate = self
+            .last_with_key
+            .get(&coordinate.search_key())
+            .copied()
+            .unwrap_or(NO_POSITION);
+        while candidate != NO_POSITION {
+            let position = candidate as usize;
+            if self.values[position].coordinate == *coordinate {
+                positions.push(position);
+            }
+            candidate = self.previous_with_key[position];
+        }
+        positions
+            .into_iter()
+            .rev()
+            .map(|position| &self.values[position])
+    }
+
     /// The first value stored at `coordinate`.
-    pub(super) fn value_at(
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn value_at(
         &self,
         coordinate: &CapturedStorageCoordinate,
     ) -> Option<&CapturedStorageValue> {

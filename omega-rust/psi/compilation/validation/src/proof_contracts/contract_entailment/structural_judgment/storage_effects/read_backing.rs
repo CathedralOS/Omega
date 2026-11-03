@@ -207,25 +207,27 @@ impl StructuralJudge<'_> {
             root: facts::PlaceRoot::Expression(*expression),
             segments: path.to_vec(),
         })?;
-        self.stored_values.iter().find_map(|stored| {
-            if stored.coordinate != coordinate || stored.backing.is_none() {
-                return None;
-            }
-            let current = stored.current.as_ref()?;
-            let mut root = current.semantic_value();
-            loop {
-                root = match root {
-                    super::super::StructuralTerm::Projection { subject, .. } => {
-                        subject.semantic_value()
-                    }
-                    super::super::StructuralTerm::IndexedValue { collection, .. } => {
-                        collection.semantic_value()
-                    }
-                    _ => break,
-                };
-            }
-            (root == captured).then(|| current.clone())
-        })
+        self.stored_values
+            .values_at(&coordinate)
+            .find_map(|stored| {
+                if stored.backing.is_none() {
+                    return None;
+                }
+                let current = stored.current.as_ref()?;
+                let mut root = current.semantic_value();
+                loop {
+                    root = match root {
+                        super::super::StructuralTerm::Projection { subject, .. } => {
+                            subject.semantic_value()
+                        }
+                        super::super::StructuralTerm::IndexedValue { collection, .. } => {
+                            collection.semantic_value()
+                        }
+                        _ => break,
+                    };
+                }
+                (root == captured).then(|| current.clone())
+            })
     }
 
     pub(super) fn freeze_scalar_read_backing(
@@ -383,9 +385,8 @@ impl StructuralJudge<'_> {
                         return None;
                     }
                     let at = at?;
-                    self.stored_values.iter().find_map(|stored| {
-                        (stored.coordinate == coordinate
-                            && stored.current.is_none()
+                    self.stored_values.values_at(&coordinate).find_map(|stored| {
+                        (stored.current.is_none()
                             && self.current_value_valid(stored, &coordinate, at))
                         .then(|| stored.entry.clone())
                         .flatten()

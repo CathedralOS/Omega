@@ -183,8 +183,7 @@ fn hash_key(value: &impl Hash) -> u64 {
     hasher.finish()
 }
 
-/// Equal integers have equal magnitudes; the sign is left out so a zero's
-/// sign flag can never separate equal values.
+/// Equal integers have equal magnitudes, so the magnitude alone is a sound key.
 fn integer_key(value: &numerics::bignum::BigInt) -> u64 {
     value
         .magnitude_words()
@@ -220,7 +219,7 @@ pub(super) fn structural_term_key(term: &StructuralTerm) -> u64 {
 /// retains one projection per field and slot of its admitted inputs, so all
 /// of them share a variant; without their subjects and paths a 4,300-slot
 /// layout input put every pattern in one bucket and each probe scanned it.
-/// Below this depth a term keys by its variant alone, which equal terms share.
+/// Deeper subterms add nothing to the key; equal terms still share it.
 const NESTED_KEY_DEPTH: usize = 4;
 
 fn nested_rewrite_key(term: &StructuralTerm, depth: usize) -> (u8, u64) {

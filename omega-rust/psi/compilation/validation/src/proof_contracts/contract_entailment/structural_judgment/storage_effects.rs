@@ -822,8 +822,7 @@ impl StructuralJudge<'_> {
         };
         if let Some(value) = self
             .stored_values
-            .iter()
-            .find(|stored| &stored.coordinate == place)
+            .value_at(place)
             .filter(|stored| valid(stored))
             .and_then(|stored| stored.current.clone())
         {
@@ -932,18 +931,16 @@ impl StructuralJudge<'_> {
         let version = self
             .read_storage_version(state, expression)
             .or(self.storage_version);
+        let selected_case = self
+            .stored_values
+            .values_at(&coordinate)
+            .find(|stored| {
+                !self.graph_storage_mode()
+                    || version.is_some_and(|at| self.current_value_valid(stored, &coordinate, at))
+            })
+            .and_then(|stored| stored.selected_case);
         if !super::super::structural_terms::term_is_unobserved_descriptor(self.program, value)
-            && let Some(case) = self
-                .stored_values
-                .iter()
-                .find(|stored| {
-                    stored.coordinate == coordinate
-                        && (!self.graph_storage_mode()
-                            || version.is_some_and(|at| {
-                                self.current_value_valid(stored, &coordinate, at)
-                            }))
-                })
-                .and_then(|stored| stored.selected_case)
+            && let Some(case) = selected_case
             && let Some((owner, _)) = self.program.variant_owner(case)
             && let Some(definition) = self.program.data_constructor_definition(
                 self.program
@@ -1494,10 +1491,11 @@ impl StructuralJudge<'_> {
         // captured revision; a retired current snapshot cannot borrow Entry.
         let reference =
             crate::declaration_type_reference(self.program, coordinate.root.as_symbol()?)?;
-        self.stored_values.iter().find_map(|stored| {
-            if stored.coordinate.root != coordinate.root || !stored.coordinate.segments.is_empty() {
-                return None;
-            }
+        let whole = CapturedStorageCoordinate {
+            root: coordinate.root,
+            segments: Vec::new(),
+        };
+        self.stored_values.values_at(&whole).find_map(|stored| {
             let value = match version {
                 ContentPlaceVersion::Entry => stored.entry.clone(),
                 ContentPlaceVersion::Current => stored.current.clone(),

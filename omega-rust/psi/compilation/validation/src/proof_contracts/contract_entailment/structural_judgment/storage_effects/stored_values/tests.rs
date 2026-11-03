@@ -112,3 +112,26 @@ fn removal_keeps_lookups_exact() {
     assert_eq!(stored.position(&coordinate(vec![slot(3)])), Some(9));
     assert_eq!(stored.len(), 10);
 }
+
+/// Readers that select by more than the coordinate see every equal value, in
+/// stored order, and no other value.
+#[test]
+fn values_at_yields_each_equal_value_in_stored_order() {
+    let stored = StoredValues::from_values(vec![
+        observed(coordinate(vec![slot(1)]), 0),
+        observed(coordinate(vec![slot(2)]), 1),
+        observed(coordinate(vec![slot(1)]), 2),
+    ]);
+    let entries = stored
+        .values_at(&coordinate(vec![slot(1)]))
+        .map(|value| value.entry.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(
+        entries,
+        vec![
+            Some(StructuralTerm::Integer(BigInt::from_u64(0))),
+            Some(StructuralTerm::Integer(BigInt::from_u64(2))),
+        ]
+    );
+    assert_eq!(stored.values_at(&coordinate(vec![slot(3)])).count(), 0);
+}
