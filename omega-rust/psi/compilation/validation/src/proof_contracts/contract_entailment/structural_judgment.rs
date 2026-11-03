@@ -576,8 +576,9 @@ pub(super) struct StructuralJudge<'program> {
     pub(super) capture_sequence: usize,
     storage_write_sequence: usize,
     pub(super) normal_guarantees: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
-    // Producer identity comes only from the captured public result contract.
-    // Selected branch equalities remain ordinary normal-path proof facts.
+    // Keep scalar promises, completed-call results and mathematical data
+    // identity distinct when reusing equations. Executable branch comparisons
+    // remain ordinary normal-path proof facts.
     captured_result_equations: Arc<Vec<normal_returns::CapturedResultEquation>>,
     resolve_applications: bool,
     // Closed computation owes completion of every eager operand. Symbolic

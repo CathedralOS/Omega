@@ -290,16 +290,31 @@ impl StructuralJudge<'_> {
         captured: &super::super::StructuralTerm,
         path: &[facts::PlaceSegment],
     ) -> Option<super::super::StructuralTerm> {
-        let captured = captured.semantic_value();
-        let super::super::StructuralTerm::CapturedValue { expression, .. } = captured else {
+        let (captured, mut prefix) = self.completed_result_read_source(captured, 0)?;
+        let super::super::StructuralTerm::CapturedValue {
+            expression,
+            result_type,
+            ..
+        } = &captured
+        else {
             return None;
         };
+        prefix.extend_from_slice(path);
+        crate::structural_scalar_coordinate_in_type(
+            self.program,
+            facts::PlaceRoot::Expression(*expression),
+            *result_type,
+            &prefix,
+        )?;
         let coordinate = self.capture_storage_place(crate::CanonicalPlace {
             root: facts::PlaceRoot::Expression(*expression),
-            segments: path.to_vec(),
+            segments: prefix,
         })?;
         self.stored_values.iter().find_map(|stored| {
-            if stored.coordinate != coordinate || stored.backing.is_none() {
+            if stored.coordinate != coordinate
+                || stored.backing.is_none()
+                || !self.storage_value_transfer_is_current(stored, self.storage_version)
+            {
                 return None;
             }
             let current = stored.current.as_ref()?;
@@ -315,8 +330,66 @@ impl StructuralJudge<'_> {
                     _ => break,
                 };
             }
-            (root == captured).then(|| current.clone())
+            root.same_resolution_payload(&captured)
+                .then(|| current.clone())
         })
+    }
+
+    /// A payload passed to another call still names its original result cell.
+    /// Follow only its already formed owned fields, keeping the original call
+    /// capture and storage cut instead of manufacturing another byte read.
+    fn completed_result_read_source(
+        &self,
+        value: &super::super::StructuralTerm,
+        depth: usize,
+    ) -> Option<(super::super::StructuralTerm, Vec<facts::PlaceSegment>)> {
+        if depth >= 64 {
+            return None;
+        }
+        match value.semantic_value() {
+            captured @ super::super::StructuralTerm::CapturedValue { .. } => {
+                Some((captured.clone(), Vec::new()))
+            }
+            super::super::StructuralTerm::Projection { subject, path } => {
+                let (captured, mut prefix) =
+                    self.completed_result_read_source(subject, depth + 1)?;
+                let super::super::StructuralTerm::CapturedValue { result_type, .. } = &captured
+                else {
+                    return None;
+                };
+                let reference = crate::project_type_reference_from_segments(
+                    self.program,
+                    *result_type,
+                    &prefix,
+                )?;
+                let observed =
+                    super::super::super::observed_projections::project_observed_value_in_scope(
+                        self.program,
+                        self,
+                        *result_type,
+                        super::super::super::structural_terms::owned_projection_observation(
+                            self.program,
+                            *result_type,
+                            captured.clone(),
+                        ),
+                        &prefix,
+                    )?;
+                let names = path.split('.').collect::<Vec<_>>();
+                let paths = super::super::super::completed_values::owned_term_field_paths_in_scope(
+                    self.program,
+                    self,
+                    reference,
+                    &observed,
+                    &names,
+                );
+                let [selected] = paths.as_slice() else {
+                    return None;
+                };
+                prefix.extend_from_slice(selected);
+                Some((captured, prefix))
+            }
+            _ => None,
+        }
     }
 
     pub(super) fn freeze_scalar_read_backing(

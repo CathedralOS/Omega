@@ -43,16 +43,18 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [latest completed check](https://github.com/CathedralOS/Omega/actions/runs/41591572063)
-at `b2f1d4262534dc81fb1447a4894c957cca660d2d` proves the writer's complete byte
-and length guarantee. The field-forwarding promise also proves. The local and
-constant programs each retain nine proof refusals, beginning with the call that
-restores the encoded frame. The field program also loses two facts needed by its
-consumer. The original capacity example and both returned-reference controls
-execute with native/Terminal exit zero. All four stale-storage controls, the
-wrong-value control and both invalid-construction controls reject correctly.
-The decoder twins include their intended rejection but still have unrelated
-restoration failures, so they do not yet establish this row's acceptance.
+The [latest completed check](https://github.com/CathedralOS/Omega/actions/runs/41662428112)
+at `60c23acf75f87e8bc338eac8af854d3b0bcea9b8` proves the writer's complete byte
+and length guarantee, the reader's input contract and field forwarding. Local
+and constant retain eight proof refusals beginning with frame restoration;
+the field consumer also lacks two transported facts. Eight control programs
+execute with native/Terminal exit zero, including saved data identity with a
+mutable buffer. Stale-storage, wrong-value, invalid-construction, executable
+floating equality and descriptor-identity controls reject correctly. The
+independent-index control rejects the missing bounds earlier in contract
+formation; its expected diagnostic has been updated and awaits a confirming run.
+The decoder twins still have unrelated restoration failures, so they do not yet
+establish this row's acceptance.
 
 The [constant-call checks](https://github.com/CathedralOS/Omega/actions/runs/41573401092)
 execute four independent method, binder, application and lifetime programs with
