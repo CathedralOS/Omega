@@ -449,9 +449,11 @@ pub(crate) fn validate_transition_patterns(
             });
         // A quotient has no cases, so a case-spelled arm on one does not even
         // resolve; it still observes the representative and must be refused.
+        // Condition arms keep no head and never observe the representative.
         if retained.is_structural
             || is_case
-            || quotient_subject(program, machine, state, retained.subject).is_some()
+            || (retained.pattern.head.is_valid()
+                && quotient_subject(program, machine, state, retained.subject).is_some())
         {
             let pattern = if retained.is_structural {
                 MatchPattern::Destructure(retained.pattern)
