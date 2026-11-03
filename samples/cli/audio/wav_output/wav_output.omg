@@ -25,7 +25,7 @@ PosixWavOutput satisfies WavOutput {
     invokes PosixFilesystemHost
     {
         let fd: i32 = PosixFilesystemHost::create(path, 420);
-        transition fd >= 0 { true -> write(fd, bytes) _ -> (widen_i32_to_i64(fd)) }
+        transition fd >= 0 { true -> block write(fd, bytes) _ -> (widen_i32_to_i64(fd)) }
 
         machine write(fd: i32, bytes: &[u8]) -> i64 {
             let n: i64 = PosixFilesystemHost::write(fd, bytes);
