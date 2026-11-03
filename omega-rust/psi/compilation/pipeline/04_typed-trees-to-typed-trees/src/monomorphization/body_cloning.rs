@@ -1078,7 +1078,7 @@ pub(super) fn clone_single_specialized_machine(
         &state_transition_subjects,
         expression_start,
         cloned.states,
-    );
+    )?;
     let instance_symbol = cloned.symbol;
     let authored_service_reach_rows = source
         .unwrap_or(program)
@@ -1409,7 +1409,10 @@ fn copy_application_binding_type_payloads<'scope>(
     let mut bindings = expressions_of(program)
         .static_machine_application_bindings(application)
         .to_vec();
-    copy_binding_type_payloads(source, program, &mut bindings, symbols)?;
+    // The application and operand graph were copied together. Copy only their
+    // type payloads here; another expression copy would detach a Value binding
+    // from the actual evaluation it records.
+    copy_binding_type_references(source, program, &mut bindings, symbols)?;
     expressions_of_mut(program)
         .static_machine_application_bindings_mut(application)
         .clone_from_slice(&bindings);
@@ -1417,6 +1420,26 @@ fn copy_application_binding_type_payloads<'scope>(
 }
 
 pub(super) fn copy_binding_type_payloads<'scope>(
+    source: Option<&dyn ::validation::CheckingInput>,
+    program: &mut TypedTrees,
+    bindings: &mut [typed_trees::static_applications::StaticMachineBinding],
+    symbols: impl Into<typed_trees::SymbolRebinding<'scope>>,
+) -> Result<(), TypeCopyError> {
+    let symbols = symbols.into();
+    copy_binding_type_references(source, program, bindings, symbols)?;
+    for binding in bindings {
+        if let typed_trees::static_applications::StaticMachineBindingValue::RuntimeValue {
+            expression,
+            ..
+        } = &mut binding.value
+        {
+            *expression = copy_expression(source, program, *expression, symbols);
+        }
+    }
+    Ok(())
+}
+
+fn copy_binding_type_references<'scope>(
     source: Option<&dyn ::validation::CheckingInput>,
     program: &mut TypedTrees,
     bindings: &mut [typed_trees::static_applications::StaticMachineBinding],
@@ -1433,7 +1456,7 @@ pub(super) fn copy_binding_type_payloads<'scope>(
             StaticMachineBindingValue::RuntimeValue {
                 type_reference,
                 subject,
-                expression,
+                ..
             } => {
                 *type_reference = copy_type_reference(source, program, *type_reference, symbols)?;
                 if let Some((_, replacement)) =
@@ -1441,7 +1464,6 @@ pub(super) fn copy_binding_type_payloads<'scope>(
                 {
                     *subject = *replacement;
                 }
-                *expression = copy_expression(source, program, *expression, symbols);
             }
             StaticMachineBindingValue::Machine(argument)
             | StaticMachineBindingValue::Conformance(argument) => {

@@ -283,9 +283,6 @@ pub(super) fn retain_call(
     // The registration retains the authored callable binder. Once selection
     // chooses a concrete template, its retained tuple belongs to that exact
     // template; common argument correspondence transports it to the contract.
-    expressions_of_mut(program)
-        .static_machine_application_mut(application)
-        .binding_declaration = candidate.template.template_symbol;
     let mut bindings = candidate_bindings(program, candidate);
     // Executable candidates retain only closed proposals. The source call also
     // owns each explicitly supplied symbolic const, independently of whether
@@ -319,8 +316,12 @@ pub(super) fn retain_call(
     // including inside an open generic caller. Reuse these exact expressions
     // when realization later appends the ordinary hidden operands.
     let runtime = super::runtime_value_subjects(&candidate.runtime_value_bindings);
-    let operands =
-        super::body_rewriting::runtime_value_operands(program, selection.lexical_state, &runtime);
+    let operands = super::body_rewriting::runtime_call_operands(
+        program,
+        selection.site,
+        selection.lexical_state,
+        &runtime,
+    );
     let mut operands = operands.into_iter();
     for binding in &mut bindings {
         if let StaticMachineBindingValue::RuntimeValue {
@@ -337,6 +338,9 @@ pub(super) fn retain_call(
             }
         }
     }
+    expressions_of_mut(program)
+        .static_machine_application_mut(application)
+        .binding_declaration = candidate.template.template_symbol;
     expressions_of_mut(program).set_static_machine_application_bindings(application, &bindings);
 }
 

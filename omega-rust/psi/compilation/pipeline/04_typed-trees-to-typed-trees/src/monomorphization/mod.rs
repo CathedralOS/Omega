@@ -856,8 +856,9 @@ fn apply_call_specializations(
             // Each site keeps its own exact runtime subjects: the shared
             // carrier-keyed instance receives them as appended arguments.
             let arguments = runtime_value_subjects(&selection.runtime_value_bindings);
-            let subjects = crate::monomorphization::body_rewriting::runtime_value_operands(
+            let subjects = crate::monomorphization::body_rewriting::runtime_call_operands(
                 program,
+                selection.site,
                 selection.lexical_state,
                 &arguments,
             );
