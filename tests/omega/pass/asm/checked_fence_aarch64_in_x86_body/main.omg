@@ -1,4 +1,5 @@
-// Native outcome is target-specific; see the adjacent profile oracles.
+// Expected exit: 0
+// Incompatible selected targets refuse publication; see the adjacent profile oracles.
 // Checked fence sequences retain their catalog target, ordering and exact empty clobber set while carrying input 37 to a result requiring 37.
 
 boundary trait SelectedOrdered {
