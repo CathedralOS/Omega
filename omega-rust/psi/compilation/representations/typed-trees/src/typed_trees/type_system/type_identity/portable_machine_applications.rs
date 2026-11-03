@@ -2,6 +2,7 @@
 //! temporary name allocated while compiling it. Executable lookup is unchanged.
 
 use super::IndexIdentityArgument;
+mod captures;
 mod conformances;
 
 use super::constraint_identity::{atom, compound};
@@ -10,22 +11,23 @@ use super::identity_context::{TypeIdentityContext, TypeIdentityQualification};
 use crate::TypedTrees;
 use crate::data::TypeParameterKind;
 use crate::static_applications::StaticMachineBindingValue;
+use crate::typed_trees::callable_applications::MachineInstantiation;
 use language_semantics::type_identity::vocabulary::{Label, NameForm};
 use std::cell::{Cell, RefCell};
 use symbols::SymbolHandle;
 
-/// Describe one retained specialization for a portable review record. Ordinary
-/// declarations return `None`; a malformed specialization never falls back to
+/// Describe one retained callable application for a portable review record.
+/// Ordinary declarations return `None`; a malformed application never falls back to
 /// its generated name. The ordinary operand encoder visits nested applications.
-pub fn portable_machine_specialization_identity(
+pub fn portable_machine_application_identity(
     program: &TypedTrees,
     symbol: SymbolHandle,
     exact_toolchain_sources: &[(source::SourceId, [u8; 32])],
 ) -> Result<Option<String>, String> {
-    let projection = PortableSpecializations::default();
+    let projection = PortableMachineApplications::default();
     let invalid = Cell::new(false);
     let context = TypeIdentityContext {
-        portable_specializations: Some(&projection),
+        portable_machine_applications: Some(&projection),
         qualification: TypeIdentityQualification::PackageQualified,
         exact_toolchain_sources,
         missing_exact_nominal_owner: Some(&invalid),
@@ -47,12 +49,12 @@ pub fn portable_machine_specialization_identity(
 }
 
 #[derive(Default)]
-pub(crate) struct PortableSpecializations {
+pub(crate) struct PortableMachineApplications {
     active: RefCell<Vec<SymbolHandle>>,
     error: RefCell<Option<String>>,
 }
 
-impl PortableSpecializations {
+impl PortableMachineApplications {
     pub(super) fn nominal_name(
         &self,
         program: &TypedTrees,
@@ -82,44 +84,41 @@ impl PortableSpecializations {
         else {
             return Ok(None);
         };
-        let mut receipts = program
-            .machine_specializations
-            .iter()
-            .filter(|receipt| receipt.instance == machine.symbol);
-        let Some(receipt) = receipts.next() else {
+        let Some(receipt) = program
+            .machine_instantiation(machine.symbol)
+            .map_err(|reason| format!("callable `{}`: {reason}", machine.name))?
+        else {
             return Ok(None);
         };
-        if receipts.next().is_some() {
-            return Err("specialized callable has multiple retained applications".into());
-        }
         if self.active.borrow().contains(&machine.symbol) {
             return Err("specialized callable has a cyclic static argument identity".into());
         }
         self.active.borrow_mut().push(machine.symbol);
-        let result = self.application(program, receipt, context);
+        let result = match receipt {
+            MachineInstantiation::Specialization(specialization) => {
+                self.application(program, specialization, context)
+            }
+            MachineInstantiation::Capture(capture) => self.capture(program, capture, context),
+        };
         self.active.borrow_mut().pop();
-        let identity = result?;
+        let identity = result.map_err(|reason| format!("callable `{}`: {reason}", machine.name))?;
         if symbol == machine.symbol {
             return Ok(Some(identity));
         }
         let states = program.machine_states(machine);
-        let selected = states
-            .iter()
-            .find(|state| state.symbol == symbol)
-            .ok_or("specialized callable lost its selected nested machine")?;
         if states.first().is_some_and(|entry| entry.symbol == symbol) {
             Ok(Some(identity))
         } else {
             let original = program
-                .machine_by_symbol(receipt.template)
+                .machine_by_symbol(receipt.template())
                 .ok_or("specialized callable lost its original nested declaration owner")?;
-            let origin = program
-                .symbols
-                .symbol_provenance_source_span(selected.symbol)
-                .ok_or("specialized nested callable lost its declaration provenance")?;
             let mut matches = program.machine_states(original).iter().filter(|state| {
-                state.name == selected.name
-                    && program.symbols.symbol_provenance_source_span(state.symbol) == Some(origin)
+                program.instantiated_machine_state_matches(
+                    machine.symbol,
+                    receipt.template(),
+                    state.symbol,
+                    symbol,
+                )
             });
             let declaration = matches
                 .next()
@@ -137,6 +136,37 @@ impl PortableSpecializations {
                 ],
             )))
         }
+    }
+
+    fn origin(
+        &self,
+        program: &TypedTrees,
+        instance: SymbolHandle,
+        template: SymbolHandle,
+        normalized_template_identity: &str,
+        context: &TypeIdentityContext<'_>,
+    ) -> Result<String, String> {
+        if instance != template
+            && let Some(origin) = self.identity(program, template, context)?
+        {
+            // A member invocation follows its implementation capture. The
+            // captured body's temporary overload name must not reappear here.
+            return Ok(origin);
+        }
+        if normalized_template_identity.is_empty() {
+            return Err("callable application lost its original overload identity".into());
+        }
+        let declaration_context = TypeIdentityContext {
+            portable_machine_applications: None,
+            ..*context
+        };
+        Ok(compound(
+            CoordinateTag::NamedCallable,
+            [
+                declaration_context.name(program, template, ""),
+                atom(CoordinateTag::Template, normalized_template_identity),
+            ],
+        ))
     }
 
     fn application(
@@ -167,13 +197,13 @@ impl PortableSpecializations {
         if parameters.len() != bindings.len() {
             return Err("specialized callable has an incomplete static argument list".into());
         }
-        // The template may also be the first executable instance. Its original
-        // overload is retained separately, so naming it must not recurse.
-        let declaration_context = TypeIdentityContext {
-            portable_specializations: None,
-            ..*context
-        };
-        let declaration = declaration_context.name(program, receipt.template, "");
+        let declaration = self.origin(
+            program,
+            receipt.instance,
+            receipt.template,
+            &receipt.normalized_template_identity,
+            context,
+        )?;
         let argument_context = TypeIdentityContext {
             application_owner: application.lexical_owner,
             application_argument_owner: application.lexical_owner,
@@ -192,45 +222,7 @@ impl PortableSpecializations {
             if matches.next().is_some() {
                 return Err("specialized callable repeats an original parameter binding".into());
             }
-            let (kind, operand) = match (&parameter.kind, &binding.value) {
-                (TypeParameterKind::Type, StaticMachineBindingValue::Type(reference)) => {
-                    ("type", IndexIdentityArgument::TypeArgument(*reference))
-                }
-                (TypeParameterKind::Const { .. }, StaticMachineBindingValue::Const(reference)) => {
-                    ("const", IndexIdentityArgument::TypeReference(*reference))
-                }
-                (TypeParameterKind::Value { .. }, StaticMachineBindingValue::Const(reference)) => {
-                    ("value", IndexIdentityArgument::TypeReference(*reference))
-                }
-                (
-                    TypeParameterKind::Value { .. },
-                    StaticMachineBindingValue::RuntimeValue {
-                        type_reference,
-                        subject,
-                        expression,
-                    },
-                ) if !subject.is_valid() && !expression.is_valid() => (
-                    "runtime-carrier",
-                    IndexIdentityArgument::TypeArgument(*type_reference),
-                ),
-                (
-                    TypeParameterKind::Machine { .. },
-                    StaticMachineBindingValue::Machine(argument),
-                ) => ("machine", IndexIdentityArgument::StaticArgument(argument)),
-                (
-                    TypeParameterKind::Implementation,
-                    StaticMachineBindingValue::Conformance(argument),
-                ) => (
-                    "conformance",
-                    IndexIdentityArgument::StaticArgument(argument),
-                ),
-                _ => {
-                    return Err(
-                        "specialized callable argument differs from its original parameter kind"
-                            .into(),
-                    );
-                }
-            };
+            let (kind, operand) = static_binding_operand(&parameter.kind, &binding.value)?;
             let mut fields = vec![atom(Label::Kind, kind)];
             if let StaticMachineBindingValue::Conformance(argument) = &binding.value {
                 let closed = conformances
@@ -283,13 +275,49 @@ impl PortableSpecializations {
             CoordinateTag::SpecializedCallable,
             [
                 declaration,
-                atom(
-                    CoordinateTag::Template,
-                    &receipt.normalized_template_identity,
-                ),
                 compound(CoordinateTag::Arguments, arguments),
                 compound(CoordinateTag::Lifetimes, lifetimes),
             ],
         ))
     }
+}
+
+fn static_binding_operand<'a>(
+    kind: &TypeParameterKind,
+    value: &'a StaticMachineBindingValue,
+) -> Result<(&'static str, IndexIdentityArgument<'a>), String> {
+    Ok(match (kind, value) {
+        (TypeParameterKind::Type, StaticMachineBindingValue::Type(reference)) => {
+            ("type", IndexIdentityArgument::TypeArgument(*reference))
+        }
+        (TypeParameterKind::Const { .. }, StaticMachineBindingValue::Const(reference)) => {
+            ("const", IndexIdentityArgument::TypeReference(*reference))
+        }
+        (TypeParameterKind::Value { .. }, StaticMachineBindingValue::Const(reference)) => {
+            ("value", IndexIdentityArgument::TypeReference(*reference))
+        }
+        (
+            TypeParameterKind::Value { .. },
+            StaticMachineBindingValue::RuntimeValue {
+                type_reference,
+                subject,
+                expression,
+            },
+        ) if !subject.is_valid() && !expression.is_valid() => (
+            "runtime-carrier",
+            IndexIdentityArgument::TypeArgument(*type_reference),
+        ),
+        (TypeParameterKind::Machine { .. }, StaticMachineBindingValue::Machine(argument)) => {
+            ("machine", IndexIdentityArgument::StaticArgument(argument))
+        }
+        (TypeParameterKind::Implementation, StaticMachineBindingValue::Conformance(argument)) => (
+            "conformance",
+            IndexIdentityArgument::StaticArgument(argument),
+        ),
+        _ => {
+            return Err(
+                "specialized callable argument differs from its original parameter kind".into(),
+            );
+        }
+    })
 }

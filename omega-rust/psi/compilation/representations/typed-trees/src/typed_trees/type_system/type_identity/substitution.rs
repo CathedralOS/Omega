@@ -208,7 +208,7 @@ fn static_callable_argument_identity(
     let Some(state) = state.filter(|state| state.symbol.is_valid()) else {
         return Some(rejected(context));
     };
-    if let Some(projection) = context.portable_specializations
+    if let Some(projection) = context.portable_machine_applications
         && let Some(identity) = projection.nominal_name(program, argument.symbol, context)
     {
         let mut operands = vec![atom(IndexForm::ConstName, &identity)];

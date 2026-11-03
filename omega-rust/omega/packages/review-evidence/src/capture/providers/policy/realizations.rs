@@ -27,20 +27,23 @@ impl ReviewedProviderRealization {
             .machine_callable_identity_text(machine)
             .ok_or_else(|| rejected("provider realization has no exact callable identity"))?;
         let mut declaration = nominal_identity(compilation, symbol)?;
-        let specialized = typed_trees::type_identity::portable_machine_specialization_identity(
+        let applied = typed_trees::type_identity::portable_machine_application_identity(
             &compilation.typed,
             symbol,
             compilation.exact_toolchain_sources,
         )
         .map_err(|reason| rejected(&reason))?;
-        let portable_callable = if let Some(identity) = specialized {
-            let receipt = compilation.machine_specialization(symbol).ok_or_else(|| {
-                rejected("provider realization lost its specialization after projection")
-            })?;
-            let template = nominal_identity(compilation, receipt.template)?;
+        let portable_callable = if let Some(identity) = applied {
+            let receipt = compilation
+                .machine_instantiation(symbol)
+                .map_err(rejected)?
+                .ok_or_else(|| {
+                    rejected("provider realization lost its application after projection")
+                })?;
+            let template = nominal_identity(compilation, receipt.template())?;
             if declaration.owner != template.owner {
                 return Err(rejected(
-                    "provider specialization changed its original declaration owner",
+                    "provider application changed its original declaration owner",
                 ));
             }
             declaration.path = identity.clone();
@@ -60,7 +63,11 @@ impl ReviewedProviderRealization {
         &self,
         compilation: &PackageReviewInput<'_>,
     ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
-        if compilation.machine_specialization(self.symbol).is_some() {
+        if compilation
+            .machine_instantiation(self.symbol)
+            .map_err(rejected)?
+            .is_some()
+        {
             Ok(self.declaration.clone())
         } else {
             crate::capture::semantics::conformances::policy_callable_identity(

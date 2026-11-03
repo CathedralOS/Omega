@@ -29,8 +29,8 @@ mod argument_roles_tests;
 pub(crate) struct TypeIdentityContext<'binders> {
     /// Review describes generic applications by their retained arguments,
     /// including callable operands nested inside types and const expressions.
-    pub(crate) portable_specializations:
-        Option<&'binders super::portable_specializations::PortableSpecializations>,
+    pub(crate) portable_machine_applications:
+        Option<&'binders super::portable_machine_applications::PortableMachineApplications>,
     pub(crate) storage_value_indices: bool,
     /// Declared-carrier correspondence erases refinement shells at every depth.
     pub(crate) declared_carrier: bool,
@@ -254,7 +254,7 @@ impl TypeIdentityContext<'_> {
             );
         }
         if self.qualification == TypeIdentityQualification::PackageQualified {
-            let identity = if self.portable_specializations.is_some() {
+            let identity = if self.portable_machine_applications.is_some() {
                 super::lifetime_parameters::portable_lifetime_parameter_identity_in_context(
                     program, region, self,
                 )
@@ -339,7 +339,7 @@ impl TypeIdentityContext<'_> {
         symbol: SymbolHandle,
         path: String,
     ) -> String {
-        if let Some(projection) = self.portable_specializations
+        if let Some(projection) = self.portable_machine_applications
             && let Some(identity) = projection.nominal_name(program, symbol, self)
         {
             return identity;
