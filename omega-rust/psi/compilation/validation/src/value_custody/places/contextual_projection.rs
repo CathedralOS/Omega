@@ -26,11 +26,13 @@ pub fn contextual_canonical_place_from_expression(
         ExpressionNode::SavedSubject(_) => {
             super::canonical_projection::canonical_place_from_expression(program, expression)
         }
+        // A borrow lends storage, so it looks through a cast that keeps the
+        // bytes in place even when the cast erases a domain meaning.
         ExpressionNode::Borrow(inner) => contextual_canonical_place_from_expression(
             program,
             state_symbol,
             statement_index,
-            inner.target,
+            super::canonical_projection::storage_operand(program, inner.target),
         ),
         // A borrow recast denotes the operand's storage, not a fresh rvalue.
         // Same-carrier qualification and erasure casts preserve the operand's
