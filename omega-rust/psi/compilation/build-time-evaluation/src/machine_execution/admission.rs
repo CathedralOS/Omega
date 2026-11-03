@@ -922,8 +922,7 @@ impl BuildTimeAdmissionPlan {
             .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
         let mut arguments = arguments;
-        self.require_floor(input, machine, None, false)?;
-        self.require_invocation_failures(input, machine, &mut arguments, None)?;
+        self.require_supplied_invocation(input, machine, &mut arguments, None)?;
         self.accounting
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(program),
@@ -953,8 +952,7 @@ impl BuildTimeAdmissionPlan {
             )
         })?;
         let mut arguments = arguments;
-        self.require_floor(input, machine, Some(custody), false)?;
-        self.require_invocation_failures(input, machine, &mut arguments, Some(custody))?;
+        self.require_supplied_invocation(input, machine, &mut arguments, Some(custody))?;
         self.accounting
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(program),

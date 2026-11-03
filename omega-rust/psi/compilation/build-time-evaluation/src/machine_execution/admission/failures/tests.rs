@@ -239,6 +239,17 @@ fn source_admission_establishes_host_parameter_domains_before_execution() {
             )
             .expect("a host actual in the declared domain is established");
         assert_eq!(value, BuildTimeValue::Int(7));
+        let value = admission
+            .evaluate_machine_symbol_for_invocation_measured(
+                BuildTimeProgram::Checked(&checked),
+                symbol,
+                vec![BuildTimeValue::Int(1)],
+                BuildTimeInvocationCustody::Symbol(symbol),
+            )
+            .expect("the symbol entry establishes the same valid host domain")
+            .into_parts()
+            .0;
+        assert_eq!(value, BuildTimeValue::Int(7));
         let error = admission
             .evaluate_machine(
                 BuildTimeProgram::Checked(&checked),
@@ -246,6 +257,13 @@ fn source_admission_establishes_host_parameter_domains_before_execution() {
                 vec![BuildTimeValue::Int(0)],
             )
             .expect_err("a body summary cannot establish its host argument domain");
+        assert!(
+            error
+                .reason
+                .contains("constant invocation failed ordinary checking"),
+            "{error:?}"
+        );
+        assert!(error.reason.contains("requires"), "{error:?}");
         assert!(
             error.reason.contains("not build-time admissible"),
             "{error:?}"
@@ -259,6 +277,11 @@ fn source_admission_establishes_host_parameter_domains_before_execution() {
                 BuildTimeInvocationCustody::Symbol(symbol),
             )
             .expect_err("the symbol entry must establish the same host domain");
+        assert!(
+            error.contains("constant invocation failed ordinary checking"),
+            "{error}"
+        );
+        assert!(error.contains("requires"), "{error}");
         assert!(error.contains("before execution"), "{error}");
     });
 }
@@ -285,6 +308,14 @@ fn source_empty_failure_summary_does_not_discharge_authored_requires() {
         concrete_invocation::require_empty_failure_summary(&checked, symbol)
             .expect("the constant body has an empty failure summary");
         let admission = BuildTimeAdmissionPlan::infer(program, None);
+        let value = admission
+            .evaluate_machine(
+                BuildTimeProgram::Checked(&checked),
+                "answer",
+                vec![BuildTimeValue::Int(1)],
+            )
+            .expect("the exact actual establishes the authored entry requirement");
+        assert_eq!(value, BuildTimeValue::Int(7));
         let error = admission
             .evaluate_machine(
                 BuildTimeProgram::Checked(&checked),
@@ -293,12 +324,12 @@ fn source_empty_failure_summary_does_not_discharge_authored_requires() {
             )
             .expect_err("a crash-free body cannot grant its invocation precondition");
         assert!(
-            error.reason.contains("authored `requires` premise"),
+            error
+                .reason
+                .contains("constant invocation failed ordinary checking"),
             "{error:?}"
         );
-        assert!(
-            error.reason.contains("no checked invocation proof"),
-            "{error:?}"
-        );
+        assert!(error.reason.contains("requires"), "{error:?}");
+        assert!(error.reason.contains("before execution"), "{error:?}");
     });
 }

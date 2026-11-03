@@ -6,6 +6,8 @@
 //! construction on a private statement context. This is the first
 //! language construction judgment for these values, not replay of a stage's
 //! checked output. The policy body remains independently admitted and executed.
+//! This construction judgment does not prove the original entry's recorded
+//! requires clauses; admission checks those at the exact invocation.
 //! Nested fields, array elements and active payloads retain their declarations;
 //! no schema-specific bounds or second predicate evaluator belong here.
 
@@ -56,9 +58,9 @@ pub(crate) fn require_established_arguments(
         }
         let value = literal(&mut probe, destination, value)
             .map_err(|reason| format!("policy argument `{}`: {reason}", parameter.name))?;
-        // Receive the root through an ordinary declared field as well. Merely
-        // checking its child constructors would miss a qualification on the
-        // parameter itself (or a primitive/array root's receiving obligations).
+        // Receive the root through an ordinary declared field as well, checking
+        // its construction obligations in addition to child constructors. The
+        // original entry's membership clauses still need an exact call check.
         let container = probe.symbols.insert_generated_root_from(
             machine.symbol,
             symbols::SymbolKind::Data,
