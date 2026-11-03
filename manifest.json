@@ -1,0 +1,40 @@
+{
+  "bundles": [
+    {
+      "file": "0f7da6f153281c0b10c2fe063ab3e0e29dfdd2d4.bundle",
+      "sha256": "b1142ffe0ccb65724cc02b8950e28825793becc32ba92fdf2b16f2b6c0b2c0de",
+      "exported_commit": "0f7da6f153281c0b10c2fe063ab3e0e29dfdd2d4",
+      "exported_ref": "refs/corpus-observations/0f7da6f153281c0b10c2fe063ab3e0e29dfdd2d4",
+      "prerequisites": [
+        "6ab33f0a2af8eeb5ec5f7e48b904afc039b7b7dc"
+      ]
+    },
+    {
+      "file": "d76683cd67e98087a367a0d5de4e4cdad0fe3c80.bundle",
+      "sha256": "b2b560601d3420c7831a493018ccda46a46fb2600a431fa9216878bbaf2939d5",
+      "exported_commit": "d76683cd67e98087a367a0d5de4e4cdad0fe3c80",
+      "exported_ref": "refs/corpus-observations/d76683cd67e98087a367a0d5de4e4cdad0fe3c80",
+      "prerequisites": [
+        "04085b59f9c5227e69c5af03a29aa20e061e0e74"
+      ]
+    },
+    {
+      "file": "810a7821372082dabdeabf63810ed714abda43cc.bundle",
+      "sha256": "c8c01476d8ede6374ce80d2bd70cc6acaac9a085ecc27fb4a5f65e2761664e53",
+      "exported_commit": "810a7821372082dabdeabf63810ed714abda43cc",
+      "exported_ref": "refs/corpus-observations/810a7821372082dabdeabf63810ed714abda43cc",
+      "prerequisites": [
+        "04085b59f9c5227e69c5af03a29aa20e061e0e74"
+      ]
+    }
+  ],
+  "archive": {
+    "file": "observations.tar.gz",
+    "sha256": "269a764b0f362d12b3c3716157cb15732440283c9f8883c87398afb614c1d715",
+    "bytes": 878013,
+    "receipt_files": 1239
+  },
+  "source_checkpoint": "810a7821372082dabdeabf63810ed714abda43cc",
+  "compiler": "R12: d76683cd67e98087a367a0d5de4e4cdad0fe3c80 plus patch 287cbbf11f1449f2b74a1b8ecb91f46072b7f5f654a1841443fde8c597ddb048. Later compiler-input differences are verified comments only.",
+  "scope": "Raw evidence only; this parentless evidence commit is separate from the feature branch and main."
+}
