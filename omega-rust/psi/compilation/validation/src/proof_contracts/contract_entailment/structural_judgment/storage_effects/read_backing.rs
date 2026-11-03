@@ -329,17 +329,15 @@ impl StructuralJudge<'_> {
             return None;
         };
         prefix.extend_from_slice(path);
-        if crate::structural_scalar_coordinate_in_type(
+        let Some(geometry) = crate::structural_scalar_coordinate_in_type(
             self.program,
             facts::PlaceRoot::Expression(*expression),
             *result_type,
             &prefix,
-        )
-        .is_none()
-        {
+        ) else {
             self.trace_completed_result_read_refusal(&captured, path, "scalar-type");
             return None;
-        }
+        };
         let Some(coordinate) = self.capture_storage_place(crate::CanonicalPlace {
             root: facts::PlaceRoot::Expression(*expression),
             segments: prefix,
@@ -380,10 +378,32 @@ impl StructuralJudge<'_> {
                 root.same_resolution_payload(&captured)
                     .then(|| current.clone())
             });
-        if value.is_none() {
+        let Some(value) = value else {
             self.trace_completed_result_read_refusal(&captured, path, refusal);
+            return None;
+        };
+        // Keep the checked equation for this current scalar before resolving
+        // its enclosing value. A case skeleton can replace that value without
+        // retaining the original indexed cell's identity. Only the cell checks
+        // above authorize this read; a descriptor or a whole-data Id cannot.
+        if self.requires_value_preservation()
+            && let Some(resolved) = self.captured_result_equations.iter().find_map(|equation| {
+                let replacement = equation.public_scalar_replacement(&value)?;
+                if super::super::super::structural_terms::term_contains(replacement, &value) {
+                    return None;
+                }
+                let resolved = self.resolve(replacement.clone());
+                super::super::super::structural_terms::scalar_operand_is_observed(
+                    self.program,
+                    geometry.result_type_reference,
+                    &resolved,
+                )
+                .then_some(resolved)
+            })
+        {
+            return Some(resolved);
         }
-        value
+        Some(value)
     }
 
     /// A payload passed to another call still names its original result cell.

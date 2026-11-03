@@ -32,6 +32,22 @@ impl CapturedResultEquation {
         self.meaning == CapturedEquationMeaning::CompletedCall
     }
 
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn public_scalar_replacement(
+        &self,
+        observed: &StructuralTerm,
+    ) -> Option<&StructuralTerm> {
+        if self.meaning != CapturedEquationMeaning::PublicScalar {
+            return None;
+        }
+        if self.left.same_resolution_payload(observed) {
+            Some(&self.right)
+        } else if self.right.same_resolution_payload(observed) {
+            Some(&self.left)
+        } else {
+            None
+        }
+    }
+
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn retains_completed_identity(
         &self,
         captured: &StructuralTerm,
