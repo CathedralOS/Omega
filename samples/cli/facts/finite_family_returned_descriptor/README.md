@@ -111,11 +111,22 @@ eleven fact engine agreements but does not fix that refusal. A separate
 write-only forwarding probe refuses identically on the unchanged integrated
 base; it is not claimed as a passing check or attributed to this repair.
 
+The completed-return repair at `a251628c888a10e0f2871d4b15a1429cf1746d53`
+([run](https://github.com/CathedralOS/Omega/actions/runs/41668616576)) makes the
+unchanged replacement and stored-pointer programs execute with native and
+Terminal exit 0, through both the corpus and public sample commands. Both
+local-storage twins still reject. This establishes those two examples; the
+complete nine-place row is being checked separately.
+
 The missing-supply control was previously judged only by source checking, which
-cannot prove its native refusal. It now uses the ordinary publication oracle
-and remains unqualified until the actual product result is observed. The changed
-programs, complete row and parent requirements remain unfinished. Evidence is
-retained under `build/finite-descriptor-selected-20261103/`.
+cannot prove its native refusal. The actual publication check at
+`08cea6d698f3b6a47c715f9bd977278ad00ea143`
+([run](https://github.com/CathedralOS/Omega/actions/runs/41662688648)) confirms a
+compiler defect: Linux x86-64 builds the control even though only Linux ARM64
+has an authored provider selection. No execution is counted for that build-only
+control. The provider-selection repair and full row remain under validation.
+Both parent requirements remain open. Evidence is retained under
+`build/finite-descriptor-selected-20261103/`.
 
 <details>
 <summary>Earlier observations</summary>
