@@ -237,6 +237,18 @@ impl NativePackagePublicationReceipt {
                 )
     }
 
+    /// Whether this package receipt and the flat executable receipt describe
+    /// the same installed executable: this receipt replays on its own, and
+    /// its inner executable path, container digest and byte count equal the
+    /// executable receipt's. Two receipts that each replay alone but name
+    /// different executables are not one publication.
+    pub fn binds_executable(&self, executable: &crate::ExecutablePublicationReceipt) -> bool {
+        self.has_consistent_package_evidence()
+            && self.inner_executable_path().as_deref() == Some(executable.output_path())
+            && self.executable_container_digest == executable.container_digest()
+            && self.executable_byte_count == executable.container_byte_count()
+    }
+
     /// The inner executable path implied by this receipt's own root and
     /// component list; never trusted independently of the executable
     /// receipt's `output_path`.
