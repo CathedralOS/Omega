@@ -188,6 +188,9 @@ fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch reject
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/domains/inherited_requirement_issuer_wrong_owner rejected 2295ms expected @f2c75870ebaf+wt
+	construction value is not proven in domain `Ticket::Issued` in make state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from make, state entry, at statement 0: Ticket requires Ticket::Issued
 fail/drops/retired_attached_drop rejected 2739ms expected @ee4dbb4b2d56
 	`machine Token::drop` attaches cleanup to data `Token`, which is retired: data owns no cleanup machines; declare an independent static machine taking `&mut Token` and select it with `data Token dropped by <machine>`
 fail/effects/opaque_leaf_inherited_reach_exceeds_ceiling rejected 1453ms @409a3e82132d+wt
@@ -3539,6 +3542,19 @@ fail/traits/dyn_suspending_borrowed_parameter_precondition rejected 1636ms expec
 	cannot prove requires contract for call dyn Read::current from main: cell.value == 100 (needs fact `cell.value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/dyn_suspending_unit_call_precondition rejected 14418ms expected @cb2bb7751cae+wt
 	cannot prove requires contract for call dyn DeferredUnit::check from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/inherited_nominal_requirement_conflicting_parents rejected 178ms expected @f2c75870ebaf+wt
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "inherited nominal requirement has no unique declaring trait application", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/traits/inherited_nominal_requirement_overload rejected 629ms expected @f2c75870ebaf+wt
+	declaring trait `Base` overloads requirement `value`; this is a source-compatibility break for signature-free requirement references
+	nominal machine parameter `Handler` requirement `Derived::value` does not resolve to one exact trait requirement; signature-free references reject overloads
+fail/traits/inherited_nominal_requirement_refinement_missing rejected 1711ms expected @f2c75870ebaf+wt
+	machine `forward` publishes service reach `<none>` but its checked body reaches undeclared service `External`
+fail/traits/inherited_nominal_requirement_wrong_application rejected 471ms expected @f2c75870ebaf+wt
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
+fail/traits/inherited_nominal_requirement_wrong_owner rejected 479ms expected @f2c75870ebaf+wt
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [], provider [], caller [], contextual demand true, operand mismatch unresolved source correspondence
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [], provider [], caller [], contextual demand true, operand mismatch unresolved source correspondence
 fail/traits/public_method_callback_prefix_missing rejected 930ms expected @b852a38544d0
 	static method application requires its complete invocation telescope for `NeedsMachine::choose` (found 0, expected 2)
 fail/traits/public_method_callback_prefix_wrong_contract rejected 886ms expected @b852a38544d0
@@ -5714,6 +5730,7 @@ pass/domains/inactive_impossible_payload_exit rejected 1343ms check-target:macos
 pass/domains/indexed_domain_fact checked 2396ms @ad7c6890a897+wt
 pass/domains/indexed_domain_known_disjoint_call_exit checked 1764ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values checked 3035ms check-target:macos_arm64 @ccdb99ca2214
+pass/domains/inherited_requirement_issuer_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/domains/intersected_qualifiers checked 3265ms @ccdb99ca2214
 pass/domains/issued_indexed_subject_predicate checked 2311ms @ccdb99ca2214
 pass/domains/linear_qualification_nested_move checked 15239ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -15169,6 +15186,10 @@ pass/traits/implementation_argument_category_collision checked 11458ms check-tar
 pass/traits/implementation_argument_mixed_telescope checked 2274ms @ccdb99ca2214
 pass/traits/implementation_argument_region_mapping checked 2453ms @ccdb99ca2214
 pass/traits/implementation_value_mapped_region_identity checked 5981ms check-target:macos_arm64 @68b6f6ba6c2f
+pass/traits/inherited_nominal_requirement_application_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_diamond_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_exit checked 3248ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_refinement_exit checked 3251ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_region_application_identity_exit checked 12686ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/named_contract_arithmetic_refinement checked 3221ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/nominal_generic_reference_forwarding_exit checked 13096ms check-target:macos_arm64 @ccdb99ca2214
