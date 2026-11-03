@@ -114,6 +114,11 @@ pub(crate) fn commit_cleanup_action(
     >,
     frontier: &mut BTreeSet<StructuralAffineDiscard>,
     live_claims: &mut BTreeMap<ClaimId, LiveClaim>,
+    retired_homes: &mut Vec<(
+        PlaceId,
+        TerminalStructuralValue,
+        Option<crate::storage::reference::ReferenceReferent>,
+    )>,
     action: &TerminalAffineCleanupAction,
 ) -> Result<Option<(NominalAffineCleanup, TerminalStructuralValue)>, TerminalInterpretError> {
     match action {
@@ -125,6 +130,7 @@ pub(crate) fn commit_cleanup_action(
                 structural_values,
                 reference_referents,
                 element_views,
+                retired_homes,
                 *place,
                 current_machine,
             )

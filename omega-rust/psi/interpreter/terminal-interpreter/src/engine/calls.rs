@@ -29,6 +29,7 @@ use crate::engine::execution::{
     operation_kind,
 };
 use crate::storage::runtime_rows::RuntimeRows;
+use crate::boundary::values::StructuralRuntimePlace;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ClaimTransfer, OperationKind, StructuralAccess, StructuralMultiplicity, TerminalMachineResult,
@@ -765,10 +766,20 @@ impl<'artifact> TerminalExecution<'artifact> {
                     && parameter.multiplicity != StructuralMultiplicity::Unrestricted
             })
         {
-            if self.structural_values.remove(&argument.place).is_none() {
-                return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    argument.place,
-                ));
+            match self.structural_values.remove(&argument.place) {
+                Some(retired) => {
+                    let origin = self
+                        .reference_referents
+                        .get(&StructuralRuntimePlace::from(&retired))
+                        .cloned();
+                    self.retired_structural_homes
+                        .push((argument.place, retired, origin));
+                }
+                None => {
+                    return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                        argument.place,
+                    ));
+                }
             }
             if parameter.multiplicity == StructuralMultiplicity::Affine {
                 remove_affine_root(&mut self.live_affine_frontier, argument.place);
