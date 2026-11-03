@@ -1,0 +1,18 @@
+// Source can check both function bodies without choosing either one.
+// Build selects neither provider, so publishing this call must refuse.
+boundary trait Pick {
+    machine choose() -> i32 reaches;
+}
+
+FirstProvider satisfies Pick {
+    machine choose() -> i32 { 1 }
+}
+
+SecondProvider satisfies Pick {
+    machine choose() -> i32 { 2 }
+}
+
+machine main() -> i32 { Pick::choose() }
+
+// Give the executable an ordinary Unit entry while retaining the original call.
+machine entry() { let result: i32 = main(); }
