@@ -1293,8 +1293,7 @@ defines the complete product bar.
     relationships through pointer lanes, copies, offsets and joins, including
     hidden result destinations and slice bounds/loans. Carry ordinary generic
     machine satisfaction through assembly callbacks.
-  - Complete value-location `align_of(value)` for nonempty slices (a proved
-    nonempty view; slices currently reject), contract positions such as
+  - Complete value-location `align_of(value)` for contract positions such as
     `requires align_of(value) >= 16` (currently rejected), stronger-than-type alignment from
     placement/allocator contracts with runtime observation, exact location
     validity across view replacement, offsets and moved backing, and admitted
