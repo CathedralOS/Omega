@@ -167,7 +167,7 @@ pub(crate) fn build_checked_machine_residual_parts(
         None => (Vec::new(), 0),
     };
     trace.phase("statement sequence");
-    let sequence = statement_sequence::build(
+    let mut sequence = statement_sequence::build(
         program,
         facts,
         scalar_callees,
@@ -184,6 +184,20 @@ pub(crate) fn build_checked_machine_residual_parts(
         prefix_statement_count,
         std::ops::Bound::Unbounded,
         call_frames,
+        trace,
+    )?;
+    let returned = sequence.structural_result.clone();
+    sequence.finish_reference_retirement(
+        program,
+        facts,
+        prepared_calls,
+        shapes,
+        &structural_parameters,
+        &local_rows,
+        &entry_claims,
+        machine,
+        state,
+        returned.as_ref(),
         trace,
     )?;
     // This owner publishes a normal completion. Abnormal terminators belong

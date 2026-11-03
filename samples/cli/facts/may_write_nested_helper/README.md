@@ -158,9 +158,13 @@ Run [41593563009](https://github.com/CathedralOS/Omega/actions/runs/41593563009)
 cleared the stored-carrier mismatch. The shared-view control passed both engines
 with its unchanged exit `70`; the other 22 healthy positives passed with exit
 `0`, and all 39 invalid controls rejected correctly. The frozen reference-local
-case now lacks a current storage lookup later in Terminal production. A focused
-diagnostic is identifying the exact source and caller before any transfer or
-retirement rule changes. Public projects did not run; acceptance is unfinished.
+case reached a stale exit release: retirement was planned before the final
+return moved the installed reference. Diagnostic run
+[41600847871](https://github.com/CathedralOS/Omega/actions/runs/41600847871)
+confirmed the missing final operation. Exit retirement now follows completed
+state production and sees that actual transfer. Live-storage lookup, access,
+first-store admission and existing cleanup checks remain in place. Fresh full
+acceptance and publication are unfinished; the diagnostic ran no engines.
 
 The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
 on the frozen baseline in

@@ -277,9 +277,7 @@ fn lower_regions<'actions>(
     crate::unit::unit_cleanup::lower_checked_cleanup_regions(
         identities,
         checked,
-        actions.into_iter().inspect(|action| {
-            eprintln!("corpus_runner: AUTHORED_COMPLETION_TRACE action={action:?} selected={selected_regions:?}");
-        }),
+        actions,
         selected_regions,
         catalog.control,
         catalog.types,

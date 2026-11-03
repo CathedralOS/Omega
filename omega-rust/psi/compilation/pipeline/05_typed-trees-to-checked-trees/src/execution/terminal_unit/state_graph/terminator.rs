@@ -126,54 +126,63 @@ pub(super) fn build(
     // Bare expressions and unconditional value arms are the same completion.
     // Keep one producer/operand schedule instead of making the bare spelling
     // admit only literals and case constructors while transitions admit loans.
-    let complete_expression =
-        |expression, shapes: &mut ShapeCollector<'_>, operations: &mut Vec<OperationPlan>| {
-            trace.phase("state graph: terminator: return expression");
-            let evaluation = match statements.get(terminator_index)? {
-                StatementNode::Expression(_) => FlowPermissionEvaluation::Statement,
-                StatementNode::Transition(transition) => {
-                    FlowPermissionEvaluation::TransitionTarget(transition.target)
-                }
-                _ => return None,
-            };
-            let completion = checked_trees::CheckedStructuralReturnCompletion::Value {
-                statement_index: ordinal,
-                expression,
-                evaluation,
-            };
-            if let Some(mut result) = structural_result.cloned() {
-                result.completion = completion;
-                return Some(TerminatorPlan::ReturnStructural { result });
+    let complete_expression = |expression,
+                               shapes: &mut ShapeCollector<'_>,
+                               operations: &mut Vec<OperationPlan>| {
+        trace.phase("state graph: terminator: return expression");
+        let evaluation = match statements.get(terminator_index)? {
+            StatementNode::Expression(_) => FlowPermissionEvaluation::Statement,
+            StatementNode::Transition(transition) => {
+                FlowPermissionEvaluation::TransitionTarget(transition.target)
             }
-            let mut count = returns::next_result_ordinal(operations)?;
-            let (operation, operand_calls) = returns::return_value_operation(
-                program,
-                facts,
-                scalar_callees,
-                shapes,
-                machine,
-                state,
-                structural,
-                entry_claims,
-                operations,
-                &mut count,
-                ordinal,
-                expression,
-                trace,
-            )?;
-            if !operation.has_normal_continuation() {
-                operations.extend(operand_calls);
-                operations.push(operation);
-                return Some(TerminatorPlan::EvaluateNoNormal);
-            }
-            let result = checked_trees::CheckedUnitStructuralReturnPlan::from_binding(
-                operation.structural_result_binding()?.clone(),
-                completion,
-            );
+            _ => return None,
+        };
+        let completion = checked_trees::CheckedStructuralReturnCompletion::Value {
+            statement_index: ordinal,
+            expression,
+            evaluation,
+        };
+        if let Some(mut result) = structural_result.cloned() {
+            result.completion = completion;
+            return Some(TerminatorPlan::ReturnStructural { result });
+        }
+        let mut count = returns::next_result_ordinal(operations)?;
+        let (operation, operand_calls) = returns::return_value_operation(
+            program,
+            facts,
+            scalar_callees,
+            shapes,
+            machine,
+            state,
+            structural,
+            entry_claims,
+            operations,
+            &mut count,
+            ordinal,
+            expression,
+            trace,
+        )?;
+        if !operation.has_normal_continuation() {
             operations.extend(operand_calls);
             operations.push(operation);
-            Some(TerminatorPlan::ReturnStructural { result })
-        };
+            return Some(TerminatorPlan::EvaluateNoNormal);
+        }
+        let mut result = checked_trees::CheckedUnitStructuralReturnPlan::from_binding(
+            operation.structural_result_binding()?.clone(),
+            completion,
+        );
+        if validation::reference_shell(program, state.return_type).is_some()
+            || validation::reference_result_custody::is_reference_record(program, state.return_type)
+        {
+            result.reference_sources =
+                validation::reference_result_custody::captured_return_sources(
+                    program, facts, state,
+                )?;
+        }
+        operations.extend(operand_calls);
+        operations.push(operation);
+        Some(TerminatorPlan::ReturnStructural { result })
+    };
     // Static dispatch is selected before building any destination's operands.
     // Unlike an ordinary unconditional tail, these calls have not been planned
     // by the common prefix: their original guarded occurrence owns them.
