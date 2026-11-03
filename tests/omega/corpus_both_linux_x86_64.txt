@@ -8,6 +8,7 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/borrows/borrowed_literal_backing_releases_input_loan_exit built 9073ms exit:0 interpreter-exit:0 interpreter:agrees @accfac32d2bd
 pass/borrows/borrowed_reference_field_read_and_write_exit built 8133ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 pass/borrows/collection_metadata_descriptor_storage_exit built 14682ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
 pass/borrows/opaque_incoming_nested_stored_byte_view_relay_exit built 15278ms exit:0 interpreter-exit:0 interpreter:agrees @7a2c1562808d
@@ -5821,6 +5822,7 @@ pass/float/runtime_std_trigonometric_endpoints built 17011ms exit:0 interpreter-
 pass/float/runtime_total_order_satisfiers_exit built 18512ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/float/saturating_named_operations_retain_ordered_inputs built 7445ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/scalar_helper_boundary_sequence_exit built 13407ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/float/specification_index_reference_selector_exit built 14191ms exit:0 interpreter-exit:0 interpreter:agrees @e8827ad1dd64+wt
 pass/float/state_arrival_ieee_predicates built 13382ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/float/state_loop_field_refinement_restoration_exit built 12564ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/float/symbolic_integer_conversion_finite_requires_exit built 8551ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042

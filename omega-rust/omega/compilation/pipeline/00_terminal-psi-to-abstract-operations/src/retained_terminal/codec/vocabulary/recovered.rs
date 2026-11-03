@@ -474,3 +474,22 @@ impl RecordValue for diagnostics::ExceededProvision {
         })
     }
 }
+
+impl RecordValue for calling_conventions::PrivateCallbackPlacements {
+    fn write(&self, output: &mut RecordWriter) -> Result<(), RecordError> {
+        output.sequence(self.as_slice().len())?;
+        for placement in self.as_slice() {
+            placement.write(output)?;
+        }
+        Ok(())
+    }
+    fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
+        let placements = Vec::<layout_plans::LayoutPlacementReport>::read(input)?;
+        input.allocate(
+            placements
+                .len()
+                .saturating_mul(std::mem::size_of::<layout_plans::LayoutPlacementReport>()),
+        )?;
+        Ok(Self::new(&placements))
+    }
+}
