@@ -368,13 +368,14 @@ fn authored_target(
                 .span_or_empty(capture.states)
                 .iter()
                 .filter(|state| state.instance == target);
-            target = states
+            let template_state = states
                 .next()
                 .ok_or("copied call lost its captured state correspondence")?
                 .template;
             if states.next().is_some() {
                 return Err("copied call has ambiguous captured state correspondence");
             }
+            target = template_state;
         } else {
             let ordinal =
                 typed_trees::state::state_position(program.machine_states(machine), target)
