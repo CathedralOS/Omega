@@ -22,30 +22,53 @@ pub enum ResolvedArrayExtent {
     },
 }
 
-/// Read an executable collection's original field type with the applications
-/// that supply its arguments. Prepared storage fields must not be substituted
-/// a second time under the original declaration's telescope.
+/// Keep a checked value's closed length, or resolve its open field type through
+/// the applications supplying its arguments. A specialized array's literal
+/// geometry must not be replaced by its original template binder.
 pub fn resolved_array_extent_at(
     program: &dyn crate::CheckingInput,
     state: &State,
     statement_index: usize,
     collection: ExpressionHandle,
 ) -> Result<ResolvedArrayExtent, &'static str> {
-    let place = super::canonical_place_from_expression_in_state(
+    let (machine, _) = crate::find_state(program, state.symbol)
+        .ok_or("array collection has no resolved executable owner")?;
+    let reference = crate::expression_result_type_reference(program, machine, state, collection)
+        .ok_or("array collection has no checked result type")?;
+    let source = super::canonical_place_from_expression_in_state(
         program,
         state.symbol,
         statement_index,
         collection,
     )
-    .ok_or("array collection has no exact place")?;
-    let (reference, applications) = super::canonical_place_source_type_application(
-        program,
-        state.symbol,
-        statement_index,
-        &place,
-    )
-    .ok_or("array collection has no supplying type applications")?;
-    resolved_array_extent(program, reference, &applications)
+    .and_then(|place| {
+        super::canonical_place_source_type_application(
+            program,
+            state.symbol,
+            statement_index,
+            &place,
+        )
+    });
+    resolved_projected_array_extent(program, reference, source)
+}
+
+/// Closed geometry is intrinsic to the checked value's type, including call
+/// results and contract projections with no executable storage path. Only an
+/// open extent needs the original declaration and its supplying applications.
+pub fn resolved_projected_array_extent(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    source: Option<(TypeReferenceHandle, Vec<TypeReferenceHandle>)>,
+) -> Result<ResolvedArrayExtent, &'static str> {
+    if matches!(
+        super::fixed_array_type_extent(program, reference),
+        Some(FixedArrayLength::Literal(_))
+    ) {
+        return resolved_array_extent(program, reference, &[]);
+    }
+    let (source, applications) =
+        source.ok_or("open array extent has no supplying type applications")?;
+    resolved_array_extent(program, source, &applications)
 }
 
 /// Resolve the extent of an already authenticated source projection. Each

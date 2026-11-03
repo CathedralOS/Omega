@@ -141,8 +141,39 @@ the same verified baseline compiler: both writes to byte 1 refused despite the
 member's width-16-or-32 contract. The new boundary bridge also exposed an
 incomplete reference-slot inventory for its reference-free generic byte array.
 Those source snapshots and diagnostics are retained before compiler edits.
-The current repairs and migrated programs still require fresh qualification;
-no new engine success is claimed here.
+The first changed-source [Linux run](https://github.com/CathedralOS/Omega/actions/runs/41672705417)
+at `b35c9948bf17346df96893fee2b79606a7206f65` observed all 14 fact positives
+exiting 0 in both engines. The nine wrong-tuple twins, other original controls,
+and added index-16 control rejected. The missing-supply control still checked
+and built when it should refuse; it supplied no execution evidence. The run
+also found a regression in an existing bounds loop and a premature refusal in
+a reference control, so it stopped before ordinary sample qualification.
+This is partial evidence, not a passing full scope.
+
+The corrections keep a specialized array's checked literal length instead of
+replacing it with its former template parameter. An index that cannot execute
+may be accepted only when a complete observation of earlier control flow proves
+that no path reaches it. Unknown or incomplete observations still refuse.
+The five existing zero-length failures in the guard-floor program also occurred
+with the fixed-base compiler; they remain part of the required validation.
+
+The same run confirms that an implementation merely being in scope cannot fill
+an omitted target row. The shared provider-selection repair requires authored
+supply while retaining explicit overrides, declared defaults and native Build
+bindings. That repair is now included; its effect on this control still needs
+fresh measurement.
+
+Two external rejection expectations needed investigation. A negative index
+already refuses when -1 cannot form an unsigned index, before the later bounds
+check. In the combined symbolic-call control, one function fails during loan
+formation and prevents a later checking pass from reporting the other function.
+Each unchanged function independently rejects with the fixed-base compiler.
+The original combined program remains; separate
+[symbolic-first](../../../../tests/omega/fail/borrows/symbolic_call_before_concrete_output_obligation/main.omg)
+and [concrete-first](../../../../tests/omega/fail/borrows/concrete_call_before_symbolic_output_obligation/main.omg)
+controls pin both source orders. No duplicate errors are manufactured to match
+a former count. The current repairs and all ordinary projects still require
+fresh qualification.
 
 Earlier documentation reports Linux executions after fixes to family identity,
 argument substitution and row-specific call shapes, plus a macOS x86-64 target

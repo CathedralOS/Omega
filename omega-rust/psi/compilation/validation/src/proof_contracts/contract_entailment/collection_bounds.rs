@@ -172,7 +172,18 @@ impl StructuralPrefixVisitor for Bounds {
             environment,
             (machine, state, state.return_type),
         ) else {
-            self.proven = false;
+            // The operation query deliberately treats no reached operation as
+            // unavailable. The expression cut distinguishes a completely
+            // explored unreachable occurrence from an incomplete observation;
+            // only that independent result can make bounds vacuous.
+            self.proven &= judge
+                .normal_expression_entries(
+                    self.site.statement_index,
+                    self.expression,
+                    environment,
+                    (machine, state, state.return_type),
+                )
+                .is_some_and(|entries| entries.is_empty());
             return;
         };
         self.proven &= !entries.is_empty();

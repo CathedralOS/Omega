@@ -26,13 +26,13 @@ pub(super) fn validate_builtin_index(
                 .into_iter()
                 .cloned()
                 .collect::<Vec<_>>();
-            let (source, applications) = crate::parameter_source_type_application(
+            let source = crate::parameter_source_type_application(
                 program,
                 caller.symbol(),
                 &parameters,
                 indexed.collection,
-            )?;
-            match crate::resolved_array_extent(program, source, &applications) {
+            );
+            match crate::resolved_projected_array_extent(program, reference, source) {
                 Ok(extent) => Some(extent),
                 Err(_) => return None,
             }
