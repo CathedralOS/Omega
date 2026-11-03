@@ -330,7 +330,6 @@ impl Denotation {
 
     /// `op' l' r'` — the denoted shared operation over two `Int`
     /// endpoints.
-
     fn integer_id_elim(
         &mut self,
         integer: TermHandle,
@@ -369,7 +368,6 @@ impl Denotation {
     /// `p : Id Int sib' lit'` rewrites the right operand of `op' ·' sib'`
     /// — the congruence step carrying `Id expr' (op' next' sib')` to
     /// `Id expr' (op' next' lit')` through the cited literal equation.
-
     fn solve_divisor(
         &mut self,
         integer_type: IntegerType,

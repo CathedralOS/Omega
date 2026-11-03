@@ -14,9 +14,7 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<CheckedScalarComputationHandle> {
-        let Some(binary) = self.program.expression_table.binary_node(expression) else {
-            return None;
-        };
+        let binary = self.program.expression_table.binary_node(expression)?;
         let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self.program.state_in_machine(machine, self.state)?;
         let case = validation::applied_case_membership_variant(

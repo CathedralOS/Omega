@@ -27,7 +27,7 @@ pub(super) fn admit_calls<'a>(
 ) -> Result<Vec<(&'a CheckedBoundaryMachinePlan, BoundaryIdentity)>, LoweringError> {
     let plans = UnitPlans::published(&checked.facts.flow);
     let mut boundaries = Vec::new();
-    for state in call_states.iter().copied() {
+    for state in call_states {
         for operation in state.operation_dependencies() {
             retain_call_boundaries(checked, plans, std::iter::once(operation), &mut boundaries)?;
             // A call state's operations are its call and the effects that

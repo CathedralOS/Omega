@@ -86,7 +86,7 @@ pub(crate) fn normalize(
             match member {
                 DataMember::Field(field) => types.push(field.type_reference),
                 DataMember::Variant(variant) => types.extend(
-                    syntax_items(&syntax)
+                    syntax_items(syntax)
                         .data_payload_fields(variant.payload)
                         .iter()
                         .map(|field| field.type_reference),
@@ -107,7 +107,7 @@ pub(crate) fn normalize(
                     constraints,
                 } => {
                     types.push(*base_type);
-                    for (ordinal, constraint) in syntax_type_references(&syntax)
+                    for (ordinal, constraint) in syntax_type_references(syntax)
                         .constraints(*constraints)
                         .iter()
                         .enumerate()
@@ -116,8 +116,7 @@ pub(crate) fn normalize(
                             continue;
                         };
                         types.extend(
-                            syntax_type_references(&syntax)
-                                .type_reference_handles(domain.arguments),
+                            syntax_type_references(syntax).type_reference_handles(domain.arguments),
                         );
                         let Some((carrier, leaf)) = domain.name.as_str(syntax).rsplit_once("::")
                         else {

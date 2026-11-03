@@ -688,12 +688,17 @@ fn assignment_evidence(
         symbols,
         CallerWriteSite::Statement(statement),
     )?;
+    // A site without a tracked prefix has no aliases to close over, but a
+    // whole reference binding is still replaced rather than written through.
     if matches!(site, CallerPrefixSite::Untracked)
         && let Some(path) = super::coarse_place_path(program, assignment.target)
     {
-        return Some(AssignmentEvidence {
-            target: AssignmentWriteTarget::Storage { paths: vec![path] },
-        });
+        let target = if super::reference_subjects::replaces_binding(program, machine, statement)? {
+            AssignmentWriteTarget::LocalBindingReplacement { path }
+        } else {
+            AssignmentWriteTarget::Storage { paths: vec![path] }
+        };
+        return Some(AssignmentEvidence { target });
     }
     let state = match site {
         CallerPrefixSite::Tracked { state, .. } => state,

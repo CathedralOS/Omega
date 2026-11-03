@@ -141,7 +141,7 @@ fn packed_forms_reject_width_offset_alias_and_instruction_mutations() {
             encode_aarch64_selected_memory_form(&physical, kind, alternative, &operands, 16)
                 .unwrap();
         reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
-            check_memory(&physical, kind, alternative, &operands, 16, &changed).is_err()
+            check_memory(&physical, kind, alternative, &operands, 16, changed).is_err()
         });
         for width in [
             PackedByteWidth::Five,

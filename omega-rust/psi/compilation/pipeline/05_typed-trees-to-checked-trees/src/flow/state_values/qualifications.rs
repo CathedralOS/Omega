@@ -289,7 +289,6 @@ fn capture_place(
         return Vec::new();
     };
     let isolated = frames.proof_value_is_caller_isolated(source_type);
-    let source_root = source_root;
     let mut captured = Vec::new();
     for context in flow_context
         .contexts
@@ -443,7 +442,7 @@ pub(in crate::flow) fn capture_argument(
     else {
         return Vec::new();
     };
-    let Some(parameter) = program.state_parameters(destination).iter().nth(ordinal) else {
+    let Some(parameter) = program.state_parameters(destination).get(ordinal) else {
         return Vec::new();
     };
     let Some(source) =

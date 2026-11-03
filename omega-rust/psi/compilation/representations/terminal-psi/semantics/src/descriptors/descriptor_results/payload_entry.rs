@@ -3,7 +3,6 @@
 //! caller-owed requirements. Copies and writes use ordinary payload history;
 //! a receiving annotation never participates in this entry judgment.
 use super::*;
-use proof_admission::check_certificate;
 use semantic_vocabulary::{CanonicalStructuralPathSegment as Segment, Proposition};
 use terminal_psi::{ProofNode, ProofRule, StructuralDomainDeclaration};
 
@@ -324,6 +323,7 @@ fn bridge(goal: Proposition, proof: ProofNode, assumptions: usize) -> ProofNode 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proof_admission::check_certificate;
     use semantic_vocabulary::{PropositionContext, ScalarTerm, ScalarType, ValueId};
 
     #[test]

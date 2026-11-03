@@ -8,6 +8,13 @@ use compiler::CompileReport;
 use std::path::Path;
 
 pub(super) fn retain(report: &CompileReport, directory: &Path) -> Result<(), RunError> {
+    // A Terminal-only run has no native identity to record.
+    if report.retained_native_program().is_none()
+        && let Some(artifact) = report.artifact()
+    {
+        return std::fs::write(directory.join("program.oterm"), artifact.to_bytes())
+            .map_err(RunError::ReferenceOutput);
+    }
     let program = report.retained_native_program().ok_or_else(|| {
         RunError::ReferenceOutput(std::io::Error::other(
             "native report lost its retained program before artifact retention",

@@ -293,11 +293,11 @@ pub fn recast_scalar_layout(
 /// checked-identity replay differ only in that predicate, and both owe the
 /// same uniqueness rule -- a same-spelled or ambiguous member cannot stand in
 /// for the retained one -- so both resolve through here.
-fn unique_record_field<'program>(
-    program: &'program dyn crate::CheckingInput,
+fn unique_record_field(
+    program: &dyn crate::CheckingInput,
     carrier: TypeReferenceHandle,
     select: impl Fn(&typed_trees::data::DataField) -> bool,
-) -> Option<&'program typed_trees::data::DataField> {
+) -> Option<&typed_trees::data::DataField> {
     let owner = program.closed_data_field_definition(carrier)?;
     let mut fields = program
         .data_members(owner)
@@ -690,11 +690,11 @@ pub(super) fn type_representation(
 /// The independently declared fields of one pending, resource-free record.
 /// This is not a representation of valid T values: its original declaration
 /// retains every default predicate for the separate establishment judgment.
-pub(super) fn pending_record_fields<'program>(
-    program: &'program dyn crate::CheckingInput,
+pub(super) fn pending_record_fields(
+    program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
 ) -> Option<(
-    &'program typed_trees::data::DataDefinition,
+    &typed_trees::data::DataDefinition,
     MutableRecordRepresentation,
 )> {
     let definition = pending_record_definition(program, reference)?;
@@ -1293,7 +1293,7 @@ fn compatible_backing_geometry(
     source: &MutableRecordRepresentation,
     target: &MutableRecordRepresentation,
 ) -> bool {
-    source.size == target.size && target.align != 0 && source.align % target.align == 0
+    source.size == target.size && target.align != 0 && source.align.is_multiple_of(target.align)
 }
 
 /// Every encoded scalar bit pattern must be a valid target value. Fragments
@@ -1431,7 +1431,7 @@ pub(super) fn repeat_representation(
             .checked_mul(count.checked_sub(1)?)?
             .checked_add(element.size)?
     };
-    let leaves = expand_replicated_leaves(&element, count, stride)?;
+    let leaves = expand_replicated_leaves(element, count, stride)?;
     Some(MutableRecordRepresentation {
         size,
         align: element.align,

@@ -28,7 +28,7 @@ mod scalar_completion;
 mod pipeline_boundary;
 
 pub use application::{TerminalApplication, admit_package_permissions};
-pub use compile::compile;
+pub use compile::{admit_runtime, compile};
 pub use components::ComponentCompilation;
 pub use observations::{NativePipelineInvocation, NativePipelineUnit, native_pipeline_invocations};
 pub use preparation::{PreparedNativeCompilation, prepare};

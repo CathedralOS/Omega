@@ -193,7 +193,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
     let expected_owner = if let Some(instance) = instance {
         instance.declaration
     } else {
-        let Some(name) = syntax_type_references(&syntax)
+        let Some(name) = syntax_type_references(syntax)
             .type_reference(expected_type)
             .as_named()
         else {
@@ -311,7 +311,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
             .replace_expression(expression, ExpressionNode::StructLiteral(literal.clone()));
     }
 
-    let mut declared_fields = syntax_items(&syntax)
+    let mut declared_fields = syntax_items(syntax)
         .data_members(definition.members)
         .iter()
         .filter_map(|member| match member {
@@ -322,7 +322,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
         })
         .collect::<Vec<_>>();
     if let Some(case_name) = case_name.as_ref()
-        && let Some(variant) = syntax_items(&syntax)
+        && let Some(variant) = syntax_items(syntax)
             .data_members(definition.members)
             .iter()
             .find_map(|member| match member {
@@ -335,7 +335,7 @@ pub(in crate::preparation::generic_data) fn relabel_data_literal_for_expected_ty
             })
     {
         declared_fields.extend(
-            syntax_items(&syntax)
+            syntax_items(syntax)
                 .data_payload_fields(variant.payload)
                 .iter()
                 .map(|field| (field.name.as_str(syntax).to_owned(), field.type_reference)),

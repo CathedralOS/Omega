@@ -21,6 +21,7 @@ mod storage;
 mod tests;
 pub(crate) use bindings::{PackedHomeRetirement, ScalarArrayBindings};
 pub(crate) use loans::borrowed_array_memberships_match;
+use std::rc::Rc;
 use std::sync::Arc;
 use storage::ScalarArrayStorage;
 /// Portable owned scalar payload. It contains no invocation-local residents.
@@ -67,7 +68,7 @@ impl TerminalScalarArrayValue {
             storage_identity: self.storage_identity,
             qualifications: self.qualifications,
             structural_type: self.structural_type,
-            elements: Arc::new(storage.into_cells()?),
+            elements: Rc::new(storage.into_cells()?),
         })
     }
 }
@@ -83,7 +84,7 @@ pub(crate) struct PackedScalarArrayValue {
     pub(crate) storage_identity: Option<u64>,
     pub qualifications: Vec<semantic_vocabulary::StructuralDomainId>,
     pub structural_type: StructuralTypeId,
-    elements: Arc<ScalarArrayStorage<ScalarCell>>,
+    elements: Rc<ScalarArrayStorage<ScalarCell>>,
 }
 
 impl PackedScalarArrayValue {
@@ -178,7 +179,7 @@ impl PackedScalarArrayValue {
         resident: ScalarCell,
     ) -> Result<(), TerminalInterpretError> {
         self.prepare_resident_install(index, &resident)?;
-        Arc::get_mut(&mut self.elements)
+        Rc::get_mut(&mut self.elements)
             .ok_or_else(malformed)?
             .cells_mut()[index] = resident;
         Ok(())
@@ -195,7 +196,7 @@ impl PackedScalarArrayValue {
             storage_identity: None,
             qualifications,
             structural_type,
-            elements: Arc::new(ScalarArrayStorage::collect(
+            elements: Rc::new(ScalarArrayStorage::collect(
                 count,
                 values.into_iter().map(|value| value.map(ScalarCell::Local)),
                 account,
@@ -217,10 +218,10 @@ impl PackedScalarArrayValue {
     fn mutable_storage(
         &mut self,
     ) -> Result<&mut ScalarArrayStorage<ScalarCell>, TerminalInterpretError> {
-        if Arc::get_mut(&mut self.elements).is_none() {
-            self.elements = Arc::new(self.elements.copy_for_mutation()?);
+        if Rc::get_mut(&mut self.elements).is_none() {
+            self.elements = Rc::new(self.elements.copy_for_mutation()?);
         }
-        Arc::get_mut(&mut self.elements).ok_or_else(malformed)
+        Rc::get_mut(&mut self.elements).ok_or_else(malformed)
     }
 }
 

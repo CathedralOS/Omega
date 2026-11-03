@@ -1,5 +1,6 @@
 pub(crate) struct RunArguments {
-    pub(crate) both: bool,
+    /// Native unless `--engine terminal` or the `--both` comparison was named.
+    pub(crate) selection: omega::execution::ExecutionSelection,
     pub(crate) terminal_fuel_allowance: Option<std::num::NonZeroU64>,
     pub(crate) private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub(crate) keep: bool,
@@ -17,6 +18,7 @@ pub(super) fn parse_arguments(
     mut arguments: impl Iterator<Item = std::ffi::OsString>,
 ) -> Result<RunArguments, String> {
     let mut both = false;
+    let mut engine = None;
     let mut terminal_fuel_allowance = None;
     let mut private_entry_ram = Vec::new();
     let mut keep = false;
@@ -29,6 +31,23 @@ pub(super) fn parse_arguments(
         match argument.to_str() {
             Some("--offline") => return Err("omega run does not support --offline".into()),
             Some("--both") => super::set_flag(&mut both, "--both")?,
+            Some("--engine") => {
+                if engine.is_some() {
+                    return Err("duplicate --engine".into());
+                }
+                let value = super::option_value(&mut arguments)
+                    .ok_or("--engine requires `native` or `terminal`")?;
+                engine = Some(match value.to_str() {
+                    Some("native") => omega::execution::ExecutionSelection::Native,
+                    Some("terminal") => omega::execution::ExecutionSelection::Terminal,
+                    _ => {
+                        return Err(format!(
+                            "--engine requires `native` or `terminal`, not `{}`",
+                            value.to_string_lossy()
+                        ));
+                    }
+                });
+            }
             Some("--keep") => super::set_flag(&mut keep, "--keep")?,
             Some("--terminal-fuel-allowance") => {
                 if terminal_fuel_allowance.is_some() {
@@ -67,7 +86,9 @@ pub(super) fn parse_arguments(
                 }
                 let contents = encoded
                     .as_bytes()
-                    .chunks_exact(2)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
                     .map(|pair| {
                         let digit = |byte: u8| match byte {
                             b'0'..=b'9' => Some(byte - b'0'),
@@ -140,6 +161,17 @@ pub(super) fn parse_arguments(
         }
     }
     let main_path = main_path.ok_or_else(|| "missing root Omega source path".to_owned())?;
+    // `--both` is a comparison request, not a third engine; naming an engine
+    // beside it would leave one of the two compared executions unexplained.
+    let selection = match (engine, both) {
+        (Some(_), true) => {
+            return Err("--engine and --both are mutually exclusive: --both already runs native and Terminal".into());
+        }
+        (Some(engine), false) => engine,
+        (None, true) => omega::execution::ExecutionSelection::Both,
+        (None, false) => omega::execution::ExecutionSelection::Native,
+    };
+    let terminal = selection == omega::execution::ExecutionSelection::Terminal;
     let cases = inputs.is_some() || !input_files.is_empty();
     if inputs.is_some() && !input_files.is_empty() {
         return Err("use either --inputs <dir> or --input <file>, not both".into());
@@ -150,12 +182,17 @@ pub(super) fn parse_arguments(
     if cases && target_name.is_some() {
         return Err("case runs execute on the host; they cannot take --target".into());
     }
-    if terminal_fuel_allowance.is_some() && (!both || target_name.is_some()) {
-        return Err("--terminal-fuel-allowance requires --both host execution".into());
+    if cases && terminal {
+        return Err("case runs do not yet support --engine terminal; use --both".into());
+    }
+    if terminal_fuel_allowance.is_some() && !terminal && (!both || target_name.is_some()) {
+        return Err(
+            "--terminal-fuel-allowance requires --engine terminal or --both host execution".into(),
+        );
     }
     Ok(RunArguments {
         private_entry_ram,
-        both,
+        selection,
         terminal_fuel_allowance,
         keep,
         target_name,
@@ -178,7 +215,10 @@ mod tests {
     fn inputs_and_outputs_select_a_case_run() {
         let arguments = parse(&["--both", "--inputs", "data", "--outputs", "out", "main.omg"])
             .expect("case run parses");
-        assert!(arguments.both);
+        assert_eq!(
+            arguments.selection,
+            omega::execution::ExecutionSelection::Both
+        );
         assert_eq!(
             arguments.inputs.as_deref(),
             Some(std::path::Path::new("data"))
@@ -268,6 +308,81 @@ mod tests {
                 .terminal_fuel_allowance
                 .is_none()
         );
+    }
+
+    #[test]
+    fn engine_selects_one_execution_and_defaults_to_native() {
+        use omega::execution::ExecutionSelection;
+        for (arguments, expected) in [
+            (vec!["main.omg"], ExecutionSelection::Native),
+            (
+                vec!["--engine", "native", "main.omg"],
+                ExecutionSelection::Native,
+            ),
+            (
+                vec!["--engine", "terminal", "main.omg"],
+                ExecutionSelection::Terminal,
+            ),
+            (
+                vec!["main.omg", "--engine", "terminal"],
+                ExecutionSelection::Terminal,
+            ),
+            (vec!["--both", "main.omg"], ExecutionSelection::Both),
+            (
+                vec![
+                    "--engine",
+                    "terminal",
+                    "--target",
+                    "linux_x86_64",
+                    "main.omg",
+                ],
+                ExecutionSelection::Terminal,
+            ),
+            (
+                vec![
+                    "--engine",
+                    "terminal",
+                    "--terminal-fuel-allowance",
+                    "5",
+                    "main.omg",
+                ],
+                ExecutionSelection::Terminal,
+            ),
+        ] {
+            assert_eq!(
+                parse(&arguments).expect("engine parses").selection,
+                expected
+            );
+        }
+    }
+
+    #[test]
+    fn engine_rejects_both_unknown_names_and_duplicates() {
+        for arguments in [
+            vec!["--engine", "terminal", "--both", "main.omg"],
+            vec!["--both", "--engine", "native", "main.omg"],
+            vec!["--engine", "jit", "main.omg"],
+            vec!["--engine", "main.omg"],
+            vec!["--engine", "native", "--engine", "terminal", "main.omg"],
+            vec![
+                "--engine",
+                "native",
+                "--terminal-fuel-allowance",
+                "5",
+                "main.omg",
+            ],
+            vec![
+                "--engine",
+                "terminal",
+                "--inputs",
+                "d",
+                "--outputs",
+                "o",
+                "main.omg",
+            ],
+        ] {
+            assert!(parse(&arguments).is_err(), "{arguments:?} should reject");
+        }
     }
 
     #[test]

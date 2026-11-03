@@ -59,7 +59,7 @@ pub fn executable_installation_evidence_digest(
     digest.byte(0);
     let path = output_path.as_os_str().as_encoded_bytes();
     digest.u64(path.len() as u64);
-    digest.raw(&path);
+    digest.raw(path);
     digest.u64(container_byte_count as u64);
     digest.raw(container_digest.as_bytes());
     ExecutableInstallationEvidenceDigest::from_digest(digest.finish())
@@ -83,7 +83,7 @@ pub(crate) fn native_publication_certificate_digest(
     let mut digest = DomainDigestEncoder::new(b"omega.native-publication-certificate.sha256.v1\0");
     digest.raw(native_artifact_identity);
     digest.u64(semantic_bytes.len() as u64);
-    digest.raw(&semantic_bytes);
+    digest.raw(semantic_bytes);
     digest.raw(&target.wire_identity_bytes());
     digest.raw(final_image_symbol_digest.as_bytes());
     digest.byte(u8::from(boundary_contract_report_fingerprint.is_some()));
@@ -131,7 +131,9 @@ pub(crate) fn native_publication_evidence_digest(
     NativePublicationEvidenceDigest::from_digest(digest.finish())
 }
 
-pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
+/// The v1 container commitment over one executable's exact installed bytes.
+/// Callers that replay a published image compute it from the bytes they read.
+pub fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
     ExecutableContainerDigest::from_digest(DomainDigestEncoder::content(
         b"omega.published-executable-container.sha256.v1\0",
         bytes,

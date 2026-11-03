@@ -96,7 +96,7 @@ fn coverage_identity(
     encode_application(&mut digest, demand.application());
     digest.raw(companion.selected_plan_digest());
     encode_realization(&mut digest, companion.realization());
-    BoundaryApplicationCoverageIdentity(digest.finish().into())
+    BoundaryApplicationCoverageIdentity(digest.finish())
 }
 
 fn encode_application(

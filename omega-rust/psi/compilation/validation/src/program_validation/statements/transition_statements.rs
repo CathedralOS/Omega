@@ -152,7 +152,7 @@ pub(super) fn validate(
                 let environment = transition_values
                     .for_target(target)
                     .first()
-                    .unwrap_or(&narrowed);
+                    .unwrap_or(narrowed);
                 arithmetic_domains::validate_value_range_retaining_decisions(
                     program,
                     machine,
@@ -201,7 +201,7 @@ pub(super) fn validate(
                 let return_environment = transition_values
                     .for_target(target)
                     .first()
-                    .unwrap_or(&narrowed);
+                    .unwrap_or(narrowed);
                 arithmetic_domains::validate_return_value_range(
                     program,
                     machine,
@@ -233,7 +233,7 @@ pub(super) fn validate(
                     let argument_environment = transition_values
                         .for_target(target)
                         .get(argument_index)
-                        .unwrap_or(&narrowed);
+                        .unwrap_or(narrowed);
                     arithmetic_domains::validate_value_range_retaining_decisions(
                         program,
                         machine,

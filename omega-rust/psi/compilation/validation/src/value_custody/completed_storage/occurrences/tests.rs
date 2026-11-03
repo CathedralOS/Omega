@@ -13,11 +13,11 @@ fn captures_follow_evaluated_sources_but_not_unrelated_history() {
         expression,
         ..Default::default()
     };
-    let sources = control.operands.insert_many([source.clone()]);
+    let sources = control.operands.insert_many([source]);
     let source_handle = sources.handles().next().unwrap();
     // Neither a detached occurrence nor prior-statement identity supplies
     // this consumer, even though their expression handles match.
-    control.operands.insert(source.clone());
+    control.operands.insert(source);
     let previous = control.operands.insert(FlowOperandFact {
         statement_index: 2,
         ..source

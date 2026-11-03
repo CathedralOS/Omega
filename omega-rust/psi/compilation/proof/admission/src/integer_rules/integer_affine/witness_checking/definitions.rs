@@ -418,9 +418,7 @@ fn apply_add_inverse(
     if !matches!(defined, ScalarTerm::Value { .. }) || defined != current {
         return None;
     }
-    let Some((scalar_type, left, right)) = matcher(expression) else {
-        return None;
-    };
+    let (scalar_type, left, right) = matcher(expression)?;
     if *scalar_type != integer_type {
         return None;
     }

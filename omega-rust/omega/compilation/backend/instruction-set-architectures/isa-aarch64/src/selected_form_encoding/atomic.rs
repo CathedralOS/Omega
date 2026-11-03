@@ -259,7 +259,7 @@ mod tests {
             let bytes = encode(form, registers).unwrap();
             validate(form, registers, &bytes).unwrap();
             reject_every_bit_flip(&bytes, &format!("{form:?}"), |changed| {
-                validate(form, registers, &changed).is_err()
+                validate(form, registers, changed).is_err()
             });
             assert!(validate(form, registers, &bytes[..bytes.len() - 1]).is_err());
         }

@@ -141,7 +141,8 @@ rule; they do not change which crashes an interface permits.
 [Provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection),
 [explicit evidence selection](../../../../wiki/spec/language/conformances.md#declaration-and-selection),
 and [boundary crash contracts](../../../../wiki/spec/terminal-psi/boundary_calls.md#boundary-crash-contracts)
-govern the preserved selection and call obligations. The existing
-[owner question 3](../../../../OWNER_QUESTIONS.md#3-may-a-boundary-requirements-own-signature-bind-a-generic-evidence-parameter)
-remains unchanged; this migration does not answer or close it. Other target-prefix
+govern the preserved selection and call obligations.
+[Generic requirement evidence](../../../../wiki/spec/language/generics.md#generic-machine-requirements)
+permits the member's caller-supplied implementation binder; Build selects its
+platform implementation without filling that binder. Other target-prefix
 migration and the remaining CRASH-CONTRACT acceptance remain open.

@@ -454,9 +454,7 @@ impl<T: Default> PagedArenaSet<T> {
             .wrapping_add(self.page_count() as u64);
         for page in self.pages() {
             if !current.is_some_and(|cur| std::ptr::eq(page, cur)) {
-                if page.append_epoch().is_none() {
-                    return None;
-                }
+                page.append_epoch()?;
                 epoch = epoch
                     .wrapping_mul(0x9E37_79B9_7F4A_7C15)
                     .wrapping_add(page.revision());
@@ -615,6 +613,101 @@ impl<T: Default> PagedArenaSet<T> {
 impl<T: Default> Default for PagedArenaSet<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<T> compiler_storage::Record for PagedArenaFrontier<T> {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        self.generation.write(output)?;
+        self.next_arena_index.write(output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        let generation = u32::read(input)?;
+        let next_arena_index = u32::read(input)?;
+        if generation == 0 || next_arena_index == 0 {
+            return Err(input.error("paged arena frontier has an invalid coordinate"));
+        }
+        Ok(Self {
+            generation,
+            next_arena_index,
+            marker: PhantomData,
+        })
+    }
+}
+impl<T: Default + Clone + compiler_storage::Record + 'static> compiler_storage::Record
+    for PagedArenaSet<T>
+{
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        output.record(|output| {
+            self.first_generation.write(output)?;
+            self.first_page.write(output)?;
+            self.additional_pages.write(output)?;
+            self.current_generation.write(output)?;
+            self.active_count.write(output)?;
+            self.dummy.write(output)
+        })
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        input.record(|input| {
+            let mut result = Self {
+                first_generation: u32::read(input)?,
+                first_page: ArenaPage::read(input)?,
+                additional_pages: Vec::read(input)?,
+                page_positions: Vec::new(),
+                current_generation: u32::read(input)?,
+                active_count: usize::read(input)?,
+                dummy: T::read(input)?,
+            };
+            if result.first_generation == 0
+                || result.current_generation < result.first_generation
+                || result.first_page.storage_view().fresh_generation != result.first_generation
+            {
+                return Err(input.error("paged arena has an invalid first or current page"));
+            }
+            let mut previous_generation = result.first_generation;
+            for (generation, page) in &result.additional_pages {
+                if *generation <= previous_generation {
+                    return Err(
+                        input.error("paged arena page generations are not strictly ordered")
+                    );
+                }
+                if page.storage_view().fresh_generation != *generation {
+                    return Err(input.error("paged arena slot disagrees with its page generation"));
+                }
+                previous_generation = *generation;
+            }
+            if result
+                .pages()
+                .try_fold(0usize, |sum, page| sum.checked_add(page.len()))
+                != Some(result.active_count)
+            {
+                return Err(input.error("paged arena live row count disagrees with its pages"));
+            }
+            // The directory spans every generation up to the last page, so a
+            // retained roster pays for its gaps before they are allocated.
+            let span = result
+                .additional_pages
+                .last()
+                .map_or(0, |(generation, _)| generation - result.first_generation);
+            input.allocate(
+                usize::try_from(span)
+                    .ok()
+                    .and_then(|span| span.checked_mul(std::mem::size_of::<u32>()))
+                    .ok_or_else(|| input.error("paged arena directory exceeds usize"))?,
+            )?;
+            result.index_page_positions();
+            Ok(result)
+        })
     }
 }
 
@@ -829,100 +922,5 @@ mod tests {
             let bytes = compiler_storage::encode(&value, limits).unwrap();
             assert!(compiler_storage::decode::<PagedArenaSet<u32>>(&bytes, limits).is_err());
         }
-    }
-}
-
-impl<T> compiler_storage::Record for PagedArenaFrontier<T> {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        self.generation.write(output)?;
-        self.next_arena_index.write(output)
-    }
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        let generation = u32::read(input)?;
-        let next_arena_index = u32::read(input)?;
-        if generation == 0 || next_arena_index == 0 {
-            return Err(input.error("paged arena frontier has an invalid coordinate"));
-        }
-        Ok(Self {
-            generation,
-            next_arena_index,
-            marker: PhantomData,
-        })
-    }
-}
-impl<T: Default + Clone + compiler_storage::Record + 'static> compiler_storage::Record
-    for PagedArenaSet<T>
-{
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        output.record(|output| {
-            self.first_generation.write(output)?;
-            self.first_page.write(output)?;
-            self.additional_pages.write(output)?;
-            self.current_generation.write(output)?;
-            self.active_count.write(output)?;
-            self.dummy.write(output)
-        })
-    }
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        input.record(|input| {
-            let mut result = Self {
-                first_generation: u32::read(input)?,
-                first_page: ArenaPage::read(input)?,
-                additional_pages: Vec::read(input)?,
-                page_positions: Vec::new(),
-                current_generation: u32::read(input)?,
-                active_count: usize::read(input)?,
-                dummy: T::read(input)?,
-            };
-            if result.first_generation == 0
-                || result.current_generation < result.first_generation
-                || result.first_page.storage_view().fresh_generation != result.first_generation
-            {
-                return Err(input.error("paged arena has an invalid first or current page"));
-            }
-            let mut previous_generation = result.first_generation;
-            for (generation, page) in &result.additional_pages {
-                if *generation <= previous_generation {
-                    return Err(
-                        input.error("paged arena page generations are not strictly ordered")
-                    );
-                }
-                if page.storage_view().fresh_generation != *generation {
-                    return Err(input.error("paged arena slot disagrees with its page generation"));
-                }
-                previous_generation = *generation;
-            }
-            if result
-                .pages()
-                .try_fold(0usize, |sum, page| sum.checked_add(page.len()))
-                != Some(result.active_count)
-            {
-                return Err(input.error("paged arena live row count disagrees with its pages"));
-            }
-            // The directory spans every generation up to the last page, so a
-            // retained roster pays for its gaps before they are allocated.
-            let span = result
-                .additional_pages
-                .last()
-                .map_or(0, |(generation, _)| generation - result.first_generation);
-            input.allocate(
-                usize::try_from(span)
-                    .ok()
-                    .and_then(|span| span.checked_mul(std::mem::size_of::<u32>()))
-                    .ok_or_else(|| input.error("paged arena directory exceeds usize"))?,
-            )?;
-            result.index_page_positions();
-            Ok(result)
-        })
     }
 }

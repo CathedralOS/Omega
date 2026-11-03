@@ -126,7 +126,7 @@ pub(crate) fn owner_path_overlaps_place_segments(
     place_segments: &[facts::PlaceSegment],
 ) -> bool {
     owner_path.iter().zip(place_segments).all(|(owner, place)| {
-        owner_segment_matches_place_segment(program, owner, place).unwrap_or_else(|| {
+        owner_segment_matches_place_segment(program, owner, place).unwrap_or({
             matches!(
                 (owner, place),
                 (

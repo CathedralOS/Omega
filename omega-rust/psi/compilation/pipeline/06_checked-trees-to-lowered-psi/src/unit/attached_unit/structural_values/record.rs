@@ -20,7 +20,7 @@ impl emission::Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
     ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
-        let node = value_facts(&self.checked)
+        let node = value_facts(self.checked)
             .structural_values
             .nodes
             .get(value)
@@ -38,9 +38,8 @@ impl emission::Emission<'_, '_, '_> {
             .data_definition_by_symbol(data_symbol)
             .ok_or(LoweringError::Unsupported("record declaration missing"))?;
         let declarations = self.checked.data_members(record);
-        let shape =
-            terminal_psi::find_structural_type(&self.structural_types[..], self.structural_type)
-                .ok_or(LoweringError::Unsupported("record structural type missing"))?;
+        let shape = terminal_psi::find_structural_type(self.structural_types, self.structural_type)
+            .ok_or(LoweringError::Unsupported("record structural type missing"))?;
         let StructuralTypeShape::Record {
             fields: shape_fields,
             ..
@@ -148,7 +147,7 @@ impl emission::Emission<'_, '_, '_> {
         field_index: usize,
     ) -> Result<terminal_psi::RecordFieldValue, LoweringError> {
         if !matches!(
-            value_facts(&self.checked)
+            value_facts(self.checked)
                 .structural_values
                 .nodes
                 .get(value)

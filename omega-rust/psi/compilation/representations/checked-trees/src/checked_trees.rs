@@ -33,18 +33,18 @@ pub use admissibility::{
 };
 pub use borrow::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowCallReferenceSlotEffect,
-    BorrowFacts, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRetainedOperand,
-    BorrowReturnedLoanFact, BorrowRootKind, BorrowWritableRootFact, CapturedPlace,
-    CapturedPlaceCompatibility, CapturedPlaceContainment, CheckedBorrowResourceDispositionTarget,
-    CheckedBorrowResourceLifecyclePhase, CheckedCallBorrowLoanResource,
-    CheckedCallBorrowLoanSource, CheckedDirectBorrowLoanResource,
-    CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
-    CheckedParentBorrowResource, CheckedReborrowAccessEffect, CheckedReborrowLoanResource,
-    CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
-    CheckedReborrowResourceDisposition, CheckedReborrowResourceDispositionEvent,
-    CheckedReborrowRestorationObligation, CheckedRetiredParentResourceDispositionStep,
-    IncomingReferenceIdentity, IncomingReferenceOrigin, ParentLexicalStatusAtChildEnd,
-    StateBorrowFact,
+    BorrowFacts, BorrowLoanFact, BorrowLoanFormation, BorrowLoanLineage, BorrowLoanOwnerSegment,
+    BorrowRetainedOperand, BorrowReturnedLoanFact, BorrowRootKind, BorrowWritableRootFact,
+    CapturedPlace, CapturedPlaceCompatibility, CapturedPlaceContainment,
+    CheckedBorrowResourceDispositionTarget, CheckedBorrowResourceLifecyclePhase,
+    CheckedBorrowResourceRetention, CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource,
+    CheckedDirectBorrowLoanResource, CheckedDirectBorrowParentLifetime,
+    CheckedDirectBorrowRestorationObligation, CheckedParentBorrowResource,
+    CheckedReborrowAccessEffect, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
+    CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
+    CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
+    CheckedRetiredParentResourceDispositionStep, IncomingReferenceIdentity,
+    IncomingReferenceOrigin, ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{
@@ -85,9 +85,9 @@ pub use facts::{
 pub use facts::{
     BlockingFacts, CallServiceReachRows, CarryFacts, CheckFacts,
     CheckedAcceptedTemplateClassification, CheckedAcceptedTemplateIdentities,
-    CheckedAcceptedTemplateIdentity, CheckedAccessViewInput, CheckedBoundaryAdapterDispatch,
-    CheckedCallableHeader, CheckedCallbackResourceReceipt, CheckedCrashCallSite,
-    CheckedCrashOperatorSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
+    CheckedAcceptedTemplateIdentity, CheckedAccessViewInput, CheckedBodyCrashSummary,
+    CheckedBoundaryAdapterDispatch, CheckedCallableHeader, CheckedCallbackResourceReceipt,
+    CheckedCrashCallSite, CheckedCrashOperatorSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
     CheckedFactCallProjection, CheckedMachineContractEnvelopeIdentity,
     CheckedMachineContractRefinement, CheckedMachineResourceEnvelopes,
     CheckedMachineSpecializationIdentity, CheckedNominalMachineUse, CheckedProofRankingRelation,
@@ -213,6 +213,35 @@ impl CheckedTrees {
         }
     }
 
+    /// Return the crashes already checked for this exact body. Missing,
+    /// competing or stale body evidence cannot establish invocation safety.
+    /// Callers still owe the body's entry contract for their actual arguments.
+    pub fn body_crash_summary(
+        &self,
+        machine: symbols::SymbolHandle,
+    ) -> Option<&CheckedBodyCrashSummary> {
+        let mut bodies = self
+            .typed
+            .machines()
+            .iter()
+            .filter(|body| body.symbol == machine);
+        let body = bodies.next()?;
+        if bodies.next().is_some() {
+            return None;
+        }
+        let mut plans = self
+            .facts
+            .contract_plans
+            .machines
+            .iter()
+            .filter(|plan| plan.machine == machine);
+        let plan = plans.next()?;
+        if plans.next().is_some() {
+            return None;
+        }
+        plan.crash.checked_body_summary(machine, body.states)
+    }
+
     /// The `u64` literal the selected target's fold landed at a retained
     /// constant's root (`CheckedScalarComputationKind::RetainedConstant`).
     /// Psi 05 mints the row while the root is still a `size_of`/`align_of`
@@ -255,9 +284,7 @@ impl CheckedTrees {
                 .values
                 .expression_values(parent)
                 .map(|(_, value)| value.origin);
-            let Some(parent_origin) = origins.next() else {
-                return None;
-            };
+            let parent_origin = origins.next()?;
             if origins.any(|candidate| candidate != parent_origin) {
                 return None;
             }

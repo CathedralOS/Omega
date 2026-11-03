@@ -312,9 +312,7 @@ pub(super) fn builtin_comparison_intervals(
     {
         return None;
     }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     let spelling = match binary.operator {
         BinaryOperator::Less => OperatorSpelling::Less,
         BinaryOperator::LessOrEqual => OperatorSpelling::LessEqual,

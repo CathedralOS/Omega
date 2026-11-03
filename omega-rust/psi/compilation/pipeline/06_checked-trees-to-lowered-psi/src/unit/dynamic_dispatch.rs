@@ -52,23 +52,14 @@ impl DynamicDispatchIndex {
         let slot_plans = &checked.facts.flow.terminal_unit_effects.dynamic_slots;
         let mut interfaces = selections
             .iter()
-            .map(|selection| selection.interface_identity.clone())
-            .chain(
-                slot_plans
-                    .iter()
-                    .map(|plan| plan.interface_identity.clone()),
-            )
+            .map(|selection| selection.interface_identity)
+            .chain(slot_plans.iter().map(|plan| plan.interface_identity))
             .collect::<Vec<_>>();
         interfaces.sort();
         interfaces.dedup();
         let mut tables = selections
             .iter()
-            .map(|selection| {
-                (
-                    selection.interface_identity.clone(),
-                    selection.implementation,
-                )
-            })
+            .map(|selection| (selection.interface_identity, selection.implementation))
             .collect::<Vec<_>>();
         tables.sort_by(|(left, left_symbol), (right, right_symbol)| {
             left.cmp(right)
@@ -85,20 +76,13 @@ impl DynamicDispatchIndex {
                     Some(selection) => selection
                         .rows
                         .iter()
-                        .map(|row| {
-                            (
-                                row.requirement_identity.clone(),
-                                row.family_tuple.as_ref().to_vec(),
-                            )
-                        })
+                        .map(|row| (row.requirement_identity, row.family_tuple.as_ref().to_vec()))
                         .collect(),
                     None => {
                         let mut called = slot_plans
                             .iter()
                             .filter(|plan| &plan.interface_identity == interface)
-                            .map(|plan| {
-                                (plan.requirement_identity.clone(), plan.family_tuple.clone())
-                            })
+                            .map(|plan| (plan.requirement_identity, plan.family_tuple.clone()))
                             .collect::<Vec<_>>();
                         called.sort();
                         called.dedup();

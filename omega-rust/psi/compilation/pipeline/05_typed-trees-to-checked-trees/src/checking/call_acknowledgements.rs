@@ -179,9 +179,8 @@ fn validate_statement(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-
 /// Every recursive child walk spells non-direct position identically.
+#[allow(clippy::too_many_arguments)]
 fn validate_child(
     program: &dyn ::validation::CheckingInput,
     expression: ExpressionHandle,

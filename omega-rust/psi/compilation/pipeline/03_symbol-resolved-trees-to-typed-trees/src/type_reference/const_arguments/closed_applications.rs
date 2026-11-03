@@ -329,13 +329,24 @@ mod tests {
                     [(SymbolKind::TypeParameter, SymbolNameRef::Static("N"))],
                 )
                 .start();
-            let mut program = TypedTrees::default();
-            program.symbols = builder.finish();
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
             let carrier = program
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
                     symbol: u64_symbol,
                     name: Identifier::generated("u64"),
+                });
+            // Lowering a suffixed literal retains its landed builtin carrier
+            // (`retain_builtin_type_reference`); the `u8` control below needs
+            // that same row so its selected carrier is known, not open.
+            program
+                .type_reference_table
+                .insert(TypeReferenceNode::Named {
+                    symbol: children.handle_at(symbols::BuiltinTypeAtom::U8.ordinal() as u32),
+                    name: Identifier::generated("u8"),
                 });
             let parameters = program.data_type_parameters.insert_many([TypeParameter {
                 symbol: parameter,
@@ -368,12 +379,22 @@ mod tests {
             ));
             let value =
                 if argument_scope {
+                    // Every evaluated declaration retains its evidence root;
+                    // closed queries follow it rather than the encoded value.
+                    let materialized_initializer =
+                        program.expression_table.insert(ExpressionNode::Integer(
+                            IntegerLiteral::from_value(0).with_landing(IntegerLanding {
+                                landed_type: LandedIntegerType::U64,
+                                domain: ArithmeticDomain::Exact,
+                            }),
+                        ));
                     program.push_const_declaration(ConstDeclaration {
                         symbol: zero,
                         declared_type: carrier,
+                        materialized_initializer,
                         evaluated_value: Some(
                             language_core::constant_value::EvaluatedConstant::Encoded(
-                                language_semantics::const_value::CanonicalConstValue::integer(
+                                language_semantics::const_value::CanonicalConstIdentity::integer(
                                     "u64", 0,
                                 )
                                 .encoding,

@@ -122,11 +122,7 @@ impl StructuralJudge<'_> {
             }
             return None;
         }
-        let Some(definition) =
-            crate::field_domains::readable_nominal_definition(program, reference)
-        else {
-            return None;
-        };
+        let definition = crate::field_domains::readable_nominal_definition(program, reference)?;
         if active.contains(&definition.symbol) {
             return None;
         }
@@ -307,8 +303,7 @@ impl StructuralJudge<'_> {
             .ok_or("entry predicate has no fixed declaration coordinate")?;
         self.retain_storage_value(coordinate.clone(), value.clone(), true);
         let stored = std::sync::Arc::make_mut(&mut self.stored_values)
-            .iter_mut()
-            .find(|stored| stored.coordinate == coordinate)
+            .value_at_mut(&coordinate)
             .ok_or("entry predicate lost its logical snapshot")?;
         stored.current = None;
         stored.backing = None;
@@ -521,8 +516,7 @@ impl StructuralJudge<'_> {
         let backing = self.freeze_entry_read_backing(state, backing);
         self.retain_storage_value(coordinate.clone(), value, true);
         let stored = std::sync::Arc::make_mut(&mut self.stored_values)
-            .iter_mut()
-            .find(|stored| stored.coordinate == coordinate)
+            .value_at_mut(&coordinate)
             .ok_or("the rank entry input lost its retained storage observation")?;
         stored.backing = Some(backing);
         stored.completed_read = None;

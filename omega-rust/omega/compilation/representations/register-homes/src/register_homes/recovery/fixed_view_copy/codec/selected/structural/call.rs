@@ -169,12 +169,12 @@ pub(super) fn decode_call(
     }
     let result_placement = crate::cursor::optional(
         cursor,
-        |c| Ok(decode_placement(c)?),
+        decode_placement,
         FixedViewCopyDecodeError::UnknownOption,
     )?;
     let structural_result = crate::cursor::optional(
         cursor,
-        |c| Ok(super::read_result::decode_result(c)?),
+        super::read_result::decode_result,
         FixedViewCopyDecodeError::UnknownOption,
     )?;
     let count = cursor.length()?;

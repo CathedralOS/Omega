@@ -242,12 +242,12 @@ pub(in crate::execution::terminal_unit) fn restored_call_alias_locals(
         .borrow
         .reborrow_disposition_events
         .iter()
-        .filter_map(|(_, event)| {
-            (event.machine_symbol == machine.symbol
+        .filter(|&(_, event)| {
+            event.machine_symbol == machine.symbol
                 && event.state_symbol == state.symbol
-                && event.restored_call.is_valid())
-            .then(|| event.shared_cohort.len().max(1))
+                && event.restored_call.is_valid()
         })
+        .map(|(_, event)| event.shared_cohort.len().max(1))
         .find(|count| matches!(count, 1..=3))?;
     let child_locals = statements
         .get(1..=child_count)?

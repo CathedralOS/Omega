@@ -8,14 +8,14 @@
 //! mutations cannot escape into another schema evaluation.
 //!
 //! This adapter runs after ordinary Build admission. It establishes zero for
-//! the declared subject before materializing it, then establishes supplied
-//! values through ordinary construction checking. Argument order, execution
+//! the declared subject before materializing it. The execution admission gate
+//! establishes and projects the supplied values once before interpretation.
+//! Argument order, execution
 //! and returned-plan validation remain with the existing interpreter and policy
 //! consumers. Reflection metadata is projected to the exact declared roster
 //! before both checking and execution; unclaimed metadata is not a field.
 
 use crate::build_time_evaluation::type_reference_table;
-use crate::machine_execution::admission::require_established_arguments;
 use build_time_values::BuildTimeValue;
 use checked_interpreter::BuildMachineEvaluationRequest;
 use checked_interpreter::materialize_zero_initialized_build_time_value;
@@ -75,7 +75,6 @@ pub(super) fn policy_request<'a>(
         let context = materialize_zero_initialized_build_time_value(typed, context_type)?;
         arguments.insert(position, context);
     }
-    require_established_arguments(typed, machine, &mut arguments)?;
     Ok(BuildMachineEvaluationRequest::symbol(
         machine.symbol,
         arguments,

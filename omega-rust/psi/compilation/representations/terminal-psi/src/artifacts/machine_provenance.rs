@@ -15,64 +15,6 @@ pub struct TerminalMachineProvenance {
     callers: BTreeMap<MachineId, MachineId>,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::TerminalMachineProvenance;
-    use crate::{TerminalModule, UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior};
-    use semantic_vocabulary::{BlockId, InvocationSite, MachineId, OperationId};
-
-    #[test]
-    fn root_attribution_uses_retained_edges_without_source_or_live_bodies() {
-        let entry = MachineId::new(1).unwrap();
-        let helper = MachineId::new(2).unwrap();
-        let cleanup = MachineId::new(3).unwrap();
-        let other = MachineId::new(4).unwrap();
-        let block = BlockId::new(1).unwrap();
-        let site = InvocationSite::Operation(OperationId::new(1).unwrap());
-        let mut module = TerminalModule::declarations();
-        module.unoptimized_behavior = vec![
-            UnoptimizedMachineBehavior {
-                machine: entry,
-                operations: vec![UnoptimizedBehaviorOperation::Invocation {
-                    block,
-                    site,
-                    callee: helper,
-                }],
-            },
-            UnoptimizedMachineBehavior {
-                machine: helper,
-                operations: vec![
-                    UnoptimizedBehaviorOperation::Invocation {
-                        block,
-                        site,
-                        callee: entry,
-                    },
-                    UnoptimizedBehaviorOperation::NominalCleanup {
-                        block,
-                        callee: cleanup,
-                    },
-                ],
-            },
-            UnoptimizedMachineBehavior {
-                machine: other,
-                operations: Vec::new(),
-            },
-        ];
-        let mut names = TerminalMachineProvenance::default();
-        names.name(entry, "generic declaration label".into(), None);
-        let rooted = names.for_root(&module, entry, Some(("selected application", None)));
-        assert!(rooted.label(cleanup).contains("selected application"));
-        assert!(!rooted.label(other).contains("selected application"));
-        let another = names.for_root(&module, other, Some(("other application", None)));
-        assert!(!another.label(cleanup).contains("selected application"));
-        assert!(!another.label(cleanup).contains("other application"));
-        assert!(
-            names.label(entry).contains("generic declaration label"),
-            "rooting mutated shared names"
-        );
-    }
-}
-
 impl TerminalMachineProvenance {
     /// Attribute one root using retained pre-optimization invocation edges.
     /// The shared names are diagnostic payload; neither they nor this walk
@@ -167,5 +109,63 @@ impl TerminalMachineProvenance {
     pub fn source_span(&self, machine: MachineId) -> Option<SourceSpan> {
         let (_, (_, span)) = self.named_ancestor(machine)?;
         *span
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TerminalMachineProvenance;
+    use crate::{TerminalModule, UnoptimizedBehaviorOperation, UnoptimizedMachineBehavior};
+    use semantic_vocabulary::{BlockId, InvocationSite, MachineId, OperationId};
+
+    #[test]
+    fn root_attribution_uses_retained_edges_without_source_or_live_bodies() {
+        let entry = MachineId::new(1).unwrap();
+        let helper = MachineId::new(2).unwrap();
+        let cleanup = MachineId::new(3).unwrap();
+        let other = MachineId::new(4).unwrap();
+        let block = BlockId::new(1).unwrap();
+        let site = InvocationSite::Operation(OperationId::new(1).unwrap());
+        let mut module = TerminalModule::declarations();
+        module.unoptimized_behavior = vec![
+            UnoptimizedMachineBehavior {
+                machine: entry,
+                operations: vec![UnoptimizedBehaviorOperation::Invocation {
+                    block,
+                    site,
+                    callee: helper,
+                }],
+            },
+            UnoptimizedMachineBehavior {
+                machine: helper,
+                operations: vec![
+                    UnoptimizedBehaviorOperation::Invocation {
+                        block,
+                        site,
+                        callee: entry,
+                    },
+                    UnoptimizedBehaviorOperation::NominalCleanup {
+                        block,
+                        callee: cleanup,
+                    },
+                ],
+            },
+            UnoptimizedMachineBehavior {
+                machine: other,
+                operations: Vec::new(),
+            },
+        ];
+        let mut names = TerminalMachineProvenance::default();
+        names.name(entry, "generic declaration label".into(), None);
+        let rooted = names.for_root(&module, entry, Some(("selected application", None)));
+        assert!(rooted.label(cleanup).contains("selected application"));
+        assert!(!rooted.label(other).contains("selected application"));
+        let another = names.for_root(&module, other, Some(("other application", None)));
+        assert!(!another.label(cleanup).contains("selected application"));
+        assert!(!another.label(cleanup).contains("other application"));
+        assert!(
+            names.label(entry).contains("generic declaration label"),
+            "rooting mutated shared names"
+        );
     }
 }

@@ -106,10 +106,7 @@ fn normalize_state(
 ) {
     let final_position = statements.len().checked_sub(1);
     for (position, statement_handle) in statements.handles().enumerate() {
-        match body_statements(&program)
-            .statement(statement_handle)
-            .clone()
-        {
+        match body_statements(program).statement(statement_handle).clone() {
             StatementNode::Expression(expression) if Some(position) == final_position => {
                 if let Some(target) = recursive_target(program, identity, expression) {
                     let source_span = program.tables.bodies.expressions.source_span(expression);

@@ -288,7 +288,6 @@ fn concrete_data_type_symbol(
 
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open (the declaration slice is otherwise re-scanned per query).
-
 pub(super) fn concrete_data_type_name(
     program: &dyn crate::CheckingInput,
     handle: TypeReferenceHandle,

@@ -168,7 +168,6 @@ impl<'a> FloatObservations<'a> {
                             state,
                             capture.row(),
                             projection.expression,
-                            invocation,
                             epoch,
                             &contexts,
                         )
@@ -185,7 +184,6 @@ impl<'a> FloatObservations<'a> {
         state: &FlowStateFact,
         operand: &FlowOperandFact,
         expression: typed_trees::expression::ExpressionHandle,
-        invocation: HandleSpan<FlowConstraintRef>,
         epoch: &FlowOperandFact,
         contexts: &[FactContextHandle],
     ) -> Option<Vec<FloatMeaning>> {
@@ -300,7 +298,7 @@ impl<'a> FloatObservations<'a> {
             {
                 // Borrowing a literal is closed. Storage reads were handled by
                 // the captured referent places, never by following a name here.
-                self.produced(state, operand, borrow.target, invocation, epoch, contexts)
+                self.produced(state, operand, borrow.target, epoch, contexts)
             }
             ExpressionNode::Cast(cast) if cast.form.is_recast() => self
                 .recast(state, operand, epoch, cast, contexts)

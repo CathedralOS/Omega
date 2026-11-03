@@ -348,7 +348,7 @@ fn walk_record_fields<'types>(
         };
         let field = live_field_by_id(fields, *field)?;
         let child = field.field_type.as_structural()?;
-        runtime_path.push(StructuralPathSegment::Field(field.identity.clone()));
+        runtime_path.push(StructuralPathSegment::Field(field.identity));
         structural_type = child;
     }
     if payload_fields.is_some() {

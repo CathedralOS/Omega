@@ -114,7 +114,7 @@ pub(in crate::execution::host_imports) fn matches_signed_record_array(
     let Ok(integer) = IntegerType::new(IntegerSign::Signed, bits) else {
         return false;
     };
-    if bits % 8 != 0 || !alignment.is_power_of_two() {
+    if !bits.is_multiple_of(8) || !alignment.is_power_of_two() {
         return false;
     }
     let expected = ScalarType::Integer(integer);
@@ -199,7 +199,7 @@ pub(in crate::execution::host_imports) fn matches_integer_storage(
     let Ok(integer) = IntegerType::new(sign, bits) else {
         return false;
     };
-    if bits % 8 != 0 {
+    if !bits.is_multiple_of(8) {
         return false;
     }
     let scalar = ScalarType::Integer(integer);
@@ -300,7 +300,7 @@ pub(in crate::execution::host_imports) fn matches_integer_record(
             };
             if placement.referent != *referent
                 || placement.access != *access
-                || offset % 8 != 0
+                || !offset.is_multiple_of(8)
                 || codec.alignment < 8
             {
                 return false;

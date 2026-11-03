@@ -202,7 +202,7 @@ impl AcceptedSemanticBinding {
         permissions.sort_by(|left, right| {
             left.service_schema()
                 .as_bytes()
-                .cmp(&right.service_schema().as_bytes())
+                .cmp(right.service_schema().as_bytes())
                 .then_with(|| {
                     permission_identities
                         .text(left.requirement_identity())

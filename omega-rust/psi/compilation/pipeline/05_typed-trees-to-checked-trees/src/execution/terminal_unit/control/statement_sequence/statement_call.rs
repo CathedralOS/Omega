@@ -320,7 +320,7 @@ pub(super) fn plan(
                             binding_ordinal: result.binding_ordinal,
                         },
                         path: Vec::new(),
-                        type_identity: result.type_identity.clone(),
+                        type_identity: result.type_identity,
                         case_conditions: Default::default(),
                     },
                 )],

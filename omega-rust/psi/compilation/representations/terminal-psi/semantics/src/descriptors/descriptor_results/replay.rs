@@ -33,12 +33,12 @@ mod analysis;
 mod case_flow;
 mod contents_queries;
 mod dispatch;
+mod engine;
 mod provider;
-mod replay;
 mod summary_interface;
 use crate::runtime_structural_path_tip;
 pub use analysis::{DescriptorAnalysis, DescriptorSourceObservation, DescriptorSourceObservations};
-use replay::Replay;
+use engine::Replay;
 use terminal_psi::find_structural_type;
 
 #[derive(Clone)]

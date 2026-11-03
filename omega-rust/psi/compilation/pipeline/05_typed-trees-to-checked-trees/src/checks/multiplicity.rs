@@ -40,8 +40,8 @@ pub(crate) use returned_claims::{CompletedClaimLocation, completed_owned_claims}
 mod selected_cleanup;
 mod selected_evaluation;
 pub(crate) use claim_outcomes::ClaimOutcomePreparation;
-pub(crate) use permission_events::prepare_permission_events;
 pub(crate) use owned_transfer_paths::publish_owned_transfer_paths;
+pub(crate) use permission_events::prepare_permission_events;
 mod projected_affine;
 mod projected_replacements;
 mod temporary_results;

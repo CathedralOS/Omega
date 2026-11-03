@@ -126,7 +126,7 @@ fn lower_item_with_exposure(
                         // requirements share this member's name. The member then
                         // fills that slot as its own realization; the clause is
                         // row identity, not a second satisfaction edge.
-                        let edge_trait = syntax_items(&syntax_trees)
+                        let edge_trait = syntax_items(syntax_trees)
                             .satisfies_clauses(machine.satisfies)
                             .first()
                             .map(|clause| clause.trait_name.clone());
@@ -501,7 +501,7 @@ fn candidate_satisfies_requirement(
     trait_arguments: arena::HandleSpan<syntax::types::TypeReferenceHandle>,
     requirement_name: &syntax::identifier::Identifier,
 ) -> bool {
-    syntax_items(&syntax_trees)
+    syntax_items(syntax_trees)
         .satisfies_clauses(candidate.satisfies)
         .iter()
         .any(|clause| {
@@ -554,7 +554,7 @@ fn syntax_type_spelling(
             arguments,
             ..
         } => {
-            let arguments = syntax_type_references(&syntax_trees)
+            let arguments = syntax_type_references(syntax_trees)
                 .type_reference_handles(*arguments)
                 .iter()
                 .map(|argument| syntax_type_spelling(syntax_trees, *argument))

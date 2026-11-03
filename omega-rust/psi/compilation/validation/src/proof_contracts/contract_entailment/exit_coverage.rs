@@ -43,9 +43,7 @@ fn guard_comparisons<T>(
             let TransitionGuardNode::When(expression) = guard else {
                 return None;
             };
-            let Some(comparison) = expression_table(program).binary_node(*expression) else {
-                return None;
-            };
+            let comparison = expression_table(program).binary_node(*expression)?;
             map_right(*expression, comparison).map(|right| (comparison.left, right))
         })
         .collect()

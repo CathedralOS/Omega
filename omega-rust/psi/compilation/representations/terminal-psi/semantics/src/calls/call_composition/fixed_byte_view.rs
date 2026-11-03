@@ -49,9 +49,7 @@ pub fn borrowed_referent_presentation<'types>(
     actual: semantic_vocabulary::StructuralTypeId,
     expected: semantic_vocabulary::StructuralTypeId,
 ) -> Option<BorrowedReferentPresentation> {
-    let Some(expected_type) = types.clone().find(|row| row.id == expected) else {
-        return None;
-    };
+    let expected_type = types.clone().find(|row| row.id == expected)?;
     if actual == expected {
         return Some(BorrowedReferentPresentation::Unchanged);
     }

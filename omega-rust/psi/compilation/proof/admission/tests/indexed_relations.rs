@@ -41,7 +41,6 @@ use proof_admission::{
 /// `iindW` application (which re-decides the step type against the
 /// instantiated statement) dominates and stays far below the bound —
 /// `StepCeiling` remains the decidability witness.
-
 fn box_intro(arena: &mut TermArena, ty: TermHandle, value: TermHandle) -> TermHandle {
     arena.insert(Term::BoxIntro { ty, value })
 }

@@ -118,6 +118,7 @@ pub enum LoweringError {
     },
     InvalidFieldObservationStoragePath(validation::StorageObservationTypePathError),
     Unsupported(&'static str),
+    CompilerEvaluationAdmission(String),
     /// Preserve the two actual descriptor shapes at a failed state-owner join.
     CapturedLoanDescriptorMismatch {
         source_state: usize,

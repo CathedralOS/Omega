@@ -717,7 +717,7 @@ pub(crate) fn lower_unit_closure(
         declaration.quotient_carrier = Some(representation.carrier);
     }
     let mathematical_carriers =
-        crate::scalar_lowering::contracts::mathematical_carriers(&checked, identities)?;
+        crate::scalar_lowering::contracts::mathematical_carriers(checked, identities)?;
     let indexed_theorems =
         indexed_theorems(checked, identities, exact_toolchain_sources, &machine_ids)?;
     let (scalar_applications, source_proof_declarations) = scalar_applications.publish(

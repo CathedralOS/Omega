@@ -1,0 +1,7 @@
+{
+  "role": "intended-invalid",
+  "entry": "main.omg",
+  "rejection_contains": [
+    "scalar predicate is false: requires contract for call slack_of from main"
+  ]
+}

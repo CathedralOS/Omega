@@ -42,13 +42,11 @@ pub fn validate_aarch64_selected_table_call_form(
     let invalid = || Aarch64SelectedFormEncodingError::EncodedFormMismatch;
     let (base, offset) = table_address(record).ok_or_else(invalid)?;
     let words = bytes
-        .chunks_exact(4)
-        .map(|word| {
-            <[u8; 4]>::try_from(word)
-                .map(u32::from_le_bytes)
-                .map_err(|_| invalid())
-        })
-        .collect::<Result<Vec<_>, _>>()?;
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|word| u32::from_le_bytes(*word))
+        .collect::<Vec<_>>();
     let [low, high, add, load, call] = words.as_slice() else {
         return Err(invalid());
     };

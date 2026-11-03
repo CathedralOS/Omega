@@ -79,78 +79,71 @@ fn selected_implementations(
     active.push((value, projection.to_vec()));
     let result = (|| {
         let capture = facts.flow.control.operands.get(value);
-        if projection.is_empty() {
-            if let Some(selection) = selections
+        if projection.is_empty()
+            && let Some(selection) = selections
                 .iter()
                 .find(|selection| selection.occurrence == capture.expression)
-            {
-                return Some(vec![CapturedSelectorOrigin::Implementation(
-                    selection.implementation,
-                )]);
-            }
+        {
+            return Some(vec![CapturedSelectorOrigin::Implementation(
+                selection.implementation,
+            )]);
         }
-        if projection.is_empty() {
-            if let typed_trees::expression::ExpressionNode::Name(name) =
+        if projection.is_empty()
+            && let typed_trees::expression::ExpressionNode::Name(name) =
                 program.expression_table.expression(capture.expression)
-            {
-                let state = program.state_by_symbol(capture.state_symbol)?;
-                let source = place_at(
+        {
+            let state = program.state_by_symbol(capture.state_symbol)?;
+            let source = place_at(
+                program,
+                capture.state_symbol,
+                capture.statement_index,
+                capture.expression,
+            )?;
+            let incoming = source.segments.is_empty()
+                && super::stored_values::at_snapshot(
                     program,
-                    capture.state_symbol,
-                    capture.statement_index,
-                    capture.expression,
-                )?;
-                let incoming = source.segments.is_empty()
-                    && super::stored_values::at_snapshot(
-                        program,
-                        &facts.flow.control,
-                        capture.storage_snapshot,
-                        &source,
-                        super::stored_values::StoredObservation::Contents,
-                    )
-                    .is_none();
-                if incoming
-                    && program
-                        .state_parameters(state)
-                        .iter()
-                        .any(|parameter| parameter.symbol == name.symbol)
-                    && program.primitive_type_reference(capture.type_reference)
-                        == Some(typed_trees::types::PrimitiveType::Selector)
+                    &facts.flow.control,
+                    capture.storage_snapshot,
+                    &source,
+                    super::stored_values::StoredObservation::Contents,
+                )
+                .is_none();
+            if incoming
+                && program
+                    .state_parameters(state)
+                    .iter()
+                    .any(|parameter| parameter.symbol == name.symbol)
+                && program.primitive_type_reference(capture.type_reference)
+                    == Some(typed_trees::types::PrimitiveType::Selector)
+            {
+                let owner = program.machine_holding_state(state.symbol)?;
+                if program.machine_states(owner).first()?.symbol == state.symbol {
+                    return Some(vec![CapturedSelectorOrigin::Parameter(name.symbol)]);
+                }
+                let position = program
+                    .state_parameters(state)
+                    .iter()
+                    .position(|parameter| parameter.symbol == name.symbol)?;
+                let mut origins = Vec::new();
+                let mut found_arrival = false;
+                for (_, call) in facts
+                    .flow
+                    .control
+                    .calls
+                    .iter()
+                    .filter(|(_, call)| call.target_symbol == state.symbol)
                 {
-                    let owner = program.machine_holding_state(state.symbol)?;
-                    if program.machine_states(owner).first()?.symbol == state.symbol {
-                        return Some(vec![CapturedSelectorOrigin::Parameter(name.symbol)]);
-                    }
-                    let position = program
-                        .state_parameters(state)
-                        .iter()
-                        .position(|parameter| parameter.symbol == name.symbol)?;
-                    let mut origins = Vec::new();
-                    let mut found_arrival = false;
-                    for (_, call) in facts
-                        .flow
-                        .control
-                        .calls
-                        .iter()
-                        .filter(|(_, call)| call.target_symbol == state.symbol)
+                    found_arrival = true;
+                    let actual = call.argument_operands().handles().nth(position)?;
+                    for origin in
+                        selected_implementations(program, facts, selections, actual, &[], active)?
                     {
-                        found_arrival = true;
-                        let actual = call.argument_operands().handles().nth(position)?;
-                        for origin in selected_implementations(
-                            program,
-                            facts,
-                            selections,
-                            actual,
-                            &[],
-                            active,
-                        )? {
-                            if !origins.contains(&origin) {
-                                origins.push(origin);
-                            }
+                        if !origins.contains(&origin) {
+                            origins.push(origin);
                         }
                     }
-                    return found_arrival.then_some(origins);
                 }
+                return found_arrival.then_some(origins);
             }
         }
         let Some(predecessors) =

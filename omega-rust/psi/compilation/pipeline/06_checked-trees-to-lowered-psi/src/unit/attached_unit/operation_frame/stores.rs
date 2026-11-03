@@ -1455,7 +1455,7 @@ impl OperationFrame<'_, '_> {
         let (replacement, type_identity) = match &store.value {
             CheckedStoreValue::Place(value) => (
                 self.copied_sum_value(identities, value, hole_type)?,
-                value.type_identity.clone(),
+                value.type_identity,
             ),
             CheckedStoreValue::CaseLiteral(literal) => (
                 self.established_case_literal(
@@ -1464,7 +1464,7 @@ impl OperationFrame<'_, '_> {
                     literal,
                     hole_type,
                 )?,
-                literal.type_identity.clone(),
+                literal.type_identity,
             ),
             CheckedStoreValue::Scalar { .. } | CheckedStoreValue::Bytes(_) => {
                 return unsupported("sum field store holds no sum value");

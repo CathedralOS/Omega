@@ -25,25 +25,18 @@ pub fn scoped_declared_integer_application_formation(
     super::super::IntegerApplicationFormation,
     super::ScopedArithmeticValue,
 )> {
-    let Some(declaration) = program
+    let declaration = program
         .measures()
         .iter()
-        .find(|definition| definition.symbol == expression.owner)
-    else {
-        return None;
-    };
+        .find(|definition| definition.symbol == expression.owner)?;
     if expression_table(program).expression_handles(declaration.body) != [expression.expression]
         || program.primitive_type_reference(declaration.return_type) != Some(result)
     {
         return None;
     }
     let mut calls = calls::ScopedCalls::new(program, context_machine);
-    let Some(expression) = calls.expression(expression) else {
-        return None;
-    };
-    let Some(hypotheses) = calls.hypotheses(hypotheses) else {
-        return None;
-    };
+    let expression = calls.expression(expression)?;
+    let hypotheses = calls.hypotheses(hypotheses)?;
     let mut engine = Engine::strict(program, context_machine, &[]);
     if !install_hypotheses(program, &mut engine, &hypotheses)
         || engine.requires_unsatisfiable

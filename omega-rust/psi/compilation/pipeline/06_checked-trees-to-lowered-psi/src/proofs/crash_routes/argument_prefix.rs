@@ -167,7 +167,7 @@ fn carried_formation_source<'operations>(
             .result
             .structural()
             .filter(|result| result.place == argument.place)
-            .and_then(|_| match &operation.kind {
+            .and(match &operation.kind {
                 terminal_psi::OperationKind::EstablishAccessReference { source, .. }
                 | terminal_psi::OperationKind::EstablishReference { source, .. }
                 | terminal_psi::OperationKind::EstablishElementView { source, .. }

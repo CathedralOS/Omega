@@ -537,7 +537,8 @@ fn foreign_policy_control(
     .unwrap()
     .unwrap();
     let acquired = preparation.acquire_root().unwrap();
-    let mut session = orchestration::BuildSession::create(&directory.join("foreign-policy")).unwrap();
+    let mut session =
+        orchestration::BuildSession::create(&directory.join("foreign-policy")).unwrap();
     let request = session
         .resources()
         .source_build_request(

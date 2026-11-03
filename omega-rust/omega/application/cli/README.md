@@ -39,7 +39,8 @@ unsupported interpretation is a decline, not an agreement.
 Host comparisons accept `--both --terminal-fuel-allowance <positive-u64>`.
 The allowance supplies each Terminal invocation independently, including each
 input case and stdin replay; it defaults to 10,000,000 logical fuel units.
-It requires `--both` without `--target`. Exhaustion remains a declined comparison.
+It requires `--both` without `--target`, or `--engine terminal`. Exhaustion remains
+a declined comparison and stops a Terminal-only run with status 200.
 Native execution receives no fuel counter. Kept single-run artifacts and case
 outputs include `terminal.fuel.tsv` (case-prefixed in batch mode), recording the
 supplied allowance, actual charged units and schedule identity.
@@ -144,7 +145,7 @@ omega [--check] [--offline] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
-omega run [--engine <native|terminal> | --both] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
+omega run [--engine <native|terminal> | --both] [--terminal-fuel-allowance <positive-u64>] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
 omega audit source --kind <local|git> <locator> [--rev <rev>]
 omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...
@@ -184,6 +185,21 @@ launch fails, 202 when compilation stopped at a named private provision
 (`Incomplete`), and 201 when `--both` interpretation disagrees or encounters a
 runtime/artifact defect. An explicitly unavailable comparison reports `DECLINED`
 and retains the native program's status; it never reports agreement.
+`--engine terminal` exits with the Terminal program's own status, 203 when the
+Terminal program crashes (the cause is reported; a process cannot present the
+native trap signal without raising it), and 200 otherwise: `UNAVAILABLE` for a
+missing provider, host adapter or interpreter capability refused before the
+guest's first instruction, `FAILED` for an execution error after it (its
+buffered output is lost), or execution that stops without a process result.
+The Terminal engine requests the ordinary native product, which passes the same
+Build, package, trust, provider and entry admission and then stops before any
+object or image is emitted; `--keep` retains `program.oterm` and the Terminal
+streams, fuel and effect receipts, never a native image. Case runs
+(`--inputs`/`--input`) do not yet accept `--engine terminal`. A program that
+binds independently produced components is refused during compilation on this
+engine (`terminal compile FAILED`, status 200), since those components execute
+only as native images. Program streams are forwarded after the Terminal program
+finishes, not interleaved live.
 
 Compilation emits requested products and diagnostics, not debug dumps.
 `--timings` prints command-stage durations and total elapsed time to stderr;

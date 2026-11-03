@@ -159,7 +159,7 @@ pub(in crate::flow) fn narrow_pinned_selectors(
         .is_some()
         && target_segments
             .iter()
-            .all(|segment| crate::flow::fixed_selection_segment(segment));
+            .all(crate::flow::fixed_selection_segment);
     if stable_value_target
         && target_segments
             != semantic

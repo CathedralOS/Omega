@@ -15,7 +15,7 @@ impl emission::Emission<'_, '_, '_> {
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         value: checked_trees::CheckedStructuralValueHandle,
     ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
-        let node = value_facts(&self.checked)
+        let node = value_facts(self.checked)
             .structural_values
             .nodes
             .get(value)
@@ -33,9 +33,8 @@ impl emission::Emission<'_, '_, '_> {
             .checked
             .data_definition_by_symbol(data_symbol)
             .ok_or(LoweringError::Unsupported("case owner declaration missing"))?;
-        let shape =
-            terminal_psi::find_structural_type(&self.structural_types[..], self.structural_type)
-                .ok_or(LoweringError::Unsupported("case structural type missing"))?;
+        let shape = terminal_psi::find_structural_type(self.structural_types, self.structural_type)
+            .ok_or(LoweringError::Unsupported("case structural type missing"))?;
         // A mixed shape's establishment roster is its runtime common fields in
         // declaration order, then the selected case's payload. Erased common
         // members carry no runtime field and take no roster position, so a

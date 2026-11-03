@@ -23,7 +23,7 @@ pub fn fixed_precolored_interval_plan_identity(
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
-    FixedPrecoloredIntervalPlanIdentity(crate::digest_encoder::content_identity(&bytes).into())
+    FixedPrecoloredIntervalPlanIdentity(crate::digest_encoder::content_identity(&bytes))
 }
 
 fn encode_family(bytes: &mut Vec<u8>, functions: &[crate::FunctionFixedPrecoloredIntervals]) {

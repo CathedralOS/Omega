@@ -20,6 +20,7 @@ use crate::boundary::effects::results::TerminalEffectResult;
 use crate::boundary::effects::{TerminalEffect, TerminalEffectHandler, TerminalEffectRejection};
 use crate::boundary::errors::{TerminalInterpretError, malformed};
 use crate::boundary::results::TerminalExecutionStatus;
+use crate::boundary::values::StructuralRuntimePlace;
 use crate::engine::custody::{
     bind_active_structural_arguments, bind_arguments, bind_boundary_arguments, complete_claims,
     remove_affine_root, validate_boundary_requirements,
@@ -29,7 +30,6 @@ use crate::engine::execution::{
     operation_kind,
 };
 use crate::storage::runtime_rows::RuntimeRows;
-use crate::boundary::values::StructuralRuntimePlace;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ClaimTransfer, OperationKind, StructuralAccess, StructuralMultiplicity, TerminalMachineResult,

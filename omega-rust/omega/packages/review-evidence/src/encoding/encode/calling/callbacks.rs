@@ -46,10 +46,14 @@ pub(super) fn encode(
                 })
             })?;
             encoder.field_by("terminal_slot", &layout.terminal_slot, encode_application)?;
-            encoder.u64_field("terminal_offset", layout.terminal_offset)?;
+            encoder.field("terminal_placements", |encoder| {
+                encoder.sequence(&layout.terminal_placements, placement)
+            })?;
             encoder.u64_field("terminal_byte_size", layout.terminal_byte_size)?;
             encoder.u64_field("terminal_alignment", layout.terminal_alignment)?;
-            encoder.u64_field("composed_offset", layout.composed_offset)?;
+            encoder.field("composed_placements", |encoder| {
+                encoder.sequence(&layout.composed_placements, placement)
+            })?;
             Ok(())
         })
     })
@@ -80,5 +84,46 @@ fn layout_application(
     encoder.field("schema", |encoder| type_identity(encoder, &layout.schema))?;
     encoder.u64_field("byte_size", layout.byte_size)?;
     encoder.u64_field("alignment", layout.alignment)?;
+    Ok(())
+}
+
+fn placement(
+    encoder: &mut Encoder,
+    placement: &layout_plans::LayoutPlacementReport,
+) -> Result<(), PackageReviewEncodingError> {
+    use layout_plans::{IntegerInterpretation, LayoutPlacementReport};
+    match *placement {
+        LayoutPlacementReport::At { offset } => {
+            encoder.tag("at", 0);
+            encoder.u64_field("offset", offset)?;
+        }
+        LayoutPlacementReport::IntegerAt {
+            offset,
+            stored_width,
+            interpretation,
+        } => {
+            encoder.tag("integer_at", 1);
+            encoder.u64_field("offset", offset)?;
+            encoder.u64_field("stored_width", stored_width)?;
+            match interpretation {
+                IntegerInterpretation::Signed => encoder.tag("signed", 0),
+                IntegerInterpretation::Unsigned => encoder.tag("unsigned", 1),
+            }
+        }
+        LayoutPlacementReport::Bits {
+            container,
+            container_width,
+            destination_lsb,
+            source_lsb,
+            width,
+        } => {
+            encoder.tag("bits", 2);
+            encoder.u64_field("container", container)?;
+            encoder.u64_field("container_width", container_width)?;
+            encoder.u64_field("destination_lsb", destination_lsb)?;
+            encoder.u64_field("source_lsb", source_lsb)?;
+            encoder.u64_field("width", width)?;
+        }
+    }
     Ok(())
 }

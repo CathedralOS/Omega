@@ -352,8 +352,7 @@ fn equal_shaped_types_from_a_changed_anonymous_owner_cannot_substitute() {
         .result;
         if rejects {
             let failure = result
-                .err()
-                .expect("a different anonymous owner cannot supply the original nominal type");
+                .expect_err("a different anonymous owner cannot supply the original nominal type");
             let diagnostic = format!("{:?}", failure.into_diagnostics());
             eprintln!("copied-owner rejection: {diagnostic}");
             assert!(

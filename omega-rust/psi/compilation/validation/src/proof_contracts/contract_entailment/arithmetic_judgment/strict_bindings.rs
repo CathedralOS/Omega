@@ -834,9 +834,7 @@ impl<'program> Engine<'program> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Option<()> {
-        let Some(binary) = expression_table(self.program).binary_node(expression) else {
-            return None;
-        };
+        let binary = expression_table(self.program).binary_node(expression)?;
         let dividend = self.normalize(binary.left)?;
         let divisor = self.normalize(binary.right)?;
         if !matches!(
@@ -858,9 +856,7 @@ impl<'program> Engine<'program> {
         expression: ExpressionHandle,
         count_bits: u32,
     ) -> Option<()> {
-        let Some(binary) = expression_table(self.program).binary_node(expression) else {
-            return None;
-        };
+        let binary = expression_table(self.program).binary_node(expression)?;
         let value = self.normalize(binary.left)?;
         let count = self.normalize(binary.right)?;
         let value = match binary.operator {
@@ -883,9 +879,7 @@ impl<'program> Engine<'program> {
         bits: u32,
         signed: bool,
     ) -> Option<()> {
-        let Some(binary) = expression_table(self.program).binary_node(expression) else {
-            return None;
-        };
+        let binary = expression_table(self.program).binary_node(expression)?;
         let left = self.normalize(binary.left)?;
         let right = self.normalize(binary.right)?;
         let value = match binary.operator {

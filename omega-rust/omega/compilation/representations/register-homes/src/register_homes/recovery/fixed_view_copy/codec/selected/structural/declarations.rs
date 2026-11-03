@@ -643,7 +643,7 @@ pub(in super::super) fn decode_path(
 ) -> Result<Vec<StructuralPathSegment>, FixedViewCopyDecodeError> {
     let path = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
         let tag = cursor.byte()?;
-        Ok(decode_projection(cursor, tag)?)
+        decode_projection(cursor, tag)
     })?;
     Ok(path)
 }

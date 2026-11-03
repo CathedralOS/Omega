@@ -1,5 +1,4 @@
 //! Declaration queries over typed-owned indexes and invocation-owned field rows.
-use crate::frozen_program::expression_table;
 use typed_trees::data::DataMember;
 
 /// The declaration-table answer for a symbol: absent, exactly one
@@ -35,21 +34,6 @@ pub(crate) fn data_definition_by_symbol(
     symbol: symbols::SymbolHandle,
 ) -> Option<&typed_trees::data::DataDefinition> {
     program.data_definition_by_symbol(symbol)
-}
-
-/// The named field of `definition`, when it declares one.
-pub(crate) fn data_field_named<'a>(
-    program: &'a dyn crate::CheckingInput,
-    definition: &typed_trees::data::DataDefinition,
-    name: typed_trees::name::Identifier,
-) -> Option<&'a typed_trees::data::DataField> {
-    program
-        .data_members(definition)
-        .iter()
-        .find_map(|member| match member {
-            DataMember::Field(data_field) if data_field.name == name => Some(data_field),
-            _ => None,
-        })
 }
 
 /// The declared type of the one field `symbol` names across every data

@@ -1,20 +1,17 @@
 //! Reference-binding reaccess admission for write-frame inference.
 //!
-//! This leaf owns rebinding admission and the mutation of an already-known
-//! alias slot, while untracked carrier replacements remain opaque.
-//! Recursive origin inference remains in the parent and enters
-//! through one callback over an immutable view of the established aliases.
+//! This leaf checks which reference bindings still name their original input.
+//! Replacement values are captured and installed by stored-origin transfer.
 
 use super::isolation::type_is_caller_isolated_local;
-use super::local_aliases::expression_may_rebind_mutable_alias;
-use super::place_paths::{FramePlaceOrigin, coarse_place_path, split_place_root};
+use super::place_paths::{FramePlaceOrigin, split_place_root};
 use super::type_capabilities::{type_may_carry_write, type_reference_is_reference};
 use crate::frozen_program::expression_table;
 use language_core::is_self_receiver;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableAssignment};
+use typed_trees::statement::TableAssignment;
 
 /// Whole-reference transport across a named edge requires the original input
 /// binding, not merely a source expression with the same parameter symbol.
@@ -188,9 +185,8 @@ pub(super) fn statement_returns_reference_without_effects(
         && !super::caller_aliases::expression_has_calls(program, *expression)
 }
 
-/// Stable local aliases have an explicit replacement transfer. A reference
-/// field or carrier does not yet: changing it before a later write invalidates
-/// every original argument-leaf substitution, so the body must stay opaque.
+/// Identify stored reference or carrier contents that an assignment replaces.
+/// The stored-origin transfer captures their new contents before RHS effects.
 pub(super) fn assignment_replaces_untracked_reference(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -248,115 +244,5 @@ pub(super) fn assignment_replaces_untracked_reference(
     } else {
         type_may_carry_write(program, reference)
             && !type_is_caller_isolated_local(program, reference)
-    }
-}
-
-/// Update one local mutable-reference binding when its replacement has another
-/// directly representable origin. Existing aliases retain their already-
-/// canonicalized origins, so rebinding an upstream local never redirects a
-/// previously established reborrow.
-pub(super) fn rebind_stable_local_mutable_alias_origin<ResolveOrigin>(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    target: &str,
-    value: ExpressionHandle,
-    aliases: &mut [(String, FramePlaceOrigin)],
-    resolve_origin: ResolveOrigin,
-) -> Option<bool>
-where
-    ResolveOrigin: FnOnce(&[(String, FramePlaceOrigin)]) -> Option<FramePlaceOrigin>,
-{
-    let Some(position) = aliases.iter().position(|(alias, _)| alias == target) else {
-        return Some(false);
-    };
-    if !expression_may_rebind_mutable_alias(program, machine, state, value) {
-        return Some(false);
-    }
-    let origin = resolve_origin(aliases)?;
-    aliases[position].1 = origin;
-    Some(true)
-}
-
-/// The shared direct-place mutable-alias rebind used by the assignment
-/// walks: `Some(Some(relative))` means the stable alias record replaced the
-/// write and carries the rebound relative path (callers may still record
-/// it); `Some(None)` leaves the ordinary target path to resolve; `None`
-/// fails the walk closed.
-pub(super) fn rebind_direct_assignment_target<ResolveOrigin>(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    assignment: &TableAssignment,
-    aliases: &mut [(String, FramePlaceOrigin)],
-    resolve_origin: ResolveOrigin,
-) -> Option<Option<String>>
-where
-    ResolveOrigin: FnOnce(&[(String, FramePlaceOrigin)], &str) -> Option<FramePlaceOrigin>,
-{
-    let Some(relative) = coarse_place_path(program, assignment.target) else {
-        return Some(None);
-    };
-    rebind_stable_local_mutable_alias_origin(
-        program,
-        machine,
-        state,
-        &relative,
-        assignment.value,
-        aliases,
-        |established| resolve_origin(established, &relative),
-    )
-    .map(|rebound| rebound.then_some(relative))
-}
-
-/// Check whether a reborrow expression can replace an established local alias
-/// without mutating it. The origin callback runs only after exact target and
-/// reference-shaped reaccess admission, preserving fail-closed ordering.
-pub(super) fn stable_local_mutable_alias_rebinding_is_representable<ResolveOrigin>(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    target: &str,
-    value: ExpressionHandle,
-    aliases: &[(String, FramePlaceOrigin)],
-    resolve_origin: ResolveOrigin,
-) -> bool
-where
-    ResolveOrigin: FnOnce(&[(String, FramePlaceOrigin)]) -> Option<FramePlaceOrigin>,
-{
-    aliases.iter().any(|(alias, _)| alias == target)
-        && expression_may_rebind_mutable_alias(program, machine, state, value)
-        && resolve_origin(aliases).is_some()
-}
-
-/// Whether `statement` is an assignment whose target a stable local mutable
-/// alias may rebind to; `resolve_origin` supplies the alias's initializer
-/// origin from the established alias table.
-pub(super) fn representable_assignment_alias_rebinding<ResolveOrigin>(
-    program: &dyn crate::CheckingInput,
-    machine: &Machine,
-    state: &State,
-    statement: &StatementNode,
-    aliases: &[(String, FramePlaceOrigin)],
-    resolve_origin: ResolveOrigin,
-) -> bool
-where
-    ResolveOrigin:
-        FnOnce(&[(String, FramePlaceOrigin)], ExpressionHandle) -> Option<FramePlaceOrigin>,
-{
-    match statement {
-        StatementNode::Assignment(assignment) => coarse_place_path(program, assignment.target)
-            .is_some_and(|target| {
-                stable_local_mutable_alias_rebinding_is_representable(
-                    program,
-                    machine,
-                    state,
-                    &target,
-                    assignment.value,
-                    aliases,
-                    |aliases| resolve_origin(aliases, assignment.value),
-                )
-            }),
-        _ => false,
     }
 }

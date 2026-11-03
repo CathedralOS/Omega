@@ -94,9 +94,7 @@ pub(super) fn predicate_only_domain_labels(
     facts: &CheckFacts,
     fact: &Fact,
 ) -> Option<Vec<String>> {
-    let Some((_, _, domain_symbol, identity)) = fact.payload.domain_membership() else {
-        return None;
-    };
+    let (_, _, domain_symbol, identity) = fact.payload.domain_membership()?;
     let place_handle = fact.place.as_place()?;
     let subject_label = facts.semantic.place_label(program, place_handle);
     let domain = program.domain_definition_for_instance(domain_symbol, identity)?;
@@ -122,9 +120,7 @@ pub(super) fn predicate_only_domain_interval(
     facts: &CheckFacts,
     fact: &Fact,
 ) -> Option<(String, BigInt, BigInt)> {
-    let Some((_, _, domain_symbol, semantic_domain)) = fact.payload.domain_membership() else {
-        return None;
-    };
+    let (_, _, domain_symbol, semantic_domain) = fact.payload.domain_membership()?;
     let place_handle = fact.place.as_place()?;
     let domain = program.domain_definition(domain_symbol)?;
     if domain.alias.is_some()

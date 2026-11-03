@@ -1,7 +1,5 @@
 //! Selected type, boundary, and service catalogs for composed Unit control.
-use super::super::super::{
-    BoundaryMachineId, ServiceId, ServiceReachId, StructuralTypeDeclaration,
-};
+use super::super::super::{ServiceId, ServiceReachId, StructuralTypeDeclaration};
 use super::super::{StructuralPlaceDeclaration, StructuralTypeId};
 use super::scalar_calls;
 use crate::shared::terminal_identities::StructuralDomainBinding;
@@ -46,4 +44,3 @@ pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) next_operation: u64,
     pub(crate) next_edge: u64,
 }
-

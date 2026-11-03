@@ -36,9 +36,7 @@ fn prove(
     expression: ExpressionHandle,
     guard: Option<ExpressionHandle>,
 ) -> Option<bool> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     if facts.operators.uses.iter().any(|(_, operator)| {
         operator.expression == expression
             && operator.status != CheckedOperatorResolutionStatus::BuiltinFallback
@@ -129,7 +127,7 @@ fn prove(
         site,
         callee_state.symbol,
         parameters,
-        &arguments,
+        arguments,
         expression,
     ) {
         return Some(true);
@@ -154,7 +152,7 @@ fn prove(
     // vacuous -- every `s: u64` already satisfies `s <= u64::MAX`, and the
     // operand reader below cannot even name literals outside i64. Discharge
     // by carrier before the evidence path runs.
-    if carrier_extent_discharge(program, machine, state, &explicit, &arguments, binary) {
+    if carrier_extent_discharge(program, machine, state, &explicit, arguments, binary) {
         return Some(true);
     }
     let operand = |expression| match program.expression_table.expression(expression) {
@@ -229,7 +227,7 @@ fn prove(
             call,
             contexts,
             &explicit,
-            &arguments,
+            arguments,
             callee,
             callee_state,
             expression,

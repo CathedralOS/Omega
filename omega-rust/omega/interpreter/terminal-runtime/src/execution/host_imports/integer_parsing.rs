@@ -207,7 +207,7 @@ impl TerminalEffectHandler for IntegerParsingImport {
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let invalid =
             super::refusal("strtol invocation differs from its admitted storage/ABI contract");
-        let call = super::call_operands(effect, &invalid)?;
+        let call = super::call_operands(effect, invalid)?;
         let [
             TerminalScalarValue::Integer {
                 scalar_type,
@@ -271,22 +271,14 @@ fn matches_locator(binding: &NormalizedForeignCallBinding) -> Result<bool, Termi
     let target = locator.target();
     let (host, candidate) = match target {
         TargetProfile::MacosArm64 | TargetProfile::MacosX64 => (
-            if target == TargetProfile::MacosArm64 {
-                cfg!(all(target_os = "macos", target_arch = "aarch64"))
-            } else {
-                cfg!(all(target_os = "macos", target_arch = "x86_64"))
-            },
+            TargetProfile::host_if_supported() == Some(target),
             target::ForeignLocatorCandidate::MachODylibSymbol {
                 install_name: b"/usr/lib/libSystem.B.dylib".to_vec(),
                 symbol: b"_strtol".to_vec(),
             },
         ),
         TargetProfile::LinuxX64 | TargetProfile::LinuxArm64 => (
-            if target == TargetProfile::LinuxX64 {
-                cfg!(all(target_os = "linux", target_arch = "x86_64"))
-            } else {
-                cfg!(all(target_os = "linux", target_arch = "aarch64"))
-            },
+            TargetProfile::host_if_supported() == Some(target),
             target::ForeignLocatorCandidate::ElfVersioned {
                 object: b"libc.so.6".to_vec(),
                 symbol: b"strtol".to_vec(),

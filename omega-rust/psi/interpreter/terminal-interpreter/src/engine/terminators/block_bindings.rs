@@ -127,7 +127,9 @@ impl BlockBindings {
             if let Some(retired) = execution.structural_values.remove(source) {
                 let origin = execution
                     .reference_referents
-                    .get(&crate::boundary::values::StructuralRuntimePlace::from(&retired))
+                    .get(&crate::boundary::values::StructuralRuntimePlace::from(
+                        &retired,
+                    ))
                     .cloned();
                 execution
                     .retired_structural_homes
@@ -150,7 +152,9 @@ impl BlockBindings {
             if let Some(previous) = execution.structural_values.remove(destination) {
                 let origin = execution
                     .reference_referents
-                    .get(&crate::boundary::values::StructuralRuntimePlace::from(&previous))
+                    .get(&crate::boundary::values::StructuralRuntimePlace::from(
+                        &previous,
+                    ))
                     .cloned();
                 execution
                     .retired_structural_homes
@@ -587,7 +591,7 @@ impl TerminalExecution<'_> {
                         let view = resolve_single_structural_argument(
                             &self.structural_types(),
                             &self.structural_values,
-                            &argument,
+                            argument,
                         )?;
                         if view.structural_type != parameter.structural_type {
                             return Err(TerminalInterpretError::StructuralArgumentType {

@@ -24,7 +24,7 @@ pub fn live_range_identity_from_digests(
     for digest in digests {
         bytes.extend_from_slice(digest);
     }
-    LiveRangeIdentity::from_bytes(crate::digest_encoder::content_identity(&bytes).into())
+    LiveRangeIdentity::from_bytes(crate::digest_encoder::content_identity(&bytes))
 }
 
 /// One function's share of `live_range_identity`.

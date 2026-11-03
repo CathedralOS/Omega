@@ -179,12 +179,9 @@ impl PackageBuildHandoff {
     ) -> Result<Self, String> {
         if let (Some(provider_observation), Some(native)) =
             (self.selection_observation(), evaluation.as_ref())
+            && provider_observation != native.observation_digest
         {
-            if provider_observation != native.observation_digest {
-                return Err(
-                    "one package handoff mixes different original Build observations".into(),
-                );
-            }
+            return Err("one package handoff mixes different original Build observations".into());
         }
         let native = super::native_bindings::NativeBuildOutputs::checked(
             self.package(),
@@ -210,10 +207,9 @@ impl PackageBuildHandoff {
         observation: Option<[u8; 32]>,
     ) -> Result<Self, &'static str> {
         if let (Some(provider_observation), Some(native)) = (observation, self.native_evaluation())
+            && provider_observation != native.observation_digest
         {
-            if provider_observation != native.observation_digest {
-                return Err("one package handoff mixes different original Build observations");
-            }
+            return Err("one package handoff mixes different original Build observations");
         }
         if !selections.is_empty() && observation.is_none() {
             return Err("package provider choices have no original Build observation");

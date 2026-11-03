@@ -210,9 +210,7 @@ fn lower_structural_case_membership(
     parameters: &[StateParameter],
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     if !matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::CaseMembership

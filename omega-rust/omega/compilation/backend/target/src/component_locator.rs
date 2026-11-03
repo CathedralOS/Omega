@@ -208,6 +208,15 @@ pub fn component_export_slot(
     digest.finish()
 }
 
+fn hexadecimal(bytes: &[u8; 32]) -> String {
+    use std::fmt::Write;
+    let mut result = String::with_capacity(64);
+    for byte in bytes {
+        write!(&mut result, "{byte:02x}").expect("writing into a String");
+    }
+    result
+}
+
 #[cfg(test)]
 mod tests {
     use super::NormalizedComponentLocator;
@@ -226,13 +235,4 @@ mod tests {
         assert!(name.ends_with(".dll"));
         assert!(locator.export_symbol().starts_with("__omega_slot_"));
     }
-}
-
-fn hexadecimal(bytes: &[u8; 32]) -> String {
-    use std::fmt::Write;
-    let mut result = String::with_capacity(64);
-    for byte in bytes {
-        write!(&mut result, "{byte:02x}").expect("writing into a String");
-    }
-    result
 }

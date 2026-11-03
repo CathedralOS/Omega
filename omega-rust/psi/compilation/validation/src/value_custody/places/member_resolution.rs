@@ -927,17 +927,17 @@ pub fn resolve_member_symbol_from_type_symbol(
     type_symbol: SymbolHandle,
     member_name: &str,
 ) -> Option<SymbolHandle> {
-    if let Some(data) = program.data_definition_by_symbol(type_symbol) {
-        if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
-            return Some(symbol);
-        }
+    if let Some(data) = program.data_definition_by_symbol(type_symbol)
+        && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
+    {
+        return Some(symbol);
     }
 
     if let Some(machine) = program.machine_by_symbol(type_symbol) {
-        if let Some(data) = program.attached_data_definition(machine) {
-            if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
-                return Some(symbol);
-            }
+        if let Some(data) = program.attached_data_definition(machine)
+            && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
+        {
+            return Some(symbol);
         }
         for owned in program.machine_owned_data(machine) {
             if owned.name.as_str() == member_name {

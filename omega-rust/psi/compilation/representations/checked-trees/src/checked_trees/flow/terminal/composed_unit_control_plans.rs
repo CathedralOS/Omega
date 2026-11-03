@@ -3,8 +3,7 @@
 
 use crate::checked_trees::CheckedMemberIdentity;
 use crate::checked_trees::flow::terminal::{
-    CheckedCallScalarArgument, 
-    CheckedScalarBranchDestination, CheckedScalarGuardedExit,
+    CheckedCallScalarArgument, CheckedScalarBranchDestination, CheckedScalarGuardedExit,
     CheckedStructuralControlSuccessorPlan, CheckedStructuralResultPlan,
     CheckedStructuralScalarParameterPlan, CheckedUnitEffectOperationPlan,
     CheckedUnitEntryClaimPlan, CheckedUnitStructuralArgumentPlan,

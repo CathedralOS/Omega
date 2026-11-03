@@ -217,9 +217,7 @@ pub(super) fn fold(
         ExpressionNode::Member(member)
             if CollectionMeasure::from_authored_spelling(member.member.as_str()).is_some() =>
         {
-            let Some(path) = expression_table(program).name_path_node(member.receiver) else {
-                return None;
-            };
+            let path = expression_table(program).name_path_node(member.receiver)?;
             let field = expression_table(program)
                 .name_path_members(path.members)
                 .last()?

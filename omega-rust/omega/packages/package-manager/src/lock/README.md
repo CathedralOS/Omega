@@ -96,7 +96,7 @@ owner validates its own format. The manager checks the joins and outer framing.
 Acceptance children use:
 
 ```text
-acceptance_schema 8
+acceptance_schema 9
 rows <count>
 row <callable|terminal_permission|external_supply|dangerous_capability|restricted_build_request|assumed_binding_contract|service_audit|native_binding>
 key <SHA-256 of canonical row coordinate bytes>
@@ -153,12 +153,12 @@ identity and semantic bindings stay absent: a historical baseline cannot be
 serialized as version 4 or used for ordinary compilation. Publication requires
 freshly reviewed compilation inputs for every retained target. Other old versions
 reject; recovery never invents missing consent or compilation inputs. The
-compact acceptance child schema is version 8, matching the policy row schema
+compact acceptance child schema is version 9, matching the policy row schema
 (`PACKAGE_POLICY_ROW_VERSION`). Schemas 4 and 5 are historical: explicit review
 also recovers their opaque rows, pins and decisions without inventing authored
 target context. Ordinary lock recovery rejects those child schemas; they supply
 no compilation inputs or current terminal permissions. Fresh checking and
-decisions replace their consent with schema 8 before publication. Unknown
+decisions replace their consent with schema 9 before publication. Unknown
 schemas still reject.
 
 ## Decision history

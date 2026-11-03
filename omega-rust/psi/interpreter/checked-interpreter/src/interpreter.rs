@@ -396,6 +396,14 @@ fn evaluate_structured_return(
                                 || "build-time evaluator result-cell count overflowed".to_owned(),
                             )?;
                         usage.record_result_custody(result_cells, result_text_bytes);
+                        for receipt in &evaluator.private_layout_placements {
+                            let (cells, text_bytes) =
+                                build_time_result_custody(std::slice::from_ref(&receipt.placement))
+                                    .ok_or_else(|| {
+                                        "private placement result-cell count overflowed".to_owned()
+                                    })?;
+                            usage.record_result_custody(cells, text_bytes);
+                        }
                         Ok(BuildTimeOperationEvaluation::new(
                             value,
                             usage,
