@@ -203,7 +203,7 @@ linux_arm64 machine directory_kind_offset() -> u64 ensures result >= 18 && resul
 macos_arm64 machine directory_kind_offset() -> u64 ensures result >= 18 && result <= 20 { 20 }
 
 data Main { filesystem: Filesystem; index: u64 in Wrapping; seen: u32; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "omega_unknown_kinds/sub");
     transition result { UnitResult::Ok -> payload(main) _ -> bad(10) }
     machine payload(main: &mut Main) {
@@ -280,7 +280,7 @@ machine metadata_at_refuses_short_output() -> bool reaches FilesystemMetadataQue
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

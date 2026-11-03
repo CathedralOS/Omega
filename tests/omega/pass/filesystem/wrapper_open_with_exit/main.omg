@@ -28,7 +28,7 @@ data Main {
     close_result: UnitResult;
     back: [u8; 16];
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     // Leg 1: write+create on an absent path.
     let opts_wc: OpenOptions = OpenOptions { write: true, create: true };
     main.open_result = block Filesystem::open_with(&mut main.fs, "omega_ow_probe.txt", opts_wc);
@@ -135,7 +135,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

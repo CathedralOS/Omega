@@ -23,7 +23,7 @@ data Main {
     file_handle: u64;
     close_result: UnitResult;
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.open_result = block Filesystem::create(&mut main.fs, "omega_lock_probe.txt");
     transition main.open_result { OpenResult::Ok { file } -> seed(main, file) _ -> bad(main, 71) }
     machine seed(main: &mut Main, file: File) {
@@ -92,7 +92,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

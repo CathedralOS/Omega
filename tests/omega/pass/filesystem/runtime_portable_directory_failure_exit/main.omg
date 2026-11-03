@@ -8,7 +8,7 @@ data Main {
     acquisition_count: u64 in Wrapping;
     release_index: u64 in Wrapping;
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "omega_directory_depth/a/b/c/d/e/f/g/h/i/j/k/l/m/n/o/p/q");
     transition result { UnitResult::Ok -> refuse(main) _ -> bad(10) }
     machine refuse(main: &mut Main) {
@@ -63,7 +63,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

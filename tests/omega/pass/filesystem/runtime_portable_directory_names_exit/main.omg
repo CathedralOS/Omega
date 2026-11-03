@@ -3,7 +3,7 @@
 use omega_language_std::filesystem;
 use omega_language_std::console;
 data Main { filesystem: Filesystem; index: u64 in Wrapping; seen: u32; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "omega_directory_names/notes/current");
     transition result { UnitResult::Ok -> first(main) _ -> bad(10) }
     machine first(main: &mut Main) {
@@ -102,7 +102,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

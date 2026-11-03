@@ -22,7 +22,7 @@ data Main {
     empty_result: EmptyResult;
     present: bool;
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     _ = block Filesystem::create_dir_all(&mut main.fs, "omega_walk_a/b/c");
     transition true { true -> ck_created(main) _ -> bad(main, 99) }
     machine ck_created(main: &mut Main) {
@@ -61,7 +61,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

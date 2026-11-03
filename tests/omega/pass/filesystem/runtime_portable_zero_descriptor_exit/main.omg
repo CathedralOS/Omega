@@ -14,7 +14,7 @@ data Main {
     file: File;
     buffer: [u8; 4];
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let outcome: IoResult = block Filesystem::read(&mut main.filesystem, File { handle: 0 }, &mut main.buffer, 1);
     transition outcome { IoResult::Error { kind } -> absent_read(main, kind) _ -> bad(10) }
     machine absent_read(main: &mut Main, kind: ErrorKind) {
@@ -85,7 +85,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

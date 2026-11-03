@@ -6,7 +6,7 @@ use omega_language_std::console;
 
 data Main { filesystem: Filesystem; file: File; }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let result: OpenResult = block Filesystem::create_new(&mut main.filesystem, "omega_permission_modes.txt");
     transition result { OpenResult::Ok { file } -> opened(main, file) _ -> bad(10) }
     machine opened(main: &mut Main, file: File) {
@@ -86,7 +86,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

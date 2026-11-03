@@ -30,7 +30,7 @@ data Main {
     close_result: UnitResult;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     main.unit_result = block Filesystem::write_all(&mut main.fs, "omega_wrapper_probe.txt", "hello");
     transition main.unit_result { UnitResult::Ok -> exists_check(main) _ -> bad(main, 71) }
 
@@ -99,7 +99,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

@@ -34,7 +34,7 @@ machine same_canonical_path(left: &[u8; 1024], right: &[u8; 1024]) -> bool {
     }
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_alias.txt");
     main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_file.txt");
     main.result = block Filesystem::write_all(&mut main.filesystem, "/tmp/omega_canon_file.txt", "canonical");
@@ -65,7 +65,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

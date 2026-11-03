@@ -3,7 +3,7 @@
 use omega_language_std::filesystem;
 use omega_language_std::console;
 data Main { filesystem: Filesystem; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "file_target", "keep");
     transition result { UnitResult::Ok -> link_file(main) _ -> bad(10) }
     machine link_file(main: &mut Main) {
@@ -72,7 +72,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }
