@@ -380,7 +380,7 @@ impl<'program> CallFrameResolver<'program> {
         machine: &Machine,
         state: &State,
         statement_index: usize,
-    ) -> Option<Vec<super::stored_calls::StoredReferenceCallContext>> {
+    ) -> Option<super::stored_calls::StoredReferenceCallSchedule> {
         let statement = self
             .program
             .statement_table
@@ -390,7 +390,10 @@ impl<'program> CallFrameResolver<'program> {
                 .iter()
                 .any(|expression| expression_has_calls(self.program, *expression))
         {
-            return Some(vec![super::stored_calls::StoredReferenceCallContext::Entry]);
+            return Some(super::stored_calls::StoredReferenceCallSchedule {
+                contexts: vec![super::stored_calls::StoredReferenceCallContext::Entry],
+                fallthrough: 0,
+            });
         }
         let prefix = super::state_write_walk::collected_prefix_at(
             &self.caches.state_write_shared_collections,

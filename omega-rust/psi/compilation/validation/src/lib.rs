@@ -292,9 +292,9 @@ pub use crate::machine_calls::calls::{
     InvocationResultHome, LocalWriteOrigin, LocalWriteSource, RecastSource,
     ReferenceResultLeafOrigin, ReferenceResultTransport, ReferenceSlotContract,
     ReferenceViewFormation, ScalarStorageCoordinate, StoredReferenceCallContext,
-    StoredReferenceDestinationKind, StoredReferenceEffect, StoredReferenceRelationRefusal,
-    ValidatedSelfCallDescent, assignment_stored_value_type, frame_coordinate_path,
-    frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
+    StoredReferenceCallSchedule, StoredReferenceDestinationKind, StoredReferenceEffect,
+    StoredReferenceRelationRefusal, ValidatedSelfCallDescent, assignment_stored_value_type,
+    frame_coordinate_path, frame_length_coordinate_path, frame_paths_overlap, operand_call_plans,
     state_reference_parameter_binding_is_stable, storage_origin_types_match,
 };
 pub use crate::machine_calls::denotational_calls::{

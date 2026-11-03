@@ -64,6 +64,7 @@ pub(super) fn loans(
     statement: &checked_trees::statement::StatementNode,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     loan_trackers: &[super::StateLoanTracker],
+    completed: Option<&[super::StateLoanTracker]>,
 ) -> Vec<StatementBorrowLoan> {
     let Some(machine) = program.machine(machine_symbol) else {
         return Vec::new();
@@ -73,7 +74,55 @@ pub(super) fn loans(
     else {
         return Vec::new();
     };
-    from_effects(program, effects, loan_trackers)
+    let Some(completed) = completed else {
+        // An unavailable evaluated frontier supplies no new forwarding edge.
+        // Preserve the summary's conservative conflicts without inventing a
+        // normal generation or recovering authority from equal geometry.
+        return from_effects(program, effects, loan_trackers);
+    };
+    let mut loans = Vec::new();
+    for effect in effects {
+        let selected = completed
+            .iter()
+            .filter(|source| {
+                source.storage_owner == facts::PlaceRoot::Symbol(effect.destination.local_symbol)
+                    && super::place_path_covers_owner(
+                        program,
+                        &effect.destination.local_segments,
+                        &source.owner_path,
+                    )
+            })
+            .collect::<Vec<_>>();
+        if !effect.suppliers_complete || selected.is_empty() {
+            loans.extend(from_effects(program, vec![effect], loan_trackers));
+            continue;
+        }
+        // Statement continuation forwards the exact final evaluated values.
+        // The destination selects storage, never a convenient backing loan;
+        // every alternative and every nonspatial lifetime debt stays distinct.
+        for source in selected {
+            loans.push(StatementBorrowLoan {
+                incoming_origin: None,
+                formation_expression: Default::default(),
+                formation_owner_path: None,
+                owner_symbol: source.owner_symbol,
+                storage_owner: source.storage_owner,
+                owner_name: source.owner_name.clone(),
+                owner_path: source.owner_path.clone(),
+                place: source.place.clone(),
+                representation_address: source.representation_address.clone(),
+                retained_operand: source.retained_operand,
+                source_owner_symbol: source.owner_symbol,
+                supplying_loans: std::iter::once(source.handle)
+                    .filter(|handle| handle.is_valid())
+                    .collect(),
+                lineage: source.lineage.derived(),
+                kind: source.kind.clone(),
+                formation: super::BorrowFormation::ReturnedDescriptor,
+            });
+        }
+    }
+    loans
 }
 
 pub(in crate::borrow) fn from_effects(

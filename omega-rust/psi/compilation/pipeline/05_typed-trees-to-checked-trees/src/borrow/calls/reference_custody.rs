@@ -21,15 +21,15 @@ pub(in crate::borrow) fn append_reference_custody(
     loans: &mut arena::HandleSpan<BorrowLoanFact>,
     history: &mut Vec<StateLoanTracker>,
     incoming: &[StateLoanTracker],
-) -> Result<(), diagnostics::Diagnostic> {
+) -> Result<Option<Vec<StateLoanTracker>>, diagnostics::Diagnostic> {
     let Some(schedule) = frames
         .and_then(|frames| frames.stored_reference_call_contexts(machine, state, statement_index))
     else {
-        return Ok(());
+        return Ok(None);
     };
     let mut contexts: Vec<Option<Vec<StateLoanTracker>>> = Vec::new();
     let mut published_calls = Vec::new();
-    for context in schedule {
+    for context in schedule.contexts {
         use validation::StoredReferenceCallContext;
         let current = match context {
             StoredReferenceCallContext::Entry if contexts.is_empty() => Some(incoming.to_vec()),
@@ -160,7 +160,11 @@ pub(in crate::borrow) fn append_reference_custody(
         };
         contexts.push(current);
     }
-    Ok(())
+    contexts.get(schedule.fallthrough).cloned().ok_or_else(|| {
+        diagnostics::Diagnostic::error(
+            "normal reference-slot continuation names an unavailable call context",
+        )
+    })
 }
 
 /// A definite transferred slot replaces exactly the descriptor occurrences

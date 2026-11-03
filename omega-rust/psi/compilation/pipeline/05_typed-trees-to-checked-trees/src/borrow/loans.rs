@@ -427,6 +427,7 @@ pub(super) fn statement_borrow_loans(
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     replacement: Option<&CarrierReplacement>,
+    completed_call_loans: Option<&[StateLoanTracker]>,
 ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let mut loans = stored_calls::loans(
         program,
@@ -435,6 +436,7 @@ pub(super) fn statement_borrow_loans(
         statement,
         call_frames,
         loan_trackers,
+        completed_call_loans,
     );
     // These rows describe the statement's final receiving slots, not every
     // intermediate descriptor generation. The enclosing store overwrites RHS
