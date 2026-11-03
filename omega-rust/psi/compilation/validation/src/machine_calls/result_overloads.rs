@@ -1102,7 +1102,6 @@ fn select_overload_symbol(
 /// Select a visible machine overload using the argument types, then the
 /// destination's result requirements. This serves both unresolved free calls
 /// and attached calls that were provisionally bound before argument checking.
-/// Prefer the member's state named like the call over its first state.
 fn named_machine_overload_family_symbol(
     program: &dyn crate::CheckingInput,
     target_name: &str,
