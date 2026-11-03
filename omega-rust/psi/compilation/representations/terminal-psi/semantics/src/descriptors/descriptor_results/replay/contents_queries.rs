@@ -59,6 +59,11 @@ impl Replay<'_> {
             // destinations and must never mistake this pointer for its slot.
             return value.clone();
         }
+        // Target resolution tolerates a vacant leaf so a store can refill it;
+        // a read of that leaf has no value to report.
+        if state.contents_path_invalidated(query) {
+            return None;
+        }
         let mut origins = BTreeSet::new();
         for target in self.contents_targets_with_depth(machine, state, query, depth)? {
             match target {
@@ -102,7 +107,7 @@ impl Replay<'_> {
         // This is the current queried carrier, before any pointer identity is
         // translated into an entry-family namespace. A real invalidation of
         // an ancestor cannot be bypassed by taking the contents-query route.
-        if state.contents_path_invalidated(query) {
+        if state.contents_address_invalidated(query) {
             return None;
         }
         self.contents_targets_at(

@@ -67,9 +67,10 @@ for its drop hook before the new token is stored, so for one step the slot's
 reference field holds no known value. The descriptor replay that summarizes a
 helper's reference writes treated that vacant leaf as an unknown ancestor and
 refused the store, which marked `refill` as clobbering unknown memory.
-`terminal-psi/semantics/.../replay/replay.rs` (`contents_path_invalidated`) now
-checks only strict ancestors of the queried leaf; a read of the vacant leaf is
-still unknown.
+In `terminal-psi/semantics/.../replay/replay.rs`, finding where a store goes
+(`contents_address_invalidated`) now looks only at strict ancestors of the
+leaf. Every read keeps the leaf-inclusive check (`contents_path_invalidated`),
+so a read of the vacant leaf is still unknown.
 
 ## Requirements and evidence
 
