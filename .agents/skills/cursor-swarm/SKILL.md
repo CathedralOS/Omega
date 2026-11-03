@@ -1,6 +1,6 @@
 ---
 name: cursor-swarm
-description: Coordinate a requested Cursor cloud wave, one Task cloud subagent per capability outcome, each on its own VM and branch. Use when the user asks for a Cursor swarm, Cursor cloud sessions, or for this chat to start separate cloud sessions. Use dot-swarm for dot native workers, devin-swarm for Devin, codex-swarm for Codex, and local-swarm for agents sharing one machine.
+description: Coordinate a requested Cursor cloud wave, one Task cloud subagent per capability outcome, each on its own VM and branch. Use when the user asks for a Cursor swarm, Cursor cloud sessions, or for a Cursor chat to start separate cloud sessions. Use claude-swarm for Claude Code cloud sessions, dot-swarm for dot native workers, devin-swarm for Devin, codex-swarm for Codex, and local-swarm for agents sharing one machine.
 ---
 
 # Cursor cloud session swarm
