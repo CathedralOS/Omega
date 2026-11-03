@@ -2646,7 +2646,7 @@ fail/facts/recast_parent_restoration_case_backing_overlap_rejected rejected 3289
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_changed_end_rejected rejected 804ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/facts/recast_parent_restoration_completion_order_rejected rejected 784ms expected @0a3a759c64e3
+fail/facts/recast_parent_restoration_completion_order_rejected rejected 6007ms expected @21213f5ea3d3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_dirty_forward_rejected rejected 800ms expected @8fce926f9735
 	data `Pair`'s default domain is still FALSE at a call: the invariant window opened on `pair` must close first -- restore the `requires` facts before this consumption point (ch11)
@@ -2661,7 +2661,7 @@ fail/facts/recast_parent_restoration_through_field_rejected rejected 1816ms expe
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_through_local_rejected rejected 1674ms expected @0a3a759c64e3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_through_match_join_rejected rejected 1387ms expected @0a3a759c64e3
+fail/facts/recast_parent_restoration_through_match_join_rejected rejected 5816ms expected @21213f5ea3d3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_through_other_machine_rejected rejected 986ms expected @0a3a759c64e3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
@@ -3765,7 +3765,7 @@ pass/borrow/runtime_exclusive_loan_local_write_exit checked 15729ms check-target
 pass/borrow/runtime_indexed_write_only_local_receiver_exit checked 3493ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_method_view_write_after_last_use_exit checked 15954ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrow/runtime_mutable_argument_shared_boundary_exit checked 18815ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrow/runtime_relational_scalar_handback_exit checked 7475ms check-target:macos_arm64 @911f6617ba9e
+pass/borrow/runtime_relational_scalar_handback_exit checked 9287ms check-target:macos_arm64 @21213f5ea3d3
 pass/borrow/runtime_signed_element_call_exit checked 5799ms check-target:linux_x86_64 @ccdb99ca2214
 pass/borrow/runtime_signed_element_empty_exit checked 7449ms check-target:linux_x86_64 @ccdb99ca2214
 pass/borrow/runtime_signed_element_inclusive_exit checked 6849ms check-target:linux_x86_64 @ccdb99ca2214
@@ -4035,7 +4035,7 @@ pass/borrows/runtime_guarded_local_byte_loan_exit checked 3171ms check-target:ma
 pass/borrows/runtime_held_descriptor_replacement_exit checked 3807ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_independent_qualified_owner_reference_exit checked 6375ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_index_mut_loan_write_exit checked 16911ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit checked 5626ms check-target:macos_arm64 @911f6617ba9e
+pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit checked 9511ms check-target:macos_arm64 @21213f5ea3d3
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 52817ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_indexed_carrier_conditional_exit checked 3561ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_indexed_carrier_reference_read_exit checked 112356ms check-target:macos_arm64 @911f6617ba9e
@@ -10445,20 +10445,20 @@ pass/facts/readonly_byte_pool_relocation_bound_through_other_state_exit checked 
 pass/facts/readonly_byte_pool_relocation_bound_through_parameter_exit checked 3869ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/readonly_byte_pool_relocation_bound_through_target_body_exit checked 2964ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/recast_parent_restoration_argument_snapshot_exit checked 6224ms check-target:macos_arm64 @0a3a759c64e3
-pass/facts/recast_parent_restoration_case_backing_exit checked 6412ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_case_backing_exit checked 9044ms check-target:macos_arm64 @21213f5ea3d3
 pass/facts/recast_parent_restoration_case_backing_nonmutating_exit checked 6356ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_completion_order_exit checked 6263ms check-target:macos_arm64 @0a3a759c64e3
-pass/facts/recast_parent_restoration_forwarding_marker_exit checked 6178ms check-target:macos_arm64 @8fce926f9735
+pass/facts/recast_parent_restoration_completion_order_exit checked 8631ms check-target:macos_arm64 @21213f5ea3d3
+pass/facts/recast_parent_restoration_forwarding_marker_exit checked 8246ms check-target:macos_arm64 @21213f5ea3d3
 pass/facts/recast_parent_restoration_preserved_end_exit checked 5639ms check-target:macos_arm64 @8fce926f9735
-pass/facts/recast_parent_restoration_through_call_result_exit checked 4914ms check-target:macos_arm64 @0a3a759c64e3
-pass/facts/recast_parent_restoration_through_const_name_exit checked 7749ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_call_result_exit checked 8337ms check-target:macos_arm64 @21213f5ea3d3
+pass/facts/recast_parent_restoration_through_const_name_exit checked 9026ms check-target:macos_arm64 @21213f5ea3d3
 pass/facts/recast_parent_restoration_through_field_exit checked 3988ms check-target:macos_arm64 @0a3a759c64e3
-pass/facts/recast_parent_restoration_through_local_exit checked 5615ms check-target:macos_arm64 @0a3a759c64e3
-pass/facts/recast_parent_restoration_through_match_join_exit checked 5464ms check-target:macos_arm64 @0a3a759c64e3
-pass/facts/recast_parent_restoration_through_other_machine_exit checked 4077ms check-target:macos_arm64 @0a3a759c64e3
-pass/facts/recast_parent_restoration_through_other_state_exit checked 5097ms check-target:macos_arm64 @0a3a759c64e3
-pass/facts/recast_parent_restoration_through_parameter_exit checked 4876ms check-target:macos_arm64 @0a3a759c64e3
-pass/facts/recast_parent_restoration_through_target_body_exit checked 4926ms check-target:macos_arm64 @0a3a759c64e3
+pass/facts/recast_parent_restoration_through_local_exit checked 8987ms check-target:macos_arm64 @21213f5ea3d3
+pass/facts/recast_parent_restoration_through_match_join_exit checked 10160ms check-target:macos_arm64 @21213f5ea3d3
+pass/facts/recast_parent_restoration_through_other_machine_exit checked 10428ms check-target:macos_arm64 @21213f5ea3d3
+pass/facts/recast_parent_restoration_through_other_state_exit checked 12188ms check-target:macos_arm64 @21213f5ea3d3
+pass/facts/recast_parent_restoration_through_parameter_exit checked 11040ms check-target:macos_arm64 @21213f5ea3d3
+pass/facts/recast_parent_restoration_through_target_body_exit checked 10839ms check-target:macos_arm64 @21213f5ea3d3
 pass/facts/record_layout_geometry_through_call_result_exit checked 3578ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_const_name_exit checked 4172ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/record_layout_geometry_through_field_exit checked 3172ms check-target:macos_arm64 @ccdb99ca2214
@@ -16198,7 +16198,7 @@ fail/borrow/recast_selector_retires_entry_bound rejected 3249ms expected @ccdb99
 	cannot prove index `other` is within length 4 in main::entry
 fail/borrow/recursive_terminal_exclusive_alias rejected 2125ms expected @ccdb99ca2214
 	state `scan` receives `first` as mutable more than once
-fail/borrow/relational_handback_false_return_guarantee rejected 5531ms expected @911f6617ba9e
+fail/borrow/relational_handback_false_return_guarantee rejected 7272ms expected @21213f5ea3d3
 	cannot prove ensures contract for exit from fill at statement 1: cell == 8
 fail/borrow/relational_handback_keeps_declared_range rejected 1136ms expected @911f6617ba9e
 	machine `main` cannot lend restricted field `left` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
