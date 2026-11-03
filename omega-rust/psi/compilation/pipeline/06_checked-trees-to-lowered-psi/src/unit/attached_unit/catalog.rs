@@ -681,8 +681,14 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
             error => error,
         })?;
         active.push(identity);
-        if let Some(canonical) = plan.descriptor_presentation {
-            collect(checked, plans, canonical, active, selected)?;
+        if plan.descriptor_presentation.is_valid() {
+            collect(
+                checked,
+                plans,
+                plan.descriptor_presentation,
+                active,
+                selected,
+            )?;
         }
         if let Some(representation) = plans
             .opaque_representations()

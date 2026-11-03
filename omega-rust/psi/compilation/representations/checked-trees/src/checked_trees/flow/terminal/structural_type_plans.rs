@@ -59,7 +59,7 @@ pub struct CheckedUnitStructuralTypePlan {
     /// A stored view retains the exact canonical descriptor collected with it.
     /// Selector evaluation may capture that presentation; this dependency
     /// grants no access, membership or backing permission.
-    pub descriptor_presentation: Option<TypeIdentityId>,
+    pub descriptor_presentation: TypeIdentityId,
     /// Producer-issued nominal data identity for native layout applications.
     /// Non-nominal or non-hermetic carriers have none; semantic type names do
     /// not impersonate a portable declaration identity.
