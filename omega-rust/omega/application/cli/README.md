@@ -187,14 +187,19 @@ runtime/artifact defect. An explicitly unavailable comparison reports `DECLINED`
 and retains the native program's status; it never reports agreement.
 `--engine terminal` exits with the Terminal program's own status, 203 when the
 Terminal program crashes (the cause is reported; a process cannot present the
-native trap signal without raising it), and 200 when execution support is
-`UNAVAILABLE` before guest effects or execution stops without a process result.
+native trap signal without raising it), and 200 otherwise: `UNAVAILABLE` for a
+missing provider, host adapter or interpreter capability refused before the
+guest's first instruction, `FAILED` for an execution error after it (its
+buffered output is lost), or execution that stops without a process result.
 The Terminal engine requests the ordinary native product, which passes the same
 Build, package, trust, provider and entry admission and then stops before any
 object or image is emitted; `--keep` retains `program.oterm` and the Terminal
 streams, fuel and effect receipts, never a native image. Case runs
-(`--inputs`/`--input`) do not yet accept `--engine terminal`, and a program that
-binds independently produced components is unavailable on this engine.
+(`--inputs`/`--input`) do not yet accept `--engine terminal`. A program that
+binds independently produced components is refused during compilation on this
+engine (`terminal compile FAILED`, status 200), since those components execute
+only as native images. Program streams are forwarded after the Terminal program
+finishes, not interleaved live.
 
 Compilation emits requested products and diagnostics, not debug dumps.
 `--timings` prints command-stage durations and total elapsed time to stderr;

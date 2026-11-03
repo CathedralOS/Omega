@@ -137,9 +137,8 @@ fn complete_native(
                     .finish_native(produced.artifact, rollback.into_receipt())?
                     .with_runtime_provisions(produced.runtime_provisions)
                     .map_err(|message| vec![Diagnostic::error(message)])?),
-                NativeStop::RuntimeAdmission(provisions) => {
-                    Ok(settlement.finish_terminal_runtime(terminal, provisions)?)
-                }
+                NativeStop::RuntimeAdmission(provisions) => Ok(settlement
+                    .finish_terminal_runtime(terminal, provisions, rollback.into_receipt())?),
             }
         },
     )

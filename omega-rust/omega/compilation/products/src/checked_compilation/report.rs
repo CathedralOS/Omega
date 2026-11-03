@@ -253,6 +253,7 @@ impl CompileReportSettlement {
         mut self,
         artifact: RetainedTerminalArtifact,
         provisions: Option<native_artifact::TerminalRuntimeProvisions>,
+        rollback: Option<OptimizationRollbackReceipt>,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
         if self.expected_kind != CompileOutputKind::RetainedNativeArtifact {
             return Err(diagnostics(
@@ -266,6 +267,7 @@ impl CompileReportSettlement {
             artifact,
         )
         .and_then(|report| report.with_terminal_runtime_provisions(provisions))
+        .and_then(|report| report.with_terminal_optimization_rollback(rollback))
         .map_err(diagnostics)?;
         self.finish(report)
     }

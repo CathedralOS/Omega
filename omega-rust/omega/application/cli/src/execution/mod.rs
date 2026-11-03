@@ -74,8 +74,10 @@ pub enum ExecutionOutcome {
     Terminal(TerminalOutcome),
 }
 
-/// One Terminal-only execution. Unavailable support (a missing provider,
-/// host adapter or interpreter capability) is refused before any guest effect.
+/// One Terminal-only execution. `Unavailable` is a refusal raised before the
+/// guest's first instruction (a missing provider, host adapter or interpreter
+/// capability). `Failed` covers everything later; its buffered program output
+/// is not returned by the runtime and is lost.
 pub enum TerminalOutcome {
     Completed(terminal_runtime::TerminalRuntimeObservation),
     Unavailable(String),
@@ -304,7 +306,9 @@ fn run_terminal(
             }
             TerminalOutcome::Completed(observation)
         }
-        Err(error) if error.comparison_unavailable() => {
+        // A mid-execution unsupported capability is not unavailability:
+        // earlier boundary calls may already have acted on the host.
+        Err(error) if error.unavailable_before_guest_effects() => {
             TerminalOutcome::Unavailable(error.to_string())
         }
         Err(error) => TerminalOutcome::Failed(error.to_string()),
