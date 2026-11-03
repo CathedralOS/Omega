@@ -19,7 +19,7 @@ fail/borrows/inline_carried_reference_holds_backing rejected 9683ms expected @6b
 	state `observe` receives `bytes` as both mutable and read-only
 fail/borrows/match_effectful_subject_fresh_overlap_rejected rejected 16803ms expected @ee4dbb4b2d56
 	statement 2 creates local borrow `slot` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 3 and it is released at state exit)
-fail/borrows/rebound_parameter_returns_local_view rejected 6974ms expected @649e5c490a8f
+fail/borrows/rebound_parameter_returns_local_view rejected 7793ms expected @28549af67d45
 	machine `observe` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/suspension_saved_reference_view_earlier_operand_original_forbidden_rejected rejected 2533ms expected @24e82dfa56fd
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
@@ -3958,6 +3958,7 @@ pass/borrows/qualified_byte_owner_shared_call_exit checked 73798ms check-target:
 pass/borrows/qualified_owner_state_loan_exit checked 4020ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/qualified_record_view_call_exit checked 92864ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/qualified_reference_field_retarget_exit checked 3667ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/rebound_parameter_keeps_earlier_copy_exit checked 10431ms check-target:macos_arm64 @28549af67d45
 pass/borrows/recast_suspension_branch_cleanup_exit checked 5317ms check-target:macos_arm64 @56ac2516672d
 pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 79303ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/reference_cycle_projection_root_partition checked 2282ms @ccdb99ca2214
