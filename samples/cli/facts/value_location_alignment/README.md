@@ -1,0 +1,88 @@
+# Value-location alignment
+
+Fact: align_of(value) observes the storage location of a live u64 place, or the referent of a &u64, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
+
+Before this row the compiler refused every value argument to `align_of`
+("takes no value arguments; the queried type is its single `<T>` operand"),
+so a program could ask for the alignment of a type but never of the storage it
+actually holds. This row supports the `align_of(value)` bullet of
+`CHECKED-ASM-LABEL-CONTRACTS` in [TASKS.md](../../../../TASKS.md), governed by
+[location alignment](../../../../wiki/spec/language/counts_and_addresses.md#location-alignment)
+and [layout queries](../../../../wiki/spec/layouts/plans.md#size-and-alignment-queries).
+
+For example, `align_of(cell)` on a local `cell: u64` reports 8, and
+`align_of(value)` on a parameter `value: &u64` reports the alignment of the
+`u64` it refers to, not of the 8-byte reference. Each positive subtracts 8
+from that result; the subtraction is accepted only because the query proves
+the result is at least 8.
+
+| Place | Positive | Reject twin |
+| --- | --- | --- |
+| local | [main](local/main.omg) | [invalid](local/invalid/main.omg) |
+| field | [main](field/main.omg) | [invalid](field/invalid/main.omg) |
+| parameter | [main](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
+| call result | [main](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
+| match join | [main](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
+| const name | [main](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
+| nested machine | [main](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| another machine | [main](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
+| another target implementation | [main](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
+
+Each twin changes only the observed location's storage to `u32`. Its
+guaranteed alignment is 4, so the unchanged `alignment - 8u64` is rejected with
+bounds `[-4, -4]`. Positives and twins are mirrored under
+`tests/omega/{pass,fail}/facts/value_location_alignment_through_*`.
+
+## How the query works
+
+Typing keeps the authored operand on the `align_of` call. Typed preparation
+then resolves that operand as a place in its state: it must be rooted at a
+local or parameter, a reference is followed to its referent, and the operand
+leaves the executable call. From there the query is the same portable
+selected-layout alignment request as `align_of<T>()` over the observed
+storage type, so checking, Terminal Psi, the interpreter and native code all
+answer it from the selected target's validated layout. The operand is never
+loaded, moved or borrowed by the query.
+
+The reported value is the validated minimum for that storage type under the
+default storage rule. The specification allows this: the result must be a
+guarantee for the location, not its greatest power-of-two divisor.
+
+## Runtime falsifier
+
+Every positive also observes narrower neighbours and checks the exact
+results at run time: a `u8` location must report 1 and a `u32` field 4. A
+query that measured the reference descriptor (8), the whole record, or the
+wrong field would trap. The match join calls both arms with distinct results
+(8 and 16). The selected-implementation place checks its Build tag (17 for
+x86-64, 29 for AArch64) so a wrong provider row traps.
+
+Every positive binds `ProgramEntry` for Windows x86-64, Linux x86-64, Linux
+ARM64 and macOS ARM64 and declares exit zero. Native and Terminal Psi
+agreement was observed on Linux x86-64 only; the other targets keep their
+authored rows, unexecuted here.
+
+## Requirements accounted for
+
+- Establishment: the query itself establishes the bound from the observed
+  storage type's validated layout; no caller guard precedes the subtraction,
+  and the runtime checks follow it.
+- Identity: the subject is the exact place the operand names, through
+  references to the referent. A value leaf, a constant or a slice is
+  rejected rather than given a fabricated location.
+- Composition: the result is an ordinary `u64` whose layout-observation fact
+  survives copies, fields, call returns, joins and machine arguments, through
+  the existing layout-observation route.
+
+## What remains open
+
+- Nonempty slices: the first-element form needs a proved nonempty view; it
+  currently rejects.
+- Stronger-than-type alignment from placement or allocator contracts, and
+  runtime computation of a location's alignment, are not implemented; the
+  result is always the type minimum.
+- Location validity after the view is replaced, its offset changes or its
+  backing moves is not modelled beyond the type minimum, which holds for any
+  live location of that type.
+- Interpretation reports selected-target geometry, but there is no admitted
+  storage mapping for a location with stronger placement.
