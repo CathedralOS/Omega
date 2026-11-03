@@ -8,6 +8,7 @@ use language_semantics::type_identity::vocabulary::Spelled;
 #[derive(Clone, Copy)]
 pub(super) enum CoordinateTag {
     NamedCallable,
+    SpecializedCallable,
     NestedMachine,
     ClosedRequirement,
     LocalTraitApplication,
@@ -34,6 +35,7 @@ impl Spelled for CoordinateTag {
     fn spelling(self) -> &'static str {
         match self {
             Self::NamedCallable => "named-callable",
+            Self::SpecializedCallable => "specialized-callable",
             Self::NestedMachine => "nested-machine",
             Self::ClosedRequirement => "closed-requirement",
             Self::LocalTraitApplication => "local-trait-application",

@@ -27,6 +27,7 @@ mod normalized_identities;
 mod open_index_identity;
 #[cfg(test)]
 mod package_policy_reading_tests;
+mod portable_specializations;
 mod result_dispatch_terms;
 mod static_operand_identity;
 mod storage_identity;
@@ -49,6 +50,7 @@ pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
     TypeIdentityTable,
 };
+pub use portable_specializations::portable_machine_specialization_identity;
 pub use static_operand_identity::{
     DeclaredStaticOperandIdentityRequest, StaticOperandIdentityRequest,
 };
