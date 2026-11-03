@@ -431,14 +431,19 @@ pub fn scalar_payload_expression(
 /// literal recovery, definition order, failure and expression recursion budgets stay intact.
 /// Constant origins and their completed answers share this immutable namespace;
 /// they are rebuilt for each machine, never reused across changed control.
+struct ScalarValueSource<'machine> {
+    id: ValueId,
+    operation: Option<&'machine terminal_psi::Operation>,
+    boolean: Option<bool>,
+    origin: Option<crate::UnchangedScalarOrigin<(ScalarType, semantic_vocabulary::IntegerValue)>>,
+    parameter_seen: bool,
+}
+
 pub(super) struct TerminalScalarExpressions<'machine> {
     types: std::collections::BTreeMap<ValueId, ScalarType>,
-    operations: std::collections::BTreeMap<ValueId, &'machine terminal_psi::Operation>,
-    booleans: std::collections::BTreeMap<ValueId, bool>,
-    origins: std::collections::BTreeMap<
-        ValueId,
-        crate::UnchangedScalarOrigin<(ScalarType, semantic_vocabulary::IntegerValue)>,
-    >,
+    // A machine's declared values are a sparse subset of the module namespace.
+    // Keep their checked order once and store each value's inputs together.
+    sources: Vec<ScalarValueSource<'machine>>,
     constants: std::cell::RefCell<
         crate::unchanged_scalar::UnchangedScalarIdentities<(
             ScalarType,
@@ -460,22 +465,32 @@ impl<'machine> TerminalScalarExpressions<'machine> {
             )
             .map(|value| (value.id, value.scalar_type))
             .collect();
-        let mut operations = std::collections::BTreeMap::new();
-        let mut booleans = std::collections::BTreeMap::new();
-        let mut origins = std::collections::BTreeMap::new();
+        let mut sources: Vec<_> = types
+            .keys()
+            .map(|id| ScalarValueSource {
+                id: *id,
+                operation: None,
+                boolean: None,
+                origin: None,
+                parameter_seen: false,
+            })
+            .collect();
         for operation in machine.operations() {
             let Some(result) = operation.result.scalar_ref() else {
                 continue;
             };
-            operations.entry(result.id).or_insert(operation);
+            let index = sources
+                .binary_search_by_key(&result.id, |row| row.id)
+                .expect("the operation result has a declared scalar row");
+            let row = &mut sources[index];
+            row.operation.get_or_insert(operation);
             match operation.kind {
                 terminal_psi::OperationKind::BooleanConstant { value } => {
-                    booleans.entry(result.id).or_insert(value);
+                    row.boolean.get_or_insert(value);
                 }
                 terminal_psi::OperationKind::IntegerConstant { value } => {
-                    origins
-                        .entry(result.id)
-                        .or_insert(crate::UnchangedScalarOrigin::Known((
+                    row.origin
+                        .get_or_insert(crate::UnchangedScalarOrigin::Known((
                             result.scalar_type,
                             value,
                         )));
@@ -483,14 +498,22 @@ impl<'machine> TerminalScalarExpressions<'machine> {
                 _ => {}
             }
         }
-        // Classify each edge once, preserving source order. A case edge does
-        // not forward scalar operands and withholds every arrival constant.
-        let mut incoming = std::collections::BTreeMap::<_, Option<Vec<&[ValueId]>>>::new();
+        // Case edges withhold arrival constants. Each block owns one ordered
+        // input row even when several predecessor edges supply its arguments.
+        let mut incoming: Vec<_> = machine
+            .blocks
+            .iter()
+            .map(|block| (block.id, Some(Vec::<&[ValueId]>::new())))
+            .collect();
+        incoming.sort_by_key(|(id, _)| *id);
+        incoming.dedup_by_key(|(id, _)| *id);
         for block in &machine.blocks {
             for binding in crate::control_graph::forwarded_bindings(block) {
-                let rows = incoming
-                    .entry(binding.target)
-                    .or_insert_with(|| Some(Vec::new()));
+                let Ok(index) = incoming.binary_search_by_key(&binding.target, |(id, _)| *id)
+                else {
+                    continue;
+                };
+                let rows = &mut incoming[index].1;
                 match binding.arguments {
                     Some(arguments) => {
                         if let Some(rows) = rows {
@@ -501,16 +524,23 @@ impl<'machine> TerminalScalarExpressions<'machine> {
                 }
             }
         }
-        let mut owners = std::collections::BTreeSet::new();
         for block in &machine.blocks {
             for (ordinal, parameter) in block.parameters.iter().enumerate() {
-                if !owners.insert(parameter.id)
+                let index = sources
+                    .binary_search_by_key(&parameter.id, |row| row.id)
+                    .expect("the block parameter has a declared scalar row");
+                let row = &mut sources[index];
+                if std::mem::replace(&mut row.parameter_seen, true)
                     || block.id == machine.entry
-                    || origins.contains_key(&parameter.id)
+                    || row.origin.is_some()
                 {
                     continue;
                 }
-                let values = match incoming.get(&block.id) {
+                let incoming = incoming
+                    .binary_search_by_key(&block.id, |(id, _)| *id)
+                    .ok()
+                    .map(|index| &incoming[index].1);
+                let values = match incoming {
                     Some(Some(rows)) => rows
                         .iter()
                         .map(|row| row.get(ordinal).copied())
@@ -519,28 +549,33 @@ impl<'machine> TerminalScalarExpressions<'machine> {
                     None => Some(Vec::new()),
                 };
                 if let Some(values) = values {
-                    origins.insert(parameter.id, crate::UnchangedScalarOrigin::Incoming(values));
+                    row.origin = Some(crate::UnchangedScalarOrigin::Incoming(values));
                 }
             }
         }
         Self {
             types,
-            operations,
-            booleans,
-            origins,
+            sources,
             constants: Default::default(),
         }
     }
 
+    fn source(&self, value: ValueId) -> Option<&ScalarValueSource<'machine>> {
+        self.sources
+            .binary_search_by_key(&value, |row| row.id)
+            .ok()
+            .map(|index| &self.sources[index])
+    }
+
     fn literal(&self, value: ValueId) -> Option<ScalarTerm> {
-        self.booleans
-            .get(&value)
-            .map(|value| ScalarTerm::Boolean(*value))
+        self.source(value)?
+            .boolean
+            .map(ScalarTerm::Boolean)
             .or_else(|| {
                 let (scalar_type, literal) = self
                     .constants
                     .borrow_mut()
-                    .resolve(value, &mut |value| self.origins.get(&value).cloned())?;
+                    .resolve(value, &mut |value| self.source(value)?.origin.clone())?;
                 let ScalarType::Integer(integer) = scalar_type else {
                     return None;
                 };
@@ -551,18 +586,16 @@ impl<'machine> TerminalScalarExpressions<'machine> {
             })
     }
 
-    pub(super) fn expression(&self, value: semantic_vocabulary::ValueId) -> Option<ScalarTerm> {
+    pub(super) fn expression(&self, value: ValueId) -> Option<ScalarTerm> {
         let types = &self.types;
         scalar_payload_expression(value, &|value| {
             let scalar_type = *types.get(&value)?;
-            let literal = self.literal(value);
-            if let Some(literal) = literal {
+            if let Some(literal) = self.literal(value) {
                 return Some((scalar_type, Some(literal)));
             }
             let denotation = self
-                .operations
-                .get(&value)
-                .copied()
+                .source(value)
+                .and_then(|row| row.operation)
                 .and_then(|operation| {
                     crate::goal_free_scalar_leaf_semantics(operation, types)
                         .ok()

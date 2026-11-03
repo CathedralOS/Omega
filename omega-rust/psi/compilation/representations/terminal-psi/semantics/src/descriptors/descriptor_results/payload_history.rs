@@ -161,37 +161,48 @@ impl PremiseRoster {
 /// Query-owned snapshots share immutable rows. Only a write detaches a row;
 /// map order and value equality remain identical to the owned representation.
 #[derive(Clone, Default, PartialEq, Eq)]
-struct PayloadContracts(BTreeMap<PlaceId, Arc<PayloadMembershipContract>>);
+struct PayloadContracts(Vec<(PlaceId, Arc<PayloadMembershipContract>)>);
 
 impl PayloadContracts {
     fn len(&self) -> usize {
         self.0.len()
     }
+    fn position(&self, root: &PlaceId) -> Result<usize, usize> {
+        self.0.binary_search_by_key(root, |(id, _)| *id)
+    }
+    fn shared(&self, root: &PlaceId) -> Option<&Arc<PayloadMembershipContract>> {
+        self.position(root).ok().map(|index| &self.0[index].1)
+    }
     fn get(&self, root: &PlaceId) -> Option<&PayloadMembershipContract> {
-        self.0.get(root).map(Arc::as_ref)
+        self.shared(root).map(Arc::as_ref)
     }
     fn get_mut(&mut self, root: &PlaceId) -> Option<&mut PayloadMembershipContract> {
-        self.0.get_mut(root).map(Arc::make_mut)
+        let index = self.position(root).ok()?;
+        Some(Arc::make_mut(&mut self.0[index].1))
     }
     fn insert(&mut self, root: PlaceId, contract: PayloadMembershipContract) {
-        self.0.insert(root, Arc::new(contract));
+        match self.position(&root) {
+            Ok(index) => self.0[index].1 = Arc::new(contract),
+            Err(index) => self.0.insert(index, (root, Arc::new(contract))),
+        }
     }
     fn remove(&mut self, root: &PlaceId) -> Option<Arc<PayloadMembershipContract>> {
-        self.0.remove(root)
+        let index = self.position(root).ok()?;
+        Some(self.0.remove(index).1)
     }
     fn values_mut(&mut self) -> impl Iterator<Item = &mut Arc<PayloadMembershipContract>> {
-        self.0.values_mut()
+        self.0.iter_mut().map(|(_, contract)| contract)
     }
 }
 
 #[cfg(test)]
 impl<const N: usize> From<[(PlaceId, PayloadMembershipContract); N]> for PayloadContracts {
     fn from(rows: [(PlaceId, PayloadMembershipContract); N]) -> Self {
-        Self(
-            rows.into_iter()
-                .map(|(root, contract)| (root, Arc::new(contract)))
-                .collect(),
-        )
+        let mut result = Self::default();
+        for (root, contract) in rows {
+            result.insert(root, contract);
+        }
+        result
     }
 }
 
@@ -307,7 +318,7 @@ impl State {
         let mut changed =
             retain_common_snapshot(&mut self.scalar_requirements, &arrival.scalar_requirements);
         let previous_values = self.values.len();
-        self.values.0.retain(|place, contract| {
+        self.values.0.retain_mut(|(place, contract)| {
             let Some(incoming) = arrival.values.remove(place) else {
                 return false;
             };
@@ -864,7 +875,7 @@ fn payload_contract_at_cut(
             // Selectors and fallible backing checks still run in their original
             // order, so simultaneous stores retain both snapshot semantics and
             // diagnostic precedence. Unused roots move directly into `after`.
-            let mut source_values = BTreeMap::new();
+            let mut source_values = Vec::<(PlaceId, PayloadMembershipContract)>::new();
             for (actual, destination) in &step.derivations {
                 if machine.storage_derivations.contains(&(
                     current,
@@ -874,14 +885,14 @@ fn payload_contract_at_cut(
                     continue;
                 }
                 if let Some(contract) = before.values.get(&actual.root) {
-                    source_values.entry(actual.root).or_insert_with(|| {
+                    if !source_values.iter().any(|(root, _)| *root == actual.root) {
                         let mut contract = contract.clone();
                         extend_contract_premises(
                             &mut contract.scalar_requirements,
                             &before.shared_requirements,
                         );
-                        contract
-                    });
+                        source_values.push((actual.root, contract));
+                    }
                 }
             }
             let mut after = before;
@@ -929,9 +940,12 @@ fn payload_contract_at_cut(
                 {
                     continue;
                 }
-                let mut incoming = source_values.get(&actual.root).and_then(|contract| {
-                    select_payload_memberships(types, domains, contract, &actual.path)
-                });
+                let mut incoming = source_values
+                    .iter()
+                    .find_map(|(root, contract)| (*root == actual.root).then_some(contract))
+                    .and_then(|contract| {
+                        select_payload_memberships(types, domains, contract, &actual.path)
+                    });
                 failure = "structural store backing is unresolved";
                 let destinations = analysis.storage_origins(identity, current, destination)?;
                 let strong = destinations.len() == 1;
@@ -1008,9 +1022,13 @@ fn payload_contract_at_cut(
                     {
                         continue;
                     }
-                    if let Some(incoming) = source_values.get(&actual.root).and_then(|contract| {
-                        select_payload_memberships(types, domains, contract, &actual.path)
-                    }) {
+                    if let Some(incoming) = source_values
+                        .iter()
+                        .find_map(|(root, contract)| (*root == actual.root).then_some(contract))
+                        .and_then(|contract| {
+                            select_payload_memberships(types, domains, contract, &actual.path)
+                        })
+                    {
                         let path = descriptor_path(types, produced.carrier, &destination.path)?;
                         let destination_carrier =
                             qualification_path_carrier(types.iter(), produced.carrier, &path)?;
@@ -2292,8 +2310,8 @@ mod tests {
             vec![condition(3)]
         );
         assert!(Arc::ptr_eq(
-            &state.values.0[&roots[3]],
-            &before.values.0[&roots[3]]
+            state.values.shared(&roots[3]).unwrap(),
+            before.values.shared(&roots[3]).unwrap()
         ));
         assert_eq!(
             before.values[&roots[0]].scalar_requirements.to_vec(),
@@ -2398,8 +2416,8 @@ mod tests {
         ));
         for root in [root, other] {
             assert!(Arc::ptr_eq(
-                &original.values.0[&root],
-                &later.values.0[&root]
+                original.values.shared(&root).unwrap(),
+                later.values.shared(&root).unwrap()
             ));
         }
         later
@@ -2410,12 +2428,12 @@ mod tests {
             .make_mut()
             .push(condition(2));
         assert!(!Arc::ptr_eq(
-            &original.values.0[&root],
-            &later.values.0[&root]
+            original.values.shared(&root).unwrap(),
+            later.values.shared(&root).unwrap()
         ));
         assert!(Arc::ptr_eq(
-            &original.values.0[&other],
-            &later.values.0[&other]
+            original.values.shared(&other).unwrap(),
+            later.values.shared(&other).unwrap()
         ));
         assert_eq!(
             original
@@ -2458,12 +2476,12 @@ mod tests {
         published.scalar_requirements = Arc::new(vec![SharedPremise::new(condition(1))].into());
         published.publish_requirements();
         assert!(!Arc::ptr_eq(
-            &original.values.0[&root],
-            &published.values.0[&root]
+            original.values.shared(&root).unwrap(),
+            published.values.shared(&root).unwrap()
         ));
         assert!(Arc::ptr_eq(
-            &original.values.0[&other],
-            &published.values.0[&other]
+            original.values.shared(&other).unwrap(),
+            published.values.shared(&other).unwrap()
         ));
         assert!(
             published
@@ -2476,12 +2494,12 @@ mod tests {
         let mut retired = original.clone();
         retire_scalar_instances(&mut retired, &[ValueId::new(1).unwrap()]);
         assert!(!Arc::ptr_eq(
-            &original.values.0[&root],
-            &retired.values.0[&root]
+            original.values.shared(&root).unwrap(),
+            retired.values.shared(&root).unwrap()
         ));
         assert!(Arc::ptr_eq(
-            &original.values.0[&other],
-            &retired.values.0[&other]
+            original.values.shared(&other).unwrap(),
+            retired.values.shared(&other).unwrap()
         ));
         assert!(
             retired
@@ -2597,8 +2615,8 @@ mod tests {
                 }
             }
             assert!(!Arc::ptr_eq(
-                &retained.values.0[&root],
-                &later.values.0[&root]
+                retained.values.shared(&root).unwrap(),
+                later.values.shared(&root).unwrap()
             ));
             assert_eq!(retained.contract(root, None).unwrap(), original);
             assert_eq!(later.contract(root, None).unwrap(), expected);

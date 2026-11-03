@@ -350,17 +350,22 @@ pub(super) fn transport<'locations>(
     // an old source name must not bridge this assignment to that old value.
     // Equivalent pre-step closures share their least current member; that
     // temporary grouping key is discarded before publishing the new rosters.
-    let mut captured = BTreeMap::<
-        DescriptorLocation,
-        (BTreeSet<DescriptorLocation>, BTreeSet<DescriptorLocation>),
-    >::new();
+    let mut captured = Vec::with_capacity(copies.len());
     for (sources, destination) in copies {
-        let representative = sources.first()?.clone();
-        let (old_members, receivers) = captured.entry(representative).or_default();
-        old_members.extend(sources);
-        receivers.insert(destination);
+        captured.push((sources.first()?.clone(), sources, destination));
     }
-    for (_, (old_members, receivers)) in captured {
+    captured.sort_by(|left, right| left.0.cmp(&right.0));
+    let mut captured = captured.into_iter().peekable();
+    while let Some((representative, mut old_members, destination)) = captured.next() {
+        let mut receivers = BTreeSet::from([destination]);
+        while captured
+            .peek()
+            .is_some_and(|(root, _, _)| *root == representative)
+        {
+            let (_, sources, destination) = captured.next().expect("the group has a next row");
+            old_members.extend(sources);
+            receivers.insert(destination);
+        }
         let members = old_members
             .into_iter()
             .filter(|source| keep(source))

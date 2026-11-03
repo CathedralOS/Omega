@@ -28,7 +28,81 @@ impl OriginKey for DescriptorContentsQuery {
 // at most one 64-root directory page instead of every root in a large body.
 // Numeric pages preserve PlaceId order; they carry no provenance meaning.
 const ROOT_PAGE_SHIFT: u32 = 6;
-type RootRows<Key, Element> = BTreeMap<PlaceId, Arc<RowPages<Key, Element>>>;
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct RootRows<Key: Ord + Clone, Element: Clone + Eq> {
+    // The page directory owns the upper bits. These bounded slots own the
+    // lower six bits, retaining sparse roots and their complete sorted order.
+    rows: Vec<Option<(PlaceId, Arc<RowPages<Key, Element>>)>>,
+}
+impl<Key: Ord + Clone, Element: Clone + Eq> Default for RootRows<Key, Element> {
+    fn default() -> Self {
+        Self { rows: Vec::new() }
+    }
+}
+fn root_offset(root: PlaceId) -> usize {
+    (root.get() & ((1 << ROOT_PAGE_SHIFT) - 1)) as usize
+}
+impl<Key: Ord + Clone, Element: Clone + Eq> RootRows<Key, Element> {
+    fn get(&self, root: &PlaceId) -> Option<&Arc<RowPages<Key, Element>>> {
+        self.rows
+            .get(root_offset(*root))?
+            .as_ref()
+            .filter(|(id, _)| id == root)
+            .map(|(_, rows)| rows)
+    }
+    fn get_mut(&mut self, root: &PlaceId) -> Option<&mut Arc<RowPages<Key, Element>>> {
+        self.rows
+            .get_mut(root_offset(*root))?
+            .as_mut()
+            .filter(|(id, _)| id == root)
+            .map(|(_, rows)| rows)
+    }
+    fn get_or_default(&mut self, root: PlaceId) -> &mut Arc<RowPages<Key, Element>> {
+        let index = root_offset(root);
+        if self.rows.len() <= index {
+            self.rows.resize_with(index + 1, || None);
+        }
+        let row = self.rows[index].get_or_insert_with(|| (root, Default::default()));
+        debug_assert_eq!(row.0, root);
+        &mut row.1
+    }
+    fn remove(&mut self, root: &PlaceId) -> Option<Arc<RowPages<Key, Element>>> {
+        self.get(root)?;
+        let previous = self.rows[root_offset(*root)].take().map(|(_, rows)| rows);
+        while self.rows.last().is_some_and(Option::is_none) {
+            self.rows.pop();
+        }
+        previous
+    }
+    fn is_empty(&self) -> bool {
+        self.rows.is_empty()
+    }
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.rows.iter().flatten().count()
+    }
+    fn iter(&self) -> impl DoubleEndedIterator<Item = (&PlaceId, &Arc<RowPages<Key, Element>>)> {
+        self.rows.iter().flatten().map(|(root, rows)| (root, rows))
+    }
+    fn values(&self) -> impl DoubleEndedIterator<Item = &Arc<RowPages<Key, Element>>> {
+        self.rows.iter().flatten().map(|(_, rows)| rows)
+    }
+    fn into_values(self) -> RootValues<Key, Element> {
+        RootValues {
+            rows: self.rows.into_iter(),
+        }
+    }
+}
+struct RootValues<Key: Ord + Clone, Element: Clone + Eq> {
+    rows: std::vec::IntoIter<Option<(PlaceId, Arc<RowPages<Key, Element>>)>>,
+}
+impl<Key: Ord + Clone, Element: Clone + Eq> Iterator for RootValues<Key, Element> {
+    type Item = Arc<RowPages<Key, Element>>;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.rows.by_ref().find_map(|row| row.map(|(_, rows)| rows))
+    }
+}
+
 fn page(root: PlaceId) -> u64 {
     root.get() >> ROOT_PAGE_SHIFT
 }
@@ -102,7 +176,7 @@ impl<Key: OriginKey, Element: Clone + Eq> OriginMap<Key, Element> {
     }
     pub(super) fn insert(&mut self, key: Key, value: Element) -> Option<Element> {
         let roots = Arc::make_mut(self.pages.entry(page(key.root())).or_default());
-        let rows = roots.entry(key.root()).or_default();
+        let rows = roots.get_or_default(key.root());
         let previous = Arc::make_mut(rows).insert(key, value);
         self.entries += usize::from(previous.is_none());
         previous
@@ -196,7 +270,7 @@ impl<Key: OriginKey, Element: Clone + Eq> FromIterator<(Key, Element)> for Origi
 
 pub(super) struct IntoIter<Key: OriginKey, Element: Clone + Eq> {
     pages: std::collections::btree_map::IntoValues<u64, Arc<RootRows<Key, Element>>>,
-    roots: Option<std::collections::btree_map::IntoValues<PlaceId, Arc<RowPages<Key, Element>>>>,
+    roots: Option<RootValues<Key, Element>>,
     current: Option<row_pages::IntoIter<Key, Element>>,
 }
 impl<Key: OriginKey, Element: Clone + Eq> Iterator for IntoIter<Key, Element> {
@@ -234,6 +308,38 @@ mod tests {
     use super::super::replay::Origin;
     use super::*;
     use std::collections::BTreeSet;
+
+    #[test]
+    fn sparse_root_pages_keep_high_ids_and_empty_page_equality() {
+        let high = DescriptorLocation {
+            root: PlaceId::new(u64::MAX).unwrap(),
+            path: Vec::new(),
+        };
+        let low = DescriptorLocation {
+            root: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+        };
+        let mut map = OriginMap::<DescriptorLocation>::new();
+        map.insert(high.clone(), None);
+        map.insert(low.clone(), Some(BTreeSet::new()));
+        let before = map.clone();
+        assert_eq!(map.get(&high), Some(&None));
+        assert_eq!(
+            map.keys().cloned().collect::<Vec<_>>(),
+            vec![low.clone(), high.clone()]
+        );
+        assert_eq!(
+            map.clone()
+                .into_iter()
+                .map(|(root, _)| root)
+                .collect::<Vec<_>>(),
+            vec![low.clone(), high.clone()]
+        );
+        assert_eq!(map.remove(&high), Some(None));
+        assert_eq!(before.get(&high), Some(&None));
+        map.remove(&low);
+        assert_eq!(map, OriginMap::new());
+    }
 
     #[test]
     fn snapshot_writes_share_untouched_payloads_inside_a_detached_page() {

@@ -1,9 +1,8 @@
 //! Identity-preserving scalar value flow, without arithmetic denotation.
 //! Every predecessor must supply the same typed identity. Unknowns and cycles
-//! withhold evidence; one invocation memoizes the immutable graph it observes.
+//! withhold evidence; one invocation owns the immutable graph it observes.
 
 use semantic_vocabulary::ValueId;
-use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Clone)]
 pub enum UnchangedScalarOrigin<Identity> {
@@ -11,19 +10,21 @@ pub enum UnchangedScalarOrigin<Identity> {
     Incoming(Vec<ValueId>),
 }
 
-/// Completed answers belong to one immutable origin graph, including unknowns.
-/// A cycle never supplies evidence. A new graph must start a new query table.
+// The callback can expose sparse or absent IDs, including IDs outside any
+// machine's declarations. Keep only observed identifiers in a flat ordered
+// roster; a row's state belongs to this immutable graph, not another query.
+enum ScalarIdentityState<Identity> {
+    Active,
+    Complete(Option<Identity>),
+}
+
 pub(crate) struct UnchangedScalarIdentities<Identity> {
-    completed: BTreeMap<ValueId, Option<Identity>>,
-    active: BTreeSet<ValueId>,
+    rows: Vec<(ValueId, ScalarIdentityState<Identity>)>,
 }
 
 impl<Identity> Default for UnchangedScalarIdentities<Identity> {
     fn default() -> Self {
-        Self {
-            completed: BTreeMap::new(),
-            active: BTreeSet::new(),
-        }
+        Self { rows: Vec::new() }
     }
 }
 
@@ -33,11 +34,16 @@ impl<Identity: Clone + Eq> UnchangedScalarIdentities<Identity> {
         value: ValueId,
         origin: &mut impl FnMut(ValueId) -> Option<UnchangedScalarOrigin<Identity>>,
     ) -> Option<Identity> {
-        if let Some(result) = self.completed.get(&value) {
-            return result.clone();
-        }
-        if !self.active.insert(value) {
-            return None;
+        match self.rows.binary_search_by_key(&value, |(id, _)| *id) {
+            Ok(index) => {
+                return match &self.rows[index].1 {
+                    ScalarIdentityState::Active => None,
+                    ScalarIdentityState::Complete(result) => result.clone(),
+                };
+            }
+            Err(index) => self
+                .rows
+                .insert(index, (value, ScalarIdentityState::Active)),
         }
         let result = (|| match origin(value)? {
             UnchangedScalarOrigin::Known(identity) => Some(identity),
@@ -52,8 +58,12 @@ impl<Identity: Clone + Eq> UnchangedScalarIdentities<Identity> {
                 Some(first)
             }
         })();
-        self.active.remove(&value);
-        self.completed.insert(value, result.clone());
+        // Descendants can insert earlier IDs; locate this retained row again.
+        let index = self
+            .rows
+            .binary_search_by_key(&value, |(id, _)| *id)
+            .expect("the active scalar identity row is retained");
+        self.rows[index].1 = ScalarIdentityState::Complete(result.clone());
         result
     }
 }
@@ -68,6 +78,31 @@ pub fn unchanged_scalar_identity<Identity: Clone + Eq>(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sparse_external_identities_do_not_allocate_through_their_numeric_value() {
+        let high = ValueId::new(u64::MAX).unwrap();
+        let low = ValueId::new(1).unwrap();
+        let absent = ValueId::new(u64::MAX - 1).unwrap();
+        let mut query = UnchangedScalarIdentities::default();
+        assert_eq!(
+            query.resolve(high, &mut |_| Some(UnchangedScalarOrigin::Known(42))),
+            Some(42)
+        );
+        assert_eq!(
+            query.resolve(low, &mut |_| Some(UnchangedScalarOrigin::Known(7))),
+            Some(7)
+        );
+        assert_eq!(
+            query.resolve(high, &mut |_| panic!("completed identity is observed once")),
+            Some(42)
+        );
+        assert_eq!(query.resolve(absent, &mut |_| None), None);
+        assert_eq!(
+            query.resolve(absent, &mut |_| panic!("missing identity is observed once")),
+            None
+        );
+    }
 
     #[test]
     fn scalar_constant_queries_share_reconverging_origins_across_roots() {
