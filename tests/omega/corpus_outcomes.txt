@@ -28163,8 +28163,9 @@ fail/facts/projection_call_premise_through_target_body_rejected rejected 2964ms 
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/provider_contract_endpoint_control_circular_endpoint_formation rejected 10387ms expected regressed-from:checked @4b50ded92ae9
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
-fail/facts/provider_contract_endpoint_control_crashing_endpoint incomplete 2632ms unexpected @390bdce3859c
-	`@constant-expression-1` has no executable body: this compiler does not lower a state of it yet (statement sequence: call count agreement); in state `@constant-expression-1::@constant-expression-1`
+fail/facts/provider_contract_endpoint_control_crashing_endpoint rejected 11644ms expected @34a84fc24962
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 fail/facts/provider_contract_endpoint_control_direct_provider_protocol rejected 116ms expected @390bdce3859c
 	Build binding protocol requires source-issued designated product operands
 fail/facts/provider_contract_endpoint_control_dormant_target_endpoint_rejected rejected 2760ms expected @8c239a425808

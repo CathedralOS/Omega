@@ -4,12 +4,17 @@ These controls belong to the same selected endpoint, captured bound and exact
 subtraction as the nine-place row. They challenge the prerequisites introduced
 by this repair rather than adding transport matrices.
 
-- `circular_endpoint_formation` must reject a helper that uses its own pending
-  result to admit a call. It is currently wrongly accepted. `crashing_endpoint`
-  must reject a helper that can crash; it currently stops at an incomplete
-  lowering error. Neither is credited as enforcement of the intended obligation.
-  Both failures also occur with earlier compilers and remain open under the
-  owning scalar-range migration task.
+- `circular_endpoint_formation` rejects a helper that uses its own pending
+  result to admit a call: `limit()` calls `need(7)`, whose `requires 7 < limit()`
+  would otherwise be admitted by the value `limit()` is still computing. The
+  evaluator keeps requirements that must hold before a call separate from
+  promises about completed results (#1568).
+- `crashing_endpoint` rejects a helper that can crash (`limit()` ends in
+  `crash Trap`) at checking, naming the cause, instead of stopping at the
+  unlowerable `@constant-expression` body. Before the repair it exited 1 with
+  `@constant-expression-1 has no executable body ... call count agreement`.
+  Both fail fixtures are under `tests/omega/fail/facts/`; the nine positive
+  places still run natively and in Terminal Psi with exit 0.
 - `false_result_guarantee` and `mutated_scalar_return` reject an actual returned
   value outside the selected endpoint. The source-model test
   `identical_runtime_calls_do_not_identify_distinct_static_denotations` also
