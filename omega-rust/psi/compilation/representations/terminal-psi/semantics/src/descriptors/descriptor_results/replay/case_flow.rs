@@ -19,11 +19,6 @@ pub(super) struct CurrentCases {
 }
 
 impl CurrentCases {
-    fn insert_fact(&mut self, subject: DescriptorLocation, active: BTreeSet<StructuralCaseId>) {
-        if self.facts.get(&subject) != Some(&active) {
-            Arc::make_mut(&mut self.facts).insert(subject, active);
-        }
-    }
     fn retain_facts(&mut self, keep: impl Fn(&DescriptorLocation) -> bool) {
         let removed = self
             .facts
@@ -106,7 +101,11 @@ pub(super) fn establish(
         .equivalents(&storage, machine.flow.len().saturating_mul(4096).max(4096))?;
     let cases = Arc::make_mut(&mut state.cases);
     for subject in subjects {
-        cases.insert_fact(subject, BTreeSet::from([predicate.case]));
+        super::origin_maps::OriginMap::insert_if_changed(
+            &mut cases.facts,
+            subject,
+            BTreeSet::from([predicate.case]),
+        );
     }
     Some(())
 }
@@ -344,7 +343,7 @@ pub(super) fn transport<'locations>(
         }
     }
     for (subject, active) in assigned {
-        cases.insert_fact(subject, active);
+        super::origin_maps::OriginMap::insert_if_changed(&mut cases.facts, subject, active);
     }
     // Capture groups refer only to OLD members. A new destination that reuses
     // an old source name must not bridge this assignment to that old value.

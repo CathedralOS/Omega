@@ -174,6 +174,12 @@ impl<Key: OriginKey, Element: Clone + Eq> OriginMap<Key, Element> {
         let roots = Arc::make_mut(self.pages.get_mut(&page(key.root()))?);
         Arc::make_mut(roots.get_mut(&key.root())?).get_mut(key)
     }
+    /// Preserve the published snapshot when a writer supplies the same row.
+    pub(super) fn insert_if_changed(target: &mut Arc<Self>, key: Key, value: Element) {
+        if target.get(&key) != Some(&value) {
+            Arc::make_mut(target).insert(key, value);
+        }
+    }
     pub(super) fn insert(&mut self, key: Key, value: Element) -> Option<Element> {
         let roots = Arc::make_mut(self.pages.entry(page(key.root())).or_default());
         let rows = roots.get_or_default(key.root());
@@ -308,6 +314,23 @@ mod tests {
     use super::super::replay::Origin;
     use super::*;
     use std::collections::BTreeSet;
+
+    #[test]
+    fn unchanged_writes_keep_the_snapshot_and_changed_rows_keep_old_cuts() {
+        let root = DescriptorLocation {
+            root: PlaceId::new(1).unwrap(),
+            path: Vec::new(),
+        };
+        let mut rows = Arc::new(OriginMap::<DescriptorLocation>::new());
+        OriginMap::insert_if_changed(&mut rows, root.clone(), Some(BTreeSet::new()));
+        let before = rows.clone();
+        OriginMap::insert_if_changed(&mut rows, root.clone(), Some(BTreeSet::new()));
+        assert!(Arc::ptr_eq(&rows, &before));
+        OriginMap::insert_if_changed(&mut rows, root.clone(), None);
+        assert!(!Arc::ptr_eq(&rows, &before));
+        assert_eq!(before.get(&root), Some(&Some(BTreeSet::new())));
+        assert_eq!(rows.get(&root), Some(&None));
+    }
 
     #[test]
     fn sparse_root_pages_keep_high_ids_and_empty_page_equality() {

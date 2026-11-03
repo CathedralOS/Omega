@@ -81,7 +81,11 @@ impl ResultCases {
             }
             let mut destination = storage.clone();
             destination.path.extend_from_slice(path);
-            Arc::make_mut(&mut state.cases).insert_fact(destination, active.clone());
+            super::super::origin_maps::OriginMap::insert_if_changed(
+                &mut Arc::make_mut(&mut state.cases).facts,
+                destination,
+                active.clone(),
+            );
         }
         Some(())
     }
