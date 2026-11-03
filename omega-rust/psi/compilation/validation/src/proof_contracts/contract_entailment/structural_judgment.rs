@@ -1577,6 +1577,18 @@ impl<'program> StructuralJudge<'program> {
                 term = replacement.clone();
                 continue;
             }
+            // A contract can acquire its returned capture only after result
+            // substitution. Recover that capture's saved owned field before
+            // a parent case rewrite replaces its payload by a fresh binder.
+            if self.requires_value_preservation()
+                && matches!(&term, StructuralTerm::Projection { subject, .. }
+                    if !self.require_closed_computation || subject.is_closed_value())
+                && let Some(saved) = self.completed_owned_field(&term)
+                && !saved.same_resolution_payload(&term)
+            {
+                term = saved;
+                continue;
+            }
             // Authenticate the original applied identity before the existing
             // canonical-result owner runs. Only the Application arm consumes
             // it, after current rewrites and public normal forms.

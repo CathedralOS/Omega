@@ -43,13 +43,25 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [current source check](https://github.com/CathedralOS/Omega/actions/runs/41711139618)
-at `db73492ca95bb72e18d97f70c20724ddb7b1505d` retains entry byte identities,
-all three caller byte facts through owned Frame arguments, and both public
-decoder field equations. Field formation remains correct. Local, field and
-constant still have six restoration proof failures. The next missing join is
-lookup through the typed owned observation around the newly packed Request's
-value field; it fails to reconnect that field to the saved decoder result.
+The [latest diagnostic source check](https://github.com/CathedralOS/Omega/actions/runs/41720751018)
+at clean `05d1a70565d039fdf2020fbf4d8c2e9c8f588c7b` checks the unchanged local
+positive only. It still reports six contract proof errors. The trace shows that
+ordinary owned-field reads use the saved-value lookup, but field reads in
+declared return contracts bypass it. The checker therefore misses the connection
+between the returned Request's value field and the Pair decoded earlier. The
+whole Request also contains a mutable buffer reference, so it correctly cannot
+be rewritten as a pure scalar value to recover that connection. The pending
+repair must follow each contract field to its exact saved value while preserving
+the existing reference and storage checks.
+
+The [preceding seventeen-fixture check](https://github.com/CathedralOS/Omega/actions/runs/41715540573)
+at `3654be18daf857868e645affa0bbd6ec33fe26c2` checks the returned-data identity
+positive and preserves all thirteen intended negative diagnostics. Local, field
+and constant each retain six contract proof errors. Earlier traces retain entry
+byte identities, all three caller byte facts through owned Frame arguments and
+both decoder field equations. These observations do not establish the remaining
+return contracts. No buffered witness has execution acceptance; full
+qualification remains held until the source proofs pass.
 
 Four extra reference controls have demonstrated pre-existing failures:
 [fresh checks of pinned main7fc](https://github.com/CathedralOS/Omega/actions/runs/41707158340)

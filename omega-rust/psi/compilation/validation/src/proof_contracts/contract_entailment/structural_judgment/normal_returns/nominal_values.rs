@@ -171,6 +171,108 @@ impl StructuralJudge<'_> {
         observed
     }
 
+    /// Read a saved owned field before replacing its enclosing capture. The
+    /// producer supplies both the complete type and the field information;
+    /// an untyped contract projection supplies neither admission nor access.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn completed_owned_field(
+        &self,
+        value: &StructuralTerm,
+    ) -> Option<StructuralTerm> {
+        let owned =
+            super::super::super::structural_terms::owned_observation_type(self.program, value);
+        let subject = match (value, owned) {
+            (StructuralTerm::ObservedValue { value, .. }, Some(_)) => value.as_ref(),
+            _ => value,
+        };
+        let StructuralTerm::Projection {
+            subject: root,
+            path,
+        } = subject
+        else {
+            return None;
+        };
+        let trace = |phase: &str,
+                     saved: Option<TypeReferenceHandle>,
+                     projected: Option<TypeReferenceHandle>,
+                     source: Option<&StructuralTerm>| {
+            if super::super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT nominal-subject owner={:?} state={:?} observed={} root={} owned={owned:?} saved={saved:?} projected={projected:?} fields={} source={} phase={phase}",
+                    self.machine_symbol,
+                    self.declaration_state,
+                    traced_nominal_subject(value, 0),
+                    traced_nominal_subject(root, 0),
+                    path.split('.').count(),
+                    source.map_or_else(
+                        || "none".to_owned(),
+                        |source| traced_nominal_subject(source, 0)
+                    ),
+                );
+            }
+        };
+        let Some(capture) = self
+            .completed_nominal_values
+            .iter()
+            .rev()
+            .find(|capture| capture.value.same_resolution_payload(root))
+        else {
+            trace("saved-value", None, None, None);
+            return None;
+        };
+        let names = path.split('.').collect::<Vec<_>>();
+        // Case checks apply to proper prefixes of this requested field path.
+        // They cannot assume the field being read or use a reference crossing
+        // to reconstruct its contents.
+        let paths = super::super::super::completed_values::owned_term_field_paths_in_scope(
+            self.program,
+            self,
+            capture.reference,
+            &super::super::super::structural_terms::owned_projection_observation(
+                self.program,
+                capture.reference,
+                capture.value.clone(),
+            ),
+            &names,
+        );
+        let [path] = paths.as_slice() else {
+            trace("owned-field-path", Some(capture.reference), None, None);
+            return None;
+        };
+        let projected =
+            crate::project_type_reference_from_segments(self.program, capture.reference, path);
+        let Some(projected) = projected.filter(|projected| {
+            crate::reference_shell(self.program, *projected).is_none()
+                && owned.is_none_or(|owned| {
+                    crate::declared_carriers_match(self.program, owned, *projected)
+                })
+        }) else {
+            trace("owned-field-type", Some(capture.reference), projected, None);
+            return None;
+        };
+        let source = super::super::super::observed_projections::project_observed_value_in_scope(
+            self.program,
+            self,
+            capture.reference,
+            super::super::super::structural_terms::owned_projection_observation(
+                self.program,
+                capture.reference,
+                capture.observed_value.clone(),
+            ),
+            path,
+        );
+        trace(
+            if source.is_some() {
+                "followed"
+            } else {
+                "saved-field-projection"
+            },
+            Some(capture.reference),
+            Some(projected),
+            source.as_ref(),
+        );
+        source
+    }
+
     /// Follow an owned capture back to its checked value and fields. Rebuilding
     /// an equal constructor does not inherit that value's identity or validity.
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn completed_nominal_subject(
@@ -179,9 +281,6 @@ impl StructuralJudge<'_> {
     ) -> StructuralTerm {
         let mut observed = value.clone();
         for _ in 0..self.completed_nominal_values.len() {
-            // Owned field observations keep a typed shell around their saved
-            // projection. Read that projection before looking up its producer;
-            // reference and shared-borrow shells retain their existing fence.
             let owned = super::super::super::structural_terms::owned_observation_type(
                 self.program,
                 &observed,
@@ -190,104 +289,27 @@ impl StructuralJudge<'_> {
                 (StructuralTerm::ObservedValue { value, .. }, Some(_)) => value.as_ref(),
                 _ => &observed,
             };
-            let (root, path) = match subject {
-                StructuralTerm::Projection { subject, path } => (&**subject, Some(path)),
-                value => (value, None),
-            };
-            let trace = |phase: &str,
-                         saved: Option<TypeReferenceHandle>,
-                         projected: Option<TypeReferenceHandle>,
-                         source: Option<&StructuralTerm>| {
-                if super::super::super::struct_trace()
-                    && matches!(observed.semantic_value(), StructuralTerm::Projection { .. })
-                {
-                    eprintln!(
-                        "STRUCT nominal-subject owner={:?} state={:?} observed={} root={} owned={owned:?} saved={saved:?} projected={projected:?} fields={} source={} phase={phase}",
-                        self.machine_symbol,
-                        self.declaration_state,
-                        traced_nominal_subject(&observed, 0),
-                        traced_nominal_subject(root, 0),
-                        path.map_or(0, |path| path.split('.').count()),
-                        source.map_or_else(
-                            || "none".to_owned(),
-                            |source| traced_nominal_subject(source, 0)
-                        ),
-                    );
-                }
-            };
-            let Some(capture) = self
-                .completed_nominal_values
-                .iter()
-                .rev()
-                .find(|capture| capture.value.same_resolution_payload(root))
-            else {
-                trace("saved-value", None, None, None);
-                break;
-            };
-            let mut projected_type = None;
-            if let Some(owned) = owned {
-                // The shell must name this producer's actual projected type.
-                // A receiving annotation cannot select a different saved field
-                // or complete application merely because both are owned data.
-                let projected = if let Some(path) = path {
-                    let names = path.split('.').collect::<Vec<_>>();
-                    let paths =
-                        super::super::super::completed_values::owned_term_field_paths_in_scope(
-                            self.program,
-                            self,
-                            capture.reference,
-                            &super::super::super::structural_terms::owned_projection_observation(
-                                self.program,
-                                capture.reference,
-                                capture.value.clone(),
-                            ),
-                            &names,
-                        );
-                    let [path] = paths.as_slice() else {
-                        trace("owned-field-path", Some(capture.reference), None, None);
-                        return observed;
-                    };
-                    crate::project_type_reference_from_segments(
-                        self.program,
-                        capture.reference,
-                        path,
-                    )
-                } else {
-                    Some(capture.reference)
+            let mut source = if matches!(subject, StructuralTerm::Projection { .. }) {
+                let Some(source) = self.completed_owned_field(&observed) else {
+                    break;
                 };
-                projected_type = projected;
-                if !projected.is_some_and(|projected| {
-                    crate::declared_carriers_match(self.program, owned, projected)
+                source
+            } else {
+                let Some(capture) = self
+                    .completed_nominal_values
+                    .iter()
+                    .rev()
+                    .find(|capture| capture.value.same_resolution_payload(subject))
+                else {
+                    break;
+                };
+                if owned.is_some_and(|owned| {
+                    !crate::declared_carriers_match(self.program, owned, capture.reference)
                 }) {
-                    trace("owned-field-type", Some(capture.reference), projected, None);
-                    return observed;
+                    break;
                 }
-            }
-            let mut source = capture.observed_value.clone();
-            if let Some(path) = path {
-                // Typed projection consumes authenticated inline observations
-                // and masks reference children; a descriptor still cannot
-                // authorize reading its referent.
-                for field in path.split('.') {
-                    let Some(projected) =
-                        super::super::super::observed_projections::project_declared_field(
-                            self.program,
-                            self,
-                            source,
-                            field,
-                        )
-                    else {
-                        trace(
-                            "saved-field-projection",
-                            Some(capture.reference),
-                            projected_type,
-                            None,
-                        );
-                        return observed;
-                    };
-                    source = projected;
-                }
-            }
+                capture.observed_value.clone()
+            };
             if super::super::super::structural_terms::owned_observation_type(self.program, &source)
                 .is_some()
             {
@@ -306,20 +328,8 @@ impl StructuralJudge<'_> {
                     | StructuralTerm::BoundProjection { .. }
                     | StructuralTerm::CapturedValue { .. }
             ) {
-                trace(
-                    "saved-value-kind",
-                    Some(capture.reference),
-                    projected_type,
-                    Some(&source),
-                );
                 break;
             }
-            trace(
-                "followed",
-                Some(capture.reference),
-                projected_type,
-                Some(&source),
-            );
             observed = source;
         }
         observed
