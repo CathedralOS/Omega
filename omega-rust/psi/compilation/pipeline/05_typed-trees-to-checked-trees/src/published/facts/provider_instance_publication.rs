@@ -10,6 +10,7 @@ use checked_trees::{
     CheckedProviderReceivingApplication, CheckedProviderReceivingDescription, CheckedTrees,
 };
 use symbols::SymbolHandle;
+use typed_trees::type_identity::CallableIdentityId;
 
 pub(crate) fn retain(checked: &mut CheckedTrees) {
     let typed = &checked.typed;
@@ -62,20 +63,20 @@ pub(crate) fn retain(checked: &mut CheckedTrees) {
             if !requirement.is_valid() {
                 continue;
             }
-            let declaration = typed
-                .machine_callable_identity_text(template)
-                .ok_or_else(|| {
-                    "generic provider requirement has no template callable identity".to_owned()
-                })
-                .map(|template_identity| CheckedProviderInstanceDeclaration {
+            let template_identity = typed.machine_callable_identity(template);
+            let declaration = if template_identity.is_valid() {
+                Ok(CheckedProviderInstanceDeclaration {
                     template_identity,
                     package: typed.symbols.symbol_package_identity(template.symbol),
                     selecting_declaration: SymbolHandle::default(),
-                    source_candidate_identity: String::new(),
-                    requirement_identity: typed.callable_identity_text(requirement),
-                    candidate_identity: String::new(),
+                    source_candidate_identity: CallableIdentityId::default(),
+                    requirement_identity: requirement,
+                    candidate_identity: CallableIdentityId::default(),
                     receiving: arena::Handle::default(),
-                });
+                })
+            } else {
+                Err("generic provider requirement has no template callable identity".to_owned())
+            };
             publication
                 .requirements
                 .insert(CheckedProviderInstanceRequirement {
@@ -124,17 +125,21 @@ fn named(
     let template = typed
         .machine(template)
         .ok_or("provider obligation lost its immediate template")?;
+    let source_candidate_identity = typed.machine_callable_identity(template);
+    if !source_candidate_identity.is_valid() {
+        return Err("provider obligation has no realization template identity".into());
+    }
+    let candidate_identity = typed.machine_callable_identity(provider);
+    if !candidate_identity.is_valid() {
+        return Err("provider obligation has no closed realization identity".into());
+    }
     Ok(CheckedProviderInstanceDeclaration {
-        template_identity: typed.trait_requirement_callable_identity_text(owner, signature),
+        template_identity: typed.trait_requirement_callable_identity(owner, signature),
         package: typed.symbols.symbol_package_identity(association.template),
         selecting_declaration: association.selecting_declaration,
-        source_candidate_identity: typed
-            .machine_callable_identity_text(template)
-            .ok_or("provider obligation has no realization template identity")?,
-        requirement_identity: typed.callable_identity_text(requirement),
-        candidate_identity: typed
-            .machine_callable_identity_text(provider)
-            .ok_or("provider obligation has no closed realization identity")?,
+        source_candidate_identity,
+        requirement_identity: requirement,
+        candidate_identity,
         receiving,
     })
 }
