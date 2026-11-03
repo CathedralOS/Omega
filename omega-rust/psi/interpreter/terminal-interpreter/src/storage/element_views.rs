@@ -1427,20 +1427,31 @@ impl TerminalExecution<'_> {
         scalar_type: ScalarType,
         access: StructuralAccess,
     ) -> Result<Option<(StructuralScalarRuntimeField, ScalarType)>, TerminalInterpretError> {
+        let selection = [StructuralPathSegment::FixedIndex(
+            u64::try_from(position).map_err(|_| malformed())?,
+        )];
+        self.scalar_field_in_projection(collection, &selection, path, scalar_type, access)
+    }
+
+    /// Read a declared field after selecting its actual element storage. A
+    /// scalar field is an observation even when it has no raw primitive-place
+    /// form; integer and address fields must keep that distinction too.
+    fn scalar_field_in_projection(
+        &self,
+        collection: Option<&TerminalStructuralValue>,
+        selection: &[StructuralPathSegment],
+        path: &[StructuralPathSegment],
+        scalar_type: ScalarType,
+        access: StructuralAccess,
+    ) -> Result<Option<(StructuralScalarRuntimeField, ScalarType)>, TerminalInterpretError> {
         let Some((prefix, field_path)) =
             crate::storage::primitive_storage::scalar_field_projection(path)
         else {
             return Ok(None);
         };
-        let mut selected_path = Vec::with_capacity(1 + prefix.len());
-        selected_path.push(StructuralPathSegment::FixedIndex(
-            u64::try_from(position).map_err(|_| malformed())?,
-        ));
+        let mut selected_path = Vec::with_capacity(selection.len() + prefix.len());
+        selected_path.extend_from_slice(selection);
         selected_path.extend_from_slice(prefix);
-        // The element may itself contain windows or references. Its record
-        // cell belongs to the final captured backing, not to an inline walk
-        // through the outer collection's descriptor storage. Typed element
-        // views supply their source-layout path and scalar carrier here.
         let (parent, view) = self
             .resolve_reference_view_path(collection.ok_or_else(malformed)?, &selected_path, access)?
             .ok_or_else(malformed)?;
@@ -1458,13 +1469,14 @@ impl TerminalExecution<'_> {
         path: &[StructuralPathSegment],
         scalar_type: ScalarType,
     ) -> Result<TerminalScalarValue, TerminalInterpretError> {
-        let ElementViewBacking::Structural { collection } = &view.backing else {
-            return Err(malformed());
-        };
-        let position = view.window.start.checked_add(index).ok_or_else(malformed)?;
-        if let Some((field, stored_type)) = self.element_scalar_field(
-            Some(collection),
-            position,
+        let index_path = [StructuralPathSegment::FixedIndex(
+            u64::try_from(index).map_err(|_| malformed())?,
+        )];
+        let (collection, selection) =
+            view.structural_projection(&self.structural_types(), &index_path, false)?;
+        if let Some((field, stored_type)) = self.scalar_field_in_projection(
+            Some(&collection),
+            &selection,
             path,
             scalar_type,
             StructuralAccess::SharedBorrow,
@@ -1484,23 +1496,17 @@ impl TerminalExecution<'_> {
                 crate::storage::primitive_storage::scalar_reference_observation(value, scalar_type)
             }
         } else {
-            if let Some(home) = &view.home {
-                self.read_primitive_home(
-                    home.storage,
-                    &home.selected_path(position, path)?,
-                    scalar_type,
-                )
-            } else {
-                let (storage, logical, shared) =
-                    self.resident_element_storage(collection, position, path, scalar_type, true)?;
-                self.read_primitive_storage(
-                    view.diagnostic_source,
-                    storage,
-                    logical,
-                    scalar_type,
-                    shared,
-                )
-            }
+            let mut projection = Vec::with_capacity(1 + path.len());
+            projection.extend_from_slice(&index_path);
+            projection.extend_from_slice(path);
+            let (storage, logical, shared) = view.scalar_storage(self, &projection, false)?;
+            self.read_primitive_storage(
+                view.diagnostic_source,
+                storage,
+                logical,
+                scalar_type,
+                shared,
+            )
         }
     }
 
@@ -1684,22 +1690,8 @@ impl TerminalExecution<'_> {
             ElementViewBacking::Representation(_) => {
                 self.read_representation_element(view, index, path, expected)?
             }
-            ElementViewBacking::Structural { .. } => {
+            ElementViewBacking::Structural { .. } | ElementViewBacking::ImmutableSequence(_) => {
                 self.read_structural_element(view, index, path, expected)?
-            }
-            ElementViewBacking::ImmutableSequence(_) => {
-                let mut selected = vec![StructuralPathSegment::FixedIndex(
-                    u64::try_from(index).map_err(|_| malformed())?,
-                )];
-                selected.extend_from_slice(path);
-                let (storage, actual, shared) = view.scalar_storage(self, &selected, false)?;
-                self.read_primitive_storage(
-                    view.diagnostic_source,
-                    storage,
-                    actual,
-                    expected,
-                    shared,
-                )?
             }
         };
         if element.scalar_type() != expected || !terminal_scalar_belongs_to_type(element) {
