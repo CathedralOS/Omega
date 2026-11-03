@@ -115,7 +115,11 @@ bound. The original local case passed both engines, and all four invalid control
 rejected for their intended obligations. The next repair records the assigned
 reference's choice before replacing the old binding; writes through a reference
 keep its choice, while exposed or ambiguous replacements remain unknown.
-Complete current-source validation is pending.
+Run [41576089167](https://github.com/CathedralOS/Omega/actions/runs/41576089167)
+validated the original 20 positives in both engines and all 33 invalid controls,
+but the declared-then-assigned reference still wrongly lost the bound. Its
+current result capture is being traced on that same frozen program. Full
+acceptance and publication remain unfinished.
 
 The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
 on the frozen baseline in
