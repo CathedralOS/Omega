@@ -537,6 +537,12 @@ impl<'program> StructuralJudge<'program> {
             crate::completed_storage::StoredObservation::Contents
         };
         if stored.current_anchors.is_empty() || stored.anchor_state != at.state {
+            if super::super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT storage-value-retired coordinate={coordinate:?} inline={inline} at={at:?} anchors={:?} anchor_state={:?} phase=establishment-state",
+                    stored.current_anchors, stored.anchor_state,
+                );
+            }
             return false;
         }
         // A whole immutable scalar binding has no write authority: no effect,
@@ -624,7 +630,7 @@ impl<'program> StructuralJudge<'program> {
             &place,
             observation,
         );
-        match reaching {
+        let valid = match reaching {
             None => reached(&crate::completed_storage::StoredOperand::Incoming(
                 place.clone(),
             )),
@@ -636,7 +642,14 @@ impl<'program> StructuralJudge<'program> {
                 .iter()
                 .any(|anchor| matches!(anchor, StorageAnchor::After(cut) if preserved(*cut))),
             Some(reaching) => reached(&reaching),
+        };
+        if !valid && super::super::super::struct_trace() {
+            eprintln!(
+                "STRUCT storage-value-retired coordinate={coordinate:?} inline={inline} at={at:?} anchors={:?}",
+                stored.current_anchors,
+            );
         }
+        valid
     }
 }
 

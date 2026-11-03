@@ -778,6 +778,47 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             _ => None,
         };
         if let Some((bindings, contents)) = final_write {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT storage-write machine={} state={} statement={statement_index} bindings={bindings:?} contents={contents:?}",
+                    machine.name, state.name,
+                );
+                if bindings.is_none() {
+                    let target = build.control.statements.get(statement_fact).store_target;
+                    if build.control.operands.is_valid(target) {
+                        let capture = build.control.operands.get(target);
+                        eprintln!(
+                            "STRUCT storage-write-target expression={:?} type={:?} referents={:?} retention={:?} completion={:?}",
+                            capture.expression,
+                            capture.type_reference,
+                            capture.referents,
+                            capture.retention,
+                            capture.completion,
+                        );
+                        for referent in build
+                            .control
+                            .operand_referents
+                            .span_or_empty(capture.referents)
+                        {
+                            let formation = build
+                                .control
+                                .referent_formations
+                                .is_valid(referent.formation)
+                                .then(|| build.control.referent_formations.get(referent.formation));
+                            eprintln!(
+                                "STRUCT storage-write-target-referent root={:?} path={:?} formation={formation:?}",
+                                referent.root,
+                                build
+                                    .control
+                                    .operand_referent_segments
+                                    .span(referent.segments),
+                            );
+                        }
+                    } else {
+                        eprintln!("STRUCT storage-write-target phase=missing-completed-target");
+                    }
+                }
+            }
             let snapshot = build
                 .control
                 .statements

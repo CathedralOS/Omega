@@ -518,6 +518,11 @@ pub(super) fn canonical_write_origins(
             let mut next_crossed = crossed.clone();
             if let Some(boundary) = boundary {
                 if next_crossed.contains(&boundary) {
+                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        eprintln!(
+                            "STRUCT write-origin-refused phase=repeated-descriptor origin={origin:?} next={source:?} boundary={boundary} crossed={next_crossed:?}"
+                        );
+                    }
                     return None;
                 }
                 next_crossed.push(boundary);
@@ -583,8 +588,18 @@ fn overlapping_origins(
             } else {
                 origin.precision
             };
+            if leaf.origin.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT write-origin-refused phase=unknown-descendant origin={origin:?} leaf={leaf:?} suffix={suffix:?}"
+                );
+            }
             compose_origin(program, leaf.origin.as_ref()?, suffix, precision)
         } else if place_suffix(&origin.path, &leaf.local_path).is_some() {
+            if leaf.origin.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT write-origin-refused phase=unknown-contained-reference origin={origin:?} leaf={leaf:?}"
+                );
+            }
             compose_origin(program, leaf.origin.as_ref()?, "", origin.precision)
         } else {
             continue;

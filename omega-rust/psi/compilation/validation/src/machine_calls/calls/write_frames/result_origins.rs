@@ -143,13 +143,30 @@ fn call_body_result_origins(
         || arguments.len() != parameters.iter().count()
         || !super::isolation::aggregate_storage_types_match(program, applied_result, expected)
     {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT call-result-origins-refused caller={} callee={} expression={expression:?} target={:?} active={} supply={:?} body={} generic_parameters={} machine_arguments={} receiver={} attached_data={} arguments={} parameters={} applied={applied_result:?} expected={expected:?}",
+                caller_machine.name,
+                machine.name,
+                call.target_symbol,
+                inference.active_states.contains(&state.symbol),
+                machine.supply_mode,
+                machine.body_is_present,
+                program.machine_type_parameters(machine).len(),
+                call.machine_arguments.len(),
+                call.receiver.is_valid(),
+                machine.attached_data.is_some(),
+                arguments.len(),
+                parameters.len(),
+            );
+        }
         return None;
     }
     let mut relative = if let Some(origin) = primitive_origin {
         origin
     } else {
         let indices = inference.argument_indices(program, arguments);
-        inference.with_invocation(program, state, &[], &indices, |inference| {
+        let relative = inference.with_invocation(program, state, &[], &indices, |inference| {
             state_result_origins(
                 program,
                 machine,
@@ -159,9 +176,16 @@ fn call_body_result_origins(
                 inference,
                 include_shared,
             )
-        })?
+        });
+        if relative.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT call-result-origins-refused caller={} callee={} expression={expression:?} phase=normal-result-relation",
+                caller_machine.name, machine.name,
+            );
+        }
+        relative?
     };
-    instantiate_result_origins(
+    let returned = instantiate_result_origins(
         program,
         caller_machine,
         parameters,
@@ -172,7 +196,14 @@ fn call_body_result_origins(
         inference,
         include_shared,
         inputs,
-    )
+    );
+    if returned.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "STRUCT call-result-origins-refused caller={} callee={} expression={expression:?} phase=completed-input-substitution",
+            caller_machine.name, machine.name,
+        );
+    }
+    returned
 }
 
 /// Complete result relation in the requested state's own parameter namespace.
