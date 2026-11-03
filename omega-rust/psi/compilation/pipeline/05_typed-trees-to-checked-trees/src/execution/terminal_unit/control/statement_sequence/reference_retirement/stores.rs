@@ -338,6 +338,12 @@ pub(in crate::execution::terminal_unit::control::statement_sequence) fn releases
             &source.path,
             retirement.operations,
         )?;
+        if retirement.at_exit && moved.possible.is_empty() {
+            eprintln!(
+                "corpus_runner: STORED_RELEASE_TRACE owner={owner:?} formation={formation} path={:?} returned={:?} operations={:?}",
+                source.path, retirement.returned, retirement.operations,
+            );
+        }
         if moved.possible.iter().any(|transfer| {
             transfer.source.starts_with(&source.path) || source.path.starts_with(&transfer.source)
         }) {
