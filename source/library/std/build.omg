@@ -5,6 +5,7 @@ machine build(builder: &mut Build) {
     configure_macos_image(builder);
     configure_time_host(builder);
     configure_windows_filesystem(builder);
+    configure_posix_canonical(builder);
     // Bind the complete ObjectiveC family once. String extents stay static.
     Build::bind<ObjectiveC::get_class>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
@@ -313,6 +314,47 @@ machine configure_windows_filesystem(builder: &mut Build) {
     Build::bind<WindowsFilesystemIo::c_set_last_error>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetLastError"
+        } });
+}
+
+// The raw POSIX canonicalize requirements are backed here; the boundary trait
+// carries every contract, so no forwarding declaration restates one.
+machine configure_posix_canonical(builder: &mut Build) {
+    Build::bind<PosixCanonicalLibc::resolve>(builder, linux_x86_64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "realpath", version: "GLIBC_2.3"
+        } });
+    Build::bind<PosixCanonicalLibc::error_location>(builder, linux_x86_64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.2.5"
+        } });
+    Build::bind<PosixCanonicalLibc::copy_error>(builder, linux_x86_64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.2.5"
+        } });
+    Build::bind<PosixCanonicalLibc::resolve>(builder, linux_arm64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "realpath", version: "GLIBC_2.17"
+        } });
+    Build::bind<PosixCanonicalLibc::error_location>(builder, linux_arm64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.17"
+        } });
+    Build::bind<PosixCanonicalLibc::copy_error>(builder, linux_arm64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.17"
+        } });
+    Build::bind<PosixCanonicalLibc::resolve>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_realpath"
+        } });
+    Build::bind<PosixCanonicalLibc::error_location>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "___error"
+        } });
+    Build::bind<PosixCanonicalLibc::copy_error>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcpy"
         } });
 }
 
