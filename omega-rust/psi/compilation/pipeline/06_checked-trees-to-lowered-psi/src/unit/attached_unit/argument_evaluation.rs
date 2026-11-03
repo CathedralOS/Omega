@@ -510,7 +510,10 @@ impl Evaluation {
                         caller.line(),
                         self.structural_locals,
                         self.retired_structural_homes,
-                        self.retired_structural_bindings,
+                        self.retired_structural_bindings
+                            .iter()
+                            .map(|binding| (binding.symbol, binding.place, binding.statement))
+                            .collect::<Vec<_>>(),
                     );
                     return unsupported("value storage local is not established");
                 };
