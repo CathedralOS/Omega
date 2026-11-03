@@ -219,7 +219,7 @@ pub(in crate::borrow) fn from_effects(
             let relevant = |candidate: &&super::RebasedBorrowPlace| {
                 source.lifetime_access.is_some() || candidate.lifetime_access.is_none()
             };
-            let complete_carrier = captured.iter().filter(relevant).next().is_some()
+            let complete_carrier = captured.iter().find(relevant).is_some()
                 && captured.iter().filter(relevant).all(|candidate| {
                     effect.sources.iter().any(|alternative| {
                         alternative.carrier_symbol == source.carrier_symbol

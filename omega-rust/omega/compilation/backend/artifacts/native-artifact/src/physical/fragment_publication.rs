@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use image_emission::ObjectArtifact;
-use installation_evidence::ObjectEvidence;
 use object_file::StagedOptimizedRelocationFreeObjectContainer;
 
 use super::ValidatedOptimizedNativePhysicalEvidenceScope;
@@ -42,6 +41,10 @@ impl FragmentPublicationBinding {
         Ok(())
     }
 
+    #[expect(
+        dead_code,
+        reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
+    )]
     pub(super) const fn identity(&self) -> &[u8; 32] {
         &self.identity
     }
@@ -64,6 +67,10 @@ impl FragmentPublicationBinding {
 }
 
 #[allow(clippy::too_many_arguments)]
+#[expect(
+    dead_code,
+    reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
+)]
 pub(crate) fn derive_scope(
     final_plan: &abstract_operations::AbstractOperationPlan,
     terminal: terminal_psi::TerminalPsiIdentity,
@@ -142,6 +149,14 @@ pub(crate) fn derive_scope(
     ))
 }
 
+// Tests exercise this retained-but-unwired path, so it is dead only outside them.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
+    )
+)]
 fn validate_final_plan(
     proposed: &abstract_operations::AbstractOperationPlan,
     retained: &abstract_operations::AbstractOperationPlan,

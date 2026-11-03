@@ -298,12 +298,10 @@ fn storage_place(
     _state: &typed_trees::state::State,
     place: &CanonicalPlace,
 ) -> CanonicalPlace {
-    let storage = CanonicalPlace {
+    CanonicalPlace {
         root: (place.root),
         segments: place.segments.clone(),
-    };
-
-    storage
+    }
 }
 
 /// Whether `place` is owned storage of this activation reached without

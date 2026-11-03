@@ -273,7 +273,7 @@ fn observed_storage_type(
     // minimum is no guarantee for it. Reject rather than overstate it.
     for prefix in 0..canonical.segments.len() {
         let enclosing = validation::CanonicalPlace {
-            root: canonical.root.clone(),
+            root: canonical.root,
             segments: canonical.segments[..prefix].to_vec(),
         };
         let through_representation =

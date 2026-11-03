@@ -275,10 +275,10 @@ pub fn public_realizations(
         .iter()
         .filter(|table| table.interface == interface)
     {
-        if let Some(machine) = *table.rows.get(usize::try_from(slot).ok()?)? {
-            if !realizations.contains(&machine) {
-                realizations.push(machine);
-            }
+        if let Some(machine) = *table.rows.get(usize::try_from(slot).ok()?)?
+            && !realizations.contains(&machine)
+        {
+            realizations.push(machine);
         }
     }
     Some(realizations)

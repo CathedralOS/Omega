@@ -82,7 +82,7 @@ fn empty_interiors_preserve_geometry_without_requiring_a_write_path() {
     let interior = LayoutPlanReport {
         schema_report_fingerprint: 2,
         entries: vec![layout_field_entry(
-            "choice".into(),
+            "choice",
             LayoutPlacementReport::At { offset: 0 },
         )],
         offsets: Some(vec![0]),
@@ -157,7 +157,7 @@ fn symbolic_inner_materialization_bounds_record_path_depth() {
             LayoutPlanReport {
                 schema_report_fingerprint: 2,
                 entries: vec![layout_field_entry(
-                    "slot".into(),
+                    "slot",
                     LayoutPlacementReport::At { offset: 0 },
                 )],
                 offsets: Some(vec![0]),
@@ -194,16 +194,8 @@ fn symbolic_sum_materialization_joins_case_and_payload_by_identity() {
     let numbered_layout = LayoutPlanReport {
         schema_report_fingerprint: 1,
         entries: vec![
-            numbered_layout_field_entry(
-                "header".into(),
-                4,
-                LayoutPlacementReport::At { offset: 0 },
-            ),
-            numbered_layout_field_entry(
-                "choice".into(),
-                5,
-                LayoutPlacementReport::At { offset: 8 },
-            ),
+            numbered_layout_field_entry("header", 4, LayoutPlacementReport::At { offset: 0 }),
+            numbered_layout_field_entry("choice", 5, LayoutPlacementReport::At { offset: 8 }),
         ],
         offsets: Some(vec![0, 8]),
         size: Some(32),
@@ -547,7 +539,7 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
     per_element.entries = (0..2)
         .map(|index| {
             layout_field_entry(
-                "sums".into(),
+                "sums",
                 LayoutPlacementReport::At {
                     offset: 8 + index * 24,
                 },
@@ -575,7 +567,7 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
     surplus.entries = (0..3)
         .map(|index| {
             layout_field_entry(
-                "sums".into(),
+                "sums",
                 LayoutPlacementReport::At {
                     offset: 8 + index * 16,
                 },
@@ -598,8 +590,8 @@ fn symbolic_sum_array_materialization_rejects_malformed_element_hops() {
     // drift: one of the two pieces of evidence is stale.
     let mut drifted = layout.clone();
     drifted.entries = vec![
-        layout_field_entry("sums".into(), LayoutPlacementReport::At { offset: 8 }),
-        layout_field_entry("sums".into(), LayoutPlacementReport::At { offset: 30 }),
+        layout_field_entry("sums", LayoutPlacementReport::At { offset: 8 }),
+        layout_field_entry("sums", LayoutPlacementReport::At { offset: 30 }),
     ];
     let error = reject_inner_layout_materialization(
         &drifted,
@@ -764,7 +756,7 @@ fn symbolic_recursive_sum_fold_bounds_report_depth() {
         outer_layout: LayoutPlanReport {
             schema_report_fingerprint: 9,
             entries: vec![layout_field_entry(
-                "sub".into(),
+                "sub",
                 LayoutPlacementReport::At { offset: 0 },
             )],
             offsets: Some(vec![0]),

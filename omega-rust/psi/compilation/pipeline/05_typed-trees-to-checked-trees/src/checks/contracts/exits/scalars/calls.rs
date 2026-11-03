@@ -68,9 +68,7 @@ impl ExitScalars<'_, '_> {
         call: NormalReturnCall<'_>,
         guarantee: ExpressionHandle,
     ) -> Option<usize> {
-        let Some(binary) = self.program.expression_table.binary_node(guarantee) else {
-            return None;
-        };
+        let binary = self.program.expression_table.binary_node(guarantee)?;
         if binary.operator != BinaryOperator::Equal {
             return None;
         }
@@ -162,7 +160,7 @@ impl ExitScalars<'_, '_> {
                 ) else {
                     continue;
                 };
-                if !crate::flow::canonical_places_agree(self.program, &candidate, &subject) {
+                if !crate::flow::canonical_places_agree(self.program, &candidate, subject) {
                     continue;
                 }
                 let FactPayload::AssignedValue { value } = fact.payload else {
@@ -185,9 +183,7 @@ impl ExitScalars<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<NormalReturnCall<'_>> {
-        let Some(authored) = self.program.expression_table.call_node(expression) else {
-            return None;
-        };
+        let authored = self.program.expression_table.call_node(expression)?;
         if !authored.machine_arguments.is_empty() {
             return None;
         }
@@ -198,9 +194,7 @@ impl ExitScalars<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<NormalReturnCall<'_>> {
-        let Some(authored) = self.program.expression_table.call_node(expression) else {
-            return None;
-        };
+        let authored = self.program.expression_table.call_node(expression)?;
         if authored.receiver.is_valid()
             || !authored.evidence_arguments.is_empty()
             || !authored.selects_only_nominal_route()

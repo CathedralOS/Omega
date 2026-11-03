@@ -566,9 +566,7 @@ fn expression_rooted_domain_parts(
     symbols::SymbolHandle,
     typed_trees::expression::ExpressionHandle,
 )> {
-    let Some((_, _, domain_symbol, _)) = payload.domain_membership() else {
-        return None;
-    };
+    let (_, _, domain_symbol, _) = payload.domain_membership()?;
     let place_handle = place.as_place()?;
     let resolved = semantic.places.get(place_handle);
     if !resolved.segments.is_empty() {

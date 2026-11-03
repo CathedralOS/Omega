@@ -362,6 +362,27 @@ pub(crate) fn decode_structural_place_kind(
     })
 }
 
+/// Qualification patterns have a separate wire entrance. The ordinary operand
+/// entrance rejects universal metadata even when its type could be resolved.
+pub(crate) fn encode_qualification_path(
+    writer: &mut Writer,
+    path: &[StructuralPathSegment],
+) -> Result<(), CodecError> {
+    writer.len("qualification pattern", path.len())?;
+    for step in path {
+        encode_projection(writer, step);
+    }
+    Ok(())
+}
+pub(crate) fn decode_qualification_path(
+    reader: &mut Reader<'_>,
+) -> Result<Vec<StructuralPathSegment>, CodecError> {
+    decode_counted(reader, |reader| {
+        let tag = reader.u8()?;
+        decode_projection(reader, tag)
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -462,25 +483,4 @@ mod tests {
             Err(CodecError::UnsupportedFormatMarker(120))
         ));
     }
-}
-
-/// Qualification patterns have a separate wire entrance. The ordinary operand
-/// entrance rejects universal metadata even when its type could be resolved.
-pub(crate) fn encode_qualification_path(
-    writer: &mut Writer,
-    path: &[StructuralPathSegment],
-) -> Result<(), CodecError> {
-    writer.len("qualification pattern", path.len())?;
-    for step in path {
-        encode_projection(writer, step);
-    }
-    Ok(())
-}
-pub(crate) fn decode_qualification_path(
-    reader: &mut Reader<'_>,
-) -> Result<Vec<StructuralPathSegment>, CodecError> {
-    decode_counted(reader, |reader| {
-        let tag = reader.u8()?;
-        decode_projection(reader, tag)
-    })
 }

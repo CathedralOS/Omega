@@ -266,11 +266,11 @@ pub(crate) fn declaration_call_dependencies(
             &mut dependencies,
         );
         dependencies.extend(requirement_backing_machines(program, symbol));
-    } else if let Some(proposition) = program
-        .propositions()
-        .iter()
-        .find(|proposition| proposition.symbol == symbol)
-    {
+    } else {
+        let proposition = program
+            .propositions()
+            .iter()
+            .find(|proposition| proposition.symbol == symbol)?;
         if let typed_trees::proposition::PropositionBody::Transparent { proposition } =
             &proposition.body
         {
@@ -283,8 +283,6 @@ pub(crate) fn declaration_call_dependencies(
                 }
             }
         }
-    } else {
-        return None;
     }
     dependencies
         .sort_unstable_by_key(|dependency| (dependency.arena_index(), dependency.generation()));
@@ -563,8 +561,7 @@ pub(crate) fn validate_machine_call_cycles(
         if members
             .iter()
             .all(|member| proof_only.is_proof_machine(program, &machines[*member]))
-        {
-            if !proof_components.iter().any(|component| {
+            && !proof_components.iter().any(|component| {
                 component.members.len() == members.len()
                     && members.iter().all(|member| {
                         component
@@ -572,19 +569,19 @@ pub(crate) fn validate_machine_call_cycles(
                             .iter()
                             .any(|validated| *validated == machines[*member].symbol)
                     })
-            }) {
-                let reason = ranking_failures
-                    .iter()
-                    .find(|(failed, _)| failed == &members)
-                    .map(|(_, reason)| *reason)
-                    .unwrap_or("the exact call inventory is incomplete");
-                diagnostics.push(Diagnostic::error(format!(
-                    "proof-only machine call cycle: `{names}` -- no complete structural ranking \
+            })
+        {
+            let reason = ranking_failures
+                .iter()
+                .find(|(failed, _)| failed == &members)
+                .map(|(_, reason)| *reason)
+                .unwrap_or("the exact call inventory is incomplete");
+            diagnostics.push(Diagnostic::error(format!(
+                "proof-only machine call cycle: `{names}` -- no complete structural ranking \
                      establishes strict descent on every cycle; exact arguments must preserve \
                      or descend from the ranking subject, and preserving edges must be acyclic; \
                      computed ranking: {reason}"
-                )));
-            }
+            )));
         }
         // Runtime and mixed components keep their exact topology here. Their
         // complete edge judgment waits for completed effects and each body's
@@ -804,7 +801,6 @@ fn collect_exact_proof_call_edges_in_machines(
             {
                 collect_exact_proof_statement_edges(
                     program,
-                    machine,
                     state.symbol,
                     statement_index,
                     statement,
@@ -820,7 +816,6 @@ fn collect_exact_proof_call_edges_in_machines(
 #[allow(clippy::too_many_arguments)]
 fn collect_exact_proof_statement_edges(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     state: SymbolHandle,
     statement_index: usize,
     statement: &StatementNode,
@@ -832,7 +827,6 @@ fn collect_exact_proof_statement_edges(
         ($expression:expr) => {
             collect_exact_proof_expression_edges(
                 program,
-                machine,
                 state,
                 statement_index,
                 $expression,
@@ -918,7 +912,6 @@ fn collect_exact_proof_statement_edges(
 #[allow(clippy::too_many_arguments)]
 fn collect_exact_proof_expression_edges(
     program: &dyn crate::CheckingInput,
-    machine: &Machine,
     state: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
@@ -935,7 +928,6 @@ fn collect_exact_proof_expression_edges(
         ($child:expr) => {
             collect_exact_proof_expression_edges(
                 program,
-                machine,
                 state,
                 statement_index,
                 $child,

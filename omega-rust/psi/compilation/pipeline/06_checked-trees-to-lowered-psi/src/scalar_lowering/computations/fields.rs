@@ -78,7 +78,7 @@ impl super::Expansion<'_> {
         let (machine, state) =
             crate::shared::declarations::state_declaration(self.checked, site.state)?;
         let CheckedScalarComputationKind::StructuralField { result_type, .. } =
-            value_facts(&self.checked)
+            value_facts(self.checked)
                 .scalar_computations
                 .nodes
                 .get(computation)
@@ -98,7 +98,7 @@ impl super::Expansion<'_> {
                     } else {
                         receiver_expression.is_valid()
                             && receiver_expression
-                                == value_facts(&self.checked)
+                                == value_facts(self.checked)
                                     .structural_values
                                     .nodes
                                     .get(*root)
@@ -288,11 +288,11 @@ struct CapturedPlaceSubject {
 
 /// The silent place loans the plan records for `state`: the single-state
 /// body's roster, or the composed state's.
-fn planned_place_loans<'plan>(
-    checked: &'plan CheckedTrees,
+fn planned_place_loans(
+    checked: &CheckedTrees,
     machine: symbols::SymbolHandle,
     state: symbols::SymbolHandle,
-) -> &'plan [checked_trees::CheckedPlaceLoanPlan] {
+) -> &[checked_trees::CheckedPlaceLoanPlan] {
     let plans = &checked.facts.flow.terminal_unit_effects;
     if let Some(plan) = plans
         .for_machine(machine)
@@ -505,7 +505,7 @@ fn captured_place_subject(
                     }
                     primitive_field = Some((selected.id, scalar_type));
                     carrier_path.push(terminal_psi::StructuralPathSegment::Field(
-                        selected.identity.clone(),
+                        selected.identity,
                     ));
                     literal_index_tail = false;
                     break;
@@ -517,7 +517,7 @@ fn captured_place_subject(
                     selected.id,
                 ));
                 carrier_path.push(terminal_psi::StructuralPathSegment::Field(
-                    selected.identity.clone(),
+                    selected.identity,
                 ));
                 literal_index_tail = false;
                 declaration = terminal_psi::find_structural_type(types, nested).ok_or(
@@ -900,7 +900,7 @@ pub(crate) fn prepare(
                     subject.typed_overlay,
                     subject.carrier_path,
                     subject.path,
-                    terminal_psi::find_structural_type(&types, subject.terminal).ok_or(
+                    terminal_psi::find_structural_type(types, subject.terminal).ok_or(
                         LoweringError::Unsupported("record read's loaned carrier type is absent"),
                     )?,
                     subject.runtime_index,
@@ -1042,7 +1042,7 @@ pub(crate) fn prepare(
                     selected.id,
                 ));
                 primitive_path.push(terminal_psi::StructuralPathSegment::Field(
-                    selected.identity.clone(),
+                    selected.identity,
                 ));
                 declaration = terminal_psi::find_structural_type(types, nested).ok_or(
                     LoweringError::Unsupported("record read carrier type is absent"),
@@ -1099,14 +1099,14 @@ pub(crate) fn prepare(
                         "record read requires a record namespace",
                     ))?,
             };
-            let retained = terminal_psi::field_by_identity(&fields, identities.intern(&identity))
+            let retained = terminal_psi::field_by_identity(fields, identities.intern(&identity))
                 .ok_or(LoweringError::Unsupported(
-                "record read has no declared field identity",
-            ))?;
+                    "record read has no declared field identity",
+                ))?;
             let bounded_leaf =
                 terminal_semantics::scalar_field_requires_evidence(&retained.field_type);
             primitive_path.push(terminal_psi::StructuralPathSegment::Field(
-                retained.identity.clone(),
+                retained.identity,
             ));
             // The selected field owns either scalar storage or a descriptor.
             // Follow declared readable crossings at the endpoint just as the
@@ -1547,7 +1547,7 @@ fn observation_source(
                     parameter_index,
                 },
                 path: Vec::new(),
-                type_identity: subject.type_identity.clone(),
+                type_identity: subject.type_identity,
                 access: subject.access,
             },
             parameters,
@@ -1559,7 +1559,7 @@ fn observation_source(
                     symbol,
                 },
                 path: Vec::new(),
-                type_identity: subject.type_identity.clone(),
+                type_identity: subject.type_identity,
                 access: subject.access,
             },
             parameters,

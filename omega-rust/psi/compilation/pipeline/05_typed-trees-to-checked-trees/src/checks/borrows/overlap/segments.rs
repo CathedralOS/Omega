@@ -419,7 +419,7 @@ fn place_segments_containment_evaluated<'p>(
 }
 
 fn structural_segment_equal(left: facts::PlaceSegment, right: facts::PlaceSegment) -> bool {
-    static_place_segment_pair_equal(left, right).unwrap_or_else(|| match (left, right) {
+    static_place_segment_pair_equal(left, right).unwrap_or(match (left, right) {
         (
             facts::PlaceSegment::FixedRange {
                 start: left_start,

@@ -590,6 +590,22 @@ macro_rules! integer_widen_triple_pattern {
     };
 }
 
+// Sealing describes this owner, not source semantics. Its indexes rebuild from
+// the restored plans before use and cannot carry another process's revisions.
+impl compiler_storage::Record for SealedExpressionStateIndex {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
+}
+
 #[cfg(test)]
 mod index_tests {
     use super::{
@@ -625,21 +641,5 @@ mod index_tests {
         plans.source_bindings.get_mut(binding).state = moved;
         assert!(plans.bound_expression_at(moved, 0, role).is_some());
         assert!(plans.expression_at(original, 0, role).is_none());
-    }
-}
-
-// Sealing describes this owner, not source semantics. Its indexes rebuild from
-// the restored plans before use and cannot carry another process's revisions.
-impl compiler_storage::Record for SealedExpressionStateIndex {
-    fn write(
-        &self,
-        _: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        Ok(())
-    }
-    fn read<Context>(
-        _: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        Ok(Self::default())
     }
 }

@@ -181,7 +181,7 @@ pub fn prepare_product_requirement_operand(
     let signatures = lower
         .program
         .prepare_applied_callable_signatures()
-        .map_err(|reason| refuse(&reason))?;
+        .map_err(&refuse)?;
     crate::monomorphization::finalize_callable_signature_identities(lower.program, signatures)
         .map_err(|diagnostic| vec![diagnostic])?;
     let Some((owner, signature)) = lower.program.trait_machine_signature(requirement) else {
@@ -210,15 +210,14 @@ pub fn prepare_product_requirement_operand(
     let has_outer = root_application.member.is_valid();
     // An absent method tuple keeps the method's own universal telescope. An
     // explicitly supplied tuple must close completely, including unused args.
-    if let Some(supplied) = &supplied {
-        if supplied.member.is_valid()
+    if let Some(supplied) = &supplied
+        && (supplied.member.is_valid()
             || supplied.arguments.len() != parameters.len()
-            || supplied.lifetime_arguments.len() != lifetime_parameters.len()
-        {
-            return Err(refuse(
-                "native requirement application requires its complete exact member telescope",
-            ));
-        }
+            || supplied.lifetime_arguments.len() != lifetime_parameters.len())
+    {
+        return Err(refuse(
+            "native requirement application requires its complete exact member telescope",
+        ));
     }
     let retained_scope = has_outer
         .then(|| environment.retain(lower.program))
@@ -553,13 +552,11 @@ impl Lower<'_> {
         if value.path.count() == 1
             && !value.application.is_valid()
             && !value.structural_type.is_valid()
+            && let Some(name) = value.path.handles().next()
+            && let Some(actual) = self.environment_argument(name)?
         {
-            if let Some(name) = value.path.handles().next()
-                && let Some(actual) = self.environment_argument(name)?
-            {
-                self.active_operands.pop();
-                return Ok(actual.argument);
-            }
+            self.active_operands.pop();
+            return Ok(actual.argument);
         }
         let type_reference = self.ty_optional(value.structural_type)?;
         let application = value

@@ -16,7 +16,6 @@ use typed_trees::machine::resolve_satisfied_declaration;
 /// Project the trait, operator and top-level requirement realizations of one
 /// non-external callable. External callables are projected by
 /// `project_checked_external_supply_policy`.
-
 pub(super) fn callable_conformance(
     compilation: &PackageReviewInput<'_>,
     trait_definition: &typed_trees::trait_definition::TraitDefinition,

@@ -328,7 +328,7 @@ impl Emission<'_, '_, '_> {
         use checked_trees::facts::ContentClaimTransformationSource;
         let content = &self.checked.facts.qualifications.content;
         let equation = content.body_conservations.get(conservation);
-        let completed = flow_facts(&self.checked)
+        let completed = flow_facts(self.checked)
             .control
             .operands
             .get(equation.completed_value);

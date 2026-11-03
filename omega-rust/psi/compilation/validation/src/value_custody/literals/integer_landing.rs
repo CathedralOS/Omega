@@ -61,9 +61,7 @@ pub fn evaluate_anonymous_numeric_comparison(
     if !program.expression_table.expression_is_valid(expression) {
         return None;
     }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     if !matches!(
         binary.operator,
         BinaryOperator::Equal

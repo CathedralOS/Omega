@@ -63,18 +63,17 @@ impl TypedReferences for Census {
         true
     }
     fn call_arguments(&mut self, program: &TypedTrees, call: StaticArgumentCall<'_>) -> bool {
-        if let StaticArgumentCall::Expression(expression, call) = call {
-            if let Some(BuildSelectionRequest::Declaration(request)) = program
+        if let StaticArgumentCall::Expression(expression, call) = call
+            && let Some(BuildSelectionRequest::Declaration(request)) = program
                 .expression_table
                 .build_selection_request(call.build_selection)
-            {
-                self.occurrences.push(ProductSelectionOccurrence {
-                    machine: self.machine,
-                    state: self.state,
-                    expression,
-                    request: Arc::clone(request),
-                });
-            }
+        {
+            self.occurrences.push(ProductSelectionOccurrence {
+                machine: self.machine,
+                state: self.state,
+                expression,
+                request: Arc::clone(request),
+            });
         }
         true
     }

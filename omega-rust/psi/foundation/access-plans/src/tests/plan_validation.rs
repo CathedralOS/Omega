@@ -47,7 +47,7 @@ fn compact_fnv_plan_inventory_is_explicitly_non_authoritative() {
 fn stored_integer_geometry_uses_the_exact_encoded_width() {
     let layout = layout_report(
         vec![layout_field_entry(
-            "value".into(),
+            "value",
             LayoutPlacementReport::IntegerAt {
                 offset: 3,
                 stored_width: 16,
@@ -207,7 +207,7 @@ fn access_validation_replays_retained_layout_structure_not_only_fingerprint() {
 fn access_identity_covers_operation_width_and_exposure() {
     let layout = layout_report(
         vec![layout_field_entry(
-            "word".into(),
+            "word",
             LayoutPlacementReport::At { offset: 0 },
         )],
         Some(vec![0]),
@@ -495,8 +495,8 @@ fn destructive_access_requires_one_whole_snapshot_accessor() {
     let aliased_layout = LayoutPlanReport {
         schema_report_fingerprint: 0xdead,
         entries: vec![
-            layout_field_entry("snapshot".into(), LayoutPlacementReport::At { offset: 0 }),
-            layout_field_entry("status".into(), LayoutPlacementReport::At { offset: 0 }),
+            layout_field_entry("snapshot", LayoutPlacementReport::At { offset: 0 }),
+            layout_field_entry("status", LayoutPlacementReport::At { offset: 0 }),
         ],
         offsets: Some(vec![0, 0]),
         size: Some(4),
@@ -560,8 +560,8 @@ fn overlapping_atomic_fields_cannot_select_mixed_widths() {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 0xa70,
         entries: vec![
-            layout_field_entry("wide".into(), LayoutPlacementReport::At { offset: 0 }),
-            layout_field_entry("upper".into(), LayoutPlacementReport::At { offset: 4 }),
+            layout_field_entry("wide", LayoutPlacementReport::At { offset: 0 }),
+            layout_field_entry("upper", LayoutPlacementReport::At { offset: 4 }),
         ],
         offsets: Some(vec![0, 4]),
         size: Some(8),
@@ -594,7 +594,7 @@ fn multi_container_fragments_are_not_one_access() {
     let layout = layout_report(
         vec![
             layout_field_entry(
-                "entry".into(),
+                "entry",
                 LayoutPlacementReport::Bits {
                     container: 0,
                     container_width: 32,
@@ -604,7 +604,7 @@ fn multi_container_fragments_are_not_one_access() {
                 },
             ),
             layout_field_entry(
-                "entry".into(),
+                "entry",
                 LayoutPlacementReport::Bits {
                     container: 4,
                     container_width: 32,

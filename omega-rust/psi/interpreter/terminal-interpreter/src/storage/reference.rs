@@ -2001,7 +2001,7 @@ impl TerminalExecution<'_> {
                         owner.structural_type,
                         source,
                     )
-                    .map_err(|reason| TerminalInterpretError::UnsupportedSemanticVariant(reason))?;
+                    .map_err(TerminalInterpretError::UnsupportedSemanticVariant)?;
                     if binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
                         && binding.endpoint != referent_type
                     {
@@ -2264,15 +2264,12 @@ impl TerminalExecution<'_> {
                 if endpoint != referent_type {
                     return Err(malformed());
                 }
-                if path
-                    .iter()
-                    .any(|projection| {
-                        !matches!(
-                            projection,
-                            terminal_psi::ReferenceOriginProjection::Exact(_)
-                        )
-                    })
-                {
+                if path.iter().any(|projection| {
+                    !matches!(
+                        projection,
+                        terminal_psi::ReferenceOriginProjection::Exact(_)
+                    )
+                }) {
                     return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                         "invocation reference origin element window",
                     ));
@@ -2288,9 +2285,11 @@ impl TerminalExecution<'_> {
                     .structural_values
                     .iter()
                     .map(|(place, value)| (place, value, None))
-                    .chain(self.retired_structural_homes.iter().map(
-                        |(place, value, origin)| (place, value, origin.as_ref()),
-                    ));
+                    .chain(
+                        self.retired_structural_homes
+                            .iter()
+                            .map(|(place, value, origin)| (place, value, origin.as_ref())),
+                    );
                 for (place, value, retired_origin) in produced_entries {
                     if value.structural_type != *carrier_type
                         || machine.producing_operation(*place).is_none()

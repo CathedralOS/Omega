@@ -203,13 +203,13 @@ pub fn data_field_type(
                 .data_definitions()
                 .iter()
                 .find(|data| (symbol.is_valid() && data.symbol == *symbol) || data.name == *name)?;
-            return program
+            program
                 .data_members(data)
                 .iter()
                 .find_map(|member| match member {
                     Field(field) if field.name.as_str() == field_name => Some(field.type_reference),
                     _ => None,
-                });
+                })
         }
         _ => None,
     }

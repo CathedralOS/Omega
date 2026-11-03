@@ -215,10 +215,10 @@ pub fn pure_byte_qualifications<'types, 'domain>(
 /// own gate — owned bytes and shared views authenticate identically to here.
 /// Resolve an operation-result place to its producing operation and declared
 /// structural type — the two-hop prologue each result-predicate walks.
-fn operation_producer<'machine>(
-    machine: &'machine TerminalMachine,
+fn operation_producer(
+    machine: &TerminalMachine,
     source: PlaceId,
-) -> Option<(&'machine Operation, StructuralTypeId)> {
+) -> Option<(&Operation, StructuralTypeId)> {
     machine.producing_operation(source)
 }
 
@@ -359,9 +359,7 @@ pub fn shared_byte_field_copy_predicates<'a>(
         return None;
     };
     let parent = runtime_structural_path_tip(types.clone(), root, parent_path)?;
-    let Some(fields) = parent.shape.record_fields() else {
-        return None;
-    };
+    let fields = parent.shape.record_fields()?;
     let field = terminal_psi::live_field_by_identity(fields, *identity)?;
     if !field
         .field_type
@@ -460,9 +458,7 @@ pub fn byte_copied_field_predicates_at_transfer(
         parameter.structural_type,
         parent_path,
     )?;
-    let Some(fields) = parent.shape.record_fields() else {
-        return None;
-    };
+    let fields = parent.shape.record_fields()?;
     let field = terminal_psi::live_field_by_identity(fields, *identity)?;
     if field.field_type.byte_sequence_carrier()? != carrier {
         return None;
@@ -578,9 +574,7 @@ fn concatenation_operand_predicates(
                 structural_type,
                 &source.path,
             )?;
-            let Some(fields) = declaration.shape.record_fields() else {
-                return None;
-            };
+            let fields = declaration.shape.record_fields()?;
             let field = live_field_by_id(fields, *field)?;
             field.field_type.byte_sequence_carrier()?;
             Some(field.field_type.byte_predicates())

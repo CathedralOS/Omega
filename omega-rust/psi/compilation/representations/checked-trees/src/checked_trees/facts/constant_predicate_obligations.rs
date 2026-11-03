@@ -12,7 +12,6 @@
 use super::scalar_predicates::{self, PredicateNode, ScalarValue};
 use arena::{Arena, Handle};
 use diagnostics::Diagnostic;
-use numerics::bignum::BigInt;
 use semantic_vocabulary::ScalarConditionRole;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, UnaryOperator};
@@ -334,6 +333,7 @@ fn capture_predicate(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use numerics::bignum::BigInt;
     use numerics::scalar_predicates::PredicateOperator;
 
     #[test]

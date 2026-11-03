@@ -237,7 +237,7 @@ impl PrimitiveStorage {
     pub(crate) fn storage_scalar(&self) -> Option<ScalarType> {
         self.encoding
             .map(|encoding| encoding.view)
-            .or_else(|| match &self.endpoint {
+            .or(match &self.endpoint {
                 PrimitiveStorageEndpoint::Projection { stored, .. } => Some(*stored),
                 _ => None,
             })
@@ -1732,8 +1732,7 @@ impl TerminalExecution<'_> {
                         && field.field_type.scalar_type() == Some(scalar_type)
                     {
                         let mut leaf = projected.clone();
-                        leaf.path
-                            .push(StructuralPathSegment::Field(field.identity.clone()));
+                        leaf.path.push(StructuralPathSegment::Field(field.identity));
                         if let Some((storage, logical_scalar)) =
                             self.reference_byte_region_access(backing_view, &leaf)?
                         {
@@ -1779,7 +1778,7 @@ impl TerminalExecution<'_> {
                     }
                     projected
                         .path
-                        .push(StructuralPathSegment::Field(field.identity.clone()));
+                        .push(StructuralPathSegment::Field(field.identity));
                     carrier = child;
                 }
                 (
@@ -2679,8 +2678,7 @@ impl TerminalExecution<'_> {
                     .reference_referents
                     .get(&StructuralRuntimePlace::from(&view))
                     .cloned();
-                self.retired_structural_homes
-                    .push((place.id, view, origin));
+                self.retired_structural_homes.push((place.id, view, origin));
             }
         }
     }

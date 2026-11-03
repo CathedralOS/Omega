@@ -368,9 +368,7 @@ impl Builder<'_, '_> {
                 access: StructuralAccess::Owned,
             });
         }
-        let Some(name) = self.program.expression_table.name_path_node(expression) else {
-            return None;
-        };
+        let name = self.program.expression_table.name_path_node(expression)?;
         if !name.symbol.is_valid()
             || name.head_symbol != name.symbol
             || name.members.count() != 1

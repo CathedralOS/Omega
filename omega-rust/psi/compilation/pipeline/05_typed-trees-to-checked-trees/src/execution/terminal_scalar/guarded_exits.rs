@@ -114,7 +114,7 @@ fn tail(
                         && expression.statement_ordinal == ordinal
                         && expression.role == role
                 });
-                let mut row = None;
+                let row;
                 let case_evidence = if let Some(expression) = selected.next() {
                     if selected.next().is_some() {
                         return None;

@@ -281,7 +281,7 @@ pub(crate) fn build_dynamic_slot_plans(
         };
         plans.push(checked_trees::CheckedDynamicSlotPlan {
             slot: slot.symbol,
-            interface_identity: slot.interface_identity.clone(),
+            interface_identity: slot.interface_identity,
             declaring_trait: slot.declaring_trait,
             requirement: slot.requirement,
             requirement_identity: program

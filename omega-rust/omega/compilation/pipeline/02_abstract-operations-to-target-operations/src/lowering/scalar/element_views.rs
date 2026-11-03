@@ -57,11 +57,11 @@ impl<'a> ElementViewBackings<'a> {
     /// Rejoin every completed descriptor to its exact unique operation result.
     /// A shared descriptor may keep SSA words without an allocated home; that
     /// changes storage realization, not its producer or declared carrier.
-    pub(in crate::lowering) fn view_result<'function>(
+    pub(in crate::lowering) fn view_result(
         self,
-        function: &'function AbstractFunction,
+        function: &AbstractFunction,
         place: PlaceId,
-    ) -> Option<&'function terminal_psi::StructuralOperationResult> {
+    ) -> Option<&terminal_psi::StructuralOperationResult> {
         let (producer, structural_type) = self.views.get(&place)?;
         let mut results = function.operations.iter().filter_map(|operation| {
             operation
@@ -454,7 +454,7 @@ pub(in crate::lowering) fn resolve_element_view(
     values: &BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     place: PlaceId,
-    active: &mut Vec<PlaceId>,
+    active: &mut [PlaceId],
 ) -> Result<(TargetElementView, StructuralTypeId, StructuralAccess), LoweringError> {
     let invalid = || {
         refusal(
@@ -751,11 +751,11 @@ pub(in crate::lowering) fn resolve_element_view(
     ))
 }
 
-/// Resolve an establishment's collection argument to its exact backing
-/// projection: an all-field path, possibly empty, over a signature parameter
-/// or a local aggregate home whose tip is the fixed array carrying the view's
-/// element type. The backing keeps its storage identity: a parameter lends its
-/// incoming placement and a local home names its one establishing producer.
+// Resolve an establishment's collection argument to its exact backing
+// projection: an all-field path, possibly empty, over a signature parameter
+// or a local aggregate home whose tip is the fixed array carrying the view's
+// element type. The backing keeps its storage identity: a parameter lends its
+// incoming placement and a local home names its one establishing producer.
 
 /// Resolve dominating storage supplied by the graph walk. Its origin
 /// distinguishes a local establishment from an owned state arrival. The caller

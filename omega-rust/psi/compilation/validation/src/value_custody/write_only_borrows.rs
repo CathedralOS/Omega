@@ -1359,7 +1359,7 @@ fn validate_transition_target(
     }
 }
 
-/// The callee parameters an argument list corresponds to, in authored order.
+// The callee parameters an argument list corresponds to, in authored order.
 
 /// Each call argument checked against its positional declared parameter —
 /// the caller resolves the callee state's parameter types when it can.

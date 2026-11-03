@@ -691,7 +691,6 @@ fn owned_consumers_relocate(
 /// actually scans it. The caller invokes this oracle only for a restricted
 /// root — an unrestricted root's `Owned` argument copies the payload, so a
 /// staying consumer reads the persistent place correctly.
-
 pub(super) fn component_plan(
     session: &VerifiedPsiOptimizationSession,
     component: &optimization_unit::OptimizerCycleComponent,

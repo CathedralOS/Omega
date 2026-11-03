@@ -357,7 +357,7 @@ fn receipt_identity_digest(
     digest.raw(&materializer_schema_version.to_le_bytes());
     receipt_hash_bytes(&mut digest, &materialization_digest.as_bytes());
     receipt_hash_bytes(&mut digest, &locator_identity_digest.as_bytes());
-    digest.finish().into()
+    digest.finish()
 }
 
 fn receipt_hash_bytes(

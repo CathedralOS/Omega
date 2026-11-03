@@ -676,6 +676,15 @@ pub(crate) fn decode(
         .ok_or_else(malformed)
 }
 
+/// Boolean scalar decoded from one stored bit.
+pub(crate) fn boolean_bits(bits: u128) -> Result<TerminalScalarValue, TerminalInterpretError> {
+    Ok(match bits {
+        0 => TerminalScalarValue::Boolean(false),
+        1 => TerminalScalarValue::Boolean(true),
+        _ => return Err(malformed()),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{convert_scalar, decode, encode, scalar_fits_storage};
@@ -782,13 +791,4 @@ mod tests {
             float
         );
     }
-}
-
-/// Boolean scalar decoded from one stored bit.
-pub(crate) fn boolean_bits(bits: u128) -> Result<TerminalScalarValue, TerminalInterpretError> {
-    Ok(match bits {
-        0 => TerminalScalarValue::Boolean(false),
-        1 => TerminalScalarValue::Boolean(true),
-        _ => return Err(malformed()),
-    })
 }

@@ -123,21 +123,6 @@ impl ReturnFrontierDiagnostics {
             });
         }
     }
-
-    fn record_binding(
-        &mut self,
-        exit: FlowClaimJoinExit,
-        reason: &'static str,
-        source: &CheckedClaimOutcomeSource,
-    ) {
-        if self.enabled {
-            self.failures.push(ReturnFrontierFailure {
-                exit,
-                reason,
-                source: Some(source.clone()),
-            });
-        }
-    }
 }
 
 struct PreparedCalleeFrontier {

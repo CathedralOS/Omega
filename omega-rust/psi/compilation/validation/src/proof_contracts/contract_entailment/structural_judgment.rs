@@ -1960,11 +1960,8 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
-        let Some((machine, state)) =
-            crate::machine_calls::calls::machine_state_by_symbol(program, target)
-        else {
-            return None;
-        };
+        let (machine, state) =
+            crate::machine_calls::calls::machine_state_by_symbol(program, target)?;
         if state.return_type != result_type {
             return None;
         }
@@ -2314,9 +2311,7 @@ impl<'program> StructuralJudge<'program> {
                             guard,
                         )
                     {
-                        let Some(comparison) = expression_table(program).binary_node(guard) else {
-                            return None;
-                        };
+                        let comparison = expression_table(program).binary_node(guard)?;
                         if !matches!(
                             comparison.operator,
                             BinaryOperator::Equal | BinaryOperator::CaseMembership
@@ -2838,20 +2833,15 @@ impl<'program> StructuralJudge<'program> {
                         .iter()
                         .map(|argument| child_term!(*argument))
                         .collect::<Option<Vec<_>>>()?;
-                    let Some(state) =
+                    let state =
                         crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
                             program,
                             call.target_symbol,
-                        )
-                    else {
-                        return None;
-                    };
-                    let Some(data_symbol) = crate::value_custody::type_shapes::head_data_symbol(
+                        )?;
+                    let data_symbol = crate::value_custody::type_shapes::head_data_symbol(
                         program,
                         state.return_type,
-                    ) else {
-                        return None;
-                    };
+                    )?;
                     let data = crate::declarations::data_queries::data_definition_by_symbol(
                         program,
                         data_symbol,
@@ -2992,7 +2982,7 @@ impl<'program> StructuralJudge<'program> {
                 let realization = super::structural_terms::realized_requirement_state(call);
                 Some(StructuralTerm::Application {
                     result_type,
-                    target: realization.clone().unwrap_or_else(|| {
+                    target: realization.unwrap_or_else(|| {
                         selected_target.map_or_else(
                             || {
                                 super::structural_terms::structural_call_target(

@@ -55,12 +55,12 @@ macro_rules! selected_unresolved_fixup {
 /// The producer resolves the row before encoding and the replay resolves it
 /// before re-deriving bytes, so the binding admission has one owner; every
 /// byte, fixup and effect check stays per side.
-pub(crate) fn normalized_foreign_call_record<'a>(
+pub(crate) fn normalized_foreign_call_record(
     target: NativeTarget,
     instruction: SelectedInstructionId,
     kind: SelectedInstructionKind,
-    selected_function: &'a SelectedFunction,
-) -> Result<&'a SelectedNormalizedForeignCall, Error> {
+    selected_function: &SelectedFunction,
+) -> Result<&SelectedNormalizedForeignCall, Error> {
     let SelectedInstructionKind::NormalizedForeignCall { boundary, ordinal } = kind else {
         return Err(Error::ArtifactMismatch);
     };

@@ -14,7 +14,6 @@
 //! regions of the arguments, which `region_operand` reads back from them.
 
 use super::current_scalar_values::CurrentScalarValues;
-use crate::flow::state_statements;
 use checked_trees::CheckFacts;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
@@ -994,11 +993,9 @@ impl Scope<'_> {
                         ) {
                             if let (Some(left), Some(right)) =
                                 (self.static_index(*left, actual), self.static_index(*right, required))
-                            {
-                                if left == right {
+                                && left == right {
                                     return true;
                                 }
-                            }
                             // Parameter types retain their arrival subjects. A
                             // forwarded reference can prove the exact scalar
                             // relation directly; a missing descriptor-capture
@@ -1153,16 +1150,11 @@ impl Scope<'_> {
                     .program
                     .expression_table
                     .name_path_member_symbols(path.member_symbols);
-                let Some((&last, prefix)) = symbols.split_last() else {
-                    return None;
-                };
+                let (&last, prefix) = symbols.split_last()?;
                 if prefix.is_empty() {
                     return None;
                 }
-                let Some(reference) = declaration_type_reference(self.program, path.head_symbol)
-                else {
-                    return None;
-                };
+                let reference = declaration_type_reference(self.program, path.head_symbol)?;
                 let formation = self
                     .program
                     .state_local_declaration(self.state, path.head_symbol)
@@ -1190,13 +1182,11 @@ impl Scope<'_> {
                     }) {
                         continue;
                     }
-                    let Some(field) = data.and_then(|data| {
+                    let field = data.and_then(|data| {
                         self.program
                             .data_member_fields(self.program.data_members(data))
                             .find(|field| field.symbol == *symbol)
-                    }) else {
-                        return None;
-                    };
+                    })?;
                     receiver.reference = field.type_reference;
                 }
                 Some((receiver, last))
@@ -1563,14 +1553,13 @@ impl Scope<'_> {
         if argument.const_literal.is_some() {
             return true;
         }
-        if argument.type_reference.is_valid() {
-            if let TypeReferenceNode::ConstExpression(expression) = self
+        if argument.type_reference.is_valid()
+            && let TypeReferenceNode::ConstExpression(expression) = self
                 .program
                 .type_reference_table
                 .type_reference(argument.type_reference)
-            {
-                return self.stable_proof_argument(*expression, 0);
-            }
+        {
+            return self.stable_proof_argument(*expression, 0);
         }
         static_const_argument_spelling(self.program.typed_program(), argument).is_some_and(
             |spelling| {
@@ -2070,13 +2059,12 @@ pub(super) fn check(
                 let mut visited = Vec::new();
                 for root in roots {
                     visit_post_order(program, root, &mut visited, |expression, node| {
-                        if let ExpressionNode::Borrow(borrow) = node {
-                            if borrow.access != language_core::ReferenceAccess::Shared
-                                && scope.descriptor_target(borrow.target).is_some()
-                            {
-                                diagnostics.push(Diagnostic::error("mutable scalar loan cannot preserve a runtime index descriptor")
+                        if let ExpressionNode::Borrow(borrow) = node
+                            && borrow.access != language_core::ReferenceAccess::Shared
+                            && scope.descriptor_target(borrow.target).is_some()
+                        {
+                            diagnostics.push(Diagnostic::error("mutable scalar loan cannot preserve a runtime index descriptor")
                                 .with_source_span(program.expression_table.source_span(expression)));
-                            }
                         }
                     });
                 }
@@ -2144,7 +2132,7 @@ pub(super) fn check(
                 frames,
             };
             let (substitutions, captured_arguments) =
-                scope.call_substitutions(site, parameters, &arguments);
+                scope.call_substitutions(site, parameters, arguments);
             for (position, (parameter, argument)) in
                 parameters.iter().zip(arguments.iter()).enumerate()
             {
@@ -2167,7 +2155,7 @@ pub(super) fn check(
                             call.target_symbol,
                             &site,
                             parameters,
-                            &arguments,
+                            arguments,
                             position,
                         )
                     })

@@ -459,6 +459,15 @@ fn data_inventory_report_fingerprint(
     hash
 }
 
+/// The canonical byte tag for a placed data-region origin.
+fn data_origin_tag(origin: FinalDataRegionOrigin) -> u8 {
+    match origin {
+        FinalDataRegionOrigin::CompilerData => 1,
+        FinalDataRegionOrigin::ImportBindingSlot => 2,
+        FinalDataRegionOrigin::AlignmentPadding => 3,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::super::executable_regions::{byte_report_fingerprint, digest_bytes};
@@ -1109,14 +1118,5 @@ mod tests {
         validate_placed_data_region_inventory(&empty, &[])
             .expect("the empty inventory replays over an empty extent");
         assert!(validate_placed_data_region_inventory(&empty, &rdata).is_err());
-    }
-}
-
-/// The canonical byte tag for a placed data-region origin.
-fn data_origin_tag(origin: FinalDataRegionOrigin) -> u8 {
-    match origin {
-        FinalDataRegionOrigin::CompilerData => 1,
-        FinalDataRegionOrigin::ImportBindingSlot => 2,
-        FinalDataRegionOrigin::AlignmentPadding => 3,
     }
 }

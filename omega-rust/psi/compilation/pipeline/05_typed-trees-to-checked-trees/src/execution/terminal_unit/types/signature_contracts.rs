@@ -521,12 +521,10 @@ pub(in crate::execution::terminal_unit) fn fold_parameter_entry_domains(
             if !routed && !vacuous {
                 continue;
             }
-            let Some(domain) = crate::published::facts::qualification_evidence::domain_definition(
+            let domain = crate::published::facts::qualification_evidence::domain_definition(
                 program,
                 membership.domain_symbol,
-            ) else {
-                return None;
-            };
+            )?;
             if !membership.semantic_domain.is_valid() {
                 return None;
             }

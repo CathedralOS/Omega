@@ -453,9 +453,7 @@ pub(crate) fn suggest_missing_citation(
     fact: ExpressionHandle,
 ) -> Option<String> {
     // Walk the fact's `&&`-conjuncts; the first suggestible equation wins.
-    let Some(binary) = program.expression_table.binary_node(fact) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(fact)?;
     match binary.operator {
         BinaryOperator::And => {
             return suggest_missing_citation(program, classification, machine, binary.left)
@@ -530,9 +528,7 @@ fn suggest_conjunct_match(
     goal_left: &StructuralTerm,
     goal_right: &StructuralTerm,
 ) -> Option<String> {
-    let Some(binary) = program.expression_table.binary_node(lemma_fact) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(lemma_fact)?;
     match binary.operator {
         BinaryOperator::And => {
             return suggest_conjunct_match(

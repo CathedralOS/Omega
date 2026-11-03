@@ -12,7 +12,7 @@ impl LayoutTargetFacts {
         if self.profile.is_empty()
             || self.pointer_size == 0
             || !self.pointer_alignment.is_power_of_two()
-            || self.pointer_size % self.pointer_alignment != 0
+            || !self.pointer_size.is_multiple_of(self.pointer_alignment)
         {
             return Err("layout target facts have no complete immutable representation profile");
         }

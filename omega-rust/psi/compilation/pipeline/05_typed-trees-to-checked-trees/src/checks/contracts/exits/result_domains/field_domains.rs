@@ -469,13 +469,12 @@ pub(crate) fn exclusive_referent_type(
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
             TypeReferenceNode::Reference {
-                referee, access, ..
-            } if matches!(
-                access,
-                language_semantics::ReferenceAccess::Mutable
-                    | language_semantics::ReferenceAccess::WriteOnly
-            ) =>
-            {
+                referee,
+                access:
+                    language_semantics::ReferenceAccess::Mutable
+                    | language_semantics::ReferenceAccess::WriteOnly,
+                ..
+            } => {
                 return *referee;
             }
             _ => break,

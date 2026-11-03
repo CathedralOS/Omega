@@ -37,7 +37,7 @@ pub(crate) fn arithmetic_domain_from_constraints(
 
 pub(crate) fn constraints_prove_finite(constraints: &ConstraintBuffer) -> bool {
     has_named_constraint(constraints, "finite")
-        || float_range_from_constraints(&*constraints).is_some_and(|range| range.proves_finite())
+        || float_range_from_constraints(constraints).is_some_and(|range| range.proves_finite())
 }
 
 pub(crate) fn has_named_constraint(constraints: &ConstraintBuffer, name: &str) -> bool {

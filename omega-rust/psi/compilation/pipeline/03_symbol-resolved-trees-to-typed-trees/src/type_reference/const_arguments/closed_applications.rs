@@ -329,8 +329,10 @@ mod tests {
                     [(SymbolKind::TypeParameter, SymbolNameRef::Static("N"))],
                 )
                 .start();
-            let mut program = TypedTrees::default();
-            program.symbols = builder.finish();
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
             let carrier = program
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {

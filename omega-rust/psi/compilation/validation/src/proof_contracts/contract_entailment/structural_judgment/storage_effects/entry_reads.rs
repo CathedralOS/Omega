@@ -122,11 +122,7 @@ impl StructuralJudge<'_> {
             }
             return None;
         }
-        let Some(definition) =
-            crate::field_domains::readable_nominal_definition(program, reference)
-        else {
-            return None;
-        };
+        let definition = crate::field_domains::readable_nominal_definition(program, reference)?;
         if active.contains(&definition.symbol) {
             return None;
         }

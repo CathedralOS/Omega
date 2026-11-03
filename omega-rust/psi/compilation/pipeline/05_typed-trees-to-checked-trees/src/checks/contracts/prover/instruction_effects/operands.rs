@@ -347,10 +347,7 @@ pub(super) fn operand_matches(
         required,
         &[],
         primitive,
-        &mut |expression, path, primitive| {
-            let value = values.current(expression, path, primitive, &captures);
-            value
-        },
+        &mut |expression, path, primitive| values.current(expression, path, primitive, &captures),
     );
     current.is_some_and(|current| values.equal(&captured, &current))
 }

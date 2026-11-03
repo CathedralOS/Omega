@@ -506,11 +506,11 @@ fn form_call_selection(
         });
     /// Split a type-parameter signature into its `Machine`-kind contract
     /// requirements and its `Type`-kind generic slots, in declaration order.
-    fn contract_and_type_parameters<'p>(
-        parameters: &'p [TypeParameter],
+    fn contract_and_type_parameters(
+        parameters: &[TypeParameter],
     ) -> (
-        Vec<(&'p TypeParameter, &'p MachineParameterContract)>,
-        Vec<&'p TypeParameter>,
+        Vec<(&TypeParameter, &MachineParameterContract)>,
+        Vec<&TypeParameter>,
     ) {
         (
             parameters
@@ -1361,14 +1361,19 @@ fn provider_tuple_matches_source(
         };
         let parameter = parameters
             .iter()
-            .filter(|parameter| match (kind, &parameter.kind) {
-                (StaticOperandCategory::Type, TypeParameterKind::Type)
-                | (
-                    StaticOperandCategory::Const,
-                    TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+            .filter(|parameter| {
+                matches!(
+                    (kind, &parameter.kind),
+                    (StaticOperandCategory::Type, TypeParameterKind::Type)
+                        | (
+                            StaticOperandCategory::Const,
+                            TypeParameterKind::Const { .. } | TypeParameterKind::Value { .. },
+                        )
+                        | (
+                            StaticOperandCategory::Machine,
+                            TypeParameterKind::Machine { .. }
+                        )
                 )
-                | (StaticOperandCategory::Machine, TypeParameterKind::Machine { .. }) => true,
-                _ => false,
             })
             .nth(*ordinal);
         *ordinal += 1;

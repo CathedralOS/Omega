@@ -93,9 +93,7 @@ pub(in super::super) fn case_guard_classifier<'program>(
     expression: ExpressionHandle,
 ) -> Option<(&'program DataDefinition, &'program DataVariant)> {
     use typed_trees::expression::BinaryOperator;
-    let Some(comparison) = expression_table(program).binary_node(expression) else {
-        return None;
-    };
+    let comparison = expression_table(program).binary_node(expression)?;
     let (definition, variant) = case_classifier(program, comparison.right)?;
     let membership =
         crate::proof_contracts::bound_expression_meaning::has_exact_case_membership_meaning(

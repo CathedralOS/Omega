@@ -2,7 +2,7 @@
 //! contents. An exact constructor or selected edge can exclude a case; a
 //! missing descriptor, unknown address, or unavailable replay cannot do so.
 
-use super::replay::{Replay, State};
+use super::engine::{Replay, State};
 use super::*;
 use semantic_vocabulary::StructuralCaseId;
 use std::sync::Arc;
@@ -301,7 +301,7 @@ pub(super) fn transport<'locations>(
                 !origins.is_empty()
                     && origins.iter().all(|origin| {
                         matches!(origin,
-                    super::replay::Origin::Storage(home) if home == &source_home)
+                    super::engine::Origin::Storage(home) if home == &source_home)
                     })
             })
         });

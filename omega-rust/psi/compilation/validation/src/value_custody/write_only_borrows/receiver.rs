@@ -82,9 +82,7 @@ pub(super) fn bare_field<'program, 'roots>(
     expression: ExpressionHandle,
     roots: &'roots [WriteOnlyRoot],
 ) -> Option<(&'roots WriteOnlyRoot, &'program DataField)> {
-    let Some((path, name)) = expression_table(program).single_name_member(expression) else {
-        return None;
-    };
+    let (path, name) = expression_table(program).single_name_member(expression)?;
     roots.iter().find_map(|root| {
         attached_field(program, root, path.head_symbol, name.as_str()).map(|field| (root, field))
     })

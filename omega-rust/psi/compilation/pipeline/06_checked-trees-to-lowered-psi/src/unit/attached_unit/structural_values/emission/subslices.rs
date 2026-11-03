@@ -28,7 +28,7 @@ impl Emission<'_, '_, '_> {
         let node = self.structural_value_node(source);
         let source_type = lookup_type_id(
             self.type_ids,
-            &stored_structural_identity(&self.checked, node.type_reference),
+            &stored_structural_identity(self.checked, node.type_reference),
         )?;
         let family =
             match terminal_psi::find_structural_type(self.structural_types, self.structural_type)

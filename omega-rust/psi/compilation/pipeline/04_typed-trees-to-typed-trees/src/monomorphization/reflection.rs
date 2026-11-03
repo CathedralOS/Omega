@@ -506,12 +506,12 @@ fn emit_fields(
         for (field_name, text) in text_values {
             let value =
                 expressions_of_mut(program).insert(ExpressionNode::String(text.as_bytes().into()));
-            info_fields.push(info_field(program, &field_info, field_name, value)?);
+            info_fields.push(info_field(program, field_info, field_name, value)?);
         }
         let position_value = integer(program, position as u64)?;
         info_fields.push(info_field(
             program,
-            &field_info,
+            field_info,
             "declaration_position",
             position_value,
         )?);
@@ -519,15 +519,15 @@ fn emit_fields(
             expressions_of_mut(program).insert(ExpressionNode::Boolean(field.identity.is_some()));
         info_fields.push(info_field(
             program,
-            &field_info,
+            field_info,
             "has_stable_number",
             has_number,
         )?);
         let erased = expressions_of_mut(program)
             .insert(ExpressionNode::Boolean(field.relevance.is_erased()));
-        info_fields.push(info_field(program, &field_info, "is_erased", erased)?);
+        info_fields.push(info_field(program, field_info, "is_erased", erased)?);
         let number = integer(program, field.identity.unwrap_or(0))?;
-        info_fields.push(info_field(program, &field_info, "stable_number", number)?);
+        info_fields.push(info_field(program, field_info, "stable_number", number)?);
         let fields = expressions_of_mut(program).insert_struct_fields(info_fields);
         let info =
             expressions_of_mut(program).insert(ExpressionNode::StructLiteral(TableStructLiteral {
@@ -591,7 +591,7 @@ fn emit_fields(
                 .ok_or_else(|| error("typed field callback has no selected name"))?,
             machine_arguments: machine_arguments.into_boxed_slice(),
             arguments,
-            operational_acknowledgement: operational_acknowledgement,
+            operational_acknowledgement,
             reflected_field_origin: Some(typed_trees::statement::ReflectedFieldCallOrigin {
                 query: site,
                 callback: callback.clone(),

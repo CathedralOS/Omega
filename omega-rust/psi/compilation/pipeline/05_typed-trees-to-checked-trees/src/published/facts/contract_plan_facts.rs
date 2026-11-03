@@ -655,9 +655,7 @@ pub(crate) fn build_callable_scalar_value_contract_plan(
         else {
             return None;
         };
-        let Some(binary) = program.expression_table.binary_node(*expression) else {
-            return None;
-        };
+        let binary = program.expression_table.binary_node(*expression)?;
         if binary.operator != BinaryOperator::Equal {
             return None;
         }

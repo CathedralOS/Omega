@@ -62,18 +62,18 @@ fn native_package_evidence_digest(
     let mut digest = DomainDigestEncoder::new(b"omega.native-package-evidence.sha256.v1\0");
     let root = package_root.as_os_str().as_encoded_bytes();
     digest.u64(root.len() as u64);
-    digest.raw(&root);
+    digest.raw(root);
     digest.u64(application_name.len() as u64);
     digest.raw(application_name.as_bytes());
     let identifier = application_identifier.as_str().as_bytes();
     digest.u64(identifier.len() as u64);
-    digest.raw(&identifier);
+    digest.raw(identifier);
     digest.raw(executable_container_digest.as_bytes());
     digest.u64(components.len() as u64);
     for component in components {
         let relative = component.relative_path.as_os_str().as_encoded_bytes();
         digest.u64(relative.len() as u64);
-        digest.raw(&relative);
+        digest.raw(relative);
         digest.u64(component.byte_count as u64);
         digest.raw(component.digest.as_bytes());
     }

@@ -135,15 +135,10 @@ pub(crate) struct StateWritePrefix {
     pub(crate) stored: Vec<StoredLocalOrigins>,
 }
 
-/// What an `Assignment` query returns for one statement: the direct target
-/// and the prefix origins it closes over.
+/// What an `Assignment` query returns for one statement: its direct target.
 #[derive(Clone)]
 pub(crate) struct AssignmentPrefix {
-    pub(crate) isolated_locals: Vec<String>,
     pub(crate) target: AssignmentWriteTarget,
-    pub(crate) aliases: Vec<(String, FramePlaceOrigin)>,
-    pub(crate) divergent: Vec<(String, Vec<FramePlaceOrigin>)>,
-    pub(crate) stored: Vec<StoredLocalOrigins>,
 }
 
 /// Every assignment statement's `Assignment` query result, by statement index,
@@ -158,11 +153,7 @@ fn push_queried_storage_assignment(
     queried_assignment: bool,
     assignments: &mut Option<&mut Vec<(usize, AssignmentPrefix)>>,
     statement_index: usize,
-    isolated_local_roots: &[String],
     paths: &[String],
-    local_alias_origins: &[(String, FramePlaceOrigin)],
-    divergent_alias_origins: &[(String, Vec<FramePlaceOrigin>)],
-    stored: &[StoredLocalOrigins],
 ) {
     if queried_assignment {
         let Some(record) = assignments.as_deref_mut() else {
@@ -171,13 +162,9 @@ fn push_queried_storage_assignment(
         record.push((
             statement_index,
             AssignmentPrefix {
-                isolated_locals: isolated_local_roots.to_vec(),
                 target: AssignmentWriteTarget::Storage {
                     paths: paths.to_vec(),
                 },
-                aliases: local_alias_origins.to_vec(),
-                divergent: divergent_alias_origins.to_vec(),
-                stored: stored.to_vec(),
             },
         ));
     }
@@ -189,25 +176,12 @@ fn record_local_replacement_assignment(
     assignments: &mut Option<&mut Vec<(usize, AssignmentPrefix)>>,
     statement_index: usize,
     path: String,
-    isolated_local_roots: &[String],
-    local_alias_origins: &[(String, FramePlaceOrigin)],
-    divergent_alias_origins: &[(String, Vec<FramePlaceOrigin>)],
-    stored: &[StoredLocalOrigins],
 ) {
     let target = AssignmentWriteTarget::LocalBindingReplacement { path };
     let Some(record) = assignments.as_deref_mut() else {
         unreachable!("assignments are recorded only into a roster")
     };
-    record.push((
-        statement_index,
-        AssignmentPrefix {
-            isolated_locals: isolated_local_roots.to_vec(),
-            target,
-            aliases: local_alias_origins.to_vec(),
-            divergent: divergent_alias_origins.to_vec(),
-            stored: stored.to_vec(),
-        },
-    ));
+    record.push((statement_index, AssignmentPrefix { target }));
 }
 
 pub(crate) fn walk_state_assignments(
@@ -569,11 +543,7 @@ fn walk_state_write_prefix_body(
                 record.push((
                     statement_index,
                     AssignmentPrefix {
-                        isolated_locals: isolated_local_roots.clone(),
                         target: AssignmentWriteTarget::Storage { paths: vec![path] },
-                        aliases: Vec::new(),
-                        divergent: Vec::new(),
-                        stored: Vec::new(),
                     },
                 ));
             }
@@ -767,11 +737,7 @@ fn walk_state_write_prefix_body(
                         queried_assignment,
                         &mut assignments,
                         statement_index,
-                        &isolated_local_roots,
                         &paths,
-                        &local_alias_origins,
-                        &divergent_alias_origins,
-                        &stored,
                         &mut written,
                         parameters,
                         &locals,
@@ -881,10 +847,6 @@ fn walk_state_write_prefix_body(
                             &mut assignments,
                             statement_index,
                             relative.clone(),
-                            &isolated_local_roots,
-                            &local_alias_origins,
-                            &divergent_alias_origins,
-                            &stored,
                         );
                     }
                     // The RHS and its effects saw the previous binding. Only
@@ -916,11 +878,7 @@ fn walk_state_write_prefix_body(
                     queried_assignment,
                     &mut assignments,
                     statement_index,
-                    &isolated_local_roots,
                     &paths,
-                    &local_alias_origins,
-                    &divergent_alias_origins,
-                    &stored,
                     &mut written,
                     parameters,
                     &locals,
@@ -1248,30 +1206,16 @@ fn install_statement_call_effects(
 
 /// Record a queried storage assignment for `paths`, then write each into the
 /// visible frame roster — the queried-write pair both statement arms share.
-#[allow(clippy::too_many_arguments)]
 fn push_queried_assignment_and_visible_paths(
     queried_assignment: bool,
     assignments: &mut Option<&mut Vec<(usize, AssignmentPrefix)>>,
     statement_index: usize,
-    isolated_local_roots: &[String],
     paths: &[String],
-    local_alias_origins: &[(String, FramePlaceOrigin)],
-    divergent_alias_origins: &[(String, Vec<FramePlaceOrigin>)],
-    stored: &[StoredLocalOrigins],
     written: &mut Vec<String>,
     parameters: &[StateParameter],
     locals: &[String],
 ) -> Option<()> {
-    push_queried_storage_assignment(
-        queried_assignment,
-        assignments,
-        statement_index,
-        isolated_local_roots,
-        paths,
-        local_alias_origins,
-        divergent_alias_origins,
-        stored,
-    );
+    push_queried_storage_assignment(queried_assignment, assignments, statement_index, paths);
     for path in paths {
         push_visible_frame_path(written, path.clone(), parameters, locals)?;
     }

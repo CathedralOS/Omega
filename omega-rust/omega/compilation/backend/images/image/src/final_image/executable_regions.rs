@@ -433,7 +433,7 @@ pub(crate) fn state_footprint_evidence_digest(
 pub(crate) fn digest_bytes(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
     digest.u64(bytes.len() as u64);
-    digest.raw(&bytes);
+    digest.raw(bytes);
     digest.finish()
 }
 

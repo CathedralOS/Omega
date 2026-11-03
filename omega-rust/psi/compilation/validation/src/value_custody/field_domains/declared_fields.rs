@@ -230,10 +230,10 @@ pub const WHOLE_ELEMENT_EXTENT: PlaceSegment = PlaceSegment::FixedRange {
 /// The declared field carrying `symbol`, or `None` when `symbol` does not
 /// name a field. A projection symbol produced by exact member resolution is
 /// itself the provenance this lookup reads.
-pub fn exact_declared_field<'program>(
-    program: &'program dyn crate::CheckingInput,
+pub fn exact_declared_field(
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
-) -> Option<&'program typed_trees::data::DataField> {
+) -> Option<&typed_trees::data::DataField> {
     if !symbol.is_valid() || program.symbols.get(symbol).kind != SymbolKind::Field {
         return None;
     }

@@ -109,9 +109,10 @@ public Wide satisfies Operations<u64> {
     .unwrap();
     let mut request = compiler::CheckedCompileRequest::new(&backing.join("main.omg"), None);
     request.package_inputs = Some(supplier_inputs);
-    let checked = orchestration::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .unwrap_or_else(|error| panic!("supplier: {:?}", error.into_diagnostics()));
+    let checked =
+        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
+            .result
+            .unwrap_or_else(|error| panic!("supplier: {:?}", error.into_diagnostics()));
     let produce = |path| {
         psi_compiler::BuildProviderProductionRequest {
             checked: checked.source_inspection().program(),
@@ -247,9 +248,10 @@ fn synchronous_host_computation_retains_the_invocation_without_guest_suspension(
         .expect("sealed fixture inputs");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = orchestration::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .expect("checked ordinary boundary call");
+    let checked =
+        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
+            .result
+            .expect("checked ordinary boundary call");
     let produced = psi_compiler::TerminalProductionRequest::new(
         checked.source_inspection().program(),
         psi_compiler::TerminalMachineSelection::Name("synchronous_entry"),
@@ -349,9 +351,10 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
         .expect("sealed fixture inputs");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = orchestration::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .expect("checked component readiness fixture");
+    let checked =
+        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
+            .result
+            .expect("checked component readiness fixture");
     for entry in ["component_entry", "component_premature_entry"] {
         let produced = psi_compiler::TerminalProductionRequest::new(
             checked.source_inspection().program(),
@@ -713,11 +716,9 @@ impl TerminalEffectHandler for ControlledImport {
         let [value] = arguments.as_slice() else {
             return Err(TerminalEffectRejection::new("expected one scalar argument"));
         };
-        self.observations.lock().unwrap().push(value.clone());
+        self.observations.lock().unwrap().push(*value);
         Ok(match self.signature.result {
-            terminal_psi::BoundaryMachineResult::Scalar(_) => {
-                TerminalEffectResult::Scalar(value.clone())
-            }
+            terminal_psi::BoundaryMachineResult::Scalar(_) => TerminalEffectResult::Scalar(*value),
             terminal_psi::BoundaryMachineResult::Unit => TerminalEffectResult::Unit,
             _ => return Err(TerminalEffectRejection::new("unexpected result contract")),
         })
@@ -732,9 +733,10 @@ fn readiness_preserves_nested_continuation_and_rejects_unchecked_suspension() {
         .expect("sealed fixture inputs");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = orchestration::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .expect("checked suspension fixture");
+    let checked =
+        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
+            .result
+            .expect("checked suspension fixture");
     for machine in [
         "main",
         "storage_entry",
@@ -953,9 +955,10 @@ fn readiness_parks_every_step_of_a_fused_suspending_cycle() {
         .expect("sealed fixture inputs");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = orchestration::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .expect("checked suspending cycle");
+    let checked =
+        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
+            .result
+            .expect("checked suspending cycle");
     let produced = psi_compiler::TerminalProductionRequest::new(
         checked.source_inspection().program(),
         psi_compiler::TerminalMachineSelection::Name("main"),

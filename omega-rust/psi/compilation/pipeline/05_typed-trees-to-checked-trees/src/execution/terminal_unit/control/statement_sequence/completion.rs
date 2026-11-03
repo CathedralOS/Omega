@@ -555,7 +555,7 @@ fn forwarded_parameter(
                 expression: root.expression,
                 evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             },
-            type_identity: parameter.type_identity.clone(),
+            type_identity: parameter.type_identity,
             multiplicity: validation::reference_result_custody::binding_multiplicity(
                 program,
                 state.return_type,
@@ -598,7 +598,7 @@ fn forwarded_parameter(
             expression: root.expression,
             evaluation: checked_trees::FlowPermissionEvaluation::Statement,
         },
-        type_identity: parameter.type_identity.clone(),
+        type_identity: parameter.type_identity,
         multiplicity: parameter.multiplicity,
         reference_sources: if validation::reference_result_custody::is_reference_record(
             program,

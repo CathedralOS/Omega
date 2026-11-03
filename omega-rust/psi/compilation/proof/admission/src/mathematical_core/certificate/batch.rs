@@ -60,17 +60,10 @@ pub fn verify_mathematical_certificates(
     Ok(())
 }
 
+#[derive(Default)]
 struct ImportedTerms {
     arena: TermArena,
     by_syntax: HashMap<Term, TermHandle>,
-}
-impl Default for ImportedTerms {
-    fn default() -> Self {
-        Self {
-            arena: TermArena::new(),
-            by_syntax: HashMap::new(),
-        }
-    }
 }
 impl ImportedTerms {
     fn certificate(

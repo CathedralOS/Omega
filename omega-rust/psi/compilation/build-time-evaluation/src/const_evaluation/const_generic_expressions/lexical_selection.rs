@@ -112,57 +112,50 @@ pub(crate) fn retain_calls(
     let mut visited = Vec::new();
     let mut calls = Vec::new();
     while let Some(expression) = crate::worklist::unvisited(&mut pending, &mut visited) {
-        match syntax.expressions.expression(expression) {
-            ExpressionNode::Call(call) => {
-                let (selected, target) = selected_call(syntax, resolved, call)?;
-                let reference = selected.target.source_span();
-                let symbol = resolved.program().symbols.get(target);
-                if symbol.kind != SymbolKind::Machine
-                    && !(symbol.kind == SymbolKind::State
-                        && resolved.program().symbols.get(symbol.parent).kind
-                            == SymbolKind::Machine)
-                {
-                    return Err(
-                        "machine index call must select an ordinary machine or state".into(),
-                    );
-                }
-                let declaration = resolved
-                    .program()
-                    .symbols
-                    .symbol_source_span(target)
-                    .or_else(|| {
-                        // Generated entry states retain their exact machine owner,
-                        // rather than acquiring an invented authored declaration.
-                        if symbol.kind != SymbolKind::State
-                            || resolved.program().symbols.get(symbol.parent).kind
-                                != SymbolKind::Machine
-                        {
-                            return None;
-                        }
-                        let mut owners = resolved
-                            .program()
-                            .machines
-                            .iter()
-                            .filter(|owner| owner.symbol == symbol.parent);
-                        let owner = owners.next()?;
-                        if owners.next().is_some() {
-                            return None;
-                        }
-                        let storage = &resolved.program().tables.declarations;
-                        let states = storage.machine_state_handles.span_or_empty(owner.states);
-                        if states.len() != owner.states.len()
-                            || storage.machine_states.get(*states.first()?).symbol != target
-                        {
-                            return None;
-                        }
-                        resolved.program().symbols.symbol_source_span(symbol.parent)
-                    })
-                    .ok_or("machine index call lost its exact selected declaration source")?;
-                let selection = (reference, declaration);
-                push_unique(&mut calls, selection);
-                push_selected_call_children(&mut pending, syntax, resolved, call)?;
+        if let ExpressionNode::Call(call) = syntax.expressions.expression(expression) {
+            let (selected, target) = selected_call(syntax, resolved, call)?;
+            let reference = selected.target.source_span();
+            let symbol = resolved.program().symbols.get(target);
+            if symbol.kind != SymbolKind::Machine
+                && !(symbol.kind == SymbolKind::State
+                    && resolved.program().symbols.get(symbol.parent).kind == SymbolKind::Machine)
+            {
+                return Err("machine index call must select an ordinary machine or state".into());
             }
-            _ => {}
+            let declaration = resolved
+                .program()
+                .symbols
+                .symbol_source_span(target)
+                .or_else(|| {
+                    // Generated entry states retain their exact machine owner,
+                    // rather than acquiring an invented authored declaration.
+                    if symbol.kind != SymbolKind::State
+                        || resolved.program().symbols.get(symbol.parent).kind != SymbolKind::Machine
+                    {
+                        return None;
+                    }
+                    let mut owners = resolved
+                        .program()
+                        .machines
+                        .iter()
+                        .filter(|owner| owner.symbol == symbol.parent);
+                    let owner = owners.next()?;
+                    if owners.next().is_some() {
+                        return None;
+                    }
+                    let storage = &resolved.program().tables.declarations;
+                    let states = storage.machine_state_handles.span_or_empty(owner.states);
+                    if states.len() != owner.states.len()
+                        || storage.machine_states.get(*states.first()?).symbol != target
+                    {
+                        return None;
+                    }
+                    resolved.program().symbols.symbol_source_span(symbol.parent)
+                })
+                .ok_or("machine index call lost its exact selected declaration source")?;
+            let selection = (reference, declaration);
+            push_unique(&mut calls, selection);
+            push_selected_call_children(&mut pending, syntax, resolved, call)?;
         }
         enqueue_expression_children(syntax, expression, &mut pending);
     }

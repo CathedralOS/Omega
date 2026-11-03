@@ -171,15 +171,13 @@ pub(crate) fn validate_transports(
             instruction,
             operation,
         } = &block.terminator
-        {
-            if !matches!(block.origin, SelectedBlockOrigin::Operation { operation: owner, .. } if owner == *operation)
+            && (!matches!(block.origin, SelectedBlockOrigin::Operation { operation: owner, .. } if owner == *operation)
                 || instruction.kind != selected_instructions::SelectedInstructionKind::Crash
                 || instruction.provenance.operations.as_slice() != [*operation]
                 || !instruction.provenance.edges.is_empty()
-                || !instruction.provenance.fuel.is_empty()
-            {
-                return Err(mismatch());
-            }
+                || !instruction.provenance.fuel.is_empty())
+        {
+            return Err(mismatch());
         }
         let edges = terminator_successors(&block.terminator);
         for edge in edges {
