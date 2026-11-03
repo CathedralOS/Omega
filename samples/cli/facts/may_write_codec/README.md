@@ -2,41 +2,109 @@
 
 Encoding through an owned reference field preserves a disjoint index bound.
 
-This advances **R5** in `TASKS.md`: caller-visible may-write summaries for an exclusive codec cursor stored in an owned carrier. `Packet::encode` writes `4` through `Counter.slot` while encoding scalar `200`. A separate index starts at `1`; indexing `[4, 7, 8, 9]` must still read `7`. Each invalid twin changes only the cursor referent to the index storage. The overlapping write must retire the bound.
+The codec encodes `200` and writes cursor `4` through `Counter.slot`. The other
+input stays at `1`, below the array bound `4`, so indexing `[4, 7, 8, 9]` reads
+`7`. Every positive exits with `0`. Each twin points the cursor at that index
+instead; its earlier bound is stale and the index operation must reject.
 
-The root and nine places bind all four hosted `ProgramEntry` targets and require exit `0`. The available executor is Linux x86-64. Other target bindings establish source coverage, not foreign-host execution.
+`BUILD-OWNED-TARGET-SELECTION` in `TASKS.md` owns this row’s source migration.
+One ordinary `StoredCursorProbe` implementation replaces four identical
+platform-prefixed bodies. Four explicit Build rows select it. The public
+requirement retains both original input bounds; the caller receives a byte,
+not a new promise about reference aliasing or the cursor’s value.
 
-| Place | Positive | Invalid twin |
+The value owner supplies an ordinary reflection visitor for its numbered field.
+The core `CompactBinary` library performs the encoding with explicit output,
+scratch storage, field storage and fuel. Runtime checks observe bytes
+`[0, 0, 200, 1]` as well as the original cursor and indexed result. The match
+witness runs both choices and observes an independent path marker.
+
+| Place | Positive | Reject twin |
 | --- | --- | --- |
 | local | [local](local/main.omg) | [overlap](local/invalid/main.omg) |
 | field | [field](field/main.omg) | [overlap](field/invalid/main.omg) |
 | parameter | [parameter](parameter/main.omg) | [overlap](parameter/invalid/main.omg) |
-| call result | [call result](call_result/main.omg) | [overlap](call_result/invalid/main.omg) |
-| match join | [match join](match_join/main.omg) | [overlap](match_join/invalid/main.omg) |
-| const name | [const name](const_name/main.omg) | [overlap](const_name/invalid/main.omg) |
-| a nested machine | [state](other_state/main.omg) | [overlap](other_state/invalid/main.omg) |
-| another machine | [machine](other_machine/main.omg) | [overlap](other_machine/invalid/main.omg) |
-| another target body | [target body](target_body/main.omg) | [overlap](target_body/invalid/main.omg) |
+| call result | [call_result](call_result/main.omg) | [overlap](call_result/invalid/main.omg) |
+| match join | [match_join](match_join/main.omg) | [overlap](match_join/invalid/main.omg) |
+| const name | [const_name](const_name/main.omg) | [overlap](const_name/invalid/main.omg) |
+| a nested machine | [other_state](other_state/main.omg) | [overlap](other_state/invalid/main.omg) |
+| another machine | [other_machine](other_machine/main.omg) | [overlap](other_machine/invalid/main.omg) |
+| another target body | [target_body](target_body/main.omg) | [overlap](target_body/invalid/main.omg) |
 
-Run `omega run --both samples/cli/facts/may_write_codec/<place>/main.omg` and `omega --check samples/cli/facts/may_write_codec/<place>/invalid/main.omg`. Invalid projects require `cannot prove`. Positive and negative places are pinned under `tests/omega/{pass,fail}/facts/may_write_codec_through_<place>_{exit,overlapping}`.
+Root [main.omg](main.omg) carries the same operation. Each positive binds all four
+hosted `ProgramEntry` targets. Matching fixtures live under
+`tests/omega/{pass,fail}/facts/may_write_codec_through_<place>_{exit,overlapping}`;
+their source and Build files match the samples exactly.
 
-The governing contracts are [live storage and mutation summaries](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity) and [ordinary checked codec machines](../../../../wiki/spec/layouts/codecs.md). Generation establishes a typed callable; it supplies no borrow authority or storage-origin evidence.
+Run `omega run --both samples/cli/facts/may_write_codec/<place>/main.omg`.
+Each twin is intended-invalid and requires its authored `cannot prove` fragment.
+No caller equality guard establishes the index bound after encoding.
 
-## Requirements
+## Requirements and evidence
 
-1. Establishment: the independent index is initialized to `1`, or arrives under `other < 4`, before encoding. No post-call equality guard re-establishes its bound.
-2. Identity and lifetime: the owned carrier stores the cursor's captured referent. The invalid twin changes that referent to the index; its prior bound is stale.
-3. Composition: the preserved bound feeds indexing directly, through a field, a parameter, a result contract, a match join, a named constant, a state arrival, a forwarding machine or a target-scoped body.
-4. Soundness: write footprints never authorize loans, moves, linear claims or a reference load behind another reference. Unknown origins stay opaque.
-5. Psi 06–08: the ordinary generated codec and carried cursor lower into Terminal Psi and execute with `--both`.
-6. Omega 00–02: all hosted entry bindings use the ordinary checked callee, reference placement and selected realization.
-7. Omega 03–06: native execution writes the codec cursor through the carrier's reference and reloads the independent index.
-8. Omega 07–09 and emission: the native image and Terminal interpreter must both observe exit `0` on the actual host.
+1. **Establishment.** The independent index starts at `1`, or arrives under
+   `other < 4`, before encoding. The codec’s selected cursor is established by
+   the owned `Counter.slot` reference; reflection supplies no borrow authority.
+2. **Identity and lifetime.** The cursor writes its captured referent. The other
+   input retains its own storage identity. Output and scratch loans remain
+   disjoint, and no reference to local codec context escapes.
+3. **Composition.** The preserved bound feeds a local, field, parameter, returned
+   value, match join, constant bound, nested machine, other machine or selected
+   implementation. Both match choices must keep the same index fact.
+4. **Soundness.** Redirecting the cursor invalidates the index bound. Unknown
+   writes remain conservative; the public requirement does not expose a
+   selected implementation’s private guarantees.
+5. **Checked-to-Terminal Psi.** The authored visitor and library codec use the
+   ordinary checked call and reference paths. Mathematical and type information
+   is erased while the real encoding and cursor write execute.
+6. **Provider selection and calling plans.** Four target-keyed Build rows select
+   one checked implementation. Shared input, exclusive output/cursor, slices and
+   result bytes retain their declared access and ordinary calling placements.
+7. **Instructions and storage.** Native code must encode `200`, write cursor
+   `4`, and reload the untouched input for indexing.
+8. **Image emission and engines.** Both Terminal and native execution must agree
+   on the authored exit `0`, including byte checks and both match choices.
 
-This row does not close R5's finite write cycles, parameter permutations or parser convergence. Non-place codec operand type inference, unknown origins and reference loads through borrowed carriers remain outside this repair.
+## Validation
 
-## Observed baseline
+The original programs and oracles are frozen against published base
+`e4617438fb66df39eeb1fa6605b8fcacba19df62`. README-only source
+`d0c7f056bee383c45a8836a63cefa796d7679219` has the same compiler and library.
+[Baseline run 41608807527](https://github.com/CathedralOS/Omega/actions/runs/41608807527)
+refuses every place because legacy `Packet::encode` has no callable declaration.
+The twins stop at the same formation error; that is no evidence of their index
+obligation. No engines or public projects ran.
 
-On Linux x86-64 at `d6cf554fd1cbf20551983d29bae26f5cf3b81664`, the frozen root rejects `cannot prove index` and several places instead reach the missing codec-callee lowering diagnostic. None of the ten positives executes. Seven overlapping twins incorrectly pass checking. The repaired row must retain all authored sources and require ten native/Terminal exit-0 agreements and nine intended bound rejections.
+The accepted [codec rules](../../../../wiki/spec/layouts/codecs.md) require ordinary
+checked library bodies and owner-authorized reflection. The migrated sources
+use that idiom, with stable field number `0` on the actual visited value.
+[Build-owned selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
+selects the ordinary probe, and [mutation contracts](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity)
+require preserving the exact disjoint storage fact. Compiler code is unchanged.
+The complete row is validated by two measured revisions. At
+`6ab94efb1d699133108fa31bd704636c9613b4b9`,
+[run 41612327184](https://github.com/CathedralOS/Omega/actions/runs/41612327184)
+checked eight positive places and their eight intended bound rejections, then
+observed native/Terminal exit `0` for those eight positives. Its target project
+stopped at an authored Build syntax error; that refusal is not fact enforcement.
 
-The extra corpus variations exercise an array of reference carriers, occurrence-local declaration typing across states, and rejection of a shared cursor. The existing codec-choice and signed round-trip witnesses execute with exit 0 on baseline and candidate. The legacy exact-array fixture refuses the same unaccepted package-entry binding on both; no execution is claimed for that fixture.
+Only the four target Build files changed afterward, to the documented
+`Build::select_provider` operation. At `77d5742e003ce607ca3856dfa76cb17d0679aa17`,
+[run 41614342092](https://github.com/CathedralOS/Omega/actions/runs/41614342092)
+checked the corrected target, rejected its stale-bound twin, and observed target
+native/Terminal exit `0`. It also ran all 18 public place/twin projects: nine
+positive engine agreements and nine intended rejections. The root passed
+ordinary CLI admission and both engines at exit `0`. Independent review accepts
+reuse of the unchanged eight corpus projects at their original source stamps.
+
+Source checks use macOS arm64; all runtime observations use Linux x86_64.
+The exact source archive, including both measured revisions, is published in
+[part 1](https://github.com/CathedralOS/Omega/pull/1655#issuecomment-6600701813),
+[part 2](https://github.com/CathedralOS/Omega/pull/1655#issuecomment-6600702345), and
+[part 3](https://github.com/CathedralOS/Omega/pull/1655#issuecomment-6600702935).
+The posted bytes were retrieved and verified against the retained bundle.
+Source retention and actual engine observations are separate evidence.
+
+Other runtime targets and the wider target-source migration remain open. This
+row does not close the codec library’s general schema agreement, decoding or
+wire-protocol customer acceptance.

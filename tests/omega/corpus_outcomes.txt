@@ -8742,15 +8742,15 @@ pass/facts/may_write_codec_argument_through_target_body_exit rejected 2956ms che
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
-pass/facts/may_write_codec_through_call_result_exit checked 3530ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/may_write_codec_through_const_name_exit checked 4307ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/may_write_codec_through_field_exit checked 3963ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/may_write_codec_through_local_exit checked 3870ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/may_write_codec_through_match_join_exit checked 3611ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/may_write_codec_through_other_machine_exit checked 3286ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/may_write_codec_through_other_state_exit checked 3851ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/may_write_codec_through_parameter_exit checked 3723ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/may_write_codec_through_target_body_exit checked 3023ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/may_write_codec_through_call_result_exit checked 21945ms check-target:macos_arm64 @6ab94efb1d699133108fa31bd704636c9613b4b9
+pass/facts/may_write_codec_through_const_name_exit checked 19485ms check-target:macos_arm64 @6ab94efb1d699133108fa31bd704636c9613b4b9
+pass/facts/may_write_codec_through_field_exit checked 18436ms check-target:macos_arm64 @6ab94efb1d699133108fa31bd704636c9613b4b9
+pass/facts/may_write_codec_through_local_exit checked 18816ms check-target:macos_arm64 @6ab94efb1d699133108fa31bd704636c9613b4b9
+pass/facts/may_write_codec_through_match_join_exit checked 19144ms check-target:macos_arm64 @6ab94efb1d699133108fa31bd704636c9613b4b9
+pass/facts/may_write_codec_through_other_machine_exit checked 18784ms check-target:macos_arm64 @6ab94efb1d699133108fa31bd704636c9613b4b9
+pass/facts/may_write_codec_through_other_state_exit checked 18957ms check-target:macos_arm64 @6ab94efb1d699133108fa31bd704636c9613b4b9
+pass/facts/may_write_codec_through_parameter_exit checked 19422ms check-target:macos_arm64 @6ab94efb1d699133108fa31bd704636c9613b4b9
+pass/facts/may_write_codec_through_target_body_exit checked 20831ms check-target:macos_arm64 @77d5742e003ce607ca3856dfa76cb17d0679aa17
 pass/facts/may_write_computed_receiver_through_call_result_exit rejected 3710ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call kept_index from main: other.held < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/may_write_computed_receiver_through_const_name_exit rejected 4224ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -26115,32 +26115,26 @@ fail/facts/may_write_codec_argument_through_target_body_overlapping rejected 262
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
-fail/facts/may_write_codec_through_call_result_overlapping rejected 2767ms expected @ccdb99ca2214
+fail/facts/may_write_codec_through_call_result_overlapping rejected 13336ms expected @6ab94efb1d699133108fa31bd704636c9613b4b9
 	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/may_write_codec_through_const_name_overlapping rejected 2910ms expected @ccdb99ca2214
+fail/facts/may_write_codec_through_const_name_overlapping rejected 15581ms expected @6ab94efb1d699133108fa31bd704636c9613b4b9
 	cannot prove requires contract for call read_at from main: other < 4 && items[..].len == 4 (needs fact `index < 4 && items.len == 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/may_write_codec_through_field_overlapping rejected 2961ms expected @ccdb99ca2214
+fail/facts/may_write_codec_through_field_overlapping rejected 13445ms expected @6ab94efb1d699133108fa31bd704636c9613b4b9
 	cannot prove index `bounds.other` is within length 4 in main::entry
-fail/facts/may_write_codec_through_local_overlapping rejected 2982ms expected @ccdb99ca2214
+fail/facts/may_write_codec_through_local_overlapping rejected 13962ms expected @6ab94efb1d699133108fa31bd704636c9613b4b9
 	cannot prove index `other` is within length 4 in main::entry
-fail/facts/may_write_codec_through_match_join_overlapping rejected 2716ms expected @ccdb99ca2214
-	cannot prove requires contract for call joined_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/may_write_codec_through_other_machine_overlapping rejected 3439ms expected @ccdb99ca2214
+fail/facts/may_write_codec_through_match_join_overlapping rejected 14343ms expected @6ab94efb1d699133108fa31bd704636c9613b4b9
+	cannot prove requires contract for call joined_index from exercise: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/may_write_codec_through_other_machine_overlapping rejected 13820ms expected @6ab94efb1d699133108fa31bd704636c9613b4b9
 	cannot prove requires contract for call read_at from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/may_write_codec_through_other_state_overlapping rejected 5997ms expected @ccdb99ca2214
+fail/facts/may_write_codec_through_other_state_overlapping rejected 13764ms expected @6ab94efb1d699133108fa31bd704636c9613b4b9
 	cannot prove requires contract for call read from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/may_write_codec_through_parameter_overlapping rejected 3344ms expected @ccdb99ca2214
+fail/facts/may_write_codec_through_parameter_overlapping rejected 12355ms expected @6ab94efb1d699133108fa31bd704636c9613b4b9
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
-fail/facts/may_write_codec_through_target_body_overlapping rejected 2816ms expected @ccdb99ca2214
-	cannot prove index `index` is within length 4 in probe::entry
-	cannot prove index `index` is within length 4 in probe::entry
-	cannot prove index `index` is within length 4 in probe::entry
-	cannot prove index `index` is within length 4 in probe::entry
-	cannot prove index `index` is within length 4 in probe::entry
-	cannot prove index `index` is within length 4 in probe::entry
-	cannot prove index `index` is within length 4 in probe::entry
-	cannot prove index `index` is within length 4 in probe::entry
+fail/facts/may_write_codec_through_target_body_overlapping rejected 15759ms expected @77d5742e003ce607ca3856dfa76cb17d0679aa17
+	cannot prove index `index` is within length 4 in StoredCursorProbe::probe::probe
+	cannot prove index `index` is within length 4 in StoredCursorProbe::probe::probe
 fail/facts/may_write_computed_receiver_through_call_result_overlapping rejected 3750ms expected @ccdb99ca2214
 	cannot prove requires contract for call kept_index from main: other.held < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/may_write_computed_receiver_through_const_name_overlapping rejected 3892ms expected @ccdb99ca2214
