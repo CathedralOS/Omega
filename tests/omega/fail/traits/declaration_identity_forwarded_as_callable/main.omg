@@ -2,7 +2,7 @@
 // carries no signature, so it cannot be forwarded where a callable is due.
 machine apply<machine Worker>(value: u64) -> u64
 requires machine Worker(value: u64) -> u64;
-{ Worker(value) }
+{ value }
 
 trait StepContract<machine Requirement>
 {
