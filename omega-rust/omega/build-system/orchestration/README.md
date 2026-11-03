@@ -110,8 +110,7 @@ The compiler returns an opaque `PackageBuild`: the application can inspect its
 package inputs, generated bundle and demanded package identities, and join
 component descriptions, but cannot extract its source continuation. Component
 executable custody stays in the compiler session. `prepare_package` prepares a
-root Build for diagnostic consumers; `join_dependency_builds` leaves the root
-unexecuted and returns its joined inputs. The corpus uses these same operations,
+root Build for diagnostic consumers. The corpus uses these same operations,
 not a test-only dependency scheduler.
 
 [publication.rs](src/publication.rs) publishes admitted products and is also used
