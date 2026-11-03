@@ -1,0 +1,2 @@
+mutates `source.right` while local borrow
+still active
