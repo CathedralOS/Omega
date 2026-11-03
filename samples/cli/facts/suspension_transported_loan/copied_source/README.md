@@ -122,8 +122,22 @@ All nine twins named the forbidden original backings. The controls above have
 separate source/runtime records. The original Main/Build bytes and exit oracles
 remain frozen; only nine stale diagnostic text pins were corrected to the
 observed backing-specific refusal. Source-comment, fixture and documentation
-edits after that producer do not change its executable behavior. Scoped corpus
-records retain their own producer revisions.
+edits after that producer do not change its executable behavior. The later
+constructor/path repair reused from #1626 affects Rust tests only. Nine invalid
+sample metadata labels were corrected from the unsupported `negative` spelling
+to `intended-invalid`; their original frozen hashes remain in the run records.
+
+Final scoped corpus records use source stamp
+[`24e82dfa56fd9dcb9eefb9c3cdea25c8d700f328`](https://github.com/CathedralOS/Omega/commit/24e82dfa56fd9dcb9eefb9c3cdea25c8d700f328)
+and the retained optimized CLI/runner from `a39c93abfa652af674bd3139640b8f15339616eb`.
+All 33 fixtures pass their source oracle (17 accepted, 16 intended refusals);
+all 17 positives execute with native 0 and Terminal 0. Six existing direct/recast
+controls also agree in both engines. All 18 sample checks pass, including the
+nine policy twins. The affected checking and lowering crates pass 28 and 15
+unit tests respectively. Checked-trees passes 27 tests and fails its existing
+String-identity guard on ten fields: the guard and every flagged file are
+byte-identical to the fixed base. This is source attribution, not a fresh
+baseline test execution.
 
 Matching-host execution on Windows and both Linux hosts remains unqualified.
 The scheduler completes inline, so these runs establish the possible-suspension
