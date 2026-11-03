@@ -81,7 +81,29 @@ use that idiom, with stable field number `0` on the actual visited value.
 [Build-owned selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
 selects the ordinary probe, and [mutation contracts](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity)
 require preserving the exact disjoint storage fact. Compiler code is unchanged.
-Fresh full-row validation and publication are pending.
+The complete row is validated by two measured revisions. At
+`6ab94efb1d699133108fa31bd704636c9613b4b9`,
+[run 41612327184](https://github.com/CathedralOS/Omega/actions/runs/41612327184)
+checked eight positive places and their eight intended bound rejections, then
+observed native/Terminal exit `0` for those eight positives. Its target project
+stopped at an authored Build syntax error; that refusal is not fact enforcement.
+
+Only the four target Build files changed afterward, to the documented
+`Build::select_provider` operation. At `77d5742e003ce607ca3856dfa76cb17d0679aa17`,
+[run 41614342092](https://github.com/CathedralOS/Omega/actions/runs/41614342092)
+checked the corrected target, rejected its stale-bound twin, and observed target
+native/Terminal exit `0`. It also ran all 18 public place/twin projects: nine
+positive engine agreements and nine intended rejections. The root passed
+ordinary CLI admission and both engines at exit `0`. Independent review accepts
+reuse of the unchanged eight corpus projects at their original source stamps.
+
+Source checks use macOS arm64; all runtime observations use Linux x86_64.
+The exact source archive, including both measured revisions, is published in
+[part 1](https://github.com/CathedralOS/Omega/pull/1655#issuecomment-6600701813),
+[part 2](https://github.com/CathedralOS/Omega/pull/1655#issuecomment-6600702345), and
+[part 3](https://github.com/CathedralOS/Omega/pull/1655#issuecomment-6600702935).
+The posted bytes were retrieved and verified against the retained bundle.
+Source retention and actual engine observations are separate evidence.
 
 Other runtime targets and the wider target-source migration remain open. This
 row does not close the codec library’s general schema agreement, decoding or
