@@ -35,10 +35,25 @@ The optimized baseline at `3cfc757f135a4c93fd3bdd4c356c2b55aba10a6d`
 refuses the valid source: it cannot form the successful payload after excluding
 the only failure case, and it loses the saved public decoder call when selecting
 its implementation. The corrupt twin fails for those same unrelated reasons, so
-that refusal is not preservation evidence. No completed place is claimed. The other eight places, their reject
-twins and corpus mirrors remain to be authored after the first failure is
-isolated. The full standard Representation interface, reflection adapters,
+that refusal is not preservation evidence. No completed place is claimed. All nine places, their reject twins and corpus mirrors are authored; their
+compiler and runtime observations remain pending. The full standard Representation interface, reflection adapters,
 other hosts and the Omega-written producer remain parent work.
+
+Each place supplies the same semantic pair to the conversion. The output
+buffer remains a runtime borrow; a constant contributes a pair rather than
+permission to access storage.
+
+| Place | Semantic input | Reject twin |
+| --- | --- | --- |
+| [Local](local/main.omg) | Local request construction | [Wrong last-byte load](local/invalid/main.omg) |
+| [Field](field/main.omg) | Field between nonzero neighbors | [Wrong last-byte load](field/invalid/main.omg) |
+| [Parameter](parameter/main.omg) | Forwarded parameter | [Wrong last-byte load](parameter/invalid/main.omg) |
+| [Call result](call_result/main.omg) | Completed call, both inputs | [Wrong last-byte load](call_result/invalid/main.omg) |
+| [Match join](match_join/main.omg) | Distinct results from both arms | [Wrong last-byte load](match_join/invalid/main.omg) |
+| [Constant name](const_name/main.omg) | Two owned constants | [Wrong last-byte load](const_name/invalid/main.omg) |
+| [Nested machine](other_state/main.omg) | Explicit nested machine | [Wrong last-byte load](other_state/invalid/main.omg) |
+| [Other machine](other_machine/main.omg) | Another named implementation | [Wrong last-byte load](other_machine/invalid/main.omg) |
+| [Selected implementation](target_body/main.omg) | Build-selected body, checked marker | [Wrong last-byte load](target_body/invalid/main.omg) |
 
 Governing contracts: [codecs](../../../../wiki/spec/layouts/codecs.md),
 [completed returns](../../../../wiki/spec/language/state_contracts.md#returns-and-proof-use),
