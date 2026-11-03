@@ -175,9 +175,7 @@ fn product_coupling_conjunct(
     fa_label: &str,
     fb_label: &str,
 ) -> Option<i64> {
-    let Some(binary) = program.expression_table.binary_node(guard) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(guard)?;
     match binary.operator {
         BinaryOperator::And => {
             product_coupling_conjunct(program, machine, binary.left, fa_label, fb_label).or_else(
@@ -194,9 +192,7 @@ fn product_coupling_conjunct(
             None
         }
         BinaryOperator::LessOrEqual | BinaryOperator::Less => {
-            let Some(product) = program.expression_table.binary_node(binary.left) else {
-                return None;
-            };
+            let product = program.expression_table.binary_node(binary.left)?;
             if product.operator != BinaryOperator::Multiply
                 || !guard_narrowing::has_builtin_bound_arithmetic(
                     program,

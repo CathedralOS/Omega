@@ -382,9 +382,7 @@ pub(crate) fn check_bounded_initializer(
         diagnostics,
         float_range_for_initializer,
         cannot_prove_bounded_initializer_float,
-    ) {
-        return;
-    }
+    ) {}
 }
 
 pub(crate) fn check_bounded_state_return<'program>(
@@ -464,9 +462,7 @@ pub(crate) fn check_bounded_state_return<'program>(
         diagnostics,
         float_range_for_return_value,
         cannot_prove_bounded_return_float,
-    ) {
-        return;
-    }
+    ) {}
 }
 
 pub(crate) fn check_bounded_call_argument(
@@ -620,9 +616,7 @@ pub(crate) fn check_bounded_call_argument(
         diagnostics,
         float_range_for_call_argument,
         cannot_prove_bounded_call_float,
-    ) {
-        return;
-    }
+    ) {}
 }
 
 pub(crate) fn check_bounded_transition_argument(
@@ -814,9 +808,7 @@ pub(crate) fn check_bounded_transition_argument(
         diagnostics,
         guarded_float_range_for_transition_argument,
         cannot_prove_bounded_transition_float,
-    ) {
-        return;
-    }
+    ) {}
 }
 
 /// Discharge one obligation's declared float range: a value range that

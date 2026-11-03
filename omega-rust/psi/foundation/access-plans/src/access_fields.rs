@@ -729,13 +729,13 @@ impl ValidatedAccessFields {
         if transfer_width_bits != region.transfer_width_bits
             || transfer_width_bits == 0
             || transfer_width_bits > 128
-            || transfer_width_bits % 8 != 0
+            || !transfer_width_bits.is_multiple_of(8)
             || !length_bytes.is_power_of_two()
             || byte_offset < region.byte_offset
             || byte_offset
                 .checked_add(length_bytes)
                 .is_none_or(|end| end > region.byte_offset + region.byte_length)
-            || (byte_offset - region.byte_offset) % length_bytes != 0
+            || !(byte_offset - region.byte_offset).is_multiple_of(length_bytes)
             || region.byte_alignment % length_bytes != 0
         {
             return Err(AccessPlanDiagnostic(

@@ -451,8 +451,8 @@ fn mathematical_leaf_order_expands_only_cited_exact_scalar_definitions() {
     crate::accept_certificate(
         &context,
         &expected,
-        &[original.clone()],
-        &[exact.clone()],
+        std::slice::from_ref(&original),
+        std::slice::from_ref(&exact),
         &transport(&exact),
     )
     .expect("exact scalar definition and mathematical order share checked denotation");
@@ -481,8 +481,8 @@ fn mathematical_leaf_order_expands_only_cited_exact_scalar_definitions() {
             crate::accept_certificate(
                 &context,
                 &expected,
-                &[original.clone()],
-                &[changed.clone()],
+                std::slice::from_ref(&original),
+                std::slice::from_ref(&changed),
                 &transport(&changed),
             )
             .is_err()
@@ -492,7 +492,7 @@ fn mathematical_leaf_order_expands_only_cited_exact_scalar_definitions() {
         crate::accept_certificate(
             &context,
             &expected,
-            &[original.clone()],
+            std::slice::from_ref(&original),
             &[],
             &transport(&exact),
         )

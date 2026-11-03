@@ -29,7 +29,6 @@ pub(crate) use slot_inventory::provider_completion_covers_writable_slots;
 use slot_inventory::{destination_inventory, parameter_destination_inventory};
 pub(super) use slot_inventory::{provider_output_relation_required, seed_incoming_slots};
 mod normal_exits;
-mod summary_windows;
 pub(super) use normal_exits::state_effects;
 mod instantiation;
 use instantiation::{aggregate_argument_sources, destination_source, instantiate};
@@ -66,7 +65,7 @@ use facts::PlaceSegment;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+use typed_trees::statement::{StatementNode, TransitionExit};
 
 fn call_effects(
     program: &dyn crate::CheckingInput,

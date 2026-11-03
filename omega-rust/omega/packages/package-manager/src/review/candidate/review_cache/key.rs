@@ -69,7 +69,7 @@ pub(crate) fn compiled_review_key_with_identity(
     digest.raw(&compiler_identity);
     digest.raw(&review_cache_inputs_digest(inputs));
     digest.raw(&review_cache_snapshot_digest(snapshot));
-    digest.finish().into()
+    digest.finish()
 }
 
 pub(super) fn lineage_digest(lineage: &SourceLineage) -> [u8; 32] {

@@ -270,9 +270,7 @@ pub fn initializer_source(
     ) {
         return borrowed_initializer_source(program, state, expression, reference);
     }
-    let Some((path, name)) = expression_table(program).single_name_member(expression) else {
-        return None;
-    };
+    let (path, name) = expression_table(program).single_name_member(expression)?;
     if !path.symbol.is_valid()
         || path.symbol != path.head_symbol
         || program.symbols.get(path.symbol).parent != state.symbol
@@ -374,9 +372,7 @@ pub fn borrowed_initializer_source(
     reference: TypeReferenceHandle,
 ) -> Option<checked_trees::CheckedUnitStructuralArgumentPlan> {
     let (referent, access) = stored_loan_parts(program, reference)?;
-    let Some(borrow) = expression_table(program).borrow_expression(expression) else {
-        return None;
-    };
+    let borrow = expression_table(program).borrow_expression(expression)?;
     let authored_access = CheckedStructuralAccess::from(borrow.access);
     if authored_access != access {
         return None;
@@ -525,10 +521,10 @@ pub fn borrowed_initializer_source(
 
 /// Peel constraint shells and reference wrappers to the nominal owner one
 /// carrier's members live under.
-fn nominal_member_owner_type<'p>(
-    program: &'p dyn CheckingInput,
+fn nominal_member_owner_type(
+    program: &dyn CheckingInput,
     mut reference: TypeReferenceHandle,
-) -> Option<&'p typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     loop {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
@@ -1194,7 +1190,8 @@ pub fn local_record_loans(
         .statements(state.statement_nodes)
         .get(statement_index as usize)?
         .as_local_data()?;
-    let result = named_place_loans(
+
+    named_place_loans(
         program,
         facts,
         machine,
@@ -1202,8 +1199,7 @@ pub fn local_record_loans(
         local.symbol,
         statement_index,
         &[],
-    );
-    result
+    )
 }
 
 /// Declared geometry of a named local or formal storage occurrence. A formal

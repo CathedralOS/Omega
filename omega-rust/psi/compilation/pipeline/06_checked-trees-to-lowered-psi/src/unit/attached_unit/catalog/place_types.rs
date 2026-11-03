@@ -341,7 +341,7 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
                     selected.path.extend_from_slice(path);
                     self.argument(Some(value.statement_index), &selected, namespace)?;
                 } else {
-                    let identity = stored_structural_identity(&self.checked, source.type_reference);
+                    let identity = stored_structural_identity(self.checked, source.type_reference);
                     self.roots.push(identity);
                     collect_path(self.checked, self.plans, identity, path, self.roots)
                         .map_err(|error| self.at_statement(Some(value.statement_index), error))?;
@@ -381,20 +381,18 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
             argument,
         )?;
         let mut path = argument.path.as_slice();
-        if let Source::StructuralLocalBorrow { symbol, .. } = argument.source
-            && matches!(path.first(), Some(Segment::Referent))
-            && let Some(local) = self.checked.facts.state_locals.named(self.state, symbol)
+        if let Source::StructuralLocalBorrow {
+            root_reference_hops,
+            ..
+        } = argument.source
         {
-            let carrier = stored_structural_identity(&self.checked, local.declared_type);
-            if carrier != root
-                && matches!(selected_declaration(self.plans, carrier)?.shape,
-                    CheckedUnitStructuralTypeShape::Reference { referent_identity, .. } if referent_identity == root)
-            {
-                // This path is in the local's logical referent namespace.
-                // Its leading carrier presentation was consumed at that
-                // boundary; it is not a second dereference of the referent.
-                path = &path[1..];
-            }
+            // A borrowed local's root identity is its logical referent, already
+            // past the reference shells the producer spelled as leading
+            // crossings. The plan counts those crossings; emission strips the
+            // same count, and refuses a path that lacks them, before walking
+            // the projection. Skip them here so a borrow through `& &T` walks
+            // from `T`, not from a shell already crossed.
+            path = path.get(root_reference_hops as usize..).unwrap_or_default();
         }
         self.roots.push(root);
         collect_path(self.checked, self.plans, root, path, self.roots)

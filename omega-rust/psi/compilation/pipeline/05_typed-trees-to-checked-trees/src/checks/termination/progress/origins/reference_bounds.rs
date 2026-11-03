@@ -95,21 +95,21 @@ where
     (next != *place).then_some(next)
 }
 
-/// A demanded place spelled through an exclusive-binding root —
-/// `r.view.scheduler` where `r: &mut RefBox` — names the referent the
-/// binding's latest supply proved, but the shared prefix walk cannot always
-/// name that referent: an exclusive borrow of a carrier that itself stores
-/// shared leaves keeps no alias-table origin, leaving the operand's literal
-/// root without a resolvable spelling. This scan replays the binding's own
-/// provenance instead: the declaration's operand, then every later bare-name
-/// store `r = ..`, each canonicalized the way a stored operand would be — a
-/// borrow's target, another binding's name, or a checked call result the
-/// resolver proves. A statement between the supply and `bound` whose writes
-/// may touch the bare binding — a store the frame cannot name, an operand
-/// call's frame, a `r.field` write reachable through the referent — fails
-/// closed rather than guessing the referent survived. The referent itself
-/// may ride through further reference bindings; each hop repeats the scan at
-/// the position where it was captured.
+// A demanded place spelled through an exclusive-binding root —
+// `r.view.scheduler` where `r: &mut RefBox` — names the referent the
+// binding's latest supply proved, but the shared prefix walk cannot always
+// name that referent: an exclusive borrow of a carrier that itself stores
+// shared leaves keeps no alias-table origin, leaving the operand's literal
+// root without a resolvable spelling. This scan replays the binding's own
+// provenance instead: the declaration's operand, then every later bare-name
+// store `r = ..`, each canonicalized the way a stored operand would be — a
+// borrow's target, another binding's name, or a checked call result the
+// resolver proves. A statement between the supply and `bound` whose writes
+// may touch the bare binding — a store the frame cannot name, an operand
+// call's frame, a `r.field` write reachable through the referent — fails
+// closed rather than guessing the referent survived. The referent itself
+// may ride through further reference bindings; each hop repeats the scan at
+// the position where it was captured.
 
 /// The statement's own storage writes must not touch `slot`; `false`
 /// reports an untracked touch that fails the walk.

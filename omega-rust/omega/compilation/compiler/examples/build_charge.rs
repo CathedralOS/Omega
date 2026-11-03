@@ -390,7 +390,8 @@ fn source_discovery_root_inputs() {
 
     // Absence cannot fall back to the root's same-named input.txt or acquire
     // an ambient host path for the slot.
-    let mut session = orchestration::BuildSession::create(&temporary.path().join("absent")).unwrap();
+    let mut session =
+        orchestration::BuildSession::create(&temporary.path().join("absent")).unwrap();
     let error = resolve_sources(&mut session, preparation(), profile)
         .err()
         .expect("an unassigned named slot must reject");
@@ -509,7 +510,7 @@ fn source_discovery_root_resources() {
         let workspace = temporary.path().join(name);
         std::fs::create_dir(&workspace).unwrap();
         let filesystem = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
-            &workspace.join("caller"),
+            workspace.join("caller"),
             build_time_evaluation::BuildMachineFilesystemSponsorLimits {
                 maximum_entries: 32,
                 maximum_total_logical_bytes: bytes,
@@ -618,7 +619,8 @@ fn anonymous_generator_source_scope() {
         .expect("acquire anonymous source");
     let capture = acquired.source_capture().clone();
     let entry = preparation.entry_path();
-    let mut session = orchestration::BuildSession::create(&temporary.path().join("session")).unwrap();
+    let mut session =
+        orchestration::BuildSession::create(&temporary.path().join("session")).unwrap();
     let request = session
         .resources()
         .source_build_request(
@@ -987,7 +989,7 @@ fn terminal_build_filesystem() {
 
     let temporary = exclusive_workspace("terminal-filesystem-budget");
     let staging = build_time_evaluation::BuildMachineFilesystemSponsor::create_private(
-        &temporary.path().join("staging"),
+        temporary.path().join("staging"),
         build_time_evaluation::BuildMachineFilesystemSponsorLimits::COMPILER_DEFAULT,
     )
     .unwrap();
@@ -1797,7 +1799,8 @@ fn project_session_lifecycle() {
             .unwrap()
             .unwrap()
     };
-    let mut session = orchestration::BuildSession::create(&temporary.path().join("limited")).unwrap();
+    let mut session =
+        orchestration::BuildSession::create(&temporary.path().join("limited")).unwrap();
     let sponsor = session.resources().evaluation_sponsor().clone();
     // Model earlier work spending the invocation's entire result allowance.
     // Source discovery must use this same sponsor and refuse its own result.
@@ -1860,7 +1863,8 @@ fn completed_build_target_fanout() {
     )
     .unwrap()
     .unwrap();
-    let mut session = orchestration::BuildSession::create(&temporary.path().join("session")).unwrap();
+    let mut session =
+        orchestration::BuildSession::create(&temporary.path().join("session")).unwrap();
     let before = counters::build_execution_count();
     let mut resolved = resolve_sources(&mut session, preparation, host).unwrap();
     let build = resolved.builds.pop().unwrap();
@@ -2010,7 +2014,8 @@ fn settled_build_product_contexts() {
     )
     .unwrap()
     .unwrap();
-    let mut session = orchestration::BuildSession::create(&temporary.path().join("session")).unwrap();
+    let mut session =
+        orchestration::BuildSession::create(&temporary.path().join("session")).unwrap();
     let sponsor = session.resources().evaluation_sponsor().clone();
     let before = counters::build_execution_count();
     let completions = counters::product_source_completion_count();
@@ -2099,8 +2104,7 @@ fn settled_build_product_contexts() {
     let failure = session
         .compiler()
         .check_package_build(unaccepted)
-        .err()
-        .expect("an accepted sibling cannot grant this Product entry acceptance");
+        .expect_err("an accepted sibling cannot grant this Product entry acceptance");
     assert!(failure.into_diagnostics().iter().any(|diagnostic| {
         diagnostic
             .message
@@ -2357,8 +2361,7 @@ fn interleaved_build_invocations() {
             target::TargetProfile::from_omega_target_name(Some("windows_x86_64")).unwrap(),
             request().package_inputs.unwrap(),
         )
-        .err()
-        .expect("a pre-admitted occurrence cannot replace its Product target");
+        .expect_err("a pre-admitted occurrence cannot replace its Product target");
     assert!(refused.into_diagnostics().iter().any(|diagnostic| {
         diagnostic
             .message

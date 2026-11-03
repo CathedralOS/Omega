@@ -512,48 +512,15 @@ fn resolve_foreign(
                 else {
                     return Err(TextPlacementError::SourceShapeMismatch)
                 };
-                let bytes: Vec<u8> = match callback.destination {
-                    machine_code::CallbackAddressDestination::Register(register) => {
-                        if register.codec_index() >= 16 {
-                            return Err(TextPlacementError::SourceShapeMismatch)
-                        }
-                        let index = register.codec_index();
-                        if index == 4 {
-                            return Err(TextPlacementError::SourceShapeMismatch)
-                        }
-                        let rex = 0x48_u8 | u8::from(index >= 8);
-                        let modrm = 0x05_u8 | ((index & 7) << 3);
-                        vec![rex, 0x8d, modrm, 0, 0, 0, 0]
-                    }
-                    machine_code::CallbackAddressDestination::RecordField {
-                        root_register,
-                        byte_offset,
-                    } => {
-                        let root = root_register.codec_index();
-                        if root >= 16 || root == 4 || root == 11 {
-                            return Err(TextPlacementError::SourceShapeMismatch)
-                        }
-                        let off = byte_offset.to_le_bytes();
-                        let rex_store = 0x4c_u8 | u8::from(root >= 8);
-                        vec![
-                            0x4c, 0x8d, 0x1d, 0, 0, 0, 0, rex_store, 0x89,
-                            0x98 | (root & 7), off[0], off[1], off[2], off[3],
-                        ]
-                    }
-                    machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
-                        if byte_offset > i32::MAX as u32 {
-                            return Err(TextPlacementError::SourceShapeMismatch)
-                        }
-                        let mut group = vec![0x4c, 0x8d, 0x1d, 0, 0, 0, 0, 0x4c, 0x89];
-                        if byte_offset <= i8::MAX as u32 {
-                            group.extend_from_slice(&[0x5c, 0x24, byte_offset as u8]);
-                        } else {
-                            group.extend_from_slice(&[0x9c, 0x24]);
-                            group.extend_from_slice(&byte_offset.to_le_bytes());
-                        }
-                        group
-                    }
+                let destination = match callback.destination.clone() {
+                    machine_code::CallbackAddressDestination::Register(register) => isa_x86_64::X86_64CallbackMaterializationDestination::Register(register),
+                    machine_code::CallbackAddressDestination::RecordField { root_register, placements } =>
+                        isa_x86_64::X86_64CallbackMaterializationDestination::RecordField { root_register, placements },
+                    machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } =>
+                        isa_x86_64::X86_64CallbackMaterializationDestination::OutgoingStack { byte_offset },
                 };
+                let bytes = isa_x86_64::encode_private_callback_materialization(destination)
+                    .ok_or(TextPlacementError::SourceShapeMismatch)?;
                 check_group(callback, &bytes, &[3])?;
             }
             let call_offset = instruction_offset
@@ -580,51 +547,14 @@ fn resolve_foreign(
                 else {
                     return Err(TextPlacementError::SourceShapeMismatch)
                 };
-                let bytes: Vec<u8> = match callback.destination {
-                    machine_code::CallbackAddressDestination::Register(register) => {
-                        let calling_conventions::MachineRegister::Aarch64X(index) = register
-                        else {
-                            return Err(TextPlacementError::SourceShapeMismatch)
-                        };
-                        if index > 30 {
-                            return Err(TextPlacementError::SourceShapeMismatch)
-                        }
-                        let adrp = (0x9000_0000_u32 | u32::from(index)).to_le_bytes();
-                        let add =
-                            (0x9100_0000_u32 | (u32::from(index) << 5) | u32::from(index))
-                                .to_le_bytes();
-                        vec![
-                            adrp[0], adrp[1], adrp[2], adrp[3], add[0], add[1], add[2], add[3],
-                        ]
-                    }
-                    machine_code::CallbackAddressDestination::RecordField {
-                        root_register,
-                        byte_offset,
-                    } => {
-                        let calling_conventions::MachineRegister::Aarch64X(root) = root_register
-                        else {
-                            return Err(TextPlacementError::SourceShapeMismatch)
-                        };
-                        if root > 30 || byte_offset % 8 != 0 || byte_offset / 8 >= 4096 {
-                            return Err(TextPlacementError::SourceShapeMismatch)
-                        }
-                        let scratch = 16_u32;
-                        let adrp = (0x9000_0000_u32 | scratch).to_le_bytes();
-                        let add = (0x9100_0000_u32 | (scratch << 5) | scratch).to_le_bytes();
-                        let store = (0xF900_0000_u32
-                            | ((byte_offset / 8) << 10)
-                            | (u32::from(root) << 5)
-                            | scratch)
-                            .to_le_bytes();
-                        vec![
-                            adrp[0], adrp[1], adrp[2], adrp[3], add[0], add[1], add[2], add[3],
-                            store[0], store[1], store[2], store[3],
-                        ]
-                    }
-                    machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
-                        return Err(TextPlacementError::SourceShapeMismatch)
-                    }
+                let destination = match callback.destination.clone() {
+                    machine_code::CallbackAddressDestination::Register(register) => isa_aarch64::Aarch64CallbackMaterializationDestination::Register(register),
+                    machine_code::CallbackAddressDestination::RecordField { root_register, placements } =>
+                        isa_aarch64::Aarch64CallbackMaterializationDestination::RecordField { root_register, placements },
+                    machine_code::CallbackAddressDestination::OutgoingStack { .. } => return Err(TextPlacementError::SourceShapeMismatch),
                 };
+                let bytes = isa_aarch64::encode_private_callback_materialization(&destination)
+                    .ok_or(TextPlacementError::SourceShapeMismatch)?;
                 check_group(callback, &bytes, &[0, 4])?;
             }
             let call_offset = instruction_offset
@@ -678,7 +608,7 @@ fn resolve_foreign(
             .iter()
             .map(|callback| {
                 Ok(machine_code::PlacedCallbackAddressMaterialization {
-                    destination: callback.destination,
+                    destination: callback.destination.clone(),
                     code_function_offset: callback.code_function_offset,
                     code_section_offset: function_section_offset
                         .checked_add(callback.code_function_offset)

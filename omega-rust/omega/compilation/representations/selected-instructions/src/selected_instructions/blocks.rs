@@ -784,7 +784,7 @@ impl SelectedBlocks {
             return Some((0, len - 1));
         }
         let &(first, last) = lookup.register_instruction_spans.get(register.0 as usize)?;
-        (first != u32::MAX).then(|| (first as usize, (last & 0x7FFF_FFFF) as usize))
+        (first != u32::MAX).then_some((first as usize, (last & 0x7FFF_FFFF) as usize))
     }
     /// First and last body instruction indices in `block_index` that reference
     /// `register`, together with whether `register` is referenced by any
@@ -799,7 +799,7 @@ impl SelectedBlocks {
             return Some((0, len - 1, true));
         }
         let &(first, last) = lookup.register_instruction_spans.get(register.0 as usize)?;
-        (first != u32::MAX).then(|| {
+        (first != u32::MAX).then_some({
             (
                 first as usize,
                 (last & 0x7FFF_FFFF) as usize,

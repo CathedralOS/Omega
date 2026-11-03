@@ -189,7 +189,7 @@ impl<'field> RangeFacts<'field> {
                     {
                         continue;
                     }
-                    *candidate_segment = source_segment.clone();
+                    *candidate_segment = *source_segment;
                     rebound = true;
                     same_snapshot |= shared_snapshot;
                 }
@@ -271,9 +271,7 @@ pub(super) fn integer_value_identity(
             Some(path.symbol)
         })?;
     for _ in 0..ND {
-        let Some(symbol) = ::validation::single_segment_name_symbol(program, expression) else {
-            return None;
-        };
+        let symbol = ::validation::single_segment_name_symbol(program, expression)?;
         let Some((_, local)) = program.state_local_declaration(state, symbol) else {
             let mut parameters = program
                 .state_parameters(state)

@@ -413,7 +413,7 @@ pub(crate) fn derive_normalized_foreign_child(
 
     let mut ordinal_cursor = callback_ordinals.iter().copied();
     for callback in callbacks {
-        let expected_placement = match callback.destination {
+        let expected_placement = match callback.destination.clone() {
             CallbackAddressDestination::Register(register) => ValuePlacement {
                 shape: callback.target.application.shape,
                 locations: vec![calling_conventions::ValueLocation::Register {
@@ -433,11 +433,9 @@ pub(crate) fn derive_normalized_foreign_child(
             },
             CallbackAddressDestination::RecordField {
                 root_register,
-                byte_offset,
+                placements,
             } => {
-                if callback.target.field_byte_offset
-                    != Some(usize::try_from(byte_offset).unwrap_or(usize::MAX))
-                {
+                if callback.target.field_placements.as_ref() != Some(&placements) {
                     return Err("normalized foreign D41 child changed its callback target custody");
                 }
                 ValuePlacement {

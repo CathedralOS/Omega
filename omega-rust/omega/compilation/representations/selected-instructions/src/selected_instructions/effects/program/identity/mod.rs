@@ -23,7 +23,7 @@ pub use values::encode_ids;
 pub fn pre_allocation_machine_effect_identity(
     plan: &PreAllocationMachineEffectPlan,
 ) -> PreAllocationMachineEffectIdentity {
-    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v32\0")
+    identity_with_domain(plan, b"omega.terminal-preallocation-machine-effects.v33\0")
 }
 
 fn identity_with_domain(
@@ -33,7 +33,7 @@ fn identity_with_domain(
     let mut bytes = Vec::new();
     bytes.extend_from_slice(domain);
     bytes.extend_from_slice(&encode_terminal_pre_allocation_machine_effect_content(plan));
-    PreAllocationMachineEffectIdentity::from_bytes(content_identity(&bytes).into())
+    PreAllocationMachineEffectIdentity::from_bytes(content_identity(&bytes))
 }
 
 pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(

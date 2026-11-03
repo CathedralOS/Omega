@@ -104,13 +104,8 @@ fn producer_alias<'facts>(
     {
         return None;
     }
-    let Some(observed) = crate::flow::captured_observation_places(program, &facts.flow, captured)
-    else {
-        return None;
-    };
-    let Some(produced) = crate::flow::captured_value_places(program, &facts.flow, captured) else {
-        return None;
-    };
+    let observed = crate::flow::captured_observation_places(program, &facts.flow, captured)?;
+    let produced = crate::flow::captured_value_places(program, &facts.flow, captured)?;
     let ([observed], [produced]) = (observed.as_slice(), produced.as_slice()) else {
         return None;
     };
@@ -141,13 +136,11 @@ fn producer_alias<'facts>(
     // the completed scalar unavailable as an alias of the current source slot.
     // Keep its original local snapshot binding even when this optional relation
     // cannot be established.
-    let Some(prefixes) = super::super::capture_coordinates::borrowed_bindings(
+    let prefixes = super::super::capture_coordinates::borrowed_bindings(
         program,
         captured.operand.row(),
         &captured.projection.remaining,
-    ) else {
-        return None;
-    };
+    )?;
     if prefixes.iter().any(|prefix| {
         if let Some(read) = captured.producer_epoch {
             !crate::flow::operand_bindings_agree(
@@ -168,14 +161,12 @@ fn producer_alias<'facts>(
     }) {
         return None;
     }
-    let Some(source_type) = canonical_place_type_reference(
+    let source_type = canonical_place_type_reference(
         program,
         captured.operand.state_symbol,
         captured.operand.statement_index,
         &produced.projected,
-    ) else {
-        return None;
-    };
+    )?;
     Some((
         observed.projected.clone(),
         Alias {

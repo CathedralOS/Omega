@@ -296,14 +296,13 @@ impl OperationEnvironment<'_> {
                 .and_then(|(_, ordinal)| *ordinal);
         }
         for (declaration, _) in results.into_iter().skip(inherited_results) {
-            if let Some(declaration) = declaration {
-                if !self
+            if let Some(declaration) = declaration
+                && !self
                     .private_places
                     .iter()
                     .any(|existing| existing.id == declaration.id)
-                {
-                    self.private_places.push(declaration);
-                }
+            {
+                self.private_places.push(declaration);
             }
         }
         let structural_values::ValueOutcome::Normal(completed) = produced? else {

@@ -185,8 +185,6 @@ fn value_satisfies_bound_domain_predicates_in_contexts(
                 value,
                 *expression,
                 domain,
-                capture,
-                frames,
             )
         }
         typed_trees::domain::ProofFact::Membership(membership) => member_subject_satisfies_domain(
@@ -308,8 +306,6 @@ fn predicate_expression_holds_on_value(
     value: ExpressionHandle,
     expression: ExpressionHandle,
     domain: &typed_trees::domain::DomainDefinition,
-    capture: Option<&checked_trees::FlowOperandFact>,
-    frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> bool {
     let (Some(machine), Some(state_declaration)) = (
         program.machine_by_symbol(state.machine_symbol),
@@ -345,8 +341,6 @@ fn predicate_expression_holds_on_value(
                 value,
                 expression,
                 domain,
-                capture,
-                frames,
             )
         };
         match binary.operator {

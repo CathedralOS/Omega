@@ -400,9 +400,7 @@ fn fetch_operation(
     program: &dyn CheckingInput,
     expression: ExpressionHandle,
 ) -> Option<&'static str> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     match binary.operator {
         BinaryOperator::Add => Some("fetch_add"),
         BinaryOperator::Subtract => Some("fetch_sub"),

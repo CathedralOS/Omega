@@ -690,9 +690,11 @@ impl<Declaration: Copy + Eq + Default + 'static> ProofApplicationPlan<Declaratio
         &self,
         mut map: impl FnMut(Declaration) -> Result<Mapped, Error>,
     ) -> Result<ProofApplicationPlan<Mapped>, Error> {
-        let mut result = ProofApplicationPlan::default();
-        result.has_obligations = self.has_obligations;
-        result.unscoped_recipe = self.unscoped_recipe;
+        let mut result = ProofApplicationPlan {
+            has_obligations: self.has_obligations,
+            unscoped_recipe: self.unscoped_recipe,
+            ..Default::default()
+        };
         for (_, machine) in self.machines.iter() {
             let states = map_span(&self.symbols, machine.states, &mut result.symbols, &mut map)?;
             let binders = map_span(

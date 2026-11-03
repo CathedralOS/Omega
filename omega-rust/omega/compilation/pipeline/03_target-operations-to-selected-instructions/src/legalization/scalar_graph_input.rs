@@ -212,10 +212,10 @@ pub(super) type BlockEntryCustody =
     std::collections::BTreeMap<semantic_vocabulary::BlockId, reference_custody::Custody>;
 
 /// The unique retained target row `matches` accepted; a second match is a custody failure.
-pub(super) fn unique_row<'function>(
-    function: &'function TargetFunction,
+pub(super) fn unique_row(
+    function: &TargetFunction,
     mut matches: impl FnMut(&TargetUnitOperation) -> bool,
-) -> Result<Option<&'function TargetUnitOperation>, LegalizationError> {
+) -> Result<Option<&TargetUnitOperation>, LegalizationError> {
     let mut rows = function.graph.operations().filter(|row| matches(row));
     let row = rows.next();
     if rows.next().is_some() {

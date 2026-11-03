@@ -1,1 +1,1 @@
-terminal call `drop_token::finish` does not select a declared machine entry or callable requirement
+names a nested machine private to `drop_token`

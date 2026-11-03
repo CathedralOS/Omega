@@ -177,11 +177,11 @@ pub fn validate_runtime_evidence_inputs_in(
                     use_position,
                     &lane.argument_subjects,
                     &target_application.arguments,
-                    &graph,
+                    graph,
                     history,
                 )?;
                 let (source_proposition, source, source_cut) =
-                    source_arguments(module, caller, invocation, argument.source, &graph, history)?;
+                    source_arguments(module, caller, invocation, argument.source, graph, history)?;
                 let source_term = term(module, argument.source)?;
                 if source_term.interface != target_term.interface {
                     return Err("runtime evidence argument changed its witness interface");
@@ -211,13 +211,11 @@ pub fn validate_runtime_evidence_inputs_in(
                                     "runtime evidence argument names a different captured value",
                                 );
                             }
-                            if !entry_equal {
-                                if let Some(value) = &source.value {
-                                    value.visit_value_ids(|id| {
-                                        captured_values.push(id);
-                                        true
-                                    });
-                                }
+                            if !entry_equal && let Some(value) = &source.value {
+                                value.visit_value_ids(|id| {
+                                    captured_values.push(id);
+                                    true
+                                });
                             }
                         }
                         _ => {
@@ -229,7 +227,7 @@ pub fn validate_runtime_evidence_inputs_in(
                 }
                 if let Some(source_cut) = source_cut {
                     require_completed_capture(
-                        &graph,
+                        graph,
                         caller.id,
                         source_cut,
                         use_position,
@@ -466,7 +464,7 @@ fn observe_arguments(
                         .ok_or("evidence snapshot actual has no current carrier")?.carrier;
                     let mut path = prefix.to_vec(); path.extend_from_slice(subject_path);
                     let selected = crate::descriptors::descriptor_lifetimes::descriptor_location(
-                        &module.structural_types, root, root_type, &path, None,
+                        module.structural_types, root, root_type, &path, None,
                     ).ok_or("evidence snapshot has no exact typed storage path")?;
                     Ok(ArgumentValue::Scalar(history.scalar_snapshot(cut, root, &selected.path)?))
                 } else {
@@ -618,14 +616,14 @@ fn source_arguments(
         let use_position = position(caller, use_operation)?;
         let source_position = position(caller, operation)?;
         crate::descriptors::descriptor_results::require_unchanged_produced_payload(
-            &module.structural_types,
+            module.structural_types,
             graph,
             caller.id,
             source_position,
             use_position,
             &DescriptorLocation::whole(result.place),
         )?;
-        let mut analysis = DescriptorAnalysis::new(&module.structural_types, graph);
+        let mut analysis = DescriptorAnalysis::new(module.structural_types, graph);
         if !analysis.case_is_established(
             caller.id,
             use_position,

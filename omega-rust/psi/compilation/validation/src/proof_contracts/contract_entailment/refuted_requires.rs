@@ -645,43 +645,6 @@ fn equality_predicate_judgment(
     }
 }
 
-#[cfg(test)]
-mod equality_predicate_tests {
-    use super::{BinaryOperator, StructuralJudgment, equality_predicate_judgment};
-
-    #[test]
-    fn uncertified_comparisons_withhold_only_false_predicates() {
-        use BinaryOperator::{Equal, NotEqual};
-        use StructuralJudgment::{Proven, Refuted, Unknown};
-        let cases = [
-            (Equal, Proven, false, Proven),
-            (Equal, Refuted, false, Refuted),
-            (Equal, Unknown, false, Unknown),
-            (NotEqual, Proven, false, Refuted),
-            (NotEqual, Refuted, false, Proven),
-            (NotEqual, Unknown, false, Unknown),
-            (Equal, Proven, true, Proven),
-            (Equal, Refuted, true, Unknown),
-            (Equal, Unknown, true, Unknown),
-            (NotEqual, Proven, true, Unknown),
-            (NotEqual, Refuted, true, Proven),
-            (NotEqual, Unknown, true, Unknown),
-        ];
-        for (case_index, (operator, equality, uncertified, expected)) in
-            cases.into_iter().enumerate()
-        {
-            let actual = equality_predicate_judgment(equality, operator, uncertified);
-            assert!(
-                matches!(
-                    (actual, expected),
-                    (Proven, Proven) | (Refuted, Refuted) | (Unknown, Unknown)
-                ),
-                "comparison truth-table case {case_index}"
-            );
-        }
-    }
-}
-
 /// Whether a term reads a field off a call this stage cannot yet certify
 /// denotational. A symbolic machine parameter publishes a total closed-value
 /// signature, and that promise is its authority. A concrete machine's
@@ -922,5 +885,42 @@ pub(crate) fn collect_instantiated_conjuncts(
             ));
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod equality_predicate_tests {
+    use super::{BinaryOperator, StructuralJudgment, equality_predicate_judgment};
+
+    #[test]
+    fn uncertified_comparisons_withhold_only_false_predicates() {
+        use BinaryOperator::{Equal, NotEqual};
+        use StructuralJudgment::{Proven, Refuted, Unknown};
+        let cases = [
+            (Equal, Proven, false, Proven),
+            (Equal, Refuted, false, Refuted),
+            (Equal, Unknown, false, Unknown),
+            (NotEqual, Proven, false, Refuted),
+            (NotEqual, Refuted, false, Proven),
+            (NotEqual, Unknown, false, Unknown),
+            (Equal, Proven, true, Proven),
+            (Equal, Refuted, true, Unknown),
+            (Equal, Unknown, true, Unknown),
+            (NotEqual, Proven, true, Unknown),
+            (NotEqual, Refuted, true, Proven),
+            (NotEqual, Unknown, true, Unknown),
+        ];
+        for (case_index, (operator, equality, uncertified, expected)) in
+            cases.into_iter().enumerate()
+        {
+            let actual = equality_predicate_judgment(equality, operator, uncertified);
+            assert!(
+                matches!(
+                    (actual, expected),
+                    (Proven, Proven) | (Refuted, Refuted) | (Unknown, Unknown)
+                ),
+                "comparison truth-table case {case_index}"
+            );
+        }
     }
 }

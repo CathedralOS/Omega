@@ -32,11 +32,21 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                 let selectors = program
                     .statement_table
                     .outcome_proof_selectors(transition.proof_selectors);
+                // Selector rows carry only names; the transition that authors
+                // them is the occurrence these refusals point at.
+                let arm_span = transition.source_span;
+                let located = |diagnostic: diagnostics::Diagnostic| {
+                    if arm_span == source::SourceSpan::default() {
+                        diagnostic
+                    } else {
+                        diagnostic.with_source_span(arm_span)
+                    }
+                };
                 let TransitionGuardNode::When(guard) = transition.guard else {
                     if !selectors.is_empty() {
-                        diagnostics.push(diagnostics::Diagnostic::error(
+                        diagnostics.push(located(diagnostics::Diagnostic::error(
                             "outcome proof selectors require an exact guarded result-case arm",
-                        ));
+                        )));
                     }
                     continue;
                 };
@@ -44,9 +54,9 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     exact_outcome_case_test(program, guard)
                 else {
                     if !selectors.is_empty() {
-                        diagnostics.push(diagnostics::Diagnostic::error(
+                        diagnostics.push(located(diagnostics::Diagnostic::error(
                             "outcome proof selectors require one exact nominal result-case test",
-                        ));
+                        )));
                     }
                     continue;
                 };
@@ -54,9 +64,9 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     saved_result_call(program, caller_state, statement_index, result_expression)
                 else {
                     if !selectors.is_empty() {
-                        diagnostics.push(diagnostics::Diagnostic::error(
+                        diagnostics.push(located(diagnostics::Diagnostic::error(
                             "outcome proof selectors require one immutable saved direct-call result",
-                        ));
+                        )));
                     }
                     continue;
                 };
@@ -64,10 +74,10 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     validation::find_state(program, result_call.target_symbol)
                 else {
                     if !selectors.is_empty() {
-                        diagnostics.push(diagnostics::Diagnostic::error(format!(
+                        diagnostics.push(located(diagnostics::Diagnostic::error(format!(
                             "outcome proof selector source call `{}` must target a concrete machine state",
                             result_call.target
-                        )));
+                        ))));
                     }
                     continue;
                 };
@@ -76,9 +86,9 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                     .map(|(definition, _)| definition.symbol)
                 else {
                     if !selectors.is_empty() {
-                        diagnostics.push(diagnostics::Diagnostic::error(
+                        diagnostics.push(located(diagnostics::Diagnostic::error(
                             "outcome proof selector case does not resolve to a declared nominal sum case",
-                        ));
+                        )));
                     }
                     continue;
                 };
@@ -100,19 +110,19 @@ pub(crate) fn bind_outcome_specific_arm_facts(
                 let mut invalid = false;
                 for selector in selectors {
                     if !selected_names.insert(selector.binding.as_str()) {
-                        diagnostics.push(diagnostics::Diagnostic::error(format!(
+                        diagnostics.push(located(diagnostics::Diagnostic::error(format!(
                             "outcome evidence term `{}` is bound more than once in this arm",
                             selector.binding
-                        )));
+                        ))));
                         invalid = true;
                     }
                     if !matching_rows.iter().any(|(_, row)| {
                         row.public_selector.as_deref() == Some(selector.output_field.as_str())
                     }) {
-                        diagnostics.push(diagnostics::Diagnostic::error(format!(
+                        diagnostics.push(located(diagnostics::Diagnostic::error(format!(
                             "outcome proof selector `{}` is not a named guarantee of the matching result case",
                             selector.output_field
-                        )));
+                        ))));
                         invalid = true;
                     }
                 }
@@ -318,9 +328,7 @@ pub(crate) fn exact_outcome_case_test(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<(typed_trees::expression::ExpressionHandle, SymbolHandle)> {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     if binary.operator == BinaryOperator::CaseMembership {
         // Validation has checked the exact nominal subject and classifier.
         // Only the left operand is observed; the right operand is not a value
@@ -382,14 +390,8 @@ fn outcome_call_substitutions(
 ) -> Vec<(SymbolHandle, String, String)> {
     let mut substitutions = Vec::new();
     let arguments = program.expression_table.expression_handles(call.arguments);
-    let mut argument_index = 0usize;
-    for parameter in program.state_parameters(target_state) {
-        let value = {
-            let value = arguments.get(argument_index).copied();
-            argument_index += 1;
-            value
-        };
-        if let Some(value) = value {
+    for (argument_index, parameter) in program.state_parameters(target_state).iter().enumerate() {
+        if let Some(value) = arguments.get(argument_index).copied() {
             substitutions.push((
                 parameter.symbol,
                 parameter.name.as_str().to_owned(),

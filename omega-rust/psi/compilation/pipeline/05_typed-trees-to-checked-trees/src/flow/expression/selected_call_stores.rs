@@ -12,11 +12,11 @@ use symbols::SymbolHandle;
 use typed_trees::{machine::Machine, state::State, types::TypeReferenceHandle};
 
 impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
-    pub(super) fn selected_store_target<'inputs>(
+    pub(super) fn selected_store_target(
         &mut self,
         call: &BorrowCallFact,
-        actuals: &'inputs [FlowOperandFact],
-    ) -> Option<(&'plans Machine, &'plans State, &'inputs [FlowOperandFact])> {
+        actuals: HandleSpan<FlowOperandFact>,
+    ) -> Option<(&'plans Machine, &'plans State, HandleSpan<FlowOperandFact>)> {
         if let Some(state) = validation::call_target_state(self.program, call.target_symbol) {
             return Some((
                 self.program.machine_holding_state(state.symbol)?,
@@ -32,7 +32,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         if prefix != 1 || actuals.len() != slot.parameters.len() {
             return None;
         }
-        let selector = self.context.control.operands.insert(*actuals.first()?);
+        let selector = actuals.handle_at(0);
         let statements = super::super::appended_span_since(
             &self.context.control.statements,
             self.context.state_statements_start,
@@ -99,7 +99,14 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         {
             return None;
         }
-        Some((machine, state, actuals.get(prefix..)?))
+        Some((
+            machine,
+            state,
+            HandleSpan::from_parts_or_empty(
+                actuals.handle_at(prefix as u32),
+                actuals.count() - prefix as u32,
+            ),
+        ))
     }
 }
 

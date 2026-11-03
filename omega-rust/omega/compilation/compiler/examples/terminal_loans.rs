@@ -21,9 +21,10 @@ fn produce(project: &str, entries: &[&str]) -> Vec<psi_compiler::ProducedTermina
         .expect("ordinary fixture acceptance");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = orchestration::check_source(&mut compiler::CompilationSession::default(), request)
-        .result
-        .unwrap_or_else(|error| panic!("checked borrow fact: {:?}", error.into_diagnostics()));
+    let checked =
+        orchestration::check_source(&mut compiler::CompilationSession::default(), request)
+            .result
+            .unwrap_or_else(|error| panic!("checked borrow fact: {:?}", error.into_diagnostics()));
     entries
         .iter()
         .map(|entry| {

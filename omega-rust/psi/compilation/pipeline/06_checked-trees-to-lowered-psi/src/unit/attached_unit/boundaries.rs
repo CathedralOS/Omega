@@ -320,7 +320,7 @@ fn lower_scalar_ensures(
     let mut rows = Vec::new();
     for guarantee in &plan.scalar_ensures {
         use checked_trees::CheckedBoundaryScalarGuarantee;
-        let row = (|| match guarantee {
+        let row = match guarantee {
             CheckedBoundaryScalarGuarantee::Predicate(value) => predicate(value),
             CheckedBoundaryScalarGuarantee::Implication {
                 premise,
@@ -345,7 +345,7 @@ fn lower_scalar_ensures(
                     _ => Err(LoweringError::UnavailableContractResult),
                 }
             }
-        })();
+        };
         match row {
             Ok(row) => rows.push(row),
             // A complete source-checked guarantee without a boundary reading

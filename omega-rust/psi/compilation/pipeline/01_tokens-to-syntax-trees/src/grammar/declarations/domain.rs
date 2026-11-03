@@ -1,4 +1,4 @@
-use crate::grammar::contracts::facts::parse_logical_proof_facts_until;
+use crate::grammar::contracts::facts::parse_required_logical_proof_facts_until;
 use crate::grammar::expressions::parse_postfix::try_parse_static_symbol_application;
 use crate::grammar::parameters::parse_generic_parameters::GenericParameterSyntax;
 use crate::grammar::parameters::parse_generic_parameters::parse_generic_parameters;
@@ -257,12 +257,12 @@ fn parse_domain_requires<'tokens, 'source>(
         ));
     }
 
+    // The first proposition is parsed before any terminator test: a leading
+    // operand such as `true` followed by `satisfies` would otherwise read as a
+    // named implementation header and leave `requires` without a proposition.
     let input = input.take_contextual("requires")?;
     let ((facts, token_count), input) =
-        parse_logical_proof_facts_until(syntax_trees, input, domain_requires_terminator)?;
-    if facts.is_empty() {
-        return Err(input.error_here("domain `requires` must contain at least one proposition"));
-    }
+        parse_required_logical_proof_facts_until(syntax_trees, input, domain_requires_terminator)?;
     Ok((
         (DomainPredicatePresence::Present, facts, token_count),
         input,

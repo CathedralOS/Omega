@@ -162,7 +162,7 @@ fn hash(domain: &[u8], bytes: &[u8]) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
     let byte_len = u64::try_from(bytes.len()).expect("artifact section fits the digest domain");
     digest.raw(&byte_len.to_le_bytes());
-    digest.raw(&bytes);
+    digest.raw(bytes);
     digest.finish()
 }
 

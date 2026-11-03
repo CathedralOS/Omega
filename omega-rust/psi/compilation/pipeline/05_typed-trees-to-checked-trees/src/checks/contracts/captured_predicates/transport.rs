@@ -97,8 +97,8 @@ pub(super) fn predicates(
                             .iter()
                             .find(|binding| binding.operand == *operand)?;
                         let mut destination = None;
-                        for position in 0..required.bindings.len() {
-                            if !required.bindings[position].compatible_with(program, observation) {
+                        for (position, binding) in required.bindings.iter().enumerate() {
+                            if !binding.compatible_with(program, observation) {
                                 continue;
                             }
                             let support = super::coverage::dependency(

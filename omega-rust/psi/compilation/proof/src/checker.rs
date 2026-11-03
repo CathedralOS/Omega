@@ -41,14 +41,11 @@ pub use measurement::ProofPlanMeasurements;
 /// The machine and state an obligation's `machine_symbol`/`state_symbol`
 /// name, or `None` — every bounded-obligation walker opens with this same
 /// lookup pair before it reads the obligation's own anchors.
-fn machine_and_state<'p>(
-    program: &'p dyn ::validation::CheckingInput,
+fn machine_and_state(
+    program: &dyn ::validation::CheckingInput,
     machine_symbol: symbols::SymbolHandle,
     state_symbol: symbols::SymbolHandle,
-) -> Option<(
-    &'p typed_trees::machine::Machine,
-    &'p typed_trees::state::State,
-)> {
+) -> Option<(&typed_trees::machine::Machine, &typed_trees::state::State)> {
     program.machine_state(machine_symbol, state_symbol)
 }
 

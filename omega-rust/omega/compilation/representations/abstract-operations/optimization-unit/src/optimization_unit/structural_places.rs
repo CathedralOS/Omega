@@ -1080,10 +1080,10 @@ pub(crate) fn descended_field_child(
 /// The `StructuralLeafCopy` that produces `place` — its source place and
 /// spelled projection — or `None` when `place` is not that copy's operation
 /// result.
-pub(crate) fn leaf_copy_source<'a>(
-    function: &'a PsiOptimizationFunction,
+pub(crate) fn leaf_copy_source(
+    function: &PsiOptimizationFunction,
     place: PlaceId,
-) -> Option<(PlaceId, &'a StructuralCopyPath)> {
+) -> Option<(PlaceId, &StructuralCopyPath)> {
     let StructuralPlaceKind::OperationResult { producer, .. } =
         function.structural_place(place)?.kind
     else {

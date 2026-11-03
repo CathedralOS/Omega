@@ -666,9 +666,9 @@ impl TypeReferenceTable {
             })
     }
 
-    /// Rewrite this occurrence's structure, preserving its original custody.
-    /// When the replacement comes from another retained row, use
-    /// `substitute_from` to preserve that row's origins as well.
+    // Rewrite this occurrence's structure, preserving its original custody.
+    // When the replacement comes from another retained row, use
+    // `substitute_from` to preserve that row's origins as well.
 
     /// Retained value child of a completed array extent. Missing geometry or
     /// custody is never reconstructed from another equal-sized array.
@@ -1778,6 +1778,51 @@ pub fn builtin_type_atom(kind: numerics::literals::LandedIntegerType) -> symbols
     }
 }
 
+// This lookup is derived from the restored type rows, not a durable identity.
+impl compiler_storage::Record for NamedRowIndex {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
+}
+
+// This lookup is derived from the restored type rows, not a durable identity.
+impl compiler_storage::Record for ArithmeticRowIndex {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
+}
+
+// This lookup is derived from the restored type rows, not a durable identity.
+impl compiler_storage::Record for SliceViewIndex {
+    fn write(
+        &self,
+        _: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        Ok(())
+    }
+    fn read<Context>(
+        _: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Ok(Self::default())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -2060,50 +2105,5 @@ mod tests {
             },
         });
         assert!(table.instantiate(array, &[(binder, element)]).is_err());
-    }
-}
-
-// This lookup is derived from the restored type rows, not a durable identity.
-impl compiler_storage::Record for NamedRowIndex {
-    fn write(
-        &self,
-        _: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        Ok(())
-    }
-    fn read<Context>(
-        _: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        Ok(Self::default())
-    }
-}
-
-// This lookup is derived from the restored type rows, not a durable identity.
-impl compiler_storage::Record for ArithmeticRowIndex {
-    fn write(
-        &self,
-        _: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        Ok(())
-    }
-    fn read<Context>(
-        _: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        Ok(Self::default())
-    }
-}
-
-// This lookup is derived from the restored type rows, not a durable identity.
-impl compiler_storage::Record for SliceViewIndex {
-    fn write(
-        &self,
-        _: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        Ok(())
-    }
-    fn read<Context>(
-        _: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        Ok(Self::default())
     }
 }

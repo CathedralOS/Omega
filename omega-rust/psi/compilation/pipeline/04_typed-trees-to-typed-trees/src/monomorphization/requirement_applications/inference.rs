@@ -257,10 +257,8 @@ fn infer(
     let types = invocation
         .parameters
         .iter()
-        .filter_map(|parameter| {
-            matches!(parameter.kind, TypeParameterKind::Type)
-                .then(|| (parameter.symbol, parameter.name.as_str().to_owned()))
-        })
+        .filter(|&parameter| matches!(parameter.kind, TypeParameterKind::Type))
+        .map(|parameter| (parameter.symbol, parameter.name.as_str().to_owned()))
         .collect::<Vec<_>>();
     let constants = invocation
         .parameters

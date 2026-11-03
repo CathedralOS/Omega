@@ -35,7 +35,7 @@ impl Fnv1a {
     }
 
     pub(crate) fn finish_strong(self) -> [u8; 32] {
-        self.strong.expect("strong plan hasher").finish().into()
+        self.strong.expect("strong plan hasher").finish()
     }
 
     fn bytes(&mut self, bytes: &[u8]) {

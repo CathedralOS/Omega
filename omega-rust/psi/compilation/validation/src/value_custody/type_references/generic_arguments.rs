@@ -555,9 +555,7 @@ impl<'application> AppliedValueCarrier<'application> {
             {
                 match parameter.kind {
                     TypeParameterKind::Type => {
-                        let Some(actual) = self.type_argument(program, position) else {
-                            return None;
-                        };
+                        let actual = self.type_argument(program, position)?;
                         values.push((
                             parameter.symbol,
                             IndexIdentityArgument::TypeArgument(actual),

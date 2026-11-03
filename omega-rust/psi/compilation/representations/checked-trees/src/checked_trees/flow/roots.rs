@@ -218,6 +218,7 @@ pub struct FlowControlFacts {
     pub operand_retained_roots: Arena<facts::PlaceRoot>,
     pub operand_retained_leaves: Arena<super::FlowOperandRetainedLeaf>,
     pub operand_retained_suppliers: Arena<super::FlowOperandRetainedSupplier>,
+    pub operand_reborrow_sources: Arena<super::FlowOperandReborrowSource>,
     pub output_lifetime_sources: Arena<super::FlowOutputLifetimeSources>,
     pub operand_retained_regions: Arena<super::FlowOperandRetainedRegion>,
     pub operand_retained_paths: Arena<facts::PlaceSegment>,
@@ -304,6 +305,7 @@ impl FlowControlFacts {
             operand_retained_roots: Arena::default(),
             operand_retained_leaves: Arena::default(),
             operand_retained_suppliers: Arena::default(),
+            operand_reborrow_sources: Arena::default(),
             output_lifetime_sources: Arena::default(),
             operand_retained_regions: Arena::default(),
             operand_retained_paths: Arena::default(),
@@ -323,7 +325,7 @@ impl FlowControlFacts {
     /// no argument observations rather than reconstructing source evaluation.
     pub fn call_argument_evaluation_order(&self, call: &FlowCallFact) -> Vec<usize> {
         if call.argument_evaluation_order.is_empty() {
-            return (0..call.authored_arguments.len() as usize).collect();
+            return (0..call.authored_arguments.len()).collect();
         }
         self.call_argument_positions
             .span_or_empty(call.argument_evaluation_order)
@@ -600,6 +602,7 @@ paged_flow_roots!(FlowControlFacts {
         operand_retained_roots,
         operand_retained_leaves,
         operand_retained_suppliers,
+        operand_reborrow_sources,
         output_lifetime_sources,
         operand_retained_regions,
         operand_retained_paths,

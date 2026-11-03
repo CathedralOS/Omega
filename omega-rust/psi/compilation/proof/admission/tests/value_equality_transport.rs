@@ -270,14 +270,14 @@ mod float_fields {
             },
             _ => super::truth(),
         };
-        let mut proof = transport(goal, axiom_proofs(&equations));
+        let mut proof = transport(goal, axiom_proofs(equations));
         let ProofRule::ValueEqualityTransport {
             premise: supplied, ..
         } = &mut proof.rule
         else {
             unreachable!()
         };
-        *supplied = Box::new(premise);
+        **supplied = premise;
         proof
     }
 

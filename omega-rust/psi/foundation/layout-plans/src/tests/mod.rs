@@ -29,8 +29,8 @@ fn nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
         LayoutPlanReport {
             schema_report_fingerprint: 1,
             entries: vec![
-                layout_field_entry("header".into(), LayoutPlacementReport::At { offset: 0 }),
-                layout_field_entry("slot".into(), LayoutPlacementReport::At { offset: 8 }),
+                layout_field_entry("header", LayoutPlacementReport::At { offset: 0 }),
+                layout_field_entry("slot", LayoutPlacementReport::At { offset: 8 }),
             ],
             offsets: Some(vec![0, 8]),
             size: Some(24),
@@ -41,8 +41,8 @@ fn nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
             LayoutPlanReport {
                 schema_report_fingerprint: 2,
                 entries: vec![
-                    layout_field_entry("entry".into(), LayoutPlacementReport::At { offset: 0 }),
-                    layout_field_entry("flags".into(), LayoutPlacementReport::At { offset: 8 }),
+                    layout_field_entry("entry", LayoutPlacementReport::At { offset: 0 }),
+                    layout_field_entry("flags", LayoutPlacementReport::At { offset: 8 }),
                 ],
                 offsets: Some(vec![0, 8]),
                 size: Some(16),
@@ -67,9 +67,9 @@ fn sum_field_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
         LayoutPlanReport {
             schema_report_fingerprint: 1,
             entries: vec![
-                layout_field_entry("header".into(), LayoutPlacementReport::At { offset: 0 }),
-                layout_field_entry("choice".into(), LayoutPlacementReport::At { offset: 8 }),
-                layout_field_entry("tail".into(), LayoutPlacementReport::At { offset: 32 }),
+                layout_field_entry("header", LayoutPlacementReport::At { offset: 0 }),
+                layout_field_entry("choice", LayoutPlacementReport::At { offset: 8 }),
+                layout_field_entry("tail", LayoutPlacementReport::At { offset: 32 }),
             ],
             offsets: Some(vec![0, 8, 32]),
             size: Some(40),
@@ -142,8 +142,8 @@ fn sum_array_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
         LayoutPlanReport {
             schema_report_fingerprint: 1,
             entries: vec![
-                layout_field_entry("header".into(), LayoutPlacementReport::At { offset: 0 }),
-                layout_field_entry("sums".into(), LayoutPlacementReport::At { offset: 8 }),
+                layout_field_entry("header", LayoutPlacementReport::At { offset: 0 }),
+                layout_field_entry("sums", LayoutPlacementReport::At { offset: 8 }),
             ],
             offsets: Some(vec![0, 8]),
             size: Some(56),

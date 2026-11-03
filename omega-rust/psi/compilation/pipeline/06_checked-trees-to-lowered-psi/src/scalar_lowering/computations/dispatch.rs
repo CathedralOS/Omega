@@ -55,7 +55,7 @@ impl Expansion<'_> {
     ) -> Result<usize, LoweringError> {
         let request =
             ValueRequest::prepare(identities, self.checked, subject, self.structural_types)?;
-        let arms = value_facts(&self.checked)
+        let arms = value_facts(self.checked)
             .scalar_computations
             .dispatch_arms
             .span(arms)

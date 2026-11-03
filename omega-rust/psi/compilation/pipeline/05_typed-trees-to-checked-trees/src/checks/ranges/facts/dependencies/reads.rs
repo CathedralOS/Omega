@@ -151,7 +151,7 @@ impl ReadWalk<'_, '_, '_> {
                     if self.validate_place_read(&mut place).is_none() {
                         return false;
                     }
-                    push_unique(&mut self.reads, place);
+                    push_unique(self.reads, place);
                 }
                 // Named calls may target the machine symbol rather than a state
                 // symbol; the contract lookup resolves both forms to the exact

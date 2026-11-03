@@ -81,10 +81,10 @@ pub(super) fn closed_instance<'program>(
     found
 }
 
-pub(super) fn selected_application<'program>(
-    program: &'program dyn CheckingInput,
+pub(super) fn selected_application(
+    program: &dyn CheckingInput,
     reference: TypeReferenceHandle,
-) -> Result<Option<&'program CleanupSelection>, Diagnostic> {
+) -> Result<Option<&CleanupSelection>, Diagnostic> {
     let mut selected = None;
     visit_type(program, reference, &mut Vec::new(), &mut selected)?;
     Ok(selected)

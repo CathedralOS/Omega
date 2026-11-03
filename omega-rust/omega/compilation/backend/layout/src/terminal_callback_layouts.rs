@@ -191,7 +191,7 @@ where
                     alignment: field.byte_alignment,
                 });
             }
-            occupied.extend(occupied_field_bytes(&field, size)?);
+            occupied.extend(occupied_field_bits(&field, size)?);
         }
         let (layout, policy) = match &authored {
             Some(authored) => (
@@ -226,33 +226,35 @@ where
                 {
                     return Err("callback slot changed its exact semantic, policy or requirement application".into());
                 }
-                let end = demand
-                    .offset
-                    .checked_add(pointer.pointer_size as u64)
-                    .ok_or("callback slot extent overflows")?;
-                if pointer.pointer_alignment == 0
-                    || !pointer.pointer_alignment.is_power_of_two()
-                    || alignment < pointer.pointer_alignment as u64
-                    || !demand
-                        .offset
-                        .is_multiple_of(pointer.pointer_alignment as u64)
-                    || end > size
-                {
-                    return Err(
-                        "callback slot has invalid target alignment or containing extent".into(),
-                    );
-                }
-                if occupied
-                    .iter()
-                    .any(|range| range.overlaps(demand.offset, end))
-                {
+                let ranges = layout_plans::validate_private_callback_placements(
+                    &demand.placements,
+                    pointer.pointer_size as u64,
+                    pointer.pointer_alignment as u64,
+                    size,
+                    alignment,
+                )?;
+                if occupied.iter().any(|occupied| {
+                    ranges
+                        .iter()
+                        .any(|&(start, end)| occupied.overlaps(start, end))
+                }) {
                     return Err("callback slot overlaps semantic field storage".into());
                 }
-                if slots
-                    .iter()
-                    .any(|prior| prior.offset < end && demand.offset < prior.offset + prior.size)
-                {
-                    return Err("canonical callback private slots overlap".into());
+                for prior in &slots {
+                    let prior_ranges = layout_plans::validate_private_callback_placements(
+                        prior.placements.as_slice(),
+                        prior.size,
+                        prior.alignment,
+                        size,
+                        alignment,
+                    )?;
+                    if ranges.iter().any(|&(start, end)| {
+                        prior_ranges
+                            .iter()
+                            .any(|&(prior_start, prior_end)| prior_start < end && start < prior_end)
+                    }) {
+                        return Err("canonical callback private slots overlap".into());
+                    }
                 }
                 let slot = callback_layout_slot_id(authored.slot_layout, &demand.slot_identity);
                 let requirement = callback_requirement_id(&demand.callback_requirement_identity);
@@ -273,7 +275,9 @@ where
                     slot,
                     requirement,
                     conformance_commitment: demand.slot_application.application_commitment,
-                    offset: demand.offset,
+                    placements: calling_conventions::PrivateCallbackPlacements::new(
+                        &demand.placements,
+                    ),
                     size: pointer.pointer_size as u64,
                     alignment: pointer.pointer_alignment as u64,
                 });
@@ -328,7 +332,7 @@ where
                 path,
                 terminal,
             );
-            layout.field_offset(self.target.native_target())?;
+            layout.field_placements(self.target.native_target())?;
             output.push(MaterializedCallbackLayout {
                 coordinates: CallbackLayoutCoordinates {
                     destination: layout.destination.clone(),
@@ -380,7 +384,7 @@ pub fn callback_storage_has_slots(
     terminal_semantics::callback_storage_has_slots(module, target.target_name(), record)
 }
 
-enum OccupiedBytes {
+enum OccupiedBits {
     Contiguous {
         start: u64,
         end: u64,
@@ -393,7 +397,7 @@ enum OccupiedBytes {
     },
 }
 
-impl OccupiedBytes {
+impl OccupiedBits {
     fn overlaps(&self, start: u64, end: u64) -> bool {
         match *self {
             Self::Contiguous {
@@ -418,10 +422,10 @@ impl OccupiedBytes {
     }
 }
 
-fn occupied_field_bytes(
+fn occupied_field_bits(
     field: &ReferenceRecordField<'_>,
     bound: u64,
-) -> Result<Vec<OccupiedBytes>, String> {
+) -> Result<Vec<OccupiedBits>, String> {
     let mut output = Vec::new();
     if let Some(AuthoredFieldStorage::Fragmented(fragments)) = field.storage {
         for fragment in fragments.fragments() {
@@ -432,9 +436,18 @@ fn occupied_field_bytes(
             if end > bound {
                 return Err("callback transfer container exceeds its record".into());
             }
-            output.push(OccupiedBytes::Contiguous {
-                start: fragment.container_byte_offset,
-                end,
+            output.push(OccupiedBits::Contiguous {
+                start: fragment
+                    .container_byte_offset
+                    .checked_mul(8)
+                    .and_then(|base| base.checked_add(fragment.destination_lsb))
+                    .ok_or("callback semantic fragment start overflows")?,
+                end: fragment
+                    .container_byte_offset
+                    .checked_mul(8)
+                    .and_then(|base| base.checked_add(fragment.destination_lsb))
+                    .and_then(|start| start.checked_add(fragment.width))
+                    .ok_or("callback semantic fragment end overflows")?,
             });
         }
     } else {
@@ -454,11 +467,19 @@ fn occupied_field_bytes(
                 if end > bound {
                     return Err("callback repeated field exceeds its record".into());
                 }
-                output.push(OccupiedBytes::Repeated {
-                    start,
-                    element_size: repeated.element_size,
+                output.push(OccupiedBits::Repeated {
+                    start: start
+                        .checked_mul(8)
+                        .ok_or("callback semantic bit offset overflows")?,
+                    element_size: repeated
+                        .element_size
+                        .checked_mul(8)
+                        .ok_or("callback element bit extent overflows")?,
                     element_count: repeated.element_count,
-                    stride: repeated.element_stride,
+                    stride: repeated
+                        .element_stride
+                        .checked_mul(8)
+                        .ok_or("callback element bit stride overflows")?,
                 });
             }
         } else if field.byte_size != 0 {
@@ -468,7 +489,14 @@ fn occupied_field_bytes(
             if end > bound {
                 return Err("callback semantic field exceeds its record".into());
             }
-            output.push(OccupiedBytes::Contiguous { start, end });
+            output.push(OccupiedBits::Contiguous {
+                start: start
+                    .checked_mul(8)
+                    .ok_or("callback semantic bit offset overflows")?,
+                end: end
+                    .checked_mul(8)
+                    .ok_or("callback semantic bit extent overflows")?,
+            });
         }
     }
     Ok(output)
@@ -476,11 +504,11 @@ fn occupied_field_bytes(
 
 #[cfg(test)]
 mod tests {
-    use super::OccupiedBytes;
+    use super::OccupiedBits;
 
     #[test]
     fn repeated_storage_preserves_padding_and_half_open_edges() {
-        let occupied = OccupiedBytes::Repeated {
+        let occupied = OccupiedBits::Repeated {
             start: 8,
             element_size: 4,
             element_count: 3,
@@ -503,7 +531,7 @@ mod tests {
     #[test]
     fn repeated_storage_queries_do_not_expand_the_element_count() {
         let count = u64::MAX / 16;
-        let occupied = OccupiedBytes::Repeated {
+        let occupied = OccupiedBits::Repeated {
             start: 0,
             element_size: 8,
             element_count: count,

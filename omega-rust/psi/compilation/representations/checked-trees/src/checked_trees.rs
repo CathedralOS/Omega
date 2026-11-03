@@ -33,18 +33,18 @@ pub use admissibility::{
 };
 pub use borrow::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowCallReferenceSlotEffect,
-    BorrowFacts, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRetainedOperand,
-    BorrowReturnedLoanFact, BorrowRootKind, BorrowWritableRootFact, CapturedPlace,
-    CapturedPlaceCompatibility, CapturedPlaceContainment, CheckedBorrowResourceDispositionTarget,
-    CheckedBorrowResourceLifecyclePhase, CheckedBorrowResourceRetention,
-    CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource, CheckedDirectBorrowLoanResource,
-    CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
-    CheckedParentBorrowResource, CheckedReborrowAccessEffect, CheckedReborrowLoanResource,
-    CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
-    CheckedReborrowResourceDisposition, CheckedReborrowResourceDispositionEvent,
-    CheckedReborrowRestorationObligation, CheckedRetiredParentResourceDispositionStep,
-    IncomingReferenceIdentity, IncomingReferenceOrigin, ParentLexicalStatusAtChildEnd,
-    StateBorrowFact,
+    BorrowFacts, BorrowLoanFact, BorrowLoanFormation, BorrowLoanLineage, BorrowLoanOwnerSegment,
+    BorrowRetainedOperand, BorrowReturnedLoanFact, BorrowRootKind, BorrowWritableRootFact,
+    CapturedPlace, CapturedPlaceCompatibility, CapturedPlaceContainment,
+    CheckedBorrowResourceDispositionTarget, CheckedBorrowResourceLifecyclePhase,
+    CheckedBorrowResourceRetention, CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource,
+    CheckedDirectBorrowLoanResource, CheckedDirectBorrowParentLifetime,
+    CheckedDirectBorrowRestorationObligation, CheckedParentBorrowResource,
+    CheckedReborrowAccessEffect, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
+    CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
+    CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
+    CheckedRetiredParentResourceDispositionStep, IncomingReferenceIdentity,
+    IncomingReferenceOrigin, ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{
@@ -284,9 +284,7 @@ impl CheckedTrees {
                 .values
                 .expression_values(parent)
                 .map(|(_, value)| value.origin);
-            let Some(parent_origin) = origins.next() else {
-                return None;
-            };
+            let parent_origin = origins.next()?;
             if origins.any(|candidate| candidate != parent_origin) {
                 return None;
             }

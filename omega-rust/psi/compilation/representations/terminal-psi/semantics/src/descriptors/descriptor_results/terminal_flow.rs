@@ -849,9 +849,7 @@ pub(super) fn adapt(
                             | StructuralTypeShape::Mixed { cases, .. } => cases,
                             _ => return None,
                         };
-                        if terminal_psi::find_structural_case(cases, *result_case).is_none() {
-                            return None;
-                        }
+                        terminal_psi::find_structural_case(cases, *result_case)?;
                         // The retained constructor tag proves that sibling-case
                         // payload slots do not exist in this value. Only those
                         // slots have no backing; an unresolved live field stays

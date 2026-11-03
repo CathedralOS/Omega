@@ -783,7 +783,7 @@ pub(crate) fn hash_relocation_origin(
 
 pub(crate) fn hash_bytes(digest: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
     digest.raw(&canonical_usize(bytes.len()));
-    digest.raw(&bytes);
+    digest.raw(bytes);
 }
 
 pub(crate) fn canonical_usize(value: usize) -> [u8; 8] {

@@ -8,7 +8,6 @@ use super::{
     validate_ieee_float_fma_occurrences,
 };
 use ::boundary_applications::TerminalBoundaryApplicationCoverage;
-use installation_evidence::ObjectEvidence;
 use sha2::{Digest, Sha256};
 const DYNAMIC_ELF_NATIVE_ARTIFACT_IDENTITY_DOMAIN: &[u8] =
     b"omega.dynamic-elf-native-artifact.sha256.v1\0";

@@ -158,7 +158,7 @@ fn call_body_result_origins(
             && (machine.supply_mode != language_semantics::MachineSupplyMode::CheckedBody
                 || !machine.body_is_present))
         || call.receiver.is_valid() != machine.attached_data.is_some()
-        || arguments.len() != parameters.iter().count()
+        || arguments.len() != parameters.len()
         || !super::isolation::aggregate_storage_types_match(program, applied_result, expected)
     {
         return None;
@@ -891,7 +891,7 @@ fn merge_named_edge<'program>(
     };
     let arguments = program.statement_table.expression_handles(edge_arguments);
     let parameters = program.state_parameters(target_state);
-    if arguments.len() != parameters.iter().count() {
+    if arguments.len() != parameters.len() {
         return None;
     }
     // A named state may omit its own `-> T` annotation; one that declares it

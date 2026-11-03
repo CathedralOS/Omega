@@ -33,14 +33,16 @@ pub(super) fn stored_integer_source_may_require_fit(
     state: &State,
     source: &crate::LocalWriteSource,
 ) -> Result<bool, ()> {
-    stored_integer_source_reach(program, state, source)?.concrete()
+    stored_integer_source_reach(program, state, source)
+        .map_err(|UnestablishedStoredEncoding| ())?
+        .concrete()
 }
 
 pub fn stored_integer_source_reach(
     program: &dyn crate::CheckingInput,
     state: &State,
     source: &crate::LocalWriteSource,
-) -> Result<StoredIntegerReach, ()> {
+) -> Result<StoredIntegerReach, UnestablishedStoredEncoding> {
     let targets =
         crate::layout_checking_targets(program, source_layout_roots(program, state, source)?)?;
     let mut reach = StoredIntegerReach::default();

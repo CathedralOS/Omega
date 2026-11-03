@@ -44,7 +44,7 @@ pub(crate) fn validate_normalized_expression(
         && (!syntax
             .expressions
             .contains_expression(normalization.authored_expression)
-            || syntax_expressions(&syntax).source_span(normalization.authored_expression)
+            || syntax_expressions(syntax).source_span(normalization.authored_expression)
                 != normalization.reference)
     {
         return Err(Diagnostic::error(

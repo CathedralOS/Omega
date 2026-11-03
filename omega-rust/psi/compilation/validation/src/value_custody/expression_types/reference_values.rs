@@ -834,18 +834,14 @@ pub(crate) fn place_forwarded_exclusive_reference_access(
     root_type: TypeReferenceHandle,
 ) -> Option<ReferenceAccess> {
     let mut substitutions = Vec::new();
-    let Some(selected) = selected_value_type(
+    let selected = selected_value_type(
         program,
         expression,
         &mut substitutions,
         Some((root, root_type)),
         &mut ProjectionContext::requiring(ReferenceAccess::Mutable),
-    ) else {
-        return None;
-    };
-    let Some(selected) = substituted_reference(program, selected, &substitutions) else {
-        return None;
-    };
+    )?;
+    let selected = substituted_reference(program, selected, &substitutions)?;
     declared_reference_access(program, selected).filter(|access| access.is_exclusive())
 }
 

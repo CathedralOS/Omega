@@ -6,7 +6,7 @@ const IDENTITY_WIDTH: usize = 32;
 fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WIDTH] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
     digest.bytes(canonical);
-    digest.finish().into()
+    digest.finish()
 }
 
 /// Incremental [`domain_digest`] input. The domain and total canonical length
@@ -28,7 +28,7 @@ impl CanonicalIdentityEncoder {
     }
 
     fn finish(self) -> [u8; IDENTITY_WIDTH] {
-        self.0.finish().into()
+        self.0.finish()
     }
 }
 

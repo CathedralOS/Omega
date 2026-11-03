@@ -26,7 +26,7 @@ pub fn fixed_precolored_split_requirement_plan_identity(
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
-    FixedPrecoloredSplitRequirementPlanIdentity(content_identity(&bytes).into())
+    FixedPrecoloredSplitRequirementPlanIdentity(content_identity(&bytes))
 }
 
 fn encode_family(bytes: &mut Vec<u8>, functions: &[FunctionFixedPrecoloredSplitRequirements]) {

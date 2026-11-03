@@ -70,7 +70,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
 ) -> Result<InvocationSite, FixedViewCopyDecodeError> {
     let tag = cursor.byte()?;
     let identity = cursor.u64()?;
-    InvocationSite::from_tagged_identity(tag, identity).ok_or_else(|| match tag {
+    InvocationSite::from_tagged_identity(tag, identity).ok_or(match tag {
         0 | 1 => FixedViewCopyDecodeError::InvalidSemanticId(identity),
         _ => FixedViewCopyDecodeError::UnknownOption(tag),
     })
@@ -142,7 +142,7 @@ pub(in crate::register_homes::recovery::fixed_view_copy::codec::selected) fn dec
 ) -> Result<(), FixedViewCopyDecodeError> {
     function.structural = crate::cursor::optional(
         cursor,
-        |c| Ok(decode_signature(c)?),
+        decode_signature,
         FixedViewCopyDecodeError::UnknownOption,
     )?;
     function.local_storage_slots = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {

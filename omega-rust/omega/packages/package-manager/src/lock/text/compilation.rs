@@ -325,8 +325,10 @@ mod tests {
     #[test]
     fn compilation_decode_counts_and_storage_are_aggregate_and_bounded() {
         let text = write(&sample(), package(), context()).unwrap();
-        let mut limits = PackageLockRecoveryLimits::default();
-        limits.maximum_policy_elements = 4; // two bindings, one permission, one class
+        let mut limits = PackageLockRecoveryLimits {
+            maximum_policy_elements: 4, // two bindings, one permission, one class
+            ..Default::default()
+        };
         let mut budget = Budget::new(limits);
         assert!(read(&text, package(), context(), &mut budget).is_ok());
         assert!(read(&text, package(), context(), &mut budget).is_err());

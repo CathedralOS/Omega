@@ -25,7 +25,7 @@ pub fn source_digest(source: &[u8]) -> DebugSourceDigest {
             .expect("source bytes fit the debug digest domain")
             .to_le_bytes(),
     );
-    digest.raw(&source);
+    digest.raw(source);
     DebugSourceDigest::from_bytes(digest.finish())
 }
 
