@@ -379,3 +379,74 @@ Contracts checked, and why they do not decide it:
   providers" and that a scope with no application needs no facts. Lines 96-98 and
   110-113 follow provider bodies "under each applicable target" and reject a bad
   target-family member "even when deployment requests another target".
+
+### 7. Does a copy of a floating-point scalar keep the facts proved on its source after the source is overwritten?
+
+A program checks a float, copies it, overwrites the original, and then converts
+the copy:
+
+```omega
+let mut current: f64 = value;
+let accepted: bool = current == current && current >= 0.0 && current < 1000000000.0;
+let copied: f64 = current;
+current = 2000000000.0;
+transition accepted {
+    true -> finish(I32::from_f64(copied))
+    false -> zero()
+}
+```
+
+The checker rejects the conversion: "cannot prove `copied == copied && copied >
+-2147483649.0 && copied < 2147483648.0` — the `requires` of `I32::from_f64`".
+`tests/omega/pass/float/runtime_ieee_saved_boolean_epochs_exit` authors the
+opposite expectation in its `snapshot` machine ("A copied scalar retains its old
+value after the original storage is written") and stays red on main
+`6970b2a448`.
+
+Probes on `6970b2a448`, package roots, each changing only what is named:
+- No overwrite of `current`: compiles.
+- `current` immutable (`let current: f64 = value;`): compiles.
+- Copy taken before the check, then `current` overwritten: rejects with the
+  same diagnostic.
+- The authored order (check, copy, overwrite): rejects.
+
+So the facts reach `copied` only while its source is unchanged.
+
+The Rust compiler disagrees with itself here, which does not ratify either
+option. Validation's value environment carries each conditional float
+observation through a completed copy before a later write withdraws the source
+(`connect_float_aliases` in
+`omega-rust/psi/compilation/validation/src/proof_contracts/arithmetic_domains/value_environment.rs`).
+The rejection comes from stage 05's operator-requires check
+(`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/checks/operators/requires.rs`),
+which does not.
+
+Option A, a float copy inherits its source's observation facts. A bitwise copy
+of a float carries the finiteness and range facts its source had at copy time,
+and a later write to the source does not withdraw them from the copy. This holds
+even though equality with the source is not a float rule. The fixture passes
+unchanged.
+
+Option B, float copies carry no facts from their source. Facts about a float
+belong to the value they were observed on. A copy must re-establish them, for
+example with a guard on the copy itself. The fixture's `snapshot` part migrates
+to check `copied` directly.
+
+Contracts checked, and why they do not decide it:
+- [Fact validity, premise availability](wiki/spec/terminal-psi/fact_validity.md#premise-availability)
+  (lines 28-35): a primitive read may equal "an exact reaching stored SSA value",
+  and "subsequent writes cannot change either captured SSA value". That would
+  let the check's read and the copy share one value whatever its type. But the
+  same paragraph says it "does not introduce symbolic store summaries or a
+  floating-point equality rule". It does not say whether value identity, as
+  opposed to IEEE equality, may carry observation facts between float reads.
+- [Fact validity, restored scalar values](wiki/spec/terminal-psi/fact_validity.md#restored-scalar-values)
+  (lines 58-67): "For integer copies `copied` and `saved` of that same version,
+  their equality survives later writes to the original storage", and "existing
+  floating-point observation and equality rules are unchanged". This grants the
+  rule for integers and is silent on floats; silence is not a prohibition.
+- [Numeric values, IEEE comparison](wiki/spec/language/numeric_values.md#meaning-comparisons-and-representation)
+  (lines 445-448): `==` is false on NaN, so `copied == copied` is the finiteness
+  test and "unconditional self-comparison folding" does not apply. That is why
+  equality survival, the integer mechanism, cannot be the float mechanism. It
+  does not say whether facts can follow a copy by another route.
