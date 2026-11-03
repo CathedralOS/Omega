@@ -38,6 +38,7 @@ mod jump;
 mod memory;
 pub(crate) mod movn_materialization;
 mod normalized_foreign_call;
+pub use normalized_foreign_call::callback_group_bytes;
 mod scalar_call;
 mod selected_forms;
 pub(crate) mod system_call;

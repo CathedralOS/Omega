@@ -45,7 +45,7 @@ pub fn machine_effect_catalog_identity(
     catalog: &MachineEffectCatalog,
 ) -> MachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v35\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v36\0");
     bytes.extend_from_slice(&catalog.target.identity_bytes());
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
     for key in [
@@ -113,6 +113,7 @@ pub fn machine_effect_catalog_identity(
             crate::MachineMemoryEffect::CopyBytesV1 => 6,
             crate::MachineMemoryEffect::AtomicFenceV1 => 15,
             crate::MachineMemoryEffect::CatalogFenceV1 => 16,
+            crate::MachineMemoryEffect::PrivateCallbackMaterializationV1 => 17,
             crate::MachineMemoryEffect::AtomicPointerV1 => 8,
             crate::MachineMemoryEffect::TemporaryStackStorageV1 => 9,
             crate::MachineMemoryEffect::NoneV1 => 0,
@@ -375,6 +376,7 @@ pub fn encode_machine_encoded_effects_identity<Sink: MachineIdentityBytes + ?Siz
         }
         MachineEncodedMemoryEffect::AtomicFenceV1 => bytes.identity_bytes(&[18]),
         MachineEncodedMemoryEffect::CatalogFenceV1 => bytes.identity_bytes(&[19]),
+        MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1 => bytes.identity_bytes(&[20]),
         MachineEncodedMemoryEffect::AtomicPointerV1 {
             pointer_operand,
             form,

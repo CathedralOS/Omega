@@ -180,8 +180,12 @@ fn records_preserve_padding_float_classification_and_distinct_occurrences() {
 
 #[test]
 fn arrays_and_unsized_references_retain_their_structural_classes() {
-    let typed =
-        typed("data Values { words: [u16; 3]; slice: &[u8]; text: &string; scalar: &u64; }");
+    // Text is a qualified byte slice; `string` is an ordinary nominal name, not
+    // a text carrier. The `Utf8` qualification adds no descriptor word.
+    let typed = typed(
+        "domain [u8]::Utf8 requires valid_utf8(self); \
+         data Values { words: [u16; 3]; slice: &[u8]; text: &[u8] in Utf8; scalar: &u64; }",
+    );
     let (recipes, roots) = data_recipes(&typed, &["Values"]);
     drop(typed);
     let mut values = BoundaryValueLayout::new(target::TargetProfile::UefiX64.native_target());

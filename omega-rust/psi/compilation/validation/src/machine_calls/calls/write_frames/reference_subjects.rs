@@ -117,10 +117,17 @@ pub(super) fn replaces_binding(
         machine,
         caller_aliases::CallerWriteSite::Statement(statement),
     )?;
+    // A whole local or parameter binding is this invocation's own slot.
+    // Whether assigning it replaces the descriptor or writes through it is
+    // the shared rule below: a `mut` shared-reference parameter is rebound,
+    // an exclusive one writes its referent.
     let target = FrameSourcePlace::from_expression(program, assignment.target);
     if !target.root.is_valid()
         || !target.segments.is_empty()
-        || program.symbols.get(target.root).kind != SymbolKind::Local
+        || !matches!(
+            program.symbols.get(target.root).kind,
+            SymbolKind::Local | SymbolKind::Parameter
+        )
     {
         return Some(false);
     }
