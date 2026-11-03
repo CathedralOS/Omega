@@ -38,6 +38,15 @@ pub(super) use input_sources::{compose_source, instantiate_source};
 pub(super) use primitive_results::extent_view_types;
 mod state_equations;
 
+fn trace_result_refusal(machine: &Machine, state: &State, phase: &str) {
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "STRUCT state-result-origins-refused machine={} state={:?} phase={phase}",
+            machine.name, state.symbol,
+        );
+    }
+}
+
 pub(super) fn call_result_origins(
     program: &dyn crate::CheckingInput,
     caller_machine: &Machine,
@@ -230,6 +239,7 @@ pub(super) fn state_result_origins<'program>(
         return Some(origin);
     }
     if inference.active_states.contains(&state.symbol) {
+        trace_result_refusal(machine, state, "active-body");
         return None;
     }
     inference.active_states.push(state.symbol);
@@ -257,14 +267,18 @@ fn state_equation<'program>(
     inference: &mut FrameInference,
     include_shared: bool,
 ) -> Option<state_equations::Equation<'program>> {
-    input_moves::validate_frozen_inputs(
+    let inputs = input_moves::validate_frozen_inputs(
         program,
         machine,
         state,
         include_shared,
         symbols,
         inference,
-    )?;
+    );
+    if inputs.is_none() {
+        trace_result_refusal(machine, state, "frozen-inputs");
+    }
+    inputs?;
     let statements = program.statement_table.statements(state.statement_nodes);
     // Every borrowed origin must retain its declaration. The shared transfer
     // below decides whether a reborrow exposes an unresolved binding or writes
@@ -285,6 +299,7 @@ fn state_equation<'program>(
                 )
             })
     }) {
+        trace_result_refusal(machine, state, "undeclared-exclusive-borrow");
         return None;
     }
     for statement in statements {
@@ -327,7 +342,7 @@ fn state_equation<'program>(
         // collects only boundaries consumed by result arms. Each selected
         // snapshot retains the complete alias/stored closure at that point;
         // discarded statements still undergo the same validation walk.
-        let (context, prefixes) = walk_state_write_prefix_collected(
+        let prefix = walk_state_write_prefix_collected(
             program,
             machine,
             state,
@@ -348,7 +363,11 @@ fn state_equation<'program>(
                 }
                 _ => false,
             },
-        )?;
+        );
+        if prefix.is_none() {
+            trace_result_refusal(machine, state, "completed-body-prefix");
+        }
+        let (context, prefixes) = prefix?;
         for local in &context.stored {
             inference.record_local(local);
         }
@@ -400,7 +419,7 @@ fn state_equation<'program>(
                 return Some(());
             }
             *returns = true;
-            merge_result_arm(
+            let merged = merge_result_arm(
                 program,
                 machine,
                 state,
@@ -413,7 +432,14 @@ fn state_equation<'program>(
                 inference,
                 include_shared,
                 prefixes.get(index).and_then(Option::as_ref),
-            )
+            );
+            if merged.is_none() && std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT state-result-origins-refused machine={} state={:?} expression={result:?} expected={expected_result:?} phase=returned-value-suppliers",
+                    machine.name, state.symbol,
+                );
+            }
+            merged
         };
         for (index, statement) in statements.iter().enumerate() {
             match statement {
