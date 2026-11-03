@@ -1454,7 +1454,14 @@ impl TerminalExecution<'_> {
             }
         }
         if !copies_storage {
-            self.structural_values.remove(&value.place);
+            if let Some(retired) = self.structural_values.remove(&value.place) {
+                let origin = self
+                    .reference_referents
+                    .get(&StructuralRuntimePlace::from(&retired))
+                    .cloned();
+                self.retired_structural_homes
+                    .push((value.place, retired, origin));
+            }
             self.scalar_array_values.remove(&value.place);
             self.element_view_values.remove(&value.place);
             self.byte_sequence_values.remove(&value.place);
