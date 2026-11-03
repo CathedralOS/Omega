@@ -286,6 +286,20 @@ pub(super) fn collect(
         parents,
     ) {
         complete
+    } else if let Some(complete) = collect_descriptor_captures(
+        program,
+        facts,
+        state,
+        call,
+        source,
+        projection,
+        output_access,
+        retained_by_store,
+        active,
+        output,
+        parents,
+    ) {
+        complete
     } else if let FrozenReferenceSelection::Endpoint {
         owner,
         leaf,
@@ -385,35 +399,6 @@ pub(super) fn collect(
                 }
             }
         }
-    } else if !projection.is_empty() {
-        let selected = validation::completed_storage::reference_captures_at_path(
-            program,
-            &facts.flow.control,
-            source,
-            projection,
-            capture.storage_snapshot,
-        )
-        .and_then(|selected| selected.captures());
-        selected.is_some_and(|selected| {
-            !selected.is_empty()
-                && selected.into_iter().all(|selected| {
-                    // Opaque inline leaves can retain the exact completed occurrence
-                    // without disclosing a descriptor supplier. Its checked formation
-                    // loan is authority; selecting the same subtree again is a cycle.
-                    if selected.capture == source && selected.projection == projection {
-                        return collect_formed_projection(
-                            program,
-                            facts,
-                            state,
-                            capture,
-                            projection,
-                            output_access,
-                            output,
-                        );
-                    }
-                    collect_supplier!(selected.capture, &selected.projection, retained_by_store)
-                })
-        })
     } else if let Some(suppliers) = retained_suppliers {
         !suppliers.is_empty()
             && suppliers.iter().all(|supplier| {
@@ -453,6 +438,69 @@ pub(super) fn collect(
         output.truncate(before);
     }
     resolved
+}
+
+/// A helper can return a saved reference without making a new borrow. Follow
+/// that exact descriptor even when the whole reference, rather than a field,
+/// is selected. Its lifetime sources alone cannot authorize the next view.
+#[allow(clippy::too_many_arguments)]
+fn collect_descriptor_captures(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: Handle<FlowCallFact>,
+    source: Handle<FlowOperandFact>,
+    projection: &[facts::PlaceSegment],
+    access: &checked_trees::BorrowAccessKind,
+    retained_by_store: bool,
+    active: &mut Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>)>,
+    output: &mut Vec<PermissionSupplier>,
+    parents: &mut Arena<Handle<BorrowLoanFact>>,
+) -> Option<bool> {
+    let capture = facts.flow.control.operands.get(source);
+    let selected = validation::completed_storage::reference_captures_at_path(
+        program,
+        &facts.flow.control,
+        source,
+        projection,
+        capture.storage_snapshot,
+    )?;
+    let Some(selected) = selected.captures() else {
+        return Some(false);
+    };
+    // The resolver also represents an unchanged opaque descriptor by itself.
+    // That identity edge proves no new association; the existing exact frozen
+    // inventory or invocation access must still supply its permission.
+    if projection.is_empty()
+        && selected.len() == 1
+        && selected[0].capture == source
+        && selected[0].projection.is_empty()
+    {
+        return None;
+    }
+    Some(
+        !selected.is_empty()
+            && selected.into_iter().all(|selected| {
+                if selected.capture == source && selected.projection == projection {
+                    return collect_formed_projection(
+                        program, facts, state, capture, projection, access, output,
+                    );
+                }
+                collect(
+                    program,
+                    facts,
+                    state,
+                    call,
+                    selected.capture,
+                    &selected.projection,
+                    access,
+                    retained_by_store,
+                    active,
+                    output,
+                    parents,
+                )
+            }),
+    )
 }
 
 /// Resolve the installed descriptor generation before joining a loan. A later
