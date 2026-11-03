@@ -28,13 +28,22 @@ selection preserves the shared checked program without copying it. No compiler-l
 optimizer dispatcher wraps the transform.
 
 The [Psi X-to-X entrance](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/lib.rs)
-consumes complete unsealed `LoweredPsi`, validates both sides, and returns the
-only optimization-stage result accepted by Terminal publication. Its
-[Psi-local catalog](psi/foundation/optimization/src/optimization_selections/catalog.rs)
-does not import native target vocabulary. Every catalog selection runs here —
-control-flow cleanup, sparse conditional constant propagation, copy
-propagation, global value numbering, dead pure scalar elimination, and
-proof-check elision — each under an independent before/after verifier check.
+consumes complete unsealed `LoweredPsi`, records the carrier's Terminal Psi
+identity before and after the selected passes, and returns the only
+optimization-stage result accepted by Terminal publication. Its
+[Psi-local vocabulary](psi/foundation/optimization/src/optimization_selections.rs)
+does not import native target vocabulary and names nine members. The
+[entrance's exhaustive dispatch](psi/compilation/pipeline/07_lowered-psi-to-lowered-psi/src/psi_optimization.rs)
+executes five of them here, in canonical order: control-flow cleanup, sparse
+conditional constant propagation, copy propagation, global value numbering,
+and dead pure scalar elimination. Proof-check elision, state specialization,
+representation specialization, and loop-invariant scalar motion have empty
+arms in that dispatch; they execute in the post-Terminal
+[rule catalog](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/rules/catalog.rs).
+The execution record retains the exact selection, including members that run
+no rule in this stage. This stage runs no separate per-selection before/after
+verifier: the corpus observes each pass's rewrite, following
+[verification placement](pipeline.md#verification-placement).
 Copy propagation collapses a scalar block parameter bound to the same
 resolved value on every inventoried incoming
 edge, substituting the resolved source at direct scalar uses and dropping the
@@ -53,7 +62,7 @@ a rewrite the question cannot carry verbatim refuses, leaving the complete
 closure as authored until proof-context transport lets the question move
 with it — and propositions, proof projections, suspension frontiers, ranking
 evidence, and recorded source-call joins keep the exact identities they name.
-Proof-check elision removes a check only when canonical goal replay resolves
+In the post-Terminal stage, proof-check elision removes a check only when canonical goal replay resolves
 its proposition to the kernel's Truth; checked divides without a goal-free
 form, certificate-reserved obligations, and non-scalar-leaf proof bearers
 keep their checks. The
