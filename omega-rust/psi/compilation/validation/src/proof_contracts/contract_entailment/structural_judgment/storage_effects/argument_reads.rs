@@ -20,6 +20,9 @@ impl StructuralJudge<'_> {
         {
             return Err("the arriving reference does not permit content observation");
         }
+        if subject.has_aggregate_view(self.program) {
+            return Err("a represented aggregate needs its captured logical field observation");
+        }
         let geometry = crate::structural_scalar_coordinate_in_type(
             self.program,
             facts::PlaceRoot::Symbol(subject.parameter),
