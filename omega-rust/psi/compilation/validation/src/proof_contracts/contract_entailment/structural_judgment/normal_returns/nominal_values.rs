@@ -24,7 +24,15 @@ impl StructuralJudge<'_> {
                 observed_value: observed,
             },
         );
-        Some(value)
+        // Later field projections need the type of this completed value to
+        // follow its saved constructor and keep reference fields masked.
+        Some(
+            super::super::super::structural_terms::owned_projection_observation(
+                self.program,
+                reference,
+                value,
+            ),
+        )
     }
 
     /// Recover the denotation of this exact completed nominal value.

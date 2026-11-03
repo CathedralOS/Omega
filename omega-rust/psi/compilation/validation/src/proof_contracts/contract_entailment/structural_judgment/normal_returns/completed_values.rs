@@ -69,7 +69,11 @@ impl<'program> StructuralJudge<'program> {
         } else {
             None
         };
-        let descriptor_projection = (|| {
+        let stable_descriptor = (!receiver_changed)
+            .then(|| judge.completed_descriptor_place(Some(scope), expression, environment))
+            .flatten()
+            .map(StructuralTerm::into_collection_descriptor);
+        let descriptor_projection = stable_descriptor.or_else(|| {
             let reference =
                 crate::expression_result_type_reference(program, scope.0, scope.1, expression)?;
             crate::reference_shell(program, reference)?;
@@ -97,7 +101,7 @@ impl<'program> StructuralJudge<'program> {
             super::super::super::observed_projections::completed_reference_descriptor(
                 program, &judge, scope.0, scope.1, expression, receiver, selector,
             )
-        })();
+        });
         let descriptor_completed = descriptor_projection.is_some() || completed_reference.is_some();
         let completed_descriptor = if let Some(descriptor) = descriptor_projection {
             // The event remains opaque. Only its separately retained address
