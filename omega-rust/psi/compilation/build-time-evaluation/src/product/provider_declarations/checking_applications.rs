@@ -67,8 +67,8 @@ pub(crate) fn source_checking_applications(
     // roots. A target-scoped fallback body may supply its global data only on
     // that target; visiting another scope first cannot erase that assignment.
     //
-    // A body or declaration with no authored target context owes one Source
-    // judgment under real representation facts, not one per selected target.
+    // A body or declaration with no authored target context owes Source
+    // judgment only under targets that supply representation facts.
     // A selected scope without facts (`cross_platform_cli`, `local_unchecked`,
     // `alpha_bootstrap`) cannot form a fixed layout its closure reaches, so it
     // receives unscoped work only when no scope supplies facts at all; then
