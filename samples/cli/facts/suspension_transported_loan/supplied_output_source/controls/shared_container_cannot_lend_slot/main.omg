@@ -24,7 +24,7 @@ machine exercise() -> i32 suspends reaches Scheduler {
     read(message)
 }
 machine main() reaches Scheduler crashes Trap {
-    let observed: i32 = suspend exercise();
+    let observed: i32 = exercise();
     transition observed == 73 { true -> done() _ -> bad() }
     machine done() {}
     machine bad() crashes Trap { crash Trap; }

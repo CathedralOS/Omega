@@ -53,9 +53,7 @@ pub(crate) fn argument(
     phase("result reference argument: formal access");
     let access = structural_access_for_type_reference(program, parameter.type_reference)?;
     phase("stored reference argument: access");
-    if access == CheckedStructuralAccess::Owned
-        || (carrier_access != CheckedStructuralAccess::MutableBorrow && carrier_access != access)
-    {
+    if access == CheckedStructuralAccess::Owned {
         return None;
     }
     phase("stored reference argument: producer custody");
@@ -71,17 +69,26 @@ pub(crate) fn argument(
         return None;
     }
     phase("stored reference argument: projected referent");
-    let mut path = vec![CheckedUnitStructuralPathSegment::Referent];
-    let selected = if place.segments.is_empty() {
-        referent
+    let (selected, path) = if place.segments.is_empty() {
+        // A saved pointer has storage of its own. Select the complete typed
+        // endpoint before loading it, so `&mut &Cell` lends the writable slot
+        // while `&Cell` still loads its shared pointee. Source admission owns
+        // slot mutability; the old pointer's access cannot replace it.
+        borrowed_argument_endpoint(program, reference, Vec::new(), parameter.type_reference)?
     } else {
+        if carrier_access != CheckedStructuralAccess::MutableBorrow && carrier_access != access {
+            return None;
+        }
         phase("result reference argument: projected referent path");
         // This operand owns its selector evaluation. Stored-reference roots
         // use that occurrence's captured scalar slots just like other result
         // projections, rather than reloading an invocation-entry parameter.
-        let (_, prefix) =
-            borrowed_argument_endpoint(program, referent, path, parameter.type_reference)?;
-        path = prefix;
+        let (_, mut path) = borrowed_argument_endpoint(
+            program,
+            referent,
+            vec![CheckedUnitStructuralPathSegment::Referent],
+            parameter.type_reference,
+        )?;
         let ProjectedArgumentPath {
             storage_type: selected,
             path: suffix,
@@ -95,11 +102,9 @@ pub(crate) fn argument(
             selectors,
         )?;
         path.extend(suffix);
-        selected
+        borrowed_argument_endpoint(program, selected, path, parameter.type_reference)?
     };
     phase("stored reference argument: lent endpoint");
-    let (selected, path) =
-        borrowed_argument_endpoint(program, selected, path, parameter.type_reference)?;
     phase("stored reference argument: receiving identity");
     if stored_structural_type_identity(program, selected, &[], &[]) != target_identity {
         return None;
