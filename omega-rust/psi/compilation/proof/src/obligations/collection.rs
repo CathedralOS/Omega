@@ -1174,47 +1174,61 @@ fn collect_bounded_state_return_obligation(
     return_type: TypeReferenceHandle,
     proof_plan: &mut ProofPlan<'_>,
 ) {
-    let Some(statement::StatementNode::Expression(value)) = statement_table(program)
-        .statements(state.statement_nodes)
-        .last()
-    else {
+    let statements = statement_table(program).statements(state.statement_nodes);
+    let Some(last) = statements.last() else {
         return;
     };
-    let value = *value;
-    let statement_index = statement_table(program)
-        .statements(state.statement_nodes)
-        .len()
-        - 1;
-    collect_array_element_obligations(
-        program,
-        machine,
-        state,
-        statement_index,
-        value,
-        return_type,
-        proof_plan,
-    );
-    let Some((base_type, constraints)) = constrained_type_reference(program, return_type) else {
-        return;
+    let statement_index = statements.len() - 1;
+    // A body's result is its final expression, or each value target of its
+    // final transition: `{ F32::from_f64(value) }` lowers to a transition
+    // whose value target completes the machine. Every one owes the return
+    // type's constraints.
+    let values: Vec<ExpressionHandle> = match last {
+        statement::StatementNode::Expression(value) => vec![*value],
+        statement::StatementNode::Transition(transition) => transition
+            .targets()
+            .filter_map(
+                |target| match statement_table(program).transition_target(target) {
+                    statement::TransitionTargetNode::Value(value) => Some(*value),
+                    _ => None,
+                },
+            )
+            .collect(),
+        _ => return,
     };
-    let value_constraints =
-        proof_plan.store_constraints(expression_constraints(program, machine, state, value));
-    let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
-
-    proof_plan.push_obligation(ProofObligation::BoundedStateReturn(
-        BoundedStateReturnObligation {
-            machine_symbol: machine.symbol,
-            machine: machine.name.clone(),
-            state_symbol: state.symbol,
-            state: state.name.clone(),
+    for value in values {
+        collect_array_element_obligations(
+            program,
+            machine,
+            state,
             statement_index,
             value,
-            value_constraints,
-            base_type,
-            constraints,
-            binary_operands: binary_value_operands(program, machine, state, value),
-        },
-    ));
+            return_type,
+            proof_plan,
+        );
+        let Some((base_type, constraints)) = constrained_type_reference(program, return_type)
+        else {
+            continue;
+        };
+        let value_constraints =
+            proof_plan.store_constraints(expression_constraints(program, machine, state, value));
+        let constraints = proof_plan.store_constraint_nodes(program, base_type, constraints);
+
+        proof_plan.push_obligation(ProofObligation::BoundedStateReturn(
+            BoundedStateReturnObligation {
+                machine_symbol: machine.symbol,
+                machine: machine.name.clone(),
+                state_symbol: state.symbol,
+                state: state.name.clone(),
+                statement_index,
+                value,
+                value_constraints,
+                base_type,
+                constraints,
+                binary_operands: binary_value_operands(program, machine, state, value),
+            },
+        ));
+    }
 }
 
 fn call_target_parameters(

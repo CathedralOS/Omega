@@ -1,0 +1,27 @@
+use omega_language_std::console;
+use omega::language::core::float_operations;
+
+// Narrowing an f64 to f32 overflows to infinity for large inputs, so a
+// `-> f32 in Finite` result owes a proof at the return. The guard bounds
+// the input below f32's range on the converting arm; the other arm returns
+// a finite literal. `main` takes both arms.
+machine narrow(value: f64 in Finite) -> f32 in Finite {
+    transition value < 1.0e30 && value > -1.0e30 {
+        true -> (F32::from_f64(value))
+        _ -> (0.25)
+    }
+}
+data Main { }
+machine run(main: &mut Main) reaches Console {
+    let small: f32 in Finite = narrow(0.5);
+    let large: f32 in Finite = narrow(1.0e100);
+    transition small == 0.5 && large == 0.25 { true -> good() _ -> bad() }
+    machine good() { Console::exit_process(77); }
+    machine bad() { Console::exit_process(78); }
+}
+
+// The entry owns ordinary local state; selection supplies no context.
+machine entry_start() reaches Console {
+    let mut entry_storage: Main;
+    run(&mut entry_storage);
+}

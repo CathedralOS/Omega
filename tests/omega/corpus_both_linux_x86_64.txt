@@ -5695,6 +5695,7 @@ pass/float/float_selected_comparison_authority built 17754ms @c2cfe5f3dece+wt
 pass/float/float_to_int_trapping_nan_traps built 15630ms exit:signal signal:4 interpreter:trapped @a92f16431042
 pass/float/float_trapping_overflow_traps built 16290ms exit:signal signal:4 interpreter:trapped @a92f16431042
 pass/float/float_trapping_propagated_nan_traps built 13131ms exit:signal signal:4 interpreter:trapped @a92f16431042
+pass/float/format_conversion_proved_finite_return_exit built 169789ms exit:77 interpreter-exit:77 interpreter:agrees @25aa5efd2a97
 pass/float/fused_multiply_add_single_rounding_exit built 7375ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/guarded_exact_float_conversion checked 7623ms @a92f16431042
 pass/float/guarded_float_transition_range_exit built 6115ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
