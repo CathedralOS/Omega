@@ -1148,10 +1148,11 @@ defines the complete product bar.
     [temporary qualified-view retirement](wiki/spec/language/domains.md#temporary-qualified-views)
     across loan cohorts, and scalar reads/results under
     [copy and publication rules](wiki/spec/language/domains.md#establishment-transport-and-helper-calls).
-  - Stop a borrow of an erasing cast from recovering its routed membership:
-    `observe(&(issued as Ticket))` with `observe(t: &Ticket in Ticket::Held)`
-    passes checking, because a borrow names its operand's storage, and then
-    fails in lowering ("completed projection has no exact consumer capture").
+  - Lower a borrow of a same-carrier cast: `observe(&(issued as Ticket in
+    Ticket::Held))` checks but has no executable body ("earlier whole local
+    correspondence"), and `look(&(issued as Ticket))` fails with "completed
+    projection has no exact consumer capture", so no erasure positive can
+    lend a cast at run time.
   - **DOMAIN-ISSUER-ROUTES:** extend same-project checked ordinary
     issuance/forwarding to cross-package private routes and selected structural
     payloads in
