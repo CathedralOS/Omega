@@ -545,8 +545,9 @@ pub fn activation_accessor_has_empty_write_frame(
 /// sealed activation claim itself, or a record, case payload or fixed array
 /// that contains one by value. A claim's backing is committed storage of the
 /// activation that established it, so such a value can move only within that
-/// activation. A borrow of a claim moves no custody, and an unresolved
-/// generic or opaque carrier names no sealed claim.
+/// activation. A borrow of a claim moves no custody; a generic application
+/// carries a claim when one of its type arguments does, and an unresolved
+/// type parameter or opaque carrier names no sealed claim.
 pub fn type_carries_activation_claim(
     program: &dyn CheckingInput,
     type_reference: TypeReferenceHandle,
@@ -588,6 +589,28 @@ fn carries_activation_claim(
         }
         TypeReferenceNode::Constrained { base_type, .. } => {
             carries_activation_claim(program, *base_type, visiting)
+        }
+        // A generic application owns whatever its arguments supply, so a
+        // `Holder<ActivationClaim>` carries the claim it was instantiated
+        // with. Counting a claim argument that the generic does not store by
+        // value only keeps one more call in the caller's activation, which a
+        // terminal call already runs in.
+        TypeReferenceNode::Generic {
+            base_symbol,
+            arguments,
+            ..
+        } => {
+            if visiting.contains(base_symbol) {
+                return false;
+            }
+            visiting.push(*base_symbol);
+            let carries = program
+                .type_reference_table
+                .type_reference_handles(*arguments)
+                .iter()
+                .any(|argument| carries_activation_claim(program, *argument, visiting));
+            visiting.pop();
+            carries
         }
         _ => false,
     }
