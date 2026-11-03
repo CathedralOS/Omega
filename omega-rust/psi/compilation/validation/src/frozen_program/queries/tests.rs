@@ -52,6 +52,40 @@ fn numeric_query_ancestry_is_exact_and_request_local() {
 }
 
 #[test]
+fn only_queries_inside_a_cut_ancestor_record_the_cut() {
+    let program = TypedTrees::default();
+    let context = CheckingContext::new(&program);
+    let machine = SymbolHandle::from_parts(1, 1);
+    let first = SymbolHandle::from_parts(2, 1);
+    let second = SymbolHandle::from_parts(3, 1);
+    let third = SymbolHandle::from_parts(4, 1);
+    let query = CheckingQuery::numeric_observation(&context, machine, first).unwrap();
+    let descendant = CheckingQuery::numeric_observation(&query, machine, second).unwrap();
+
+    // Re-entering its own state is the same cut at every call site.
+    assert!(CheckingQuery::numeric_observation(&descendant, machine, second).is_none());
+    assert!(!descendant.met_enclosing_cut());
+
+    // An independent state is no cut at all.
+    assert!(CheckingQuery::numeric_observation(&descendant, machine, third).is_some());
+    assert!(!descendant.met_enclosing_cut());
+
+    // Re-entering the enclosing state cuts the descendant's answer only.
+    let nested = CheckingQuery::numeric_observation(&descendant, machine, third).unwrap();
+    assert!(CheckingQuery::numeric_observation(&nested, machine, first).is_none());
+    assert!(nested.met_enclosing_cut());
+    assert!(descendant.met_enclosing_cut());
+    assert!(!query.met_enclosing_cut());
+
+    // Population cuts are recorded by the numeric queries they enclose.
+    let population = CheckingQuery::operand_fit_population(&context, machine).unwrap();
+    let numeric = CheckingQuery::numeric_observation(&population, machine, first).unwrap();
+    assert!(CheckingQuery::operand_fit_population(&numeric, machine).is_none());
+    assert!(numeric.met_enclosing_cut());
+    assert!(!population.met_enclosing_cut());
+}
+
+#[test]
 fn numeric_query_views_preserve_inputs_and_follow_projection_custody() {
     let program = TypedTrees::default();
     let context = CheckingContext::new(&program).with_pending_layout_geometry(true);
