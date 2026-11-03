@@ -139,6 +139,13 @@ ignored the later store. The other 22 positives and all 36 invalid controls kept
 their outcomes. The next repair removes that initializer-only representation
 gate; source and flow checking still require an established value before use.
 
+Run [41589081212](https://github.com/CathedralOS/Omega/actions/runs/41589081212)
+cleared the return-value representation gate. Lowering next counted the empty
+home declaration as a completed value needing disposal. The other 22 positives
+passed both engines, and all 39 invalid controls rejected for their intended
+reasons. The next repair distinguishes storage declaration from completed value
+at the disposition owner. Actual stored values retain every cleanup obligation.
+
 The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
 on the frozen baseline in
 [41558699182](https://github.com/CathedralOS/Omega/actions/runs/41558699182).
