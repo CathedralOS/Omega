@@ -138,51 +138,59 @@ pub(in crate::flow) fn completed_output_retention(
     identity: facts::InvocationOutputIdentity,
     carrier_type: typed_trees::types::TypeReferenceHandle,
     output_path: &[checked_trees::BorrowLoanOwnerSegment],
-) -> Option<Vec<facts::PlaceRoot>> {
+) -> Result<Vec<facts::PlaceRoot>, &'static str> {
     let performed = borrow
         .call_at(machine, state, statement_index, call.call_ordinal)
-        .filter(|handle| borrow.calls.get(*handle) == call)?;
+        .filter(|handle| borrow.calls.get(*handle) == call)
+        .ok_or("output has no exact performed invocation")?;
     if identity.state_symbol != state
         || identity.statement_index != statement_index
         || identity.call_ordinal != call.call_ordinal
     {
-        return None;
+        return Err("output identity names another invocation");
     }
     let mut selected = Vec::new();
     for handle in call.completed_reference_loans.handles() {
         if !borrow.loans.is_valid(handle) {
-            return None;
+            return Err("output completion names an unavailable loan");
         }
         let loan = borrow.loans.get(handle);
         if loan.established_by_call != performed {
-            return None;
+            return Err("output loan belongs to another invocation");
         }
         if !loan.incoming_reference.is_valid() {
             continue;
         }
         if !borrow.incoming_references.is_valid(loan.incoming_reference) {
-            return None;
+            return Err("output loan has an unavailable identity");
         }
         let incoming = borrow.incoming_references.get(loan.incoming_reference);
         if incoming.origin == (checked_trees::IncomingReferenceOrigin::Output { identity }) {
             if borrow.supplied_output_call(handle) != Some(performed) {
-                return None;
+                return Err("output permission has no normal-call source correspondence");
             }
-            if incoming.machine_symbol != machine
-                || incoming.state_symbol != state
-                || incoming.carrier_type != carrier_type
-                || borrow.owner_segments.span_or_empty(incoming.owner_path) != output_path
-                || loan.root != facts::PlaceRoot::InvocationOutput(identity)
+            if incoming.machine_symbol != machine || incoming.state_symbol != state {
+                return Err("output permission belongs to another state");
+            }
+            if incoming.carrier_type != carrier_type {
+                return Err("output permission does not match the captured carrier type");
+            }
+            if borrow.owner_segments.span_or_empty(incoming.owner_path) != output_path {
+                return Err("output permission does not match the captured descriptor leaf");
+            }
+            if loan.root != facts::PlaceRoot::InvocationOutput(identity)
                 || !loan.segments.is_empty()
-                || loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
             {
-                return None;
+                return Err("output permission does not match the exact opaque backing");
+            }
+            if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency {
+                return Err("output lifetime debt cannot supply descriptor permission");
             }
             selected.push(loan);
         }
     }
     if selected.is_empty() {
-        return None;
+        return Err("completed invocation has no supplied descriptor for this leaf");
     }
     let mut roots = Vec::new();
     for output in selected {
@@ -204,10 +212,10 @@ pub(in crate::flow) fn completed_output_retention(
                 _ => false,
             };
             if !known {
-                return None;
+                return Err("an output lifetime debt has no known backing identity");
             }
             crate::shared::collections::push_unique(&mut roots, loan.root);
         }
     }
-    Some(roots)
+    Ok(roots)
 }

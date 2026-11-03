@@ -219,7 +219,7 @@ impl Execution<'_, '_, '_> {
                         lifetime_known = false;
                         break;
                     }
-                    let Some(retained) = crate::flow::call_phases::completed_output_retention(
+                    let retained = crate::flow::call_phases::completed_output_retention(
                         self.borrow,
                         self.machine.symbol,
                         self.state.symbol,
@@ -231,10 +231,20 @@ impl Execution<'_, '_, '_> {
                             self.program,
                             &effect.destination.local_segments,
                         ),
-                    ) else {
-                        known = false;
-                        lifetime_known = false;
-                        break;
+                    );
+                    let retained = match retained {
+                        Ok(retained) => retained,
+                        Err(reason) => {
+                            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                                eprintln!(
+                                    "STRUCT supplied-output-retention-refused identity={identity:?} destination={:?} reason={reason}",
+                                    effect.destination.local_segments
+                                );
+                            }
+                            known = false;
+                            lifetime_known = false;
+                            break;
+                        }
                     };
                     for root in retained {
                         crate::shared::collections::push_unique(&mut roots, root);

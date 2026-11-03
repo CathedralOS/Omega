@@ -778,6 +778,19 @@ pub(crate) fn borrow_selects_reference_storage(
     required: TypeReferenceHandle,
     required_substitutions: &[(symbols::SymbolHandle, TypeReferenceHandle)],
 ) -> bool {
+    // An exclusive formal already names its caller's referent. A mutable
+    // spelling does not turn that fixed incoming pointer into an owned slot.
+    // Shared parameter bindings keep their separate replacement semantics.
+    if let Some(place) = crate::canonical_place_from_expression(program, source)
+        && place.segments.is_empty()
+        && let Some(symbol) = place.root.as_symbol().filter(|symbol| symbol.is_valid())
+        && let Some(state) = program.state_by_symbol(program.symbols.get(symbol).parent)
+        && crate::value_custody::places::assignment_targets_parameter_referent(
+            program, state, source,
+        )
+    {
+        return false;
+    }
     let (required, required_substitutions) =
         substituted_required_reference(program, required, required_substitutions);
     let TypeReferenceNode::Reference { referee, .. } =

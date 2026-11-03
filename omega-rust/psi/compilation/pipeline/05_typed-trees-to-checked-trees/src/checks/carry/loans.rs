@@ -149,6 +149,24 @@ pub(super) fn value_frontier(
             .iter()
             .any(|path| owner_path(borrow, entry) == path.as_slice())
     }) {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT suspension-leaf-frontier value={:?} type={type_reference:?} required={paths:?} matching={:?}",
+                value.origin,
+                matching
+                    .iter()
+                    .map(|handle| {
+                        let entry = frontier.get(*handle);
+                        let handle = entry.stored_loan();
+                        (
+                            handle,
+                            owner_path(borrow, entry),
+                            handle.is_valid().then(|| &borrow.loans.get(handle).lineage),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            );
+        }
         return SuspensionValueBorrowFrontier::Unresolved;
     }
     SuspensionValueBorrowFrontier::RetainedLoans {
