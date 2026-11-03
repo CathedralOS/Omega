@@ -57,6 +57,23 @@ pass/facts/finite_family_input_index/other_machine built 12204ms exit:0 interpre
 pass/facts/finite_family_input_index/other_state built 11537ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
 pass/facts/finite_family_input_index/parameter built 13939ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
 pass/facts/finite_family_input_index/target_body built 16042ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e
+pass/facts/finite_family_static_inline_result/argument_effect built 12408ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/authored_sum built 9939ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/call_result built 10524ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/const_name built 10620ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/field built 10572ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/local built 10393ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/match_join built 10538ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/nested_static built 10443ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/other_machine built 10537ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/other_state built 10824ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/parameter built 10561ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/stale_input built 10180ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/target_body built 10505ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/uncalled_target built 10430ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
+pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply rejected 10647ms expected native-rejection:match @f46fd2694737
+	no provider is selected for boundary requirement `SelectedInlineTarget::target_only`, which the program entry reaches on target `linux_x86_64`
+	no provider is selected for boundary requirement `SelectedInlineTarget::target_only`, which the program entry reaches on target `linux_x86_64`
 pass/facts/fixed_layout_byte_roundtrip_rejected_payload_exit built 16483ms exit:0 interpreter-exit:0 interpreter:agrees @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 pass/facts/fixed_layout_byte_roundtrip_through_call_result_exit built 16492ms exit:0 interpreter-exit:0 interpreter:agrees @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
 pass/facts/fixed_layout_byte_roundtrip_through_const_name_exit built 21349ms exit:0 interpreter-exit:0 interpreter:agrees @dcd2509c66fa4717e28a0b781c10f44fe6a3100d
@@ -5911,14 +5928,8 @@ pass/generics/runtime_const_data_machine_call_exit built 5856ms exit:70 interpre
 pass/generics/runtime_const_data_multiple_instances_exit built 7290ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/generics/runtime_const_data_symbolic_expression_exit built 7224ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/generics/runtime_const_data_where_fact_exit built 7201ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/generics/runtime_const_extent_guard_floors_exit rejected 1453ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @a92f16431042
-	cannot prove index `0` is within const extent `Count` of `moments` in negated::entry
-	cannot prove index `0` is within const extent `Count` of `moments` in polynomial::evaluate
-	cannot prove index `1` is within const extent `Count` of `moments` in polynomial::evaluate
-	cannot prove index `2` is within const extent `Count` of `moments` in polynomial::evaluate
-	cannot prove index `3` is within const extent `Count` of `moments` in polynomial::evaluate
-	cannot prove index `4` is within const extent `Count` of `moments` in polynomial::evaluate
-pass/generics/runtime_const_extent_index_walk_exit built 2225ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/generics/runtime_const_extent_guard_floors_exit built 7496ms exit:0 interpreter-exit:0 interpreter:agrees @8ee83f0096a1
+pass/generics/runtime_const_extent_index_walk_exit built 9097ms exit:0 interpreter-exit:0 interpreter:agrees @8ee83f0096a1
 pass/generics/runtime_const_extent_origin_exit built 6082ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/generics/runtime_constructor_equation_binder_carriers_exit built 2122ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/generics/runtime_container_setter_matrix_exit built 5693ms exit:1 interpreter-exit:1 interpreter:agrees @a92f16431042
@@ -6278,7 +6289,9 @@ pass/machines/hold_state_call checked 2412ms @a92f16431042
 pass/machines/machine_param_data checked 1843ms @a92f16431042
 pass/machines/machine_type_equations checked 2628ms @a92f16431042
 pass/machines/nonreturning_unit checked 1935ms @a92f16431042
+pass/machines/private_division_exact_pair_exit built 7027ms exit:0 interpreter-exit:0 interpreter:agrees @8ee83f0096a1
 pass/machines/private_division_snapshot_before_write_exit built 7197ms exit:0 interpreter-exit:0 interpreter:agrees @7b6988120e7e+wt
+pass/machines/private_frontier_enum_guard_disjunction_exit built 6823ms exit:0 interpreter-exit:0 interpreter:agrees @8ee83f0096a1
 pass/machines/runtime_explicit_data_parameter_exit built 2439ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/machines/static_namespace_constant_exit built 3041ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/machines/write_state_forward checked 1837ms @a92f16431042
@@ -6869,7 +6882,7 @@ pass/providers/inherited_applied_binding_forwarded_value_exit built 4075ms exit:
 pass/providers/inherited_boundary_field_postcondition_exit built 3476ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/providers/inherited_provider_borrowed_result_exit built 4019ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/providers/inherited_receiver_calling_contracts_exit built 9815ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/providers/inline_member_generic_requirement_exit built 3750ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/providers/inline_member_generic_requirement_exit built 11904ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
 pass/providers/inline_member_provider_selection_exit built 2100ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/providers/lifetime_boundary_requirement_dispatch_exit built 6734ms exit:41 interpreter-exit:41 interpreter:agrees @a92f16431042
 pass/providers/linear_structural_provider_pure_exit built 5781ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -6896,11 +6909,11 @@ pass/providers/runtime_boundary_address_model_exit built 2503ms exit:0 interpret
 pass/providers/runtime_boundary_array_construction_exit built 6497ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/providers/runtime_boundary_array_forwarding_exit built 6156ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/providers/runtime_boundary_array_result_exit built 5837ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/providers/runtime_boundary_linear_borrowed_argument_exit built 6071ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/providers/runtime_boundary_linear_borrowed_argument_exit built 93323ms exit:70 interpreter-exit:70 interpreter:agrees @f46fd2694737
 pass/providers/runtime_boundary_linear_result_exit built 6588ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/providers/runtime_boundary_owned_array_cycle_exit built 6044ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/providers/runtime_boundary_primitive_array_argument_exit built 5882ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/providers/runtime_boundary_qualified_state_exit built 2009ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/providers/runtime_boundary_qualified_state_exit built 10970ms exit:0 interpreter-exit:0 interpreter:agrees @f46fd2694737
 pass/providers/runtime_closed_provider_and_assumed_chain_exit built 2315ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/providers/runtime_foreign_leaf_borrowed_byte_argument_exit built 42049ms exit:70 interpreter-exit:70 interpreter:agrees @6b68f53a1f44+wt
 pass/providers/runtime_foreign_leaf_slice_element_argument_exit built 39723ms exit:70 interpreter-exit:70 interpreter:agrees @6b68f53a1f44+wt
@@ -6909,6 +6922,7 @@ pass/providers/runtime_generic_boundary_relay_places_exit built 3390ms exit:0 in
 pass/providers/runtime_generic_case_extraction_exit built 4459ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/providers/runtime_linear_provider_results_exit built 3559ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/providers/runtime_named_provider_explicit_state_exit built 5636ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/providers/runtime_ordinary_provider_call_graph_exit built 9505ms exit:0 interpreter-exit:0 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match interpreter:agrees @f46fd2694737
 pass/providers/runtime_provider_reference_state_exit incomplete 1735ms interpreter:unchecked @a92f16431042
 	`main` has no executable body: this compiler does not lower a transition of it yet (state loan parents: incomplete captured storage dependencies); in state `main::entry`, statement 1
 pass/providers/runtime_provider_reference_view_exit rejected 1513ms interpreter:unchecked @a92f16431042
