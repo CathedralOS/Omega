@@ -3,8 +3,10 @@
 // third byte reads 3 (exit 0; a lost length would trap). The generic machine
 // form `first<T>(value: &T) -> &T` with `T = [u8]` already runs; the record
 // form is refused during lowering ("loan retirement requires a descriptor
-// carrier"), because the field's reference is classified as a thin pointer
-// before `T` is bound.
+// carrier"). That is consistent with the field's reference being classified
+// as a thin pointer (typed-trees boundary_values.rs
+// foreign_reference_uses_descriptor) while `T` is still unbound; the exact
+// lowering site is not yet confirmed.
 data Holder<'a, T> { item: &'a T; }
 machine main() crashes Trap {
     let bytes: [u8; 3] = [1, 2, 3];
