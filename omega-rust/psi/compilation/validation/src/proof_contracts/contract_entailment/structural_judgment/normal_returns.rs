@@ -415,7 +415,7 @@ impl<'program> StructuralJudge<'program> {
         paths
     }
 
-    fn term_max_captured_occurrence(term: &StructuralTerm) -> Option<usize> {
+    pub(super) fn term_max_captured_occurrence(term: &StructuralTerm) -> Option<usize> {
         match term.semantic_value() {
             StructuralTerm::CapturedValue { occurrence, .. } => Some(*occurrence),
             _ => {

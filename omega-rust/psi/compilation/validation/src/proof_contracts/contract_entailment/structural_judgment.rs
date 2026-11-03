@@ -1759,17 +1759,10 @@ impl<'program> StructuralJudge<'program> {
                     let collection = self
                         .resolve_with_at(*collection, depth + 1, purpose)
                         .into_collection_descriptor();
-                    if let Some(value) = super::structural_terms::completed_collection_measure(
-                        self.program,
-                        measure,
-                        &collection,
-                    ) {
-                        return value;
+                    let resolved = self.collection_measure_identity(measure, collection, depth + 1);
+                    if !matches!(resolved, StructuralTerm::CollectionMeasure { .. }) {
+                        return resolved;
                     }
-                    let resolved = StructuralTerm::CollectionMeasure {
-                        measure,
-                        collection: Box::new(collection),
-                    };
                     if let Some((_, replacement)) = self.rewrites.find(&resolved) {
                         term = replacement.clone();
                         continue;

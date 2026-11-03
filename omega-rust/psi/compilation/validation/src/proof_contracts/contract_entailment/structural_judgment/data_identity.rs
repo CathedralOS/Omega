@@ -142,19 +142,32 @@ impl StructuralJudge<'_> {
         if depth >= 32 || *remaining == 0 {
             return vec![value];
         }
-        let mut pending = vec![value];
+        // Carry the remaining fields with each saved subject. Restarting a
+        // recursive walk at every field revisits the same parent projections
+        // and can exhaust the allowance before reaching their public identity.
+        let mut pending = vec![(value, Vec::<String>::new())];
+        let mut visited: Vec<(StructuralTerm, Vec<String>)> = Vec::new();
         let mut forms: Vec<StructuralTerm> = Vec::new();
-        while let Some(value) = pending.pop() {
+        while let Some((value, fields)) = pending.pop() {
             if *remaining == 0 {
                 break;
             }
-            if forms
+            if visited
                 .iter()
-                .any(|known| known.same_resolution_payload(&value))
+                .any(|(known, path)| path == &fields && known.same_resolution_payload(&value))
             {
                 continue;
             }
             *remaining -= 1;
+            visited.push((value.clone(), fields.clone()));
+            if fields.is_empty()
+                && !forms
+                    .iter()
+                    .any(|known| known.same_resolution_payload(&value))
+            {
+                forms.push(value.clone());
+            }
+            let mut follow = |value| pending.push((value, fields.clone()));
             if super::super::structural_terms::owned_observation_type(self.program, &value)
                 .or_else(|| {
                     super::super::structural_terms::shared_inline_observation_type(
@@ -165,7 +178,7 @@ impl StructuralJudge<'_> {
                 .is_some()
                 && let StructuralTerm::ObservedValue { value, .. } = &value
             {
-                pending.push((**value).clone());
+                follow((**value).clone());
             }
             if let StructuralTerm::Variable(name) = &value
                 && let Some((_, actual)) = self
@@ -176,14 +189,14 @@ impl StructuralJudge<'_> {
                 // These names keep the declaration's original input values.
                 // A nested call binds its formals to observed actuals before
                 // asking for Id; a callee's spelling introduces no new value.
-                pending.push(actual.clone());
+                follow(actual.clone());
             }
             for (left, right) in self.normal_guarantees.iter() {
                 if left.same_resolution_payload(&value) {
-                    pending.push(right.clone());
+                    follow(right.clone());
                 }
                 if right.same_resolution_payload(&value) {
-                    pending.push(left.clone());
+                    follow(left.clone());
                 }
             }
             for equation in self
@@ -192,47 +205,91 @@ impl StructuralJudge<'_> {
                 .filter(|equation| equation.is_data_identity())
             {
                 if equation.left.same_resolution_payload(&value) {
-                    pending.push(equation.right.clone());
+                    follow(equation.right.clone());
                 }
                 if equation.right.same_resolution_payload(&value) {
-                    pending.push(equation.left.clone());
+                    follow(equation.left.clone());
                 }
             }
             for completed in self.completed_nominal_values.iter() {
                 if completed.value.same_resolution_payload(&value) {
-                    pending.push(completed.observed_value.clone());
+                    follow(completed.observed_value.clone());
                 }
             }
             if let StructuralTerm::Projection { subject, path } = &value {
-                let mut subjects =
-                    self.data_identity_forms((**subject).clone(), depth + 1, remaining);
-                let mut fields = path.split('.').peekable();
-                while let Some(field) = fields.next() {
-                    let projected = subjects.into_iter().filter_map(|subject| {
-                        super::super::observed_projections::project_declared_field(
-                            self.program,
-                            self,
-                            subject,
-                            field,
-                        )
-                    });
-                    if fields.peek().is_none() {
-                        pending.extend(projected);
-                        break;
-                    }
-                    // A public identity may name an intermediate owned field.
-                    // Consume that exact equation before crossing its next
-                    // field; it grants no observation of a reference's contents.
-                    subjects = projected
-                        .flat_map(|projected| {
-                            self.data_identity_forms(projected, depth + 1, remaining)
-                        })
-                        .collect();
+                let mut projected_fields = path.split('.').map(str::to_owned).collect::<Vec<_>>();
+                projected_fields.extend_from_slice(&fields);
+                if depth + projected_fields.len() < 32 {
+                    pending.push(((**subject).clone(), projected_fields));
                 }
             }
-            forms.push(value);
+            if let Some((field, suffix)) = fields.split_first()
+                && let Some(projected) = super::super::observed_projections::project_declared_field(
+                    self.program,
+                    self,
+                    value,
+                    field,
+                )
+            {
+                // A public identity can name this intermediate owned field.
+                // Its next projection still uses the declared field and masks
+                // references instead of observing their contents.
+                pending.push((projected, suffix.to_vec()));
+            }
         }
         forms
+    }
+
+    /// A copied descriptor keeps its size metadata. The bytes behind it still
+    /// need a current storage observation. Return only the measure so this
+    /// identity rule cannot replace an ordinary value or element read.
+    pub(super) fn collection_measure_identity(
+        &self,
+        measure: language_semantics::declaration_selection::CollectionMeasure,
+        collection: StructuralTerm,
+        depth: usize,
+    ) -> StructuralTerm {
+        if let Some(value) = super::super::structural_terms::completed_collection_measure(
+            self.program,
+            measure,
+            &collection,
+        ) {
+            return value;
+        }
+        let mut selected = collection;
+        if self.data_identity_is_observed(&selected)
+            && self
+                .captured_result_equations
+                .iter()
+                .any(|equation| equation.is_data_identity())
+        {
+            let mut remaining = 64;
+            let mut sequence = Self::term_max_captured_occurrence(&selected);
+            for alternative in self.data_identity_forms(selected.clone(), depth + 1, &mut remaining)
+            {
+                if !self.data_identity_is_observed(&alternative) {
+                    continue;
+                }
+                let descriptor = alternative.into_collection_descriptor();
+                let earlier = Self::term_max_captured_occurrence(&descriptor);
+                // Use the same direction as completed-call value resolution:
+                // a later observation follows its earlier saved input. Equal
+                // sequences supply no preferred rewrite and remain unchanged.
+                if earlier < sequence {
+                    selected = descriptor;
+                    sequence = earlier;
+                }
+            }
+        }
+        super::super::structural_terms::completed_collection_measure(
+            self.program,
+            measure,
+            &selected,
+        )
+        .unwrap_or(StructuralTerm::CollectionMeasure {
+            measure,
+            collection: Box::new(selected),
+        })
     }
 
     fn data_identity_is_observed(&self, value: &StructuralTerm) -> bool {
