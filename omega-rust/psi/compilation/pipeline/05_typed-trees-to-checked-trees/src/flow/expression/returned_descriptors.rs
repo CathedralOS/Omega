@@ -110,10 +110,22 @@ impl Execution<'_, '_, '_> {
             }
             let position =
                 typed_trees::signature::state_parameter_position(parameters, source.source.root)?;
-            let (_, actual) = inputs.get(position)?;
+            inputs.get(position)?;
+            let FlowOperandCompletion::InvocationResult { invocation, .. } = completion else {
+                return None;
+            };
+            let actual = self
+                .context
+                .control
+                .calls
+                .get(invocation)
+                .argument_operands()
+                .handles()
+                .nth(position)?;
             let values =
                 self.call_backing_values(actual, &source.source, reference, source_snapshot)?;
-            for (value, projection) in values {
+            for (operand, projection) in values {
+                let value = *self.context.control.operands.get(operand);
                 let supplied = validation::project_type_reference_from_segments(
                     self.program,
                     value.type_reference,
@@ -175,7 +187,7 @@ impl Execution<'_, '_, '_> {
                     }
                 }
                 all_image &= image;
-                candidates.push((selected, image, Some((value, projection))));
+                candidates.push((selected, image, Some((operand, projection))));
             }
         }
         if candidates.is_empty() {
@@ -192,8 +204,22 @@ impl Execution<'_, '_, '_> {
                 .operand_retentions
                 .get_mut(retention)
                 .immutable_image = image;
-            if let Some((value, projection)) = supplier {
-                let operand = self.context.control.operands.insert(value);
+            if let Some((operand, projection)) = supplier {
+                let value = *self.context.control.operands.get(operand);
+                let reborrow_sources = if self
+                    .context
+                    .control
+                    .operand_retentions
+                    .is_valid(value.retention)
+                {
+                    self.context
+                        .control
+                        .operand_retentions
+                        .get(value.retention)
+                        .reborrow_sources
+                } else {
+                    Default::default()
+                };
                 let projection = self
                     .context
                     .control
@@ -211,6 +237,7 @@ impl Execution<'_, '_, '_> {
                 let profile = self.context.control.operand_retentions.get_mut(retention);
                 profile.suppliers = suppliers;
                 profile.descriptor_sources = suppliers;
+                profile.reborrow_sources = reborrow_sources;
             }
             let referents = self.append_captured_references(&places);
             alternatives.push(FlowOperandFact {

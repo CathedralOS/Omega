@@ -47,6 +47,14 @@ pub(crate) enum ByteSequenceBinding {
     },
 }
 
+/// A resident descriptor already records its view. A value observed through
+/// an earlier reference must separately apply that reference's access rule;
+/// retaining its source for a later return makes no new observation.
+enum ByteDescriptorSource {
+    Stored(ByteSequenceBinding),
+    CapturedReferent(ByteSequenceBinding),
+}
+
 /// Frame bindings retain their activation; typed subtree cells retain their
 /// execution-wide storage coordinate. Neither home grants loan authority.
 #[derive(Clone, PartialEq, Eq)]
@@ -479,16 +487,68 @@ impl TerminalExecution<'_> {
             .then_some(selected))
     }
 
-    /// Rejoin an already resolved descriptor to its exact frame binding or
-    /// retained aggregate slot. Cloning a binding retains its backing/window;
-    /// it neither consumes the source nor copies mutable storage. A whole-home
-    /// descriptor with no explicit home is authoritative only at its keyed
-    /// structural binding, never because some other whole path is empty.
+    /// Read a byte descriptor or observe a live owned byte value. Existing
+    /// descriptors retain their window; an owned payload observation makes
+    /// its deliberate immutable snapshot through the separate branch below.
     pub(crate) fn byte_descriptor_binding(
         &self,
         argument: &StructuralArgument,
         selected: &TerminalStructuralValue,
     ) -> Result<ByteSequenceBinding, TerminalInterpretError> {
+        if let Some(source) = self.byte_descriptor_source(argument, selected)? {
+            return match source {
+                ByteDescriptorSource::Stored(binding) => Ok(binding),
+                ByteDescriptorSource::CapturedReferent(binding) => {
+                    let access = match argument.access {
+                        StructuralAccess::Owned => StructuralAccess::SharedBorrow,
+                        access => access,
+                    };
+                    self.reborrow_byte_sequence_binding(&binding, selected, access)
+                }
+            };
+        }
+        if let Some(bytes) = self.structural_byte_storage.get(
+            &crate::boundary::values::StructuralRuntimePlace::from(selected),
+        ) {
+            return Ok(ByteSequenceBinding::Immutable(
+                bytes
+                    .copy_snapshot()?
+                    .with_descriptor_home(selected.clone()),
+            ));
+        }
+        let home = crate::boundary::values::StructuralRuntimePlace::from(selected);
+        if self.initialized_empty_byte_array(&home)? {
+            let storage =
+                crate::boundary::structural_inputs::byte_arrays::storage::ArrayStorage::from(home);
+            let bytes = self.stored_byte_array_snapshot(&storage, 0, 0)?;
+            return Ok(ByteSequenceBinding::Immutable(
+                bytes.with_descriptor_home(selected.clone()),
+            ));
+        }
+        Err(malformed())
+    }
+
+    /// Retain an existing byte descriptor and its exact backing window for a
+    /// later reference return. An owned payload without a retained descriptor
+    /// supplies no such association; this lookup never copies its bytes.
+    pub(crate) fn retained_byte_descriptor_binding(
+        &self,
+        argument: &StructuralArgument,
+        selected: &TerminalStructuralValue,
+    ) -> Result<Option<ByteSequenceBinding>, TerminalInterpretError> {
+        Ok(self
+            .byte_descriptor_source(argument, selected)?
+            .map(|source| match source {
+                ByteDescriptorSource::Stored(binding)
+                | ByteDescriptorSource::CapturedReferent(binding) => binding,
+            }))
+    }
+
+    fn byte_descriptor_source(
+        &self,
+        argument: &StructuralArgument,
+        selected: &TerminalStructuralValue,
+    ) -> Result<Option<ByteDescriptorSource>, TerminalInterpretError> {
         if argument.access == StructuralAccess::WriteOnlyBorrow
             || !self
                 .structural_types()
@@ -532,7 +592,7 @@ impl TerminalExecution<'_> {
             if !self.is_live_activation_descriptor(binding, selected) {
                 return Err(malformed());
             }
-            return Ok(binding.clone());
+            return Ok(Some(ByteDescriptorSource::Stored(binding.clone())));
         }
         if let Some(binding) = self.structural_byte_descriptors.get(
             &crate::boundary::values::StructuralRuntimePlace::from(selected),
@@ -544,6 +604,8 @@ impl TerminalExecution<'_> {
             .ok_or_else(malformed)?;
             return matches(binding, home)
                 .then(|| capture(binding))
+                .map(ByteDescriptorSource::Stored)
+                .map(Some)
                 .ok_or_else(malformed);
         }
         if argument.path.is_empty()
@@ -554,17 +616,24 @@ impl TerminalExecution<'_> {
                 .get(&argument.place)
                 .filter(|home| matches(binding, home))
                 .map(|_| capture(binding))
+                .map(ByteDescriptorSource::Stored)
+                .map(Some)
                 .ok_or_else(malformed);
         }
         if let Some(binding) = self.captured_byte_owner_binding(selected) {
-            // A by-value owner observation snapshots its bytes; it does not
-            // request ownership from the older loan that identifies this home.
-            // Explicit borrowed observations retain their existing access.
-            let observation_access = match argument.access {
-                StructuralAccess::Owned => StructuralAccess::SharedBorrow,
-                access => access,
-            };
-            return self.reborrow_byte_sequence_binding(binding, selected, observation_access);
+            if matches!(
+                binding,
+                ByteSequenceBinding::Immutable(_) | ByteSequenceBinding::Representation(_)
+            ) {
+                if !binding.matches_shared_home(selected) {
+                    return Err(malformed());
+                }
+            } else {
+                binding.validate_mutable_referent(self, selected)?;
+            }
+            return Ok(Some(ByteDescriptorSource::CapturedReferent(
+                binding.clone(),
+            )));
         }
         // Inline byte fields have declaration-keyed cells rather than array
         // cells. Resolve the parent first so reference crossings and captured
@@ -588,26 +657,16 @@ impl TerminalExecution<'_> {
             if field.field_type.byte_sequence_carrier().is_some() {
                 let (cell, _) = self.readable_byte_field(argument.place, prefix, field.id)?;
                 let bytes = self.structural_byte_sequence_fields.require(&cell)?;
-                return Ok(bytes.clone().with_descriptor_home(selected.clone()));
+                return Ok(Some(ByteDescriptorSource::Stored(
+                    bytes.clone().with_descriptor_home(selected.clone()),
+                )));
             }
         }
-        if let Some(bytes) = self.structural_byte_storage.get(
-            &crate::boundary::values::StructuralRuntimePlace::from(selected),
-        ) {
-            return Ok(ByteSequenceBinding::Immutable(
-                bytes
-                    .copy_snapshot()?
-                    .with_descriptor_home(selected.clone()),
-            ));
-        }
         let home = crate::boundary::values::StructuralRuntimePlace::from(selected);
-        if self.initialized_empty_byte_array(&home)? {
-            let storage =
-                crate::boundary::structural_inputs::byte_arrays::storage::ArrayStorage::from(home);
-            let bytes = self.stored_byte_array_snapshot(&storage, 0, 0)?;
-            return Ok(ByteSequenceBinding::Immutable(
-                bytes.with_descriptor_home(selected.clone()),
-            ));
+        if self.structural_byte_storage.contains_key(&home)
+            || self.initialized_empty_byte_array(&home)?
+        {
+            return Ok(None);
         }
         self.byte_sequence_values
             .iter()
@@ -631,6 +690,8 @@ impl TerminalExecution<'_> {
                         })
                 })
             })
+            .map(ByteDescriptorSource::Stored)
+            .map(Some)
             .ok_or_else(malformed)
     }
 
