@@ -59,6 +59,17 @@ struct Modes {
     hypotheses_contradictory: bool,
 }
 
+/// A return observation changes which current cells answer a result query.
+/// Retain its exact cut and weak context identity without pinning old storage.
+#[derive(PartialEq)]
+struct ReturnedValueInput<'program> {
+    machine: SymbolHandle,
+    state: SymbolHandle,
+    expression: ExpressionHandle,
+    storage_version: Option<super::storage_effects::StorageVersion>,
+    context: InputOwner<'program>,
+}
+
 pub(super) struct ResolutionInputs<'program> {
     program: &'program dyn crate::CheckingInput,
     machine_symbol: SymbolHandle,
@@ -69,6 +80,7 @@ pub(super) struct ResolutionInputs<'program> {
     storage_write_sequence: usize,
     // Graph validity is read at this version, so it is an input too.
     storage_version: Option<super::storage_effects::StorageVersion>,
+    returned_value_source: Option<ReturnedValueInput<'program>>,
     owners: Owners<'program>,
     modes: Modes,
 }
@@ -83,6 +95,7 @@ impl ResolutionInputs<'_> {
             && self.capture_sequence == other.capture_sequence
             && self.storage_write_sequence == other.storage_write_sequence
             && self.storage_version == other.storage_version
+            && self.returned_value_source == other.returned_value_source
             && self.owners == other.owners
             && self.modes == other.modes
     }
@@ -101,6 +114,7 @@ impl<'program> StructuralJudge<'program> {
             body_type_parameters,
             premise_facts,
             normal_results,
+            returned_value_source,
             completed_nominal_values,
             returned_field_owners,
             returned_field_trace: _,
@@ -142,6 +156,15 @@ impl<'program> StructuralJudge<'program> {
             capture_sequence: *capture_sequence,
             storage_write_sequence: *storage_write_sequence,
             storage_version: *storage_version,
+            returned_value_source: returned_value_source.as_ref().map(|source| {
+                ReturnedValueInput {
+                    machine: source.machine,
+                    state: source.state,
+                    expression: source.expression,
+                    storage_version: source.storage_version,
+                    context: InputOwner::new(&source.context),
+                }
+            }),
             owners: Owners {
                 entry_machines: InputOwner::new(entry_machines),
                 declaration_parameters: InputOwner::new(declaration_parameters),

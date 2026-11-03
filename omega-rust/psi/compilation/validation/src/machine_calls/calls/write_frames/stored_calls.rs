@@ -66,7 +66,7 @@ use facts::PlaceSegment;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TransitionExit, TransitionTargetNode};
+use typed_trees::statement::{StatementNode, TransitionExit};
 
 fn call_effects(
     program: &dyn crate::CheckingInput,
