@@ -71,6 +71,13 @@ struct Binding {
     value: Option<ScopedArithmeticValue>,
     alternatives: Vec<ScopedArithmeticValue>,
     immutable_coordinate: bool,
+    /// A by-value binding declared without `mut`. No store or call can reach
+    /// it: a write needs a mutable place, and so does a `&mut` loan. Its
+    /// current value therefore survives every effect even when the input has
+    /// no storage graph to ask, as in build-time admission over bare typed
+    /// trees. Unlike `immutable_coordinate`, it remains an ordinary store-
+    /// alias candidate.
+    unwritable: bool,
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -241,6 +248,9 @@ impl<'program> CurrentScalarValues<'program> {
                     }),
                     alternatives: Vec::new(),
                     immutable_coordinate: false,
+                    unwritable: !parameter.is_mutable
+                        && validation::reference_shell(program, parameter.type_reference)
+                            .is_none(),
                 })
             })
             .collect::<Vec<_>>();
@@ -277,6 +287,7 @@ impl<'program> CurrentScalarValues<'program> {
                         )),
                         alternatives: Vec::new(),
                         immutable_coordinate: true,
+                        unwritable: true,
                     })
                 }),
         );
@@ -475,6 +486,7 @@ impl<'program> CurrentScalarValues<'program> {
                             value,
                             alternatives,
                             immutable_coordinate: false,
+                            unwritable: !local.is_mutable && reference_scalar.is_none(),
                         });
                     }
                 }
@@ -804,6 +816,7 @@ impl<'program> CurrentScalarValues<'program> {
             .iter()
             .map(|binding| {
                 binding.immutable_coordinate
+                    || binding.unwritable
                     || preserved(&validation::CanonicalPlace {
                         root: facts::PlaceRoot::Symbol(binding.symbol),
                         segments: Vec::new(),
