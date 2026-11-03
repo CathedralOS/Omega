@@ -403,8 +403,10 @@ carrier to equal the carrier named by `D`'s `Carrier::` prefix, and a
 cross-carrier `in` rejects; an explicit exact conversion is needed first. A
 heuristic scan of the 68,463 `.omg` files found no `requires` membership whose
 parameter's declared integer type differs from its domain's carrier (91
-integer-carrier domains), so the known migration cost is small; the scan did
-not cover memberships on locals, fields or literal candidates.
+integer-carrier domains), and none among qualified parameters (`x: uN in D`)
+whose type differs from the domain's carrier, so the known migration cost is
+small; the scan did not cover memberships on locals, fields or literal
+candidates.
 
 Option B, membership by exact value: `candidate in D` substitutes the
 candidate's exact mathematical value for `self`, across widths, as fixed-integer
@@ -415,14 +417,33 @@ Contracts checked, and why they do not decide it:
   "`Player::` determines the domain's carrier", and membership "substitutes that
   exact candidate for `self`". It does not say whether the candidate must have
   that carrier.
+- [Domains, refinement and executable membership](wiki/spec/language/domains.md#refinement-and-executable-membership):
+  "Domains classify values within the carrier's ordinary validity", and
+  "Establishing membership requires all carrier, predicate, and provenance
+  obligations". Whether a "carrier obligation" means the candidate has the
+  carrier's type, or only that its value is valid in that carrier, is the open
+  point.
+- [Domains, exact coercion and erasure](wiki/spec/language/domains.md#exact-coercion-and-erasure):
+  "Exact widening and proved representable narrowing are carrier coercions",
+  and a predicate-free qualification needs "carrier compatibility". This is the
+  explicit conversion Option A would require before a cross-carrier `in`; it
+  does not say a bare `in` needs one.
+- [Terminal Psi calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md):
+  a qualification change "strictly adds same-carrier membership". This governs
+  qualification-change edges, not a bare `in` proposition, though it leans
+  toward Option A.
 - [Numeric values, literal landing](wiki/spec/language/numeric_values.md#literal-landing-and-destinations):
   "A suffixed integer or float literal retains its chosen carrier ... An
-  incompatible destination rejects", and "There is no implicit widening". It
-  does not say whether a membership candidate is a destination.
+  incompatible destination rejects". It does not say whether a membership
+  candidate is a destination.
 - [Numeric values, integer equality and order](wiki/spec/language/numeric_values.md#integer-equality-and-order):
-  builtin fixed-integer equality and order compare exact `embed` projections
-  across widths and signedness, which supports reading `self <= 10` across
-  carriers.
+  "Builtin fixed-integer comparisons use exact mathematical integer values"
+  across width and signedness (`mixed-integer-comparison`), which supports
+  reading `self <= 10` across carriers. The same section says this "adds
+  neither implicit arithmetic widening nor conversion at assignments,
+  arguments, or returns"; a membership candidate is none of those positions.
 - Qualification `value: T in D` "requires the exact named domain `D`"
-  (domains.md, same section), which constrains the qualified type, not a bare
-  `in` proposition.
+  (domains.md, declaration and membership), which constrains the qualified
+  type, not a bare `in` proposition.
+- No clause in `state_contracts.md`, `generics.md` or elsewhere in
+  `wiki/spec` states a carrier rule for `in` propositions.
