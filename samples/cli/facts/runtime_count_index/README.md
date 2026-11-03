@@ -77,3 +77,17 @@ still rejects a runtime name, as in `tests/omega/fail/generics/const_generic_run
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** `ProgramEntry` settles uniformly across all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). The backing array `[u8; 4]` and slice descriptor `&[u8]` validate target layout plans (`size_of` 1-byte elements, 8-byte pointer + 8-byte length view). `CallPlan` and `StatePlan` allocate runtime value-binder arguments into standard ABI parameter registers or stack locations according to calling conventions.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects byte-indexed load instructions (`movzx` with base+index displacement on `x86_64`, `ldrb` on `arm64`), assigns register homes and disjoint stack-frame storage for the `[u8; 4]` backing array, and inserts entry prologues and multi-return epilogues respecting the `StatePlan` frame ceiling.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements resolve for the local array buffer, basic blocks and branch targets relax with offset reflow, machine-state footprint evidence validates transitive usage, and direct native binary emission produces functional executables agreeing with Terminal Psi (`omega run --both` exit 0).
+
+## Build-owned target-body migration
+
+The `target_body` place carries no source target prefix. Its four prefixed
+`read_at` bodies became the requirement `SelectedReadAt::read_at`, implemented by
+ordinary `X86...` and `Arm...` implementations and selected by explicit
+target-keyed `Build::select_provider` rows (`BUILD-OWNED-TARGET-SELECTION`).
+The operation, inputs, contracts and exit oracle are unchanged. The entry
+wrapper and each implementation check a target tag through a second selected
+requirement (17 for x86-64, 29 for AArch64), so a wrong Build row traps.
+Observed with the optimized producer at `11bdd2fe41f` on macOS x86-64: the
+migrated positive exits 0 under `omega run --both` (native and Terminal Psi
+agree), and the twin and the out-of-bounds control still reject for the missing `Index < items.len` fact. No compiler change was needed. The other hosted
+targets were not executed here.
