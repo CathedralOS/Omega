@@ -749,12 +749,23 @@ impl CompileReport {
     /// replaying the complete report custody checks, including the
     /// package/executable cross-binding. Flat publications, non-executable
     /// reports, and any drifted receipt graph expose no path at all.
+    ///
+    /// The package receipt must replay on its own and name the same installed
+    /// executable as the flat executable receipt, and its application name
+    /// and identifier must equal the identity this report retained from
+    /// realization. The identifier signed into the executable was compared at
+    /// publication; this join keeps a receipt that agrees only with itself
+    /// from surfacing as the report's package.
     pub fn checked_native_package_path(&self) -> Option<&std::path::Path> {
-        if !matches!(self.product, CompileProduct::NativeExecutable(_)) {
+        let CompileProduct::NativeExecutable(product) = &self.product else {
             return None;
-        }
-        self.package_publication()
-            .map(NativePackagePublicationReceipt::package_root)
+        };
+        let package = product.package.as_ref()?;
+        let retained_identity_matches = product.application.name.as_deref()
+            == Some(package.application_name())
+            && product.application.identifier.as_ref() == Some(package.application_identifier());
+        (retained_identity_matches && package.binds_executable(&product.executable))
+            .then(|| package.package_root())
     }
 
     /// The checked package receipt for a published `.app`, when this report
@@ -775,3 +786,6 @@ impl CompileReport {
         )
     }
 }
+
+#[cfg(test)]
+mod package_path_tests;
