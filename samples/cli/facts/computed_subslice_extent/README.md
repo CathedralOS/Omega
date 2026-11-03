@@ -116,3 +116,16 @@ Authority comes from [invocation contracts](../../../../wiki/spec/language/state
 [checked predicate consequences](../../../../wiki/spec/language/dependent_values.md#collection-invariants),
 [exact subslice descriptors](../../../../wiki/spec/terminal-psi/byte_views.md), and
 [live fact identity](../../../../wiki/spec/terminal-psi/fact_validity.md).
+
+## Build-selected source migration baseline
+
+`BUILD-OWNED-TARGET-SELECTION` owns the remaining target-place migration.
+The four identical bodies will become one ordinary checked implementation with
+four explicit target-keyed Build selections. The full `can_window` requirement,
+computed endpoints, extent two, offset-one read, original backing bytes 37 and 53
+and exit zero stay fixed. Each twin still weakens only the predicate bound.
+
+The original row and three related invalid controls are frozen against published
+base `2977bfb92a918ff4c3f83b36cb092c52484f0f84`. Focused optimized baseline observations are pending before
+source migration or compiler edits. No new compiler defect or current success
+is claimed. Earlier observations above keep their historical producer stamps.
