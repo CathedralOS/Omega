@@ -154,6 +154,14 @@ stored carrier and multiplicity used by initialized locals. The strict
 replacement-custody check stays in place; no old pointer or valid value is
 invented. The other 22 positives and all 39 invalid controls kept their outcomes.
 
+Run [41593563009](https://github.com/CathedralOS/Omega/actions/runs/41593563009)
+cleared the stored-carrier mismatch. The shared-view control passed both engines
+with its unchanged exit `70`; the other 22 healthy positives passed with exit
+`0`, and all 39 invalid controls rejected correctly. The frozen reference-local
+case now lacks a current storage lookup later in Terminal production. A focused
+diagnostic is identifying the exact source and caller before any transfer or
+retirement rule changes. Public projects did not run; acceptance is unfinished.
+
 The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
 on the frozen baseline in
 [41558699182](https://github.com/CathedralOS/Omega/actions/runs/41558699182).

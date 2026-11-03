@@ -449,6 +449,7 @@ impl Evaluation {
     /// Resolve a completed value's storage and selected subtree. Retirement
     /// and replacement share this identity join. Result registries differ
     /// between ordinary and graph bodies; the caller supplies its registry.
+    #[track_caller]
     pub(crate) fn value_storage(
         &self,
         source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
@@ -501,9 +502,18 @@ impl Evaluation {
                     } => facts::PlaceRoot::Expression(expression),
                     _ => return unsupported("value storage source has no storage identity"),
                 };
-                let local = structural_local_by_root(&self.structural_locals, root).ok_or(
-                    LoweringError::Unsupported("value storage local is not established"),
-                )?;
+                let Some(local) = structural_local_by_root(&self.structural_locals, root) else {
+                    let caller = std::panic::Location::caller();
+                    eprintln!(
+                        "corpus_runner: VALUE_STORAGE_TRACE caller={}:{} source={source:?} root={root:?} current={:?} retired_homes={:?} retired_bindings={:?}",
+                        caller.file(),
+                        caller.line(),
+                        self.structural_locals,
+                        self.retired_structural_homes,
+                        self.retired_structural_bindings,
+                    );
+                    return unsupported("value storage local is not established");
+                };
                 StructuralValueStorage {
                     place: local.argument.place,
                     path: local.argument.path.clone(),
