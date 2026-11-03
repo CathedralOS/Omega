@@ -600,15 +600,9 @@ fn rebase_borrow_places_following(
                 source_owner_symbol: source_loan.owner_symbol,
                 parent_loan: source_loan.handle,
                 source_loan: source_loan.handle,
-                // A call-result root is retained for receiver resolution but
-                // carries no borrow ancestry: children formed through it stay
-                // derived, so the reborrow resource model never sees more than
-                // the suspension shapes it can represent.
-                parent_lineage_is_retained: matches!(
-                    source_loan.lineage,
-                    checked_trees::BorrowLoanLineage::DirectRoot
-                        | checked_trees::BorrowLoanLineage::Reborrow { .. }
-                ) && !source_loan.call_result,
+                // Only the formation owner joins an exact permission parent;
+                // ordinary geometry rebasing does not establish ancestry.
+                parent_lineage_is_retained: false,
             }
         })
         .flat_map(|source| {

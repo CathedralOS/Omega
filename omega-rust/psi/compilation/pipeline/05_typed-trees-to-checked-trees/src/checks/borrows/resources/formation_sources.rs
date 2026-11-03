@@ -53,6 +53,14 @@ pub(super) fn validate(
                         "view formation lost its exact evaluated source",
                     )]
                 })?;
+            // A field or indexed place carries its evaluated address receiver.
+            // Follow that typed projection to the descriptor lending access;
+            // selector operands and equal backing footprints supply none.
+            let capture = descriptor_capture(program, facts, capture).ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "view source lost its captured reference boundary",
+                )]
+            })?;
             let captured = facts.flow.control.operands.get(capture);
             let Some(source_type) = validation::reference_shell(program, captured.type_reference)
             else {
@@ -83,7 +91,7 @@ pub(super) fn validate(
                 &mut selected,
                 &mut arena::Arena::new(),
             ) {
-                return refusal("view formation has incomplete captured permission suppliers");
+                return refusal(&format!("view formation has incomplete captured permission suppliers; source completion {:?}, snapshot {:?}, retained profile {:?}, reference leaves {}", captured.completion, captured.storage_snapshot, captured.retention, captured.reference_leaves.count()));
             }
             let mut parents = Vec::new();
             for source in selected {
@@ -115,6 +123,25 @@ pub(super) fn validate(
         }
     }
     Ok(())
+}
+
+fn descriptor_capture(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    source: Handle<FlowOperandFact>,
+) -> Option<Handle<FlowOperandFact>> {
+    let mut capture = source;
+    let mut visited = Vec::new();
+    while facts.flow.control.operands.is_valid(capture) && !visited.contains(&capture) {
+        visited.push(capture);
+        let row = facts.flow.control.operands.get(capture);
+        if validation::reference_shell(program, row.type_reference).is_some() {
+            return Some(capture);
+        }
+        row.address_projection?;
+        capture = row.backing;
+    }
+    None
 }
 
 fn formation_capture(

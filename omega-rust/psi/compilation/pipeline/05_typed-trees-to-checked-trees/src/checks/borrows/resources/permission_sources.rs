@@ -90,6 +90,16 @@ pub(super) fn collect(
     let frozen = frozen_reference_leaf(program, &facts.flow.control, source, projection);
     let resolved = if matches!(&frozen, FrozenReferenceSelection::Unavailable) {
         false
+    } else if collect_completed_formations(
+        program,
+        facts,
+        state,
+        source,
+        projection,
+        output_access,
+        output,
+    ) {
+        true
     } else if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion
     {
         facts
@@ -287,6 +297,51 @@ pub(super) fn collect(
         output.truncate(before);
     }
     resolved
+}
+
+/// Resolve the installed descriptor generation before joining a loan. A later
+/// read has a different expression from its initializer; the completed-storage
+/// relation carries that exact earlier formation without rereading its slot.
+fn collect_completed_formations(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    source: Handle<FlowOperandFact>,
+    projection: &[facts::PlaceSegment],
+    access: &checked_trees::BorrowAccessKind,
+    output: &mut Vec<PermissionSupplier>,
+) -> bool {
+    let capture = facts.flow.control.operands.get(source);
+    let selected = validation::completed_storage::reference_captures_at_path(
+        program,
+        &facts.flow.control,
+        source,
+        projection,
+        capture.storage_snapshot,
+    )
+    .and_then(|selection| selection.captures());
+    let Some(selected) = selected.filter(|selected| !selected.is_empty()) else {
+        return false;
+    };
+    let before = output.len();
+    for selected in selected {
+        if !facts.flow.control.operands.is_valid(selected.capture)
+            || !collect_formed_projection(
+                program,
+                facts,
+                state,
+                selected.capture,
+                facts.flow.control.operands.get(selected.capture),
+                &selected.projection,
+                access,
+                output,
+            )
+        {
+            output.truncate(before);
+            return false;
+        }
+    }
+    true
 }
 
 /// Exact checked access occurrences are permission evidence for a whole
