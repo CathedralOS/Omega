@@ -43,7 +43,7 @@ impl StoredValues {
     }
 
     /// The first position holding `coordinate`.
-    pub(super) fn position(&self, coordinate: &CapturedStorageCoordinate) -> Option<usize> {
+    fn position(&self, coordinate: &CapturedStorageCoordinate) -> Option<usize> {
         let mut candidate = *self.last_with_key.get(&coordinate.search_key())?;
         let mut first = None;
         while candidate != NO_POSITION {
@@ -54,6 +54,31 @@ impl StoredValues {
             candidate = self.previous_with_key[position];
         }
         first
+    }
+
+    /// The first value stored at `coordinate`.
+    pub(super) fn value_at(
+        &self,
+        coordinate: &CapturedStorageCoordinate,
+    ) -> Option<&CapturedStorageValue> {
+        Some(&self.values[self.position(coordinate)?])
+    }
+
+    /// The first value stored at `coordinate`, for updating its observations.
+    pub(super) fn value_at_mut(
+        &mut self,
+        coordinate: &CapturedStorageCoordinate,
+    ) -> Option<&mut CapturedStorageValue> {
+        let position = self.position(coordinate)?;
+        Some(&mut self.values[position])
+    }
+
+    /// Callers may update each value's observations in place; none rewrites
+    /// its coordinate, which the index is keyed by, or reorders the values.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn iter_mut(
+        &mut self,
+    ) -> std::slice::IterMut<'_, CapturedStorageValue> {
+        self.values.iter_mut()
     }
 
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn push(
@@ -106,14 +131,6 @@ impl std::ops::Deref for StoredValues {
 
     fn deref(&self) -> &Self::Target {
         &self.values
-    }
-}
-
-/// Callers may update a value's observations in place; none rewrites its
-/// coordinate, which the index is keyed by.
-impl std::ops::DerefMut for StoredValues {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.values
     }
 }
 

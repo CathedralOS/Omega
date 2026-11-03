@@ -131,9 +131,8 @@ impl StructuralJudge<'_> {
                 representation: None,
             });
             self.retain_storage_value(coordinate.clone(), value, false);
-            if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                .iter_mut()
-                .find(|stored| stored.coordinate == coordinate)
+            if let Some(stored) =
+                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&coordinate)
             {
                 stored.backing = Some(CapturedScalarReadBacking {
                     dependencies: backing,
@@ -186,9 +185,8 @@ impl StructuralJudge<'_> {
         }
         self.retain_storage_value(storage.coordinate.clone(), value, false);
         if let Some(backing) = backing
-            && let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                .iter_mut()
-                .find(|stored| stored.coordinate == storage.coordinate)
+            && let Some(stored) =
+                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&storage.coordinate)
         {
             stored.backing = Some(backing);
         }

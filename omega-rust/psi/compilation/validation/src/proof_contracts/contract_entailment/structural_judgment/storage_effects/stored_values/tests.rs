@@ -46,15 +46,43 @@ fn finds_each_slot_and_no_absent_one() {
     assert_eq!(stored.position(&coordinate(vec![slot(0), slot(0)])), None);
 }
 
-/// Index selectors share a key, so lookup must still tell their terms apart.
+/// Float selectors all share one key, so lookup must walk past an unequal
+/// candidate with that key to find the equal one, and miss when none is.
 #[test]
-fn distinguishes_index_selectors_with_equal_keys() {
+fn walks_past_unequal_coordinates_that_share_a_key() {
+    let float = |value: f64| {
+        CapturedStorageSegment::Index(StructuralTerm::Float(
+            numerics::literals::FloatLiteral::new(value),
+        ))
+    };
+    assert_eq!(
+        coordinate(vec![float(1.5)]).search_key(),
+        coordinate(vec![float(2.5)]).search_key()
+    );
     let mut stored = StoredValues::default();
-    stored.push(observed(coordinate(vec![selector(7)]), 0));
-    stored.push(observed(coordinate(vec![selector(9)]), 1));
-    assert_eq!(stored.position(&coordinate(vec![selector(9)])), Some(1));
-    assert_eq!(stored.position(&coordinate(vec![selector(7)])), Some(0));
+    stored.push(observed(coordinate(vec![float(1.5)]), 0));
+    stored.push(observed(coordinate(vec![float(2.5)]), 1));
+    stored.push(observed(coordinate(vec![selector(7)]), 2));
+    assert_eq!(stored.position(&coordinate(vec![float(1.5)])), Some(0));
+    assert_eq!(stored.position(&coordinate(vec![float(2.5)])), Some(1));
+    assert_eq!(stored.position(&coordinate(vec![float(3.5)])), None);
+    assert_eq!(stored.position(&coordinate(vec![selector(7)])), Some(2));
     assert_eq!(stored.position(&coordinate(vec![selector(8)])), None);
+}
+
+/// An update by coordinate reaches the first value stored there.
+#[test]
+fn updates_reach_the_first_equal_value() {
+    let mut stored = StoredValues::from_values(vec![
+        observed(coordinate(vec![slot(1)]), 0),
+        observed(coordinate(vec![slot(1)]), 1),
+    ]);
+    stored
+        .value_at_mut(&coordinate(vec![slot(1)]))
+        .expect("a stored slot")
+        .current = Some(StructuralTerm::Integer(BigInt::from_u64(9)));
+    assert!(stored[0].current.is_some());
+    assert!(stored[1].current.is_none());
 }
 
 /// A repeated coordinate resolves to its first position, as a front-to-back

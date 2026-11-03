@@ -441,10 +441,9 @@ impl StructuralJudge<'_> {
             );
             if let Some(backing) = backing
                 && let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                    .iter_mut()
-                    .find(|stored| {
-                        stored.coordinate.root == facts::PlaceRoot::Symbol(parameter.symbol)
-                            && stored.coordinate.segments.is_empty()
+                    .value_at_mut(&CapturedStorageCoordinate {
+                        root: facts::PlaceRoot::Symbol(parameter.symbol),
+                        segments: Vec::new(),
                     })
             {
                 stored.backing = Some(backing);
@@ -500,9 +499,8 @@ impl StructuralJudge<'_> {
             };
             let backing = self.freeze_entry_read_backing(state, backing);
             self.retain_storage_value(place.clone(), value, true);
-            if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                .iter_mut()
-                .find(|stored| stored.coordinate == place)
+            if let Some(stored) =
+                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&place)
             {
                 stored.backing = Some(backing);
                 // No executable read was observed while admitting a Requires.
@@ -1183,9 +1181,7 @@ impl StructuralJudge<'_> {
             }
             _ => self.retain_storage_value(place.clone(), value, entry),
         }
-        if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-            .iter_mut()
-            .find(|stored| stored.coordinate == place)
+        if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&place)
         {
             stored.completed_read = Some((expression, self.storage_write_sequence));
             stored.backing = backing;
@@ -1237,8 +1233,7 @@ impl StructuralJudge<'_> {
             .storage_version
             .map_or_else(SymbolHandle::invalid, |version| version.state);
         let values = std::sync::Arc::make_mut(&mut self.stored_values);
-        if let Some(position) = values.position(&coordinate) {
-            let stored = &mut values[position];
+        if let Some(stored) = values.value_at_mut(&coordinate) {
             if entry && stored.entry.is_none() {
                 stored.entry = Some(value.clone());
             }
@@ -1380,8 +1375,7 @@ impl StructuralJudge<'_> {
         let coordinate = self.capture_storage_place(place.clone())?;
         let active_case = self
             .stored_values
-            .iter()
-            .find(|stored| stored.coordinate == coordinate)
+            .value_at(&coordinate)
             .and_then(|stored| stored.selected_case);
         if super::super::struct_trace() {
             eprintln!(
@@ -1486,11 +1480,7 @@ impl StructuralJudge<'_> {
         {
             return Some(value);
         }
-        if let Some(stored) = self
-            .stored_values
-            .iter()
-            .find(|stored| stored.coordinate == *coordinate)
-        {
+        if let Some(stored) = self.stored_values.value_at(coordinate) {
             let value = match version {
                 ContentPlaceVersion::Entry => stored.entry.clone(),
                 ContentPlaceVersion::Current => stored.current.clone(),
@@ -1765,8 +1755,8 @@ impl StructuralJudge<'_> {
                     })
             {
                 let values = std::sync::Arc::make_mut(&mut self.stored_values);
-                if let Some(position) = values.position(&prefix) {
-                    values[position].selected_case = Some(*variant);
+                if let Some(stored) = values.value_at_mut(&prefix) {
+                    stored.selected_case = Some(*variant);
                 } else {
                     values.push(CapturedStorageValue {
                         coordinate: prefix.clone(),
