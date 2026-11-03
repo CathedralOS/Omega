@@ -9,10 +9,11 @@ use crate::{CodecError, decode_module, encode_module};
 use semantic_vocabulary::{MachineId, OperationId, ScalarQualificationSetId, ScalarType, ValueId};
 use terminal_psi::{Operation, OperationKind, OperationResult, TerminalModule, ValueDeclaration};
 
-/// Tags with no table row: 71 and 72 were never assigned, the others are
-/// retired, and 133 onward lie past the current inventory. A new operation
-/// that takes one of these tags must also gain its row in
-/// `wiki/spec/terminal-psi/encoding.md`.
+/// Tags that no current operation decodes. 71 and 72 were never assigned.
+/// The other tags below 133 are retired; some keep a table row marked
+/// retired, and none may be reused. Tags from 133 onward lie past the
+/// current inventory. A new operation takes the next free tag, and it must
+/// gain its row in `wiki/spec/terminal-psi/encoding.md`.
 const TAGS_WITHOUT_TABLE_ROWS: [u8; 19] = [
     0, 48, 49, 51, 52, 53, 54, 55, 57, 61, 67, 71, 72, 73, 74, 76, 80, 82, 87,
 ];
