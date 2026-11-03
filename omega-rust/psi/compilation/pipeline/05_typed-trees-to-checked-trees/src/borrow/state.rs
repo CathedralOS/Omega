@@ -230,6 +230,7 @@ pub(super) fn append_state_borrow_facts(
         arenas.argument_accesses,
         state_loan_trackers,
         arenas.loans,
+        arenas.loan_suppliers,
     );
 
     arenas.states.append(StateBorrowFact {
@@ -320,6 +321,34 @@ pub(super) fn append_carrier_loans(
         let owner_path = arenas
             .owner_segments
             .insert_many(pending.owner_path.iter().copied());
+        let mut permission_sources = Vec::new();
+        if pending.lineage == checked_trees::BorrowLoanLineage::UnretainedDerived
+            && !pending.supplying_loans.is_empty()
+        {
+            let mut complete = true;
+            for supplier in &pending.supplying_loans {
+                let Some(source) = history.iter().find(|source| source.handle == *supplier) else {
+                    complete = false;
+                    break;
+                };
+                if source.owner_symbol != pending.source_owner_symbol
+                    || source.kind.direct_reborrow_effect(&pending.kind).is_none()
+                    || source.permission_sources.is_empty()
+                {
+                    complete = false;
+                    break;
+                }
+                for parent in &source.permission_sources {
+                    crate::shared::collections::push_unique(
+                        &mut permission_sources,
+                        parent.clone(),
+                    );
+                }
+            }
+            if !complete {
+                permission_sources.clear();
+            }
+        }
         let handle = arenas.loans.append_to_span(
             loans_span,
             BorrowLoanFact {
@@ -348,7 +377,19 @@ pub(super) fn append_carrier_loans(
                 kind: pending.kind.clone(),
             },
         );
+        if matches!(
+            pending.lineage,
+            checked_trees::BorrowLoanLineage::DirectRoot
+                | checked_trees::BorrowLoanLineage::Reborrow { .. }
+        ) && !pending.call_result
+        {
+            permission_sources.push(super::tracker::RetainedBorrowSource {
+                loan: handle,
+                owner_symbol: pending.owner_symbol,
+            });
+        }
         let tracker = StateLoanTracker {
+            permission_sources,
             handle,
             owner_symbol: pending.owner_symbol,
             storage_owner: pending.storage_owner,
@@ -531,6 +572,7 @@ fn append_incoming_reference_trackers(
                     lineage: BorrowLoanLineage::LifetimeDependency,
                     representation_address: None,
                     call_result: false,
+                    permission_sources: Vec::new(),
                     owner_path,
                     retained_operand: None,
                     place: CapturedPlace {
@@ -602,6 +644,7 @@ fn append_incoming_reference_trackers(
                 kind,
                 lineage: BorrowLoanLineage::UnretainedDerived,
                 call_result: false,
+                permission_sources: Vec::new(),
                 owner_path,
                 retained_operand: None,
                 place: CapturedPlace {

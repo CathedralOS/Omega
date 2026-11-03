@@ -11,7 +11,7 @@
 //! type, but its collection element must have no unresolved permission carriers.
 //! These rows retain demands; they authorize no access, restoration or parking.
 
-mod suppliers;
+use super::permission_sources;
 
 use crate::checks::borrows::access_sources::resolve_captured_all;
 use crate::checks::borrows::aliases::ResolvedAlias;
@@ -175,7 +175,7 @@ fn collect(
     }
     if let Some(reference) = validation::reference_shell(program, capture.type_reference) {
         let access = checked_trees::BorrowAccessKind::from(reference.access);
-        suppliers::collect(
+        collect_suppliers(
             program,
             facts,
             state,
@@ -217,7 +217,7 @@ fn collect(
                 let mut complete = Vec::new();
                 let mut resolved = !selected.is_empty();
                 for selected in selected {
-                    if !suppliers::collect(
+                    if !collect_suppliers(
                         program,
                         facts,
                         state,
@@ -300,6 +300,61 @@ fn collect(
             });
         }
     }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn collect_suppliers(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    call: Handle<FlowCallFact>,
+    owner_operand: Handle<FlowOperandFact>,
+    operand: Handle<FlowOperandFact>,
+    source: Handle<FlowOperandFact>,
+    projection: &[facts::PlaceSegment],
+    path: &[BorrowLoanOwnerSegment],
+    output_access: &checked_trees::BorrowAccessKind,
+    retained_by_store: bool,
+    active: &mut Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>)>,
+    output: &mut Vec<ResourceDraft>,
+    parents: &mut Arena<Handle<BorrowLoanFact>>,
+) -> bool {
+    let mut suppliers = Vec::new();
+    if !permission_sources::collect(
+        program,
+        facts,
+        state,
+        call,
+        source,
+        projection,
+        output_access,
+        retained_by_store,
+        active,
+        &mut suppliers,
+        parents,
+    ) {
+        return false;
+    }
+    output.extend(suppliers.into_iter().map(|supplier| ResourceDraft {
+        resource: CheckedCallBorrowLoanResource {
+            machine_symbol: state.machine_symbol,
+            state_symbol: state.state_symbol,
+            call,
+            owner_operand,
+            operand,
+            source: supplier.source,
+            access: output_access.clone(),
+            parent_lifetime: CheckedDirectBorrowParentLifetime {
+                machine_symbol: state.machine_symbol,
+                state_symbol: state.state_symbol,
+                root: supplier.backing.root,
+            },
+            ..Default::default()
+        },
+        path: path.to_vec(),
+        backing: supplier.backing,
+    }));
+    true
 }
 
 pub(in crate::checks::borrows) use validation::completed_storage::{

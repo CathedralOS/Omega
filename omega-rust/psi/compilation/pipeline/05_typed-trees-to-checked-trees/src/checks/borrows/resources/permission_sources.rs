@@ -4,51 +4,37 @@
 //! carry that supplier. Neither equal geometry nor lifetime roots create this
 //! association. Every alternative must resolve, and cycles withhold coverage.
 
-use super::{
-    Arena, BorrowLoanFact, BorrowLoanOwnerSegment, CheckFacts, FlowCallFact, FlowOperandFact,
-    FlowStateFact, Handle, ResourceDraft,
-};
+use super::call_operands::{FrozenReferenceSelection, frozen_reference_leaf, retained_places};
 use crate::borrow::{owner_path_from_place_segments, owner_place_segments};
 use crate::published::places::place_at;
-use checked_trees::{
-    CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource, CheckedDirectBorrowParentLifetime,
-};
+use arena::{Arena, Handle};
+use checked_trees::CheckedCallBorrowLoanSource;
+use checked_trees::{BorrowLoanFact, CheckFacts, FlowCallFact, FlowOperandFact, FlowStateFact};
+
+/// Permission selected by an exact completed descriptor. Its consumer owns
+/// destination paths and invocation coordinates separately.
+pub(super) struct PermissionSupplier {
+    pub(super) source: CheckedCallBorrowLoanSource,
+    pub(super) backing: checked_trees::CapturedPlace,
+}
 
 pub(super) fn collect(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
-    owner_operand: Handle<FlowOperandFact>,
-    operand: Handle<FlowOperandFact>,
     source: Handle<FlowOperandFact>,
     projection: &[facts::PlaceSegment],
-    path: &[BorrowLoanOwnerSegment],
     output_access: &checked_trees::BorrowAccessKind,
     retained_by_store: bool,
     active: &mut Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>)>,
-    output: &mut Vec<ResourceDraft>,
+    output: &mut Vec<PermissionSupplier>,
     parents: &mut Arena<Handle<BorrowLoanFact>>,
 ) -> bool {
     macro_rules! push_stored_loan {
         ($loan:expr, $row:expr) => {
-            output.push(ResourceDraft {
-                resource: CheckedCallBorrowLoanResource {
-                    machine_symbol: state.machine_symbol,
-                    state_symbol: state.state_symbol,
-                    call,
-                    owner_operand,
-                    operand,
-                    source: CheckedCallBorrowLoanSource::StoredLoan { loan: $loan },
-                    access: output_access.clone(),
-                    parent_lifetime: CheckedDirectBorrowParentLifetime {
-                        machine_symbol: state.machine_symbol,
-                        state_symbol: state.state_symbol,
-                        root: $row.root,
-                    },
-                    ..Default::default()
-                },
-                path: path.to_vec(),
+            output.push(PermissionSupplier {
+                source: CheckedCallBorrowLoanSource::StoredLoan { loan: $loan },
                 backing: checked_trees::CapturedPlace {
                     incoming_reference: $row.incoming_reference,
                     incoming_owner_path: facts
@@ -69,11 +55,8 @@ pub(super) fn collect(
                 facts,
                 state,
                 call,
-                owner_operand,
-                operand,
                 $source,
                 $projection,
-                path,
                 output_access,
                 $retained_by_store,
                 active,
@@ -104,8 +87,8 @@ pub(super) fn collect(
         capture.retention,
         &mut Vec::new(),
     );
-    let frozen = super::frozen_reference_leaf(program, &facts.flow.control, source, projection);
-    let resolved = if matches!(&frozen, super::FrozenReferenceSelection::Unavailable) {
+    let frozen = frozen_reference_leaf(program, &facts.flow.control, source, projection);
+    let resolved = if matches!(&frozen, FrozenReferenceSelection::Unavailable) {
         false
     } else if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion
     {
@@ -121,7 +104,7 @@ pub(super) fn collect(
                             && collect_supplier!(alternative.value, projection, retained_by_store)
                     })
             })
-    } else if let super::FrozenReferenceSelection::Endpoint {
+    } else if let FrozenReferenceSelection::Endpoint {
         owner,
         leaf,
         path: leaf_path,
@@ -152,10 +135,7 @@ pub(super) fn collect(
                     facts,
                     state,
                     call,
-                    owner_operand,
-                    operand,
                     capture,
-                    path,
                     output_access,
                     retained_by_store,
                     output,
@@ -243,13 +223,9 @@ pub(super) fn collect(
                             program,
                             facts,
                             state,
-                            call,
-                            owner_operand,
-                            operand,
                             source,
                             capture,
                             projection,
-                            path,
                             output_access,
                             output,
                         );
@@ -280,10 +256,7 @@ pub(super) fn collect(
             facts,
             state,
             call,
-            owner_operand,
-            operand,
             capture,
-            path,
             output_access,
             retained_by_store,
             output,
@@ -330,15 +303,15 @@ fn collect_invocation_accesses(
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
-    owner_operand: Handle<FlowOperandFact>,
-    operand: Handle<FlowOperandFact>,
     capture: &FlowOperandFact,
-    path: &[BorrowLoanOwnerSegment],
-    output_access: &checked_trees::BorrowAccessKind,
+    _output_access: &checked_trees::BorrowAccessKind,
     retained_by_store: bool,
-    output: &mut Vec<ResourceDraft>,
+    output: &mut Vec<PermissionSupplier>,
     parents: &mut Arena<Handle<BorrowLoanFact>>,
 ) -> InvocationAccessCoverage {
+    if !facts.flow.control.calls.is_valid(call) {
+        return InvocationAccessCoverage::Absent;
+    }
     let invocation = facts.flow.control.calls.get(call);
     let accesses = invocation
         .accesses
@@ -355,7 +328,7 @@ fn collect_invocation_accesses(
     let before = output.len();
     for access in accesses {
         let row = facts.borrow.argument_accesses.get(access);
-        let Some(backings) = super::retained_places(
+        let Some(backings) = retained_places(
             program,
             facts,
             state,
@@ -376,26 +349,11 @@ fn collect_invocation_accesses(
             return InvocationAccessCoverage::Unavailable;
         }
         for backing in backings {
-            output.push(ResourceDraft {
-                resource: CheckedCallBorrowLoanResource {
-                    machine_symbol: state.machine_symbol,
-                    state_symbol: state.state_symbol,
-                    call,
-                    owner_operand,
-                    operand,
-                    source: CheckedCallBorrowLoanSource::CallAccess {
-                        access,
-                        parents: parents.insert_many(backing.lineage),
-                    },
-                    access: output_access.clone(),
-                    parent_lifetime: CheckedDirectBorrowParentLifetime {
-                        machine_symbol: state.machine_symbol,
-                        state_symbol: state.state_symbol,
-                        root: backing.place.root,
-                    },
-                    ..Default::default()
+            output.push(PermissionSupplier {
+                source: CheckedCallBorrowLoanSource::CallAccess {
+                    access,
+                    parents: parents.insert_many(backing.lineage),
                 },
-                path: path.to_vec(),
                 backing: backing.place,
             });
         }
@@ -412,15 +370,11 @@ fn collect_formed_projection(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
-    call: Handle<FlowCallFact>,
-    owner_operand: Handle<FlowOperandFact>,
-    operand: Handle<FlowOperandFact>,
     source: Handle<FlowOperandFact>,
     capture: &FlowOperandFact,
     projection: &[facts::PlaceSegment],
-    path: &[BorrowLoanOwnerSegment],
     output_access: &checked_trees::BorrowAccessKind,
-    output: &mut Vec<ResourceDraft>,
+    output: &mut Vec<PermissionSupplier>,
 ) -> bool {
     if capture.state_symbol != state.state_symbol
         || !capture.expression.is_valid()
@@ -482,23 +436,8 @@ fn collect_formed_projection(
         {
             continue;
         }
-        output.push(ResourceDraft {
-            resource: CheckedCallBorrowLoanResource {
-                machine_symbol: state.machine_symbol,
-                state_symbol: state.state_symbol,
-                call,
-                owner_operand,
-                operand,
-                source: CheckedCallBorrowLoanSource::StoredLoan { loan },
-                access: output_access.clone(),
-                parent_lifetime: CheckedDirectBorrowParentLifetime {
-                    machine_symbol: state.machine_symbol,
-                    state_symbol: state.state_symbol,
-                    root: row.root,
-                },
-                ..Default::default()
-            },
-            path: path.to_vec(),
+        output.push(PermissionSupplier {
+            source: CheckedCallBorrowLoanSource::StoredLoan { loan },
             backing: checked_trees::CapturedPlace {
                 incoming_reference: row.incoming_reference,
                 incoming_owner_path: facts

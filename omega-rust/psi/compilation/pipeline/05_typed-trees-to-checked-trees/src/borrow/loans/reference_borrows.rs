@@ -231,7 +231,9 @@ pub(super) fn reference_local_borrow_loans(
             place: source.place.clone(),
             retained_operand: source.retained_operand,
             source_owner_symbol: source.source_owner_symbol,
-            supplying_loans: Vec::new(),
+            supplying_loans: std::iter::once(source.source_loan)
+                .filter(|loan| loan.is_valid() && *loan != source.parent_loan)
+                .collect(),
             lineage: retained_reference_lineage(
                 program,
                 local_data.initial_value,

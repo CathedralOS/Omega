@@ -139,7 +139,9 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                     place: source.place.clone(),
                     retained_operand: source.retained_operand,
                     source_owner_symbol: source.source_owner_symbol,
-                    supplying_loans: Vec::new(),
+                    supplying_loans: std::iter::once(source.source_loan)
+                        .filter(|loan| loan.is_valid() && *loan != source.parent_loan)
+                        .collect(),
                     lineage: retained_reference_lineage(
                         program,
                         initializer.expression,
@@ -283,7 +285,9 @@ pub(super) fn aggregate_expression_borrow_loans(
                     place: source.place.clone(),
                     retained_operand: source.retained_operand,
                     source_owner_symbol: source.source_owner_symbol,
-                    supplying_loans: Vec::new(),
+                    supplying_loans: std::iter::once(source.source_loan)
+                        .filter(|loan| loan.is_valid() && *loan != source.parent_loan)
+                        .collect(),
                     lineage: retained_reference_lineage(program, expression, source, &rebased),
                     kind: if is_mutably_borrow_carrying_data(program, type_reference) {
                         checked_trees::BorrowAccessKind::Mutable

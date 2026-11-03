@@ -127,6 +127,8 @@ struct RebasedBorrowPlace {
     source_owner_symbol: SymbolHandle,
     parent_loan: Handle<checked_trees::BorrowLoanFact>,
     parent_lineage_is_retained: bool,
+    /// Exact descriptor occurrence read before transparent copies were followed.
+    source_loan: Handle<checked_trees::BorrowLoanFact>,
     /// Nonspatial debt carries the actual supplier's access. A nominal lifetime
     /// slot neither attenuates an exclusive loan nor grants a reference view.
     lifetime_access: Option<checked_trees::BorrowAccessKind>,

@@ -471,6 +471,16 @@ pub struct CheckedDirectBorrowRestorationObligation {
     pub weakening_reason: crate::FlowBorrowWeakeningReason,
 }
 
+/// A resource remains held by every exact transported descriptor after its
+/// original slot retires. Keep the lexical retirement and final holding event
+/// distinct; neither a later slot generation nor equal geometry is a holder.
+#[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedBorrowResourceRetention {
+    pub lexical_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    pub holders: HandleSpan<Handle<BorrowLoanFact>>,
+    pub final_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+}
+
 /// Checked-only resource closure for one state-local loan captured directly
 /// from a root authority occurrence.
 ///
@@ -486,6 +496,7 @@ pub struct CheckedDirectBorrowLoanResource {
     pub captured_place: CapturedPlace,
     pub access: BorrowAccessKind,
     pub activation_source: crate::FlowInvalidationSource,
+    pub retention: CheckedBorrowResourceRetention,
     pub weakening_source: crate::FlowInvalidationSource,
     pub weakening_reason: crate::FlowBorrowWeakeningReason,
     pub parent_lifetime: CheckedDirectBorrowParentLifetime,
@@ -543,6 +554,8 @@ pub struct CheckedReborrowParentSuspensionBoundary {
     pub parent_resource: CheckedParentBorrowResource,
     pub child_activation: Handle<crate::FlowBorrowActivationFact>,
     pub parent_entry_constraint: Handle<crate::FlowConstraintRef>,
+    /// The current descriptor forwarding this parent permission at formation.
+    pub source_loan: Handle<BorrowLoanFact>,
     pub source: crate::FlowInvalidationSource,
 }
 
@@ -699,6 +712,7 @@ pub struct CheckedReborrowLoanResource {
     pub parent_access: BorrowAccessKind,
     pub access_effect: CheckedReborrowAccessEffect,
     pub activation_source: crate::FlowInvalidationSource,
+    pub retention: CheckedBorrowResourceRetention,
     pub weakening_source: crate::FlowInvalidationSource,
     pub weakening_reason: crate::FlowBorrowWeakeningReason,
     pub parent_loan: Handle<BorrowLoanFact>,
@@ -728,6 +742,7 @@ pub struct BorrowFacts {
     pub reference_slot_effects: Arena<BorrowCallReferenceSlotEffect>,
     pub loans: Arena<BorrowLoanFact>,
     pub loan_suppliers: Arena<Handle<BorrowLoanFact>>,
+    pub resource_holders: Arena<Handle<BorrowLoanFact>>,
     pub returned_loans: Arena<BorrowReturnedLoanFact>,
     pub states: Arena<StateBorrowFact>,
     /// `(machine, state) -> state rows` grouping owned by this ledger. The
@@ -801,6 +816,7 @@ impl BorrowFacts {
             reference_slot_effects,
             loans,
             loan_suppliers,
+            resource_holders: Arena::new(),
             returned_loans,
             states,
             state_index: KeyedRows::default(),

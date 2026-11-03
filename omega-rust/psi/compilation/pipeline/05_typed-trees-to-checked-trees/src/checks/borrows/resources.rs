@@ -7,8 +7,11 @@
 
 pub(in crate::checks::borrows) mod call_operands;
 mod disposition_events;
+mod formation_sources;
+mod forwarded_lifetimes;
 mod lifecycle;
 mod loan_resources;
+mod permission_sources;
 mod reborrow_drafts;
 mod supplied_permissions;
 
@@ -28,8 +31,10 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     supplied_permissions::validate_normal_output_completions(&facts.borrow, &facts.flow)?;
+    formation_sources::validate(program, facts)?;
+    let retentions = forwarded_lifetimes::plan(facts)?;
     let (direct, reborrows) =
-        reconstruct_borrow_resource_rosters(program, &facts.borrow, &facts.flow)?;
+        reconstruct_borrow_resource_rosters(program, &facts.borrow, &facts.flow, &retentions)?;
     let installation = plan_resource_installation(&direct, &reborrows)?;
     let mut dispositions = plan_reborrow_disposition_events(
         &facts.borrow,
