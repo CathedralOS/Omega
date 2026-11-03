@@ -347,6 +347,9 @@ The programs that depend on the answer:
   `controls/invalid_assumption_one_arg`) make the call. The probe's README says
   the call "records the exact assumption in the selected build", which is
   currently false.
+- `tests/omega/fail/build/component_assumption_{other_builder,swapped,wrong_arity}`
+  pin the call's shape (Build activation, argument types, arity). They reject
+  the same way under Options A and C.
 
 Option A, the Build call is the acceptance input: Build evaluation records each
 digest, with its machine and span, into the evaluated Build result, and the
@@ -360,7 +363,7 @@ re-reading is reintroduced.
 Option B, acceptance belongs to package acceptance policy: assumptions are
 accepted through the lock and acceptance comparison, like other trust-bearing
 decisions, keyed by assumption meaning rather than a spelling. The Build call is
-retired. So are the two fail fixtures, the probe control and the Build calls in
+retired. So are the five `fail/build/component_assumption_*` fixtures, the probe control and the Build calls in
 the four pass fixtures and two samples. The `policy_*` distinction moves to
 lock-acceptance fixtures. The verifier receives the set the lock accepted.
 
