@@ -38,14 +38,18 @@ the only failure case, and it loses the saved public decoder call when selecting
 its implementation. The corrupt twin fails for those same unrelated reasons, so
 that refusal is not preservation evidence.
 
-No completed place is claimed. All nine places, their reject twins and corpus
-mirrors are authored; their compiler and runtime observations remain pending.
+No completed place is claimed. The authored programs and their corpus mirrors
+vary the input Pair's origin, but they all consume the returned result through
+the same local path. Their compiler and runtime observations remain pending.
+They do not close the nine-place row: the completed preservation guarantee
+still needs transport through the remaining places before consumption, with
+fact-sensitive reject twins and checks of the actual returned value and storage.
 The full standard Representation interface, reflection adapters, other hosts
-and the Omega-written producer remain parent work.
+and the Omega-written producer also remain parent work.
 
-Each place supplies the same semantic pair to the conversion. The output
-buffer remains a runtime borrow; a constant contributes a pair rather than
-permission to access storage.
+The following table records input-origin coverage. The output buffer remains a
+runtime borrow; a constant contributes a pair rather than permission to access
+storage. Completed-result transport is separate remaining acceptance.
 
 | Place | Semantic input | Reject twin |
 | --- | --- | --- |

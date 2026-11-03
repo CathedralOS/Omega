@@ -1,0 +1,42 @@
+// A selected recursive member applies each call's own tuple, including when its entry is copied.
+// Expected exit: 0
+trait Alternating {
+    machine run<const Flip: bool>(remaining: u64) -> u64
+    terminates;
+}
+
+Selected satisfies Alternating {
+    machine run<const Flip: bool>(remaining: u64) -> u64
+    terminates by remaining
+    {
+        transition remaining > 0u64 {
+            true -> step(remaining)
+            false -> finished()
+        }
+        machine step(remaining: u64) -> u64
+        requires remaining > 0u64
+        {
+            transition Flip {
+                true -> Selected::run<false>(remaining - 1u64)
+                false -> Selected::run(remaining - 1u64)
+            }
+        }
+        machine finished() -> u64 {
+            transition Flip {
+                true -> 37u64
+                false -> 53u64
+            }
+        }
+    }
+}
+
+machine main() crashes Trap {
+    let odd: u64 = Selected::run<false>(1u64);
+    let even: u64 = Selected::run<false>(2u64);
+    transition odd == 37u64 && even == 53u64 {
+        true -> passed()
+        false -> failed()
+    }
+    machine passed() {}
+    machine failed() { crash Trap; }
+}
