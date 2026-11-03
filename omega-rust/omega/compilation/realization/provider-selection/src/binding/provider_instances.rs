@@ -88,6 +88,7 @@ pub fn project_provider_instances(
                 };
                 match instance {
                     Ok(instance) => append_instance(
+                        "inherited",
                         plan,
                         row,
                         selected_machine,
@@ -138,6 +139,7 @@ pub fn project_provider_instances(
             for instance in instances {
                 match instance {
                     Ok(instance) => append_instance(
+                        "generic",
                         plan,
                         row,
                         machine_identity,
@@ -174,6 +176,7 @@ pub fn project_provider_instances(
 }
 
 fn append_instance(
+    origin: &str,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
     selected_machine: ProviderIdentityId,
@@ -189,4 +192,13 @@ fn append_instance(
         requirement_identity: identities.intern(&instance.requirement),
         machine_identity: identities.intern(&instance.realization),
     });
+    if std::env::var_os("OMEGA_TRACE_PROVIDER_INSTANCES").is_some() {
+        eprintln!(
+            "PROVIDERINSTANCE origin={origin} plan={} provider={} row={:?} realization={}",
+            plan.name,
+            plan.provider_type,
+            rows.last(),
+            instance.realization
+        );
+    }
 }
