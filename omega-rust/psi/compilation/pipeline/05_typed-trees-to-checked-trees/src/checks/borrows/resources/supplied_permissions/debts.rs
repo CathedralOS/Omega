@@ -130,14 +130,95 @@ pub(in crate::checks::borrows) fn windows(
     borrow: &BorrowFacts,
     loan: Handle<BorrowLoanFact>,
 ) -> Option<Result<Vec<HeldInput>, &'static str>> {
-    let resource = resource(borrow, loan)?;
+    let resource = match resource(borrow, loan) {
+        Some(resource) => resource,
+        None if completed_output_value(borrow, loan) => {
+            return Some(Err(
+                "completed output debt has no complete captured-generation resource",
+            ));
+        }
+        None => return None,
+    };
     Some(resolve_windows(borrow, resource))
+}
+
+fn completed_output_value(borrow: &BorrowFacts, loan: Handle<BorrowLoanFact>) -> bool {
+    if !borrow.loans.is_valid(loan) {
+        return false;
+    }
+    let debt = borrow.loans.get(loan);
+    debt.lineage == BorrowLoanLineage::LifetimeDependency
+        && borrow.loans.iter().any(|(_, peer)| {
+            peer.lineage != BorrowLoanLineage::LifetimeDependency
+                && peer.storage_owner == debt.storage_owner
+                && peer.statement_index == debt.statement_index
+                && peer.formation_expression == debt.formation_expression
+                && borrow.loan_owner_path(peer) == borrow.loan_owner_path(debt)
+                && borrow.incoming_references.is_valid(peer.incoming_reference)
+                && matches!(
+                    borrow
+                        .incoming_references
+                        .get(peer.incoming_reference)
+                        .origin,
+                    checked_trees::IncomingReferenceOrigin::Output { .. }
+                )
+        })
+}
+
+/// Returned leaves retain their completed descriptor namespace even though
+/// they have no local loan handle. That exact identity selects the complete
+/// input cohort; equal backing or a field name supplies no such association.
+pub(in crate::checks::borrows) fn output_windows(
+    borrow: &BorrowFacts,
+    identity: Handle<checked_trees::IncomingReferenceIdentity>,
+) -> Option<Result<Vec<HeldInput>, &'static str>> {
+    let mut outputs = borrow
+        .supplied_output_resources
+        .iter()
+        .filter(|(_, output)| output.identity == identity);
+    let Some((handle, output)) = outputs.next() else {
+        return (borrow.incoming_references.is_valid(identity)
+            && matches!(
+                borrow.incoming_references.get(identity).origin,
+                checked_trees::IncomingReferenceOrigin::Output { .. }
+            ))
+        .then_some(Err(
+            "returned output has no authenticated completed generation",
+        ));
+    };
+    if outputs.next().is_some() {
+        return Some(Err("returned debt has ambiguous completed generations"));
+    }
+    let result = (|| {
+        if output.lifetime_sources.is_empty() {
+            return Ok(Vec::new());
+        }
+        let debts = borrow
+            .loan_suppliers
+            .span(output.debts)
+            .filter(|debts| !debts.is_empty())
+            .ok_or("returned output has no original lifetime cohort")?;
+        let mut windows = Vec::new();
+        for loan in debts {
+            let resource =
+                resource(borrow, *loan).ok_or("returned output lost one original input debt")?;
+            if borrow.output_lifetime_dependencies.get(resource).source
+                != (Source::Completion { output: handle })
+            {
+                return Err("returned output debt belongs to another completed generation");
+            }
+            windows.extend(resolve_windows(borrow, resource)?);
+        }
+        Ok(windows)
+    })();
+    Some(result)
 }
 
 fn resolve_windows(
     borrow: &BorrowFacts,
     debt_handle: Handle<Debt>,
 ) -> Result<Vec<HeldInput>, &'static str> {
+    validate_debt_sources(borrow, debt_handle)?;
     let row = borrow.output_lifetime_dependencies.get(debt_handle);
     let mut inputs = borrow
         .supplied_output_inputs
@@ -146,28 +227,6 @@ fn resolve_windows(
         .iter()
         .map(|input| input.resource)
         .collect::<Vec<_>>();
-    let mut debt_pending = vec![debt_handle];
-    let mut debts = Vec::new();
-    while let Some(resource) = debt_pending.pop() {
-        if debts.contains(&resource) {
-            continue;
-        }
-        debts.push(resource);
-        match borrow.output_lifetime_dependencies.get(resource).source {
-            Source::Completion { output } => {
-                let output = borrow.supplied_output_resources.get(output);
-                if !complete_inputs(borrow, output) {
-                    return Err("output debt has an unrepresented input lifetime region");
-                }
-            }
-            Source::Transfer { suppliers } => debt_pending.extend_from_slice(
-                borrow
-                    .output_dependency_suppliers
-                    .span(suppliers)
-                    .ok_or("output debt's original generations are unavailable")?,
-            ),
-        }
-    }
     let mut input_seen = Vec::new();
     let mut loans = Vec::new();
     let mut loan_seen = Vec::new();
@@ -237,6 +296,7 @@ fn resolve_windows(
             );
         }
         if let Some(debt) = resource(borrow, loan) {
+            validate_debt_sources(borrow, debt)?;
             inputs.extend(
                 borrow
                     .supplied_output_inputs
@@ -245,6 +305,8 @@ fn resolve_windows(
                     .iter()
                     .map(|input| input.resource),
             );
+        } else if row.lineage == BorrowLoanLineage::LifetimeDependency {
+            return Err("earlier input debt has no complete captured lifetime resource");
         }
         if let BorrowLoanLineage::Reborrow { parent_loan } = row.lineage {
             loans.push(parent_loan);
@@ -257,6 +319,51 @@ fn resolve_windows(
         );
     }
     Ok(result)
+}
+
+fn validate_debt_sources(borrow: &BorrowFacts, root: Handle<Debt>) -> Result<(), &'static str> {
+    let mut pending = vec![(root, false)];
+    let mut visited = Vec::new();
+    let mut active = Vec::new();
+    while let Some((debt, finished)) = pending.pop() {
+        if finished {
+            active.retain(|current| *current != debt);
+            visited.push(debt);
+            continue;
+        }
+        if visited.contains(&debt) {
+            continue;
+        }
+        if active.contains(&debt) {
+            return Err("input debt has cyclic original generations");
+        }
+        if !borrow.output_lifetime_dependencies.is_valid(debt) {
+            return Err("input debt has an unavailable original generation");
+        }
+        active.push(debt);
+        pending.push((debt, true));
+        match borrow.output_lifetime_dependencies.get(debt).source {
+            Source::Completion { output } => {
+                if !borrow.supplied_output_resources.is_valid(output)
+                    || !complete_inputs(borrow, borrow.supplied_output_resources.get(output))
+                {
+                    return Err("input debt has an incomplete original input frontier");
+                }
+            }
+            Source::Transfer { suppliers } => {
+                pending.extend(
+                    borrow
+                        .output_dependency_suppliers
+                        .span(suppliers)
+                        .filter(|sources| !sources.is_empty())
+                        .ok_or("input debt has no original suppliers")?
+                        .iter()
+                        .map(|source| (*source, false)),
+                );
+            }
+        }
+    }
+    Ok(())
 }
 
 fn complete_inputs(

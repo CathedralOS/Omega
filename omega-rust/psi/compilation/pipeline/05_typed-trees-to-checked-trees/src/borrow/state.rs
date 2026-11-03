@@ -144,6 +144,7 @@ pub(super) fn append_state_borrow_facts(
                 &mut returned_loans_span,
                 BorrowReturnedLoanFact {
                     lineage: returned.lineage,
+                    retained_operand: returned.retained_operand,
                     statement_index,
                     transition_target,
                     formation_expression: returned.formation_expression,

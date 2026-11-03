@@ -93,13 +93,19 @@ pub(super) fn loans(
                     )
             })
             .collect::<Vec<_>>();
-        if !effect.suppliers_complete || effect.has_static_values || selected.is_empty() {
+        if effect.has_static_values
+            || selected.is_empty()
+            || selected.iter().any(|source| !source.handle.is_valid())
+        {
             loans.extend(from_effects(program, vec![effect], loan_trackers));
             continue;
         }
         // Statement continuation forwards the exact final evaluated values.
         // The destination selects storage, never a convenient backing loan;
         // every alternative and every nonspatial lifetime debt stays distinct.
+        // `completed` is a complete evaluated context, including unresolved
+        // loan rows. Physical supplier completeness excludes lifetime debts;
+        // it must not discard those exact normal-call generations here.
         for source in selected {
             // A weak store leaves unselected physical slots unchanged. Their
             // old occurrences already remain current; only newly completed

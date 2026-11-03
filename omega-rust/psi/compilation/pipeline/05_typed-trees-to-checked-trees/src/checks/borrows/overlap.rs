@@ -208,6 +208,33 @@ pub(super) fn retained_debt_non_interfering<'p>(
     lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
 ) -> Option<bool> {
     let windows = super::resources::supplied_permissions::debt_windows(borrow, loan)?;
+    // Bare exclusive parameters always name their ingress referent. They do
+    // not own an outer descriptor slot, even with a mutable binding spelling.
+    // Restore that declaration namespace before comparing retained windows;
+    // a symbol without this identity is not an independent permission.
+    let incoming_place = if !place.incoming_reference.is_valid() {
+        place.root.as_symbol().and_then(|symbol| {
+            let state_symbol = program.symbols.get(symbol).parent;
+            let state = program.state_by_symbol(state_symbol)?;
+            let parameter = program.state_parameter_by_symbol(state, symbol)?;
+            let shell = validation::reference_shell(program, parameter.type_reference)?;
+            if !shell.access.is_exclusive() { return None; }
+            let (owner, _) = validation::find_state(program, state_symbol)?;
+            let (_, scope) = borrow.first_state_borrow(owner.symbol, state_symbol)?;
+            let mut identities = scope.incoming_references.handles().filter(|identity| {
+                borrow.state_owns_incoming_reference(scope, *identity)
+                    && matches!(borrow.incoming_references.get(*identity).origin,
+                        checked_trees::IncomingReferenceOrigin::ParameterReferent { symbol: supplied }
+                            if supplied == symbol)
+            });
+            let identity = identities.next()?;
+            if identities.next().is_some() { return None; }
+            Some(checked_trees::CapturedPlace { incoming_reference: identity, ..place.clone() })
+        })
+    } else {
+        None
+    };
+    let place = incoming_place.as_ref().unwrap_or(place);
     Some(windows.is_ok_and(|windows| {
         windows.iter().all(|window| {
             captured_place_compatibility(

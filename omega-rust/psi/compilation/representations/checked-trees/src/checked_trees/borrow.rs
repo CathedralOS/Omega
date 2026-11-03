@@ -161,6 +161,9 @@ pub struct StateBorrowFact {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowReturnedLoanFact {
     pub lineage: BorrowLoanLineage,
+    /// Keep the original call-input obligation beside a narrower returned
+    /// field view; returning does not erase its exact borrowing occurrence.
+    pub retained_operand: Option<BorrowRetainedOperand>,
     pub statement_index: usize,
     /// The selected normal-return arm. Zero denotes a final expression.
     /// Mutually exclusive arms never authenticate each other's formations.

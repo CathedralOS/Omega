@@ -16,6 +16,11 @@
 //! through a reference with several candidate destinations repeats each leaf
 //! per destination with unchanged places, so each pair of source expressions
 //! is reported once.
+//!
+//! A saved result can also keep the helper's original inputs unavailable.
+//! Those restrictions are checked against other references in the aggregate;
+//! they are not additional pointers. Views from the same checked call may
+//! use their separate referents while outside access keeps those inputs held.
 
 use checked_trees::expression::ExpressionHandle;
 use checked_trees::{
@@ -32,6 +37,9 @@ use super::simultaneous::{Hold, simultaneous_hold_conflict};
 
 /// One reference leaf of a formed value, borrowed from its loan record.
 struct FormedLeaf<'a> {
+    loan: arena::Handle<checked_trees::BorrowLoanFact>,
+    lineage: &'a checked_trees::BorrowLoanLineage,
+    retained_operand: Option<checked_trees::BorrowRetainedOperand>,
     incoming_reference: arena::Handle<checked_trees::IncomingReferenceIdentity>,
     incoming_owner_path: &'a [facts::PlaceSegment],
     owner_symbol: SymbolHandle,
@@ -75,18 +83,25 @@ pub(super) fn check_formed_aggregates<'p>(
 ) {
     // The fact builder appends loans statement by statement, so one
     // statement's loans are contiguous in the state's span.
+    let mut offset = 0u32;
     for formed in facts
         .borrow
         .loans
         .span_or_empty(borrow_state.loans)
         .chunk_by(|left, right| left.statement_index == right.statement_index)
     {
+        let start = offset;
+        offset += formed.len() as u32;
         if formed.len() < 2 {
             continue;
         }
         let leaves: Vec<FormedLeaf<'_>> = formed
             .iter()
-            .map(|loan| FormedLeaf {
+            .enumerate()
+            .map(|(index, loan)| FormedLeaf {
+                loan: borrow_state.loans.handle_at(start + index as u32),
+                lineage: &loan.lineage,
+                retained_operand: loan.retained_operand,
                 incoming_reference: loan.incoming_reference,
                 incoming_owner_path: facts
                     .borrow
@@ -136,6 +151,9 @@ pub(super) fn check_formed_aggregates<'p>(
         let leaves: Vec<FormedLeaf<'_>> = loans
             .iter()
             .map(|loan| FormedLeaf {
+                loan: arena::Handle::invalid(),
+                lineage: &loan.lineage,
+                retained_operand: loan.retained_operand,
                 incoming_reference: loan.incoming_reference,
                 incoming_owner_path: facts
                     .borrow
@@ -204,6 +222,78 @@ fn check_formed_leaves<'p>(
                 );
                 available
             });
+            let first_debt = lifetime_windows(&facts.borrow, first, leaves);
+            let second_debt = lifetime_windows(&facts.borrow, second, leaves);
+            if let Some(Err(reason)) = first_debt
+                .as_ref()
+                .filter(|windows| windows.is_err())
+                .or_else(|| second_debt.as_ref().filter(|windows| windows.is_err()))
+            {
+                diagnostics.push(Diagnostic::error(format!(
+                    "{} a reference whose retained input windows are incomplete: {reason}",
+                    subject(first.owner_symbol)
+                )));
+                continue;
+            }
+            if first_debt.is_some() && second_debt.is_some() {
+                // Keeping two input obligations does not borrow either input
+                // again. Their actual argument accesses were checked at capture.
+                continue;
+            }
+            if let Some((debt, held, windows)) = first_debt
+                .as_ref()
+                .map(|windows| (first, second, windows))
+                .or_else(|| second_debt.as_ref().map(|windows| (second, first, windows)))
+            {
+                let windows = match windows {
+                    Ok(windows) => windows,
+                    Err(reason) => {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{} a reference whose retained input windows are incomplete: {reason}",
+                            subject(first.owner_symbol)
+                        )));
+                        continue;
+                    }
+                };
+                // Sibling views can use their own completed result. This
+                // correspondence does not authorize access through its lender,
+                // and the physical leaves still face their ordinary pair checks.
+                if shared_result_access(program, facts, debt, held, leaves, premises, bound_lookup)
+                {
+                    continue;
+                }
+                for window in windows {
+                    if let Some(conflict) = simultaneous_hold_conflict(
+                        program,
+                        &facts.borrow,
+                        &window.place,
+                        &window.access,
+                        &held.place(),
+                        held.kind,
+                        premises,
+                        bound_lookup,
+                    ) {
+                        diagnostics.push(Diagnostic::error(format!(
+                            "{} {}",
+                            subject(first.owner_symbol),
+                            conflict.phrase(
+                                |hold| match hold {
+                                    Hold::First => facts::canonical_place_label_from_parts(
+                                        program,
+                                        window.place.root,
+                                        &window.place.segments
+                                    ),
+                                    Hold::Second => held.label(program),
+                                },
+                                "another of its references"
+                            )
+                        )));
+                        reported.push((first.formation, second.formation));
+                        break;
+                    }
+                }
+                continue;
+            }
             let Some(conflict) = simultaneous_hold_conflict(
                 program,
                 &facts.borrow,
@@ -228,4 +318,101 @@ fn check_formed_leaves<'p>(
             )));
         }
     }
+}
+
+fn lifetime_windows(
+    borrow: &checked_trees::BorrowFacts,
+    debt: &FormedLeaf<'_>,
+    leaves: &[FormedLeaf<'_>],
+) -> Option<Result<Vec<super::resources::supplied_permissions::HeldInput>, &'static str>> {
+    if *debt.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency {
+        return None;
+    }
+    if debt.loan.is_valid() {
+        if let Some(windows) =
+            super::resources::supplied_permissions::debt_windows(borrow, debt.loan)
+        {
+            return Some(windows);
+        }
+    }
+    let mut windows = Vec::new();
+    let mut completed = false;
+    let mut other = false;
+    for peer in leaves.iter().filter(|peer| {
+        *peer.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+            && peer.owner_symbol == debt.owner_symbol
+            && peer.position == debt.position
+            && peer.formation == debt.formation
+    }) {
+        if let Some(found) =
+            super::resources::supplied_permissions::output_windows(borrow, peer.incoming_reference)
+        {
+            completed = true;
+            match found {
+                Ok(found) => windows.extend(found),
+                Err(reason) => return Some(Err(reason)),
+            }
+        } else {
+            other = true;
+        }
+    }
+    if completed {
+        return Some(if other {
+            Err("the returned value has unjoined input generations")
+        } else {
+            Ok(windows)
+        });
+    }
+    // Older entry/returned-input records already carry their input region.
+    // Treat it as a retention demand, never as another physical reference leaf.
+    Some(Ok(vec![
+        super::resources::supplied_permissions::HeldInput {
+            place: debt.place(),
+            access: debt.kind.clone(),
+        },
+    ]))
+}
+
+fn shared_result_access<'p>(
+    program: &'p dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    debt: &FormedLeaf<'_>,
+    held: &FormedLeaf<'_>,
+    leaves: &[FormedLeaf<'_>],
+    premises: &[StatedOrderingPremise],
+    lookup: &mut Option<validation::ImmutableBoundLookup<'p>>,
+) -> bool {
+    let Some(retained) = debt
+        .retained_operand
+        .filter(|retained| retained.formation_expression.is_valid())
+    else {
+        return false;
+    };
+    if held.retained_operand != Some(retained) {
+        return false;
+    }
+    let peers = leaves
+        .iter()
+        .filter(|peer| {
+            *peer.lineage != checked_trees::BorrowLoanLineage::LifetimeDependency
+                && peer.owner_symbol == debt.owner_symbol
+                && peer.position == debt.position
+                && peer.formation == debt.formation
+        })
+        .collect::<Vec<_>>();
+    !peers.is_empty()
+        && peers.iter().all(|peer| {
+            peer.retained_operand == Some(retained)
+                && super::overlap::captured_place_compatibility(
+                    program,
+                    &facts.borrow,
+                    &peer.place(),
+                    peer.kind,
+                    &held.place(),
+                    held.kind,
+                    premises,
+                    lookup,
+                )
+                .non_interfering
+        })
 }

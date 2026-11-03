@@ -13,7 +13,7 @@ mod inputs;
 
 pub(super) use completions::install;
 pub(in crate::checks::borrows) use debts::{
-    has_resource as has_debt_resource, windows as debt_windows,
+    HeldInput, has_resource as has_debt_resource, output_windows, windows as debt_windows,
 };
 
 /// The namespace is established only by this exact call's normal exit.
