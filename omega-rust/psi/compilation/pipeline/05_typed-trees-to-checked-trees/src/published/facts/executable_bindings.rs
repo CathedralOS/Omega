@@ -58,11 +58,7 @@ pub(crate) fn record(program: &dyn validation::CheckingInput) -> CheckedExecutab
                         CheckedCaptureArgumentValue::Const(
                             program
                                 .static_const_type_reference_identity(*reference)
-                                .map(|identity| {
-                                    program
-                                        .type_identities
-                                        .with_mut(|table| table.intern(&identity))
-                                })
+                                .map(|identity| program.type_identities.intern(&identity))
                                 .unwrap_or_default(),
                         )
                     }

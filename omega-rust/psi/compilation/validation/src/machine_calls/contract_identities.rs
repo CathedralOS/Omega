@@ -207,9 +207,7 @@ pub fn canonical_template_contract_bytes(
         true,
     )?;
     bytes.extend(
-        program
-            .type_identities
-            .with(|table| checked_trees::contract_declarations_commitment(&contracts, table))
+        checked_trees::contract_declarations_commitment(&contracts, &program.type_identities)
             .as_bytes(),
     );
     let termination = contract_structure::declared_termination(
@@ -1012,9 +1010,7 @@ fn encode_state_signature(
         true,
     )?;
     output.extend(
-        program
-            .type_identities
-            .with(|table| checked_trees::contract_declarations_commitment(&contracts, table))
+        checked_trees::contract_declarations_commitment(&contracts, &program.type_identities)
             .as_bytes(),
     );
     let termination = contract_structure::declared_termination(
@@ -1115,9 +1111,7 @@ fn encode_state_shape(
         true,
     )?;
     output.extend(
-        program
-            .type_identities
-            .with(|table| checked_trees::contract_declarations_commitment(&contracts, table))
+        checked_trees::contract_declarations_commitment(&contracts, &program.type_identities)
             .as_bytes(),
     );
     Ok(())
