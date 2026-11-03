@@ -299,7 +299,7 @@ fail/facts/atomic_operand_carrier_once_target_body_rejected rejected 3840ms expe
 	store in machine `HostedExchangeBody::perform` state `perform` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
 fail/facts/borrowed_scalar_entry_ieee_reflexivity rejected 16504ms expected @3bd254ac6193
 	cannot prove ensures contract for exit from same at statement 0: value == value
-fail/facts/borrowed_scalar_entry_unknown_value rejected 11368ms expected @3bd254ac6193
+fail/facts/borrowed_scalar_entry_unknown_value rejected 4265ms expected @6970b2a448ed+wt
 	cannot prove ensures contract for exit from read at statement 0: result == 4
 fail/facts/borrowed_scalar_entry_write_invalidation rejected 13559ms expected @3bd254ac6193
 	cannot prove ensures contract for exit from preserve at statement 1: value == 4
@@ -3398,7 +3398,7 @@ fail/proofs/normal_call_overwritten_nested_field rejected 5721ms expected @b7a1f
 	cannot prove requires contract for call need from main: value == 2 (needs fact `value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/normal_call_replaced_nested_record rejected 4354ms expected @b7a1f6a9630c
 	cannot prove requires contract for call need from main: value == 2 (needs fact `value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/proofs/outcome_selector_on_record_result rejected 1217ms expected @c6a756120d23+wt
+fail/proofs/outcome_selector_on_record_result rejected 1358ms expected @6970b2a448ed+wt
 	outcome proof selectors require an exact guarded result-case arm
 fail/proofs/refined_conversion_does_not_strengthen_base_view rejected 4347ms expected @e97ed21415d9
 	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
@@ -15639,7 +15639,7 @@ fail/arithmetic/short_circuit_cast_mutated_subject rejected 997ms expected @ccdb
 	Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/arithmetic/short_circuit_cast_wrong_path rejected 693ms expected @ccdb99ca2214
 	Exact integer cast in machine `narrow` state `entry` from `u32` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/arithmetic/signed_zero_does_not_prove_positive rejected 2595ms expected @ccdb99ca2214
+fail/arithmetic/signed_zero_does_not_prove_positive rejected 5994ms expected @6970b2a448ed+wt
 	cannot prove requires contract for call need from check: value > 0 (needs fact `value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/arithmetic/sparse_captured_utf_path_unbounded_index rejected 3180ms expected @ccdb99ca2214
 	cannot prove index `next_output` is within length 4096 in emit_pair::entry
@@ -17925,7 +17925,7 @@ fail/calls/ordered_terminal_skipped_arm_type_rejected rejected 655ms expected @c
 fail/calls/outcome_specific_computed_mutated rejected 2169ms expected @ccdb99ca2214
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
 	cannot prove requires contract for call accepted from probe: proposition:witness:Evidence:above(current.threshold + 1) in state `entry`
-fail/calls/outcome_specific_failure_selector rejected 1528ms expected @ccdb99ca2214
+fail/calls/outcome_specific_failure_selector rejected 2295ms expected @6970b2a448ed+wt
 	outcome proof selector `selected` is not a named guarantee of the matching result case
 fail/calls/outcome_specific_later_mutated rejected 3435ms expected @ccdb99ca2214
 	evidence term `proof` does not inhabit erased requires position 0 of call `accepted`
@@ -18133,7 +18133,7 @@ fail/collections/contract_length_direct_selector_write rejected 13701ms expected
 	cannot prove index `0` is within unknown slice length of `views[cursor.position]` in first::entry
 fail/collections/contract_length_fake_member rejected 4114ms expected @ccdb99ca2214
 	cannot prove index `0` is within unknown slice length of `values` in first::entry
-fail/collections/contract_length_false_ensures rejected 4177ms expected @ccdb99ca2214
+fail/collections/contract_length_false_ensures rejected 8491ms expected @6970b2a448ed+wt
 	cannot prove ensures contract for exit from extent at statement 0: result == values.len
 fail/collections/contract_length_private_machine_guarantee rejected 4058ms expected @ccdb99ca2214
 	cannot prove index `0` is within unknown slice length of `values` in first::entry
@@ -19691,7 +19691,7 @@ fail/domains/indexed_membership_rejects_stale_entry rejected 2247ms expected @cc
 	construction of `Holder` field `scoped` is not proven in domain `Except` in invalid_record state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 	array literal element is not proven in domain `Except` in invalid_array state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 	construction of `AfterCall` field `copied` is not proven in domain `Except` in invalid_after_call state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
-fail/domains/interval_membership_wrapping_false rejected 2085ms expected @ccdb99ca2214
+fail/domains/interval_membership_wrapping_false rejected 4946ms expected @6970b2a448ed+wt
 	cannot prove requires contract for call keep from main: 11 in u8::Small in state `entry`
 fail/domains/issued_membership_dependency_is_not_subject rejected 1847ms expected @ccdb99ca2214
 	cannot prove default-domain field requirement for return from translate, state entry, at statement 0: Handle requires Handle::Open

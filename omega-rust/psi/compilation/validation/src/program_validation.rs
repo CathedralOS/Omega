@@ -53,6 +53,7 @@ pub use contract_queries::{
     validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
 };
 pub use dependency_bodies::{DependencyBodyJudgment, FrozenDependencyBody};
+pub use statements::statement_source_span;
 use statements::validate_state_statement_node;
 
 pub use checked_trees::operators::ExactIntegerCastFact;
