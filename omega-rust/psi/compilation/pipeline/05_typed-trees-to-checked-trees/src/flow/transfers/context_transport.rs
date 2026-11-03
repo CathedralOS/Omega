@@ -98,6 +98,14 @@ pub(super) fn transport(
                     }
                     facts::domain_membership_pattern!(domain, domain_symbol, semantic_domain) => {
                         let fact_place = fact.place.as_place()?;
+                        if super::owned_qualifications::explicitly_erased(
+                            program,
+                            write.source_expression,
+                            domain_symbol,
+                            semantic_domain,
+                        ) {
+                            return None;
+                        }
                         matches_source(fact_place).then_some((
                             FactPayload::DomainMembership {
                                 value: ExpressionHandle::invalid(),
