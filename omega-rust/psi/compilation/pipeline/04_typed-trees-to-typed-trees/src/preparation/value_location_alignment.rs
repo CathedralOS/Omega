@@ -89,9 +89,10 @@ pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             call.arguments = HandleSpan::empty();
         }
     }
-    // A query outside an executable statement (a `requires` contract, for
-    // example) has no state in which its place was resolved. Reject it with
-    // its source rather than let an unsettled request reach lowering.
+    // A query in a `requires` or `ensures` contract runs in no statement.
+    // Contracts bind only parameters, so its place must be rooted at one and
+    // takes that parameter's declared type. Anything else (a constant
+    // initializer, a data predicate) names no storage place and rejects.
     let roots: Vec<_> = expressions_of(program)
         .iter_expressions()
         .map(|(root, _)| root)
@@ -100,21 +101,33 @@ pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     for root in roots {
         let mut handles = Vec::new();
         validation::expression_traversal::collect_expression_tree(program, root, &mut handles);
-        unsettled.extend(
-            handles
-                .into_iter()
-                .filter(|query| !rejected.contains(query))
-                .filter(|query| value_query_operand(program, *query).is_some()),
-        );
+        unsettled.extend(handles.into_iter().filter(|query| {
+            !rejected.contains(query) && value_query_operand(program, *query).is_some()
+        }));
     }
     unsettled.sort_by_key(|query| (query.arena_index(), query.generation()));
     unsettled.dedup();
-    diagnostics.extend(unsettled.into_iter().map(|query| {
-        Diagnostic::error(
-            "`align_of(value)` is answered only in executable statements; a contract or other non-statement position is not yet supported",
-        )
-        .with_source_span(expressions_of(program).source_span(query))
-    }));
+    let mut contract_settled = Vec::new();
+    for query in unsettled {
+        let Some(place) = value_query_operand(program, query) else {
+            continue;
+        };
+        match contract_storage_type(program, place) {
+            Ok(subject) => contract_settled.push((query, subject)),
+            Err(message) => diagnostics.push(
+                Diagnostic::error(message)
+                    .with_source_span(expressions_of(program).source_span(query)),
+            ),
+        }
+    }
+    for (query, subject) in contract_settled {
+        if let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(query)
+            && let Some(request) = call.layout_query.as_mut()
+        {
+            request.operand.type_reference = subject;
+            call.arguments = HandleSpan::empty();
+        }
+    }
     if diagnostics.is_empty() {
         Ok(())
     } else {
@@ -138,6 +151,41 @@ fn value_query_operand(
         [operand] => Some(*operand),
         _ => None,
     }
+}
+
+/// A contract query's subject: a parameter, or a reference parameter's
+/// referent. Contracts carry no proof context for a slice's nonempty view or
+/// a field path, so those stay statement-only.
+fn contract_storage_type(
+    program: &TypedTrees,
+    place: ExpressionHandle,
+) -> Result<TypeReferenceHandle, &'static str> {
+    const NO_PLACE: &str = "`align_of(value)` observes a storage place; outside a machine body only a parameter of the contracted machine names one";
+    let canonical = validation::canonical_place_from_expression(program, place).ok_or(NO_PLACE)?;
+    let root = canonical.root.as_symbol().ok_or(NO_PLACE)?;
+    if !canonical.segments.is_empty() {
+        return Err(
+            "`align_of(value)` in a contract observes a whole parameter or its referent; a projected place is not yet supported there",
+        );
+    }
+    let declared = program
+        .machines()
+        .iter()
+        .flat_map(|machine| program.machine_states(machine).iter())
+        .flat_map(|state| program.state_parameters(state).iter())
+        .find(|parameter| parameter.symbol == root)
+        .map(|parameter| parameter.type_reference)
+        .ok_or(NO_PLACE)?;
+    let subject = referent(program, declared);
+    if matches!(
+        program.type_reference_table.type_reference(subject),
+        TypeReferenceNode::Slice { .. }
+    ) {
+        return Err(
+            "`align_of(view)` on a slice in a contract needs a nonempty-view proof the contract cannot carry; query the slice in the body after its guard",
+        );
+    }
+    Ok(subject)
 }
 
 /// The storage type whose selected layout bounds the observed location.
