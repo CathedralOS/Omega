@@ -1,1 +1,1 @@
-shared
+assignment requires mutable source access through every reference crossed by its destination
