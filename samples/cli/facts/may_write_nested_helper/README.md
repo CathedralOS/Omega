@@ -6,8 +6,8 @@ An outer helper that calls an inner helper to pick one of two mutable inputs and
 
 This witnesses nested-helper mutation summaries under
 [invocation contracts](../../../../wiki/spec/language/state_contracts.md).
-`BUILD-OWNED-TARGET-SELECTION` in `TASKS.md` owns the remaining migration of
-its target-prefixed example to ordinary implementations selected by Build.
+`BUILD-OWNED-TARGET-SELECTION` in `TASKS.md` owns this example's migration
+to an ordinary implementation selected by Build.
 That migration must preserve both input bounds and the same write/index operation;
 it does not close the wider mutation-summary requirements.
 
@@ -38,61 +38,80 @@ The same command covers `field`, `parameter`, `call_result`, `match_join`, `cons
 
 Each `invalid/` project is `intended-invalid`. The source differs only by passing `false` to `relay`. The overlapping index bound is then stale. The pinned diagnostic fragment is `cannot prove`.
 
+## Related controls
+
+- [Saved choice](controls/captured_choice_exit/main.omg) and its
+  [overlapping-write twin](controls/captured_choice_overlapping/main.omg) declare
+  then assign the Boolean, save the returned reference, change the Boolean, and
+  expose its new value through a separate output. The index is read before the
+  final runtime checks.
+- [Unknown choice](controls/unknown_choice/main.omg) retains both possible write
+  destinations and rejects the stale bound.
+- [Live loan](controls/unselected_live_loan/main.omg) rejects reusing the other
+  input while the result's common lifetime still holds its exclusive loan.
+- The existing [view read before a store](../../../../tests/omega/fail/borrows/view_local_read_before_store/main.omg)
+  rejects observation of a borrowed view whose descriptor has not been established.
+
 ## Pinned fixtures
 
-Positive places are byte-identical to `tests/omega/pass/facts/may_write_nested_helper_through_<place>_exit`. Reject twins are byte-identical to `tests/omega/fail/facts/may_write_nested_helper_through_<place>_overlapping`. Historical recorded rows: nine `checked` rows (with `check-target:macos_arm64`) and nine `rejected` rows carrying their own `cannot prove` fragment in `corpus_outcomes.txt`; nine `built ... exit:0` rows in `corpus_native_macos_arm64.txt`; nine `built ... exit:0 interpreter-exit:0 interpreter:agrees` rows in `corpus_both_macos_arm64.txt`.
+Positive places match `tests/omega/pass/facts/may_write_nested_helper_through_<place>_exit`.
+Reject twins match `tests/omega/fail/facts/may_write_nested_helper_through_<place>_overlapping`.
+Their `main.omg` and `build.omg` files are identical. Older macOS native records
+are historical evidence; the fresh results below identify their own source and host.
 
 ## Requirements and evidence
 
-Parent outcome: `BUILD-OWNED-TARGET-SELECTION` (`TASKS.md`). The remaining
+Parent outcome: `BUILD-OWNED-TARGET-SELECTION` (`TASKS.md`). The owned
 requirement is the target-body source migration with its full public input
-contract, while retaining this existing nine-place mutation-summary fact.
+contract, while retaining this nine-place mutation-summary fact.
 
 1. **Establishment.** `other` is initialized to `1`, or a parameter requires `other < 4`, before the write. The index uses that bound. No later equality guard re-establishes it.
 2. **Identity and lifetime.** The bound names the other mutable input. Writing the chosen input invalidates only that input. The reject twin writes the other input and retires the bound.
 3. **Composition.** `relay` calls `choose`, `overwrite` writes through that nested result, and `add` evaluates that write as an operand. The preserved bound is then used by a local, field, parameter, call result, match join, const bound, state arrival, forwarding machine, or target body.
 4. **Soundness boundaries.** The summary is a may-write footprint. It does not grant a loan, a move, or a linear claim. The overlapping candidate cannot keep the stale index bound.
-5. **Checked-to-Terminal Psi lowering (`Psi 06–08`).** The nested choice, operand write, and proved index lower into Terminal Psi and execute with the interpreter on `omega run --both`.
-6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`).** Each positive binds `ProgramEntry` on all four hosted targets. The two `u64` inputs and the fixed byte array use ordinary value and reference lanes.
-7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`).** Native execution stores `9` through the chosen referent and reloads the other input as the index.
-8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission).** `omega run --both` agrees on exit `0` for every positive place.
+5. **Checked-to-Terminal Psi lowering.** The nested choice, operand write, and proved index lower into Terminal Psi and execute with the interpreter on `omega run --both`.
+6. **Provider settlement, layout geometry, and calling plans.** Each positive binds `ProgramEntry` on all four hosted targets. Four Build rows select the same ordinary `NestedProbe` implementation, preserving both public input bounds. Its returned byte carries no reference relation across the requirement. The two `u64` inputs and fixed byte array retain their ordinary value and reference lanes.
+7. **Instruction selection, register homes, and activation frames.** Native execution stores `9` through the chosen referent and reloads the other input as the index.
+8. **Form encoding, branches, relocations, and native images.** `omega run --both` agrees on exit `0` for every positive place.
 
-## Current migration status
+## Validation
 
 The original programs and oracles are frozen against published main
-`04085b59f9c5227e69c5af03a29aa20e061e0e74`. The optimized baseline producer
-`a4bbda39bf53e9a65d15cc9612a7feb304423573` differs only in this README;
-its compiler and executable inputs equal that base. Run
+`04085b59f9c5227e69c5af03a29aa20e061e0e74`. Optimized baseline source
+`a4bbda39bf53e9a65d15cc9612a7feb304423573` changes only the README; its compiler
+and executable inputs equal that base. Run
 [41549165807](https://github.com/CathedralOS/Omega/actions/runs/41549165807)
-wrongly rejects all nine valid places because the write through the nested
-result discards the untouched input's bound. All nine twins reject. No engine
-executed a positive. A separate same-source comparison in run
-[41551958231](https://github.com/CathedralOS/Omega/actions/runs/41551958231)
-shows the direct-choice local example has the same failure.
+wrongly rejected all nine valid places because the nested write discarded the
+untouched input's bound. The twins rejected, and no positive reached an engine.
 
-The candidate carries the captured Boolean choice through the shared producer
-of returned-reference origins. A completed helper result identifies the input
-that a later store can change. Unknown choices retain every possible destination;
-this precision does not shorten the declared lifetime or grant access.
-The former consumer-specific selection pass is removed. The target example now
-uses one ordinary checked `NestedProbe` implementation and four explicit Build
-selection rows, with the original two input bounds. The implementation returns
-a byte, so it needs no returned-reference promise across that public boundary.
+The repair records a Boolean choice when it is saved, including the private
+locals used to test transitions. A later store advances the current value;
+a reference that already formed keeps its captured choice. The shared producer
+of returned-reference origins supplies this information to write analysis.
+Unknown choices, opaque regions and complete loan obligations remain conservative.
+The target example has one checked `NestedProbe` implementation and four Build
+selection rows. Its public contract retains both input bounds. The join example
+runs both arms and observes an independent marker identifying the chosen path.
 
-The join example now executes both arms, and an independent marker distinguishes
-the helper arm from the direct arm. Additional controls preserve a reference
-choice captured before a later Boolean store, reject an unknown choice, and
-reject reading an input while the common result lifetime keeps its loan active.
-The first candidate run
-[41555935352](https://github.com/CathedralOS/Omega/actions/runs/41555935352)
-still rejected all nine nested-helper and nine direct-choice positives, plus the
-saved-choice positive. It confirmed all 30 invalid controls reject and the
-finite-cycle positive executes with native and Terminal exit `0`. An additional
-dynamic-return example refused descriptor reconstruction; that failure has no
-baseline attribution and is not claimed as a regression or a pass.
+Run [41560734861](https://github.com/CathedralOS/Omega/actions/runs/41560734861)
+validated optimized source `533e32a150157a3956bd4a4ea752df788308d10e`:
+20 positive fixtures checked, all 31 invalid controls rejected, and all 20
+native/Terminal comparisons observed exit `0` and agreement. The 23 public
+projects produced 11 runtime passes and 12 intended rejections. This includes
+all nine places, their twins, root `main`, and the declaration-then-store control.
+The source checks use `macos_arm64`; actual runtime observations cover
+`linux_x86_64`. Other hosted targets remain unverified at runtime.
 
-Transition subjects are saved as private Boolean locals before their guards.
-The follow-up records these locals when they are declared, then advances direct
-stores in order. Authored locals use the same rule. Exposed homes and values
-that may be changed indirectly remain unknown. Candidate validation is still
-pending. The broader Build migration and other hosted targets remain open.
+The exact observed source is retained in a verified Git bundle published with
+[part 1](https://github.com/CathedralOS/Omega/pull/1571#issuecomment-6593497212)
+and [part 2](https://github.com/CathedralOS/Omega/pull/1571#issuecomment-6593497564)
+of the PR evidence. Later edits change explanatory comments, this README and
+recorded outcomes; the executable source and compiler operations remain the same.
+
+The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
+on the frozen baseline in
+[41558699182](https://github.com/CathedralOS/Omega/actions/runs/41558699182).
+That checking-leg failure predates this repair and remains open outside this row;
+no baseline engine observation or adjunct success is claimed. The broader Build
+migration and runtime checks on the other three hosted targets remain open.
+See [PR 1571](https://github.com/CathedralOS/Omega/pull/1571) for detailed evidence.

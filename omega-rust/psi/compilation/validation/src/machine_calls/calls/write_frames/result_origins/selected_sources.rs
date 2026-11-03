@@ -17,8 +17,8 @@ use typed_trees::statement::{
     StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
 };
 
-/// Return selection composes invocation values with completed local choices.
-/// Those reference results are not part of write-frame working state.
+/// Remember which input each completed reference result selected. Later changes
+/// to its Boolean selector must not change that saved choice.
 struct ResultSelection {
     values: ParameterValues,
     captured_results: Vec<(SymbolHandle, Option<Vec<SymbolHandle>>)>,
@@ -411,9 +411,9 @@ fn contributed_named_target(
     )
 }
 
-/// Compose result provenance across either a call or a state arrival. Evaluate
-/// selector actuals before entering the target; translate only its selected
-/// parameter roots back through the caller's already captured reference choices.
+/// Follow a returned reference through a call or state transition. Map the
+/// callee's selected inputs back to the caller's saved choices, using the
+/// Boolean values captured at this call.
 fn parameters_reached_through(
     program: &dyn crate::CheckingInput,
     host_state: &State,
