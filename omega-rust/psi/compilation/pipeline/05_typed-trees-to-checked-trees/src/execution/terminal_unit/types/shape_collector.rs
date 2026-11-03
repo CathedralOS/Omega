@@ -90,10 +90,6 @@ pub(crate) struct ShapeCollector<'program> {
     /// carrier's plan keeps no element field, so `retain_transitive` follows
     /// this edge where it follows a `BorrowedSliceView`'s element identity.
     byte_view_elements: BTreeSet<TypeIdentityId>,
-    /// A stored view may need its canonical descriptor when a selector
-    /// captures its value. Keep the exact presentation collected with it;
-    /// neither an equal shape nor the stored access creates that identity.
-    stored_view_presentations: BTreeMap<TypeIdentityId, TypeIdentityId>,
     /// The opaque boundary datum the last failed `add_type` could not shape
     /// because the build selects no representation for it. A builder that
     /// stops on that failure reads it to name the program's missing
@@ -117,7 +113,6 @@ impl<'program> ShapeCollector<'program> {
             in_progress: BTreeSet::new(),
             domains_in_progress: BTreeSet::new(),
             byte_view_elements: BTreeSet::new(),
-            stored_view_presentations: BTreeMap::new(),
             unselected_opaque: None,
             canonical_carriers: None,
         }
@@ -427,6 +422,7 @@ impl<'program> ShapeCollector<'program> {
         };
         let identity = closed_data_identity(self.program, data, binders);
         let plan = CheckedUnitStructuralTypePlan {
+            descriptor_presentation: None,
             source_declaration: Default::default(),
             source_application: Default::default(),
             native_identity: None,
@@ -568,6 +564,7 @@ impl<'program> ShapeCollector<'program> {
             .closed_data_definition(referee)
             .is_some_and(|data| data.supply_mode == DataSupplyMode::BoundaryOpaque);
         let plan = CheckedUnitStructuralTypePlan {
+            descriptor_presentation: None,
             source_declaration: Default::default(),
             source_application: Default::default(),
             native_identity: None,
@@ -707,19 +704,15 @@ impl<'program> ShapeCollector<'program> {
             *access = Some(shell.access.into());
             stored.copyable = shell.access == language_semantics::ReferenceAccess::Shared;
             stored.identity = identity;
+            stored.descriptor_presentation = Some(canonical);
             if self
                 .types
                 .get(&identity)
                 .is_some_and(|existing| existing != &stored)
-                || self
-                    .stored_view_presentations
-                    .get(&identity)
-                    .is_some_and(|existing| *existing != canonical)
             {
                 return None;
             }
             self.types.insert(identity, stored);
-            self.stored_view_presentations.insert(identity, canonical);
             return Some(identity);
         }
         if stores_reference_shape(self.program, reference, substitutions) {
@@ -876,6 +869,7 @@ impl<'program> ShapeCollector<'program> {
                 }
             }
             let plan = CheckedUnitStructuralTypePlan {
+                descriptor_presentation: None,
                 source_declaration: Default::default(),
                 source_application: Default::default(),
                 native_identity: None,
@@ -910,6 +904,7 @@ impl<'program> ShapeCollector<'program> {
             let element_type_identity = self.add_type(element, binders, substitutions);
             self.in_progress.remove(&identity);
             let plan = CheckedUnitStructuralTypePlan {
+                descriptor_presentation: None,
                 source_declaration: Default::default(),
                 source_application: Default::default(),
                 native_identity: None,
@@ -957,6 +952,7 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    descriptor_presentation: None,
                     source_declaration: Default::default(),
                     source_application: Default::default(),
                     native_identity: None,
@@ -1044,6 +1040,7 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    descriptor_presentation: None,
                     source_declaration: Default::default(),
                     source_application: Default::default(),
                     native_identity: None,
@@ -1283,6 +1280,7 @@ impl<'program> ShapeCollector<'program> {
                 self.types.insert(
                     identity,
                     CheckedUnitStructuralTypePlan {
+                        descriptor_presentation: None,
                         source_declaration: Default::default(),
                         source_application: Default::default(),
                         native_identity: None,
@@ -1441,6 +1439,7 @@ impl<'program> ShapeCollector<'program> {
             self.types.insert(
                 identity,
                 CheckedUnitStructuralTypePlan {
+                    descriptor_presentation: None,
                     source_declaration: Default::default(),
                     source_application: Default::default(),
                     native_identity: None,
@@ -1560,6 +1559,7 @@ impl<'program> ShapeCollector<'program> {
         self.types.insert(
             identity,
             CheckedUnitStructuralTypePlan {
+                descriptor_presentation: None,
                 source_declaration: data.symbol,
                 source_application: Default::default(),
                 native_policy_identity: native_policy_identity.clone(),
@@ -1751,9 +1751,6 @@ impl<'program> ShapeCollector<'program> {
         loop {
             let old_len = retained.len();
             for identity in retained.clone() {
-                if let Some(canonical) = self.stored_view_presentations.get(&identity) {
-                    retained.insert(*canonical);
-                }
                 if let Some(representation) = self
                     .opaque_representations
                     .iter()
@@ -1764,6 +1761,9 @@ impl<'program> ShapeCollector<'program> {
                 let Some(plan) = self.types.get(&identity) else {
                     continue;
                 };
+                if let Some(canonical) = plan.descriptor_presentation {
+                    retained.insert(canonical);
+                }
                 match &plan.shape {
                     CheckedUnitStructuralTypeShape::Reference {
                         referent_identity, ..
@@ -1833,8 +1833,6 @@ impl<'program> ShapeCollector<'program> {
         // epoch; a later demand must re-establish its complete footprint.
         self.completed_requests.clear();
         self.types.retain(|identity, _| retained.contains(identity));
-        self.stored_view_presentations
-            .retain(|stored, canonical| retained.contains(stored) && retained.contains(canonical));
         self.domains
             .retain(|domain| retained.contains(&domain.carrier_type_identity));
     }
