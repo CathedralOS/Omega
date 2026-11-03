@@ -819,11 +819,21 @@ fn validate_conformance_bindings(
             continue;
         }
         if matched != Some(true) {
-            diagnostics.push(Diagnostic::error(format!(
+            let mismatch = Diagnostic::error(format!(
                 "generic machine `{}` cannot bind `{}` to conformance `{}`: expected a complete `{}` implementation with the instantiated trait arguments",
-                machine.name, bound.binder_name,
-                selected.alias.as_ref().map_or("<unnamed>", |name| name.as_str()), bound.trait_name,
-            )));
+                machine.name,
+                bound.binder_name,
+                selected
+                    .alias
+                    .as_ref()
+                    .map_or("<unnamed>", |name| name.as_str()),
+                bound.trait_name,
+            ));
+            // The generic body and each of its specializations can reach the
+            // same mismatch; one refusal names it.
+            if !diagnostics.contains(&mismatch) {
+                diagnostics.push(mismatch);
+            }
             continue;
         }
         if let Some(refinement) = carrier.refinement {
