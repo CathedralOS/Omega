@@ -45,6 +45,12 @@ pub(super) fn package_context(
     );
     row_set(hash, rows);
     if let Some(candidate) = candidate {
+        if std::env::var("OMEGA_TRACE_POLICY_PACKAGE").as_deref() == Ok(key.name().as_str()) {
+            match candidate.policy().canonical_text() {
+                Ok(text) => eprintln!("OMEGA_POLICY_BEGIN\n{text}\nOMEGA_POLICY_END"),
+                Err(error) => eprintln!("OMEGA_POLICY_ERROR {error}"),
+            }
+        }
         crate::review::timings::note(|| {
             format!(
                 "policy_comparison package={} source={} policy={} build={:?} observation={}",
