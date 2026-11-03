@@ -75,7 +75,7 @@ machine build(builder: &mut Build) crashes Trap {
                 .assemble(None, &mut timings, &mut catalogue)
                 .unwrap()
         };
-        build_evaluation::select_build_helpers(
+        build_settings::select_build_helpers(
             &mut syntax.syntax_trees,
             host,
             &syntax.build_scope_sources,
@@ -99,8 +99,8 @@ machine build(builder: &mut Build) crashes Trap {
         let before = counters::build_execution_count();
         // This direct evaluator owns an explicitly live standalone scope. The
         // ordinary package compiler continues to supply captured source custody.
-        let admitted = build_evaluation::prepare_build_evaluation(
-            build_evaluation::BuildEvaluationRequest {
+        let admitted = build_settings::prepare_build_evaluation(
+            build_settings::BuildEvaluationRequest {
                 pure_build_compilation: None,
                 root_path: &entry,
                 typed: input.typed,
