@@ -1,8 +1,8 @@
 //! Frozen dependencies of one admitted storage read.
 //!
-//! Typed coordinate resolution establishes identity. These presentation paths
-//! only retire an already captured value after overlapping effects; they never
-//! establish a new value, lifetime, loan or reference origin.
+//! Typed suppliers and descriptor slots retain their storage namespaces.
+//! Presentation paths only retire existing observations; they never establish
+//! a new value, lifetime, loan or reference origin.
 
 use super::super::{caller_aliases, reference_subjects, state_write_walk, stored_calls};
 use super::{
@@ -14,7 +14,7 @@ use symbols::SymbolHandle;
 pub(crate) struct CapturedStorageReadBacking {
     pub(crate) sources: Vec<super::super::LocalWriteSource>,
     pub(crate) values: Vec<String>,
-    pub(crate) bindings: Vec<String>,
+    pub(crate) bindings: Vec<super::super::LocalWriteSource>,
 }
 
 impl CallFrameResolver<'_> {

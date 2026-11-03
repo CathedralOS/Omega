@@ -1,10 +1,9 @@
-//! Preserve observations using the performed store's captured coordinates.
+//! Keep arithmetic facts only while their storage dependencies survive a store.
 //!
-//! String frames remain conservative and include aliases. When they overlap,
-//! the frame owner's complete destination roster can distinguish a sibling
-//! field or a collection's extent from its elements. Unknown origins, recasts
-//! and differing storage namespaces withhold that precision. Selectors are
-//! independent value reads: keeping an element's bytes does not keep its index.
+//! Reference reads first use the frame owner's suppliers and descriptor loads;
+//! inline fields keep their declared homes. Complete destinations distinguish
+//! sibling fields and a collection's extent from its elements. Selectors remain
+//! separate reads: preserving element bytes does not preserve a changed index.
 
 use super::Operand;
 use crate::{AssignmentStorageOrigins, LocalWriteSource};
@@ -16,7 +15,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn unknown_reference_inventory_cannot_rescue_a_snapshot() {
+    fn unknown_reference_read_cannot_use_inline_field_disjointness() {
         let root = SymbolHandle::from_parts(1, 1);
         let changed = SymbolHandle::from_parts(2, 1);
         let sibling = SymbolHandle::from_parts(3, 1);
@@ -31,10 +30,10 @@ mod tests {
         };
         let changed_value = observation(changed, "changed");
         let sibling_value = observation(sibling, "sibling");
-        // The coarse frame overlaps both reads. Only complete captured
-        // reference evidence may refine it using the exact performed store.
+        // The same declared fields can belong to inline storage or a borrowed
+        // value. An unavailable reference read cannot use inline disjointness.
         let written = ["record".to_owned()];
-        let mut storage = AssignmentStorageOrigins {
+        let storage = AssignmentStorageOrigins {
             destinations: vec![LocalWriteSource {
                 invocation_output: None,
                 invocation_result: None,
@@ -48,18 +47,18 @@ mod tests {
             }],
             references: None,
         };
-        assert!(!changed_value.survives_assignment(&written, Some(&storage)));
-        assert!(!sibling_value.survives_assignment(&written, Some(&storage)));
-        storage.references = Some(Vec::new());
-        assert!(!changed_value.survives_assignment(&written, Some(&storage)));
-        assert!(sibling_value.survives_assignment(&written, Some(&storage)));
+        assert!(!changed_value.survives_assignment(&written, Some(&storage), &|_| Some(false)));
+        assert!(!sibling_value.survives_assignment(&written, Some(&storage), &|_| Some(false)));
+        assert!(!changed_value.survives_assignment(&written, Some(&storage), &|_| None));
+        assert!(sibling_value.survives_assignment(&written, Some(&storage), &|_| None));
     }
 }
 
 #[derive(Clone)]
-enum ReadSegment {
+pub(super) enum ReadSegment {
     Field(SymbolHandle),
-    Element,
+    Case(SymbolHandle),
+    Element(Option<usize>),
     Length,
 }
 
@@ -92,9 +91,12 @@ impl Operand {
         &self,
         written: &[String],
         storage: Option<&AssignmentStorageOrigins>,
+        reference_read: &impl Fn(&Operand) -> Option<bool>,
     ) -> bool {
-        if self.survives(written) {
-            return true;
+        // A different alias name does not establish non-interference. Resolve
+        // reference-dependent reads before the presentation-path shortcut.
+        if let Some(preserved) = reference_read(self) {
+            return preserved && self.selectors_survive(written, storage, reference_read);
         }
         match self {
             Self::Integer(..) => true,
@@ -106,8 +108,11 @@ impl Operand {
                 ..
             } => arguments
                 .iter()
-                .all(|argument| argument.survives_assignment(written, storage)),
+                .all(|argument| argument.survives_assignment(written, storage, reference_read)),
             _ => {
+                if self.survives(written) {
+                    return true;
+                }
                 let Some(storage) = storage.filter(|storage| !storage.destinations.is_empty())
                 else {
                     return false;
@@ -116,59 +121,21 @@ impl Operand {
                 let Some(root) = self.read_coordinate(&mut segments) else {
                     return false;
                 };
-                if !self.selectors_survive(written, Some(storage)) {
+                if !self.selectors_survive(written, Some(storage), reference_read) {
                     return false;
                 }
-                let Some(references) = &storage.references else {
-                    return false;
-                };
-                let mut origins = references
-                    .iter()
-                    .filter(|origin| {
-                        origin.local_symbol == root && origin.local_segments.is_empty()
-                    })
-                    .peekable();
-                if origins.peek().is_none() {
-                    return storage.destinations.iter().all(|destination| {
-                        compatible_destination(root, destination)
-                            && disjoint(&segments, &destination.segments)
-                    });
-                }
-                // These are captured referents, not initializer recipes. Keep
-                // every possible origin and namespace; an unknown alternative
-                // cannot be silently omitted from non-interference evidence.
-                origins.all(|origin| {
-                    let Some(source) = &origin.source else {
-                        return false;
-                    };
-                    if !source.recasts.is_empty() || source.representation.is_some() {
-                        return false;
-                    }
-                    let Some(mut projected) = source
-                        .segments
-                        .iter()
-                        .map(|segment| match segment {
-                            PlaceSegment::Field { symbol } => Some(ReadSegment::Field(*symbol)),
-                            PlaceSegment::Index { .. } | PlaceSegment::FixedIndex { .. } => {
-                                Some(ReadSegment::Element)
-                            }
-                            _ => None,
-                        })
-                        .collect::<Option<Vec<_>>>()
-                    else {
-                        return false;
-                    };
-                    projected.extend_from_slice(&segments);
-                    storage.destinations.iter().all(|destination| {
-                        compatible_destination(source.root, destination)
-                            && disjoint(&projected, &destination.segments)
-                    })
+                // The read owner already classified this as inline storage.
+                // Reference suppliers, including nested leaves, never reach
+                // this declaration-only comparison.
+                storage.destinations.iter().all(|destination| {
+                    compatible_destination(root, destination)
+                        && disjoint(&segments, &destination.segments)
                 })
             }
         }
     }
 
-    fn read_coordinate(&self, segments: &mut Vec<ReadSegment>) -> Option<SymbolHandle> {
+    pub(super) fn read_coordinate(&self, segments: &mut Vec<ReadSegment>) -> Option<SymbolHandle> {
         match self {
             Self::Place { root, .. } => Some(*root),
             Self::Field {
@@ -178,11 +145,19 @@ impl Operand {
                 segments.push(ReadSegment::Field(*field));
                 Some(root)
             }
-            Self::Indexed { collection, .. } => {
+            Self::Indexed {
+                collection, index, ..
+            } => {
                 let root = collection.read_coordinate(segments)?;
                 // Different live selectors may choose the same element.
                 // Their identities prove equality, never disjointness.
-                segments.push(ReadSegment::Element);
+                let selected = match &**index {
+                    Self::Integer(value, _) => value
+                        .value_u64()
+                        .and_then(|value| usize::try_from(value).ok()),
+                    _ => None,
+                };
+                segments.push(ReadSegment::Element(selected));
                 Some(root)
             }
             Self::CollectionLength(collection) => {
@@ -198,32 +173,38 @@ impl Operand {
         &self,
         written: &[String],
         storage: Option<&AssignmentStorageOrigins>,
+        reference_read: &impl Fn(&Operand) -> Option<bool>,
     ) -> bool {
         match self {
             Self::Place { .. } => true,
-            Self::Field { receiver, .. } => receiver.selectors_survive(written, storage),
-            Self::CollectionLength(collection) => collection.selectors_survive(written, storage),
+            Self::Field { receiver, .. } => {
+                receiver.selectors_survive(written, storage, reference_read)
+            }
+            Self::CollectionLength(collection) => {
+                collection.selectors_survive(written, storage, reference_read)
+            }
             Self::Indexed {
                 collection, index, ..
             } => {
-                collection.selectors_survive(written, storage)
-                    && index.survives_assignment(written, storage)
+                collection.selectors_survive(written, storage, reference_read)
+                    && index.survives_assignment(written, storage, reference_read)
             }
             _ => false,
         }
     }
 }
 
-fn compatible_destination(root: SymbolHandle, destination: &LocalWriteSource) -> bool {
+pub(super) fn compatible_destination(root: SymbolHandle, destination: &LocalWriteSource) -> bool {
     destination.root == root
         && root.is_valid()
         && destination.recasts.is_empty()
         && destination.representation.is_none()
 }
 
-fn disjoint(read: &[ReadSegment], written: &[PlaceSegment]) -> bool {
+pub(super) fn disjoint(read: &[ReadSegment], written: &[PlaceSegment]) -> bool {
     for (read, written) in read.iter().zip(written) {
         match (read, written) {
+            (ReadSegment::Case(read), PlaceSegment::Case { variant }) if read == variant => {}
             (ReadSegment::Field(read), PlaceSegment::Field { symbol: written })
                 if read.is_valid() && written.is_valid() =>
             {
@@ -231,8 +212,13 @@ fn disjoint(read: &[ReadSegment], written: &[PlaceSegment]) -> bool {
                     return true;
                 }
             }
+            (ReadSegment::Element(Some(read)), PlaceSegment::FixedIndex { index: written })
+                if read != written =>
+            {
+                return true;
+            }
             (
-                ReadSegment::Element,
+                ReadSegment::Element(_),
                 PlaceSegment::Index { .. } | PlaceSegment::FixedIndex { .. },
             ) => {}
             (ReadSegment::Length, PlaceSegment::Index { .. } | PlaceSegment::FixedIndex { .. }) => {

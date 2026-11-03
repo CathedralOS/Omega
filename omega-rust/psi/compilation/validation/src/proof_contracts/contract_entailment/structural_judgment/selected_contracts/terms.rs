@@ -69,8 +69,7 @@ impl StructuralJudge<'_> {
             let completed = if let Some(place) = crate::reserved_result_place(program, expression) {
                 (place.machine_symbol == callable)
                     .then(|| {
-                        result
-                            .and_then(|result| self.completed_result_read(result, &place.segments))
+                        result.and_then(|result| self.captured_scalar_read(result, &place.segments))
                     })
                     .flatten()
             } else {
@@ -80,7 +79,7 @@ impl StructuralJudge<'_> {
                         .iter()
                         .find(|parameter| parameter.symbol == symbol)?;
                     let (_, value) = bindings.iter().find(|(bound, _)| *bound == symbol)?;
-                    self.completed_result_read(value, &place.segments)
+                    self.captured_scalar_read(value, &place.segments)
                 })
             };
             if completed.is_some() {

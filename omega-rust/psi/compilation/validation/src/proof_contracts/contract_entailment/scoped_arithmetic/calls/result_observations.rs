@@ -146,7 +146,7 @@ fn discover_result_observations<'program>(
                 )
             })
             && let Some((cases, indices)) =
-                projection_requirements(program, reference, &place.segments)
+                super::super::scalar_projection_requirements(program, reference, &place.segments)
         {
             let requires_backing = geometry.projections.iter().any(|step| {
                 matches!(
@@ -210,47 +210,6 @@ fn discover_result_observations<'program>(
     })
 }
 
-fn projection_requirements(
-    program: &dyn crate::CheckingInput,
-    reference: typed_trees::types::TypeReferenceHandle,
-    path: &[facts::PlaceSegment],
-) -> Option<(
-    Vec<super::super::CallResultCaseRequirement>,
-    Vec<super::super::CallResultIndexRequirement>,
-)> {
-    let mut cases = Vec::new();
-    let mut indices = Vec::new();
-    for (prefix_length, segment) in path.iter().enumerate() {
-        let current = crate::project_type_reference_from_segments(
-            program,
-            reference,
-            &path[..prefix_length],
-        )?;
-        match segment {
-            facts::PlaceSegment::Case { variant } => {
-                cases.push(super::super::CallResultCaseRequirement {
-                    prefix_length,
-                    variant: *variant,
-                })
-            }
-            facts::PlaceSegment::FixedIndex { index } => {
-                let collection = crate::unwrapped_type_reference(program, current)?;
-                if matches!(
-                    program.type_reference_table.type_reference(collection),
-                    typed_trees::types::TypeReferenceNode::Slice { .. }
-                ) {
-                    indices.push(super::super::CallResultIndexRequirement {
-                        prefix_length,
-                        index: *index,
-                    });
-                }
-            }
-            _ => {}
-        }
-    }
-    Some((cases, indices))
-}
-
 pub(in crate::proof_contracts::contract_entailment) fn resolve_backing(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -270,7 +229,11 @@ pub(in crate::proof_contracts::contract_entailment) fn resolve_backing(
             reference,
             &observation.path,
         )?;
-        for path in backing.values.iter().chain(&backing.bindings) {
+        for path in backing
+            .values
+            .iter()
+            .chain(backing.bindings.iter().map(|binding| &binding.path))
+        {
             if !observation.read_dependencies.contains(path) {
                 observation.read_dependencies.push(path.clone());
             }

@@ -54,8 +54,9 @@ pub(in crate::machine_calls::calls::write_frames) fn from_reads(
             {
                 return None;
             }
-            if !bindings.contains(&slot.path) {
-                bindings.push(slot.path);
+            let slot: super::super::caller_aliases::LocalWriteSource = slot.into();
+            if !bindings.contains(&slot) {
+                bindings.push(slot);
             }
         }
     }

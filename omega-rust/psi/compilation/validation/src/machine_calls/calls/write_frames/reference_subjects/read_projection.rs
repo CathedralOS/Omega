@@ -305,8 +305,8 @@ pub(in crate::machine_calls::calls::write_frames) fn contents_invalidation_paths
     let backing = super::read_backing::from_reads(program, reads, Vec::new())?;
     let mut paths = backing.values;
     for binding in backing.bindings {
-        if !paths.contains(&binding) {
-            paths.push(binding);
+        if !paths.contains(&binding.path) {
+            paths.push(binding.path);
         }
     }
     Some(paths)

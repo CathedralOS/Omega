@@ -43,18 +43,25 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [latest retained source check](https://github.com/CathedralOS/Omega/actions/runs/41679982069)
-at `acb93f7b489b07a4fed089d37e525e6fe715a270` completed all 29 fixtures before
-the job was cancelled after exceeding its planned duration. Field forwarding
-now proves Pair identity and buffer length. Local, constant and field each
-retain eight restoration proof failures; no buffered witness executes. The
-[new stale-byte control](../../../../tests/omega/fail/contracts/forwarded_data_identity_does_not_preserve_mutated_contents/main.omg)
-wrongly accepts after forwarding and then replacing a byte. Its old/current
-comparison must reject before this work can land. The other invalid controls
-reject their intended obligations, including both corrected expected diagnostics.
-Decoder twins still include unrelated restoration failures and do not establish
-this row's acceptance. Eleven separate controls retain native/Terminal zero exits
-from [the prior execution run](https://github.com/CathedralOS/Omega/actions/runs/41672891758).
+The [current source check](https://github.com/CathedralOS/Omega/actions/runs/41691861901)
+at `ec9adf0e9379ec3cd1ebbf88a3f26fe749340d5c` proves the encoder's byte
+promises and the buffer-capacity requirement at restoration entry. Local still
+has six restoration proof failures. Field forwarding also encounters ownership
+errors: the loan consumer merges the two case fields' distinct sources instead
+of preserving each moved descriptor.
+
+The [stale-byte control](../../../../tests/omega/fail/contracts/forwarded_data_identity_does_not_preserve_mutated_contents/main.omg)
+reads a byte, replaces it, then asks to prove that the old and current bytes are
+equal. It currently rejects at an earlier ownership check. Its arithmetic trace
+still retains the stale equality, so that rejection does not establish the
+intended obligation. The repair must retain the saved scalar while invalidating
+its relation to the changed storage. Decoder twins also retain unrelated
+restoration failures; none establishes this row's acceptance yet.
+
+Eleven separate controls retain native/Terminal zero exits from
+[run 41672891758](https://github.com/CathedralOS/Omega/actions/runs/41672891758).
+These observations establish their recorded producer's behavior; the current
+compiler repairs still need their own affected checks.
 
 The [constant-call checks](https://github.com/CathedralOS/Omega/actions/runs/41573401092)
 execute four independent method, binder, application and lifetime programs with

@@ -194,9 +194,32 @@ impl StructuralJudge<'_> {
         captured: &super::super::StructuralTerm,
         pending: &super::super::super::scoped_arithmetic::PendingScopedCallResultObservation,
     ) -> bool {
-        let formed = (|| {
-            let path = &pending.observation.path;
-            for required in &pending.cases {
+        let formed = self.scalar_coordinate_is_formed(
+            reference,
+            captured,
+            &pending.observation.path,
+            &pending.cases,
+            &pending.indices,
+        );
+        if !formed && super::super::super::struct_trace() {
+            eprintln!(
+                "STRUCT result-observation-pending source={:?} path={:?} phase=case-or-extent",
+                pending.observation.expression, pending.observation.path,
+            );
+        }
+        formed
+    }
+
+    fn scalar_coordinate_is_formed(
+        &self,
+        reference: TypeReferenceHandle,
+        captured: &super::super::StructuralTerm,
+        path: &[facts::PlaceSegment],
+        cases: &[super::super::super::scoped_arithmetic::ScalarProjectionCaseRequirement],
+        indices: &[super::super::super::scoped_arithmetic::ScalarProjectionIndexRequirement],
+    ) -> bool {
+        (|| {
+            for required in cases {
                 let prefix = path.get(..=required.prefix_length)?;
                 if !matches!(prefix.last(), Some(facts::PlaceSegment::Case { variant }) if *variant == required.variant)
                 {
@@ -210,7 +233,7 @@ impl StructuralJudge<'_> {
                     prefix,
                 )?;
             }
-            for required in &pending.indices {
+            for required in indices {
                 let prefix = path.get(..required.prefix_length)?;
                 if !matches!(path.get(required.prefix_length), Some(facts::PlaceSegment::FixedIndex { index }) if *index == required.index)
                 {
@@ -248,14 +271,8 @@ impl StructuralJudge<'_> {
                 }
             }
             Some(())
-        })();
-        if formed.is_none() && super::super::super::struct_trace() {
-            eprintln!(
-                "STRUCT result-observation-pending source={:?} path={:?} phase=case-or-extent",
-                pending.observation.expression, pending.observation.path,
-            );
-        }
-        formed.is_some()
+        })()
+        .is_some()
     }
 
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn install_post_call_storage(
@@ -306,9 +323,10 @@ impl StructuralJudge<'_> {
         }
     }
 
-    /// Only an already installed, still-current completed-result cell can
-    /// cross the descriptor fence. Re-querying the old call cannot revive it.
-    pub(in crate::proof_contracts::contract_entailment) fn completed_result_read(
+    /// Read through one exact completed value. A retained result cell keeps
+    /// its checked public equation; a saved input instead needs its original
+    /// descriptor and independently available current backing values.
+    pub(in crate::proof_contracts::contract_entailment) fn captured_scalar_read(
         &self,
         captured: &super::super::StructuralTerm,
         path: &[facts::PlaceSegment],
@@ -340,7 +358,7 @@ impl StructuralJudge<'_> {
         };
         let Some(coordinate) = self.capture_storage_place(crate::CanonicalPlace {
             root: facts::PlaceRoot::Expression(*expression),
-            segments: prefix,
+            segments: prefix.clone(),
         }) else {
             self.trace_completed_result_read_refusal(&captured, path, "coordinate");
             return None;
@@ -380,7 +398,12 @@ impl StructuralJudge<'_> {
             });
         let Some(value) = value else {
             self.trace_completed_result_read_refusal(&captured, path, refusal);
-            return None;
+            return self.captured_operand_scalar_read(
+                &captured,
+                &prefix,
+                geometry.primitive_type,
+                geometry.result_type_reference,
+            );
         };
         // Keep the checked equation for this current scalar before resolving
         // its enclosing value. A case skeleton can replace that value without
@@ -404,6 +427,130 @@ impl StructuralJudge<'_> {
             return Some(resolved);
         }
         Some(value)
+    }
+
+    /// A saved input retains its descriptor, not a copy of borrowed contents.
+    /// Rejoin its actual completed expression and ask the ordinary backing
+    /// owner for current scalar values. Missing or disagreeing suppliers add
+    /// no observation, and the requested contract supplies no value itself.
+    fn captured_operand_scalar_read(
+        &self,
+        captured: &super::super::StructuralTerm,
+        path: &[facts::PlaceSegment],
+        primitive: PrimitiveType,
+        observed_type: TypeReferenceHandle,
+    ) -> Option<super::super::StructuralTerm> {
+        if !self.requires_value_preservation() {
+            return None;
+        }
+        let super::super::StructuralTerm::CapturedValue {
+            expression,
+            result_type,
+            ..
+        } = captured
+        else {
+            return None;
+        };
+        let result = (|| {
+            if !self.completed_nominal_values.iter().any(|receipt| {
+                receipt.anchor == *expression
+                    && receipt.reference == *result_type
+                    && receipt.value.same_resolution_payload(captured)
+            }) {
+                return Err("completed-value");
+            }
+            let (machine, state) = self.runtime_declaration_scope().ok_or("caller-scope")?;
+            if self.storage_graph().is_some()
+                && !self
+                    .storage_version
+                    .is_some_and(|version| version.state == state.symbol)
+            {
+                return Err("current-source-cut");
+            }
+            if !self
+                .program
+                .expression_table
+                .expression_is_valid(*expression)
+                || crate::expression_result_type_reference(
+                    self.program,
+                    machine,
+                    state,
+                    *expression,
+                ) != Some(*result_type)
+            {
+                return Err("source-type");
+            }
+            let (cases, indices) =
+                super::super::super::scoped_arithmetic::scalar_projection_requirements(
+                    self.program,
+                    *result_type,
+                    path,
+                )
+                .ok_or("projection-requirements")?;
+            if !self.scalar_coordinate_is_formed(*result_type, captured, path, &cases, &indices) {
+                return Err("case-or-extent");
+            }
+            let backing = self
+                .frame_resolver()
+                .ok_or("read-owner")?
+                .completed_value_read_backing(machine, state, *expression, *result_type, path)
+                .ok_or("completed-backing")?;
+            // The descriptor was captured during operand evaluation. Any
+            // later pointer slot still has to designate that same supplier;
+            // a different current pointee is not the saved read's backing.
+            if !backing.bindings.iter().all(|binding| {
+                binding.root.is_valid()
+                    && binding.invocation_output.is_none()
+                    && binding.invocation_result.is_none()
+                    && !binding.is_image_storage
+                    && binding.recasts.is_empty()
+                    && binding.representation.is_none()
+                    && !binding.collection_coarse
+                    && !self
+                        .program
+                        .state_parameter_by_symbol(state, binding.root)
+                        .is_some_and(|parameter| {
+                            crate::reference_shell(self.program, parameter.type_reference).is_some()
+                        })
+                    && crate::value_custody::places::binding_observations::stable_reference_descriptor_place(
+                        self.program,
+                        state,
+                        binding.root,
+                        &binding.segments,
+                    )
+                    .is_some()
+            }) {
+                return Err("descriptor-bindings");
+            }
+            let values = self
+                .backing_values_at(state, *expression, primitive, backing, self.storage_version)
+                .ok_or("current-scalar-values")?
+                .into_iter()
+                .map(|value| self.resolve(value))
+                .collect::<Vec<_>>();
+            let first = values.first().ok_or("empty-suppliers")?;
+            if !values.iter().all(|value| {
+                first.same_resolution_payload(value)
+                    && super::super::super::structural_terms::scalar_operand_is_observed(
+                        self.program,
+                        observed_type,
+                        value,
+                    )
+            }) {
+                return Err("supplier-values");
+            }
+            Ok(first.clone())
+        })();
+        if let Err(reason) = result.as_ref()
+            && super::super::super::struct_trace()
+        {
+            eprintln!(
+                "STRUCT captured-scalar-read-refused expression={expression:?} type={result_type:?} steps={} storage_version={:?} phase={reason}",
+                path.len(),
+                self.storage_version,
+            );
+        }
+        result.ok()
     }
 
     /// A payload passed to another call still names its original result cell.

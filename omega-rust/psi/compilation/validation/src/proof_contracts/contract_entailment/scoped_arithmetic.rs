@@ -194,19 +194,60 @@ pub struct ScopedCallResultObservation {
 pub(in crate::proof_contracts::contract_entailment) struct PendingScopedCallResultObservation {
     pub observation: ScopedCallResultObservation,
     pub declaration_root: ExpressionHandle,
-    pub cases: Vec<CallResultCaseRequirement>,
-    pub indices: Vec<CallResultIndexRequirement>,
+    pub cases: Vec<ScalarProjectionCaseRequirement>,
+    pub indices: Vec<ScalarProjectionIndexRequirement>,
     pub requires_backing: bool,
 }
 
-pub(in crate::proof_contracts::contract_entailment) struct CallResultCaseRequirement {
+pub(in crate::proof_contracts::contract_entailment) struct ScalarProjectionCaseRequirement {
     pub prefix_length: usize,
     pub variant: symbols::SymbolHandle,
 }
 
-pub(in crate::proof_contracts::contract_entailment) struct CallResultIndexRequirement {
+pub(in crate::proof_contracts::contract_entailment) struct ScalarProjectionIndexRequirement {
     pub prefix_length: usize,
     pub index: usize,
+}
+
+/// Typed projection dependencies grant no case or bounds fact. Each read owner
+/// must establish them independently before observing a scalar coordinate.
+pub(in crate::proof_contracts::contract_entailment) fn scalar_projection_requirements(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    path: &[facts::PlaceSegment],
+) -> Option<(
+    Vec<ScalarProjectionCaseRequirement>,
+    Vec<ScalarProjectionIndexRequirement>,
+)> {
+    let mut cases = Vec::new();
+    let mut indices = Vec::new();
+    for (prefix_length, segment) in path.iter().enumerate() {
+        let current = crate::project_type_reference_from_segments(
+            program,
+            reference,
+            &path[..prefix_length],
+        )?;
+        match segment {
+            facts::PlaceSegment::Case { variant } => cases.push(ScalarProjectionCaseRequirement {
+                prefix_length,
+                variant: *variant,
+            }),
+            facts::PlaceSegment::FixedIndex { index } => {
+                let collection = crate::unwrapped_type_reference(program, current)?;
+                if matches!(
+                    program.type_reference_table.type_reference(collection),
+                    typed_trees::types::TypeReferenceNode::Slice { .. }
+                ) {
+                    indices.push(ScalarProjectionIndexRequirement {
+                        prefix_length,
+                        index: *index,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    Some((cases, indices))
 }
 
 pub fn scoped_call_result_observations(
