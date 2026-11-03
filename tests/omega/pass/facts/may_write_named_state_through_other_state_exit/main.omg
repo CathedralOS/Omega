@@ -38,7 +38,8 @@ machine main() crashes Trap {
     machine read(items: [u8; 4], index: u64, chosen: u64, marker: u64 in Wrapping)
     requires index < 4
     {
-        transition (marker as u64) == 1 && chosen == 9 && items[index] == 7 {
+        let indexed: u8 = items[index];
+        transition (marker as u64) == 1 && chosen == 9 && indexed == 7 {
             true -> done()
             _ -> bad()
         }

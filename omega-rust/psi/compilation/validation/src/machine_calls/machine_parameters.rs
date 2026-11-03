@@ -1030,6 +1030,12 @@ fn machine_parameter_contract_definition_in<'program>(
         if parameter.symbol == symbol {
             return Some((parameter, contract));
         }
+        // This search visits every machine parameter in the program, not only
+        // callable ones. A declaration-identity parameter names a machine or
+        // requirement and has no signature, so it has no nested parameters.
+        if matches!(contract, MachineParameterContract::RequirementIdentity) {
+            continue;
+        }
         let signature = machine_parameter_signature(program, contract);
         if let Some(found) = machine_parameter_contract_definition_in(
             program,
