@@ -11,7 +11,7 @@ use semantic_vocabulary::{
     CanonicalStructuralPathSegment, Proposition, PropositionContext, ScalarTerm, ScalarType,
     StructuralPlaceKind,
 };
-use std::borrow::{Borrow, Cow};
+use std::borrow::Cow;
 use terminal_psi::{StructuralDomainDeclaration, StructuralTypeDeclaration};
 
 #[cfg(test)]
@@ -94,7 +94,7 @@ pub(super) fn close(
     domains: &[StructuralDomainDeclaration],
     contract: &mut PayloadMembershipContract,
 ) {
-    close_with_shared_requirements::<Proposition>(types, domains, contract, &[], None);
+    close_with_shared_requirements(types, domains, contract, std::iter::empty(), None);
 }
 
 /// A negative answer proves closure cannot modify this row: no domain passes
@@ -122,11 +122,11 @@ pub(super) fn closure_may_change(
 /// Most payloads have no eligible byte predicate. Keep the state's shared
 /// theory borrowed until a predicate actually reads it; that reader still
 /// receives the complete ordered premises for its context, equations and goal.
-pub(super) fn close_with_shared_requirements<Shared: Borrow<Proposition>>(
+pub(super) fn close_with_shared_requirements<'a>(
     types: &[StructuralTypeDeclaration],
     domains: &[StructuralDomainDeclaration],
     contract: &mut PayloadMembershipContract,
-    shared: &[Shared],
+    shared: impl ExactSizeIterator<Item = &'a Proposition> + Clone,
     edge_predicate: Option<&Proposition>,
 ) {
     let mut requirements = None;
@@ -144,11 +144,11 @@ pub(super) fn close_with_shared_requirements<Shared: Borrow<Proposition>>(
             continue;
         };
         let requirements = requirements.get_or_insert_with(|| {
-            if shared.is_empty() && edge_predicate.is_none() {
+            if shared.len() == 0 && edge_predicate.is_none() {
                 Cow::Borrowed(contract.scalar_requirements.as_slice())
             } else {
                 let mut premises = contract.scalar_requirements.clone();
-                super::payload_history::extend_canonical_premises(&mut premises, shared);
+                super::payload_history::extend_canonical_premises(&mut premises, shared.clone());
                 // Preserve the pre-normalization proof input of predicate edges:
                 // ordered local/shared union, then the whole predicate if new.
                 if let Some(predicate) = edge_predicate
