@@ -51,6 +51,13 @@ new reference, and checks that both the stored and returned references read 11.
 Its [twin](replaced_source/invalid/main.omg) installs invocation-local storage.
 These are additional productions of the same borrowing requirement.
 
+The [caller-view example](caller_view/main.omg) forms a checked `Packet` view
+of a caller-owned `BackingPacket` before forwarding it. Their reference fields
+have different names. Both width choices must return the original byte 11,
+and the backing record must still read 11. Its [twin](caller_view/invalid/main.omg)
+changes only the selected method to return invocation-local storage. These new
+programs are frozen for baseline comparison; no passing result is claimed yet.
+
 The [target-qualification example](target_qualification/main.omg) calls an
 ordinary `SelectedTarget::target_only` requirement from a selected family member.
 Its public lifetime explicitly relates the returned view to its input. Four
