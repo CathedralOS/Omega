@@ -40,3 +40,15 @@ This row does not close R5's finite write cycles, parameter permutations or pars
 On Linux x86-64 at `d6cf554fd1cbf20551983d29bae26f5cf3b81664`, the frozen root rejects `cannot prove index` and several places instead reach the missing codec-callee lowering diagnostic. None of the ten positives executes. Seven overlapping twins incorrectly pass checking. The repaired row must retain all authored sources and require ten native/Terminal exit-0 agreements and nine intended bound rejections.
 
 The extra corpus variations exercise an array of reference carriers, occurrence-local declaration typing across states, and rejection of a shared cursor. The existing codec-choice and signed round-trip witnesses execute with exit 0 on baseline and candidate. The legacy exact-array fixture refuses the same unaccepted package-entry binding on both; no execution is claimed for that fixture.
+
+## Target-selection migration baseline
+
+`BUILD-OWNED-TARGET-SELECTION` owns the remaining target-body migration.
+The four identical bodies will become one ordinary implementation selected by
+four Build rows. The public input bounds, encoded scalar `200`, cursor result
+`4`, untouched index `1`, indexed byte `7`, and exit `0` stay fixed. Each twin
+continues to change only the cursor referent.
+
+The complete current row is frozen against published base `e4617438fb66df39eeb1fa6605b8fcacba19df62`.
+A focused hosted baseline will measure the original programs before source or
+compiler changes; the older observations above keep their historical identity.
