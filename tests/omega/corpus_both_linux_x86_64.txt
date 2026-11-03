@@ -10,8 +10,10 @@
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
 pass/borrows/borrowed_reference_field_read_and_write_exit built 8133ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 pass/borrows/collection_metadata_descriptor_storage_exit built 14682ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
+pass/borrows/opaque_incoming_nested_stored_byte_view_relay_exit built 15278ms exit:0 interpreter-exit:0 interpreter:agrees @7a2c1562808d
 pass/borrows/runtime_byte_case_partial_cleanup_exit built 15056ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
 pass/borrows/runtime_exclusive_byte_field_cleanup_exit built 15242ms exit:0 interpreter-exit:0 interpreter:agrees @60b8f1171d45
+pass/borrows/view_local_rebind_keeps_alias_exit built 184696ms exit:70 interpreter-exit:70 interpreter:agrees @7a2c1562808d
 pass/calls/selected_crash_argument_snapshot_exit built 10692ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_distinct_limits_exit built 10688ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_match_record_exit built 13834ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d

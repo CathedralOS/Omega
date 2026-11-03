@@ -163,6 +163,8 @@ fail/contracts/transition_argument_effects_reject_old_observation rejected 1317m
 	cannot prove requires contract for call finish from main: cell.value == 7 (needs fact `observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/control_flow/selected_adapter_missing_rejected rejected 2876ms expected @ee4dbb4b2d56
 	machine `Selector::select` state `select`: value call `select_missing(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/core/scoped_integer_call_crash_route_blocks_unfolding rejected 6309ms expected @7a2c1562808d+wt
+	specification call `lower` has no observation-free, reach-free, crash-free value denotation: the selected closure publishes a crash route
 fail/dependent/data_requires_cyclic_handoff_store_rejected rejected 882ms expected @ddc8d6fcecbc
 	machine `tail` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/dependent/data_where_retired rejected 478ms expected @d83ddecd7693+wt
@@ -3922,6 +3924,7 @@ pass/borrows/opaque_generic_shared_stored_writeonly_provider checked 2794ms @ccd
 pass/borrows/opaque_incoming_nested_projected_array_result_exit checked 3955ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/opaque_incoming_nested_projected_record_result_exit checked 3360ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/opaque_incoming_nested_stored_byte_view_exit checked 3937ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/opaque_incoming_nested_stored_byte_view_relay_exit checked 14366ms check-target:macos_arm64 @7a2c1562808d
 pass/borrows/opaque_incoming_stored_byte_view_exit checked 3856ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/opaque_reference_identity checked 2988ms @ccdb99ca2214
 pass/borrows/opaque_region_known_calls checked 2217ms @ccdb99ca2214
@@ -4246,6 +4249,7 @@ pass/borrows/terminal_call_loan_completion_exit checked 3580ms check-target:maco
 pass/borrows/transition_shared_borrow_result rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
 pass/borrows/view_field_record_exit_disposal checked 2706ms @ccdb99ca2214
+pass/borrows/view_local_rebind_keeps_alias_exit checked 173205ms check-target:macos_arm64 @7a2c1562808d
 pass/borrows/write_projection_loan checked 3150ms @ccdb99ca2214
 pass/borrows/writeonly_record_field_store rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prepare accepted omega.lock: unsupported package lock version; run omega update with this compiler to accept compilation inputs; run omega update for fresh review (restore a compatible lock or explicitly remove an unsupported lock first); no selector was refreshed
@@ -5477,6 +5481,7 @@ pass/core/runtime_inherited_content_formal_identity_exit checked 14857ms check-t
 pass/core/runtime_natural_termination_exit checked 2973ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/scoped_integer_call_exact_actual_requires_formation checked 10878ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/scoped_integer_call_guarantees_composed_exit checked 10178ms check-target:macos_arm64 @ccdb99ca2214
+pass/core/scoped_integer_call_unfolds_checked_body checked 13063ms @7a2c1562808d
 pass/core/scoped_integer_call_unrelated_trait_operator_requires_formation checked 15156ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/self_read_only_receiver_compile checked 2360ms @ccdb99ca2214
 pass/core/task_lifecycle_operations rejected 9239ms check-target:macos_arm64 @d58d8c534048
@@ -16854,7 +16859,6 @@ fail/borrows/opaque_incoming_nested_projected_record_result_empty_rejected rejec
 	cannot prove requires contract for call observe from main: selected.wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/opaque_incoming_nested_stored_byte_view_empty_rejected rejected 2987ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe from main: wrapper.bundle.windows[0].len == 1 (needs fact `wrapper.bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/borrows/opaque_incoming_nested_stored_byte_view_missing_guarantee_rejected checked 4030ms @ccdb99ca2214
 fail/borrows/opaque_incoming_stored_byte_view_empty_rejected rejected 3673ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe from main: bundle.windows[0].len == 1 (needs fact `bundle.windows[0].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/borrows/opaque_nested_stored_writeonly_input rejected 966ms expected @ccdb99ca2214
@@ -17309,7 +17313,6 @@ fail/borrows/view_local_lend_before_store rejected 19325ms expected @ccdb99ca221
 	machine `Main::main` state `main` uses reference local `view` before a store establishes it; a reference declared without an initializer holds no descriptor until it is assigned
 fail/borrows/view_local_read_before_store rejected 14367ms expected @ccdb99ca2214
 	machine `Main::main` state `main` uses reference local `out_line` before a store establishes it; a reference declared without an initializer holds no descriptor until it is assigned
-fail/borrows/view_local_store_while_lent checked 18480ms @ccdb99ca2214
 fail/borrows/whole_mut_receiver_read_under_argument_loan rejected 1899ms expected @ccdb99ca2214
 	state `read_through_helper` receives `main` as mutable more than once
 	state `read_after` receives `main` as mutable more than once
@@ -19138,7 +19141,6 @@ fail/core/scoped_integer_call_actual_requires_selected_meaning rejected 2581ms e
 	cannot prove ensures contract for exit from caller at statement 0: identity(left + right) as i16  == result
 fail/core/scoped_integer_call_guarantee_requires_formation rejected 684ms expected @ccdb99ca2214
 	cannot prove requires contract for specification call `restricted` in machine `caller` ensures contract: establish its selected precondition in an independently formed prior requires fact
-fail/core/scoped_integer_call_guarantee_requires_published_equality checked 2538ms @ccdb99ca2214
 fail/core/scoped_integer_call_guarantee_retains_actual rejected 2021ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from caller at statement 0: identity(value + 1) as i16  == result
 fail/core/scoped_integer_call_guarantees_cannot_form_cycle rejected 1797ms expected @ccdb99ca2214
@@ -20343,7 +20345,6 @@ fail/expressions/indexed_qualified_call_argument_mismatch rejected 1701ms expect
 	index compatibility condition `index-equality:Coordinate:choose::entry:call-0-0:Coordinate<7>==Coordinate<9>` is not established: actual `Coordinate<7>` and expected `Coordinate<9>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Coordinate:choose::entry:call-0-0:Coordinate<7>==Coordinate<9>` is not established: actual `Coordinate<7>` and expected `Coordinate<9>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 	index compatibility condition `index-equality:Coordinate:choose::entry:call-0-0:Coordinate<7>==Coordinate<9>` is not established: actual `Coordinate<7>` and expected `Coordinate<9>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
-fail/expressions/match_float_equality_missing checked 5291ms @ccdb99ca2214
 fail/expressions/match_fractional_result rejected 766ms expected @ccdb99ca2214
 	anonymous value `7/2` is not an integer and cannot land in `u64` in machine `choose` state `entry` terminal expression; type an operand before division if integer division was intended
 	anonymous operand `7/2` is not an integer in machine `choose` state `entry` terminal expression; type an operand before division if integer division was intended
@@ -34678,7 +34679,6 @@ fail/providers/authored_same_stack_without_via rejected 5ms @ccdb99ca2214
 	tests/omega/fail/providers/authored_same_stack_without_via/main.omg:5:52: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `stack`
 fail/providers/authored_same_stack_zero rejected 2ms @ccdb99ca2214
 	tests/omega/fail/providers/authored_same_stack_zero/main.omg:7:5: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>;`, `suspends;`, `blocks;`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `stack`
-fail/providers/binding_formal_runtime_operand checked 2526ms @ccdb99ca2214
 fail/providers/borrowed_claim_report_does_not_discharge_owner rejected 2914ms expected @ccdb99ca2214
 	linear value `token` reaches scope exit without being consumed or transferred in machine `main` state `entry`
 fail/providers/borrowed_membership_current_subject rejected 2301ms unexpected @ccdb99ca2214

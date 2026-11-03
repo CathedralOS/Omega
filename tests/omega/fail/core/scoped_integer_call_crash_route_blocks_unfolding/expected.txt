@@ -1,1 +1,1 @@
-cannot prove ensures contract for exit
+has no observation-free, reach-free, crash-free value denotation
