@@ -540,3 +540,55 @@ pub fn activation_accessor_has_empty_write_frame(
         && exact_toolchain_activation_storage_contract(program, machine)
             .is_some_and(|contract| contract.operation == ActivationStorageOperation::BorrowBytes)
 }
+
+/// Whether owning a value of this type owns activation-scoped custody: the
+/// sealed activation claim itself, or a record, case payload or fixed array
+/// that contains one by value. A claim's backing is committed storage of the
+/// activation that established it, so such a value can move only within that
+/// activation. A borrow of a claim moves no custody, and an unresolved
+/// generic or opaque carrier names no sealed claim.
+pub fn type_carries_activation_claim(
+    program: &dyn CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    let mut visiting = Vec::new();
+    carries_activation_claim(program, type_reference, &mut visiting)
+}
+
+fn carries_activation_claim(
+    program: &dyn CheckingInput,
+    type_reference: TypeReferenceHandle,
+    visiting: &mut Vec<SymbolHandle>,
+) -> bool {
+    if !type_reference.is_valid() {
+        return false;
+    }
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Named { symbol, .. } => {
+            if activation_claim_byte_carrier(program, *symbol).is_some() {
+                return true;
+            }
+            if visiting.contains(symbol) {
+                return false;
+            }
+            let Some(record) =
+                crate::declarations::data_queries::data_definition_by_symbol(program, *symbol)
+            else {
+                return false;
+            };
+            visiting.push(*symbol);
+            let carries = program
+                .data_member_fields(program.data_members(record))
+                .any(|field| carries_activation_claim(program, field.type_reference, visiting));
+            visiting.pop();
+            carries
+        }
+        TypeReferenceNode::FixedArray { element_type, .. } => {
+            carries_activation_claim(program, *element_type, visiting)
+        }
+        TypeReferenceNode::Constrained { base_type, .. } => {
+            carries_activation_claim(program, *base_type, visiting)
+        }
+        _ => false,
+    }
+}

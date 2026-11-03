@@ -68,7 +68,7 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
         .map(|(owner, _)| owner.symbol)
         .collect::<Vec<_>>();
     owners.dedup(); // Discovery appends each owner's complete state roster once.
-    if owners.len() <= 1 || std::env::var("OMEGA_EXPERIMENT_FUSE_ALL").is_ok_and(|names| names.split(',').any(|name| name == machine.name.as_str())) {
+    if owners.len() <= 1 {
         return fused;
     }
     let mut predecessors = Vec::new();
@@ -108,6 +108,38 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
             }
         }
     }
+    // A terminal call runs in the current activation. When it moves an
+    // activation claim, the callee must therefore join this graph even
+    // though no cycle requires it: an ordinary call would carry the claim
+    // into a separate machine, which is another activation. Calls that move
+    // no such custody keep the ordinary call plan. Retention spreads from
+    // every retained owner, so a claim moved again by the callee follows it.
+    let mut cursor = 0;
+    while let Some(&source) = ready.get(cursor) {
+        cursor += 1;
+        let source_states = fused
+            .iter()
+            .filter(|(owner, _)| owner.symbol == owners[source])
+            .map(|(_, state)| *state);
+        for state in source_states {
+            for target_symbol in completing_transition_targets(program, state) {
+                let Some(target_index) = fused_target_index(program, &fused, target_symbol) else {
+                    continue;
+                };
+                let (target_owner, target_state) = fused[target_index];
+                let Some(target) = owners
+                    .iter()
+                    .position(|symbol| *symbol == target_owner.symbol)
+                else {
+                    continue;
+                };
+                if !retained[target] && moves_activation_claim(program, target_state) {
+                    retained[target] = true;
+                    ready.push(target);
+                }
+            }
+        }
+    }
     fused.retain(|(owner, _)| {
         owners
             .iter()
@@ -115,6 +147,17 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
             .is_some_and(|owner_index| retained[owner_index])
     });
     fused
+}
+
+/// Whether arriving at `entry` moves activation-scoped custody: one of its
+/// owned (by-value) parameters carries an activation claim.
+fn moves_activation_claim(
+    program: &dyn ::validation::CheckingInput,
+    entry: &typed_trees::state::State,
+) -> bool {
+    program.state_parameters(entry).iter().any(|parameter| {
+        ::validation::type_carries_activation_claim(program, parameter.type_reference)
+    })
 }
 
 /// Every complete transition invocation in authored order. Applied calls
