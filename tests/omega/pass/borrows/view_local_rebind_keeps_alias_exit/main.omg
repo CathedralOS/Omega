@@ -1,5 +1,10 @@
-// A view the callee returns keeps the local's loan until its last use:
-// replacing the local's descriptor before then rejects.
+// Rebinding a reference local does not redirect a view made from its old
+// value: `kept` borrows the literal "Door" that `view` pointed to, not the
+// local `view`, so `view = "Gate"` is allowed and `kept` still reads "Door"
+// (exit 70; a redirected alias would exit 71). This was a reject fixture
+// written against the opposite rule; state_contracts.md "Mutation and subject
+// identity" says replacing a local reference binding changes that binding
+// without redirecting aliases made from its previous value.
 use omega_language_std::console;
 
 data Main { }
