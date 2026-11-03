@@ -294,6 +294,14 @@ After successful construction, aggregate cleanup instead follows recursive
 reverse declaration order. Canonical field identity and physical layout do not
 reorder evaluation or partial-construction cleanup.
 
+[Runtime-count owned runs](../resources/typed_runs.md) retain established elements
+and their obligations in an erased ordered-cell custody summary. An explicit
+consuming traversal can discharge cells one at a time while preserving the
+remaining run; it needs no runtime ownership bitmap. A mutable element borrow
+uses the same restoration windows as other borrowed storage. Removing a cell
+repairs the dense occupied range or replaces the value before releasing the loan;
+permanent holes require an explicit optional-element representation.
+
 Literal fixed arrays establish elements in increasing index order and clean
 the statically known live residual set in decreasing order, recursively and
 excluding moved elements. Authored moves retain authored order. No runtime

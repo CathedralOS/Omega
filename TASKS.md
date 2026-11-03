@@ -1964,10 +1964,24 @@ defines the complete product bar.
   access views end to end (`Psi 05–08` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
-  - Extend `alloc::Vec` beyond copy-scalar elements: retain initialized-element
-    custody across growth and discharge non-copy element cleanup before returning
-    vacant backing to the allocator. Its runtime-sized ownership carrier awaits
-    [the resident-sequence decision](OWNER_QUESTIONS.md#7-what-represents-a-runtime-sized-collection-of-owned-non-copy-elements).
+  - Implement [typed-run custody](wiki/spec/resources/typed_runs.md) end to end
+    through core `Run<P, T>` / protected `Live`, typed-cell transformations,
+    Terminal evidence and both engines; carry it across the nine places in
+    `samples/cli/facts/typed_run` with fact-sensitive reject twins. Retain actual
+    element custody, zero-footprint logical positions, contained loans and carry
+    anchors without per-element runtime tags, ledgers or occupancy bitmaps.
+  - Build generic `alloc::Vec` over live runs and adjacent vacant spare backing:
+    push/pop, remove/swap/replace, fallible growth and consuming release. Prove
+    checked singleton conversions preserve Resident field-view and excess-backing
+    semantics before folding implementations; no allocator or Vec-name carve-out.
+  - Pin dense qualified-float slice reads and domain-preserving mutable writes;
+    non-copy relocation with exactly-once observable cleanup and none during move;
+    distinct same-typed resource claims, zero-sized obligations, contained borrows,
+    split/rejoin, failed initialization and restored indexed removal. Reject twins
+    cover forged count/custody, swapped child geometry, non-adjacent merge, duplicate
+    extraction, conflicting carry anchors, relocation while borrowed, predicate
+    violation and backing return with live cells. Inspect emitted/interpreted run
+    operations for the no-per-element-bookkeeping contract, not just exit codes.
   - Execute the library growth/release/reset witnesses on Linux and macOS hosts.
   Acceptance: `tests/omega/pass/memory/bump_allocator_canary` and `Vec` growth
   witnesses execute via `omega run --both` with real backing, coexisting

@@ -215,6 +215,11 @@ appropriate initialization, size-arithmetic, lifetime, and failure contract.
 A runtime capacity may remain fixed for the owner's lifetime without implying
 growth or automatic reallocation.
 
+[Typed runs](../resources/typed_runs.md) own a runtime count of established
+elements over supplied backing without creating a runtime-sized inline `[T; N]`
+value. Their protected custody and cell transformations supply the initialized
+prefix contract needed by a library vector; a count or byte slice alone does not.
+
 A range such as `0..=65536` or a full `u32` carrier is not an instruction to
 reserve its maximum on the stack. Fixed placement must fit the actual proved
 stack plan and supply; dynamic stack layout is not granted by a value binder.
