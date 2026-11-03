@@ -603,6 +603,7 @@ impl<'program> StructuralJudge<'program> {
                     source.machine,
                     source.state,
                     source.expression,
+                    source.type_reference,
                     source.storage_version,
                     address(&*source.context),
                 )

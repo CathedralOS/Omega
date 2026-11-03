@@ -367,8 +367,7 @@ impl<'program> StructuralJudge<'program> {
                 None => return None,
             };
             if judge.runtime_body_values
-                && let Some(reference) =
-                    crate::expression_result_type_reference(program, scope.0, scope.1, expression)
+                && let Some(reference) = judge.normal_value_type_reference(expression, scope)
                 && crate::field_domains::owned_nominal_data_definition(program, reference).is_some()
             {
                 // This operation has completed: its children and the complete

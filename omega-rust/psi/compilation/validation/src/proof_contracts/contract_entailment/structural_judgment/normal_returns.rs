@@ -86,6 +86,7 @@ pub(in crate::proof_contracts::contract_entailment) struct CompletedValueSource<
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub expression: ExpressionHandle,
+    pub type_reference: TypeReferenceHandle,
     pub storage_version: Option<super::storage_effects::StorageVersion>,
     pub context: Arc<StructuralJudge<'program>>,
 }
@@ -95,6 +96,7 @@ impl CompletedValueSource<'_> {
         self.machine == other.machine
             && self.state == other.state
             && self.expression == other.expression
+            && self.type_reference == other.type_reference
             && self.storage_version == other.storage_version
             && Arc::ptr_eq(&self.context, &other.context)
     }
@@ -2143,8 +2145,27 @@ impl<'program> StructuralJudge<'program> {
         scope: ValueScope<'_>,
     ) -> Option<TypeReferenceHandle> {
         let program = self.program;
-        crate::expression_result_type_reference(program, scope.0, scope.1, expression).or_else(
-            || {
+        crate::expression_result_type_reference(program, scope.0, scope.1, expression)
+            .or_else(|| {
+                let literal = expression_table(program).struct_literal_node(expression)?;
+                // A completed constructor keeps the application used to check
+                // its fields. Unused case parameters need that context, while
+                // its resolved owner and case still have to match exactly.
+                let definition =
+                    crate::value_custody::struct_literals::selected_construction_definition(
+                        program, expression, literal,
+                    )?;
+                if literal.case_symbol.is_some() {
+                    crate::value_custody::struct_literals::selected_construction_case(
+                        program, expression, literal, definition,
+                    )?;
+                }
+                let reference = crate::value_custody::struct_literals::construction_application(
+                    program, expression,
+                );
+                reference.is_valid().then_some(reference)
+            })
+            .or_else(|| {
                 let indexed = expression_table(program).indexed_node(expression)?;
                 expression_table(program).range_node(indexed.index)?;
                 crate::slice_view_shell(program, scope.2, &[])?;
@@ -2163,8 +2184,7 @@ impl<'program> StructuralJudge<'program> {
                 (program.normalized_type_identity(source_element)
                     == program.normalized_type_identity(receiving_element))
                 .then_some(scope.2)
-            },
-        )
+            })
     }
 
     fn capture_unknown_value(
@@ -2665,6 +2685,10 @@ impl<'program> NormalReturnPath<'program> {
         if !self.judge.requires_value_preservation() || self.observed_value().is_none() {
             return self;
         }
+        let Some(type_reference) = self.judge.normal_value_type_reference(expression, scope) else {
+            self.source = None;
+            return self;
+        };
         // Preserve the observations made when this result completes, even
         // after its local scope ends. Their old storage cells do not become
         // current caller storage.
@@ -2675,6 +2699,7 @@ impl<'program> NormalReturnPath<'program> {
             machine: scope.0.symbol,
             state: scope.1.symbol,
             expression,
+            type_reference,
             storage_version: self.judge.storage_version,
             context: Arc::new(context),
         });

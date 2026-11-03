@@ -43,6 +43,11 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
+The [latest completed compiler check](https://github.com/CathedralOS/Omega/actions/runs/41570174453)
+still rejects the writer's byte and returned-length promises, leaving later
+round-trip promises unproved. Both returned-reference positives check, and four
+stale-storage controls reject correctly. The constant-method declaration and
+moved-field repairs are being checked separately.
 The full standard Representation interface, reflection adapters, other hosts
 and the Omega-written producer also remain parent work.
 

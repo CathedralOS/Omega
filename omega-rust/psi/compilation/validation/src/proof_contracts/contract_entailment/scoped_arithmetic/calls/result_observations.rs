@@ -115,10 +115,16 @@ pub(in crate::proof_contracts::contract_entailment::scoped_arithmetic) fn result
                 else {
                     continue;
                 };
+                let Some(actual_reference) =
+                    crate::expression_result_type_reference(program, machine, state, expression)
+                else {
+                    continue;
+                };
                 let Some(backing) = frames.completed_value_read_backing(
                     machine,
                     state,
                     expression,
+                    actual_reference,
                     &place.segments,
                 ) else {
                     continue;

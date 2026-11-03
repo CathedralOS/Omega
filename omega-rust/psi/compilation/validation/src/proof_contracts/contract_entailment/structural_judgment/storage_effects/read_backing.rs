@@ -297,9 +297,9 @@ impl StructuralJudge<'_> {
             .then(|| first.clone())
     }
 
-    /// A return contract observes the current backing through the value that
-    /// actually completed here. Its descriptor may have been stored earlier;
-    /// neither that earlier expression nor the contract goal supplies this cut.
+    /// Prove returned contents from the storage after the function's final
+    /// writes. A descriptor saved earlier identifies the buffer, not its final
+    /// contents; the return promise cannot supply those contents itself.
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn completed_return_read(
         &self,
         source: &super::super::normal_returns::CompletedValueSource<'_>,
@@ -319,22 +319,30 @@ impl StructuralJudge<'_> {
         }
         let machine = self.program.machine_by_symbol(source.machine)?;
         let state = self.program.state_in_machine(machine, source.state)?;
-        let reference = crate::expression_result_type_reference(
-            self.program,
-            machine,
-            state,
-            source.expression,
-        )?;
-        let geometry = crate::structural_scalar_coordinate_in_type(
+        let Some(geometry) = crate::structural_scalar_coordinate_in_type(
             self.program,
             facts::PlaceRoot::Expression(source.expression),
-            reference,
+            source.type_reference,
             path,
-        )?;
+        ) else {
+            if super::super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT returned-read-refused expression={:?} type={:?} path={path:?} phase=geometry",
+                    source.expression, source.type_reference,
+                );
+            }
+            return None;
+        };
         let dependencies = source
             .context
             .frame_resolver()?
-            .completed_value_read_backing(machine, state, source.expression, path);
+            .completed_value_read_backing(
+                machine,
+                state,
+                source.expression,
+                source.type_reference,
+                path,
+            );
         let Some(dependencies) = dependencies else {
             if super::super::super::struct_trace() {
                 eprintln!(
@@ -392,7 +400,8 @@ impl StructuralJudge<'_> {
         )?;
         let frames = self.frame_resolver()?;
         let dependencies = if crate::reference_shell(self.program, declared).is_some() {
-            let supplied = frames.completed_value_read_backing(machine, state, expression, &[]);
+            let supplied =
+                frames.completed_value_read_backing(machine, state, expression, declared, &[]);
             if supplied.is_none() && super::super::super::struct_trace() {
                 eprintln!(
                     "STRUCT scalar-read-refused expression={expression:?} phase=performed-descriptor-load-frontier"

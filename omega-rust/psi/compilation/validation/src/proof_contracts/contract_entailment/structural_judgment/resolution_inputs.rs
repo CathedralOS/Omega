@@ -59,13 +59,15 @@ struct Modes {
     hypotheses_contradictory: bool,
 }
 
-/// A return observation changes which current cells answer a result query.
-/// Retain its exact cut and weak context identity without pinning old storage.
+/// Reusing a result query requires the same returned value and completion-time
+/// storage version. Keep that source in the input comparison, with a weak
+/// context reference so old proof storage can be released.
 #[derive(PartialEq)]
 struct ReturnedValueInput<'program> {
     machine: SymbolHandle,
     state: SymbolHandle,
     expression: ExpressionHandle,
+    type_reference: typed_trees::types::TypeReferenceHandle,
     storage_version: Option<super::storage_effects::StorageVersion>,
     context: InputOwner<'program>,
 }
@@ -161,6 +163,7 @@ impl<'program> StructuralJudge<'program> {
                     machine: source.machine,
                     state: source.state,
                     expression: source.expression,
+                    type_reference: source.type_reference,
                     storage_version: source.storage_version,
                     context: InputOwner::new(&source.context),
                 }
