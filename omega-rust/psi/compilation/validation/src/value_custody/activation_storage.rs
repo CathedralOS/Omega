@@ -590,25 +590,39 @@ fn carries_activation_claim(
         TypeReferenceNode::Constrained { base_type, .. } => {
             carries_activation_claim(program, *base_type, visiting)
         }
-        // A generic application owns whatever its arguments supply, so a
-        // `Holder<ActivationClaim>` carries the claim it was instantiated
-        // with. Counting a claim argument that the generic does not store by
-        // value only keeps one more call in the caller's activation, which a
-        // terminal call already runs in.
+        // A generic application owns what its own fields store and whatever
+        // its arguments supply, so `Holder<ActivationClaim>`,
+        // `Holder<Holder<ActivationClaim>>` and `Tagged<u8>` over a claim
+        // field all carry a claim. The argument tree is finite and needs no
+        // cycle guard; the definition's fields take the same guard as a
+        // named record. Counting a claim argument the generic does not
+        // store by value keeps one more call in the caller's activation,
+        // which a terminal call already runs in.
         TypeReferenceNode::Generic {
             base_symbol,
             arguments,
             ..
         } => {
-            if visiting.contains(base_symbol) {
-                return false;
-            }
-            visiting.push(*base_symbol);
-            let carries = program
+            if program
                 .type_reference_table
                 .type_reference_handles(*arguments)
                 .iter()
-                .any(|argument| carries_activation_claim(program, *argument, visiting));
+                .any(|argument| carries_activation_claim(program, *argument, visiting))
+            {
+                return true;
+            }
+            if visiting.contains(base_symbol) {
+                return false;
+            }
+            let Some(record) =
+                crate::declarations::data_queries::data_definition_by_symbol(program, *base_symbol)
+            else {
+                return false;
+            };
+            visiting.push(*base_symbol);
+            let carries = program
+                .data_member_fields(program.data_members(record))
+                .any(|field| carries_activation_claim(program, field.type_reference, visiting));
             visiting.pop();
             carries
         }
