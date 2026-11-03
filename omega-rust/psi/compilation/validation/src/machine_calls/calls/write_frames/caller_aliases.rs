@@ -420,60 +420,26 @@ pub(super) fn assignment_write_paths(
         state_prefix,
     )
     .ok()?;
-    let mut paths = origins
+    let destinations = origins
         .destinations
         .iter()
         .map(|destination| destination.write_path(program))
         .collect::<Option<Vec<_>>>()?;
-    // A store through one reference changes what every current binding to the
-    // same storage reads. Those bindings keep their own names, so the frame
-    // names their read paths too. Only a known, overlapping referent is added:
-    // the frame also feeds loan checking, where naming a binding is a write.
-    let written = paths.clone();
-    for origin in origins.references.iter().flatten() {
-        let Some(referent) = origin
-            .source
-            .as_ref()
-            .filter(|_| origin.local_segments.is_empty())
-        else {
-            continue;
-        };
-        let binding = program.symbols.name(origin.local_symbol);
-        for (destination, path) in origins.destinations.iter().zip(&written) {
-            if let Some(read) = binding_read_path(binding, referent, destination, path)
-                && !paths.contains(&read)
-            {
-                paths.push(read);
-            }
-        }
-    }
-    Some(paths)
-}
-
-/// The path through `binding` that observes the written storage, if any.
-/// Recast views keep their own coordinates and are not projected here.
-fn binding_read_path(
-    binding: &str,
-    referent: &LocalWriteSource,
-    destination: &LocalWriteSource,
-    written: &str,
-) -> Option<String> {
-    let plain = |source: &LocalWriteSource| {
-        source.recasts.is_empty() && source.representation.is_none() && source.root.is_valid()
-    };
-    if !plain(referent) || !plain(destination) || referent.root != destination.root {
-        return None;
-    }
-    let within = |outer: &str, inner: &str| {
-        inner
-            .strip_prefix(outer)
-            .filter(|rest| rest.is_empty() || rest.starts_with('.') || rest.starts_with('['))
-            .map(str::to_owned)
-    };
-    if let Some(suffix) = within(&referent.path, written) {
-        return Some(format!("{binding}{suffix}"));
-    }
-    within(written, &referent.path).map(|_| binding.to_owned())
+    // A store through one reference changes what every other binding to that
+    // storage reads, and those bindings keep their own names. Close the frame
+    // over the incoming alias inventory exactly as call frames are closed:
+    // unknown, recast and stored-leaf references are named whole. Without
+    // that inventory nothing proves the store private, so the frame is opaque.
+    let (state, _, index) =
+        caller_statement_owner(program, machine, CallerWriteSite::Statement(statement))?;
+    let prefix = state_prefix(state, index)?;
+    close_over_origins(
+        program,
+        destinations,
+        &prefix.aliases,
+        &prefix.divergent,
+        &prefix.stored,
+    )
 }
 
 /// Address provenance of the performed store, not the contents before it.
@@ -1159,9 +1125,16 @@ fn close_over_origins(
         if !closed.contains(&path) {
             closed.push(path.clone());
         }
+        // A divergent binding may read any of its candidates, so a write to
+        // one candidate changes what that binding reads, just as for an alias.
         for (alias, origin, local_coarse) in aliases
             .iter()
             .map(|(alias, origin)| (alias, Some(origin), false))
+            .chain(divergent.iter().flat_map(|(name, candidates)| {
+                candidates
+                    .iter()
+                    .map(move |candidate| (name, Some(candidate), false))
+            }))
             .chain(
                 stored
                     .iter()
