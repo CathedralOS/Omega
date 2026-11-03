@@ -1,1 +1,1 @@
-has no resolved callable declaration
+call `outer::hidden` names a nested machine private to `outer`

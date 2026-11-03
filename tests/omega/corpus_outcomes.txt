@@ -66,6 +66,11 @@ fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 fail/calls/nested_machine_duplicate_helper_overload rejected 2717ms expected @11bdd2fe41ff+wt
 	duplicate named machine overload `outer::helper` with parameter signature `parameter(mutable(no),const(no),named(name(u64)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	machine `outer` state `entry`: value call `helper(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
+fail/calls/nested_machine_qualified_call_carriers rejected 1056ms expected @11bdd2fe41ff+wt
+	call `outer::value_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
+	call `outer::generic_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
+	call `outer::subject_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
+	call `outer::terminal_helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
 fail/calls/runtime_guarded_reference_return_nested_local_escape rejected 4129ms expected @c79bb8268163+wt
 	machine `failed` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
@@ -17506,8 +17511,8 @@ fail/calls/nested_call_argument_constraints_unproven rejected 2002ms expected @c
 	machine `nested` state `entry` value call to `admit` violates required fact `value >= 0.0 && value <= 0.5`: the instantiated fact is structurally false (`40.0 >= 0.0 && 40.0 <= 0.5`)
 fail/calls/nested_call_footprint_retires_second_argument rejected 1747ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from write: cells.second <= 8 (needs fact `value <= 8` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/calls/nested_machine_private_descendant rejected 949ms expected @ccdb99ca2214
-	qualified call `hidden` has no resolved callable declaration
+fail/calls/nested_machine_private_descendant rejected 966ms expected @11bdd2fe41ff+wt
+	call `outer::hidden` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
 fail/calls/nested_machine_runtime_capture rejected 1858ms expected @ccdb99ca2214
 	machine `read` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
 fail/calls/nested_range_call_out_of_bounds rejected 1918ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
@@ -23512,8 +23517,8 @@ fail/facts/domain_selected_cleanup_nested_after_declaration_rejected rejected 2m
 	tests/omega/fail/facts/domain_selected_cleanup_nested_after_declaration_rejected/main.omg:1:38: executable statements cannot follow nested machine declarations
 fail/facts/domain_selected_cleanup_nested_capture_rejected rejected 951ms expected @ccdb99ca2214
 	machine `helper` state `entry` uses `value`, which is not a declared local, parameter, field, or type in this state (check the spelling)
-fail/facts/domain_selected_cleanup_nested_external_access_rejected rejected 778ms expected @ccdb99ca2214
-	qualified call `helper` has no resolved callable declaration
+fail/facts/domain_selected_cleanup_nested_external_access_rejected rejected 985ms expected @11bdd2fe41ff+wt
+	call `outer::helper` names a nested machine private to `outer`; a nested machine is called by its bare name inside its enclosing machine and is unavailable outside it
 fail/facts/domain_selected_cleanup_suspending_hook_rejected rejected 900ms expected @ccdb99ca2214
 	cleanup machine `finish` must be non-suspending and nonblocking
 fail/facts/domain_selected_cleanup_through_call_result_rejected rejected 1723ms expected @ccdb99ca2214
