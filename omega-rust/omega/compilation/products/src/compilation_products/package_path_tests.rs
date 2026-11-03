@@ -1,8 +1,10 @@
 //! `checked_native_package_path` surfaces a published `.app` root only when
 //! the package receipt replays, names the same executable as the flat
-//! receipt, and carries the identity the report retained. Each mutation below
-//! leaves one receipt internally consistent where it can, so only the
-//! report-level join can refuse it.
+//! receipt, and carries the identity the report retained. Rebuilt receipts
+//! recompute their own digest, so each mutation is refused by the check that
+//! names its field: member order, root and byte count by the receipt's replay;
+//! identifier by the retained-identity join; container digest, path and flat
+//! byte count by the package/executable cross-binding.
 
 use super::*;
 use native_artifact::{
@@ -205,6 +207,16 @@ fn package_path_requires_the_package_and_executable_receipts_to_agree() {
             .checked_native_package_path(),
         None,
         "a flat receipt for different bytes must not bind the package"
+    );
+    let other_size = executable_receipt(
+        package.inner_executable_path().unwrap(),
+        executable.len() + 1,
+        container,
+    );
+    assert_eq!(
+        report(application.clone(), other_size, package.clone()).checked_native_package_path(),
+        None,
+        "a flat receipt with another byte count must not bind the package"
     );
     let unnamed = NativeApplicationMetadata {
         name: None,
