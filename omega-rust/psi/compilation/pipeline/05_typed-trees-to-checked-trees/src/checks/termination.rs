@@ -343,6 +343,35 @@ fn admit_machine_rankings_with_topology(
                 machine_name(program, machine.symbol)
             );
         }
+        // A promise covers everything the machine runs. A recurrent component
+        // it reaches with no ranking of its own has unknown progress, so the
+        // promise cannot be checked; nesting does not lend it the caller's
+        // ranking (termination: one joint ranking per component, and unknown
+        // progress dependencies prevent a checked guarantee).
+        if claimed
+            && diagnostic.is_empty()
+            && let Some(component) = topology
+                .as_ref()
+                .and_then(|topology| topology.unranked_component_reached_from(program, position))
+        {
+            local_terminates = false;
+            entry_rank_formed = false;
+            let names = component
+                .iter()
+                .map(|member| {
+                    format!(
+                        "`{}`",
+                        machine_name(program, program.machines()[*member].symbol)
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(", ");
+            diagnostic = format!(
+                "terminating machine {} reaches recursive component {names}, which has no \
+                 `terminates by` ranking -- spell one on that component",
+                machine_name(program, machine.symbol)
+            );
+        }
         if local_terminates
             && (witness.is_some() || joint_ranked)
             && admitted.for_body(machine.symbol, machine.states).is_none()
