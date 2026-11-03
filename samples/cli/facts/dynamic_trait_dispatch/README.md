@@ -116,51 +116,61 @@ All implementations are checked independently of the host selected for execution
 
 ## Validation and remaining scope
 
-The previously accepted `4ddfb1d9339e902e04c0cb88fc145204b6aaeeba` scope passes
-on Linux x86-64 and macOS ARM64: eighteen
-programs pass source checking, twenty-seven controls reach their intended
-rejections, and all eighteen positive fixtures exit 0 in native and Terminal
-execution. All forty-six sample projects meet their oracles: nineteen executions
-and twenty-seven intended rejections.
+The reconciled source `281c0d530cb7a5c108e8301ea6b5851f441244e1` passes the
+complete focused scope on [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41565512619)
+and [macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/41565515991).
+On each host, eighteen positive fixtures pass checking and exit 0 in both native
+and Terminal execution; twenty-seven controls reject for their intended reasons.
+All forty-six sample projects meet their oracles: nineteen executions and
+twenty-seven intended rejections. Both producers have verified optimization level 1.
 
-An actual source and golden conflict required merging main
-`6b64ebbaa6bafedc9822013c3965a271a5f173b9`. That integration changes range queries,
-storage/reference handling, field checking, Terminal encoding and execution,
-and native control-flow/liveness consumers used by these programs. The reconciled
-45 checking cases, 18 positive fixture executions and 46 sample projects will be
-replayed on both hosts with a fresh producer. Previous observations remain
-historical until that replay completes.
+This replay follows an actual conflict with main
+`6b64ebbaa6bafedc9822013c3965a271a5f173b9`. Its incoming compiler changes affect
+range proofs, storage and field checking, lowering and both execution engines,
+so all cases were rerun. All Main programs and expected outcomes remain identical
+to the accepted pre-merge candidate `4ddfb1d9339e902e04c0cb88fc145204b6aaeeba`.
+Six matched target Build files also retain main's optional macOS x86-64 entry.
+The audit verified eighteen downloaded report hashes, all 320 authored input
+hashes and ninety matching Main/Build sample-pin pairs.
 
-The observations retain the source actually measured:
+The [published source archive](https://github.com/CathedralOS/Omega/pull/1567#issuecomment-6594136272)
+retains exactly the source measured by this replay. Records name that source;
+later documentation and measured-record updates do not claim another execution.
+Only twenty-seven owned checking records and nine owned combined-execution
+records per host are replaced. Every unrelated block from incoming main is
+unchanged. Compared with main, the two target-body errors become one shared-helper
+error in each target control. The nested step's verified result guarantee removes
+one secondary outer-guarantee error. Each primary rejection cause remains, and
+the match control still reports both vacant-arm reads.
 
-- Source `0a53590a2991a39c810225fade12860d577192df` supplies forty unchanged
+The earlier accepted observations remain historical:
+
+- Source `0a53590a2991a39c810225fade12860d577192df` supplied forty unchanged
   fixture checks, seventeen positive fixture executions and forty-one unchanged
   sample results, from the full [Linux](https://github.com/CathedralOS/Omega/actions/runs/41550121602)
   and [macOS](https://github.com/CathedralOS/Omega/actions/runs/41550126485) runs.
-- Source `b9b495ed6d3d109a2620cf35dbfbf5deafbce91d` supplies the current target
+- Source `b9b495ed6d3d109a2620cf35dbfbf5deafbce91d` supplied the then-current target
   positive, operand twin and uninitialized-selector control: three checks, one
   positive fixture execution and three sample results on
   [Linux](https://github.com/CathedralOS/Omega/actions/runs/41552534492) and
   [macOS](https://github.com/CathedralOS/Omega/actions/runs/41552537806).
-- Source `a34a0eae56fa35097331cb4368d1b85cd9362e0f` supplies the restored match
+- Source `a34a0eae56fa35097331cb4368d1b85cd9362e0f` supplied the restored match
   control and the field control with initialized scalar neighbors, each checked
   as a fixture and an ordinary intended-invalid project on
   [Linux](https://github.com/CathedralOS/Omega/actions/runs/41559598582) and
   [macOS](https://github.com/CathedralOS/Omega/actions/runs/41559602325).
 
-Both hosts use verified optimization level 1. Within each host, all three runs
-use the same compiler binary digest. Unchanged projects have their own Build
-files and import none of the changed projects; compiler code, library inputs,
-policies and gate tools are unchanged. Independent review covers that reuse.
-Records name their actual observation source; later documentation and measured
-record updates do not claim another execution.
+For those earlier observations, each host used the same verified, optimized
+compiler binary across its three runs. The earlier reuse review covered unchanged
+self-contained projects and unchanged compiler, library, policy and gate inputs.
+Those six runs are not presented as execution of the integrated compiler.
 
 Every operand control names its unproved public call requirement. The field
 control refuses when reading `dispatcher.selector` after both scalar stores;
-the match control reports both vacant-arm reads. Consolidating four target
-bodies removes duplicate diagnostics, and the nested step's result contract
-removes a secondary outer-ensures error. The current primary refusal remains
-recorded in each case; unrelated golden blocks are unchanged.
+the match control reports both vacant-arm reads. The historical ledger records
+the earlier four-to-one target-body reductions and the removed secondary
+outer-guarantee error. Those observations remain
+retained alongside the new comparison against incoming main.
 
 The unchanged [Linux baseline](https://github.com/CathedralOS/Omega/actions/runs/41547276197)
 at documentation-only checkpoint `1cc1fb70bc837a91b4adbf4061d4869695460d4d`
@@ -194,7 +204,6 @@ Broader dynamic operational contracts, generic method families, cross-package
 visibility, product-compiler parity, and the remaining target-prefixed source
 families remain parent acceptance. Other-host execution is unverified until
 recorded. No owner design decision was required for this migration.
-
 
 The concurrent target migration in PR #1575 reports an earlier `11bdd2fe41f`
 macOS x86-64 measurement: its then-current target positive exited 0 in both

@@ -7508,15 +7508,15 @@ pass/facts/dynamic_selected_reach_through_other_machine_exit checked 37910ms che
 pass/facts/dynamic_selected_reach_through_other_state_exit checked 51334ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/dynamic_selected_reach_through_parameter_exit checked 42582ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/dynamic_selected_reach_through_target_body_exit checked 51589ms check-target:macos_arm64 @863cdf432f5d+wt
-pass/facts/dynamic_trait_dispatch_through_call_result_exit checked 10583ms check-target:macos_arm64 @0a53590a2991
-pass/facts/dynamic_trait_dispatch_through_const_name_exit checked 10332ms check-target:macos_arm64 @0a53590a2991
-pass/facts/dynamic_trait_dispatch_through_field_exit checked 12581ms check-target:macos_arm64 @0a53590a2991
-pass/facts/dynamic_trait_dispatch_through_local_exit checked 12334ms check-target:macos_arm64 @0a53590a2991
-pass/facts/dynamic_trait_dispatch_through_match_join_exit checked 10419ms check-target:macos_arm64 @0a53590a2991
-pass/facts/dynamic_trait_dispatch_through_other_machine_exit checked 10414ms check-target:macos_arm64 @0a53590a2991
-pass/facts/dynamic_trait_dispatch_through_other_state_exit checked 10562ms check-target:macos_arm64 @0a53590a2991
-pass/facts/dynamic_trait_dispatch_through_parameter_exit checked 10558ms check-target:macos_arm64 @0a53590a2991
-pass/facts/dynamic_trait_dispatch_through_target_body_exit checked 10862ms check-target:macos_arm64 @b9b495ed6d3d
+pass/facts/dynamic_trait_dispatch_through_call_result_exit checked 6725ms check-target:macos_arm64 @281c0d530cb7
+pass/facts/dynamic_trait_dispatch_through_const_name_exit checked 6725ms check-target:macos_arm64 @281c0d530cb7
+pass/facts/dynamic_trait_dispatch_through_field_exit checked 7362ms check-target:macos_arm64 @281c0d530cb7
+pass/facts/dynamic_trait_dispatch_through_local_exit checked 7555ms check-target:macos_arm64 @281c0d530cb7
+pass/facts/dynamic_trait_dispatch_through_match_join_exit checked 6416ms check-target:macos_arm64 @281c0d530cb7
+pass/facts/dynamic_trait_dispatch_through_other_machine_exit checked 6222ms check-target:macos_arm64 @281c0d530cb7
+pass/facts/dynamic_trait_dispatch_through_other_state_exit checked 6383ms check-target:macos_arm64 @281c0d530cb7
+pass/facts/dynamic_trait_dispatch_through_parameter_exit checked 6385ms check-target:macos_arm64 @281c0d530cb7
+pass/facts/dynamic_trait_dispatch_through_target_body_exit checked 6311ms check-target:macos_arm64 @281c0d530cb7
 pass/facts/dynamic_trait_input_arithmetic_through_call_result_exit checked 13993ms check-target:macos_arm64 @297562733b94
 pass/facts/dynamic_trait_input_arithmetic_through_const_name_exit checked 11272ms check-target:macos_arm64 @297562733b94
 pass/facts/dynamic_trait_input_arithmetic_through_field_exit checked 13958ms check-target:macos_arm64 @297562733b94
@@ -23833,23 +23833,23 @@ fail/facts/dynamic_float_refinement_through_parameter_outside_interval rejected 
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
 fail/facts/dynamic_float_refinement_through_target_body_outside_interval rejected 11506ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
-fail/facts/dynamic_trait_dispatch_through_call_result_rejected rejected 8275ms expected @0a53590a2991
+fail/facts/dynamic_trait_dispatch_through_call_result_rejected rejected 5012ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_through_const_name_rejected rejected 8333ms expected @0a53590a2991
+fail/facts/dynamic_trait_dispatch_through_const_name_rejected rejected 4982ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_through_field_rejected rejected 8486ms expected @0a53590a2991
+fail/facts/dynamic_trait_dispatch_through_field_rejected rejected 5031ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_through_local_rejected rejected 8427ms expected @0a53590a2991
+fail/facts/dynamic_trait_dispatch_through_local_rejected rejected 5088ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_through_match_join_rejected rejected 8194ms expected @0a53590a2991
+fail/facts/dynamic_trait_dispatch_through_match_join_rejected rejected 4972ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_through_other_machine_rejected rejected 8194ms expected @0a53590a2991
+fail/facts/dynamic_trait_dispatch_through_other_machine_rejected rejected 4916ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from forward: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_through_other_state_rejected rejected 8190ms expected @0a53590a2991
+fail/facts/dynamic_trait_dispatch_through_other_state_rejected rejected 5042ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from step: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_through_parameter_rejected rejected 8189ms expected @0a53590a2991
+fail/facts/dynamic_trait_dispatch_through_parameter_rejected rejected 5040ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/dynamic_trait_dispatch_through_target_body_rejected rejected 6805ms expected @b9b495ed6d3d
+fail/facts/dynamic_trait_dispatch_through_target_body_rejected rejected 4931ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from invoke_selected: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/entry_domain_return_after_write rejected 1869ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from invalid at statement 1: result == 1
@@ -30758,25 +30758,25 @@ fail/facts/unannotated_transitive_boundary_call_through_parameter_rejected rejec
 fail/facts/unannotated_transitive_boundary_call_through_target_body_rejected rejected 29860ms expected @005a0eaac360
 	machine `X86ReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
 	machine `ArmReadMark::read_mark` publishes service reach `<none>` but its checked body reaches undeclared service `Mark`
-fail/facts/uninitialized_dyn_selection_through_call_result rejected 2099ms expected @0a53590a2991
+fail/facts/uninitialized_dyn_selection_through_call_result rejected 1373ms expected @281c0d530cb7
 	machine `get_selector` state `entry` statement 1: reading `returned` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
-fail/facts/uninitialized_dyn_selection_through_const_name rejected 2103ms expected @0a53590a2991
+fail/facts/uninitialized_dyn_selection_through_const_name rejected 1321ms expected @281c0d530cb7
 	machine `probe` state `entry` statement 1: reading `selector` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
-fail/facts/uninitialized_dyn_selection_through_field rejected 1560ms expected @a34a0eae56fa
+fail/facts/uninitialized_dyn_selection_through_field rejected 1379ms expected @281c0d530cb7
 	machine `probe` state `entry` statement 3: reading `dispatcher.selector` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
 	machine `probe` state `entry` statement 3: reading `dispatcher.selector` crosses an open default-domain invariant window before data `Dispatcher` is established: the zeroed representation is not yet a `Dispatcher` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-fail/facts/uninitialized_dyn_selection_through_local rejected 2193ms expected @0a53590a2991
+fail/facts/uninitialized_dyn_selection_through_local rejected 1330ms expected @281c0d530cb7
 	machine `probe` state `entry` statement 1: reading `selector` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
-fail/facts/uninitialized_dyn_selection_through_match_join rejected 1569ms expected @a34a0eae56fa
+fail/facts/uninitialized_dyn_selection_through_match_join rejected 1447ms expected @281c0d530cb7
 	machine `probe` state `entry` statement 1: reading `vacant` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
 	machine `probe` state `entry` statement 1: reading `vacant` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
-fail/facts/uninitialized_dyn_selection_through_other_machine rejected 2172ms expected @0a53590a2991
+fail/facts/uninitialized_dyn_selection_through_other_machine rejected 1400ms expected @281c0d530cb7
 	machine `probe` state `entry` statement 1: reading `selector` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
-fail/facts/uninitialized_dyn_selection_through_other_state rejected 2225ms expected @0a53590a2991
+fail/facts/uninitialized_dyn_selection_through_other_state rejected 1308ms expected @281c0d530cb7
 	machine `probe` state `entry` statement 1: reading `selector` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
-fail/facts/uninitialized_dyn_selection_through_parameter rejected 2224ms expected @0a53590a2991
+fail/facts/uninitialized_dyn_selection_through_parameter rejected 1308ms expected @281c0d530cb7
 	machine `main` state `entry` statement 4: reading `first_selector` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
-fail/facts/uninitialized_dyn_selection_through_target_body rejected 1583ms expected @b9b495ed6d3d
+fail/facts/uninitialized_dyn_selection_through_target_body rejected 1010ms expected @281c0d530cb7
 	machine `invoke_selected` state `entry` statement 1: reading `selector` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `dyn WeightedCombine<>`
 fail/facts/unsigned_32bit_division_remainder_bound_through_call_result_rejected rejected 1208ms expected @ccdb99ca2214
 	exact arithmetic in machine `remainder_call_result` state `entry` local `headroom` may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
