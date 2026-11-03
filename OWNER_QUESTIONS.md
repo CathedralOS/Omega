@@ -333,7 +333,7 @@ Contracts checked, and why they do not decide it:
   110-113 follow provider bodies "under each applicable target" and reject a bad
   target-family member "even when deployment requests another target".
 
-### 7. Must a lent local's domain qualification hold again when the borrow returns?
+### 6. Must a lent local's domain qualification hold again when the borrow returns?
 
 A local binding can carry a domain qualification, for example
 `let mut bytes: [u8; 2] in Ascii = "ab";`. When it is lent through
