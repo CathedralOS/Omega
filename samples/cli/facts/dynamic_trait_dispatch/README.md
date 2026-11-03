@@ -70,14 +70,14 @@ Sample Main and Build files match their pins under
 The target place calls the ordinary `SelectedCombine::probe` requirement. It
 forwards the caller's function choice, scalar arguments and output reference;
 the inner `WeightedCombine::combine` call then uses that choice.
-Build selects `X86Combine` for the two x86-64 targets and `ArmCombine` for the two
-ARM64 targets. The corresponding entries pass 17 or 29, which each implementation
-checks before calling the shared helper. Swapping the selected implementation
-therefore traps. Application identities remain unchanged.
+The four original target bodies performed the same computation, so four explicit
+Build rows select one ordinary `HostedCombine` implementation. Each entry calls
+that same requirement. The two runtime function choices remain independently
+observable through their direct writes. Application identities remain unchanged.
 
 This follows [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
 and [multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation).
-The public requirement permits the tag-check crash and names no further service.
+The public requirement declares no crashes or further service use.
 All implementations are checked independently of the host selected for execution.
 
 ## Requirements established

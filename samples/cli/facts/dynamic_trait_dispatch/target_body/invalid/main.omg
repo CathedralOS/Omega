@@ -41,50 +41,29 @@ ensures result >= 100u64 && result <= 100u64
     WeightedCombine::combine(selector, a, b, observation)
 }
 
-
+'
 boundary trait SelectedCombine {
-    machine probe(selected: dyn WeightedCombine, a: u64, b: u64, observation: &mut u64, tag: u64) -> u64
+    machine probe(selected: dyn WeightedCombine, a: u64, b: u64, observation: &mut u64) -> u64
     requires a >= 60u64 && a <= 60u64
     requires b >= 39u64 && b <= 39u64
     ensures result >= 100u64 && result <= 100u64
-    reaches crashes Trap;
+    reaches;
 }
-X86Combine satisfies SelectedCombine {
-    machine probe(selected: dyn WeightedCombine, a: u64, b: u64, observation: &mut u64, tag: u64) -> u64
+HostedCombine satisfies SelectedCombine {
+    machine probe(selected: dyn WeightedCombine, a: u64, b: u64, observation: &mut u64) -> u64
     requires a >= 60u64 && a <= 60u64
     requires b >= 39u64 && b <= 39u64
     ensures result >= 100u64 && result <= 100u64
-    crashes Trap
-    {
-        transition tag == 17u64 {
-            true -> invoke_selected(selected, a, b, observation)
-            false -> bad()
-        }
-        machine bad() -> u64 { crash Trap; }
-    }
-}
-ArmCombine satisfies SelectedCombine {
-    machine probe(selected: dyn WeightedCombine, a: u64, b: u64, observation: &mut u64, tag: u64) -> u64
-    requires a >= 60u64 && a <= 60u64
-    requires b >= 39u64 && b <= 39u64
-    ensures result >= 100u64 && result <= 100u64
-    crashes Trap
-    {
-        transition tag == 29u64 {
-            true -> invoke_selected(selected, a, b, observation)
-            false -> bad()
-        }
-        machine bad() -> u64 { crash Trap; }
-    }
+    { invoke_selected(selected, a, b, observation) }
 }
 
-machine run(tag: u64) crashes Trap {
+machine main() reaches SelectedCombine crashes Trap {
     let first_selector: dyn WeightedCombine = UnitCombine as dyn WeightedCombine;
     let second_selector: dyn WeightedCombine = OtherCombine as dyn WeightedCombine;
     let mut first_observation: u64 = 0;
     let mut second_observation: u64 = 0;
-    let first: u64 = SelectedCombine::probe(first_selector, 60u64, 39u64, &mut first_observation, tag);
-    let second: u64 = SelectedCombine::probe(second_selector, 60u64, 39u64, &mut second_observation, tag);
+    let first: u64 = SelectedCombine::probe(first_selector, 60u64, 39u64, &mut first_observation);
+    let second: u64 = SelectedCombine::probe(second_selector, 60u64, 39u64, &mut second_observation);
     let first_difference: u64 = first - 100u64;
     let second_difference: u64 = second - 100u64;
     transition first_difference == 0u64 && second_difference == 0u64
@@ -95,6 +74,3 @@ machine run(tag: u64) crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-
-machine main() reaches SelectedCombine crashes Trap { run(17); }
-machine arm_main() reaches SelectedCombine crashes Trap { run(29); }
