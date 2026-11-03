@@ -48,7 +48,7 @@ pub struct CallbackSlotGeometry {
     pub slot: LayoutSlotId,
     pub requirement: CallbackRequirementId,
     pub conformance_commitment: [u8; 32],
-    pub offset: u64,
+    pub placements: crate::PrivateCallbackPlacements,
     pub size: u64,
     pub alignment: u64,
 }
@@ -80,7 +80,7 @@ impl Default for BoundaryCallbackLayout {
                 slot: LayoutSlotId::new(1).expect("arena sentinel"),
                 requirement: CallbackRequirementId::new(1).expect("arena sentinel"),
                 conformance_commitment: [0; 32],
-                offset: 0,
+                placements: crate::PrivateCallbackPlacements::default(),
                 size: 0,
                 alignment: 1,
             },
@@ -119,7 +119,10 @@ impl BoundaryCallbackLayout {
             .ok_or_else(|| "callback geometry has stale path storage".to_owned())
     }
 
-    pub fn field_offset(&self, target: NativeTarget) -> Result<usize, String> {
+    pub fn field_placements(
+        &self,
+        target: NativeTarget,
+    ) -> Result<Vec<layout_plans::LayoutPlacementReport>, String> {
         let NativePlace::Field {
             layout, field_path, ..
         } = &self.destination
@@ -160,22 +163,32 @@ impl BoundaryCallbackLayout {
             || terminal.conformance_commitment == [0; 32]
             || terminal.size != target.pointer_size as u64
             || terminal.alignment != target.pointer_alignment as u64
-            || !parent.contains(terminal.offset, terminal.size, terminal.alignment)
         {
             return Err("callback catalog terminal slot geometry is invalid".to_owned());
         }
+        layout_plans::validate_private_callback_placements(
+            terminal.placements.as_slice(),
+            terminal.size,
+            terminal.alignment,
+            parent.size,
+            parent.alignment,
+        )?;
         path.push(terminal.slot);
-        offset = offset
-            .checked_add(terminal.offset)
-            .ok_or("callback offset overflow")?;
-        if path != *field_path
-            || !self
-                .root
-                .contains(offset, terminal.size, terminal.alignment)
-        {
-            return Err("callback catalog ordered path or root containment is invalid".to_owned());
+        if path != *field_path {
+            return Err("callback catalog ordered path is invalid".to_owned());
         }
-        usize::try_from(offset).map_err(|_| "callback offset exceeds host range".to_owned())
+        let placements = layout_plans::compose_private_callback_placements(
+            terminal.placements.as_slice(),
+            offset,
+        )?;
+        layout_plans::validate_private_callback_placements(
+            &placements,
+            terminal.size,
+            terminal.alignment,
+            self.root.size,
+            self.root.alignment,
+        )?;
+        Ok(placements)
     }
 
     pub(super) fn encode(&self, encoder: &mut DomainDigestEncoder) -> Result<(), String> {
@@ -213,7 +226,15 @@ impl BoundaryCallbackLayout {
         encoder.u64(terminal.slot.get());
         encoder.u64(terminal.requirement.get());
         encoder.raw(&terminal.conformance_commitment);
-        encoder.u64(terminal.offset);
+        encoder.len(terminal.placements.as_slice().len());
+        for placement in terminal.placements.as_slice() {
+            let (kind, first, second, third, fourth, fifth) =
+                layout_plans::layout_placement_sort_key(placement);
+            encoder.u64(u64::from(kind));
+            for value in [first, second, third, fourth, fifth] {
+                encoder.u64(value);
+            }
+        }
         encoder.u64(terminal.size);
         encoder.u64(terminal.alignment);
         Ok(())

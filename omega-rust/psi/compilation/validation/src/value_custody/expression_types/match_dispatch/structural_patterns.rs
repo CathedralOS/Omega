@@ -170,6 +170,20 @@ pub(super) fn validate(
     )
 }
 
+/// The quotient data a pattern's subject carries, if any.
+fn quotient_subject<'program>(
+    program: &'program dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    subject: typed_trees::expression::ExpressionHandle,
+) -> Option<&'program typed_trees::data::DataDefinition> {
+    structural_match_subject_type_for_subject(program, machine, state, subject)
+        .and_then(|reference| {
+            crate::value_custody::places::data_definition_for_type(program, reference)
+        })
+        .filter(|data| data.quotient.is_some())
+}
+
 pub(crate) fn validate_for_subject(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -179,6 +193,21 @@ pub(crate) fn validate_for_subject(
     source_span: source::SourceSpan,
     diagnostics: &mut Vec<Diagnostic>,
 ) -> Option<(SymbolHandle, bool)> {
+    // A quotient's retained representatives are opaque (quotients.md: no
+    // ordinary record destructuring or matching), so every arm but `_` would
+    // observe one. Match expressions and transitions both validate arms here.
+    if !matches!(pattern, MatchPattern::Wildcard)
+        && let Some(data) = quotient_subject(program, machine, state, subject)
+    {
+        diagnostics.push(
+            Diagnostic::error(format!(
+                "destructure arm in machine `{}` state `{}` cannot pattern-match quotient `{}`: retained representatives are opaque and pattern matching requires a named lifted operation",
+                machine.name, state.name, data.name,
+            ))
+            .with_source_span(source_span),
+        );
+        return None;
+    }
     let Some(case) =
         structural_match_pattern_case_for_subject(program, machine, state, subject, pattern)
     else {
@@ -418,7 +447,14 @@ pub(crate) fn validate_transition_patterns(
                 head.symbol.is_valid()
                     && program.symbols.get(head.symbol).kind == SymbolKind::Variant
             });
-        if retained.is_structural || is_case {
+        // A quotient has no cases, so a case-spelled arm on one does not even
+        // resolve; it still observes the representative and must be refused.
+        // Condition arms keep no head and never observe the representative.
+        if retained.is_structural
+            || is_case
+            || (retained.pattern.head.is_valid()
+                && quotient_subject(program, machine, state, retained.subject).is_some())
+        {
             let pattern = if retained.is_structural {
                 MatchPattern::Destructure(retained.pattern)
             } else {

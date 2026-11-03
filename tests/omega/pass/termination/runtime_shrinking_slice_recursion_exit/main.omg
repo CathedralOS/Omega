@@ -24,14 +24,14 @@ data Main {
     total: u32 in Wrapping;
 }
 
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     main.entries[0].value = 10;
     main.entries[1].value = 20;
     main.entries[2].value = 15;
     main.entries[3].value = 25;
 
     let view: &[Entry] = &main.entries[..];
-    main.total = Main::accumulate(view, 0);
+    main.total = accumulate(view, 0);
 
     transition main.total {
         70 -> matched(main)
@@ -51,7 +51,7 @@ machine Main::main(main: &mut Main) reaches Console {
 // caller's record: `items` is a shared view of `main.entries`, and taking
 // `&mut Main` beside it would mutate the record a live shared child freezes.
 // The shrinking-slice recursion this fixture exists to cover is unchanged.
-machine Main::accumulate(items: &[Entry], carried: u32 in Wrapping) -> u32 in Wrapping
+machine accumulate(items: &[Entry], carried: u32 in Wrapping) -> u32 in Wrapping
 terminates by items -> Slice::Length {
     transition items.len > 0 {
         true -> accumulate(items[1..], carried + items[0].value)
@@ -62,5 +62,5 @@ terminates by items -> Slice::Length {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }
