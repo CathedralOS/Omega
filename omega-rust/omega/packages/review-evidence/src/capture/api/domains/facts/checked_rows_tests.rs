@@ -129,7 +129,7 @@ fn exact_checked_facts_keep_original_rows_ownership_and_refusal_order() {
             semantic_fact: handle,
             ..Default::default()
         };
-        assert!(compare(&typed, &rows, &[record.clone()], symbol, proof).is_ok());
+        assert!(compare(&typed, &rows, std::slice::from_ref(&record), symbol, proof).is_ok());
         // Each residual predicate remains active even inside the selected bucket.
         let mut wrong = expected;
         wrong.origin = facts::FactOrigin::Unknown;
@@ -143,7 +143,7 @@ fn exact_checked_facts_keep_original_rows_ownership_and_refusal_order() {
         wrong = expected;
         wrong.point = ProgramPoint::Global;
         let elsewhere = rows.append(wrong);
-        assert!(compare(&typed, &rows, &[record.clone()], symbol, proof).is_ok());
+        assert!(compare(&typed, &rows, std::slice::from_ref(&record), symbol, proof).is_ok());
 
         let missing = compare(&typed, &FactTable::default(), &[], symbol, proof).unwrap_err();
         assert!(missing[0].contains("0 exact checked definition rows; expected one"));

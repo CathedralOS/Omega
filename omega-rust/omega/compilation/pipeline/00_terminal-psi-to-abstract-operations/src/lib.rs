@@ -33,7 +33,6 @@
 //! reconstructing them.
 
 mod artifact_admission;
-pub(crate) use optimization_core::digest_encoder;
 mod lowering;
 mod native_admission;
 mod native_execution_scope;

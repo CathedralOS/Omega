@@ -19,14 +19,14 @@ pub(in crate::symbols) fn insert_mathematical_symbol_children(
     builder.insert_children(
         definition_symbol,
         type_parameter_seeds(
-            resolved_declarations(&program)
+            resolved_declarations(program)
                 .data_type_parameters
                 .span_or_empty(definition.binders),
             false,
             has_sources,
         )
         .chain(
-            resolved_declarations(&program)
+            resolved_declarations(program)
                 .mathematical_parameters
                 .span_or_empty(definition.parameters)
                 .iter()

@@ -809,7 +809,7 @@ fn admitted_contribution_commitment(
     hash.raw(&candidate.receipt.normalized_identity().to_le_bytes());
     hash.u64(candidate.bytes);
     hash.u64(candidate.alignment);
-    SameStackContributionCommitment(hash.finish().into())
+    SameStackContributionCommitment(hash.finish())
 }
 
 fn stack_plan_projection_report_fingerprint(

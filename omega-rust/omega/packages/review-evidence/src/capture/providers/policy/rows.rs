@@ -1,10 +1,11 @@
+use super::realizations::ReviewedProviderRealization;
 use super::{bindings, rejected};
 use crate::capture::PackageReviewInput;
 use crate::capture::providers::installation::project_selected_installation_reach;
 use crate::capture::providers::intrinsics::project_compiler_intrinsic_execution;
 use crate::capture::providers::selection::validate_selected_provider_declaration_owner;
 use crate::capture::semantics::declarations::{
-    nominal_identity, policy_provider_requirement_identity, provider_requirement_schema,
+    policy_provider_requirement_identity, provider_requirement_schema,
 };
 use crate::record::PackagePolicyProviderRow;
 use diagnostics::Diagnostic;
@@ -30,6 +31,9 @@ pub(super) fn project(
             let requirement_symbol = retained.provider.row_requirements[index];
             let origin = &retained.provider.row_realizations[index];
             let realization_symbol = origin.authored();
+            let reviewed_realization = realization_symbol
+                .map(|symbol| ReviewedProviderRealization::project(compilation, symbol))
+                .transpose()?;
             let declaring_schema = provider_requirement_schema(
                 compilation,
                 retained.provider.schema,
@@ -60,7 +64,9 @@ pub(super) fn project(
                 None
             } else {
                 let realization_symbol = realization_symbol.ok_or_else(|| rejected("provider row lost its authored realization"))?;
-                let realization = nominal_identity(compilation, realization_symbol)?;
+                let realization = reviewed_realization.as_ref()
+                    .ok_or_else(|| rejected("provider row lost its reviewed realization"))?
+                    .declaration.clone();
                 validate_selected_provider_declaration_owner(
                     &realization,
                     plan.origin_package_identity,
@@ -82,7 +88,7 @@ pub(super) fn project(
                 bindings::project_native(compilation, native, &row.binding)?
             } else {
                 bindings::project(compilation, &plan.identities, &row.binding, requirement_symbol,
-                    realization_symbol.unwrap_or_else(SymbolHandle::invalid), toolchain_settled)?
+                    reviewed_realization.as_ref(), toolchain_settled)?
             };
             // A native promise has no checked body to substitute for an
             // installation-relative reach. Retain its independent requirement

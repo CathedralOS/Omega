@@ -28,13 +28,14 @@ pub(in super::super) fn invocation_contract<'program>(
     // Preserve the existing pure checked-body summary and its memo: it does
     // not need a fresh source-occurrence walk. Only an opaque applied contract
     // needs declaration-level call selection; actual authority is checked later.
-    if let Some((callee, selected)) = super::super::machine_state_by_symbol(program, target) {
-        if callee.body_is_present && callee.supply_mode.is_checked_body() {
-            return Some(ReferenceSlotContract::CheckedBody {
-                machine: callee,
-                state: selected,
-            });
-        }
+    if let Some((callee, selected)) = super::super::machine_state_by_symbol(program, target)
+        && callee.body_is_present
+        && callee.supply_mode.is_checked_body()
+    {
+        return Some(ReferenceSlotContract::CheckedBody {
+            machine: callee,
+            state: selected,
+        });
     }
     let site =
         crate::find_call_site_in_state(program, machine, state, statement_index, call_ordinal)?;

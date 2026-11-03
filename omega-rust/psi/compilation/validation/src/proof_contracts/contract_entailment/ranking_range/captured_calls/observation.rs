@@ -66,11 +66,7 @@ impl CallProgress {
             .machine_states(callee)
             .first()
             .ok_or("the captured rank destination has no entry")?;
-        let parameters = program
-            .state_parameters(entry)
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>();
+        let parameters = program.state_parameters(entry).to_vec();
         let site =
             crate::collect_call_sites_in_statement(program, machine, state, self.statement_index)
                 .into_iter()

@@ -357,8 +357,8 @@ mod tests {
         assert_eq!(row.operands.len(), 5);
         assert!(row.operands[0].access == register_model::RegisterOperandAccess::Use);
         assert!(row.operands[1].access == register_model::RegisterOperandAccess::Use);
-        for scratch in 2..5 {
-            assert!(row.operands[scratch].early_clobber);
+        for scratch in &row.operands[2..] {
+            assert!(scratch.early_clobber);
         }
     }
 
@@ -388,7 +388,7 @@ mod tests {
             )
             .unwrap();
             reject_every_bit_flip(&encoded.bytes, &format!("{predicate:?}"), |changed| {
-                validate(&physical, predicate, alternative, &operands, &changed).is_err()
+                validate(&physical, predicate, alternative, &operands, changed).is_err()
             });
         }
     }

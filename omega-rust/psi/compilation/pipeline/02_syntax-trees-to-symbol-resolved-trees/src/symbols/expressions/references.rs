@@ -50,7 +50,7 @@ pub(crate) fn reject_unqualified_case_values(
     // A name used as a call or member receiver is a qualified-path head, not a
     // value: `Float::meaning32(...)` reads `Float` as a namespace segment that
     // never carries a symbol, so it must not be judged a bare case spelling.
-    let path_heads = body_expressions(&program)
+    let path_heads = body_expressions(program)
         .iter_expressions()
         .filter_map(|(_, expression)| match expression {
             ExpressionNode::Call(call) => Some(call.receiver),
@@ -59,7 +59,7 @@ pub(crate) fn reject_unqualified_case_values(
         })
         .filter(|handle| handle.is_valid())
         .collect::<HashSet<_>>();
-    let diagnostics = body_expressions(&program)
+    let diagnostics = body_expressions(program)
         .iter_expressions()
         .filter_map(|(expression_handle, expression)| {
             if path_heads.contains(&expression_handle) {
@@ -68,12 +68,12 @@ pub(crate) fn reject_unqualified_case_values(
             let ExpressionNode::Name(path) = expression else {
                 return None;
             };
-            let [name] = body_expressions(&program).name_path_members(path.members) else {
+            let [name] = body_expressions(program).name_path_members(path.members) else {
                 return None;
             };
             (!path.head_symbol.is_valid()
                 && !path.symbol.is_valid()
-                && body_expressions(&program)
+                && body_expressions(program)
                     .authored_expression_exposure(expression_handle)
                     .is_some()
                 && case_names.contains(name.as_str()))

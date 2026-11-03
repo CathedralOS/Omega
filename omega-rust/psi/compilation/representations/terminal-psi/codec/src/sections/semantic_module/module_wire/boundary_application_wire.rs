@@ -1,129 +1,5 @@
 //! Closed source-free requirements; selected providers never enter this section.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use semantic_vocabulary::OperationId;
-
-    #[test]
-    fn boundary_demand_wire_round_trip_and_truncation() {
-        let applications = [
-            BoundaryApplication::Empty,
-            BoundaryApplication::exact(vec![
-                BoundaryApplicationArgument::type_argument(
-                    0,
-                    BoundaryTypeIdentity::new(TerminalIdentityIndex(1)),
-                ),
-                BoundaryApplicationArgument::const_argument(
-                    1,
-                    BoundaryTypeIdentity::new(TerminalIdentityIndex(2)),
-                    "u64".into(),
-                    "integer(u64,4)".into(),
-                )
-                .unwrap(),
-            ])
-            .unwrap(),
-        ];
-        for application in applications {
-            let demand = TerminalBoundaryApplicationDemand::new(
-                OperationId::new(1).unwrap(),
-                BoundaryOperatorRequirement::new(
-                    NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
-                    "operator::compare(Element,Element)->bool".into(),
-                    None,
-                )
-                .unwrap(),
-                application,
-            );
-            let mut writer = Writer::default();
-            encode_demand(&mut writer, &demand).unwrap();
-            let bytes = writer.finish();
-            let mut reader = Reader::new(&bytes);
-            assert_eq!(decode_demand(&mut reader).unwrap(), demand);
-            assert_eq!(reader.remaining(), 0);
-            for end in 0..bytes.len() {
-                assert!(decode_demand(&mut Reader::new(&bytes[..end])).is_err());
-            }
-        }
-    }
-
-    #[test]
-    fn boundary_demand_wire_rejects_noncanonical_binder_order() {
-        let demand = TerminalBoundaryApplicationDemand::new(
-            OperationId::new(1).unwrap(),
-            BoundaryOperatorRequirement::new(
-                NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
-                "operator::compare".into(),
-                None,
-            )
-            .unwrap(),
-            BoundaryApplication::Exact(vec![BoundaryApplicationArgument::type_argument(
-                1,
-                BoundaryTypeIdentity::new(TerminalIdentityIndex(2)),
-            )]),
-        );
-        let mut writer = Writer::default();
-        encode_demand(&mut writer, &demand).unwrap();
-        assert!(decode_demand(&mut Reader::new(&writer.finish())).is_err());
-    }
-
-    #[test]
-    fn boundary_candidate_wire_preserves_owner_and_specialization() {
-        let nominal = |name: &str| {
-            NominalDeclarationIdentity::new(TerminalIdentityIndex(
-                name.bytes()
-                    .fold(1u32, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u32)),
-            ))
-        };
-        for specialization in [
-            None,
-            Some(terminal_psi::CheckedMachineSpecialization {
-                capture: None,
-                template: nominal("owner::template"),
-                template_callable: TerminalIdentityIndex(8),
-                template_semantic_declaration: TerminalIdentityIndex(9),
-                commitment: [4; 32],
-            }),
-        ] {
-            let candidate = terminal_psi::BoundaryApplicationCandidate {
-                requirement: BoundaryOperatorRequirement::new(
-                    nominal("owner::requirement"),
-                    "operator::compare".into(),
-                    semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
-                )
-                .unwrap(),
-                application: BoundaryApplication::Empty,
-                selection_identity: TerminalIdentityIndex(9),
-                selection_package: semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]),
-                target: Some("windows_x86_64".into()),
-                body: terminal_psi::CheckedMachineDeclaration {
-                    semantic_declaration: Default::default(),
-                    parameter_types: Vec::new(),
-                    callable: Default::default(),
-                    result_type: Default::default(),
-                    machine: nominal("owner::body"),
-                    state: nominal("owner::entry"),
-                    contract: [3; 32],
-                    specialization,
-                },
-            };
-            let mut writer = Writer::default();
-            encode_candidate(&mut writer, &candidate).unwrap();
-            let bytes = writer.finish();
-            let mut reader = Reader::new(&bytes);
-            assert_eq!(decode_candidate(&mut reader).unwrap(), candidate);
-            assert_eq!(reader.remaining(), 0);
-            for end in 0..bytes.len() {
-                assert!(decode_candidate(&mut Reader::new(&bytes[..end])).is_err());
-            }
-            let mut malformed = candidate;
-            malformed.body.contract = [0; 32];
-            let mut writer = Writer::default();
-            assert!(encode_candidate(&mut writer, &malformed).is_err());
-        }
-    }
-}
-
 use super::super::CodecError;
 use super::super::wire::{Reader, Writer, decode_counted};
 use super::super::wire_fields::{BoundaryPackage, Field};
@@ -280,4 +156,128 @@ pub(super) fn decode_candidate(
         target,
         body,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use semantic_vocabulary::OperationId;
+
+    #[test]
+    fn boundary_demand_wire_round_trip_and_truncation() {
+        let applications = [
+            BoundaryApplication::Empty,
+            BoundaryApplication::exact(vec![
+                BoundaryApplicationArgument::type_argument(
+                    0,
+                    BoundaryTypeIdentity::new(TerminalIdentityIndex(1)),
+                ),
+                BoundaryApplicationArgument::const_argument(
+                    1,
+                    BoundaryTypeIdentity::new(TerminalIdentityIndex(2)),
+                    "u64".into(),
+                    "integer(u64,4)".into(),
+                )
+                .unwrap(),
+            ])
+            .unwrap(),
+        ];
+        for application in applications {
+            let demand = TerminalBoundaryApplicationDemand::new(
+                OperationId::new(1).unwrap(),
+                BoundaryOperatorRequirement::new(
+                    NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
+                    "operator::compare(Element,Element)->bool".into(),
+                    None,
+                )
+                .unwrap(),
+                application,
+            );
+            let mut writer = Writer::default();
+            encode_demand(&mut writer, &demand).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_demand(&mut reader).unwrap(), demand);
+            assert_eq!(reader.remaining(), 0);
+            for end in 0..bytes.len() {
+                assert!(decode_demand(&mut Reader::new(&bytes[..end])).is_err());
+            }
+        }
+    }
+
+    #[test]
+    fn boundary_demand_wire_rejects_noncanonical_binder_order() {
+        let demand = TerminalBoundaryApplicationDemand::new(
+            OperationId::new(1).unwrap(),
+            BoundaryOperatorRequirement::new(
+                NominalDeclarationIdentity::new(TerminalIdentityIndex(3)),
+                "operator::compare".into(),
+                None,
+            )
+            .unwrap(),
+            BoundaryApplication::Exact(vec![BoundaryApplicationArgument::type_argument(
+                1,
+                BoundaryTypeIdentity::new(TerminalIdentityIndex(2)),
+            )]),
+        );
+        let mut writer = Writer::default();
+        encode_demand(&mut writer, &demand).unwrap();
+        assert!(decode_demand(&mut Reader::new(&writer.finish())).is_err());
+    }
+
+    #[test]
+    fn boundary_candidate_wire_preserves_owner_and_specialization() {
+        let nominal = |name: &str| {
+            NominalDeclarationIdentity::new(TerminalIdentityIndex(
+                name.bytes()
+                    .fold(1u32, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u32)),
+            ))
+        };
+        for specialization in [
+            None,
+            Some(terminal_psi::CheckedMachineSpecialization {
+                capture: None,
+                template: nominal("owner::template"),
+                template_callable: TerminalIdentityIndex(8),
+                template_semantic_declaration: TerminalIdentityIndex(9),
+                commitment: [4; 32],
+            }),
+        ] {
+            let candidate = terminal_psi::BoundaryApplicationCandidate {
+                requirement: BoundaryOperatorRequirement::new(
+                    nominal("owner::requirement"),
+                    "operator::compare".into(),
+                    semantic_vocabulary::PackageKeyIdentity::from_digest([1; 32]),
+                )
+                .unwrap(),
+                application: BoundaryApplication::Empty,
+                selection_identity: TerminalIdentityIndex(9),
+                selection_package: semantic_vocabulary::PackageKeyIdentity::from_digest([2; 32]),
+                target: Some("windows_x86_64".into()),
+                body: terminal_psi::CheckedMachineDeclaration {
+                    semantic_declaration: Default::default(),
+                    parameter_types: Vec::new(),
+                    callable: Default::default(),
+                    result_type: Default::default(),
+                    machine: nominal("owner::body"),
+                    state: nominal("owner::entry"),
+                    contract: [3; 32],
+                    specialization,
+                },
+            };
+            let mut writer = Writer::default();
+            encode_candidate(&mut writer, &candidate).unwrap();
+            let bytes = writer.finish();
+            let mut reader = Reader::new(&bytes);
+            assert_eq!(decode_candidate(&mut reader).unwrap(), candidate);
+            assert_eq!(reader.remaining(), 0);
+            for end in 0..bytes.len() {
+                assert!(decode_candidate(&mut Reader::new(&bytes[..end])).is_err());
+            }
+            let mut malformed = candidate;
+            malformed.body.contract = [0; 32];
+            let mut writer = Writer::default();
+            assert!(encode_candidate(&mut writer, &malformed).is_err());
+        }
+    }
 }

@@ -35,7 +35,7 @@ pub fn write_diagnostics(writer: &mut impl fmt::Write, diagnostics: &[Diagnostic
 fn join_display<'item, I, T, R>(
     values: I,
     separator: &str,
-    mut render: impl FnMut(&'item T) -> R,
+    render: impl FnMut(&'item T) -> R,
 ) -> String
 where
     I: IntoIterator<Item = &'item T>,
@@ -44,7 +44,7 @@ where
 {
     values
         .into_iter()
-        .map(|value| render(value))
+        .map(render)
         .collect::<Vec<R>>()
         .join(separator)
 }

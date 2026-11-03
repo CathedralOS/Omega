@@ -31,28 +31,33 @@ pub struct RealizedNativeProduct {
     pub runtime_provisions: Option<native_artifact::TerminalRuntimeProvisions>,
 }
 
-/// Realize one Terminal artifact using explicit image, custody, reuse, and
-/// behavior-exclusion inputs. The request's retained behavior-exclusion union
-/// is adjudicated against the mechanism-closure review by Omega 00,
-/// so a requested absence holds whether or not the request carries a receiver
-/// permission policy, and a violated exclusion publishes no product. The public
-/// compiler entrance retains the image request on every failure path.
-pub(crate) fn realize_native_artifact(
-    artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+/// Provider and entry admission of one Terminal artifact with the runtime
+/// provisions captured from that same admission, before anything is emitted.
+struct AdmittedRealization<'request> {
+    admitted: AdmittedNativeRealization<'request>,
+    entry_settlement:
+        Option<terminal_psi_to_abstract_operations::ValidatedNativeProgramEntrySettlement>,
+    runtime_provisions: Option<native_artifact::TerminalRuntimeProvisions>,
+}
+
+/// Omega 00 admission shared by image realization and Terminal-only runtime
+/// admission, so `omega run --engine terminal` settles the same providers,
+/// entry and host realizations that a native image of this request would.
+fn admit_realization<'request>(
+    artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
     input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
-    request: NativeRealizationRequest<'_>,
-) -> Result<RealizedNativeProduct, Vec<Diagnostic>> {
-    let AdmittedNativeRealization {
-        input,
-        mut providers,
-        boundary_application_coverage,
-    } = phase_profile::scope("omega.native.admit_prepared_native_realization", || {
-        admit_prepared_native_realization(input, &artifact, &request.admission)
+    request: &NativeRealizationRequest<'request>,
+) -> Result<AdmittedRealization<'request>, Vec<Diagnostic>> {
+    let admitted = phase_profile::scope("omega.native.admit_prepared_native_realization", || {
+        admit_prepared_native_realization(input, artifact, &request.admission)
     })?;
+    let AdmittedNativeRealization {
+        input, providers, ..
+    } = &admitted;
     let entry_settlement = phase_profile::scope("omega.native.admit_executable_entry", || {
         native_artifact::admit_executable_entry(
-            &input,
-            &artifact,
+            input,
+            artifact,
             request.program_entry,
             request.admission.providers.target(),
         )
@@ -66,7 +71,7 @@ pub(crate) fn realize_native_artifact(
             .map(|_| {
                 native_artifact::TerminalRuntimeProvisions::capture_native_admission(
                     entry,
-                    &input,
+                    input,
                     providers
                         .installation
                         .as_ref()
@@ -86,6 +91,34 @@ pub(crate) fn realize_native_artifact(
             .transpose()
             .map_err(|message| vec![Diagnostic::error(message)])
     })?;
+    Ok(AdmittedRealization {
+        admitted,
+        entry_settlement,
+        runtime_provisions,
+    })
+}
+
+/// Realize one Terminal artifact using explicit image, custody, reuse, and
+/// behavior-exclusion inputs. The request's retained behavior-exclusion union
+/// is adjudicated against the mechanism-closure review by Omega 00,
+/// so a requested absence holds whether or not the request carries a receiver
+/// permission policy, and a violated exclusion publishes no product. The public
+/// compiler entrance retains the image request on every failure path.
+pub(crate) fn realize_native_artifact(
+    artifact: std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+    input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+    request: NativeRealizationRequest<'_>,
+) -> Result<RealizedNativeProduct, Vec<Diagnostic>> {
+    let AdmittedRealization {
+        admitted:
+            AdmittedNativeRealization {
+                input,
+                mut providers,
+                boundary_application_coverage,
+            },
+        entry_settlement,
+        runtime_provisions,
+    } = admit_realization(&artifact, input, &request)?;
     let private_entry_ram = input.private_entry_ram().to_vec();
     let emitted = phase_profile::scope("omega.native.emit_realization_object", || {
         emit_realization_object(
@@ -128,4 +161,41 @@ pub(crate) fn realize_native_artifact(
         artifact,
         runtime_provisions,
     })
+}
+
+/// Admit one Terminal artifact for Terminal-only execution. Provider, entry
+/// and host admission are those of the image request; target lowering still
+/// derives the borrowed-storage layouts host adapters need, and the pipeline
+/// stops there: no physical selection, object, or image is produced.
+pub(crate) fn admit_terminal_runtime(
+    artifact: &std::sync::Arc<terminal_codec::CanonicalTerminalArtifact>,
+    input: terminal_psi_to_abstract_operations::VerifiedNativeArtifactInput,
+    request: NativeRealizationRequest<'_>,
+) -> Result<Option<native_artifact::TerminalRuntimeProvisions>, Vec<Diagnostic>> {
+    let AdmittedRealization {
+        admitted:
+            AdmittedNativeRealization {
+                input,
+                mut providers,
+                ..
+            },
+        runtime_provisions,
+        ..
+    } = admit_realization(artifact, input, &request)?;
+    let private_entry_ram = input.private_entry_ram().to_vec();
+    let borrowed_storage_layouts =
+        phase_profile::scope("omega.native.lower_runtime_layouts", || {
+            object_emission::lower_borrowed_storage_layouts(
+                input,
+                providers.installation.take(),
+                &providers.settlements,
+                &request,
+            )
+        })?;
+    Ok(runtime_provisions.map(|provisions| {
+        provisions
+            .with_private_entry_ram(private_entry_ram)
+            .with_borrowed_storage_layouts(borrowed_storage_layouts)
+            .with_target_provider_proposals(request.target_provider_proposals.to_vec())
+    }))
 }

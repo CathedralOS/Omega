@@ -329,8 +329,10 @@ mod tests {
                     [(SymbolKind::TypeParameter, SymbolNameRef::Static("N"))],
                 )
                 .start();
-            let mut program = TypedTrees::default();
-            program.symbols = builder.finish();
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
             let carrier = program
                 .type_reference_table
                 .insert(TypeReferenceNode::Named {
@@ -373,7 +375,7 @@ mod tests {
                         declared_type: carrier,
                         evaluated_value: Some(
                             language_core::constant_value::EvaluatedConstant::Encoded(
-                                language_semantics::const_value::CanonicalConstValue::integer(
+                                language_semantics::const_value::CanonicalConstIdentity::integer(
                                     "u64", 0,
                                 )
                                 .encoding,

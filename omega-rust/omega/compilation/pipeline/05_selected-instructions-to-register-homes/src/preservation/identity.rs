@@ -34,5 +34,5 @@ pub(crate) fn allocated_callee_saved_requirement_identity(
             }
         }
     }
-    AllocatedCalleeSavedRequirementIdentity::from_bytes(hasher.finish().into())
+    AllocatedCalleeSavedRequirementIdentity::from_bytes(hasher.finish())
 }

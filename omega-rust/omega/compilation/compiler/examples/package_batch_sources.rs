@@ -279,6 +279,7 @@ fn work_counts() -> (u64, u64, u64, u64) {
 
 fn native_product() -> CompilationProduct {
     CompilationProduct::Native(NativeProductRequest {
+        image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy: current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,

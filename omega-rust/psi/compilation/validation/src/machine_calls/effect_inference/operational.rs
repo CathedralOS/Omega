@@ -579,10 +579,10 @@ impl OperationalContexts {
         let inputs = &mut self.machines[machine];
         // Empty actuals are the already-known unknown input tuple. Avoid
         // allocating a padded tuple for every unselected call in each round.
-        if selectors.is_empty() {
-            if let Some(position) = inputs.unknown_context {
-                return position;
-            }
+        if selectors.is_empty()
+            && let Some(position) = inputs.unknown_context
+        {
+            return position;
         }
         selectors.resize(inputs.parameter_count, None);
         let is_unknown = selectors.iter().all(Option::is_none);

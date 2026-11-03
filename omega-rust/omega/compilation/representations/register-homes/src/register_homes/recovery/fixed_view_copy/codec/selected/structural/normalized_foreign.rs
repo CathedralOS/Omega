@@ -127,7 +127,10 @@ pub(super) fn encode_normalized_foreign_call(
                 bytes,
                 (guard.count_scalar_argument as u64).to_le_bytes(),
             );
-            crate::codec_bytes::push_encoded(bytes, (guard.structural_argument as u64).to_le_bytes());
+            crate::codec_bytes::push_encoded(
+                bytes,
+                (guard.structural_argument as u64).to_le_bytes(),
+            );
             crate::codec_bytes::push_encoded(bytes, guard.max_bytes.to_le_bytes());
             encode_scalar(bytes, ScalarType::Integer(guard.count_type));
         }
@@ -230,7 +233,7 @@ fn decode_native_callback_argument(
     let destination = decode_native_place(cursor)?;
     let field_byte_offset = crate::cursor::optional(
         cursor,
-        |c| Ok(usize::try_from(c.u64()?).map_err(|_| FixedViewCopyDecodeError::LengthOverflow)?),
+        |c| usize::try_from(c.u64()?).map_err(|_| FixedViewCopyDecodeError::LengthOverflow),
         FixedViewCopyDecodeError::UnknownOption,
     )?;
     let registrar_boundary_entry_plan = BoundaryEntryPlan {
@@ -689,8 +692,8 @@ mod tests {
     use crate::register_homes::recovery::fixed_view_copy::codec::primitives::length;
     use legalized_operations::{encode_call_plan, encode_locator};
 
-    /// A sealed locator coordinate: length-prefixed bytes, the same spelling
-    /// the shared call-binding encoder writes.
+    // A sealed locator coordinate: length-prefixed bytes, the same spelling
+    // the shared call-binding encoder writes.
 
     /// The locator prefix of an encoded call binding: target profile name,
     /// candidate case, then each coordinate.

@@ -79,11 +79,11 @@ fn elaborate_declaration(
             Ok(CheckedMathematicalParameter {
                 name: parameter.name.to_string(),
                 relevance: parameter.relevance,
-                type_spelling: mathematical_type_identity(program, definition, parameter.ty)?,
+                type_spelling: mathematical_type_identity(program, parameter.ty)?,
             })
         })
         .collect::<Result<_, Vec<diagnostics::Diagnostic>>>()?;
-    let result = mathematical_type_identity(program, definition, definition.result)?;
+    let result = mathematical_type_identity(program, definition.result)?;
     let body = match definition.body {
         MathematicalBody::Assumption => CheckedMathematicalBody::Assumption,
         MathematicalBody::Definition(term) => CheckedMathematicalBody::Definition {
@@ -227,7 +227,6 @@ fn classify_subject_carrier(
 /// its authored grouping.
 fn mathematical_type_identity(
     program: &dyn ::validation::CheckingInput,
-    definition: &MathematicalDefinition,
     handle: MathematicalTypeHandle,
 ) -> Result<String, Vec<diagnostics::Diagnostic>> {
     match program.mathematical_type(handle) {
@@ -243,20 +242,20 @@ fn mathematical_type_identity(
                 program.mathematical_type(*domain),
                 MathematicalType::Arrow { .. }
             );
-            let domain = mathematical_type_identity(program, definition, *domain)?;
+            let domain = mathematical_type_identity(program, *domain)?;
             let domain = if domain_is_arrow {
                 format!("({domain})")
             } else {
                 domain
             };
-            let codomain = mathematical_type_identity(program, definition, *codomain)?;
+            let codomain = mathematical_type_identity(program, *codomain)?;
             Ok(match binder {
                 Some(binder) => format!("({binder}: {domain}) -> {codomain}"),
                 None => format!("{domain} -> {codomain}"),
             })
         }
         MathematicalType::Application { callee, arguments } => {
-            let callee_identity = mathematical_type_identity(program, definition, *callee)?;
+            let callee_identity = mathematical_type_identity(program, *callee)?;
             let callee_identity = match program.mathematical_type(*callee) {
                 MathematicalType::Arrow { .. } => format!("({callee_identity})"),
                 _ => callee_identity,

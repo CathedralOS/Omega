@@ -111,10 +111,7 @@ impl ScalarConstantAnalysis {
                 && fact.value == value
                 && (!literal_only || fact.support.literal_operation().is_some()))
             .then_some(fact)
-            .and_then(|fact| {
-                extract(&fact.constant)
-                    .and_then(|value| fact.identity.map(|identity| (value, identity)))
-            })
+            .and_then(|fact| extract(&fact.constant).zip(fact.identity))
         })
     }
 }
@@ -435,10 +432,7 @@ fn sparse_conditional_constants(
                 return None;
             };
             let definition = scalar_value_definition(function, value);
-            let constant_value = match constant {
-                ScalarConstantValue::Boolean(value) => ScalarConstantValue::Boolean(value),
-                ScalarConstantValue::Integer(value) => ScalarConstantValue::Integer(value),
-            };
+            let constant_value = constant;
             let identity = definition.and_then(|definition| {
                 support
                     .literal_operation()

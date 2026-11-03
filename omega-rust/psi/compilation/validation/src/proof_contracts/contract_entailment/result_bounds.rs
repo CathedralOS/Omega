@@ -656,14 +656,10 @@ impl ReturnReader<'_, '_> {
         }
         match expression_table(self.program).expression(expression) {
             ExpressionNode::Name(path) => {
-                if crate::queries::expression_traversal::single_segment_name_symbol(
+                crate::queries::expression_traversal::single_segment_name_symbol(
                     self.program,
                     expression,
-                )
-                .is_none()
-                {
-                    return None;
-                }
+                )?;
                 let mut parameters = self
                     .program
                     .state_parameters(self.state)

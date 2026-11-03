@@ -118,6 +118,17 @@ pub(super) fn account<'calls>(
     };
     let mut guarded_discards = Vec::new();
     for (producer_index, operation) in operations.iter().enumerate() {
+        // A declared home has a binding and a type, but no completed value to
+        // dispose. Its later stores retain their own produced values and exact
+        // custody; the reserved home cannot invent another value occurrence.
+        if matches!(
+            operation,
+            OperationPlan::EstablishLocal(
+                checked_trees::CheckedUnitLocalBindingPlan::Structural { .. }
+            )
+        ) {
+            continue;
+        }
         let Some((result, _)) = operation.discardable_structural_result() else {
             continue;
         };
@@ -567,7 +578,7 @@ pub(super) fn account<'calls>(
                         .flat_map(OperationPlan::with_value_calls)
                 }))
                 .flat_map(OperationPlan::structural_operands)
-                .any(|argument| moves_occurrence(argument));
+                .any(&moves_occurrence);
         // A whole owned argument ends an affine local's custody at the call,
         // just as it ends a linear result or an inline operand's custody.
         // Sequencing retires the producer's discard flag; count the exact

@@ -14,9 +14,8 @@ use checked_trees::{
     CheckedComposedUnitControlTerminatorPlan, CheckedNominalAffineUnitCleanupMachinePlan,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedTerminalSignatureEligibility,
     CheckedTrees, CheckedUnitEffectMachinePlan, CheckedUnitEffectOperationPlan,
-    CheckedUnitEntryClaimPlan, CheckedUnitPlan, CheckedUnitStructuralFieldType,
-    CheckedUnitStructuralParameterPlan, CheckedUnitStructuralPathSegment,
-    CheckedUnitStructuralTypeShape,
+    CheckedUnitEntryClaimPlan, CheckedUnitPlan, CheckedUnitStructuralParameterPlan,
+    CheckedUnitStructuralPathSegment, CheckedUnitStructuralTypeShape,
 };
 use language_semantics::{
     CarryPolicy, Multiplicity, PermissionClaimIdentity, SemanticDomainId, ServiceReachId,

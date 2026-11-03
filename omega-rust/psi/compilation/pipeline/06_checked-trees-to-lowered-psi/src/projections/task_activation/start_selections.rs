@@ -34,13 +34,13 @@ impl TaskActivationTargetError {
     }
 }
 
-pub(crate) fn unique_task_activation_target<'program>(
-    typed: &'program checked_trees::typed_trees::TypedTrees,
+pub(crate) fn unique_task_activation_target(
+    typed: &checked_trees::typed_trees::TypedTrees,
     target_entry: symbols::SymbolHandle,
 ) -> Result<
     (
-        &'program checked_trees::machine::Machine,
-        &'program checked_trees::state::State,
+        &checked_trees::machine::Machine,
+        &checked_trees::state::State,
     ),
     TaskActivationTargetError,
 > {
@@ -64,14 +64,14 @@ pub(crate) fn unique_task_activation_target<'program>(
     Ok((machine, entry))
 }
 
-pub(crate) fn exact_task_activation_target<'program>(
-    typed: &'program checked_trees::typed_trees::TypedTrees,
+pub(crate) fn exact_task_activation_target(
+    typed: &checked_trees::typed_trees::TypedTrees,
     target_machine: symbols::SymbolHandle,
     target_entry: symbols::SymbolHandle,
 ) -> Result<
     (
-        &'program checked_trees::machine::Machine,
-        &'program checked_trees::state::State,
+        &checked_trees::machine::Machine,
+        &checked_trees::state::State,
     ),
     TaskActivationTargetError,
 > {

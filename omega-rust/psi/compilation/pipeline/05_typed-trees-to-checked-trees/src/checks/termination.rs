@@ -346,17 +346,15 @@ fn admit_machine_rankings_with_topology(
         if local_terminates
             && (witness.is_some() || joint_ranked)
             && admitted.for_body(machine.symbol, machine.states).is_none()
+            && let Some(identity) = ranking::RankArrivalAdmission::entry_only(program, machine)
+            && identity.retain(program, &mut admitted, machine).is_none()
         {
-            if let Some(identity) = ranking::RankArrivalAdmission::entry_only(program, machine) {
-                if identity.retain(program, &mut admitted, machine).is_none() {
-                    local_terminates = false;
-                    entry_rank_formed = false;
-                    diagnostic = format!(
-                        "internal: cannot retain initial rank coordinate for machine {}",
-                        machine_name(program, machine.symbol),
-                    );
-                }
-            }
+            local_terminates = false;
+            entry_rank_formed = false;
+            diagnostic = format!(
+                "internal: cannot retain initial rank coordinate for machine {}",
+                machine_name(program, machine.symbol),
+            );
         }
         let joint_observations = components
             .iter()
@@ -435,13 +433,15 @@ pub(crate) fn check_machine_termination(
     let diagnostics = admitted
         .judgments
         .iter()
-        .filter_map(|(_, judgment)| {
-            (!judgment.diagnostic.is_empty())
-                .then(|| Diagnostic::error(judgment.diagnostic.clone()))
-        })
-        .chain(admitted.runtime_components.iter().filter_map(|(_, row)| {
-            (!row.diagnostic.is_empty()).then(|| Diagnostic::error(row.diagnostic.clone()))
-        }))
+        .filter(|&(_, judgment)| !judgment.diagnostic.is_empty())
+        .map(|(_, judgment)| Diagnostic::error(judgment.diagnostic.clone()))
+        .chain(
+            admitted
+                .runtime_components
+                .iter()
+                .filter(|&(_, row)| !row.diagnostic.is_empty())
+                .map(|(_, row)| Diagnostic::error(row.diagnostic.clone())),
+        )
         .collect::<Vec<_>>();
     crate::checks::finish(diagnostics)
 }

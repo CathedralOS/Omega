@@ -118,7 +118,10 @@ pub(super) fn replaces_binding(
         caller_aliases::CallerWriteSite::Statement(statement),
     )?;
     let target = FrameSourcePlace::from_expression(program, assignment.target);
-    if !target.segments.is_empty() || program.symbols.get(target.root).kind != SymbolKind::Local {
+    if !target.root.is_valid()
+        || !target.segments.is_empty()
+        || program.symbols.get(target.root).kind != SymbolKind::Local
+    {
         return Some(false);
     }
     let reference = source_root_type(program, state, index, target.root)?;
@@ -834,7 +837,7 @@ fn declared_initializer_origins(
         expression = formation.source;
     }
     expression = expression_table(program).peeled_expression_handle(expression);
-    if let Some(_) = expression_table(program).call_node(expression) {
+    if expression_table(program).call_node(expression).is_some() {
         let (state, _, index) = caller_aliases::caller_statement_owner(
             program,
             machine,

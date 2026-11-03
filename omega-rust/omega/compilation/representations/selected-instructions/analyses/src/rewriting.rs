@@ -101,12 +101,12 @@ pub fn charge_steps<E>(
 /// that is anything else would extend a value identity or destroy state no
 /// proof retired, so every rewrite that replaces a value with a copy reads
 /// this audit from here instead of restating it beside its own admission.
-pub fn integer_copy_row<'environment, E>(
-    environment: &'environment ValidatedTargetRegisterEnvironment,
+pub fn integer_copy_row<E>(
+    environment: &ValidatedTargetRegisterEnvironment,
     value_class: RegisterClassId,
     output_class: RegisterClassId,
     mismatch: impl Fn() -> E,
-) -> Result<&'environment RegisterInstructionConstraint, E> {
+) -> Result<&RegisterInstructionConstraint, E> {
     let Some(row) = environment.constraint(environment.selected_keys().copy_i64) else {
         return Err(mismatch());
     };
@@ -192,16 +192,16 @@ pub fn cone_propagation<E>(
     successors: &[Vec<usize>],
     overflow: impl Fn() -> E,
 ) -> Result<ConePropagation, E> {
-    let function_scan = function_scan(function).ok_or_else(|| overflow())?;
+    let function_scan = function_scan(function).ok_or_else(&overflow)?;
     let edge_count = successors
         .iter()
         .try_fold(0usize, |total, targets| total.checked_add(targets.len()))
-        .ok_or_else(|| overflow())?;
+        .ok_or_else(&overflow)?;
     let block_count = function.blocks.len();
-    let elements = function_scan.checked_add(1).ok_or_else(|| overflow())?;
+    let elements = function_scan.checked_add(1).ok_or_else(&overflow)?;
     let pops = block_count
-        .checked_mul(elements.checked_add(1).ok_or_else(|| overflow())?)
-        .ok_or_else(|| overflow())?;
+        .checked_mul(elements.checked_add(1).ok_or_else(&overflow)?)
+        .ok_or_else(&overflow)?;
     let widest_out = successors
         .iter()
         .map(|targets| targets.len())
@@ -211,12 +211,12 @@ pub fn cone_propagation<E>(
         .checked_add(block_count)
         .and_then(|total| total.checked_add(pops))
         .and_then(|total| total.checked_add(pops.checked_mul(widest_out)?.checked_mul(elements)?))
-        .ok_or_else(|| overflow())?;
+        .ok_or_else(&overflow)?;
     let walk_setup_base = edge_count
-        .checked_mul(block_count.checked_add(1).ok_or_else(|| overflow())?)
+        .checked_mul(block_count.checked_add(1).ok_or_else(&overflow)?)
         .and_then(|total| total.checked_add(block_count))
         .and_then(|total| total.checked_add(edge_count))
-        .ok_or_else(|| overflow())?;
+        .ok_or_else(overflow)?;
     Ok(ConePropagation {
         function_scan,
         edge_count,
@@ -393,7 +393,7 @@ pub fn shifted_boundary_settlements<E>(
 ) -> Result<Vec<selected_instructions::SelectedBoundarySettlement>, E> {
     let body = function
         .block(block)
-        .ok_or_else(|| source_mismatch())?
+        .ok_or_else(&source_mismatch)?
         .instructions
         .len();
     let mut shifted = function.boundary_settlements.clone();

@@ -176,7 +176,7 @@ pub(crate) fn finalize_authored_expression_selections(
     pending_proof_memberships: &[PendingAuthoredProofMembership],
 ) -> Result<(), Diagnostic> {
     for pending_expression in pending {
-        if body_expressions(&program).authored_expression_exposure(pending_expression.expression)
+        if body_expressions(program).authored_expression_exposure(pending_expression.expression)
             != Some(pending_expression.exposure)
         {
             return Err(Diagnostic::error(
@@ -192,14 +192,14 @@ pub(crate) fn finalize_authored_expression_selections(
         .iter()
         .copied()
         .filter_map(|expression| {
-            if body_expressions(&program)
+            if body_expressions(program)
                 .authored_selection_occurrences(expression)
                 .len()
                 != 0
             {
                 return None;
             }
-            body_expressions(&program)
+            body_expressions(program)
                 .authored_expression_exposure(expression)
                 .map(|exposure| (expression, exposure))
         })
@@ -230,7 +230,7 @@ pub(crate) fn finalize_authored_expression_selections(
         if membership.authored_domain_selection.is_some() {
             continue;
         }
-        let members = resolved_declarations(&program)
+        let members = resolved_declarations(program)
             .domain_path_members
             .span_or_empty(membership.domain);
         let source_span = path_span(members, SourceSpan::default());
@@ -384,10 +384,7 @@ fn collect_authored_statement_call_candidates(
                     && nonempty(call.target.source_span()) =>
             {
                 candidates.push(AuthoredStatementCallCandidate {
-                    site: AuthoredStatementCallSite::Statement {
-                        statements: statements,
-                        offset,
-                    },
+                    site: AuthoredStatementCallSite::Statement { statements, offset },
                     source_span: call.target.source_span(),
                     compiler_partition: partition,
                     target: resolved_or_late(call.target_symbol, LateBinding::CheckedCall),
@@ -1064,7 +1061,7 @@ fn collect_statement_static_argument_candidates(
                 candidates,
             );
             if application.member.is_valid()
-                && let Some(member) = body_expressions(&program).static_member(application.member)
+                && let Some(member) = body_expressions(program).static_member(application.member)
             {
                 collect_statement_static_argument_candidates(
                     program,
@@ -1088,7 +1085,7 @@ fn contract_clause_expression_handles(
 ) -> HashSet<ExpressionHandle, symbols::BuildSymbolHasher> {
     let mut handles = HashSet::default();
     for (_, contract) in program.tables.declarations.signature_contracts.iter() {
-        for fact in resolved_declarations(&program)
+        for fact in resolved_declarations(program)
             .proof_facts
             .span_or_empty(contract.facts)
         {
@@ -1497,7 +1494,7 @@ fn collect_static_argument_candidates(
                 candidates,
             );
             if application.member.is_valid()
-                && let Some(member) = body_expressions(&program).static_member(application.member)
+                && let Some(member) = body_expressions(program).static_member(application.member)
             {
                 collect_static_argument_candidates(
                     program,
@@ -1584,7 +1581,7 @@ pub(crate) fn finalize_constant_expression_selections(
     let expressions = initializers
         .into_iter()
         .filter_map(|expression| {
-            body_expressions(&program)
+            body_expressions(program)
                 .authored_expression_exposure(expression)
                 .map(|exposure| (expression, exposure))
         })
@@ -1617,8 +1614,7 @@ fn finalize_expression_groups(
     // number of authored selections a large package carries.
     let mut group_index: HashMap<_, usize> = HashMap::default();
     for (expression, exposure) in authored_expressions {
-        let compiler_partition =
-            body_expressions(&program).compiler_selection_partition(expression);
+        let compiler_partition = body_expressions(program).compiler_selection_partition(expression);
         for candidate in expression_candidates(
             program,
             expression,

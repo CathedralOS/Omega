@@ -167,8 +167,11 @@ retired-syntax deletions to completion.
     owned copies from borrowed outer input homes, runtime-selected stored-reference
     call operands (captured-loan access), other remaining declared body forms,
     nonscalar orders beyond fixed-integer
-    lexicographic products, or dependent distances with computed endpoints
-    without ambient parent entry facts).
+    lexicographic products, or an unranked helper whose computed rank endpoint,
+    such as `items.len - 1`, reads a formal the helper supplies through a field
+    projection or computed argument rather than a whole parameter; the
+    whole-parameter case [runs in the parameter place](samples/cli/facts/nested_machine_invocation/joint_rank/parameter/bounded_distance/computed_length/README.md)
+    and its other eight places are unwritten).
   - Bring the composed state-graph planner
     (`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph`)
     to parity with the ordinary call plan, starting with temporary cleanup
@@ -249,8 +252,7 @@ retired-syntax deletions to completion.
     restoring hidden argument insertion.
   - Complete checked per-value loan carry evidence for suspension production
     without restoring hidden argument insertion: joins still refuse
-    derived descriptors whose source permissions have been copied, projected or
-    joined, projected call referents,
+    projected call referents,
     supplied-output and lifetime-dependency descriptors, and backings with no
     enclosing owner; Terminal loan rows label accepted transfers `Unresolved`.
   - Retire `machine Data::operation` spellings across compiler/toolchain
@@ -1303,12 +1305,12 @@ defines the complete product bar.
     relationships through pointer lanes, copies, offsets and joins, including
     hidden result destinations and slice bounds/loans. Carry ordinary generic
     machine satisfaction through assembly callbacks.
-  - Complete value-location `align_of(value)` for nonempty slices (a proved
-    nonempty view; slices currently reject), contract positions such as
-    `requires align_of(value) >= 16` (currently rejected), stronger-than-type alignment from
+  - Complete value-location `align_of(value)` for stronger-than-type alignment from
     placement/allocator contracts with runtime observation, exact location
     validity across view replacement, offsets and moved backing, and admitted
-    interpreted geometry for such locations.
+    interpreted geometry for such locations; `ensures` clauses, trait
+    requirement contracts, and contract queries over a field path or a slice
+    (all currently rejected).
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
     every normal exit (assembly body contracts and label `ensures` are proof goals, never
@@ -2083,17 +2085,18 @@ defines the complete product bar.
 ## Rust compiler release closure
 
 - **RC-RELEASE-RECORD-AND-CLOSURE.** (Also covers **`RC-REPOSITORY-CLOSURE`**,
-  **`IND19-SPECTRUM-VALIDATION-RED`**, **`RC-NATIVE-MATRIX-LINUX-X86-64`**,
+  **`RC-NATIVE-MATRIX-LINUX-X86-64`**,
   **`RC-NATIVE-MATRIX-LINUX-ARM64`**, **`RC-NATIVE-MATRIX-MACOS-ARM64`**, and
   **`RC-NATIVE-MATRIX-WINDOWS-X64`**.) Produce the same-commit release record
   across all four required hosts (`linux_x86_64`, `linux_arm64`, `macos_arm64`,
   `windows_x86_64`) via `tools/release/release_record.py` under the
   [completion contract](wiki/drafts/reference/rust_compiler_completion.md):
-  - Repair the `ind19-spectrum-validation` API drift
-    (`TerminalRuntimeRequest.x86_flags`, `CheckedCompilation::into_program`) and
-    pass `python tools/fmt.py --check`, workspace all-target Clippy, workspace
+  - Pass `python tools/fmt.py --check`, workspace all-target Clippy, workspace
     all-target check, and `mbx nextest run --workspace --lib --no-fail-fast` at
-    one clean commit.
+    one clean commit on each required host. Frontier on linux_x86_64: format,
+    Clippy and check pass; 65 library tests fail (48 already failing at
+    `61d32e24eb90`, 16 more at `b6579dc23f59`, and one const-width rejection
+    test that compiles again; listed in #1646).
   - Pass `RC-NATIVE-MATRIX` and `RC-REPRESENTATIVE-PROGRAMS`
     (`tools/sample_native_gate.py`) with direct native execution on Linux
     x86-64, Linux ARM64, macOS ARM64, and Windows x86-64 (including Windows

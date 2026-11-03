@@ -343,7 +343,7 @@ impl Lowerer {
             symbols::BuildSymbolHasher,
         > = std::collections::HashMap::with_capacity_and_hasher(
             base.authored_service_reach_rows.len(),
-            symbols::BuildSymbolHasher::default(),
+            symbols::BuildSymbolHasher,
         );
         for row in &base.authored_service_reach_rows {
             authored_by_owner.entry(row.owner).or_insert(row);

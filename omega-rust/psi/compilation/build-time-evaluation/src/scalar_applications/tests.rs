@@ -106,7 +106,7 @@ fn machine(identity: u64, operations: Vec<OperationKind>) -> TerminalMachine {
         block_entry_claims: Vec::new(),
         loan_completions: Vec::new(),
         content_entry_claims: Vec::new(),
-        result: TerminalMachineResult::Scalar(result.clone()),
+        result: TerminalMachineResult::Scalar(result),
         entry: BlockId::new(1).unwrap(),
         blocks: vec![Block {
             id: BlockId::new(1).unwrap(),

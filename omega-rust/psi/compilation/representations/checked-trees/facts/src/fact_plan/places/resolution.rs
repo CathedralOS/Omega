@@ -325,8 +325,8 @@ fn collection_element_type(
     {
         match program.type_reference_table.type_reference(reference) {
             TypeReferenceNode::FixedArray { element_type, .. }
-            | TypeReferenceNode::Slice { element_type } => return Some(*element_type),
-            _ => return None,
+            | TypeReferenceNode::Slice { element_type } => Some(*element_type),
+            _ => None,
         }
     }
 }

@@ -699,10 +699,10 @@ fn saturating_operands(
         .collect()
 }
 
-/// Every saturating form is checked byte for byte against an independent
-/// assembly (Apple clang) for at least one low and one r8-r15 assignment;
-/// forms that differ from a clang-assembled sibling only in the MOVABS bound
-/// immediate are listed with that immediate substituted and say so.
+// Every saturating form is checked byte for byte against an independent
+// assembly (Apple clang) for at least one low and one r8-r15 assignment;
+// forms that differ from a clang-assembled sibling only in the MOVABS bound
+// immediate are listed with that immediate substituted and say so.
 
 /// How one decoded form ends: by falling through its last byte with the
 /// register file, or at a UD2.

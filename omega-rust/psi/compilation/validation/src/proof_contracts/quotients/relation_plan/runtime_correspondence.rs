@@ -269,10 +269,9 @@ pub(super) fn derive_direct_lift_runtime_correspondence(
     Ok(DirectLiftRuntimeCorrespondence { positions })
 }
 
-#[allow(clippy::too_many_arguments)]
-
 /// Close every literal element under the shared leaf shape — the element
 /// mapping both fixed-array lanes of the correspondence walk run.
+#[allow(clippy::too_many_arguments)]
 fn closed_array_elements(
     program: &dyn crate::CheckingInput,
     elements: &[ExpressionHandle],

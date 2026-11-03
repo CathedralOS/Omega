@@ -904,12 +904,10 @@ fn decode_boundary_invocation_site(
 ) -> Result<semantic_vocabulary::InvocationSite, RelocationFreeObjectDecodeError> {
     let tag = cursor.byte()?;
     let identity = cursor.u64()?;
-    semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity).ok_or_else(
-        || match tag {
-            0 | 1 => RelocationFreeObjectDecodeError::InvalidInvocationSite,
-            _ => RelocationFreeObjectDecodeError::UnknownInvocationSiteTag(tag),
-        },
-    )
+    semantic_vocabulary::InvocationSite::from_tagged_identity(tag, identity).ok_or(match tag {
+        0 | 1 => RelocationFreeObjectDecodeError::InvalidInvocationSite,
+        _ => RelocationFreeObjectDecodeError::UnknownInvocationSiteTag(tag),
+    })
 }
 
 fn decode_normalized_foreign_resolution(

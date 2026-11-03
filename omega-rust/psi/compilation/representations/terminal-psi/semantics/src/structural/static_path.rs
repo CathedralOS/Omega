@@ -349,7 +349,7 @@ fn canonical_projection_type<'a>(
                     }
                 };
                 if let Some(storage) = storage.as_mut() {
-                    storage.push(StructuralPathSegment::Field(field.identity.clone()));
+                    storage.push(StructuralPathSegment::Field(field.identity));
                 }
                 root = child;
             }

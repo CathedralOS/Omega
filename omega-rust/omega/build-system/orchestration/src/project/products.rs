@@ -22,8 +22,10 @@ pub(crate) fn compile(
                 compiler::CompilationProduct::Inspection(machine.clone())
             }
             ProjectProduct::Native {
-                private_entry_ram, ..
+                destination,
+                private_entry_ram,
             } => compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+                image: destination.image_demand(),
                 private_entry_ram: private_entry_ram.clone(),
                 terminal_authority_policy:
                     compilation_products::compile_request::current_terminal_authority_policy(),
@@ -84,6 +86,7 @@ pub(crate) fn compile(
                 targets,
                 RequestedCompileProduct::Check,
                 &[],
+                Default::default(),
             );
         }
         ProjectProduct::Terminal => {
@@ -93,10 +96,12 @@ pub(crate) fn compile(
                 targets,
                 RequestedCompileProduct::TerminalArtifact,
                 &[],
+                Default::default(),
             );
         }
         ProjectProduct::Native {
-            private_entry_ram, ..
+            destination,
+            private_entry_ram,
         } => {
             return compile_standalone_reports(
                 request,
@@ -104,6 +109,7 @@ pub(crate) fn compile(
                 targets,
                 RequestedCompileProduct::NativeArtifact,
                 private_entry_ram,
+                destination.image_demand(),
             );
         }
     }
@@ -118,6 +124,7 @@ fn compile_standalone_reports(
     targets: &[TargetProfile],
     product: RequestedCompileProduct,
     private_entry_ram: &[compilation_products::PrivateEntryRamInitialization],
+    native_image: compilation_products::NativeImageDemand,
 ) -> Result<Vec<(TargetProfile, Result<CompilationOutput, BuildError>)>, BuildError> {
     let mut reports = Vec::with_capacity(targets.len());
     let explicit = !matches!(request.targets, BuildTargets::Host);
@@ -130,7 +137,9 @@ fn compile_standalone_reports(
             .with_requested_product(product)
             .with_optimization_rollback(request.optimization_rollback.clone())
             .with_timings(request.timings);
-    compilation = compilation.with_private_entry_ram(private_entry_ram.to_vec());
+    compilation = compilation
+        .with_private_entry_ram(private_entry_ram.to_vec())
+        .with_native_image_demand(native_image);
     if let Some(snapshot) = &request.build_snapshot {
         compilation = compilation.with_build_snapshot(snapshot.clone());
     }

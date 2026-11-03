@@ -2,7 +2,7 @@
 //! Only lifetime debts are transitive: capturing another provider result takes
 //! its flat debt frontier. Repeated replacement therefore joins finite anchors
 //! instead of nesting the previous provider history on every loop iteration.
-use super::replay::{Origin, State, Value};
+use super::engine::{Origin, State, Value};
 use super::*;
 
 impl<Dependency> DescriptorProviderOrigin<Dependency> {

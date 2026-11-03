@@ -350,7 +350,7 @@ fn repeated_empty_record_schema_has_no_materialized_leaves_or_storage_parts() {
 
 #[test]
 fn outer_zero_suppresses_inner_count_overflow_without_skipping_schema_validation() {
-    let mut declarations = vec![
+    let mut declarations = [
         array(1, 2, 0),
         array(2, 3, u64::MAX),
         array(3, 4, u64::MAX),

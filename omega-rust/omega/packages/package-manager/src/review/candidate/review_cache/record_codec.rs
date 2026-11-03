@@ -860,7 +860,7 @@ pub(super) fn decode_record(bytes: &[u8]) -> Option<CachedCompiledReview> {
         return None;
     }
     let (payload, digest) = bytes.split_at(bytes.len() - 32);
-    let expected: [u8; 32] = content_identity(&payload).into();
+    let expected: [u8; 32] = content_identity(payload);
     if expected != digest {
         return None;
     }
@@ -996,7 +996,7 @@ mod tests {
             policy_canonical_bytes: 3,
         };
         fn signed(mut payload: Vec<u8>) -> Vec<u8> {
-            let digest: [u8; 32] = crate::digest_encoder::content_identity(&payload).into();
+            let digest: [u8; 32] = crate::digest_encoder::content_identity(&payload);
             payload.extend_from_slice(&digest);
             payload
         }

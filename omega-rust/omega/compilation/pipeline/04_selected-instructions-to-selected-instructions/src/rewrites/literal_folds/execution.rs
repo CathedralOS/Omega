@@ -187,7 +187,7 @@ pub(crate) fn validate_selected_lowering_optimization_custody(
     }
     let mut previous_measure = run.source.legality().receipt().virtual_register_count();
     for step in &replayed {
-        previous_measure = charge_step_measure(previous_measure, &step)?;
+        previous_measure = charge_step_measure(previous_measure, step)?;
     }
     let mut usage = OptimizationWorkUsage::default();
     for step in &replayed {

@@ -1,7 +1,6 @@
 //! Borrowed nonresident access must use the exact admitted provider allocation.
 //! These are embedding inputs, not authority produced by numeric addresses.
-#[path = "terminal_provision.rs"]
-mod terminal_provision;
+use super::terminal_provision;
 
 use access_plans::{
     AtomicCapability, BoundaryReach, ExternalCapability, ExternalReadBehavior, PeerWritability,

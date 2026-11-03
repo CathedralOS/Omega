@@ -498,10 +498,9 @@ impl TerminalEffectHandler for NativeImport<'_> {
             .filesystem
             .as_ref()
             .is_some_and(|filesystem| filesystem.modeled_stream(arguments))
+            && let Some(modeled) = &self.modeled_descriptor
         {
-            if let Some(modeled) = &self.modeled_descriptor {
-                return modeled.storage_requirements(boundary, arguments);
-            }
+            return modeled.storage_requirements(boundary, arguments);
         }
         terminal_interpreter::TerminalCallStorageRequirements {
             arguments: &self.storage_arguments,
@@ -604,12 +603,11 @@ impl TerminalEffectHandler for NativeImport<'_> {
                     let mut matching = buffers.iter().filter(|buffer| match buffer { TerminalBoundaryStorageBuffer::Scalar(buffer) => buffer.argument_index() == *index, TerminalBoundaryStorageBuffer::Structural(buffer) => buffer.argument_index() == *index, TerminalBoundaryStorageBuffer::ByteView(_) => false });
                     let buffer = matching.next().ok_or_else(|| rejection("native structural argument lost its captured payload"))?;
                     if matching.next().is_some() { return Err(rejection("native structural argument has repeated captures")); }
-                    if let Some(filesystem) = &self.filesystem {
-                        if filesystem.path_argument(*index) {
+                    if let Some(filesystem) = &self.filesystem
+                        && filesystem.path_argument(*index) {
                             let TerminalBoundaryStorageBuffer::Structural(buffer) = buffer else { return Err(rejection("filesystem path lost its captured array")); };
                             filesystem.validate_path(*index, &codec.encode(buffer.values())?)?;
                         }
-                    }
                     match (access, buffer) {
                         (StructuralAccess::Owned, TerminalBoundaryStorageBuffer::Structural(buffer)) if buffer.access() == *access && buffer.structural_type() == codec.structural_type && buffer.original_storage().is_none() => Input::Value(codec.encode(buffer.values())?),
                         (StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow, TerminalBoundaryStorageBuffer::Structural(buffer)) if buffer.access() == *access && buffer.structural_type() == codec.structural_type => {

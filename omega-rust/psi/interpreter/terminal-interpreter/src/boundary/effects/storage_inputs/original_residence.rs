@@ -481,12 +481,7 @@ impl BoundaryStorageInputs {
                 }
             }
         }
-        for (binding, storage) in self
-            .scalars
-            .bindings
-            .iter_mut()
-            .zip(scalar_storages.into_iter())
-        {
+        for (binding, storage) in self.scalars.bindings.iter_mut().zip(scalar_storages) {
             binding.direct_original = true;
             binding.resident_storage = Some(storage);
         }

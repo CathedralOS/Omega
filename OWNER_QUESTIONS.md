@@ -294,3 +294,88 @@ define observations and resources, not parsing;
 [edge contracts](bootstrap/CONTRACT.md) require refinement independence but do
 not fix Epsilon's grammar; `implementation_notes.md` describes the probe as
 implementation, not as a language rule.
+
+### 6. Is a layout used only inside unselected library code a Psi obligation under every target?
+
+A fixed-representation use (`LayoutStorage`, `CLayout`) inside a body that no
+Build row selects and no entry reaches is laid out today by Psi's build-time
+admission under every selected target that carries representation facts. Since
+std moved its POSIX native bindings to Build rows (#1617, #1622, #1625), portable
+std code such as `posix_canonicalize` and `FilesystemPosixProvider`, and the
+Darwin C-layout stat and timespec records their closures use, is no longer
+reached through any target's provider defaults. It is therefore unscoped, and it
+is laid out under every target with facts (#1653 stopped also demanding it from
+targets without facts). A console-only program pays for laying out filesystem
+code it never calls, once per target.
+
+The product requirement is compile latency of ordinary std-dependent programs.
+`tests/omega/pass/host/console_exit_process_exit` is recorded as
+`checked 11753ms` in `tests/omega/corpus_outcomes.txt` (`@ccdb99ca2214`, check
+target macos_arm64, host unrecorded). On main `de9648a198` plus #1653
+(`a151ce613a`), one `omega --check` of it took 148.5 s on a linux_x86_64 cloud
+container (the author's measurement), and 95.6 s on main `91b6625545` after
+#1656. Three smoke fixtures
+(`control_flow/borrowed_state_argument`,
+`control_flow/runtime_owned_state_parallel_swap_exit`,
+`write_only/state_forwarded_scalar_store_exit`) exceed the 120 s corpus cap. For
+the first of them, PR #1656 reports 33.9 s per check in fixed-layout evaluation
+across 85 layout applications in 6 target scopes at `5209eac451`. After its
+repair of the proof judge's quadratic scans, about 79 s of extra checking
+remains with no single hot frame. On `91b6625545` the console check spends 52 s
+in stage-05 checking of the newly demanded std code and only a few seconds in
+layout formation. Option A below would remove the layout share only; both
+options still resolve, type and check that code, so neither recovers the rest.
+
+A Build row's target cannot scope the code: a source declaration acquires no
+target tag, and the row demands only a body-less boundary requirement, not its
+portable callers.
+
+Option A, demand-limited layout: Psi lays out a fixed-representation
+application only under each target whose Build rows select, or whose entry
+reaches, a closure containing it. That includes rows for targets outside the
+requested output, so
+`tests/omega/fail/layouts/unselected_target_{helper,callback}_layout_underflow`
+and `unselected_target_layout_contract` keep rejecting. A use reached by no row
+and no entry is resolved, typed and checked, but not laid out under target facts.
+Its layout applicability is left to Omega's validation of whichever closure a
+later row selects. "Every supplied implementation is checked" then excludes
+target-fact layout formation for code no row or entry reaches.
+
+Option B, mandatory layout of all supplied code: every supplied
+fixed-representation application is laid out under every target with facts,
+whether or not anything reaches it. Layout formation is part of the ordinary
+source check of every supplied implementation, and the cost scales with a
+library's target-specific code times the number of targets, for every program
+that depends on it.
+
+Contracts checked, and why they do not decide it:
+- [Layout plans](wiki/spec/layouts/plans.md#compile-time-journey-and-build)
+  (lines 301-305) say "the using representation application selects the exact
+  implementation" and the compiler "supplies its authorized schema and target
+  facts"; lines 313-314 say "merely importing a package does not instantiate its
+  layouts". Neither says whether a use inside a checked but unselected body is a
+  using application or a mere import.
+- [Terminal Psi product](wiki/spec/terminal-psi/product.md) (lines 28-30) calls
+  "target-selected layout" a later realization fact; lines 216-219 say "selected
+  ... layout ... applicability is a realization obligation". These place
+  *selected* layout in Omega but say nothing of unselected uses.
+- [Multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
+  (lines 166-173), [scoped execution](wiki/spec/build/scoped_execution.md)
+  (lines 164-167, "including unselected target implementations") and
+  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
+  (line 106) require ordinary source checks of every supplied implementation.
+  They do not say whether target-fact layout formation is one.
+- [Behavior exclusions](wiki/spec/build/behavior_exclusions.md) (lines 126-131)
+  already draw the same line for another obligation: "An unused unselected
+  implementation ... need not satisfy a product exclusion, but remains subject to
+  ordinary source checks."
+- [Machines](wiki/spec/language/machines.md) (lines 186-190),
+  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
+  (lines 91-93, 107) and [Build-owned native binding](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)
+  (lines 36-39) keep target keys on Build rows, which is why a row cannot scope
+  the code.
+- The layout implementation note (`omega-rust/psi/compilation/build-time-evaluation/layouts.md`,
+  not a contract) leans both ways. Lines 43-45 say Build supplies "selected
+  providers" and that a scope with no application needs no facts. Lines 96-98 and
+  110-113 follow provider bodies "under each applicable target" and reject a bad
+  target-family member "even when deployment requests another target".

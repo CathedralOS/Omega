@@ -3,9 +3,7 @@
 use crate::declarations::symbols::TopLevelSymbols;
 use crate::frozen_program::expression_table;
 use crate::machine_calls::calls::write_frames::call_targets::machine_state_by_symbol;
-use crate::machine_calls::calls::write_frames::inference::{
-    BoolTruth, FrameInference, ParameterValues,
-};
+use crate::machine_calls::calls::write_frames::inference::FrameInference;
 use crate::machine_calls::calls::write_frames::parameter_aliases::ParameterRelativeFrameOrigin;
 use crate::machine_calls::calls::write_frames::place_paths::{
     FramePathPrecision, FramePlaceOrigin, append_place_suffix, frame_place_path,
@@ -13,16 +11,12 @@ use crate::machine_calls::calls::write_frames::place_paths::{
 };
 use crate::machine_calls::calls::write_frames::transparent_effects::expression_is_effectful_for_transparent_result;
 use crate::machine_calls::calls::write_frames::type_capabilities::type_reference_is_reference;
-use crate::value_custody::places::binding_observations::binding_is_exclusively_exposed;
 use symbols::SymbolHandle;
 
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableCallExpression};
 use typed_trees::machine::Machine;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
-use typed_trees::statement::{
-    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
-};
 
 /// Instantiate every proven result route through its exact actual input.
 /// The shared body relation preserves each normal completion's origins and
@@ -138,23 +132,23 @@ fn map_call_result_origins(
 
     let arguments = expression_table(program).expression_handles(call.arguments);
     let actual_values = inference.argument_values(program, arguments);
-    let mut result_origins = {
-        transparent_callee_result_origins(
-            program,
-            callee_machine,
-            callee_state,
-            symbols,
-            inference,
-        )?
-    };
-    let parameters = program.state_parameters(callee_state);
-    retain_reachable_transition_results(
+    let actual_indices = inference.argument_indices(program, arguments);
+    let result_origins = inference.with_invocation(
         program,
         callee_state,
-        parameters,
         &actual_values,
-        &mut result_origins,
-    );
+        &actual_indices,
+        |inference| {
+            transparent_callee_result_origins(
+                program,
+                callee_machine,
+                callee_state,
+                symbols,
+                inference,
+            )
+        },
+    )?;
+    let parameters = program.state_parameters(callee_state);
     let mut origins = Vec::new();
     for result_origin in result_origins {
         if !result_origin.parameter_symbol.is_valid() {
@@ -312,9 +306,7 @@ pub(crate) fn transparent_callee_result_origins(
             return None;
         }
         let place = leaf.origin?.into_symbolic_place()?;
-        let parameter_symbol = if place.source.is_static()
-            || place.source.result_home().is_some()
-        {
+        let parameter_symbol = if place.source.is_static() || place.source.result_home().is_some() {
             // Image storage and opaque invocation-result backing are both
             // independent of formal inputs; the instantiator rebases the
             // invocation identity to its own call site.
@@ -352,404 +344,4 @@ pub(crate) fn transparent_callee_result_origins(
         }
     }
     (!returned.is_empty()).then_some(returned)
-}
-
-/// Return selection composes invocation values with completed local choices.
-/// Those reference results are not part of write-frame working state.
-struct ResultSelection {
-    values: ParameterValues,
-    captured_results: Vec<(SymbolHandle, Option<Vec<SymbolHandle>>)>,
-}
-
-impl ResultSelection {
-    fn new(program: &dyn crate::CheckingInput, state: &State, actual_values: &[BoolTruth]) -> Self {
-        Self {
-            values: ParameterValues::new(program, state, actual_values, &[]),
-            captured_results: Vec::new(),
-        }
-    }
-
-    fn finish_statement(
-        &mut self,
-        program: &dyn crate::CheckingInput,
-        state: &State,
-        statement: &StatementNode,
-    ) {
-        self.values.finish_statement(program, state, statement);
-        let StatementNode::Assignment(assignment) = statement else {
-            return;
-        };
-        let ExpressionNode::Name(target) = expression_table(program).expression(assignment.target)
-        else {
-            return;
-        };
-        if let Some((_, captured)) = self
-            .captured_results
-            .iter_mut()
-            .find(|(symbol, _)| *symbol == target.symbol)
-            && program
-                .machine_holding_state(state.symbol)
-                .and_then(|machine| {
-                    super::reference_subjects::replaces_reference_binding(
-                        program, machine, statement,
-                    )
-                })
-                != Some(false)
-        {
-            // Descriptor replacement retires the choice. A scalar store through
-            // the captured reference changes its referent, not that descriptor.
-            *captured = None;
-        }
-    }
-}
-
-/// A transition block is sequential. The next arm runs only when the previous
-/// ordinary guard falls through. Current captured Boolean values can refute a
-/// guard and remove an unreachable referent from the caller-visible union.
-/// Calls and named-state arrivals substitute the same captured current values,
-/// not expressions replayed against a later caller or the outer entry. Finite
-/// cycles settle in captured-input queries; unresolved routes retain the
-/// complete result union.
-fn retain_reachable_transition_results(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    parameters: &[StateParameter],
-    actual_values: &[BoolTruth],
-    origins: &mut Vec<ParameterRelativeFrameOrigin>,
-) {
-    let mut reachability = ResultReachability::default();
-    let reachable = loop {
-        reachability.changed = false;
-        for query in &mut reachability.queries {
-            query.visited = false;
-        }
-        let roots = reachable_value_parameters(
-            program,
-            state,
-            parameters,
-            actual_values,
-            &mut reachability,
-        );
-        if !reachability.changed {
-            break roots;
-        }
-    };
-    let Some(reachable) = reachable else { return };
-    let filtered: Vec<_> = origins
-        .iter()
-        .filter(|origin| {
-            !origin.parameter_symbol.is_valid() || reachable.contains(&origin.parameter_symbol)
-        })
-        .cloned()
-        .collect();
-    if !filtered.is_empty() {
-        *origins = filtered;
-    }
-}
-
-// Selection only narrows the independently completed origin relation. Each
-// query is one state with captured Boolean inputs; its result is expressed in
-// that state's own formal roots, so every edge substitutes a permutation
-// simultaneously. There are finitely many three-valued input vectors and roots.
-// Real returns seed the least fixed point, while a backedge reads only the
-// provisional set. Unsupported routes are absorbing unknowns and disable
-// narrowing. No provisional selection escapes before the whole solve settles.
-#[derive(Default)]
-struct ResultReachability {
-    queries: Vec<ResultQuery>,
-    changed: bool,
-}
-
-struct ResultQuery {
-    state: SymbolHandle,
-    values: Vec<BoolTruth>,
-    roots: Option<Vec<SymbolHandle>>,
-    active: bool,
-    visited: bool,
-}
-
-fn reachable_value_parameters(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    parameters: &[StateParameter],
-    actual_values: &[BoolTruth],
-    reachability: &mut ResultReachability,
-) -> Option<Vec<SymbolHandle>> {
-    if parameters.len() != actual_values.len() {
-        return None;
-    }
-    let index = if let Some(index) = reachability
-        .queries
-        .iter()
-        .position(|query| query.state == state.symbol && query.values == actual_values)
-    {
-        index
-    } else {
-        reachability.queries.push(ResultQuery {
-            state: state.symbol,
-            values: actual_values.to_vec(),
-            roots: Some(Vec::new()),
-            active: false,
-            visited: false,
-        });
-        reachability.changed = true;
-        reachability.queries.len() - 1
-    };
-    if reachability.queries[index].active || reachability.queries[index].visited {
-        return reachability.queries[index].roots.clone();
-    }
-    reachability.queries[index].active = true;
-    reachability.queries[index].visited = true;
-    let incoming = reachable_value_parameters_body(program, state, actual_values, reachability);
-    let query = &mut reachability.queries[index];
-    query.active = false;
-    match (&mut query.roots, incoming) {
-        (Some(held), Some(incoming)) => {
-            for root in incoming {
-                if !held.contains(&root) {
-                    held.push(root);
-                    reachability.changed = true;
-                }
-            }
-        }
-        (Some(_), None) => {
-            query.roots = None;
-            reachability.changed = true;
-        }
-        (None, _) => {}
-    }
-    query.roots.clone()
-}
-
-fn reachable_value_parameters_body(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    actual_values: &[BoolTruth],
-    reachability: &mut ResultReachability,
-) -> Option<Vec<SymbolHandle>> {
-    let mut current = ResultSelection::new(program, state, actual_values);
-    let mut fall_through = true;
-    let mut reachable = Vec::new();
-    let mut saw_value = false;
-    let statements = program.statement_table.statements(state.statement_nodes);
-    let last = statements.len().saturating_sub(1);
-    for (statement_index, statement) in program
-        .statement_table
-        .admitted_execution_statements(state.statement_nodes)
-    {
-        match statement {
-            StatementNode::Assignment(_) => current.finish_statement(program, state, statement),
-            StatementNode::LocalData(local)
-                if type_reference_is_reference(program, local.type_reference) =>
-            {
-                // Preserve a completed choice before a later selector store.
-                // Unstable bindings keep the unspecialized result relation.
-                let stable = !binding_is_exclusively_exposed(program, state, local.symbol);
-                let result = stable
-                    .then(|| {
-                        contributed_parameters(
-                            program,
-                            state,
-                            &current,
-                            reachability,
-                            local.initial_value,
-                        )
-                    })
-                    .flatten();
-                current.captured_results.push((local.symbol, result));
-            }
-            StatementNode::Transition(transition) => {
-                let truth = match transition.guard {
-                    TransitionGuardNode::Always => BoolTruth::True,
-                    TransitionGuardNode::When(condition) => {
-                        current.values.truth(program, state, condition)
-                    }
-                };
-                if transition.exit == TransitionExit::Ordinary
-                    && fall_through
-                    && truth != BoolTruth::False
-                {
-                    for edge in transition.targets() {
-                        match program.statement_table.transition_target(edge) {
-                            TransitionTargetNode::Value(result) => {
-                                saw_value = true;
-                                reachable.extend(contributed_parameters(
-                                    program,
-                                    state,
-                                    &current,
-                                    reachability,
-                                    *result,
-                                )?);
-                            }
-                            TransitionTargetNode::Named { .. } => {
-                                saw_value = true;
-                                reachable.extend(contributed_named_target(
-                                    program,
-                                    state,
-                                    &current,
-                                    reachability,
-                                    edge,
-                                )?);
-                            }
-                            TransitionTargetNode::Terminal => {}
-                        }
-                    }
-                } else if transition.exit == TransitionExit::Ordinary && fall_through {
-                    for edge in transition.targets() {
-                        if matches!(
-                            program.statement_table.transition_target(edge),
-                            TransitionTargetNode::Value(_) | TransitionTargetNode::Named { .. }
-                        ) {
-                            saw_value = true;
-                        }
-                    }
-                }
-                if truth == BoolTruth::True {
-                    fall_through = false;
-                }
-            }
-            StatementNode::Expression(result) if statement_index == last && fall_through => {
-                saw_value = true;
-                reachable.extend(contributed_parameters(
-                    program,
-                    state,
-                    &current,
-                    reachability,
-                    *result,
-                )?);
-            }
-            _ => {}
-        }
-    }
-    saw_value.then_some(reachable)
-}
-
-fn contributed_parameters(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    current: &ResultSelection,
-    reachability: &mut ResultReachability,
-    result: ExpressionHandle,
-) -> Option<Vec<SymbolHandle>> {
-    match expression_table(program).expression(result) {
-        ExpressionNode::Borrow(borrow) => {
-            contributed_parameters(program, state, current, reachability, borrow.target)
-        }
-        ExpressionNode::Name(path) => {
-            if let Some(parameter) = program
-                .state_parameters(state)
-                .iter()
-                .find(|parameter| parameter.symbol == path.symbol)
-            {
-                // This relation names the entry descriptor. A reseated or
-                // exposed reference may name another input at this return.
-                let stable = if type_reference_is_reference(program, parameter.type_reference) {
-                    program
-                        .machine_holding_state(state.symbol)
-                        .is_some_and(|machine| {
-                            super::alias_bindings::state_reference_parameter_binding_is_stable(
-                                program,
-                                machine,
-                                state,
-                                parameter.symbol,
-                            )
-                        })
-                } else {
-                    !parameter.is_mutable
-                };
-                if !stable {
-                    return None;
-                }
-                return Some(vec![parameter.symbol]);
-            }
-            current
-                .captured_results
-                .iter()
-                .find(|(symbol, _)| *symbol == path.symbol)?
-                .1
-                .clone()
-        }
-        ExpressionNode::Call(call) => {
-            if call.receiver.is_valid() {
-                return None;
-            }
-            let (_, callee_state) =
-                super::call_targets::machine_state_by_symbol(program, call.target_symbol)?;
-            let callee_arguments = expression_table(program).expression_handles(call.arguments);
-            parameters_reached_through(
-                program,
-                state,
-                current,
-                reachability,
-                callee_state,
-                callee_arguments,
-            )
-        }
-        _ => None,
-    }
-}
-
-fn contributed_named_target(
-    program: &dyn crate::CheckingInput,
-    state: &State,
-    current: &ResultSelection,
-    reachability: &mut ResultReachability,
-    edge: typed_trees::statement::TransitionTargetHandle,
-) -> Option<Vec<SymbolHandle>> {
-    let TransitionTargetNode::Named { arguments, .. } =
-        program.statement_table.transition_target(edge)
-    else {
-        return None;
-    };
-    let machine = program.machine_holding_state(state.symbol)?;
-    let call_symbol = super::terminal_calls::target(program, machine, edge);
-    let target_state = if call_symbol.is_valid() {
-        machine_state_by_symbol(program, call_symbol)?.1
-    } else {
-        super::transition_topology::named_transition_target_state(program, machine, state, edge)?
-    };
-    let arguments = program.statement_table.expression_handles(*arguments);
-    parameters_reached_through(
-        program,
-        state,
-        current,
-        reachability,
-        target_state,
-        arguments,
-    )
-}
-
-/// Compose result provenance across either a call or a state arrival. Evaluate
-/// selector actuals before entering the target; translate only its selected
-/// parameter roots back through the caller's already captured reference choices.
-fn parameters_reached_through(
-    program: &dyn crate::CheckingInput,
-    host_state: &State,
-    host: &ResultSelection,
-    reachability: &mut ResultReachability,
-    target_state: &State,
-    target_arguments: &[ExpressionHandle],
-) -> Option<Vec<SymbolHandle>> {
-    let parameters = program.state_parameters(target_state);
-    let actual_values = host.values.argument_values(program, target_arguments);
-    let inner = reachable_value_parameters(
-        program,
-        target_state,
-        parameters,
-        &actual_values,
-        reachability,
-    )?;
-    let mut mapped = Vec::new();
-    for symbol in inner {
-        let position = parameters
-            .iter()
-            .position(|parameter| parameter.symbol == symbol)?;
-        let actual = *target_arguments.get(position)?;
-        for parameter in contributed_parameters(program, host_state, host, reachability, actual)? {
-            if !mapped.contains(&parameter) {
-                mapped.push(parameter);
-            }
-        }
-    }
-    Some(mapped)
 }

@@ -38,7 +38,7 @@ pub(super) fn validate(
                     || !trivial_affine_locals.is_empty()
                     || !super::aggregate_results::cleanup(
                         function,
-                        &cleanup_actions,
+                        cleanup_actions,
                         structural_types,
                     )
                 {
@@ -79,7 +79,7 @@ pub(super) fn validate(
             if structural_type != declared.structural_type
                 || multiplicity != declared.multiplicity
                 || !trivial_affine_locals.is_empty()
-                || !super::aggregate_results::cleanup(function, &cleanup_actions, structural_types)
+                || !super::aggregate_results::cleanup(function, cleanup_actions, structural_types)
             {
                 return Err(LegalizationError::custody());
             }

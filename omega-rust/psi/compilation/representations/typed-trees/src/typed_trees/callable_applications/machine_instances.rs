@@ -27,6 +27,30 @@ impl MachineInstantiation<'_> {
     }
 }
 impl TypedTrees {
+    /// Read the one operation that produced this callable. Capture and member
+    /// specialization share this join, so neither can hide the other's receipt.
+    pub fn machine_instantiation(
+        &self,
+        instance: SymbolHandle,
+    ) -> Result<Option<MachineInstantiation<'_>>, &'static str> {
+        let mut receipts = self
+            .machine_specializations
+            .iter()
+            .filter(|receipt| receipt.instance == instance)
+            .map(MachineInstantiation::Specialization)
+            .chain(
+                self.captured_machine_applications
+                    .iter()
+                    .filter(|(_, receipt)| receipt.instance == instance)
+                    .map(|(_, receipt)| MachineInstantiation::Capture(receipt)),
+            );
+        let selected = receipts.next();
+        if receipts.next().is_some() {
+            return Err("callable has multiple capture or specialization receipts");
+        }
+        Ok(selected)
+    }
+
     /// A unique structural derivation path, not an admission judgment. Immutable
     /// checking independently validates each receipt and its supplied operands.
     pub fn machine_instantiation_path(
@@ -42,21 +66,7 @@ impl TypedTrees {
                 return None;
             }
             visited.push(current);
-            let mut receipts = self
-                .machine_specializations
-                .iter()
-                .filter(|receipt| receipt.instance == current)
-                .map(MachineInstantiation::Specialization)
-                .chain(
-                    self.captured_machine_applications
-                        .iter()
-                        .filter(|(_, receipt)| receipt.instance == current)
-                        .map(|(_, receipt)| MachineInstantiation::Capture(receipt)),
-                );
-            let receipt = receipts.next()?;
-            if receipts.next().is_some() {
-                return None;
-            }
+            let receipt = self.machine_instantiation(current).ok()??;
             current = receipt.template();
             path.push(receipt);
         }

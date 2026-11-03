@@ -151,7 +151,7 @@ pub fn requires_const_initializer_evaluation(
                     .is_some_and(|literal| literal.landing().is_some()) => {}
             ExpressionNode::ArrayLiteral(elements) => {
                 pending.extend(
-                    syntax_expressions(&syntax)
+                    syntax_expressions(syntax)
                         .expression_handles(*elements)
                         .iter()
                         .copied(),
@@ -159,7 +159,7 @@ pub fn requires_const_initializer_evaluation(
             }
             ExpressionNode::StructLiteral(literal) => {
                 pending.extend(
-                    syntax_expressions(&syntax)
+                    syntax_expressions(syntax)
                         .struct_fields(literal.fields)
                         .iter()
                         .map(|field| field.value),

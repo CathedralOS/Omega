@@ -542,19 +542,12 @@ fn collect_numeric_observations(
                 // normal-value owner authenticates them at their exact epoch.
                 // Only scalar snapshot consumers need the whole state's read
                 // roster, including earlier completed observations.
-                let is_candidate = if needs_relations && index == statement_index {
-                    super::observed_projections::integer_storage_read(
+                let is_candidate = ((needs_relations && index == statement_index)
+                    || demand.scalar_values.requested())
+                    && super::observed_projections::integer_storage_read(
                         program, machine, state, expression,
                     )
-                    .is_some()
-                } else if demand.scalar_values.requested() {
-                    super::observed_projections::integer_storage_read(
-                        program, machine, state, expression,
-                    )
-                    .is_some()
-                } else {
-                    false
-                };
+                    .is_some();
                 if is_candidate && !candidates.contains(&expression) {
                     candidates.push(expression);
                 }

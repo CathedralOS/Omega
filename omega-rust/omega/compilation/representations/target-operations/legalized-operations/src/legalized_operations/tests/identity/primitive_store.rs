@@ -113,7 +113,7 @@ fn primitive_store_references_its_input_and_is_not_a_field_store() {
         panic!("primitive store fixture")
     };
     row.kind = LegalizedScalarInstructionKind::StructuralScalarFieldStore {
-        destination: destination.into(),
+        destination,
         value,
         byte_size: byte_size.into(),
         path: Vec::new(),

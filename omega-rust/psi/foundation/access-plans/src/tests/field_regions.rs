@@ -27,7 +27,7 @@ fn page_plan(read: bool, write: bool, byte_length: u64) -> ValidatedAccessPlan {
 fn region_plan(demand: FieldAccess) -> ValidatedAccessPlan {
     let layout = layout_report(
         vec![layout_field_entry(
-            "words".into(),
+            "words",
             LayoutPlacementReport::At { offset: 8 },
         )],
         None,
@@ -400,9 +400,9 @@ fn destructive_region_cannot_overlap_another_accessible_field() {
     for other_offset in [8, 16] {
         let layout = layout_report(
             vec![
-                layout_field_entry("consumed".into(), LayoutPlacementReport::At { offset: 0 }),
+                layout_field_entry("consumed", LayoutPlacementReport::At { offset: 0 }),
                 layout_field_entry(
-                    "observed".into(),
+                    "observed",
                     LayoutPlacementReport::At {
                         offset: other_offset,
                     },

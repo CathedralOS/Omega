@@ -612,85 +612,6 @@ fn apply_declaration_sidecar_pruning(program: &mut TypedTrees, removed: &HashSet
     program.retain_live_trait_callable_applications();
 }
 
-#[cfg(test)]
-mod lifecycle_projection_tests {
-    use super::*;
-    use typed_trees::typed_trees::{AccessLifecycleOperation, AccessLifecyclePlan};
-
-    #[test]
-    fn lifecycle_projection_removes_known_owners_but_preserves_orphan_obligations() {
-        let mut symbols = symbols::SymbolTableBuilder::default();
-        let owner = symbols.insert_root(
-            symbols::SymbolKind::Trait,
-            symbols::SymbolNameRef::Static("Owner"),
-        );
-        let requirement = symbols
-            .insert_children(
-                owner,
-                [(
-                    symbols::SymbolKind::Machine,
-                    symbols::SymbolNameRef::Static("initialize"),
-                )],
-            )
-            .handle_at(0);
-        let orphan = symbols.insert_root(
-            symbols::SymbolKind::Machine,
-            symbols::SymbolNameRef::Static("Orphan"),
-        );
-        let mut program = TypedTrees {
-            symbols: symbols.finish(),
-            ..Default::default()
-        };
-        let layout = layout_plans::LayoutPlanReport {
-            schema_report_fingerprint: 1,
-            entries: Vec::new(),
-            offsets: Some(Vec::new()),
-            size: Some(0),
-            align: 1,
-        };
-        let access = access_plans::AccessFields::inaccessible(&layout).unwrap();
-        let placement = access_plans::validate_access_plan(access_plans::AccessPlan {
-            layout,
-            access,
-            reach: Default::default(),
-        })
-        .unwrap();
-        let invocations = program
-            .access_policy_invocations
-            .insert_many([source::SourceSpan::default()]);
-        for requirement in [requirement, orphan] {
-            program
-                .access_lifecycle_plans
-                .append(AccessLifecyclePlan::Evaluated {
-                    callable: requirement,
-                    operation: AccessLifecycleOperation::Initialize,
-                    policy: Default::default(),
-                    schema: Default::default(),
-                    policy_machine: Default::default(),
-                    invocations,
-                    placement: placement.clone(),
-                });
-        }
-        apply_declaration_sidecar_pruning(&mut program, &HashSet::from([owner]));
-        let retained = program
-            .access_lifecycle_plans
-            .iter()
-            .filter_map(|(_, row)| match row {
-                AccessLifecyclePlan::Evaluated { callable, .. } => Some(*callable),
-                AccessLifecyclePlan::Absent => None,
-            })
-            .collect::<Vec<_>>();
-        assert_eq!(retained, vec![orphan]);
-        assert_eq!(
-            program
-                .access_policy_invocations
-                .span_or_empty(invocations)
-                .len(),
-            1
-        );
-    }
-}
-
 /// Exact designated operand occurrences remain with Product admission. The
 /// checked Build call retains their immutable source request; this does not
 /// exempt ordinary unresolved calls or grant a Product declaration identity.
@@ -785,4 +706,83 @@ fn materialized_product_operand_occurrences(
         typed_trees::references::visit_product_operand_inputs(typed, &mut selections, owner);
     }
     selections.occurrences
+}
+
+#[cfg(test)]
+mod lifecycle_projection_tests {
+    use super::*;
+    use typed_trees::typed_trees::{AccessLifecycleOperation, AccessLifecyclePlan};
+
+    #[test]
+    fn lifecycle_projection_removes_known_owners_but_preserves_orphan_obligations() {
+        let mut symbols = symbols::SymbolTableBuilder::default();
+        let owner = symbols.insert_root(
+            symbols::SymbolKind::Trait,
+            symbols::SymbolNameRef::Static("Owner"),
+        );
+        let requirement = symbols
+            .insert_children(
+                owner,
+                [(
+                    symbols::SymbolKind::Machine,
+                    symbols::SymbolNameRef::Static("initialize"),
+                )],
+            )
+            .handle_at(0);
+        let orphan = symbols.insert_root(
+            symbols::SymbolKind::Machine,
+            symbols::SymbolNameRef::Static("Orphan"),
+        );
+        let mut program = TypedTrees {
+            symbols: symbols.finish(),
+            ..Default::default()
+        };
+        let layout = layout_plans::LayoutPlanReport {
+            schema_report_fingerprint: 1,
+            entries: Vec::new(),
+            offsets: Some(Vec::new()),
+            size: Some(0),
+            align: 1,
+        };
+        let access = access_plans::AccessFields::inaccessible(&layout).unwrap();
+        let placement = access_plans::validate_access_plan(access_plans::AccessPlan {
+            layout,
+            access,
+            reach: Default::default(),
+        })
+        .unwrap();
+        let invocations = program
+            .access_policy_invocations
+            .insert_many([source::SourceSpan::default()]);
+        for requirement in [requirement, orphan] {
+            program
+                .access_lifecycle_plans
+                .append(AccessLifecyclePlan::Evaluated {
+                    callable: requirement,
+                    operation: AccessLifecycleOperation::Initialize,
+                    policy: Default::default(),
+                    schema: Default::default(),
+                    policy_machine: Default::default(),
+                    invocations,
+                    placement: placement.clone(),
+                });
+        }
+        apply_declaration_sidecar_pruning(&mut program, &HashSet::from([owner]));
+        let retained = program
+            .access_lifecycle_plans
+            .iter()
+            .filter_map(|(_, row)| match row {
+                AccessLifecyclePlan::Evaluated { callable, .. } => Some(*callable),
+                AccessLifecyclePlan::Absent => None,
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(retained, vec![orphan]);
+        assert_eq!(
+            program
+                .access_policy_invocations
+                .span_or_empty(invocations)
+                .len(),
+            1
+        );
+    }
 }

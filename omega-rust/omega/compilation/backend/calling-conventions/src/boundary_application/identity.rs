@@ -173,7 +173,7 @@ impl BoundaryCallingApplication {
             return Err("callback application changed its complete binder correspondence".into());
         }
         strong.raw(&self.plan.contract_commitment_digest());
-        let commitment: [u8; 32] = strong.finish().into();
+        let commitment: [u8; 32] = strong.finish();
         Ok(commitment)
     }
 }

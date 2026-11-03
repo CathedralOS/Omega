@@ -6,7 +6,6 @@
 
 use crate::tables::{expressions_of, expressions_of_mut};
 use diagnostics::Diagnostic;
-use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::constant_recipes::{
     ConstantExpressionContext, RetainedConstantPosition, RetainedConstantRecipe,
@@ -267,6 +266,7 @@ fn copy_contexts<'scope>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use symbols::SymbolHandle;
     use typed_trees::expression::{BinaryOperator, ExpressionNode, TableBinaryExpression};
     use typed_trees::types::TypeReferenceNode;
 

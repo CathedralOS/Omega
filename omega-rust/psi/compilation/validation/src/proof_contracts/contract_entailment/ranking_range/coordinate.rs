@@ -287,9 +287,7 @@ impl<'program> Coordinate<'program> {
         let mut owner = carrier_root;
         for (symbol, _) in prefix {
             let field = declared_field(program, owner, *symbol)?;
-            let Some(next) = self.kind.step_owner(program, field) else {
-                return None;
-            };
+            let next = self.kind.step_owner(program, field)?;
             chain.push(*symbol);
             owner = next;
         }

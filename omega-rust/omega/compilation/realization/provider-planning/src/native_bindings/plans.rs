@@ -331,7 +331,7 @@ fn evaluate(
         EvaluatedBindingMaterializationDigest::from_bytes(materialization.finish())?;
     let receipt = EvaluatedBindingReceipt::from_evaluation(
         Some(selection.supplier_package),
-        &author_identity,
+        author_identity,
         identities,
         closure,
         fuel_schedule,

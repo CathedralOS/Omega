@@ -1,1 +1,1 @@
-requires a proved nonempty view
+needs the nonempty fact `items.len >= 1`

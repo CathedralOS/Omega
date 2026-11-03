@@ -328,7 +328,17 @@ fn expression_contains_indexed(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     program.subtree_any(expression, typed_trees::SubtreeEdges::VALUES, |_, node| {
-        if matches!(node, typed_trees::expression::ExpressionNode::Indexed(_)) {
+        // A slice alignment query owes its view's first-element bound just
+        // like an ordinary index, though it reads nothing.
+        let owes_index = match node {
+            typed_trees::expression::ExpressionNode::Indexed(_) => true,
+            typed_trees::expression::ExpressionNode::Call(call) => call
+                .layout_query
+                .as_ref()
+                .is_some_and(|query| query.nonempty_view.is_valid()),
+            _ => false,
+        };
+        if owes_index {
             typed_trees::SubtreeVisit::Found
         } else {
             typed_trees::SubtreeVisit::Descend

@@ -86,7 +86,7 @@ pub(crate) fn signature_ceiling_regions(
     )?;
     let parameters = site.parameters(program, machine.symbol)?;
     let arguments = call_site_argument_expressions(program, &site);
-    if parameters.iter().count() != arguments.len() {
+    if parameters.len() != arguments.len() {
         return None;
     }
     let mut owned_frames = None;

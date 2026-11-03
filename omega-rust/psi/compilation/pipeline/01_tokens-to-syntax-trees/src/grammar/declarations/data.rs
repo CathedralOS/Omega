@@ -12,7 +12,6 @@ use crate::grammar::type_syntax::properties::parse_property_brackets;
 use crate::storage::tables::{items, items_of};
 use crate::tokens::token_cursor::{Input, ParseResult, parse_path_handle_span};
 use arena::HandleSpan;
-use language_core::Multiplicity;
 use std::collections::HashSet;
 use syntax_trees::SyntaxTrees;
 use syntax_trees::item::{

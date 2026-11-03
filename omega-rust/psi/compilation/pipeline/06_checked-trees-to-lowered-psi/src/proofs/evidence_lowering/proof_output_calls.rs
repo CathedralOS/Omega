@@ -155,7 +155,7 @@ pub(crate) fn lower_proof_output_calls(
                 })?,
                 target_machine_identity: static_requirement_dispatch
                     .as_ref()
-                    .map(|dispatch| Ok(dispatch.public_requirement_identity.clone()))
+                    .map(|dispatch| Ok(dispatch.public_requirement_identity))
                     .unwrap_or_else(|| {
                         checked_evidence_machine_identity(checked, invocation.target_machine_symbol)
                             .map(|identity| identities.intern(&identity))

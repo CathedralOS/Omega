@@ -208,7 +208,7 @@ fn collect_field_residuals(
             collect_child_residuals(
                 structural_types,
                 child_type,
-                StructuralPathSegment::Field(field.identity.clone()),
+                StructuralPathSegment::Field(field.identity),
                 moved_paths,
                 prefix,
                 max_residuals,

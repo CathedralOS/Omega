@@ -975,7 +975,7 @@ fn prepare_owners(
             return unsupported("selection survivor disagrees with its declared owned carrier");
         }
         owners.push(argument_evaluation::StructuralValueOwner {
-            symbol: symbol,
+            symbol,
             statement: local.statement_index,
             value: value.clone(),
         });
@@ -1808,7 +1808,7 @@ impl Emission<'_, '_, '_> {
             }));
         }
         let requires_completion = self.content_transformation(&node)?.is_some()
-            || flow_facts(&self.checked)
+            || flow_facts(self.checked)
                 .terminal_unit_effects
                 .cleanup_control
                 .value_completion(self.machine, self.state, self.statement, node.expression)
@@ -1893,7 +1893,7 @@ impl Emission<'_, '_, '_> {
                 let child = self.structural_value_node(source);
                 let source_type = lookup_type_id(
                     self.type_ids,
-                    &stored_structural_identity(&self.checked, child.type_reference),
+                    &stored_structural_identity(self.checked, child.type_reference),
                 )?;
                 let ValueOutcome::Normal(completed) = self.child_constructor_operand(
                     identities,
@@ -2221,7 +2221,7 @@ impl Emission<'_, '_, '_> {
             } => {
                 // The planner's synthesized zero has no authored operand to
                 // replay — emit the verified literal leaf directly.
-                let computation = value_facts(&self.checked)
+                let computation = value_facts(self.checked)
                     .scalar_computations
                     .nodes
                     .get(element);

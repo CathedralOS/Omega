@@ -155,7 +155,7 @@ impl OperationFrame<'_, '_> {
         // Numeric predicates do not stand in for declared membership:
         // retain the catalog's independent rejection of unsupported theories.
         type_atoms(self.checked, local.declared_type)?;
-        let predicates = value_facts(&self.checked)
+        let predicates = value_facts(self.checked)
             .scalar_type_refinement_predicates(local.declared_type)
             .ok_or(LoweringError::Unsupported(
                 "scalar local has no complete checked value refinement",
@@ -264,8 +264,8 @@ impl OperationFrame<'_, '_> {
             // The dense route registers no result row, so it binds the
             // statement's local here; the state-graph row's own registration
             // already named it.
-            if *source == checked_trees::CheckedArrayConstructionSource::Statement {
-                if let Some(binding) = super::super::structural_values::local_binding(
+            if *source == checked_trees::CheckedArrayConstructionSource::Statement
+                && let Some(binding) = super::super::structural_values::local_binding(
                     operation,
                     declaration,
                     crate::shared::terminal_identities::lookup_type_id(
@@ -273,9 +273,9 @@ impl OperationFrame<'_, '_> {
                         &result.type_identity,
                     )?,
                     self.structural_types.declarations(),
-                ) {
-                    self.evaluation.bind_structural_local(binding);
-                }
+                )
+            {
+                self.evaluation.bind_structural_local(binding);
             }
         }
         Ok(())
@@ -1056,7 +1056,7 @@ impl OperationFrame<'_, '_> {
                         local.statement_index < statement_index
                             // Rebinding replaces the stored carrier, not the
                             // borrowed referent exposed by argument presentation.
-                            && stored_structural_identity(&self.checked, local.declared_type) == type_identity
+                            && stored_structural_identity(self.checked, local.declared_type) == type_identity
                     })
                 {
                     return unsupported(
@@ -1091,7 +1091,7 @@ impl OperationFrame<'_, '_> {
                         .is_some_and(|shell| {
                             shell.access == language_semantics::ReferenceAccess::Shared
                         })
-                    && stored_structural_identity(&self.checked, formal.type_reference)
+                    && stored_structural_identity(self.checked, formal.type_reference)
                         == type_identity
                 {
                     // The signature keeps its borrowed ingress. Only the
@@ -1356,7 +1356,7 @@ impl OperationFrame<'_, '_> {
             self.checked,
             cleanup_actions,
             selected_regions,
-            &flow_facts(&self.checked)
+            &flow_facts(self.checked)
                 .terminal_unit_effects
                 .cleanup_control,
             self.structural_types.declarations(),
