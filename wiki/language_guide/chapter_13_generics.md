@@ -76,6 +76,41 @@ Explicit conformance selection is different from guessing a machine from its
 name or finding a visible implementation. [Chapter 14](chapter_14_traits.md)
 explains the complete map and its laws.
 
+## Generic Requirements
+
+A trait can declare the same generic interface as an ordinary machine, including
+an implementation parameter supplied by the caller:
+
+```omega
+boundary trait Sorting {
+    machine sort<T, Order satisfies Ordering<T>>(
+        items: &mut [T]
+    );
+}
+```
+
+For `Sorting::sort<u32, Ascending>(items)`, the caller selects u32 and the named
+Ascending map. Build independently selects the platform implementation of
+Sorting. The compiler specializes that member with the caller's selections;
+Build does not supply or enumerate the generic arguments. Every selected member
+must honor the requirement for all admitted arguments.
+
+That static interface is not an unrestricted generic virtual method. For a
+runtime-selected implementation, parameters can instead belong to the trait:
+
+```omega
+trait TypedSorter<T, Order satisfies Ordering<T>> {
+    machine sort(items: &mut [T]);
+}
+```
+
+`dyn TypedSorter<u32, Ascending>` has a fixed method shape while its implementation
+can vary at runtime. An open requirement-local type or evidence binder cannot
+become a dynamic slot merely because current callers happen to use one tuple;
+the attempt rejects during source checking. Explicit finite value families keep
+their existing rules. See [generic requirements](../spec/language/generics.md#generic-machine-requirements)
+and [dynamic eligibility](../spec/terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes).
+
 ## Runtime-Capable Value Parameters
 
 Value binders distinguish two staging contracts:
