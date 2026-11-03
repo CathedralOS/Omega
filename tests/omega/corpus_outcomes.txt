@@ -16918,7 +16918,8 @@ fail/borrows/reference_record_mutable_shared_overlap rejected 58875ms expected @
 fail/borrows/reference_result_case_payload_missing_premise rejected 24506ms expected @8fce926f9735
 	cannot prove requires contract for call relay from main: choice == constructor:80:package:ed1998ec80f94be73738ec7c9b812c72a25270fe6bfc1d33aeab410a2abe94c0::Choice9:name:Some && choice.payload.target == constructor:78:package:ed1998ec80f94be73738ec7c9b812c72a25270fe6bfc1d33aeab410a2abe94c0::Cell9:name:Held (needs fact `choice == Choice::Some && choice.payload.target == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call has_value from main: observed.payload.target == constructor:78:package:ed1998ec80f94be73738ec7c9b812c72a25270fe6bfc1d33aeab410a2abe94c0::Cell9:name:Held (needs fact `cell == Cell::Held` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/borrows/region_store_live_sibling_reference checked 2393ms @ccdb99ca2214
+fail/borrows/region_store_live_sibling_reference rejected 9313ms unexpected regressed-from:checked @61d32e24eb90
+	statement 5 cannot resolve the complete borrowed destination of `slots[1..3]`: the stored descriptor has no current value source
 fail/borrows/replaced_carrier_keeps_new_backing_loan rejected 1806ms expected @ccdb99ca2214
 	statement 4 mutates `replacement.value` while local borrow `holder` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 fail/borrows/replaced_descriptor_stale_pointee_fact rejected 727ms expected @cdaaea7fffc3
@@ -28269,7 +28270,8 @@ fail/facts/provider_poststate_proof_subjects_rejected rejected 2464ms expected @
 	machine `Direct::keep` satisfies `Bounds::keep` but proves no ensures matching the declared law `second == ProofNat::Zero` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
 fail/facts/provider_poststate_readonly_subjects_rejected rejected 2580ms expected @ccdb99ca2214
 	machine `Direct::keep` satisfies `Readable::keep` but proves no ensures matching the declared law `second.len == 7` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
-fail/facts/provider_poststate_selector_different_join_rejected checked 8924ms @911f6617ba9e
+fail/facts/provider_poststate_selector_different_join_rejected rejected 12293ms unexpected regressed-from:checked @61d32e24eb90
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(32), result: PlaceId(209), reason: "caller descriptor snapshots could not be reconstructed" }))
 fail/facts/provider_poststate_selector_unknown_parameter_rejected checked 11930ms @911f6617ba9e
 fail/facts/provider_poststate_wrong_inputs_rejected rejected 2728ms expected @ccdb99ca2214
 	machine `Installer::install` satisfies `Installing::install` but proves no ensures matching the declared law `destination.bytes.len == first.bytes.len` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
@@ -33063,7 +33065,8 @@ fail/layouts/false_constant_layout_contract rejected 3746ms expected @ccdb99ca22
 	constant checking: scalar predicate is false: requires contract for call impossible from program: size_of() < align_of()
 fail/layouts/generic_constant_layout_contract rejected 3554ms unexpected @ccdb99ca2214
 	constant checking: scalar predicate is false: requires contract for call require_geometry$specialized$84a06353c54bfdae$0 from program: size_of() + align_of() == 24
-fail/layouts/large_schema_field_outside_plan checked 4392ms @ccdb99ca2214
+fail/layouts/large_schema_field_outside_plan rejected 3943ms expected regressed-from:checked @61d32e24eb90
+	policy `Packed::plan` produced an invalid plan: field `bytes` ends at bit 524288, past the fixed size 32768 bits
 fail/layouts/layout_arithmetic_add_overflow rejected 4208ms expected @ccdb99ca2214
 	constant checking: scalar range condition 0: bounds [18446744073709551616, 18446744073709551616] lie outside [0, 18446744073709551615]
 fail/layouts/layout_arithmetic_cancellation_keeps_child_obligation rejected 3819ms expected @ccdb99ca2214
@@ -33167,7 +33170,8 @@ fail/layouts/public_layout_keeps_private_schema rejected 168ms expected @ccdb99c
 	plan-laid value type `LayoutPolicy<HiddenSchema>`: error: demanded premise closure checking failed: public interface selects private data `LayoutPolicy<HiddenSchema>`
 fail/layouts/public_schema_keeps_private_layout rejected 181ms expected @ccdb99ca2214
 	plan-laid value type `HiddenPolicy<RecordSchema>`: error: demanded premise closure checking failed: public interface selects private data `HiddenPolicy<RecordSchema>`
-fail/layouts/qualified_record_layout_requires_alignment checked 3781ms @ccdb99ca2214
+fail/layouts/qualified_record_layout_requires_alignment rejected 3527ms expected regressed-from:checked @61d32e24eb90
+	policy `Packed::plan` produced an invalid plan: field `words` at offset 7 violates its alignment 8
 fail/layouts/recast_integer_at_store_requires_fit rejected 1481ms expected @ccdb99ca2214
 	IntegerAt store in machine `Main::main` state `main` assignment requires a value proven to fit 8-bit signed storage
 fail/layouts/recursive_integer_at_requires_all_arrivals_fit rejected 1861ms expected @ccdb99ca2214
@@ -34649,7 +34653,8 @@ fail/providers/boundary_issuance_refuted_completed_value rejected 2077ms unexpec
 	boundary qualification is refuted at exit of Called::issue in state `issue` for requirement `issue`: Token::Issued
 	boundary qualification is refuted at exit of Later::issue in state `issue` for requirement `issue`: Token::Issued
 	boundary qualification is refuted at exit of Attached::issue in state `issue` for requirement `issue`: Token::Issued
-fail/providers/boundary_issuance_refuted_mutable_value checked 2837ms @ccdb99ca2214
+fail/providers/boundary_issuance_refuted_mutable_value rejected 5453ms unexpected regressed-from:checked @61d32e24eb90
+	boundary qualification is refuted at exit of Provider::issue in state `issue` for requirement `issue`: Token::Issued
 fail/providers/boundary_issuance_refuted_with_opaque_conjunct rejected 1757ms expected @ccdb99ca2214
 	boundary qualification is refuted at exit of Provider::issue in state `issue` for requirement `issue`: Token::Issued
 fail/providers/boundary_lent_linear_satisfier_narrowed rejected 16222ms expected @ee4dbb4b2d56
@@ -34960,7 +34965,8 @@ fail/recast/boolean_view_requires_source_representation rejected 953ms expected 
 	machine `read` state `entry`: a shared recast may weaken established facts but cannot strengthen them; source facts do not establish the target representation
 fail/recast/borrowed_byte_changed_extent rejected 1259ms expected @ccdb99ca2214
 	machine `main` state `entry`: cannot prove the recast's 8-byte footprint fits the live byte slice: the offset must be nonnegative and offset + 8 must not exceed its length
-fail/recast/borrowed_byte_collection_predicate checked 2550ms @ccdb99ca2214
+fail/recast/borrowed_byte_collection_predicate rejected 2360ms unexpected regressed-from:checked @61d32e24eb90
+	cannot establish assignment invariants: source storage interpretation is unavailable: physical reference view has no exact scalar storage translation (machine `main` state `entry` statement 1, source `bytes`, path [FixedIndex { index: 0 }], view Some(("u64", [])))
 fail/recast/borrowed_byte_footprint_short rejected 848ms expected @ccdb99ca2214
 	machine `main` state `entry`: cannot prove the recast's 8-byte footprint fits the live byte slice: the offset must be nonnegative and offset + 8 must not exceed its length
 fail/recast/borrowed_byte_mutable_source_facts rejected 852ms expected @ccdb99ca2214
