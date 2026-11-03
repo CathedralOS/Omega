@@ -9,7 +9,7 @@ use super::super::stored_values::append_preserved_binding;
 use super::super::stored_values::append_store;
 use super::super::stored_values::join;
 use super::{Execution, InvocationSite};
-use arena::Handle;
+use arena::{Handle, HandleSpan};
 use checked_trees::{BorrowCallFact, FlowOperandFact, FlowStorageSnapshot};
 use validation::CanonicalPlace;
 

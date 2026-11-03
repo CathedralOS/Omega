@@ -581,7 +581,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         call.authored_receiver = match site {
             InvocationSite::Expression(expression) => {
                 match self.program.expression_table.expression(expression) {
-                    Some(ExpressionNode::Call(call)) => call.receiver,
+                    ExpressionNode::Call(call) => call.receiver,
                     _ => ExpressionHandle::invalid(),
                 }
             }

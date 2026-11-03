@@ -8,7 +8,7 @@ mod returned_projections;
 use super::formation_captures::{descriptor_capture, formation_capture};
 
 use arena::Handle;
-use checked_trees::{BorrowLoanFact, BorrowLoanLineage, CheckFacts, FlowOperandFact};
+use checked_trees::{BorrowLoanFact, BorrowLoanLineage, CheckFacts};
 use diagnostics::Diagnostic;
 
 pub(super) fn validate(
