@@ -98,7 +98,7 @@ Acceptance children use:
 ```text
 acceptance_schema 8
 rows <count>
-row <callable|external_supply|dangerous_capability|terminal_permission|restricted_build_request>
+row <callable|terminal_permission|external_supply|dangerous_capability|restricted_build_request|assumed_binding_contract|service_audit|native_binding>
 key <SHA-256 of canonical row coordinate bytes>
 meaning <byte length>
 <complete canonical readable risk-row text>
