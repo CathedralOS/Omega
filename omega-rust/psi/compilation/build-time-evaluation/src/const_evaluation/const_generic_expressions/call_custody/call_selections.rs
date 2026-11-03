@@ -10,6 +10,53 @@ use typed_trees::expression::TableCallExpression;
 use typed_trees::{TypedTrees, static_applications::StaticMachineBindingValue};
 use validation::CallSite;
 
+/// A constant must retain each call's declared method after evaluation. The
+/// local evidence child has no declaration source, so record its public method's
+/// source while keeping the exact child as the call target. Invocation checking
+/// still verifies that child's binder and complete selected application.
+pub(super) fn call_custody_source(
+    program: &TypedTrees,
+    target: SymbolHandle,
+) -> Result<source::SourceSpan, String> {
+    if let Some(requirement) = program.evidence_requirement_declaration(target)? {
+        return program
+            .symbols
+            .symbol_source_span(requirement.symbol)
+            .ok_or_else(|| {
+                "constant evidence requirement lost its public declaration source".into()
+            });
+    }
+    if let Some(source) = program.symbols.symbol_source_span(target) {
+        return Ok(source);
+    }
+    let symbol = program.symbols.get(target);
+    if symbol.kind != SymbolKind::State
+        || program.symbols.get(symbol.parent).kind != SymbolKind::Machine
+    {
+        return Err("constant call lost its exact selected declaration source".into());
+    }
+    let mut owners = program
+        .machines()
+        .iter()
+        .filter(|owner| owner.symbol == symbol.parent);
+    let owner = owners
+        .next()
+        .ok_or("constant callable entry lost its owning machine")?;
+    if owners.next().is_some() {
+        return Err("constant callable entry has ambiguous owning machine identity".into());
+    }
+    let states = program.machine_states(owner);
+    if states.len() != owner.states.len()
+        || states.first().map(|state| state.symbol) != Some(target)
+    {
+        return Err("constant source-less call is not its exact owning entry".into());
+    }
+    program
+        .symbols
+        .symbol_source_span(symbol.parent)
+        .ok_or_else(|| "constant callable entry lost its authored machine declaration".into())
+}
+
 macro_rules! selected_requirement {
     ($program:ident, $call:ident, $authored:ident, $requirement_trait:ident, $conformance:ident) => {
         let authored_symbol = $program.symbols.get($authored);

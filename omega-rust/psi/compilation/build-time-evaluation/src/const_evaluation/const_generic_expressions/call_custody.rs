@@ -918,10 +918,10 @@ impl<'program> Collector<'program> {
         let executable = binding.selected;
         let target = binding.original;
         let symbol = self.program.symbols.get(target);
-        let bound_requirement = symbol.kind == SymbolKind::State
-            && symbol.parent.is_valid()
-            && self.program.symbols.get(symbol.parent).kind == SymbolKind::ConformanceParameter
-            && validation::selected_requirement_signature(self.program, target).is_some();
+        let bound_requirement = self
+            .program
+            .evidence_requirement_declaration(target)?
+            .is_some();
         let trait_requirement = symbol.kind == SymbolKind::State
             && symbol.parent.is_valid()
             && self.program.symbols.get(symbol.parent).kind == SymbolKind::Trait;
@@ -930,47 +930,21 @@ impl<'program> Collector<'program> {
             SymbolKind::Operator | SymbolKind::MachineParameter
         ) || bound_requirement
             || trait_requirement;
-        let machine = match symbol.kind {
-            SymbolKind::Machine => Some(target),
+        match symbol.kind {
+            SymbolKind::Machine => (),
             SymbolKind::State
                 if self.program.symbols.get(symbol.parent).kind == SymbolKind::Machine =>
             {
-                Some(symbol.parent)
+                ()
             }
-            _ if logical => None,
+            _ if logical => (),
             _ => {
                 return Err(
                     "constant call has no exact ordinary machine or state selection".into(),
                 );
             }
         };
-        let declaration = self
-            .program
-            .symbols
-            .symbol_source_span(target)
-            .or_else(|| {
-                // A generated entry state has no authored token. Its callable
-                // declaration is the owning machine, while the retained selection
-                // continues to name this exact entry-state symbol.
-                if symbol.kind != SymbolKind::State {
-                    return None;
-                }
-                let mut owners = self
-                    .program
-                    .machines()
-                    .iter()
-                    .filter(|owner| Some(owner.symbol) == machine);
-                let owner = owners.next()?;
-                if owners.next().is_some() {
-                    return None;
-                }
-                let states = self.program.machine_states(owner);
-                if states.len() != owner.states.len() || states.first()?.symbol != target {
-                    return None;
-                }
-                self.program.symbols.symbol_source_span(machine?)
-            })
-            .ok_or("constant call lost its exact selected declaration source")?;
+        let declaration = call_selections::call_custody_source(self.program, target)?;
         let selection = (reference, declaration);
         push_unique(&mut self.custody.calls, selection);
         push_unique(&mut self.custody.call_targets, (reference, target));

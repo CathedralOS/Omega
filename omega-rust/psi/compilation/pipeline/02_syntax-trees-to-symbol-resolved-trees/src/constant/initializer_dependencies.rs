@@ -5,7 +5,7 @@
 //! that specialization may execute. Retain both without treating an abstract
 //! binder as an ordinary body or granting execution from source readiness.
 
-use crate::selection::call_identity::call_declaration_source;
+use crate::selection::call_identity::{call_custody_source, call_declaration_source};
 use crate::tables::body_expressions;
 use crate::tables::resolved_declarations;
 use language_core::data_layout_queries::is_data_layout_query_spelling;
@@ -795,21 +795,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         }
         let bound_requirement = symbol.kind == SymbolKind::State
             && symbol.parent.is_valid()
-            && self.program.symbols.get(symbol.parent).kind == SymbolKind::ConformanceParameter
-            && self.program.machines.iter().any(|machine| {
-                machine.symbol == self.program.symbols.get(symbol.parent).parent
-                    && machine
-                        .conformance_bounds
-                        .iter()
-                        .filter(|bound| bound.binder == symbol.parent)
-                        .count()
-                        == 1
-            })
-            && self
-                .program
-                .symbols
-                .child_handles(symbol.parent)
-                .is_some_and(|mut children| children.any(|child| child == target));
+            && self.program.symbols.get(symbol.parent).kind == SymbolKind::ConformanceParameter;
         if matches!(
             symbol.kind,
             SymbolKind::Operator | SymbolKind::MachineParameter
@@ -817,7 +803,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         {
             // A logical requirement is an exact authored selection, not an
             // ordinary body. Evidence-binder children were installed from this
-            // machine's explicit bound; the typed invocation must independently
+            // declaration's explicit bound; the typed invocation must independently
             // rejoin its complete application before selecting executable code.
             // Named boundary operators likewise retain their declaration here.
             // This source dependency row grants no execution permission and
@@ -896,11 +882,7 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         target: SymbolHandle,
         reference: SourceSpan,
     ) -> Result<(), String> {
-        let declaration = self
-            .program
-            .symbols
-            .symbol_source_span(target)
-            .ok_or("constant logical call lost its exact declaration source")?;
+        let declaration = call_custody_source(self.program, target)?;
         let selection = (reference, declaration);
         if !self.dependencies.calls.contains(&selection) {
             self.dependencies.calls.push(selection);

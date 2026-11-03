@@ -8,7 +8,7 @@
 
 use super::initializer_dependencies::DependencyPurpose;
 use crate::lowering::expression::lower_expression_into_table;
-use crate::selection::call_identity::call_declaration_source;
+use crate::selection::call_identity::call_custody_source;
 use crate::tables::body_expressions;
 use crate::tables::syntax_expressions;
 use diagnostics::Diagnostic;
@@ -511,7 +511,7 @@ fn append_retained_custody(
                 // The detached original rederives call custody. A copied call
                 // selection is neither a constant origin nor a builtin premise;
                 // a named boundary operator keeps that same custody-only role.
-                let declaration = call_declaration_source(program, selected.selected_symbol())
+                let declaration = call_custody_source(program, selected.selected_symbol())
                     .map_err(|reason| error(reference, &reason))?;
                 if !custody.call_selections.contains(&(reference, declaration)) {
                     custody.call_selections.push((reference, declaration));
