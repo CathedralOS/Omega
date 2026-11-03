@@ -1979,7 +1979,8 @@ defines the complete product bar.
   Cathedral.
   - Extend `alloc::Vec` beyond copy-scalar elements: retain initialized-element
     custody across growth and discharge non-copy element cleanup before returning
-    vacant backing to the allocator.
+    vacant backing to the allocator. Its runtime-sized ownership carrier awaits
+    [the resident-sequence decision](OWNER_QUESTIONS.md#7-what-represents-a-runtime-sized-collection-of-owned-non-copy-elements).
   - Execute the library growth/release/reset witnesses on Linux and macOS hosts.
   Acceptance: `tests/omega/pass/memory/bump_allocator_canary` and `Vec` growth
   witnesses execute via `omega run --both` with real backing, coexisting

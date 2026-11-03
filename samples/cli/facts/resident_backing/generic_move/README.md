@@ -40,3 +40,8 @@ This establishes generic, whole-element movement and observable affine cleanup.
 It does not establish a runtime-sized owned prefix or a generic Vec implementation.
 Those remain the parent outcome's acceptance. The cleanup payload has fixed
 runtime scalar fields; borrowed fields require their own storage/custody support.
+
+The runtime-sized ownership carrier is an unresolved
+[owner decision](../../../../../OWNER_QUESTIONS.md#7-what-represents-a-runtime-sized-collection-of-owned-non-copy-elements).
+This witness proves whole-element transfer, not authority to infer a collection
+of residents from a byte range and element count.
