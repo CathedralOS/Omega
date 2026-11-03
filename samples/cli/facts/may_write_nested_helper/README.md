@@ -124,6 +124,14 @@ replaces the local slot after right-hand-side effects. It does not read the old
 pointer or discard writes through a reference. Full acceptance and publication
 remain unfinished.
 
+Run [41584866204](https://github.com/CathedralOS/Omega/actions/runs/41584866204)
+cleared the original bound-checking failure. The unchanged reference-local case
+then reached lowering, which lacked its exact first receiving establishment.
+The other 22 positives passed both engines and all 36 invalid controls rejected
+correctly; public projects did not run. The next repair authenticates the first
+installed reference from its complete checked loan activation. It retains all
+requirements for retiring an already installed pointer. Acceptance is unfinished.
+
 The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
 on the frozen baseline in
 [41558699182](https://github.com/CathedralOS/Omega/actions/runs/41558699182).

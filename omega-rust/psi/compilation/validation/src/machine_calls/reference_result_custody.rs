@@ -1324,12 +1324,12 @@ pub fn storage_place_loans(
     )
 }
 
-/// A borrowed formal has an ingress permission, not an installed owned
-/// descriptor. Its first whole-binding replacement can establish a descriptor
-/// without disposing an old carrier. Require the new occurrence's complete
-/// statement activation and prove that no earlier stored occurrence existed;
-/// incoming permissions never become synthetic statement-zero loans.
-pub fn initial_parameter_reference_establishment(
+/// Authenticate a reference slot's first installed descriptor. A declaration
+/// without an initializer has no prior pointer, and a mutable shared formal
+/// supplies only ingress permission. Neither absence alone proves installation:
+/// require the complete new statement activation and no earlier stored loan.
+/// Access checks still decide whether the assignment itself is permitted.
+pub fn initial_reference_establishment(
     program: &dyn CheckingInput,
     facts: &CheckFacts,
     machine: SymbolHandle,
@@ -1337,19 +1337,27 @@ pub fn initial_parameter_reference_establishment(
     owner: SymbolHandle,
     statement_index: u32,
 ) -> Option<Vec<RecordLeafLoans>> {
-    let parameter = program
-        .state_parameters(state)
-        .iter()
-        .find(|parameter| parameter.symbol == owner)?;
-    if !parameter.is_mutable
-        || crate::reference_shell(program, parameter.type_reference)?.access
-            != ReferenceAccess::Shared
-        || !crate::stores_reference_shape(program, parameter.type_reference, &[])
-    {
+    let reference = if let Some(parameter) = program.state_parameter_by_symbol(state, owner) {
+        if !parameter.is_mutable
+            || crate::reference_shell(program, parameter.type_reference)?.access
+                != ReferenceAccess::Shared
+        {
+            return None;
+        }
+        parameter.type_reference
+    } else {
+        let (ordinal, local) = program.state_local_declaration(state, owner)?;
+        if ordinal >= statement_index as usize || local.initial_value.is_valid() {
+            return None;
+        }
+        crate::reference_shell(program, local.type_reference)?;
+        local.type_reference
+    };
+    if !crate::stores_reference_shape(program, reference, &[]) {
         return None;
     }
     let borrowing = facts.borrow.unique_state_borrow(machine, state.symbol)?;
-    let owner_path = loan_owner_path(program, parameter.type_reference, &[])?;
+    let owner_path = loan_owner_path(program, reference, &[])?;
     let order = program
         .statement_table
         .admitted_execution_order(state.statement_nodes);
