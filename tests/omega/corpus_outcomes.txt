@@ -2679,6 +2679,9 @@ fail/facts/resident_backing_field_missing_vacancy rejected 23260ms expected @e7c
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
 fail/facts/resident_backing_field_unrestored rejected 17423ms expected @e7c12b127bc8+wt
 	data `Held`'s default domain is still FALSE at state exit: the invariant window opened on `held` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/facts/resident_backing_library_growth_missing_vacancy rejected 24319ms expected @66ee9999011e+wt
+	cannot prove requires contract for call exercise from allocated: storage in Extent::Vacant in state `entry`
+	cannot prove initializer of `storage` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
 fail/facts/resident_backing_local_missing_vacancy rejected 5376ms expected @b3876048c0a2
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
@@ -4780,7 +4783,7 @@ pass/collections/runtime_stored_reference_array_owned_record_contract_exit check
 pass/collections/runtime_stored_reference_array_replacement_contract_exit rejected 3988ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main", reason: "value storage local is not established", gap: None })
 pass/collections/runtime_three_indexed_record_float_read_exit checked 17197ms check-target:macos_arm64 @ccdb99ca2214
-pass/collections/runtime_vec_u32_growth_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/collections/runtime_vec_u32_growth_exit checked 37271ms check-target:macos_arm64 @66ee9999011e+wt
 pass/collections/runtime_view_element_structural_replacement_exit checked 2994ms check-target:macos_arm64 @ccdb99ca2214
 pass/collections/runtime_whole_array_value_copy_exit checked 5630ms check-target:macos_arm64 @27c558b731f4
 pass/collections/shared_slice_view_dropped_receiver rejected 0ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -18009,12 +18012,10 @@ fail/collections/stored_reference_array_sibling_extent rejected 2529ms expected 
 	cannot prove requires contract for call observe from main: windows[0].len == windows[1].len (needs fact `windows[0].len == windows[1].len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/collections/stored_reference_array_stale_extent rejected 2744ms expected @ccdb99ca2214
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && saved == 1 (needs fact `windows[0].len == 1 && saved == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/collections/vec_duplicate_cleanup rejected 2750ms expected @ccdb99ca2214
-	cannot use `vec` in machine `Main::main` state `main` (statement 2) after `vec` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `vec` first
-fail/collections/vec_invalidated_loan_after_growth rejected 3468ms expected @ccdb99ca2214
-	state `grow8to16` receives `main.b8` while local borrow `slots` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	statement 2 borrows `main.b8` while local borrow `slots` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	statement 2 mutates `main.b8.e[0]` while local borrow `slots` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
+fail/collections/vec_duplicate_cleanup rejected 29599ms expected @66ee9999011e+wt
+	cannot use `vector` in machine `finish` state `entry` (statement 1) after `vector` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `vector` first
+fail/collections/vec_invalidated_loan_after_growth rejected 30570ms expected @66ee9999011e+wt
+	state `grow` receives an owned value while local borrow `borrowed` is still active (borrowed at statement 6; its last use is at statement 8)
 fail/collections/wrapping_loop_increment_bound rejected 2224ms expected @ccdb99ca2214
 	cannot prove index `main.index` is within length 4 in fill::entry
 fail/collections/wrapping_member_decrement_index_unproven rejected 2237ms expected @ccdb99ca2214

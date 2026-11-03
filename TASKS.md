@@ -1979,8 +1979,10 @@ defines the complete product bar.
   access views end to end (`Psi 05–08` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
-  - Connect `Vec` growth/reallocation/drop to the real backing allocator so
-    dynamic `Vec` growth executes natively across hosts.
+  - Extend `alloc::Vec` beyond copy-scalar elements: retain initialized-element
+    custody across growth and discharge non-copy element cleanup before returning
+    vacant backing to the allocator.
+  - Execute the library growth/release/reset witnesses on Linux and macOS hosts.
   Acceptance: `tests/omega/pass/memory/bump_allocator_canary` and `Vec` growth
   witnesses execute via `omega run --both` with real backing, coexisting
   allocations, preserved prefix elements on growth, and full reset after
