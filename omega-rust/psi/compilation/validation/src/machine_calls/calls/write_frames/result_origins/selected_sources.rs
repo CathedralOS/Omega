@@ -321,6 +321,9 @@ fn contributed_parameters(
     reachability: &mut ResultReachability,
     result: ExpressionHandle,
 ) -> Option<Vec<SymbolHandle>> {
+    if !result.is_valid() {
+        return None;
+    }
     match expression_table(program).expression(result) {
         ExpressionNode::Borrow(borrow) => {
             contributed_parameters(program, state, current, reachability, borrow.target)

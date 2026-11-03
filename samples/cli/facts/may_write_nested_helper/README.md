@@ -105,8 +105,11 @@ The source checks use `macos_arm64`; actual runtime observations cover
 The exact observed source is retained in a verified Git bundle published with
 [part 1](https://github.com/CathedralOS/Omega/pull/1571#issuecomment-6593497212)
 and [part 2](https://github.com/CathedralOS/Omega/pull/1571#issuecomment-6593497564)
-of the PR evidence. Later edits change explanatory comments, this README and
-recorded outcomes; the executable source and compiler operations remain the same.
+of the PR evidence. That archive preserves the observed source and its earlier pass. Review found a
+further missing-initializer lookup in the reference-choice walk. A guard now
+retains an unknown choice for a declaration-only reference; new controls declare
+and assign that reference before returning it, or reject its use before a store.
+This follow-up still needs a public-compiler probe and complete validation.
 
 The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
 on the frozen baseline in
