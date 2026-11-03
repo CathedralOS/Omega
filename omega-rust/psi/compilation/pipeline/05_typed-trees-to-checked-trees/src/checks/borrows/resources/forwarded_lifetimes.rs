@@ -67,6 +67,7 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
             }
         }
     }
+    close_output_descendants(facts, &transfers)?;
     // A completed output keeps each captured input held for its complete debt
     // cohort. These edges extend lifetimes only, never spatial parentage.
     for (_, output) in facts.borrow.supplied_output_resources.iter() {
@@ -75,7 +76,7 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
             .supplied_output_inputs
             .span_or_empty(output.inputs)
         {
-            let input = facts.borrow.call_loan_resources.get(*input);
+            let input = facts.borrow.call_loan_resources.get(input.resource);
             let mut sources = Vec::new();
             match input.source {
                 checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => {
@@ -150,7 +151,7 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                         continue;
                     }
                     let start = holder_start(facts, flow_state, candidate)?;
-                    let weakening = lexical_end(facts, flow_state, candidate)?;
+                    let weakening = holding_end(facts, flow_state, candidate)?;
                     if supplier_end.is_some_and(|end| {
                         weakening_event_boundary(end.source, end.reason)
                             .is_ok_and(|boundary| start >= boundary)
@@ -190,12 +191,194 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
         }
     }
     facts.borrow.resource_holders = holders_arena;
-    for (_, output) in facts.borrow.supplied_output_resources.iter_mut() {
-        let retained = get(&rows, output.loan)?;
-        output.holders = retained.holders;
-        output.final_weakening = retained.final_weakening;
-    }
     Ok(rows)
+}
+
+/// The input hold is established by the completed call before any saved view
+/// can be formed. Its end must cover every descendant, even when that child's
+/// bookkeeping debt has no descriptor-forwarding edge of its own.
+fn close_output_descendants(
+    facts: &mut CheckFacts,
+    transfers: &[TransferHolders],
+) -> Result<(), Vec<Diagnostic>> {
+    let mut children: Vec<TransferHolders> = Vec::new();
+    for (child, row) in facts.borrow.loans.iter() {
+        let checked_trees::BorrowLoanLineage::Reborrow { parent_loan } = row.lineage else {
+            continue;
+        };
+        let position = parent_loan.arena_index() as usize;
+        if children.len() <= position {
+            children.resize_with(position + 1, TransferHolders::default);
+        }
+        let entry = &mut children[position];
+        entry.loan = parent_loan;
+        entry.holders.push(child);
+    }
+    // A later output can retain an earlier reference as an input lifetime.
+    // This edge belongs only to this lifetime-closure graph, never to the
+    // spatial parent graph or the descriptor-forwarding graph.
+    for (_, output) in facts.borrow.supplied_output_resources.iter() {
+        for input in facts
+            .borrow
+            .supplied_output_inputs
+            .span_or_empty(output.inputs)
+        {
+            let input = facts.borrow.call_loan_resources.get(input.resource);
+            let sources = match input.source {
+                checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => vec![loan],
+                checked_trees::CheckedCallBorrowLoanSource::CallAccess { parents, .. } => facts
+                    .borrow
+                    .call_loan_parents
+                    .span_or_empty(parents)
+                    .to_vec(),
+            };
+            for source in sources {
+                let position = source.arena_index() as usize;
+                if children.len() <= position {
+                    children.resize_with(position + 1, TransferHolders::default);
+                }
+                let entry = &mut children[position];
+                entry.loan = source;
+                crate::shared::collections::push_unique(&mut entry.holders, output.loan);
+            }
+        }
+    }
+    let mut ends = Vec::new();
+    for (handle, output) in facts.borrow.supplied_output_resources.iter() {
+        let state = facts
+            .flow
+            .control
+            .unique_state(output.machine_symbol, output.state_symbol)
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "completed output closure has no unique flow state",
+                )]
+            })?;
+        let (holders, holder_end) = closure_end(facts, state, output.loan, &[transfers])?;
+        let (_, end) = closure_end(facts, state, output.loan, &[transfers, children.as_slice()])?;
+        ends.push((
+            handle,
+            holders,
+            holder_end.unwrap_or_default(),
+            end.unwrap_or_default(),
+        ));
+    }
+    for (handle, holders, holder_end, end) in ends {
+        let holders = facts.borrow.loan_suppliers.insert_many(holders);
+        let output = facts.borrow.supplied_output_resources.get_mut(handle);
+        output.holders = holders;
+        output.holder_weakening = holder_end;
+        output.final_weakening = end;
+    }
+    Ok(())
+}
+
+fn closure_end(
+    facts: &CheckFacts,
+    state: &checked_trees::FlowStateFact,
+    root: Handle<BorrowLoanFact>,
+    graphs: &[&[TransferHolders]],
+) -> Result<
+    (
+        Vec<Handle<BorrowLoanFact>>,
+        Option<Handle<FlowBorrowWeakeningFact>>,
+    ),
+    Vec<Diagnostic>,
+> {
+    let (_, owner) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)
+        .ok_or_else(|| {
+            vec![Diagnostic::error(
+                "completed output closure has no borrow owner",
+            )]
+        })?;
+    let mut pending = vec![(root, false)];
+    let mut completed = Vec::new();
+    let mut active = Vec::new();
+    let mut end = None;
+    while let Some((loan, closing)) = pending.pop() {
+        if completed.contains(&loan) {
+            continue;
+        }
+        if closing {
+            if active.pop() != Some(loan) {
+                return Err(vec![Diagnostic::error(
+                    "completed output closure order is unavailable",
+                )]);
+            }
+            completed.push(loan);
+            continue;
+        }
+        if active.contains(&loan) || !facts.borrow.state_owns_loan(owner, loan) {
+            return Err(vec![Diagnostic::error(
+                "completed output has cyclic or foreign lifetime dependents",
+            )]);
+        }
+        active.push(loan);
+        pending.push((loan, true));
+        if let Some(candidate) = lexical_end(facts, state, loan)? {
+            end = later_end(facts, end, candidate)?;
+        }
+        for graph in graphs {
+            if let Some(edges) = graph
+                .get(loan.arena_index() as usize)
+                .filter(|entry| entry.loan == loan)
+            {
+                pending.extend(edges.holders.iter().rev().map(|child| (*child, false)));
+            }
+        }
+    }
+    Ok((completed, end))
+}
+
+fn holding_end(
+    facts: &CheckFacts,
+    state: &checked_trees::FlowStateFact,
+    loan: Handle<BorrowLoanFact>,
+) -> Result<Option<Handle<FlowBorrowWeakeningFact>>, Vec<Diagnostic>> {
+    let mut end = lexical_end(facts, state, loan)?;
+    for (_, dependency) in facts
+        .borrow
+        .output_lifetime_dependencies
+        .iter()
+        .filter(|(_, row)| row.loan == loan)
+    {
+        let output = facts
+            .borrow
+            .supplied_output_resources
+            .get(dependency.output);
+        if facts
+            .flow
+            .borrow_lifetimes
+            .weakenings
+            .is_valid(output.final_weakening)
+        {
+            end = later_end(facts, end, output.final_weakening)?;
+        }
+    }
+    Ok(end)
+}
+
+fn later_end(
+    facts: &CheckFacts,
+    previous: Option<Handle<FlowBorrowWeakeningFact>>,
+    candidate: Handle<FlowBorrowWeakeningFact>,
+) -> Result<Option<Handle<FlowBorrowWeakeningFact>>, Vec<Diagnostic>> {
+    let Some(previous) = previous else {
+        return Ok(Some(candidate));
+    };
+    let left = facts.flow.borrow_lifetimes.weakenings.get(previous);
+    let right = facts.flow.borrow_lifetimes.weakenings.get(candidate);
+    Ok(Some(
+        if weakening_event_boundary(right.source, right.reason)?
+            > weakening_event_boundary(left.source, left.reason)?
+        {
+            candidate
+        } else {
+            previous
+        },
+    ))
 }
 
 fn lexical_end(

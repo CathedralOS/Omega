@@ -302,9 +302,13 @@ fn child_parent_weakening_handle(
     {
         return unsupported("restored reborrow call use child resource handle is invalid");
     }
-    Ok(borrow
+    let checked_trees::CheckedBorrowParentEnd::Lexical { weakening } = borrow
         .reborrow_loan_resources
         .get(event.child_resource)
         .parent_end_status
-        .parent_weakening)
+        .parent_end
+    else {
+        return unsupported("restored direct-root use has no lexical parent boundary");
+    };
+    Ok(weakening)
 }

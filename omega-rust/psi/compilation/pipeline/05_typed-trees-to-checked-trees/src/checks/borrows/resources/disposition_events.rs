@@ -133,18 +133,18 @@ pub(crate) fn plan_reborrow_disposition_events(
             if flow
                 .borrow_lifetimes
                 .weakenings
-                .is_valid(resource.final_weakening)
+                .is_valid(resource.holder_weakening)
             {
                 let end = flow
                     .borrow_lifetimes
                     .weakenings
-                    .get(resource.final_weakening);
+                    .get(resource.holder_weakening);
                 events.push(LifecycleEvent {
                     boundary: weakening_event_boundary(end.source, end.reason)?,
                     resource: ParentResourceIndex::Supplied(index),
                     loan_order: resource.loan.arena_index(),
                     kind: LifecycleEventKind::Weaken {
-                        weakening: resource.final_weakening,
+                        weakening: resource.holder_weakening,
                     },
                 });
             }

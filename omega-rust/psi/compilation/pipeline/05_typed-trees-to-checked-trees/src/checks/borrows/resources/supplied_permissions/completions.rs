@@ -10,7 +10,7 @@ use checked_trees::{
 };
 use diagnostics::Diagnostic;
 
-pub(super) fn install(
+pub(in crate::checks::borrows::resources) fn install(
     program: &dyn validation::CheckingInput,
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -23,6 +23,14 @@ pub(super) fn install(
             continue; // A syntactic alternative does not establish a permission.
         };
         let incoming = facts.borrow.incoming_references.get(row.incoming_reference);
+        let diagnostic = |reason: &'static str| {
+            vec![Diagnostic::error(format!(
+                "{reason}; completed output in state {:?}, statement {}, call {}, loan {loan:?}",
+                incoming.state_symbol,
+                row.statement_index,
+                facts.flow.control.calls.get(call).call_ordinal,
+            ))]
+        };
         let IncomingReferenceOrigin::Output { identity } = incoming.origin else {
             return refuse("completed output lost its output identity");
         };
@@ -100,6 +108,7 @@ pub(super) fn install(
                 inputs: HandleSpan::empty(),
                 debts: HandleSpan::empty(),
                 holders: HandleSpan::empty(),
+                holder_weakening: Handle::invalid(),
                 final_weakening: Handle::invalid(),
             },
             inputs,
@@ -134,7 +143,10 @@ pub(super) fn install(
                     .ok_or_else(|| {
                         diagnostic("completed input permission has no typed capture path")
                     })?;
-            handles.push(handle);
+            handles.push(checked_trees::CheckedOutputBorrowInput {
+                source: input.source,
+                resource: handle,
+            });
         }
         output.inputs = facts.borrow.supplied_output_inputs.insert_many(handles);
         // The span belongs to loan_suppliers, which is never reset by resource

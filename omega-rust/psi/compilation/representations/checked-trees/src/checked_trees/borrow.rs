@@ -396,7 +396,7 @@ pub enum BorrowLoanLineage {
     },
     UnretainedDerived,
     /// A normal invocation supplies this descriptor's opaque permission.
-    /// It is not a local borrow activation or a reborrow parent. The exact
+    /// It is not derived from a local borrow activation. The exact
     /// output identity, completed-call roster and destination slot must agree.
     /// An available authenticated completion may lend a later view; its input
     /// lifetime dependencies never supply that view's spatial permission.
@@ -486,9 +486,9 @@ pub struct CheckedDirectBorrowRestorationObligation {
     pub weakening_reason: crate::FlowBorrowWeakeningReason,
 }
 
-/// A resource remains held by every exact transported descriptor after its
-/// original slot retires. Keep the lexical retirement and final holding event
-/// distinct; neither a later slot generation nor equal geometry is a holder.
+/// Saved references and established lifetime obligations keep the original
+/// borrowing resource held after its slot retires. Keep lexical retirement
+/// separate from that final hold; neither role grants a new access permission.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBorrowResourceRetention {
     pub lexical_weakening: Handle<crate::FlowBorrowWeakeningFact>,
@@ -512,13 +512,18 @@ pub struct CheckedSuppliedOutputBorrowResource {
     /// Permission demands captured at those inputs' own completion cuts.
     /// Stored sources select their earlier descriptor value, not the short
     /// exclusive loan of the output slot used to install its replacement.
-    pub inputs: HandleSpan<Handle<CheckedCallBorrowLoanResource>>,
+    pub inputs: HandleSpan<CheckedOutputBorrowInput>,
     /// The complete nonspatial cohort published beside this exact output.
     /// These are lifetime obligations, never additional pointer alternatives.
     pub debts: HandleSpan<Handle<BorrowLoanFact>>,
     /// Every saved descriptor holds the same permission after its source slot
-    /// changes. This is retention, not another local borrowing activation.
+    /// changes. This span belongs to loan_suppliers, as does `debts` above.
+    /// This is retention, not another local borrowing activation.
     pub holders: HandleSpan<Handle<BorrowLoanFact>>,
+    /// Last saved holder's lexical end. A child may keep the completed
+    /// permission and its input obligations held beyond this boundary.
+    pub holder_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    /// Complete descendant/cohort closure, including children of saved views.
     pub final_weakening: Handle<crate::FlowBorrowWeakeningFact>,
 }
 
@@ -529,7 +534,16 @@ pub struct CheckedSuppliedOutputBorrowResource {
 pub struct CheckedOutputLifetimeDependencyResource {
     pub loan: Handle<BorrowLoanFact>,
     pub output: Handle<CheckedSuppliedOutputBorrowResource>,
-    pub inputs: HandleSpan<Handle<CheckedCallBorrowLoanResource>>,
+    pub inputs: HandleSpan<CheckedOutputBorrowInput>,
+}
+
+/// A declared input edge and its selected permission retain different
+/// coordinates. In particular, a Stored edge names the earlier captured
+/// descriptor; its outer actual can point at a slot overwritten by the call.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedOutputBorrowInput {
+    pub source: Handle<crate::FlowOperandRetainedSupplier>,
+    pub resource: Handle<CheckedCallBorrowLoanResource>,
 }
 
 /// Checked-only resource closure for one state-local loan captured directly
@@ -629,8 +643,9 @@ pub enum ParentLexicalStatusAtChildEnd {
 
 /// Exact checked weakening-order join for one retained direct reborrow.
 ///
-/// The two handles identify the authoritative flow events; `status` is derived
-/// from their semantic statement phases rather than arena insertion order.
+/// The typed parent end distinguishes an ordinary lexical event from the
+/// last saved holder of a completed output. `status` compares that boundary
+/// with the child's lexical event by semantic phase, never arena order.
 /// This checked-only row grants no suspension-containment, restoration,
 /// reactivation, cascade, or Terminal authority.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
@@ -639,8 +654,29 @@ pub struct CheckedReborrowParentEndStatus {
     pub parent_loan: Handle<BorrowLoanFact>,
     pub parent_resource: CheckedParentBorrowResource,
     pub child_weakening: Handle<crate::FlowBorrowWeakeningFact>,
-    pub parent_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    pub parent_end: CheckedBorrowParentEnd,
     pub status: ParentLexicalStatusAtChildEnd,
+}
+
+/// A local carrier has a lexical retirement. An invocation-established
+/// permission instead stops being directly held when its last saved holder
+/// ends; neither event is proof that its remaining children have finished.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedBorrowParentEnd {
+    Lexical {
+        weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    },
+    CompletedOutput {
+        holder_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    },
+}
+
+impl Default for CheckedBorrowParentEnd {
+    fn default() -> Self {
+        Self::Lexical {
+            weakening: Handle::invalid(),
+        }
+    }
 }
 
 /// Semantic phase used by checked-only borrow-resource lifecycle replay.
@@ -816,7 +852,7 @@ pub struct BorrowFacts {
     /// row.
     pub reborrow_loan_resources: Arena<CheckedReborrowLoanResource>,
     pub supplied_output_resources: Arena<CheckedSuppliedOutputBorrowResource>,
-    pub supplied_output_inputs: Arena<Handle<CheckedCallBorrowLoanResource>>,
+    pub supplied_output_inputs: Arena<CheckedOutputBorrowInput>,
     pub output_lifetime_dependencies: Arena<CheckedOutputLifetimeDependencyResource>,
     pub call_loan_resources: Arena<CheckedCallBorrowLoanResource>,
     pub call_loan_parents: Arena<Handle<BorrowLoanFact>>,

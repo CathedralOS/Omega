@@ -308,13 +308,13 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                             .filter_map(|(_, resource)| {
                                 flow.borrow_lifetimes
                                     .weakenings
-                                    .is_valid(resource.final_weakening)
+                                    .is_valid(resource.holder_weakening)
                                     .then(|| {
                                         (
-                                            resource.final_weakening,
+                                            resource.holder_weakening,
                                             flow.borrow_lifetimes
                                                 .weakenings
-                                                .get(resource.final_weakening),
+                                                .get(resource.holder_weakening),
                                         )
                                     })
                             })
@@ -411,7 +411,15 @@ pub(crate) fn reconstruct_borrow_resource_rosters(
                         child_activation,
                         parent_entry_constraint: *parent_entry_constraint,
                         child_weakening,
-                        parent_weakening: *parent_weakening,
+                        parent_end: if parent.lineage == BorrowLoanLineage::SuppliedOutput {
+                            checked_trees::CheckedBorrowParentEnd::CompletedOutput {
+                                holder_weakening: *parent_weakening,
+                            }
+                        } else {
+                            checked_trees::CheckedBorrowParentEnd::Lexical {
+                                weakening: *parent_weakening,
+                            }
+                        },
                         parent_lexical_status,
                     });
                 }

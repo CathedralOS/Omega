@@ -21,9 +21,12 @@ pub(super) fn normal_call(
 ) -> Option<arena::Handle<checked_trees::FlowCallFact>> {
     let source = borrow.supplied_output_call(loan)?;
     let invocation = borrow.calls.get(source);
+    let incoming = borrow
+        .incoming_references
+        .get(borrow.loans.get(loan).incoming_reference);
     let state = flow
         .control
-        .unique_state(invocation.machine_symbol, invocation.state_symbol)?;
+        .unique_state(incoming.machine_symbol, incoming.state_symbol)?;
     let mut calls = state.calls.handles().filter(|handle| {
         let actual = flow.control.calls.get(*handle);
         actual.statement_index == invocation.statement_index

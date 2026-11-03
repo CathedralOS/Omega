@@ -63,7 +63,10 @@ pub(super) fn plan(
             .span(contract.source_path)
             .ok_or("completed output lifetime input lost its declared source path")?;
         let leaves = if let Some(shell) = validation::reference_shell(program, source_type) {
-            vec![(Vec::new(), shell.access)]
+            vec![(
+                Vec::new(),
+                checked_trees::BorrowAccessKind::from(shell.access),
+            )]
         } else {
             validation::borrow_contracts::carried_reference_paths(program, source_type)
                 .ok_or("completed output input has an unresolved reference frontier")?
@@ -77,22 +80,22 @@ pub(super) fn plan(
             let access = match (*ceiling, access) {
                 (
                     language_semantics::ReferenceAccess::Shared,
-                    language_semantics::ReferenceAccess::WriteOnly,
+                    checked_trees::BorrowAccessKind::WriteOnly,
                 )
                 | (
                     language_semantics::ReferenceAccess::WriteOnly,
-                    language_semantics::ReferenceAccess::Shared,
+                    checked_trees::BorrowAccessKind::Read,
                 ) => {
                     return Err(
                         "completed input's access ceiling permits no requested leaf access",
                     );
                 }
                 (language_semantics::ReferenceAccess::Shared, _)
-                | (_, language_semantics::ReferenceAccess::Shared) => {
+                | (_, checked_trees::BorrowAccessKind::Read) => {
                     checked_trees::BorrowAccessKind::Read
                 }
                 (language_semantics::ReferenceAccess::WriteOnly, _)
-                | (_, language_semantics::ReferenceAccess::WriteOnly) => {
+                | (_, checked_trees::BorrowAccessKind::WriteOnly) => {
                     checked_trees::BorrowAccessKind::WriteOnly
                 }
                 _ => checked_trees::BorrowAccessKind::Mutable,

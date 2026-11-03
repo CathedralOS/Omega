@@ -31,7 +31,7 @@ pub(crate) struct CheckedReborrowLoanResourceDraft {
     pub(crate) child_activation: arena::Handle<checked_trees::FlowBorrowActivationFact>,
     pub(crate) parent_entry_constraint: arena::Handle<checked_trees::FlowConstraintRef>,
     pub(crate) child_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
-    pub(crate) parent_weakening: arena::Handle<checked_trees::FlowBorrowWeakeningFact>,
+    pub(crate) parent_end: checked_trees::CheckedBorrowParentEnd,
     pub(crate) parent_lexical_status: ParentLexicalStatusAtChildEnd,
 }
 
@@ -67,7 +67,7 @@ impl CheckedReborrowLoanResourceDraft {
                 parent_loan: self.parent_loan,
                 parent_resource: parent_resource.clone(),
                 child_weakening: self.child_weakening,
-                parent_weakening: self.parent_weakening,
+                parent_end: self.parent_end.clone(),
                 status: self.parent_lexical_status,
             },
             restoration: CheckedReborrowRestorationObligation {
