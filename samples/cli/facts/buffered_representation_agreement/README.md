@@ -43,17 +43,18 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [latest completed check](https://github.com/CathedralOS/Omega/actions/runs/41672891758)
-at `8aaf1be33d3dc60142f48ebfa586a7a4d1d339e8` retains the writer's complete
-byte/length guarantee, reader input contract and field forwarding. The field
-consumer now refers to the original returned payload, but local and constant
-still have eight proof refusals and field has ten. No buffered witness executes.
-Eleven controls return zero in both engines. The selected-equality control
-rejects the intended missing case requirement, and the corrected independent
-index expectation matches. One case-domain control rejects the correct false
-construction condition but has an outdated diagnostic expectation; that
-expectation is corrected and awaits confirmation. Decoder twins still include
-unrelated restoration failures, so they do not establish this row's acceptance.
+The [latest retained source check](https://github.com/CathedralOS/Omega/actions/runs/41679982069)
+at `acb93f7b489b07a4fed089d37e525e6fe715a270` completed all 29 fixtures before
+the job was cancelled after exceeding its planned duration. Field forwarding
+now proves Pair identity and buffer length. Local, constant and field each
+retain eight restoration proof failures; no buffered witness executes. The
+[new stale-byte control](../../../../tests/omega/fail/contracts/forwarded_data_identity_does_not_preserve_mutated_contents/main.omg)
+wrongly accepts after forwarding and then replacing a byte. Its old/current
+comparison must reject before this work can land. The other invalid controls
+reject their intended obligations, including both corrected expected diagnostics.
+Decoder twins still include unrelated restoration failures and do not establish
+this row's acceptance. Eleven separate controls retain native/Terminal zero exits
+from [the prior execution run](https://github.com/CathedralOS/Omega/actions/runs/41672891758).
 
 The [constant-call checks](https://github.com/CathedralOS/Omega/actions/runs/41573401092)
 execute four independent method, binder, application and lifetime programs with
