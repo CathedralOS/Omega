@@ -7,7 +7,7 @@ use super::super::{
     MAX_REFERENCE_ORIGIN_LEAVES, declared_carrier_references, origin_place_segments,
 };
 use super::{
-    Captures, CheckedReferenceOriginProjection, CheckedReturnedReferencePlan,
+    CapturedReturnOrigin, Captures, CheckedReferenceOriginProjection, CheckedReturnedReferencePlan,
     CheckedUnitStructuralPathSegment, SymbolHandle, TypeReferenceHandle, loan_owner_path,
     loan_place_segments,
 };
@@ -24,43 +24,10 @@ impl Captures<'_> {
         active: &mut Vec<SymbolHandle>,
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         let target = crate::call_target_state(self.program, call.target_symbol)?;
-        let frames = crate::CallFrameResolver::new(self.program)?;
-        let Some(transports) = frames.reference_result_transports(target.symbol) else {
-            eprintln!(
-                "corpus_runner: returned-reference composition has no complete callee relation: {} {:?}",
-                self.program.symbols.name(target.symbol),
-                target.symbol,
-            );
-            return None;
-        };
-        let mut relative = Vec::new();
-        for transport in transports {
-            match transport {
-                crate::ReferenceResultTransport::Reference(leaf) => relative.push(leaf),
-                crate::ReferenceResultTransport::Value {
-                    result_path,
-                    source,
-                    type_reference,
-                } => {
-                    // Enumerate possible descriptor slots, not their pointees.
-                    // captured_input_sources below must establish each slot's
-                    // actual presence and substitute this edge's completed
-                    // operand. The returned-loan join still owns authority.
-                    for leaf in declared_carrier_references(self.program, type_reference)? {
-                        let suffix =
-                            origin_place_segments(self.program, type_reference, leaf.path)?;
-                        let mut destination = result_path.clone();
-                        destination.extend_from_slice(&suffix);
-                        let mut source = source.clone();
-                        source.segments.extend(suffix);
-                        relative.push(crate::ReferenceResultLeafOrigin {
-                            result_path: destination,
-                            source,
-                        });
-                    }
-                }
-            }
-        }
+        // A forwarding body consumes the same checked return relation as its
+        // other callers. Lifetime-only frame summaries cannot replace that
+        // relation or recover the origins of an abstract requirement's result.
+        let relative = self.target_sources(call.target_symbol, active)?;
         let leaves = self.reference_leaves(state)?;
         let parameters = self.program.state_parameters(target);
         let operands = self
@@ -73,41 +40,45 @@ impl Captures<'_> {
             return None;
         }
         let mut origins = Vec::new();
+        let mut independent = Vec::new();
         for candidate in relative {
-            let (result_path, _) = super::super::source_paths::structural_path(
-                self.program,
-                target.return_type,
-                &candidate.result_path,
-            )?;
-            if !leaves.iter().any(|leaf| leaf.path == result_path) {
+            let leaf = leaves.iter().find(|leaf| leaf.path == candidate.path)?;
+            if candidate.source.access != leaf.source.access {
                 return None;
             }
-            let result_path = loan_place_segments(self.program, state.return_type, &result_path)?;
-            if candidate.source.is_image_storage {
-                // Immutable image storage carries no invocation-relative loan.
-                // Its checked formation retains the backing independently.
+            let result_path =
+                loan_place_segments(self.program, state.return_type, &candidate.path)?;
+            let checked_trees::CheckedReferenceOriginRoot::Parameter { index } =
+                &candidate.source.root
+            else {
+                independent.push(candidate);
                 continue;
-            }
+            };
             let (position, parameter) = parameters
                 .iter()
                 .enumerate()
-                .find(|(_, parameter)| parameter.symbol == candidate.source.root)?;
+                .filter(|(_, parameter)| {
+                    super::super::is_mutable_structural_parameter(self.program, parameter)
+                })
+                .nth(*index as usize)?;
             let operand = operands.get(position)?;
             if operand.state_symbol != state.symbol
                 || operand.statement_index != call.statement_index
             {
                 return None;
             }
+            let relative = self.checked_input_origin(parameter, &candidate.source)?;
             for source in self.captured_input_sources(
                 state,
                 parameter.type_reference,
                 call.argument_operands().handles().nth(position)?,
-                &candidate.source,
+                &relative,
                 active,
             )? {
-                let origin = crate::ReferenceResultLeafOrigin {
+                let origin = CapturedReturnOrigin {
                     result_path: result_path.clone(),
                     source,
+                    extent: candidate.source.extent,
                 };
                 if !origins.contains(&origin) {
                     origins.push(origin);
@@ -135,6 +106,79 @@ impl Captures<'_> {
                 &loan_owner_path(self.program, state.return_type, &leaf.path)?,
             )?;
             let mut captured = false;
+            for candidate in independent
+                .iter()
+                .filter(|candidate| candidate.path == leaf.path)
+            {
+                let checked_trees::CheckedReferenceOriginRoot::Invocation { carrier_type } =
+                    &candidate.source.root
+                else {
+                    return None;
+                };
+                if candidate.source.entry_reference_hops != 0 {
+                    return None;
+                }
+                let mut supplied = false;
+                for loan in site_loans.iter().filter(|loan| {
+                    self.returned_loan_owner_path(state, loan).as_deref()
+                        == Some(owner_path.as_slice())
+                        && self
+                            .facts
+                            .borrow
+                            .incoming_references
+                            .is_valid(loan.incoming_reference)
+                }) {
+                    let incoming = self
+                        .facts
+                        .borrow
+                        .incoming_references
+                        .get(loan.incoming_reference);
+                    if incoming.state_symbol != state.symbol
+                        || !matches!(incoming.origin, checked_trees::IncomingReferenceOrigin::Invocation { expression, target }
+                            if expression == call.authored_expression
+                                && crate::call_target_entry_symbol(self.program, target) == call.target_symbol)
+                        || self.program.normalized_type_identity(incoming.carrier_type)
+                            != *carrier_type
+                        || leaf.source.access.borrow_access_kind()? != loan.kind
+                    {
+                        continue;
+                    }
+                    let mut projection = super::super::origin_place_projection(
+                        self.program,
+                        incoming.carrier_type,
+                        candidate.source.path.iter().cloned(),
+                    )?;
+                    if projection.type_identity(self.program) != candidate.source.type_identity {
+                        return None;
+                    }
+                    for mut source in self.return_origin(
+                        state,
+                        loan,
+                        &leaf,
+                        self.facts.borrow.access_segments.span(loan.segments)?,
+                        &site_loans,
+                    )? {
+                        if candidate.source.extent
+                            == semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+                        {
+                            source.extent =
+                                semantic_vocabulary::ReferenceOriginExtent::WithinRegion;
+                        }
+                        let returned = CheckedReturnedReferencePlan {
+                            path: leaf.path.clone(),
+                            source,
+                        };
+                        if !output.contains(&returned) {
+                            output.push(returned);
+                        }
+                        supplied = true;
+                    }
+                }
+                if !supplied {
+                    return None;
+                }
+                captured = true;
+            }
             for origin in origins
                 .iter()
                 .filter(|origin| origin.result_path == result_path)
@@ -180,6 +224,50 @@ impl Captures<'_> {
             }
         }
         Some(output)
+    }
+
+    fn checked_input_origin(
+        &self,
+        parameter: &typed_trees::signature::StateParameter,
+        origin: &checked_trees::CheckedReferenceOriginSourcePlan,
+    ) -> Option<crate::LocalWriteSource> {
+        let ingress = super::super::stored_loan_parts(self.program, parameter.type_reference)
+            .map_or(parameter.type_reference, |(referent, _)| referent);
+        let mut entered = parameter.type_reference;
+        let mut path = origin.path.as_slice();
+        for _ in 0..origin.entry_reference_hops {
+            let (
+                CheckedReferenceOriginProjection::Exact(CheckedUnitStructuralPathSegment::Referent),
+                remaining,
+            ) = path.split_first()?
+            else {
+                return None;
+            };
+            entered = crate::reference_shell(self.program, entered)?.referee;
+            path = remaining;
+        }
+        if origin.entry_reference_hops != 0
+            && self.program.normalized_type_identity(entered)
+                != self.program.normalized_type_identity(ingress)
+        {
+            return None;
+        }
+        let mut projected =
+            super::super::origin_place_projection(self.program, ingress, path.iter().cloned())?;
+        if projected.type_identity(self.program) != origin.type_identity {
+            return None;
+        }
+        Some(crate::LocalWriteSource {
+            invocation_output: None,
+            invocation_result: None,
+            is_image_storage: false,
+            recasts: Vec::new(),
+            representation: None,
+            path: self.program.symbols.name(parameter.symbol).to_owned(),
+            collection_coarse: false,
+            root: parameter.symbol,
+            segments: projected.segments,
+        })
     }
 
     fn captured_input_sources(

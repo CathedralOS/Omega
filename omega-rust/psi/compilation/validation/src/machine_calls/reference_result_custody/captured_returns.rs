@@ -112,6 +112,13 @@ struct FrameOrigin {
     extent: ReferenceOriginExtent,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+struct CapturedReturnOrigin {
+    result_path: Vec<facts::PlaceSegment>,
+    source: crate::LocalWriteSource,
+    extent: ReferenceOriginExtent,
+}
+
 impl Captures<'_> {
     fn target_sources(
         &self,
@@ -640,7 +647,7 @@ impl Captures<'_> {
         leaf: &CheckedReferenceResultSourcePlan,
         segments: &[facts::PlaceSegment],
         loans: &[checked_trees::BorrowReturnedLoanFact],
-        captured: Option<&[crate::ReferenceResultLeafOrigin]>,
+        captured: Option<&[CapturedReturnOrigin]>,
     ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
         // The named-return route enters this shared projector directly.
         // A lifetime dependency cannot provide its address or cover a peer.
@@ -758,15 +765,24 @@ impl Captures<'_> {
         let mut segments = segments.to_vec();
         facts::compose_captured_view_segments(&mut segments)?;
         let parameter_index = u32::try_from(parameter_index).ok()?;
-        let frame = crate::CallFrameResolver::new(self.program)?;
         let result_path = loan_place_segments(self.program, state.return_type, &leaf.path)?;
-        let inferred;
-        let origins = if let Some(captured) = captured {
-            Some(captured)
+        let inferred = if captured.is_none() {
+            crate::CallFrameResolver::new(self.program)?
+                .reference_result_leaf_origins(state.symbol)
+                .map(|origins| {
+                    origins
+                        .into_iter()
+                        .map(|origin| CapturedReturnOrigin {
+                            result_path: origin.result_path,
+                            source: origin.source,
+                            extent: ReferenceOriginExtent::Projected,
+                        })
+                        .collect::<Vec<_>>()
+                })
         } else {
-            inferred = frame.reference_result_leaf_origins(state.symbol);
-            inferred.as_deref()
+            None
         };
+        let origins = captured.or(inferred.as_deref());
         let has_presentation = origins.as_ref().is_some_and(|origins| {
             origins.iter().any(|origin| {
                 origin.result_path == result_path
@@ -862,7 +878,11 @@ impl Captures<'_> {
                         state.return_type,
                         &result_path,
                         leaf.source.type_identity,
-                        captured.extent,
+                        if origin.extent == ReferenceOriginExtent::WithinRegion {
+                            ReferenceOriginExtent::WithinRegion
+                        } else {
+                            captured.extent
+                        },
                     )?;
                     let mut complete = path.clone();
                     complete.extend(captured.path);
