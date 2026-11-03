@@ -46,8 +46,11 @@ remain pending, so the nine-place row stays open.
 The [latest completed compiler check](https://github.com/CathedralOS/Omega/actions/runs/41570174453)
 still rejects the writer's byte and returned-length promises, leaving later
 round-trip promises unproved. Both returned-reference positives check, and four
-stale-storage controls reject correctly. The constant-method declaration and
-moved-field repairs are being checked separately.
+stale-storage controls reject correctly. The [constant-call checks](https://github.com/CathedralOS/Omega/actions/runs/41573401092)
+now execute four independent method, binder, application and lifetime programs
+with native/Terminal exit zero; wrong-binder and wrong-region controls reject
+correctly. The buffered constant reaches the remaining proof failures. Result
+fields, joins and selected bodies still fail their preservation promises.
 The full standard Representation interface, reflection adapters, other hosts
 and the Omega-written producer also remain parent work.
 
