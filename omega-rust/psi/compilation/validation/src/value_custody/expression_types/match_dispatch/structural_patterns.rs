@@ -294,29 +294,24 @@ pub(crate) fn validate_for_subject(
                 .with_source_span(source_span),
             );
         }
-        if let MatchFieldAction::Equal(value) = field.action {
-            if let Some(declared) = exact {
-                let carrier = crate::value_custody::places::assignment_value_type(
-                    program,
-                    declared.type_reference,
-                );
-                if !super::super::argument_matches_carrier(
-                    program,
-                    machine.symbol,
-                    value,
-                    carrier,
-                    &[],
-                ) {
-                    diagnostics.push(Diagnostic::error(format!("match equality operand for field `{}` is incompatible with the field's declared carrier", field.member)).with_source_span(source_span));
-                }
-                crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_range(
-                    program,
-                    carrier,
-                    value,
-                    "match field equality",
-                    diagnostics,
-                );
+        if let MatchFieldAction::Equal(value) = field.action
+            && let Some(declared) = exact
+        {
+            let carrier = crate::value_custody::places::assignment_value_type(
+                program,
+                declared.type_reference,
+            );
+            if !super::super::argument_matches_carrier(program, machine.symbol, value, carrier, &[])
+            {
+                diagnostics.push(Diagnostic::error(format!("match equality operand for field `{}` is incompatible with the field's declared carrier", field.member)).with_source_span(source_span));
             }
+            crate::proof_contracts::arithmetic_domains::validate_anonymous_integer_range(
+                program,
+                carrier,
+                value,
+                "match field equality",
+                diagnostics,
+            );
         }
     }
     if !pattern.has_rest

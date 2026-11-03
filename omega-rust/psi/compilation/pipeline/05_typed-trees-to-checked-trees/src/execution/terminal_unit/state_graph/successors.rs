@@ -550,7 +550,6 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                                     .find(|(_, candidate)| {
                                         candidate.position as usize == position
                                     })
-                                    .map(|(index, structural)| (index, structural))
                             })
                     });
                     let result_subject = |local_index: usize| {
@@ -702,7 +701,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                         // its own access ceiling; it cannot acquire authority
                         // from ownership of its descriptor's container.
                         let mutable_local_loan = stored_leaf_access
-                            .map_or(true, loan_permitted);
+                            .is_none_or(loan_permitted);
                         if mutable_local_loan
                             && let Some(transfer) = projected_loan_transfer(
                                 program,
@@ -870,7 +869,7 @@ pub(in crate::execution::terminal_unit) fn successor_bindings(
                     binding_ordinal: u32::try_from(result_count).ok()?,
                     type_identity: if stored_reference {
                         shapes.add_reference_type(root.type_reference, &super::super::types::machine_binders(program, machine))?
-                    } else { target.type_identity.clone() },
+                    } else { target.type_identity },
                     multiplicity,
                     local: Default::default(),
                 };
@@ -1240,7 +1239,7 @@ fn projected_value_subject(
         projection_evaluations: Default::default(),
         source: argument_source,
         path,
-        type_identity: target.type_identity.clone(),
+        type_identity: target.type_identity,
         access,
     })
 }
@@ -1405,7 +1404,7 @@ fn projected_loan_transfer(
                 projection_evaluations: Default::default(),
                 source: subject_source,
                 path,
-                type_identity: target.type_identity.clone(),
+                type_identity: target.type_identity,
                 access: expected_access,
             },
         },
@@ -1543,7 +1542,7 @@ fn case_payload_transfer(
                 parameter_index: u32::try_from(parameter_index).ok()?,
             },
             program.state_parameters(source)[position].type_reference,
-            parameter.type_identity.clone(),
+            parameter.type_identity,
         )
     } else {
         let mut results = operations.iter().filter_map(|operation| {
@@ -1566,7 +1565,7 @@ fn case_payload_transfer(
                 binding_ordinal: result.binding_ordinal,
             },
             local.type_reference,
-            result.type_identity.clone(),
+            result.type_identity,
         )
     };
     // The projection reaching the tested sum keeps the shared

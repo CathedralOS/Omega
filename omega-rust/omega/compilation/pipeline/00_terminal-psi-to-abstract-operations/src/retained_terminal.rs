@@ -144,7 +144,7 @@ impl TerminalNativeRealizationProposal {
         package_terminal_authority_permissions.sort_by(|left, right| {
             left.service_schema()
                 .as_bytes()
-                .cmp(&right.service_schema().as_bytes())
+                .cmp(right.service_schema().as_bytes())
                 .then_with(|| {
                     package_terminal_authority_permission_identities
                         .text(left.requirement_identity())

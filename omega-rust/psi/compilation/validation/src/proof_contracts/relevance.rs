@@ -208,8 +208,7 @@ pub(super) fn argument_position_context(
     }
     let erased_position = callee_parameters.is_some_and(|parameters| {
         parameters
-            .iter()
-            .nth(position)
+            .get(position)
             .is_some_and(|parameter| parameter.relevance.is_erased())
     });
     if erased_position {

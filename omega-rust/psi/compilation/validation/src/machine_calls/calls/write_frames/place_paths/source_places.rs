@@ -376,9 +376,9 @@ impl FrameSourcePlace {
         map_selector: impl Fn(PlaceSegment) -> PlaceSegment + Copy,
     ) -> Self {
         if (!self.root.is_valid()
-                && !self.is_static()
-                && self.output_identity().is_none()
-                && self.result_home().is_none())
+            && !self.is_static()
+            && self.output_identity().is_none()
+            && self.result_home().is_none())
             || !relative.root.is_valid()
         {
             return Self::default();

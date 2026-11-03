@@ -604,7 +604,7 @@ impl Expansion<'_> {
             let coordinate = coordinate.statement().ok_or(LoweringError::Unsupported(
                 "dynamic invocation lacks statement custody",
             ))?;
-            let slot_plan = flow_facts(&self.checked)
+            let slot_plan = flow_facts(self.checked)
                 .terminal_unit_effects
                 .dynamic_slots
                 .iter()
@@ -613,12 +613,12 @@ impl Expansion<'_> {
                     "selector call has no exact checked shape",
                 ))?;
             let family_tuple = slot_plan.family_tuple.clone();
-            let requirement_identity = flow_facts(&self.checked)
+            let requirement_identity = flow_facts(self.checked)
                 .terminal_unit_effects
                 .dynamic_slots
                 .iter()
                 .find(|plan| plan.slot == *slot)
-                .map(|plan| plan.requirement_identity.clone())
+                .map(|plan| plan.requirement_identity)
                 .ok_or(LoweringError::Unsupported(
                     "selector call names a slot with no checked call shape",
                 ))?;
@@ -639,7 +639,7 @@ impl Expansion<'_> {
                         LoweringError::Unsupported("dynamic family operand ordinal overflows")
                     })?,
                 };
-                let (_, expression) = value_facts(&self.checked)
+                let (_, expression) = value_facts(self.checked)
                     .scalar_expressions
                     .bound_expression_at(
                         site.state,
@@ -664,7 +664,7 @@ impl Expansion<'_> {
                 loan_completions,
                 source_expression: source.expression,
                 slot: *slot,
-                interface_identity: interface_identity.clone(),
+                interface_identity: *interface_identity,
                 requirement_identity,
                 family_tuple,
                 result_type,

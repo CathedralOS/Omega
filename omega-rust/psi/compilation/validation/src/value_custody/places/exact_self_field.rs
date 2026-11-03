@@ -25,9 +25,7 @@ pub fn single_member_receiver_field<'program>(
     if member.case_variant.is_some() {
         return None;
     }
-    let Some(receiver) = program.expression_table.name_path_node(member.receiver) else {
-        return None;
-    };
+    let receiver = program.expression_table.name_path_node(member.receiver)?;
     if receiver.symbol != receiver_symbol
         || receiver.head_symbol != receiver_symbol
         || !matches!(program.expression_table.name_path_members(receiver.members),

@@ -21,10 +21,10 @@ pub(super) fn free_positions(
         macro_rules! children { ($($child:ident),+) => {{ $(walk(arena, $child, scope, depth, positions);)+ }}; }
         match arena.get(term) {
             Term::Variable(index) if index >= depth => {
-                if let Some(position) = scope.checked_sub((index - depth) as usize + 1) {
-                    if !positions.contains(&position) {
-                        positions.push(position);
-                    }
+                if let Some(position) = scope.checked_sub((index - depth) as usize + 1)
+                    && !positions.contains(&position)
+                {
+                    positions.push(position);
                 }
             }
             Term::Pi { domain, codomain } | Term::Sigma { domain, codomain } => {

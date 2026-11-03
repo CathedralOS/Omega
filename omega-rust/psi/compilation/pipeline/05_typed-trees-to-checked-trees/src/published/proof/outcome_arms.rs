@@ -318,9 +318,7 @@ pub(crate) fn exact_outcome_case_test(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> Option<(typed_trees::expression::ExpressionHandle, SymbolHandle)> {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     if binary.operator == BinaryOperator::CaseMembership {
         // Validation has checked the exact nominal subject and classifier.
         // Only the left operand is observed; the right operand is not a value
@@ -382,14 +380,8 @@ fn outcome_call_substitutions(
 ) -> Vec<(SymbolHandle, String, String)> {
     let mut substitutions = Vec::new();
     let arguments = program.expression_table.expression_handles(call.arguments);
-    let mut argument_index = 0usize;
-    for parameter in program.state_parameters(target_state) {
-        let value = {
-            let value = arguments.get(argument_index).copied();
-            argument_index += 1;
-            value
-        };
-        if let Some(value) = value {
+    for (argument_index, parameter) in program.state_parameters(target_state).iter().enumerate() {
+        if let Some(value) = arguments.get(argument_index).copied() {
             substitutions.push((
                 parameter.symbol,
                 parameter.name.as_str().to_owned(),

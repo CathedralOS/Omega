@@ -157,9 +157,7 @@ pub(in crate::flow) fn project_invocation_place(
         place.clone(),
         build.call_frames,
     )?;
-    let Some(root) = place.root.as_symbol() else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     if program
         .state_parameter_by_symbol(state, root)
         .is_some_and(|parameter| {

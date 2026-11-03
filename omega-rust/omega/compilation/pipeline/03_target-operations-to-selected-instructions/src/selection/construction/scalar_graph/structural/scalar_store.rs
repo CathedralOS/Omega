@@ -180,37 +180,35 @@ pub(super) fn emit(
         .structural_types;
     if let LegalizedScalarInstructionKind::StructuralScalarFieldStore { path, field, .. } =
         &row.kind
-    {
-        if let Some(fragments) =
+        && let Some(fragments) =
             scalar_field_fragments(destination.structural_type(), path, *field, declarations)
-        {
-            // A fragmented update reads complete containers before preserving
-            // sibling bits. Write-only authority cannot license that RMW.
-            if matches!(&destination,
+    {
+        // A fragmented update reads complete containers before preserving
+        // sibling bits. Write-only authority cannot license that RMW.
+        if matches!(&destination,
                 abstract_operations::StructuralScalarStoreDestination::Parameter(parameter)
                     if parameter.access == terminal_psi::StructuralAccess::WriteOnlyBorrow)
-                || reference_destination
-                    && crate::selection::reference_input::referent_projection(
-                        source,
-                        destination.place(),
-                        path,
-                        terminal_psi::StructuralAccess::MutableBorrow,
-                    )
-                    .is_none()
-            {
-                return Err(invalid());
-            }
-            return super::fragmented_scalar::write(
-                builder,
-                row,
-                destination.place(),
-                address,
-                byte_offset,
-                fragments,
-                leaf_indices,
-                value.value,
-            );
+            || reference_destination
+                && crate::selection::reference_input::referent_projection(
+                    source,
+                    destination.place(),
+                    path,
+                    terminal_psi::StructuralAccess::MutableBorrow,
+                )
+                .is_none()
+        {
+            return Err(invalid());
         }
+        return super::fragmented_scalar::write(
+            builder,
+            row,
+            destination.place(),
+            address,
+            byte_offset,
+            fragments,
+            leaf_indices,
+            value.value,
+        );
     }
     let codec = match &row.kind {
         LegalizedScalarInstructionKind::StructuralScalarFieldStore { path, field, .. } => {
@@ -222,7 +220,7 @@ pub(super) fn emit(
         _ => None,
     }
     .ok_or_else(|| invalid())?;
-    if u32::from(codec.byte_size()) != u32::from(byte_size) {
+    if u32::from(codec.byte_size()) != byte_size {
         return Err(invalid());
     }
     let canonical =
@@ -252,14 +250,14 @@ pub(super) fn emit(
         destination.place(),
         address,
         byte_offset,
-        u32::from(byte_size),
+        byte_size,
     )?;
     super::runtime_address::footprint(
         builder,
         row,
         destination.place(),
         byte_offset,
-        u32::from(byte_size),
+        byte_size,
         leaf_indices,
         super::runtime_address::Written::Scalar(value.value),
     )?;

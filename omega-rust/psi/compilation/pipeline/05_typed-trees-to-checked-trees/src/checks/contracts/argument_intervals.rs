@@ -108,10 +108,9 @@ pub(super) fn recipe_requirements(
     } else {
         return None;
     };
-    let interval = if let Some(argument) = argument_for(subject) {
+    let interval = {
+        let argument = argument_for(subject)?;
         program.expression_interval(argument)?
-    } else {
-        return None;
     };
     let relation = match operator {
         BinaryOperator::Less => ConstantRecipeRequirement::AtLeast(

@@ -442,13 +442,12 @@ pub(crate) fn validate(
                 if !admitted_root {
                     return Err(invalid!());
                 }
-                let classified =
-                    calling_conventions::classified_boundary_shape(
-                        projected_type,
-                        &signature.structural_types,
-                        plan.call.policy,
-                    )
-                    .map_err(|_| invalid!())?;
+                let classified = calling_conventions::classified_boundary_shape(
+                    projected_type,
+                    &signature.structural_types,
+                    plan.call.policy,
+                )
+                .map_err(|_| invalid!())?;
                 (projected_shape, classified)
             }
             terminal_psi::StructuralAccess::SharedBorrow
@@ -459,13 +458,12 @@ pub(crate) fn validate(
                         && declaration.shape.is_borrowed_view_byte_sequence()
                 });
                 if descriptor {
-                    let classified =
-                        calling_conventions::classified_boundary_shape(
-                            projected_type,
-                            &signature.structural_types,
-                            plan.call.policy,
-                        )
-                        .map_err(|_| invalid!())?;
+                    let classified = calling_conventions::classified_boundary_shape(
+                        projected_type,
+                        &signature.structural_types,
+                        plan.call.policy,
+                    )
+                    .map_err(|_| invalid!())?;
                     (
                         ValueShape::borrowed_reference(
                             projected_shape.byte_size,

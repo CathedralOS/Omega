@@ -165,7 +165,7 @@ pub(crate) fn authoritative_access_layout_commitment(
         b"omega.access-field-layout.authoritative.v1\0",
     );
     hash_canonical_layout(&mut digest, layout);
-    AccessLayoutCommitment(digest.finish().into())
+    AccessLayoutCommitment(digest.finish())
 }
 
 /// Collision-resistant identity for the complete canonical access policy.
@@ -187,7 +187,7 @@ pub(crate) fn authoritative_access_interpretation(
     for service in plan.reach.services() {
         hash_u64_sha(&mut digest, service.normalized_identity());
     }
-    let commitment: [u8; 32] = digest.finish().into();
+    let commitment: [u8; 32] = digest.finish();
     let compatibility_fingerprint = ExtentContentInterpretationId::from_normalized_identity(
         plan.identity.compatibility_fingerprint(),
     )

@@ -74,7 +74,7 @@ fn context_domain_proves_label(
     context: &facts::FactContext,
     contexts: &[facts::FactContextHandle],
     point: facts::ProgramPoint,
-    candidate_label: &String,
+    candidate_label: &str,
 ) -> bool {
     let availability = CasePremiseAvailability::new(program, semantic, contexts, point);
     semantic.context_view(context).facts().any(|fact| {

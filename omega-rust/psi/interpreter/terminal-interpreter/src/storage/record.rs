@@ -99,7 +99,7 @@ impl TerminalExecution<'_> {
                 terminal_psi::RecordFieldValue::Structural(argument) => {
                     claim_operands.push((
                         argument,
-                        vec![StructuralPathSegment::Field(declaration.identity.clone())],
+                        vec![StructuralPathSegment::Field(declaration.identity)],
                     ));
                     let child = ConstructorValue::resolve(self, argument)?;
                     // The child already completed in authored order. Rebase
@@ -107,7 +107,7 @@ impl TerminalExecution<'_> {
                     // declared requirements, onto this new record occurrence.
                     if matches!(declaration.field_type, StructuralFieldType::Structural(_)) {
                         child.append_memberships(
-                            &[StructuralPathSegment::Field(declaration.identity.clone())],
+                            &[StructuralPathSegment::Field(declaration.identity)],
                             &mut value.projected_qualifications,
                         );
                     }
@@ -138,7 +138,7 @@ impl TerminalExecution<'_> {
                     let transfers_custody =
                         self.stage_constructor_operand(argument, &mut frontier, &mut consumed)?;
                     let mut member_path = value.path.clone();
-                    member_path.push(StructuralPathSegment::Field(declaration.identity.clone()));
+                    member_path.push(StructuralPathSegment::Field(declaration.identity));
                     storage.stage(
                         self,
                         argument,

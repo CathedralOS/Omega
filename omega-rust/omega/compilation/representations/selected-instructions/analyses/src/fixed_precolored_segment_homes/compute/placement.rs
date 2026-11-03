@@ -153,12 +153,12 @@ fn select(
         .expect("nonempty unassigned domain roster")
 }
 
-/// Copy-affinity edges between segment domains, indexed by member. Each
-/// recorded copy names one source use point and one destination definition
-/// point; each of those points lies inside exactly one domain of its
-/// register, so the affinity joins the two domains covering the copy's
-/// endpoints. Sharing the view is a placement preference only — legality
-/// stays with candidates and conflicts.
+// Copy-affinity edges between segment domains, indexed by member. Each
+// recorded copy names one source use point and one destination definition
+// point; each of those points lies inside exactly one domain of its
+// register, so the affinity joins the two domains covering the copy's
+// endpoints. Sharing the view is a placement preference only — legality
+// stays with candidates and conflicts.
 
 /// Choose a home among candidates that are already legal for this domain.
 ///

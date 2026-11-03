@@ -75,7 +75,7 @@ pub(crate) fn capture_into(
             Ok(ValueDeclaration {
                 id: value_id(allocate_dense(next_value)?),
                 scalar_type: value.scalar_type,
-                qualifications: value.qualifications.clone(),
+                qualifications: value.qualifications,
             })
         })
         .collect::<Result<Vec<_>, LoweringError>>()?;

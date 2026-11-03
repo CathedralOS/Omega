@@ -478,9 +478,8 @@ pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::arithmetic_domains::{OccurrenceIntegerBounds, occurrence_integer_bounds};
 pub use proof_contracts::arithmetic_domains::{
-    StoredIntegerReach, standing_integer_bounds, stored_integer_bounds,
-    stored_integer_source_projection, stored_integer_source_projections,
-    stored_integer_source_reach,
+    StoredIntegerReach, UnestablishedStoredEncoding, standing_integer_bounds,
+    stored_integer_bounds, stored_integer_source_projections, stored_integer_source_reach,
 };
 pub use proof_contracts::arithmetic_domains::{
     occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
@@ -572,9 +571,8 @@ pub(crate) use optimization::digest_encoder;
 pub use queries::expression_traversal;
 mod frozen_program;
 mod queries;
-pub use queries::layout_checking::{
-    LayoutCheckingContext, layout_checking_targets, pending_layout_geometry,
-};
+pub(crate) use queries::layout_checking::layout_checking_targets;
+pub use queries::layout_checking::{LayoutCheckingContext, pending_layout_geometry};
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;

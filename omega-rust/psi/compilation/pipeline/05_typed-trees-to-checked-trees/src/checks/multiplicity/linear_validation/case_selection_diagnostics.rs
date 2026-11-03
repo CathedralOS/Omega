@@ -121,7 +121,7 @@ fn selected_subject_detail(
     };
     let direct = direct.as_ref().map_or_else(
         || "canonical guard subject unavailable".to_owned(),
-        |subject| describe(subject),
+        &describe,
     );
     let Some(machine) = program.machine_holding_state(state.symbol) else {
         return format!(

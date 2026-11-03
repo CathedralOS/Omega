@@ -172,18 +172,16 @@ impl ProductQueryInputs {
             if dependency.inputs.root_role() != build_declarations::BuildDeclarationKind::Package {
                 return Err("Product query dependency must declare a package".into());
             }
-            if let Some(original) = &original {
-                if original.dependency_target_for_purpose(
+            if let Some(original) = &original
+                && original.dependency_target_for_purpose(
                     original.root(),
                     DependencyPurpose::Product,
                     &dependency.alias,
                 ) != Some(dependency.inputs.root())
-                {
-                    return Err(
-                        "Product query dependency differs from its originally admitted alias"
-                            .into(),
-                    );
-                }
+            {
+                return Err(
+                    "Product query dependency differs from its originally admitted alias".into(),
+                );
             }
         }
         let inputs = Self {

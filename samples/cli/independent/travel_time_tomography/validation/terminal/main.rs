@@ -90,6 +90,8 @@ fn validate(sample: &Path, output: &Path) -> Result<(), String> {
         let observation = terminal_runtime::execute(TerminalRuntimeRequest {
             entry: None,
             native_provider: None,
+            native_services: Default::default(),
+            filesystem: Default::default(),
             x86_flags: terminal_runtime::capture_host_x86_flags("linux_x86_64")
                 .expect("host flags capture"),
             memory_ordering:

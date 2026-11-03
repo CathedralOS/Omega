@@ -637,7 +637,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         self.program
             .boundary_machines()
             .get(&slot)
-            .is_some_and(|declaration| compiler_owns_boundary_execution(declaration))
+            .is_some_and(compiler_owns_boundary_execution)
     }
 
     /// Exact external requirement contract, independent of ordinary provider
@@ -1069,7 +1069,8 @@ mod private_entry_target_tests {
                 .execution_requirements_with_private_entry_ram(None, recipes)
                 .is_err()
         );
-        for name in ["macos_arm64"] {
+        {
+            let name = "macos_arm64";
             let other_machines =
                 terminal_installation::admit_target_machine_selections(artifact.view(), name);
             let other_layouts = terminal_installation::admit_target_layouts(

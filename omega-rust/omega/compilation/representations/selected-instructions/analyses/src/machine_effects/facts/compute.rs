@@ -228,14 +228,14 @@ fn terminal_selected_keys(
     }
 }
 
-fn compute_instruction<'a>(
+fn compute_instruction(
     function: &SelectedFunction,
     instruction: &SelectedInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     constraints: &ValidatedRegisterConstraintCatalog,
     declarations_by_key: &std::collections::BTreeMap<
         (MachineSemanticKind, register_model::RegisterConstraintKey),
-        Option<&'a MachineEffectDeclaration>,
+        Option<&MachineEffectDeclaration>,
     >,
 ) -> Result<InstructionMachineEffects, MachineEffectError> {
     if matches!(instruction.kind, SelectedInstructionKind::Store { byte_size, .. } if !matches!(byte_size, 1 | 2 | 4 | 8))

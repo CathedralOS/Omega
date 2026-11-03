@@ -507,9 +507,6 @@ fn parse_struct_literal_handle<'tokens, 'source>(
     Ok((expression, input))
 }
 
-#[cfg(test)]
-mod generic_type_operand_tests {}
-
 /// Tick-qualified reference syntax has an unambiguous static type role.
 /// Unqualified `&place` retains ordinary value-borrow parsing until resolution.
 pub(super) fn starts_lifetime_reference_type(input: Input<'_, '_>) -> bool {
@@ -518,3 +515,6 @@ pub(super) fn starts_lifetime_reference_type(input: Input<'_, '_>) -> bool {
             .take_punctuation(PunctuationKind::Ampersand, "&")
             .is_ok_and(|rest| rest.at_punctuation(PunctuationKind::Apostrophe))
 }
+
+#[cfg(test)]
+mod generic_type_operand_tests {}

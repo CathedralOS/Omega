@@ -131,9 +131,8 @@ impl StructuralJudge<'_> {
                 representation: None,
             });
             self.retain_storage_value(coordinate.clone(), value, false);
-            if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                .iter_mut()
-                .find(|stored| stored.coordinate == coordinate)
+            if let Some(stored) =
+                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&coordinate)
             {
                 stored.backing = Some(CapturedScalarReadBacking {
                     dependencies: backing,
@@ -186,9 +185,8 @@ impl StructuralJudge<'_> {
         }
         self.retain_storage_value(storage.coordinate.clone(), value, false);
         if let Some(backing) = backing
-            && let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                .iter_mut()
-                .find(|stored| stored.coordinate == storage.coordinate)
+            && let Some(stored) =
+                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&storage.coordinate)
         {
             stored.backing = Some(backing);
         }
@@ -209,25 +207,27 @@ impl StructuralJudge<'_> {
             root: facts::PlaceRoot::Expression(*expression),
             segments: path.to_vec(),
         })?;
-        self.stored_values.iter().find_map(|stored| {
-            if stored.coordinate != coordinate || stored.backing.is_none() {
-                return None;
-            }
-            let current = stored.current.as_ref()?;
-            let mut root = current.semantic_value();
-            loop {
-                root = match root {
-                    super::super::StructuralTerm::Projection { subject, .. } => {
-                        subject.semantic_value()
-                    }
-                    super::super::StructuralTerm::IndexedValue { collection, .. } => {
-                        collection.semantic_value()
-                    }
-                    _ => break,
-                };
-            }
-            (root == captured).then(|| current.clone())
-        })
+        self.stored_values
+            .values_at(&coordinate)
+            .find_map(|stored| {
+                if stored.backing.is_none() {
+                    return None;
+                }
+                let current = stored.current.as_ref()?;
+                let mut root = current.semantic_value();
+                loop {
+                    root = match root {
+                        super::super::StructuralTerm::Projection { subject, .. } => {
+                            subject.semantic_value()
+                        }
+                        super::super::StructuralTerm::IndexedValue { collection, .. } => {
+                            collection.semantic_value()
+                        }
+                        _ => break,
+                    };
+                }
+                (root == captured).then(|| current.clone())
+            })
     }
 
     pub(super) fn freeze_scalar_read_backing(
@@ -381,13 +381,10 @@ impl StructuralJudge<'_> {
                     // owner, after the whole load frontier and current cut are
                     // independently authenticated. A retired Entry snapshot is
                     // never a substitute for changed current storage.
-                    if self.storage_graph().is_none() {
-                        return None;
-                    }
+                    self.storage_graph()?;
                     let at = at?;
-                    self.stored_values.iter().find_map(|stored| {
-                        (stored.coordinate == coordinate
-                            && stored.current.is_none()
+                    self.stored_values.values_at(&coordinate).find_map(|stored| {
+                        (stored.current.is_none()
                             && self.current_value_valid(stored, &coordinate, at))
                         .then(|| stored.entry.clone())
                         .flatten()

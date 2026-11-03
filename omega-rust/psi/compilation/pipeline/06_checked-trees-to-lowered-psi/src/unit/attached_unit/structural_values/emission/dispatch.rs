@@ -40,7 +40,7 @@ impl Emission<'_, '_, '_> {
         arms: arena::HandleSpan<checked_trees::CheckedStructuralDispatchArm>,
         continuation: Option<&mut ValueContinuation>,
     ) -> Result<ValueOutcome<PlaceId>, LoweringError> {
-        let arms = value_facts(&self.checked)
+        let arms = value_facts(self.checked)
             .structural_values
             .dispatch_arms
             .span(arms)

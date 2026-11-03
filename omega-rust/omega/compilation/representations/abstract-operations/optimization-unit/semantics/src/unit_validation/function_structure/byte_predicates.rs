@@ -426,9 +426,7 @@ pub(crate) fn copied_field_predicates_at_invocation<'t>(
         return None;
     }
     let parent = runtime_structural_path_tip(types, parameter.structural_type, parent_path)?;
-    let Some(fields) = parent.shape.record_fields() else {
-        return None;
-    };
+    let fields = parent.shape.record_fields()?;
     let field = terminal_psi::live_field_by_identity(fields, *identity)?;
     if field.field_type.byte_sequence_carrier()? != carrier {
         return None;
@@ -536,9 +534,7 @@ fn byte_field_predicates_in<'t>(
         (structural_type, path)
     };
     let declaration = runtime_structural_path_tip(types, structural_type, path)?;
-    let Some(fields) = declaration.shape.record_fields() else {
-        return None;
-    };
+    let fields = declaration.shape.record_fields()?;
     let field = live_field_by_id(fields, field)?;
     field.field_type.byte_sequence_carrier()?;
     Some(field.field_type.byte_predicates())

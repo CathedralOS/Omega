@@ -1657,10 +1657,8 @@ impl Implication<'_> {
                         identity,
                         projection,
                         ..
-                    } => {
-                        if self.record_observes_integer(*identity, projection, value, path)? {
-                            return Some(true);
-                        }
+                    } if self.record_observes_integer(*identity, projection, value, path)? => {
+                        return Some(true);
                     }
                     _ => {}
                 }

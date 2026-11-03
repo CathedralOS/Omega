@@ -1245,7 +1245,6 @@ impl AbstractOperation {
         // scalar uses even when no later store mentions the captured place.
         paths.extend(
             self.cleanup_rosters()
-                .into_iter()
                 .flat_map(|(_, actions)| actions.iter().map(CleanupAction::path)),
         );
         paths

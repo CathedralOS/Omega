@@ -72,8 +72,10 @@ fn alias_and_data_contracts_rejoin_full_owned_binders_and_nested_telescopes() {
                 )],
             )
             .start();
-        let mut program = TypedTrees::default();
-        program.symbols = builder.finish();
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
         let inner = program.tables.data_type_parameters.insert_many([callable(
             nested,
             arena::HandleSpan::empty(),

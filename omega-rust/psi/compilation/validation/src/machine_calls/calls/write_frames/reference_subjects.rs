@@ -837,7 +837,7 @@ fn declared_initializer_origins(
         expression = formation.source;
     }
     expression = expression_table(program).peeled_expression_handle(expression);
-    if let Some(_) = expression_table(program).call_node(expression) {
+    if expression_table(program).call_node(expression).is_some() {
         let (state, _, index) = caller_aliases::caller_statement_owner(
             program,
             machine,

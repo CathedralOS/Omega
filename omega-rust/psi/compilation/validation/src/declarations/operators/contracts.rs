@@ -29,7 +29,7 @@ pub fn derive_checked_operator_realization_contracts(
 ) -> Vec<checked_trees::CheckedOperatorRealizationContract> {
     let mut rows = Vec::new();
     for machine in program.machines() {
-        if program.machine_states(machine).first().is_none() {
+        if program.machine_states(machine).is_empty() {
             continue;
         }
         for conformance in program.machine_trait_conformances(machine) {

@@ -29,3 +29,9 @@ impl Fnv1a {
         self.0
     }
 }
+
+impl Default for Fnv1a {
+    fn default() -> Self {
+        Self::new()
+    }
+}

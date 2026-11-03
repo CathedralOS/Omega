@@ -155,9 +155,7 @@ impl<'program> CallFrameResolver<'program> {
                 program.statement_table.expression_handles(call.arguments),
             ),
             CallerWriteSite::Expression(expression) => {
-                let Some(call) = expression_table(program).call_node(expression) else {
-                    return None;
-                };
+                let call = expression_table(program).call_node(expression)?;
                 let target = typed_trees::operator::resolve_named_expression_call(program, call)
                     .map_or(call.target_symbol, |operator| operator.symbol);
                 (
@@ -538,7 +536,7 @@ impl<'program> CallFrameResolver<'program> {
         frames::reference_subjects::validate_owned_projection(program, root_reference, &segments)?;
         Some(vec![LocalWriteSource {
             invocation_output: None,
-        invocation_result: None,
+            invocation_result: None,
             is_image_storage: false,
             recasts: Vec::new(),
             root,

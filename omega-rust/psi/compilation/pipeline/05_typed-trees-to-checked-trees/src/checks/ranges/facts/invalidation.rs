@@ -139,9 +139,9 @@ impl RangeFacts<'_> {
             return None;
         }
         let indexed = program.expression_table.indexed_node(target)?;
-        let Some(name) = program.expression_table.name_path_node(indexed.collection) else {
-            return None;
-        };
+        let name = program
+            .expression_table
+            .name_path_node(indexed.collection)?;
         ::validation::mutable_byte_slice_parameter_element(program, state, name.symbol)?;
         let collection = program.expression_table.display_name(indexed.collection);
         let minimum = self.minimum_length(&collection);

@@ -239,16 +239,15 @@ pub(crate) fn collection_view_region_geometry(
         shape(element, declarations)?.byte_size,
         shape(element, declarations)?.alignment,
     )?;
-    if let Some(layout) = &representation {
-        if layout.size != u64::from(element_stride)
+    if let Some(layout) = &representation
+        && (layout.size != u64::from(element_stride)
             || layout.alignment != u64::from(shape(element, declarations)?.alignment)
             || layout.leaves.iter().any(|leaf| {
                 element_leaf_geometry(element, &leaf.path, leaf.scalar_type, declarations)
                     .is_none_or(|(offset, _)| u64::from(offset) != leaf.offset)
-            })
-        {
-            return None;
-        }
+            }))
+    {
+        return None;
     }
     let (window_offset, element_count, extent) = match (byte_window, extent) {
         (Some((start, end)), terminal_semantics::CollectionExtent::Fixed(length))
@@ -337,7 +336,7 @@ pub(crate) fn whole_representation_length_scale(
     };
     if source_layout.size == 0
         || target_layout.size == 0
-        || source_layout.size % target_layout.size != 0
+        || !source_layout.size.is_multiple_of(target_layout.size)
         || source_layout.alignment < target_layout.alignment
     {
         return None;

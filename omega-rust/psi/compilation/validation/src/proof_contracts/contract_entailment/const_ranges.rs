@@ -51,11 +51,8 @@ fn binder<'program>(
     parameters: &'program [TypeParameter],
     expression: ExpressionHandle,
 ) -> Option<&'program TypeParameter> {
-    let Some(symbol) =
-        crate::queries::expression_traversal::single_segment_name_symbol(program, expression)
-    else {
-        return None;
-    };
+    let symbol =
+        crate::queries::expression_traversal::single_segment_name_symbol(program, expression)?;
     parameters.iter().find(|parameter| {
         parameter.symbol == symbol
             && matches!(parameter.kind, TypeParameterKind::Const { type_reference }

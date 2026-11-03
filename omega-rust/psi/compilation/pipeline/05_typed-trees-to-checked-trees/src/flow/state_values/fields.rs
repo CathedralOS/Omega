@@ -498,19 +498,17 @@ pub(super) fn capture(
     // storage; `put(&mut self.holder)` strips the `holder` field prefix.
     let mut argument_roots: Vec<(facts::PlaceRoot, Vec<facts::PlaceSegment>, SymbolHandle)> =
         Vec::new();
-    let mut ordinal = 0;
-    for parameter in program.state_parameters(destination) {
+    for (ordinal, parameter) in program.state_parameters(destination).iter().enumerate() {
         let Some(&argument) = arguments.get(ordinal) else {
             break;
         };
-        ordinal += 1;
         let Some(place) =
             build.canonical_place_at(program, state.symbol, statement_index, argument)
         else {
             continue;
         };
 
-        if let Some(_) = place.root.as_symbol() {
+        if place.root.as_symbol().is_some() {
             argument_roots.push((place.root, place.segments, parameter.symbol));
         }
     }

@@ -528,10 +528,10 @@ pub struct ProgramLocalRootIntroductionSchema {
 }
 
 /// The boundary machine declaration keyed `id` in a boundary roster.
-pub fn find_boundary_machine<'declarations>(
-    declarations: &'declarations [BoundaryMachineDeclaration],
+pub fn find_boundary_machine(
+    declarations: &[BoundaryMachineDeclaration],
     id: BoundaryMachineId,
-) -> Option<&'declarations BoundaryMachineDeclaration> {
+) -> Option<&BoundaryMachineDeclaration> {
     declarations.iter().find(|declaration| declaration.id == id)
 }
 

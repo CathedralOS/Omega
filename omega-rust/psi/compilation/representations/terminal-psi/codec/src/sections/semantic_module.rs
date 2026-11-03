@@ -304,7 +304,7 @@ fn fingerprint_bytes(bytes: &[u8]) -> SemanticFingerprint {
     let byte_len =
         u64::try_from(bytes.len()).expect("terminal-Psi bytes fit the u64 digest domain");
     digest.raw(&byte_len.to_le_bytes());
-    digest.raw(&bytes);
+    digest.raw(bytes);
     SemanticFingerprint::from_bytes(digest.finish())
 }
 

@@ -878,7 +878,6 @@ fn validate_physical_child_spans(child: &NativePhysicalChild) -> Result<(), &'st
 /// The shared boundary-child tail both provider derivations close with:
 /// per-layer byte digests, the child identity, and the parts record. The
 /// call sites differ only in the relocation disposition they mint.
-#[expect(clippy::too_many_arguments)]
 pub(crate) fn boundary_physical_child_parts(
     parent: PhysicalChildParent,
     projection: NativeOptimizationProjectionIdentity,

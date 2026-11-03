@@ -39,11 +39,11 @@ pub(in crate::preparation::generic_data) fn relabel_closed_data_uses_in_exact_ca
         let Some(entry) = syntax.tables.items.state_handles(machine.states).first() else {
             continue;
         };
-        let parameters = syntax_items(&syntax)
+        let parameters = syntax_items(syntax)
             .state_parameters(syntax.tables.items.state(*entry).parameters)
             .iter()
             .map(|parameter| {
-                syntax_items(&syntax)
+                syntax_items(syntax)
                     .state_parameter(*parameter)
                     .type_reference
             })
@@ -326,8 +326,8 @@ pub(in crate::preparation::generic_data) fn call_context_types_agree(
                     .eq(right_lifetimes.iter().map(|name| name.as_str(syntax)))
                 && call_context_parameter_types_agree(
                     syntax,
-                    syntax_type_references(&syntax).type_reference_handles(*left_arguments),
-                    syntax_type_references(&syntax).type_reference_handles(*right_arguments),
+                    syntax_type_references(syntax).type_reference_handles(*left_arguments),
+                    syntax_type_references(syntax).type_reference_handles(*right_arguments),
                 )
         }
         (
@@ -343,8 +343,8 @@ pub(in crate::preparation::generic_data) fn call_context_types_agree(
             left_name.as_str(syntax) == right_name.as_str(syntax)
                 && call_context_parameter_types_agree(
                     syntax,
-                    syntax_type_references(&syntax).type_reference_handles(*left_arguments),
-                    syntax_type_references(&syntax).type_reference_handles(*right_arguments),
+                    syntax_type_references(syntax).type_reference_handles(*left_arguments),
+                    syntax_type_references(syntax).type_reference_handles(*right_arguments),
                 )
         }
         // Constraint expressions and pre-evaluated const expressions use

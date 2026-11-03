@@ -29,7 +29,7 @@ struct FieldSubject {
 impl PredicateTerms for FieldSubject {
     fn scalar(
         &self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        _identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         expression: &CheckedScalarExpression,
     ) -> Result<ScalarTerm, LoweringError> {
         // Arithmetic shares the same carrier/policy conversion as callable
@@ -59,7 +59,7 @@ impl PredicateTerms for FieldSubject {
                 {
                     Ok(ScalarTerm::IeeeFloatLiteral(*value))
                 }
-                CheckedScalarExpression::Boolean(predicate) => self.boolean(identities, predicate),
+                CheckedScalarExpression::Boolean(predicate) => self.subject_boolean(predicate),
                 _ => unsupported("scalar field predicate names a value outside its formal subject"),
             },
         )
@@ -67,7 +67,18 @@ impl PredicateTerms for FieldSubject {
 
     fn boolean(
         &self,
-        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        _identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        expression: &CheckedBooleanExpression,
+    ) -> Result<ScalarTerm, LoweringError> {
+        self.subject_boolean(expression)
+    }
+}
+
+impl FieldSubject {
+    // A field predicate's Boolean leaves are constants or the subject itself,
+    // so they never name an interned identity.
+    fn subject_boolean(
+        &self,
         expression: &CheckedBooleanExpression,
     ) -> Result<ScalarTerm, LoweringError> {
         match expression {
@@ -78,14 +89,13 @@ impl PredicateTerms for FieldSubject {
                 Ok(ScalarTerm::value(ScalarRefinement::SUBJECT, self.carrier))
             }
             CheckedBooleanExpression::Not(operand) => {
-                ScalarTerm::boolean_not(self.boolean(identities, operand)?)
+                ScalarTerm::boolean_not(self.subject_boolean(operand)?)
                     .map_err(LoweringError::InvalidCrashPredicate)
             }
-            CheckedBooleanExpression::Equal { left, right } => ScalarTerm::boolean_equal(
-                self.boolean(identities, left)?,
-                self.boolean(identities, right)?,
-            )
-            .map_err(LoweringError::InvalidCrashPredicate),
+            CheckedBooleanExpression::Equal { left, right } => {
+                ScalarTerm::boolean_equal(self.subject_boolean(left)?, self.subject_boolean(right)?)
+                    .map_err(LoweringError::InvalidCrashPredicate)
+            }
             _ => unsupported("scalar field Boolean predicate names an unsupported subject"),
         }
     }

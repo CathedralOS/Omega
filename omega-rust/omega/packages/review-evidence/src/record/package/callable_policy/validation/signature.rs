@@ -119,12 +119,10 @@ pub(super) fn validate(callable: &PackagePolicyCallable) -> Result {
         value_type(result)?;
     }
     parameters::parameters(&scope, 0)?;
-    let mut next_evidence = 0;
-    for bound in &callable.conformance_bounds {
-        if bound.binder_ordinal != next_evidence {
+    for (next_evidence, bound) in callable.conformance_bounds.iter().enumerate() {
+        if bound.binder_ordinal as usize != next_evidence {
             return Err("conformance evidence binders are not declaration ordered");
         }
-        next_evidence += 1;
         bound.trait_identity.validate_resolved()?;
         lifetimes(&bound.trait_lifetime_arguments, &scope)?;
         for argument in &bound.arguments {

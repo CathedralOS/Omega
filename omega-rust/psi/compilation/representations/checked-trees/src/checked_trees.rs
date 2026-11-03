@@ -284,9 +284,7 @@ impl CheckedTrees {
                 .values
                 .expression_values(parent)
                 .map(|(_, value)| value.origin);
-            let Some(parent_origin) = origins.next() else {
-                return None;
-            };
+            let parent_origin = origins.next()?;
             if origins.any(|candidate| candidate != parent_origin) {
                 return None;
             }

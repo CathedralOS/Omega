@@ -827,7 +827,7 @@ pub(super) fn emit(
                 let TerminalMachineResult::Scalar(declaration) = &declared_result else {
                     return unsupported("scalar binding differs from the declared result");
                 };
-                Ok::<_, LoweringError>((source.id, declaration.clone()))
+                Ok::<_, LoweringError>((source.id, *declaration))
             })
             .transpose()?;
         // The declared result identity is already reserved independently of

@@ -593,11 +593,24 @@ fn tail_self_call_retains_authored_call_until_resolution() {
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
-    let StatementNode::Expression(expression) = parsed
+    // A final value completes the invocation like an unconditional value arm.
+    // The completion keeps the authored call as its value; only resolution
+    // may normalize a recursive tail call into a named transfer.
+    let StatementNode::Transition(transition) = parsed
         .statements
         .statement(parsed.items.statements(state.statements)[0])
     else {
-        panic!("parsing retains the authored expression; resolution owns tail normalization");
+        panic!("the final value completes the invocation");
+    };
+    assert!(transition.ends_dispatch);
+    assert!(matches!(
+        transition.guard,
+        syntax_trees::statement::TransitionGuardNode::Always
+    ));
+    let syntax_trees::statement::TransitionTargetNode::Value(expression) =
+        parsed.statements.transition_target(transition.target)
+    else {
+        panic!("parsing retains the authored value; resolution owns tail normalization");
     };
     let ExpressionNode::Call(call) = parsed.expressions.expression(*expression) else {
         panic!("the terminal expression retains its exact authored call");

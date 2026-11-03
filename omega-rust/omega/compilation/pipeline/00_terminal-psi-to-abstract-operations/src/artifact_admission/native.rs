@@ -253,16 +253,14 @@ impl NativeScopePreparation {
                 "private entry RAM recipe belongs to another Terminal artifact".into(),
             ));
         }
-        if !recipes.is_empty() {
-            if recipes
+        if !recipes.is_empty()
+            && recipes
                 .iter()
                 .any(|recipe| recipe.layouts() != &self.layouts)
-            {
-                return Err(ArtifactLoweringError::TargetFamily(
-                    "private entry RAM recipe belongs to another target or selected geometry"
-                        .into(),
-                ));
-            }
+        {
+            return Err(ArtifactLoweringError::TargetFamily(
+                "private entry RAM recipe belongs to another target or selected geometry".into(),
+            ));
         }
         let establishments = recipes
             .iter()
@@ -562,7 +560,8 @@ mod private_entry_target_tests {
         .expect("complete real checked typed initializer");
         assert_eq!(recipe.layouts(), &layouts);
         assert_eq!(recipe.target(), "linux_x86_64");
-        for profile in [target::TargetProfile::MacosArm64] {
+        {
+            let profile = target::TargetProfile::MacosArm64;
             let other_selections = terminal_installation::admit_target_machine_selections(
                 artifact.view(),
                 profile.target_name(),

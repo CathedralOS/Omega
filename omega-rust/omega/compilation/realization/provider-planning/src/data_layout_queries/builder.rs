@@ -305,7 +305,7 @@ impl<'program> LayoutBuilder<'program> {
             repeated_fields: self.repeated_fields,
             variants: self.variants,
             private_callback_demands: self.private_callback_demands,
-            data_layout_identities: data_layout_identities,
+            data_layout_identities,
             private_callback_layouts,
         })
     }

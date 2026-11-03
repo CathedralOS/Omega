@@ -150,20 +150,14 @@ fn element_view_read(
         super::runtime_address::scale(builder, row, source, byte_offset, address, indices)?;
     // A leaf deep inside a large element lies past the target's direct
     // displacement; the address step precedes the access records below.
-    let (address, displacement) = super::memory_pointer(
-        builder,
-        row,
-        source,
-        address,
-        byte_offset,
-        u32::from(byte_count),
-    )?;
+    let (address, displacement) =
+        super::memory_pointer(builder, row, source, address, byte_offset, byte_count)?;
     memory(
         builder,
         row,
         source,
         byte_offset,
-        u32::from(byte_count),
+        byte_count,
         SelectedMemoryAccessRole::ReadElementView {
             index,
             length,
@@ -179,7 +173,7 @@ fn element_view_read(
             row,
             source,
             byte_offset,
-            u32::from(byte_count),
+            byte_count,
             indices,
             super::runtime_address::Written::None,
         )?;

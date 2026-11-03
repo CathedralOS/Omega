@@ -23,9 +23,7 @@ impl ExitScalars<'_, '_> {
         &self,
         expression: ExpressionHandle,
     ) -> Option<bool> {
-        let Some(binary) = self.program.expression_table.binary_node(expression) else {
-            return None;
-        };
+        let binary = self.program.expression_table.binary_node(expression)?;
         let (argument, result_on_left) =
             if is_result_reference(self.program, self.machine, binary.left) {
                 (binary.right, true)

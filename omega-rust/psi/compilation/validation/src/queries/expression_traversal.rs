@@ -441,10 +441,10 @@ pub fn single_member_argument_symbol(
 }
 
 /// The last member of the `Name` path `value` names, when it names one.
-pub fn name_path_last_member<'a>(
-    program: &'a dyn crate::CheckingInput,
+pub fn name_path_last_member(
+    program: &dyn crate::CheckingInput,
     value: ExpressionHandle,
-) -> Option<&'a str> {
+) -> Option<&str> {
     let path = expression_table(program).name_path_node(value)?;
     expression_table(program)
         .name_path_members(path.members)

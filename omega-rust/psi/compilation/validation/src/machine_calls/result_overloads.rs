@@ -247,7 +247,6 @@ fn record_expression_owner(
 /// keeps binding same-named declarations to the first symbol; this pass
 /// replaces that provisional symbol with the exact machine, trait-requirement,
 /// or unspelled boundary-operator result overload before downstream consumers.
-
 pub fn resolve_named_result_overloads(
     program: &mut TypedTrees,
 ) -> Result<Vec<SymbolHandle>, Vec<Diagnostic>> {

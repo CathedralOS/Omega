@@ -564,10 +564,9 @@ fn select_checked_dependency_member(
             checked_fact,
             place.segments,
             source_members,
-        ) {
-            if !candidates.contains(&selected) {
-                candidates.push(selected);
-            }
+        ) && !candidates.contains(&selected)
+        {
+            candidates.push(selected);
         }
     }
     let [selected] = candidates.as_slice() else {

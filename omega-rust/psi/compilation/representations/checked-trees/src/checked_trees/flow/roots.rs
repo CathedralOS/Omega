@@ -323,7 +323,7 @@ impl FlowControlFacts {
     /// no argument observations rather than reconstructing source evaluation.
     pub fn call_argument_evaluation_order(&self, call: &FlowCallFact) -> Vec<usize> {
         if call.argument_evaluation_order.is_empty() {
-            return (0..call.authored_arguments.len() as usize).collect();
+            return (0..call.authored_arguments.len()).collect();
         }
         self.call_argument_positions
             .span_or_empty(call.argument_evaluation_order)

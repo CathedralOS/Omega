@@ -652,13 +652,12 @@ impl<'program> CurrentScalarValues<'program> {
                 values.assume(program, machine, state, guard, transition.target == target);
             }
         }
-        if target.is_valid() {
-            if let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
+        if target.is_valid()
+            && let typed_trees::statement::TransitionTargetNode::Named { arguments, .. } =
                 program.statement_table.transition_target(target)
-            {
-                for argument in program.statement_table.expression_handles(*arguments) {
-                    values.retire_operand_effects(*argument);
-                }
+        {
+            for argument in program.statement_table.expression_handles(*arguments) {
+                values.retire_operand_effects(*argument);
             }
         }
         Some(values)
