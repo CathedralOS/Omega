@@ -81,6 +81,15 @@ authority. A generic evidence binder has the same shape without a body:
 `Order satisfies Ranked<Element>`. It is an implementation parameter, not a
 constraint saying that `Element` owns or implements operations.
 
+A machine requirement may introduce such an implementation binder in its own
+generic parameter list, including inside a boundary trait. Its selected member
+has a matching ordered binder contract and must satisfy the requirement for
+every admitted application, not only one chosen map. The caller supplies exact
+implementation evidence under the ordinary static application rules; Build
+provider selection does not fill or replace it. Trait-level captured binders
+and requirement-local fresh binders retain distinct identities. See
+[generic machine requirements](generics.md#generic-machine-requirements).
+
 Every whole-trait use names its evidence, whether through a concrete selected
 conformance, a generic evidence binder, or evidence already carried by a value.
 There is no unique-visible, most-specific, ambient default, or attached-machine
