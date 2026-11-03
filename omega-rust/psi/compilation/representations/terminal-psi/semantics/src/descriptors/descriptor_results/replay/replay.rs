@@ -1741,7 +1741,21 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
 }
 
 impl State {
+    /// A read of `query` cannot be answered: an ancestor or the queried leaf
+    /// itself holds an unknown value. Read routes that do not first read the
+    /// leaf slot (views, access origins) rely on this to stay unknown.
     pub(super) fn contents_path_invalidated(&self, query: &DescriptorContentsQuery) -> bool {
+        self.contents_invalidated_within(query, query.steps.len())
+    }
+
+    /// The address of `query`'s leaf is unknown: a strict ancestor holds an
+    /// unknown value. The leaf's own value never moves the leaf, so a store
+    /// can refill a slot whose old value was moved out.
+    pub(super) fn contents_address_invalidated(&self, query: &DescriptorContentsQuery) -> bool {
+        self.contents_invalidated_within(query, query.steps.len().saturating_sub(1))
+    }
+
+    fn contents_invalidated_within(&self, query: &DescriptorContentsQuery, depth: usize) -> bool {
         if query
             .exact_location()
             .is_some_and(|location| self.slots.get(&location).is_some_and(Option::is_some))
@@ -1752,7 +1766,7 @@ impl State {
             value.is_none()
                 && prefix.root == query.root
                 && !prefix.path.is_empty()
-                && prefix.path.len() <= query.steps.len()
+                && prefix.path.len() <= depth
                 && prefix.path.iter().zip(&query.steps).all(|(segment, step)| {
                     matches!(step, DescriptorContentsStep::Address(actual) if actual == segment)
                         || matches!(
@@ -1993,6 +2007,44 @@ mod snapshot_tests {
             replay.read_contents(&graph[0], &current, &query),
             replacement
         );
+
+        // A vacant leaf, as after a move out of it, keeps its address so a
+        // store can refill it, but a read of it has no value. Both predicates
+        // still refuse a query below an unknown ancestor.
+        let mut vacant = completed[&positions[0]].clone();
+        vacant.slots_mut().insert(leaf.clone(), None);
+        assert!(vacant.contents_path_invalidated(&query));
+        assert!(!vacant.contents_address_invalidated(&query));
+        assert!(
+            replay
+                .contents_targets(&graph[0], &vacant, &query)
+                .is_some_and(|targets| !targets.is_empty())
+        );
+        assert!(replay.read_contents(&graph[0], &vacant, &query).is_none());
+        let mut ancestor_query = query.clone();
+        ancestor_query.steps.pop();
+        let mut below = ancestor_query.clone();
+        below.steps.push(DescriptorContentsStep::Address(
+            DescriptorPathSegment::FixedIndex(0),
+        ));
+        let mut hidden = completed[&positions[0]].clone();
+        hidden.slots_mut().insert(
+            DescriptorLocation {
+                root: ancestor_query.root,
+                path: ancestor_query
+                    .steps
+                    .iter()
+                    .map(|step| match step {
+                        DescriptorContentsStep::Address(segment) => segment.clone(),
+                        DescriptorContentsStep::AnyElement { .. } => unreachable!(),
+                    })
+                    .collect(),
+            },
+            None,
+        );
+        assert!(hidden.contents_path_invalidated(&below));
+        assert!(hidden.contents_address_invalidated(&below));
+        assert!(replay.contents_targets(&graph[0], &hidden, &below).is_none());
         drop(replay);
 
         let mut limited = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);
