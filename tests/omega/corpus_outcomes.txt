@@ -4611,8 +4611,7 @@ pass/calls/runtime_copied_record_call_results_reused_exit checked 3449ms check-t
 pass/calls/runtime_cross_machine_substate_name_exit checked 16238ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_cyclic_state_reference_result_exit checked 18257ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_dispatch_binary_call_argument_exit checked 16998ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_dispatch_float_terminal_exit rejected 143298ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d7a81677e637
-	machine call cycle: `pick` -- the entry rank has no independently established lower bound; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/calls/runtime_dispatch_float_terminal_exit checked 186664ms check-target:macos_arm64 @24c8a9dd52b6
 pass/calls/runtime_dispatch_machine_array_slice_arg_exit checked 201686ms check-target:macos_arm64 @d7a81677e637
 pass/calls/runtime_dispatch_result_enum_case_exit checked 177653ms check-target:macos_arm64 @d7a81677e637
 pass/calls/runtime_dispatch_slice_element_terminal_exit checked 178460ms check-target:macos_arm64 @d7a81677e637
