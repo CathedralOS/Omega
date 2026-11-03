@@ -3526,6 +3526,8 @@ fail/traits/runtime_dyn_family_reordered_roster_requires rejected 8930ms expecte
 	cannot prove requires contract for call dyn Family::row from create: Width == 32 || Width == 16 || Width == 16 (needs fact `Width == 32 || Width == 16 || Width == 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/runtime_dyn_family_replaced_width_requires rejected 9888ms expected @7b6988120e7e
 	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/types/address_sum_past_model_bound_rejected rejected 2388ms expected @bcbf0eef0c01+wt
+	exact arithmetic in machine `cut` state `entry` return value may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
 pass/arithmetic/addr_algebra checked 3619ms @ccdb99ca2214
 pass/arithmetic/affine_difference_weighted_exit checked 3768ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/anonymous_integer_arith checked 3485ms @ccdb99ca2214

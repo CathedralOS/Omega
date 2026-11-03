@@ -1154,7 +1154,13 @@ impl StructuralPrefixVisitor for OperandFit {
                     // The premise judgment does not read that range; composing
                     // the operands' recorded ranges does. When the composed
                     // range is closed and inside the target, the operation fits.
-                    let judgment = if matches!(judgment, CarrierFit::Proven) {
+                    // Only an undecided fit may be settled this way: a refuted
+                    // or pending fit stays as judged. An address's limit is the
+                    // target model's `addr::Bound`, not its carrier width, so
+                    // address results keep the model judgment.
+                    let judgment = if !matches!(judgment, CarrierFit::Unknown)
+                        || self.request.target == PrimitiveType::Addr
+                    {
                         judgment
                     } else if let Some((low, high)) = self.request.target.integer_bounds()
                         && entry
