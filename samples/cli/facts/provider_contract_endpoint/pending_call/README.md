@@ -98,14 +98,14 @@ updates, and all command results are retained in
 `build/scalar-continue-20261102`. Those are baseline observations, not results
 from the compiler repair.
 
-The optimized R12 compiler checks all nine positives and runs each with native
+The optimized R13 compiler checks all nine positives and runs each with native
 exit zero and Terminal exit zero on macOS ARM64. Every twin rejects during its
 normal package update with `cannot establish its own pending target condition`.
 A later direct check of these rejected projects stops at the compiler-identity
 review fence; that setup refusal is not counted as proof of the obligation.
 The original circular control also rejects with both expected diagnostic
 fragments. Raw results and the exact compiler inputs are retained in the claim
-evidence under `pending-admission-r12-integrated-qualification-*`.
+evidence under `pending-admission-r13-integrated-qualification-*`.
 
 This closes circular call admission for this fact. Crash-capable helper
 admission and the broader scalar-range migration remain open under the same

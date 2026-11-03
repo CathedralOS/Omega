@@ -40,9 +40,9 @@ materialization of eight is made. The separate attempted consumer that compared
 `selected` with eight refused in R6 at an arithmetic proof in main; that failure
 remains preserved and is not substituted for this supported source.
 
-The optimized R12 compiler checks the tracked control and observes native exit
+The optimized R13 compiler checks the tracked control and observes native exit
 zero and Terminal exit zero on macOS ARM64. Its exact inputs and raw results are
-retained under `pending-admission-r12-integrated-earlier_operand-positive-*` in
+retained under `pending-admission-r13-integrated-earlier_operand-positive-*` in
 the claim evidence. This confirms the unused declaration is still checked; it
 does not add a runtime observation of eight. Execution on other hosted targets
 and broader scalar-range acceptance remain unverified.

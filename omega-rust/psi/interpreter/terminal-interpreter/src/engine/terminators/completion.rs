@@ -67,7 +67,9 @@ impl TerminalExecution<'_> {
                 if let Some(retired) = retired {
                     let origin = self
                         .reference_referents
-                        .get(&crate::boundary::values::StructuralRuntimePlace::from(&retired))
+                        .get(&crate::boundary::values::StructuralRuntimePlace::from(
+                            &retired,
+                        ))
                         .cloned();
                     self.retired_structural_homes
                         .push((*place, retired.clone(), origin));
