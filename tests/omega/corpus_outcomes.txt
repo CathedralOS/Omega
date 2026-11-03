@@ -8579,7 +8579,7 @@ pass/facts/match_join_multi_variant_bound_through_field_exit checked 3499ms chec
 pass/facts/match_join_multi_variant_bound_through_local_exit checked 4268ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/match_join_multi_variant_bound_through_match_join_exit checked 3375ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/match_join_multi_variant_bound_through_other_machine_exit checked 3486ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/match_join_multi_variant_bound_through_other_state_exit checked 4471ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/match_join_multi_variant_bound_through_other_state_exit checked 10747ms check-target:macos_arm64 @66cf4ee152c3+wt
 pass/facts/match_join_multi_variant_bound_through_parameter_exit checked 2775ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/match_join_multi_variant_bound_through_target_body_exit checked 3301ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/match_join_place_read_through_call_result_exit checked 4139ms check-target:macos_arm64 @ccdb99ca2214
@@ -25826,7 +25826,8 @@ fail/facts/match_join_multi_variant_bound_through_local_rejected checked 3063ms 
 fail/facts/match_join_multi_variant_bound_through_match_join_rejected checked 2651ms @ccdb99ca2214
 fail/facts/match_join_multi_variant_bound_through_other_machine_rejected rejected 714ms expected @ccdb99ca2214
 	exact arithmetic in machine `runner` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/match_join_multi_variant_bound_through_other_state_rejected checked 2557ms @ccdb99ca2214
+fail/facts/match_join_multi_variant_bound_through_other_state_rejected rejected 2830ms expected regressed-from:checked @66cf4ee152c3+wt
+	exact arithmetic in machine `step` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/match_join_multi_variant_bound_through_parameter_rejected checked 2511ms @ccdb99ca2214
 fail/facts/match_join_multi_variant_bound_through_target_body_rejected rejected 932ms expected @ccdb99ca2214
 	exact arithmetic in machine `exercise` state `entry` local `diff1` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
