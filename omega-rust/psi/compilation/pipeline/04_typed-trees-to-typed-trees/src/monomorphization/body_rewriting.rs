@@ -100,9 +100,9 @@ pub(super) fn runtime_value_operands(
         .collect()
 }
 
-/// Re-preparing a call keeps the evaluations already attached to its Value
-/// formals. The source header and exact subject identities establish reuse;
-/// an argument count alone cannot identify a performed evaluation.
+/// Preparing the same call twice must not evaluate a runtime Value argument
+/// again. Reuse operands only when the saved source parameters and incoming
+/// bindings identify those exact evaluations; an argument count is insufficient.
 pub(super) fn runtime_call_operands(
     program: &mut TypedTrees,
     site: CallSite,

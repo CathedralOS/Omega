@@ -414,9 +414,8 @@ impl StructuralJudge<'_> {
         if excluded.contains(&case_symbol) {
             return StructuralJudgment::Refuted;
         }
-        // Excluding one case permits another payload only when the complete
-        // declared case roster leaves that one possibility. Larger sums need
-        // every other case excluded on this same subject and application.
+        // After excluding cases, payload access is valid only if exactly one
+        // declared case remains for this same value and type application.
         if !excluded.is_empty()
             && let Some(definition) = self.program.data_definition_by_symbol(data_symbol)
         {

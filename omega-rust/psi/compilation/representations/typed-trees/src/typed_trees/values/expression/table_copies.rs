@@ -133,6 +133,8 @@ mod correspondence_tests {
             }],
         );
         let mut destination = ExpressionTable::default();
+        // Different handles make a stale reference into the source table fail.
+        destination.insert(ExpressionNode::Boolean(false));
         let (arguments, _, copied, _) =
             destination.copy_call_operands_from(&source, &[value, value], application, None);
         let actuals = destination.expression_handles(arguments);
@@ -143,6 +145,10 @@ mod correspondence_tests {
             panic!("copied runtime binding");
         };
         assert_eq!(expression, actuals[0]);
+        assert_eq!(
+            destination.expression(expression),
+            &ExpressionNode::Boolean(true)
+        );
         assert_eq!(
             source.static_machine_application_bindings(application)[0].value,
             StaticMachineBindingValue::RuntimeValue {
@@ -177,8 +183,9 @@ impl ExpressionTable {
         }
     }
 
-    /// Invocation metadata shares the operand graph's exact Value evaluations.
-    /// A separately qualified map keeps its own application telescope.
+    /// Copy each runtime Value expression once and share that copied evaluation
+    /// with its saved binding. A separately qualified implementation keeps its
+    /// own static arguments and lifetime bindings.
     fn copy_call_static_applications(
         &mut self,
         source: CopySource<'_>,
@@ -200,7 +207,7 @@ impl ExpressionTable {
         (copied, dispatch)
     }
 
-    /// Rebase both retained source telescopes into the cloned lexical owner.
+    /// Rebind both sets of saved generic arguments to the copied lexical scope.
     pub fn remap_call_static_applications<'scope>(
         &mut self,
         application: crate::static_applications::StaticMachineApplicationHandle,
