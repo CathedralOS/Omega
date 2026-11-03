@@ -14,12 +14,18 @@ impl StructuralJudge<'_> {
     /// Otherwise an unrelated counter update can discard the whole prefix.
     /// This is an entry observation, not an executed read or a new loan;
     /// ordinary writes still retire its current contents.
+    /// Declaration checking supplies symbolic entry values; a completed call
+    /// supplies only its independently authenticated actual observations.
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn retain_entry_scalar_parameters(
         &mut self,
         machine: &Machine,
         state: &State,
+        values: impl IntoIterator<Item = (symbols::SymbolHandle, StructuralTerm)>,
     ) {
-        for parameter in self.program.state_parameters(state) {
+        for (symbol, value) in values {
+            let Some(parameter) = self.program.state_parameter_by_symbol(state, symbol) else {
+                continue;
+            };
             if parameter.is_const || parameter.relevance.is_erased() {
                 continue;
             }
@@ -27,7 +33,6 @@ impl StructuralJudge<'_> {
                 root: facts::PlaceRoot::Symbol(parameter.symbol),
                 segments: Vec::new(),
             };
-            let value = StructuralTerm::Variable(parameter.name.to_string());
             if crate::value_custody::expression_types::scalar_observation_meaning(
                 self.program,
                 parameter.type_reference,
@@ -51,7 +56,7 @@ impl StructuralJudge<'_> {
                     root: facts::PlaceRoot::Symbol(parameter.symbol),
                     segments: Vec::new(),
                 },
-                StructuralTerm::Variable(parameter.name.to_string()),
+                value,
             ) && super::super::super::struct_trace()
             {
                 eprintln!(

@@ -1024,7 +1024,16 @@ impl<'program> StructuralJudge<'program> {
         if let Some(state) = state {
             judge.declaration_state = state.symbol;
             judge.retain_entry_values(state);
-            judge.retain_entry_scalar_parameters(machine, state);
+            judge.retain_entry_scalar_parameters(
+                machine,
+                state,
+                program.state_parameters(state).iter().map(|parameter| {
+                    (
+                        parameter.symbol,
+                        StructuralTerm::Variable(parameter.name.to_string()),
+                    )
+                }),
+            );
         }
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {

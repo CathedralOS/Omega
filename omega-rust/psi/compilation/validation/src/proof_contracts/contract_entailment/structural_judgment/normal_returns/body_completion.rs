@@ -148,11 +148,14 @@ impl<'program> StructuralJudge<'program> {
                         .and_then(|_| arm.normal_judge.completed_integer_range_recipe(&arm.value)),
                     value: arm.value,
                 };
-                let mut judge = arm
-                    .normal_judge
-                    .complete_invocation(caller, scope.1, &subjects, writes)?;
-                let version = judge.call_storage_version(scope.1, expression);
-                judge.advance_storage_version(version);
+                let mut judge = arm.normal_judge.complete_invocation(
+                    caller,
+                    scope.1,
+                    &subjects,
+                    writes,
+                    &result.value,
+                    caller.call_storage_version(scope.1, expression),
+                )?;
                 let completed = public_capture.and_then(|(prepared, guarantees)| {
                     judge.capture_prepared_normal_call(prepared, guarantees, Some(&result), scope)
                 });

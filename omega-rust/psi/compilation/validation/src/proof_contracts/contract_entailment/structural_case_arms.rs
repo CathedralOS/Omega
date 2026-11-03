@@ -2257,11 +2257,23 @@ fn recognize_structural_state_leaves_from<'a>(
                             established_guarantees.clone(),
                         )?;
                         if let Some(writes) = &writes {
+                            let completion_version = if let Some(expression) = call_expression {
+                                caller.call_storage_version(state, expression)
+                            } else {
+                                transition.source_target.and_then(|target| {
+                                    caller
+                                        .transition_call_storage_version(invocation, state, target)
+                                })
+                            };
                             for arm in &mut completed {
-                                arm.normal_judge = arm
-                                    .normal_judge
-                                    .clone()
-                                    .complete_invocation(&caller, state, &subjects, writes)?;
+                                arm.normal_judge = arm.normal_judge.clone().complete_invocation(
+                                    &caller,
+                                    state,
+                                    &subjects,
+                                    writes,
+                                    &arm.value,
+                                    completion_version,
+                                )?;
                             }
                         }
                         leaves.extend(completed);

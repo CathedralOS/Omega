@@ -236,7 +236,11 @@ impl StructuralJudge<'_> {
         subjects: &[crate::machine_calls::calls::InvocationEntrySubject],
         bindings: &[(SymbolHandle, Option<super::StructuralTerm>)],
     ) {
+        let caller_version = self.storage_version;
         self.storage_version = self.incoming_storage_version(entry);
+        // Operand writes belong to the caller; this invocation starts at its
+        // own entry cut before any of its body writes.
+        self.storage_write_sequence = 0;
         let mut values = Vec::new();
         for subject in subjects {
             if !crate::reference_shell(self.program, subject.parameter_type)
@@ -259,6 +263,9 @@ impl StructuralJudge<'_> {
                 else {
                     continue;
                 };
+                if !self.storage_value_transfer_is_current(stored, caller_version) {
+                    continue;
+                }
                 let Some(current) = stored.current.clone() else {
                     continue;
                 };
@@ -343,6 +350,9 @@ impl StructuralJudge<'_> {
                     if stored.coordinate.root != facts::PlaceRoot::Symbol(subject.parameter) {
                         continue;
                     }
+                    if !self.storage_value_transfer_is_current(stored, self.storage_version) {
+                        continue;
+                    }
                     let Some(current) = stored.current.clone() else {
                         continue;
                     };
@@ -372,12 +382,27 @@ impl StructuralJudge<'_> {
                 }
             }
         }
+        self.storage_version = returned.storage_version;
         self.stored_values = returned.stored_values;
         self.invalidated_storage = returned.invalidated_storage;
         self.premise_facts = returned.premise_facts;
         self.storage_write_sequence = returned.storage_write_sequence;
         self.capture_sequence = self.capture_sequence.max(returned.capture_sequence);
         Some(())
+    }
+
+    /// Transferring a current cell requires its actual source cut whenever
+    /// the program has a storage graph. Captured arguments and returned values
+    /// carry their own saved fields separately.
+    fn storage_value_transfer_is_current(
+        &self,
+        stored: &CapturedStorageValue,
+        version: Option<StorageVersion>,
+    ) -> bool {
+        match version {
+            Some(version) => self.current_value_valid(stored, &stored.coordinate, version),
+            None => self.storage_graph().is_none(),
+        }
     }
 
     /// Unknown effects retire reachable live storage observations, not immutable

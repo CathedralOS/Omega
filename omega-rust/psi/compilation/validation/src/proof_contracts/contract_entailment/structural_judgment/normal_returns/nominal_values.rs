@@ -4,6 +4,74 @@
 use super::{ExpressionHandle, StructuralJudge, StructuralTerm, TypeReferenceHandle, ValueScope};
 
 impl StructuralJudge<'_> {
+    /// Keep the returned value's saved field and constructor information
+    /// available to its caller. Follow the exact captured values it contains;
+    /// unrelated private observations remain in the function.
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn returned_nominal_values(
+        &self,
+        returned: &StructuralTerm,
+        caller: &Self,
+    ) -> Vec<super::super::CompletedNominalValue> {
+        fn retain_captures(
+            value: &StructuralTerm,
+            receipts: &[super::super::CompletedNominalValue],
+            caller_receipts: &[super::super::CompletedNominalValue],
+            retained: &mut [bool],
+            pending: &mut Vec<usize>,
+        ) {
+            let mut terms = vec![value];
+            while let Some(value) = terms.pop() {
+                // The caller already keeps saved information for its exact
+                // captured values. Forwarding one keeps that original record.
+                if matches!(value.semantic_value(), StructuralTerm::CapturedValue { .. })
+                    && !caller_receipts.iter().any(|receipt| {
+                        receipt
+                            .value
+                            .same_resolution_payload(value.semantic_value())
+                    })
+                    && let Some(index) = receipts.iter().rposition(|receipt| {
+                        receipt
+                            .value
+                            .same_resolution_payload(value.semantic_value())
+                    })
+                    && !retained[index]
+                {
+                    retained[index] = true;
+                    pending.push(index);
+                }
+                value.for_each_child(|child| terms.push(child));
+            }
+        }
+        let receipts = self.completed_nominal_values.as_slice();
+        let mut retained = vec![false; receipts.len()];
+        let mut pending = Vec::new();
+        retain_captures(
+            returned,
+            receipts,
+            &caller.completed_nominal_values,
+            &mut retained,
+            &mut pending,
+        );
+        let mut exported = Vec::new();
+        while let Some(index) = pending.pop() {
+            let mut receipt = receipts[index].clone();
+            // Resolve saved fields before their local bindings disappear.
+            // Follow any captured values still used by those fields, while
+            // preserving the returned capture's exact identity.
+            receipt.observed_value = self.resolve(receipt.observed_value);
+            retain_captures(
+                &receipt.observed_value,
+                receipts,
+                &caller.completed_nominal_values,
+                &mut retained,
+                &mut pending,
+            );
+            exported.push((index, receipt));
+        }
+        exported.sort_unstable_by_key(|(index, _)| *index);
+        exported.into_iter().map(|(_, receipt)| receipt).collect()
+    }
+
     /// The caller owns independent admission at the completed operation cut.
     /// A unique snapshot carries that validity through local/transition homes;
     /// its denotation remains available without granting equal values admission.

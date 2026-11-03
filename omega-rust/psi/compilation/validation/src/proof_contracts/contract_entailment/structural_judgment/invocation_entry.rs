@@ -76,6 +76,13 @@ impl<'program> StructuralJudge<'program> {
         self.declaration_state = entry.symbol;
         let (callee, _) = self.runtime_declaration_scope()?;
         self.body_type_parameters = self.program.machine_type_parameters(callee);
+        self.retain_entry_scalar_parameters(
+            callee,
+            entry,
+            bindings
+                .iter()
+                .filter_map(|(symbol, value)| value.as_ref().map(|value| (*symbol, value.clone()))),
+        );
         let incoming = parameters
             .iter()
             .zip(bindings)
@@ -100,20 +107,39 @@ impl<'program> StructuralJudge<'program> {
         state: &State,
         subjects: &[InvocationEntrySubject],
         writes: &facts::NormalizedWriteFrame,
+        returned: &StructuralTerm,
+        completion_version: Option<super::storage_effects::StorageVersion>,
     ) -> Option<Self> {
-        self.returned_value_source = caller.returned_value_source.clone();
         if !self.requires_value_preservation() {
+            self.returned_value_source = caller.returned_value_source.clone();
             return Some(self);
         }
+        if (caller.graph_storage_mode() && completion_version.is_none())
+            || completion_version.is_some_and(|version| version.state != state.symbol)
+        {
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT invocation-completion-refused state={:?} completion={completion_version:?} phase=caller-completion-cut",
+                    state.symbol,
+                );
+            }
+            return None;
+        }
+        let returned_nominal_values = self.returned_nominal_values(returned, caller);
+        self.returned_value_source = caller.returned_value_source.clone();
         self.leave_storage_scope(caller, state, subjects, writes)?;
+        self.advance_storage_version(completion_version);
         self.body_invocations = std::sync::Arc::clone(&caller.body_invocations);
         self.declaration_state = caller.declaration_state;
         self.body_type_parameters = caller.body_type_parameters;
         self.normal_results = std::sync::Arc::clone(&caller.normal_results);
-        // An owned Match snapshot belongs to the caller's activation. Callee
-        // captures are private; restoring only the value and losing its admission
-        // receipt discards payload/type facts across an otherwise disjoint call.
+        // Restore the caller's snapshots and the saved field information
+        // carried by this returned value. Other callee captures stay private.
         self.completed_nominal_values = std::sync::Arc::clone(&caller.completed_nominal_values);
+        if !returned_nominal_values.is_empty() {
+            std::sync::Arc::make_mut(&mut self.completed_nominal_values)
+                .extend(returned_nominal_values);
+        }
         Some(self)
     }
 }

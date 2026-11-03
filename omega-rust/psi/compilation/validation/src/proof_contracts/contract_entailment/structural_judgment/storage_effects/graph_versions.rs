@@ -114,6 +114,34 @@ impl<'program> StructuralJudge<'program> {
         })
     }
 
+    /// A named terminal call has no expression handle. Its actual source
+    /// occurrence selects the completed call cut; another arm's call or the
+    /// pre-call statement snapshot cannot describe this normal return.
+    pub(in crate::proof_contracts::contract_entailment) fn transition_call_storage_version(
+        &self,
+        machine: &typed_trees::machine::Machine,
+        state: &State,
+        target: typed_trees::statement::TransitionTargetHandle,
+    ) -> Option<StorageVersion> {
+        let graph = self.storage_graph()?;
+        let row = self.flow_state(state.symbol)?;
+        let mut calls = graph.calls.span(row.calls)?.iter().filter(|call| {
+            crate::find_call_site(
+                self.program,
+                machine.symbol,
+                state.symbol,
+                call.statement_index,
+                call.call_ordinal,
+            )
+            .is_some_and(|site| site.completes_transition(self.program, target))
+        });
+        let call = calls.next()?;
+        calls.next().is_none().then_some(StorageVersion {
+            state: state.symbol,
+            snapshot: call.completed_storage,
+        })
+    }
+
     /// Preserve a declared inline referent across one exact completed call.
     /// A reinterpreted view names another address space; preservation of its
     /// owner descriptor cannot stand in for preservation of that view's cells.
