@@ -68,7 +68,7 @@ pub(in crate::execution::terminal_unit) fn fused_states<'program>(
         .map(|(owner, _)| owner.symbol)
         .collect::<Vec<_>>();
     owners.dedup(); // Discovery appends each owner's complete state roster once.
-    if owners.len() <= 1 || std::env::var_os("OMEGA_EXPERIMENT_FUSE_ALL").is_some() {
+    if owners.len() <= 1 || std::env::var("OMEGA_EXPERIMENT_FUSE_ALL").is_ok_and(|names| names.split(',').any(|name| name == machine.name.as_str())) {
         return fused;
     }
     let mut predecessors = Vec::new();
