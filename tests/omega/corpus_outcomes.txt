@@ -1204,23 +1204,23 @@ fail/facts/machine_tuple_dispatch_through_target_body_rejected rejected 1465ms e
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from run_body: direct == true (needs fact `direct == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/match_effectful_subject_custody_through_call_result_rejected rejected 8276ms expected @ee4dbb4b2d56
+fail/facts/match_effectful_subject_custody_through_call_result_rejected rejected 6156ms expected @17ba37eb5f9c
 	cannot use `slot.mark` in machine `exercise` state `entry` (statement 3) after `slot` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
-fail/facts/match_effectful_subject_custody_through_const_name_rejected rejected 8996ms expected @ee4dbb4b2d56
+fail/facts/match_effectful_subject_custody_through_const_name_rejected rejected 4545ms expected @17ba37eb5f9c
 	cannot use `slot.mark` in machine `exercise` state `entry` (statement 3) after `slot` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
-fail/facts/match_effectful_subject_custody_through_field_rejected rejected 15137ms expected @ee4dbb4b2d56
+fail/facts/match_effectful_subject_custody_through_field_rejected rejected 5431ms expected @17ba37eb5f9c
 	cannot use `pair.slot.mark` in machine `exercise` state `entry` (statement 2) after `pair.slot` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `pair.slot` first
-fail/facts/match_effectful_subject_custody_through_local_rejected rejected 12511ms expected @ee4dbb4b2d56
+fail/facts/match_effectful_subject_custody_through_local_rejected rejected 5845ms expected @17ba37eb5f9c
 	cannot use `slot.mark` in machine `exercise` state `entry` (statement 3) after `slot` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
-fail/facts/match_effectful_subject_custody_through_match_join_rejected rejected 9051ms expected @ee4dbb4b2d56
+fail/facts/match_effectful_subject_custody_through_match_join_rejected rejected 5030ms expected @17ba37eb5f9c
 	cannot use `slot.mark` in machine `exercise` state `entry` (statement 3) after `slot` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
-fail/facts/match_effectful_subject_custody_through_other_machine_rejected rejected 7861ms expected @ee4dbb4b2d56
+fail/facts/match_effectful_subject_custody_through_other_machine_rejected rejected 4584ms expected @17ba37eb5f9c
 	cannot use `slot.mark` in machine `apply` state `entry` (statement 1) after `slot` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
-fail/facts/match_effectful_subject_custody_through_other_state_rejected rejected 9779ms expected @ee4dbb4b2d56
+fail/facts/match_effectful_subject_custody_through_other_state_rejected rejected 6417ms expected @17ba37eb5f9c
 	cannot use `slot.mark` in machine `pick` state `entry` (statement 1) after `slot` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
-fail/facts/match_effectful_subject_custody_through_parameter_rejected rejected 8323ms expected @ee4dbb4b2d56
+fail/facts/match_effectful_subject_custody_through_parameter_rejected rejected 5310ms expected @17ba37eb5f9c
 	cannot use `slot.mark` in machine `apply` state `entry` (statement 1) after `slot` was transferred or consumed at statement 0: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
-fail/facts/match_effectful_subject_custody_through_target_body_rejected rejected 6478ms expected @ee4dbb4b2d56
+fail/facts/match_effectful_subject_custody_through_target_body_rejected rejected 4315ms expected @17ba37eb5f9c
 	cannot use `slot.mark` in machine `X86Apply::exercise` state `exercise` (statement 4) after `slot` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
 	cannot use `slot.mark` in machine `ArmApply::exercise` state `exercise` (statement 4) after `slot` was transferred or consumed at statement 3: it holds no value; read what is needed before the transfer or assign a whole value to `slot` first
 fail/facts/match_runtime_view_extent_through_call_result_rejected rejected 619ms expected @fc74098f66b9+wt
@@ -8567,24 +8567,15 @@ pass/facts/match_computed_root_through_target_body_exit rejected 3120ms check-ta
 	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call compute from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/match_effectful_subject_custody_through_call_result_exit rejected 12261ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(13), callee: Some(MachineId(20)), operation: OperationId(142), reason: "callee stored-reference effects are unresolved" }
-pass/facts/match_effectful_subject_custody_through_const_name_exit rejected 17664ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(12), callee: Some(MachineId(19)), operation: OperationId(142), reason: "callee stored-reference effects are unresolved" }
-pass/facts/match_effectful_subject_custody_through_field_exit rejected 15869ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(12), callee: Some(MachineId(19)), operation: OperationId(143), reason: "callee stored-reference effects are unresolved" }
-pass/facts/match_effectful_subject_custody_through_local_exit rejected 15923ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(12), callee: Some(MachineId(19)), operation: OperationId(142), reason: "callee stored-reference effects are unresolved" }
-pass/facts/match_effectful_subject_custody_through_match_join_exit rejected 14671ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(12), callee: Some(MachineId(19)), operation: OperationId(156), reason: "callee stored-reference effects are unresolved" }
-pass/facts/match_effectful_subject_custody_through_other_machine_exit rejected 14929ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(22), callee: Some(MachineId(25)), operation: OperationId(197), reason: "callee stored-reference effects are unresolved" }
-pass/facts/match_effectful_subject_custody_through_other_state_exit rejected 12873ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(19), callee: Some(MachineId(22)), operation: OperationId(184), reason: "callee stored-reference effects are unresolved" }
-pass/facts/match_effectful_subject_custody_through_parameter_exit rejected 14619ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(19), callee: Some(MachineId(22)), operation: OperationId(184), reason: "callee stored-reference effects are unresolved" }
-pass/facts/match_effectful_subject_custody_through_target_body_exit rejected 15177ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	native artifact target lowering failed: StoredReferenceCall { caller: MachineId(10), callee: Some(MachineId(28)), operation: OperationId(135), reason: "callee stored-reference effects are unresolved" }
+pass/facts/match_effectful_subject_custody_through_call_result_exit checked 13140ms check-target:macos_arm64 @17ba37eb5f9c
+pass/facts/match_effectful_subject_custody_through_const_name_exit checked 13206ms check-target:macos_arm64 @17ba37eb5f9c
+pass/facts/match_effectful_subject_custody_through_field_exit checked 10959ms check-target:macos_arm64 @17ba37eb5f9c
+pass/facts/match_effectful_subject_custody_through_local_exit checked 10910ms check-target:macos_arm64 @17ba37eb5f9c
+pass/facts/match_effectful_subject_custody_through_match_join_exit checked 11357ms check-target:macos_arm64 @17ba37eb5f9c
+pass/facts/match_effectful_subject_custody_through_other_machine_exit checked 11419ms check-target:macos_arm64 @17ba37eb5f9c
+pass/facts/match_effectful_subject_custody_through_other_state_exit checked 12498ms check-target:macos_arm64 @17ba37eb5f9c
+pass/facts/match_effectful_subject_custody_through_parameter_exit checked 12293ms check-target:macos_arm64 @17ba37eb5f9c
+pass/facts/match_effectful_subject_custody_through_target_body_exit checked 11641ms check-target:macos_arm64 @17ba37eb5f9c
 pass/facts/match_join_multi_variant_bound_through_call_result_exit checked 3106ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/match_join_multi_variant_bound_through_const_name_exit checked 3884ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/match_join_multi_variant_bound_through_field_exit checked 3499ms check-target:macos_arm64 @ccdb99ca2214
