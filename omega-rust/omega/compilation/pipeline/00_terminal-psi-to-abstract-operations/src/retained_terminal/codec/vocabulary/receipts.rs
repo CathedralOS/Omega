@@ -65,9 +65,6 @@ impl RecordValue for effects::provider_plan::EvaluatedBindingReceipt {
                 locator_identity_digest,
                 identity_digest,
             } = ReceiptRecord::read(input)?;
-            let build_requirement = build_origin
-                .as_ref()
-                .map(|origin| origin.requirement_identity);
             let identities = input.context.binding_identities.clone().ok_or_else(|| {
                 input.error("evaluated binding receipt is missing its producer identity namespace")
             })?;
@@ -111,12 +108,7 @@ impl RecordValue for effects::provider_plan::EvaluatedBindingReceipt {
                     .map_err(|reason| input.error(reason))?,
                 None => recovered,
             };
-            if recovered.producer_callable_identity() != producer_callable_identity
-                || recovered
-                    .build_origin()
-                    .map(|origin| origin.requirement_identity)
-                    != build_requirement
-            {
+            if recovered.producer_callable_identity() != producer_callable_identity {
                 return Err(input.error("binding receipt recovery changed its producer index"));
             }
             if builder.as_table() != identities.as_ref() {

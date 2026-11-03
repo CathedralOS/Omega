@@ -56,6 +56,16 @@ mod tests {
     }
 
     #[test]
+    fn newer_record_schema_is_not_called_superseded() {
+        let mut input =
+            RecordReader::new(b"OMGNTI13", RecordLimits::default()).expect("bounded new schema");
+        let Err(error) = DerivationInputs::read(&mut input) else {
+            panic!("newer record schema accepted");
+        };
+        assert_ne!(error.reason, SUPERSEDED_RECORD_SCHEMA);
+    }
+
+    #[test]
     fn unrelated_record_schema_is_foreign() {
         let mut input =
             RecordReader::new(b"OTHERREC", RecordLimits::default()).expect("bounded bytes");
@@ -211,7 +221,11 @@ impl DerivationInputs {
     fn read(input: &mut RecordReader<'_>) -> Result<Self, RecordError> {
         let schema = input.take(RECORD_SCHEMA.len())?;
         if schema != RECORD_SCHEMA {
-            return Err(input.error(if schema.starts_with(RECORD_SCHEMA_FAMILY) {
+            // Same-length ASCII markers order by version, so only an older
+            // record of this family gets the rebuild guidance.
+            let superseded =
+                schema.starts_with(RECORD_SCHEMA_FAMILY) && schema < RECORD_SCHEMA.as_slice();
+            return Err(input.error(if superseded {
                 SUPERSEDED_RECORD_SCHEMA
             } else {
                 "foreign native derivation record schema"
