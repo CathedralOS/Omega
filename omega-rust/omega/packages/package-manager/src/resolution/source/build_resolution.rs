@@ -145,7 +145,7 @@ impl AcquiredBuildDependency {
     /// separately authenticates each retained activation when completing it.
     pub fn complete(
         self,
-        returned: &build_evaluation::ReturnedBuild,
+        returned: &build_settings::ReturnedBuild,
     ) -> Result<(PackageKeyIdentity, ExecutedSourceResolution), String> {
         let declared = match self.acquired.declare_build(returned) {
             Ok(declared) => declared,
@@ -210,7 +210,7 @@ impl ResolvedBuildSources {
     pub fn join_build(
         &self,
         root: PackageKeyIdentity,
-        returned: &mut build_evaluation::ReturnedBuild,
+        returned: &mut build_settings::ReturnedBuild,
     ) -> Result<PackageCompilationInputs, String> {
         let custody = self
             .closure
@@ -233,7 +233,7 @@ impl ResolvedBuildSources {
         let selections = node
             .dependencies()
             .iter()
-            .map(|dependency| build_evaluation::BuildDependencySelection {
+            .map(|dependency| build_settings::BuildDependencySelection {
                 purpose: dependency.purpose(),
                 request_ordinal: dependency.dependency_index(),
                 package: dependency.target().identity(),

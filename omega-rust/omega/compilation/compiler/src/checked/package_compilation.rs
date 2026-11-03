@@ -195,7 +195,7 @@ impl PackageBuildInvocation {
     }
     pub fn observe_declaration(
         &self,
-        returned: &build_evaluation::ReturnedBuild,
+        returned: &build_settings::ReturnedBuild,
     ) -> Result<SourceBuildDeclaration, CompileFailure> {
         self.source.observe_declaration(returned)
     }
@@ -210,7 +210,7 @@ impl PackageBuildInvocation {
         self.source.join_product_context(target, inputs)
     }
 
-    pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+    pub fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.source.execution()
     }
 }
@@ -275,7 +275,7 @@ impl CompilationSession {
     pub fn settle_source_catalog(
         &mut self,
         invocation: PackageBuildInvocation,
-        returned: build_evaluation::ReturnedBuild,
+        returned: build_settings::ReturnedBuild,
     ) -> Result<SourceBuildDeclaration, CompileFailure> {
         super::run_on_compile_thread(|| invocation.source.settle_catalog(returned))
     }
@@ -285,7 +285,7 @@ impl CompilationSession {
     pub fn settle_package_build(
         &mut self,
         invocation: PackageBuildInvocation,
-        returned: Option<build_evaluation::ReturnedBuild>,
+        returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<CompletedBuild, CompileFailure> {
         super::run_on_compile_thread(|| {
             self.settle_build(invocation.source, returned)
@@ -342,7 +342,7 @@ impl CompilationSession {
     pub fn complete_package_build(
         &mut self,
         invocation: PackageBuildInvocation,
-        returned: Option<build_evaluation::ReturnedBuild>,
+        returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<PackageBuild, CompileFailure> {
         super::run_on_compile_thread(|| {
             self.complete_build(invocation.source, returned)

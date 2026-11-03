@@ -116,7 +116,7 @@ pub(super) fn produce(
         if let Some(snapshot) = execution.snapshot {
             request = request.with_build_snapshot(snapshot);
         }
-        let outcomes = omega_build::compile_sources(prepared.session.compiler(), request)?;
+        let outcomes = orchestration::compile_sources(prepared.session.compiler(), request)?;
         let mut reports = Vec::new();
         let mut failures = Vec::new();
         for outcome in outcomes.into_outcomes().into_vec() {

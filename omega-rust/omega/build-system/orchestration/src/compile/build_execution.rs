@@ -100,7 +100,7 @@ pub(crate) fn execute_package_build(
 /// discarding the source continuation and replaying Build after acquisition.
 pub(crate) struct ReturnedPackageBuild {
     pub(crate) invocation: compiler::PackageBuildInvocation,
-    pub(crate) returned: Option<build_evaluation::ReturnedBuild>,
+    pub(crate) returned: Option<build_settings::ReturnedBuild>,
 }
 
 impl ReturnedPackageBuild {
@@ -132,9 +132,9 @@ pub(crate) fn execute_returned_build(
 /// Run one admitted activation to return. This is the shared one-shot policy for
 /// source and package consumers; its retained ledger still requires final join.
 pub(crate) fn execute_build(
-    execution: Option<&mut build_evaluation::PreparedBuildExecution>,
+    execution: Option<&mut build_settings::PreparedBuildExecution>,
     mut queries: Option<&mut compiler::ProductQueries>,
-) -> Result<Option<build_evaluation::ReturnedBuild>, CompileFailure> {
+) -> Result<Option<build_settings::ReturnedBuild>, CompileFailure> {
     let returned = if let Some(execution) = execution {
         let host = execution.host()?;
         let refuse = |reason| {

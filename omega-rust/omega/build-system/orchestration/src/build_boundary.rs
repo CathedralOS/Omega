@@ -200,7 +200,7 @@ fn application_completes_native_products_without_source_continuations() {
         &[
             "native_production::prepare(",
             "prepared.scalar_completions()",
-            "build_evaluation::scalar_completion::complete(",
+            "build_settings::scalar_completion::complete(",
             "completion.complete(completed)",
             "native_production::compile(prepared)",
             ".finish_native(",

@@ -64,7 +64,7 @@ pub(super) struct RetainedOccurrenceCompile {
     pub(super) inputs: PackageCompilationInputs,
     /// The source inventory and output roster this occurrence's build
     /// evaluation captured — a compile input `inputs` does not carry.
-    pub(super) build_snapshot: build_evaluation::BuildSnapshotRequest,
+    pub(super) build_snapshot: build_settings::BuildSnapshotRequest,
     /// Canonical-policy bytes this occurrence's review added to the running
     /// retained-policy total.
     pub(super) policy_canonical_bytes: usize,
@@ -145,7 +145,7 @@ pub struct PackageReviewPass<'pass> {
     roster: &'pass PackageOccurrenceRoster,
     semantic_bindings_by_consumer:
         &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
-    root_build_snapshot: Option<&'pass build_evaluation::BuildSnapshotRequest>,
+    root_build_snapshot: Option<&'pass build_settings::BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
     prior: Option<&'pass RetainedPackageReviews>,
 }
@@ -179,7 +179,7 @@ impl<'pass> PackageReviewPass<'pass> {
             (PackageKey, DependencyPurpose),
             Vec<AcceptedSemanticBinding>,
         >,
-        root_build_snapshot: Option<&'pass build_evaluation::BuildSnapshotRequest>,
+        root_build_snapshot: Option<&'pass build_settings::BuildSnapshotRequest>,
         discovery: TargetEntryDiscovery,
         prior: Option<&'pass RetainedPackageReviews>,
     ) -> Result<Self, CompileResolvedPackageReviewsError> {
@@ -305,7 +305,7 @@ pub struct PackageReviewRound<'pass> {
     execution_profile: Option<target::TargetProfile>,
     semantic_bindings_by_consumer:
         &'pass BTreeMap<(PackageKey, DependencyPurpose), Vec<AcceptedSemanticBinding>>,
-    root_build_snapshot: Option<&'pass build_evaluation::BuildSnapshotRequest>,
+    root_build_snapshot: Option<&'pass build_settings::BuildSnapshotRequest>,
     discovery: TargetEntryDiscovery,
     prior: Option<&'pass RetainedPackageReviews>,
     source_bindings: &'pass mut PackageSourceBindings,
@@ -353,7 +353,7 @@ pub struct PackageReviewOccurrence<'occurrence> {
 /// review's projection consumes.
 struct AssembledOccurrence {
     entry: std::path::PathBuf,
-    build_snapshot: build_evaluation::BuildSnapshotRequest,
+    build_snapshot: build_settings::BuildSnapshotRequest,
     /// The discovery pass's nominated target-entry binding, if one joined.
     proposed_entry: Option<SemanticBindingReviewCandidate>,
 }
@@ -553,7 +553,7 @@ impl<'pass> PackageReviewRound<'pass> {
         } else {
             None
         }
-        .unwrap_or_else(|| build_evaluation::BuildSnapshotRequest::new(empty::<Vec<u8>>()));
+        .unwrap_or_else(|| build_settings::BuildSnapshotRequest::new(empty::<Vec<u8>>()));
         // Every package compiles as the root of its own component view, so
         // any of them — not only the graph root — may author `Independent`
         // selections over dependencies this loop already compiled. The

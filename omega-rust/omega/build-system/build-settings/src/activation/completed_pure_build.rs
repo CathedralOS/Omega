@@ -117,7 +117,7 @@ impl CompletedPureBuildInputs {
 /// No global registry, public carrier constructor, decoder, or carrier export
 /// turns equal content into cross-compilation reuse.
 /// ```compile_fail
-/// let _ = build_evaluation::PureBuildCompilation::retain_completed;
+/// let _ = build_settings::PureBuildCompilation::retain_completed;
 /// ```
 #[derive(Clone, Default)]
 pub struct PureBuildCompilation {

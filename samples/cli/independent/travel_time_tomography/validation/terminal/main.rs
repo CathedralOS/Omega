@@ -3,7 +3,7 @@
 //! CLI. Each fixture gets a fresh isolated runtime and finite input; captured
 //! output is checked by the separate frozen rational oracle. No source replay,
 //! synthetic receiver, expected-result callback, or package acceptance occurs.
-use omega_build::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
+use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
@@ -37,7 +37,7 @@ fn validate(sample: &Path, output: &Path) -> Result<(), String> {
     let profile = target::TargetProfile::from_omega_target_name(Some("linux_x86_64"))
         .map_err(|diagnostic| format!("{diagnostic:?}"))?;
     let native_directory = output.join("native");
-    let outcomes = omega_build::build(BuildRequest {
+    let outcomes = orchestration::build(BuildRequest {
         root_path: sample.join("main.omg"),
         build_directory: Some(native_directory.clone()),
         targets: BuildTargets::Single(profile),
@@ -123,7 +123,7 @@ fn validate(sample: &Path, output: &Path) -> Result<(), String> {
     // Publish only after interpretation, exactly as `omega run --both` does.
     // The public publisher retains executable custody; it supplies no acceptance.
     let (_, executable) =
-        omega_build::publication::publish_native_artifact(report, &native_directory)?;
+        orchestration::publication::publish_native_artifact(report, &native_directory)?;
     std::fs::write(
         output.join("native-path.txt"),
         format!("{}\n", executable.display()),

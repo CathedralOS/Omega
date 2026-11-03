@@ -47,7 +47,7 @@ pub use crate::checked::{
     preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
     typed_frontier_reuse_count,
 };
-pub use build_evaluation::BuildSnapshotRequest;
+pub use build_settings::BuildSnapshotRequest;
 pub use checked::SourceCompilation;
 pub use checked::checking::ProductQueries;
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};

@@ -2,7 +2,7 @@ use platform_custody::temporary_directory::TemporaryDirectory;
 use std::path::Path;
 
 fn check(compiler: &mut compiler::CompilationSession, root: &Path) -> Result<(), String> {
-    omega_build::check_source(
+    orchestration::check_source(
         compiler,
         compiler::CheckedCompileRequest::new(root, Some("linux_x86_64")),
     )

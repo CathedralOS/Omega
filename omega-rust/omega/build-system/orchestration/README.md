@@ -1,6 +1,10 @@
-# Project Build
+# Orchestration
 
-Install/update/resume enter [package_commands.rs](src/package_commands.rs):
+Runs a whole build in order: prepare the inputs, run `build.omg` through
+[build-settings](../build-settings/README.md), call the compiler, and write the
+outputs. Package commands go through the same steps.
+
+Install/update/resume enter [package_commands.rs](src/package/package_commands.rs):
 open package transaction custody, admit the command, execute every requested
 target review, then return the complete roster for decisions and publication.
 An error leaves accepted files unchanged and releases the transaction on return.

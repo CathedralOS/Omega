@@ -16,7 +16,7 @@ inspect_packages/
     └── tests.rs         identity, history, unknown analysis, and output limits
 ```
 
-Application Build's [`package_inspection.rs`](../../../../../build-system/omega-build/src/package/package_inspection.rs)
+Application Build's [`package_inspection.rs`](../../../../../build-system/orchestration/src/package/package_inspection.rs)
 owns session creation/disposal, shared source execution and the ordered target
 loop. Each selected source Build runs once, before target-specific review;
 review passes consume its retained result, not new execution requests or grants.

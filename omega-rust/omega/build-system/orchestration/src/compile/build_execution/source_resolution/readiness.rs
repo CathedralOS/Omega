@@ -39,7 +39,7 @@ struct ExecutedSourceBuild {
 struct QueryDependencies {
     inputs: Vec<package_compilation::source_imports::ProductQueryDependency>,
     graphs: Vec<Arc<ResolvedBuildSources>>,
-    selections: Vec<build_evaluation::BuildDependencySelection>,
+    selections: Vec<build_settings::BuildDependencySelection>,
 }
 
 /// Invocation scratch for one Product waiting on its generated-source inputs.
@@ -422,7 +422,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     ready.graphs.push(graph);
                     ready
                         .selections
-                        .push(build_evaluation::BuildDependencySelection {
+                        .push(build_settings::BuildDependencySelection {
                             purpose: DependencyPurpose::Product,
                             request_ordinal: ordinal,
                             package: declared.identity(),
@@ -446,7 +446,7 @@ impl<'session, 'operation> ReadinessScheduler<'session, 'operation> {
                     build
                         .activation
                         .install_provider(
-                            build_evaluation::BuildDependencySelection {
+                            build_settings::BuildDependencySelection {
                                 purpose: DependencyPurpose::Build,
                                 request_ordinal: ordinal,
                                 package: self.sources[source].declared.identity(),
@@ -793,7 +793,7 @@ struct LiveBuild {
     acquired: AcquiredBuildSource,
     invocation: compiler::PackageBuildInvocation,
     queries: compiler::ProductQueries,
-    activation: build_evaluation::TerminalBuildActivation,
+    activation: build_settings::TerminalBuildActivation,
     dependencies: Vec<Arc<ResolvedBuildSources>>,
 }
 
@@ -804,7 +804,7 @@ enum Demand {
         selected: Option<(usize, usize)>,
     },
     Query {
-        query: Arc<build_evaluation::host::bindings::BuildProductQuery>,
+        query: Arc<build_settings::host::bindings::BuildProductQuery>,
         dependencies: QueryDependencies,
     },
 }

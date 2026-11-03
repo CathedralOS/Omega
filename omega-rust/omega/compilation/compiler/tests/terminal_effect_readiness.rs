@@ -109,7 +109,7 @@ public Wide satisfies Operations<u64> {
     .unwrap();
     let mut request = compiler::CheckedCompileRequest::new(&backing.join("main.omg"), None);
     request.package_inputs = Some(supplier_inputs);
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
+    let checked = orchestration::check_source(&mut compiler::CompilationSession::default(), request)
         .result
         .unwrap_or_else(|error| panic!("supplier: {:?}", error.into_diagnostics()));
     let produce = |path| {
@@ -174,7 +174,7 @@ public Wide satisfies Operations<u64> {
                     "both inherited and direct slots"
                 );
                 let result = activation.install_provider(
-                    build_evaluation::BuildDependencySelection {
+                    build_settings::BuildDependencySelection {
                         purpose: build_declarations::DependencyPurpose::Build,
                         request_ordinal: 0,
                         package: supplier,
@@ -247,7 +247,7 @@ fn synchronous_host_computation_retains_the_invocation_without_guest_suspension(
         .expect("sealed fixture inputs");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
+    let checked = orchestration::check_source(&mut compiler::CompilationSession::default(), request)
         .result
         .expect("checked ordinary boundary call");
     let produced = psi_compiler::TerminalProductionRequest::new(
@@ -349,7 +349,7 @@ fn readiness_installs_exact_component_without_replaying_the_receiver() {
         .expect("sealed fixture inputs");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
+    let checked = orchestration::check_source(&mut compiler::CompilationSession::default(), request)
         .result
         .expect("checked component readiness fixture");
     for entry in ["component_entry", "component_premature_entry"] {
@@ -732,7 +732,7 @@ fn readiness_preserves_nested_continuation_and_rejects_unchecked_suspension() {
         .expect("sealed fixture inputs");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
+    let checked = orchestration::check_source(&mut compiler::CompilationSession::default(), request)
         .result
         .expect("checked suspension fixture");
     for machine in [
