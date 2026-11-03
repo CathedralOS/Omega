@@ -31,7 +31,7 @@ machine exercise(flag: bool, expected_path: u64) crashes Trap {
     let mut buffer: [u8; 16] = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     let sample: Value = Value { value: 200 };
     let counter: Counter = Counter { slot: &mut other };
-    PacketCodec::encode(&sample, &mut buffer, counter.slot);
+    encode_packet(&sample, &mut buffer, counter.slot);
     let mut path: u64 = 0;
     let index: u64 = joined_index(other, flag, &write path);
     transition buffer[0] == 0 && buffer[1] == 0 && buffer[2] == 200 && buffer[3] == 1 && chosen == 4 && path == expected_path && items[index] == 7 {
@@ -48,14 +48,13 @@ machine main() crashes Trap {
 }
 
 // The value owner authorizes field visits; the core library writes the bytes.
-data PacketCodec {}
-machine PacketCodec::fields(value: &Value, context: &mut EncodeContext) {
+machine packet_fields(value: &Value, context: &mut EncodeContext) {
     reflect::visit_runtime_fields<Value, CompactBinary::scalar_field>(value, context);
 }
-machine PacketCodec::encode<const N: u64>(value: &Value, out: &mut [u8; N], written: &mut u64) {
+machine encode_packet<const N: u64>(value: &Value, out: &mut [u8; N], written: &mut u64) {
     let mut scratch: [u8; N];
     let mut fields: [EncodedField; 1];
-    transition CompactBinary::encode<Value, PacketCodec::fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
+    transition CompactBinary::encode<Value, packet_fields>(value, &mut out[..], &mut scratch[..], &mut fields[..], 10000u64) {
         EncodeResult::Encoded { next } -> finish(written, next)
         _ -> finish(written, 0u64)
     }

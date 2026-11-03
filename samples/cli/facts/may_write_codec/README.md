@@ -13,7 +13,8 @@ platform-prefixed bodies. Four explicit Build rows select it. The public
 requirement retains both original input bounds; the caller receives a byte,
 not a new promise about reference aliasing or the cursor’s value.
 
-The value owner supplies an ordinary reflection visitor for its numbered field.
+The value owner supplies the free `packet_fields` visitor for its numbered field.
+The free `encode_packet` machine adapts the existing core-library entry.
 The core `CompactBinary` library performs the encoding with explicit output,
 scratch storage, field storage and fuel. Runtime checks observe bytes
 `[0, 0, 200, 1]` as well as the original cursor and indexed result. The match
@@ -108,3 +109,20 @@ Source retention and actual engine observations are separate evidence.
 Other runtime targets and the wider target-source migration remain open. This
 row does not close the codec library’s general schema agreement, decoding or
 wire-protocol customer acceptance.
+
+## Free-helper source migration
+
+`STATIC-MACHINE-MIGRATION` also owns removing the newly introduced helper
+namespace from these examples. The client now declares ordinary free
+`packet_fields` and `encode_packet` machines, rather than declaring code under
+an empty data type. Their explicit arguments, encoding bodies and runtime checks
+are unchanged. The [machines contract](../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state)
+requires this separation; passing engines do not make the retired spelling valid.
+
+The existing public `CompactBinary::encode` and `CompactBinary::scalar_field`
+entries in `source/library/core/wire.omg` still use the library’s older
+qualification. That remains separate library migration debt under the same
+task, with no syntax exemption claimed. This client correction adds no such
+declaration and leaves the existing library API unchanged. Fresh validation of
+the renamed helpers is pending; the earlier results above retain their original
+source identities.
