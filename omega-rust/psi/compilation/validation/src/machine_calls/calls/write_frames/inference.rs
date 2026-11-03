@@ -158,6 +158,15 @@ impl FrameInference {
         }
     }
 
+    /// Entry snapshots belong to one exact state. A nested result query must
+    /// not substitute the outer body's live Boolean bindings for its inputs.
+    pub(super) fn entry_boolean_values(&self, state: &State) -> Option<&[BoolTruth]> {
+        self.parameter_values
+            .as_ref()
+            .filter(|values| values.state == state.symbol)
+            .map(|values| values.entry_values.as_slice())
+    }
+
     pub(super) fn selects_state(&self, state: &State) -> bool {
         self.parameter_values
             .as_ref()

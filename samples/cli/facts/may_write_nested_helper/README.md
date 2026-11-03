@@ -22,7 +22,7 @@ it does not close the wider mutation-summary requirements.
 | const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | `LIMIT` names the index bound |
 | a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | a successor machine receives the index |
 | another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | another machine receives the index |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each hosted target body reloads the index |
+| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | Build selects the checked implementation that reloads the index |
 
 ## Execution
 
@@ -59,7 +59,29 @@ contract, while retaining this existing nine-place mutation-summary fact.
 
 ## Current migration status
 
-The existing programs and oracles are frozen against published main
-`04085b59f9c5227e69c5af03a29aa20e061e0e74`. Their current optimized baseline
-replay is pending. The target-body program still has its original prefixes;
-no compiler failure or completed migration is claimed by this documentation update.
+The original programs and oracles are frozen against published main
+`04085b59f9c5227e69c5af03a29aa20e061e0e74`. The optimized baseline producer
+`a4bbda39bf53e9a65d15cc9612a7feb304423573` differs only in this README;
+its compiler and executable inputs equal that base. Run
+[41549165807](https://github.com/CathedralOS/Omega/actions/runs/41549165807)
+wrongly rejects all nine valid places because the write through the nested
+result discards the untouched input's bound. All nine twins reject. No engine
+executed a positive. A separate same-source comparison in run
+[41551958231](https://github.com/CathedralOS/Omega/actions/runs/41551958231)
+shows the direct-choice local example has the same failure.
+
+The candidate carries the captured Boolean choice through the shared producer
+of returned-reference origins. A completed helper result identifies the input
+that a later store can change. Unknown choices retain every possible destination;
+this precision does not shorten the declared lifetime or grant access.
+The former consumer-specific selection pass is removed. The target example now
+uses one ordinary checked `NestedProbe` implementation and four explicit Build
+selection rows, with the original two input bounds. The implementation returns
+a byte, so it needs no returned-reference promise across that public boundary.
+
+The join example now executes both arms, and an independent marker distinguishes
+the helper arm from the direct arm. Additional controls preserve a reference
+choice captured before a later Boolean store, reject an unknown choice, and
+reject reading an input while the common result lifetime keeps its loan active.
+These candidate changes have not yet been validated. The broader Build migration
+and other hosted targets remain open.

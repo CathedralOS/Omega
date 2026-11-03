@@ -36,6 +36,7 @@ mod input_sources;
 mod primitive_results;
 pub(super) use input_sources::{compose_source, instantiate_source};
 pub(super) use primitive_results::extent_view_types;
+mod selected_sources;
 mod state_equations;
 
 pub(super) fn call_result_origins(
@@ -148,8 +149,9 @@ fn call_body_result_origins(
     let mut relative = if let Some(origin) = primitive_origin {
         origin
     } else {
+        let values = inference.argument_values(program, arguments);
         let indices = inference.argument_indices(program, arguments);
-        inference.with_invocation(program, state, &[], &indices, |inference| {
+        inference.with_invocation(program, state, &values, &indices, |inference| {
             state_result_origins(
                 program,
                 machine,
@@ -197,8 +199,16 @@ pub(super) fn state_result_origins<'program>(
     if inference.active_states.contains(&state.symbol) {
         return None;
     }
+    let parameter_count = program.state_parameters(state).len();
+    let values = inference
+        .entry_boolean_values(state)
+        .filter(|values| values.len() == parameter_count)
+        .map_or_else(
+            || vec![super::inference::BoolTruth::Unknown; parameter_count],
+            |values| values.to_vec(),
+        );
     inference.active_states.push(state.symbol);
-    let result = state_equations::solve(
+    let mut result = state_equations::solve(
         program,
         state,
         expected_result,
@@ -207,6 +217,11 @@ pub(super) fn state_result_origins<'program>(
         include_shared,
     );
     inference.active_states.pop();
+    // Solve all normal-result equations before captured inputs select physical
+    // sources. Provisional unions and state-only memo entries stay unspecialized.
+    if let Some(origins) = &mut result {
+        selected_sources::retain_reachable_sources(program, state, &values, origins);
+    }
     result
 }
 
