@@ -157,53 +157,7 @@ publication, without defining the expression's form.
 `samples/cli/facts/open_index_distributivity` pins the expansion with its reject
 twins.
 
-### 3. May a boundary requirement's own signature bind a generic evidence parameter?
-
-A target-prefixed family member may be generic over an implementation map, for
-example `forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32` in
-`samples/cli/facts/selected_crash_formal/target_body` and
-`selected<Index: u32, Implementation satisfies Choose<Cell>>(...)` in
-`samples/cli/facts/selected_value_application/target_body`. Moving such a
-family to ordinary named implementations selected by target-keyed Build rows
-needs a requirement with the same telescope:
-`boundary trait SelectedForward { machine forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32 ...; }`.
-The parser refuses it ("an evidence binder `Implementation satisfies
-Trait<...>` is not admitted in this parameter list"): requirement signatures
-admit type, const, value and machine parameters but no conformance binder,
-while machine, trait and data declarations admit one. The other places of
-these two folders are unaffected; only their target_body places keep the
-retired prefix.
-
-The product requirement is the one the migration serves: one portable call to a
-generic algorithm whose per-target bodies differ, such as a per-ISA kernel that
-is generic over the arithmetic or ordering map it is applied to.
-
-Option A, admit the binder: a requirement may declare `<I satisfies T<...>>`.
-The caller names the implementation at each call, exactly as for a generic
-machine; every implementation declares the same binder telescope and refines
-the requirement's contract for every admitted `I`; a Build row selects the
-requirement's implementation per target and never fills `I`. Specialization
-then closes each selected implementation at the caller's map.
-
-Option B, keep the exclusion: the evidence binder stays on an ordinary generic
-machine, and only non-generic leaves are selected per target. A fact whose
-selected body is itself generic over the map (these two) is then restated with
-the generic part outside the selected requirement, or moved to a trait-level
-binder (`boundary trait SelectedForward<I satisfies Reader<Zero>>`) if that form
-is intended.
-
-Contracts checked: [named conformances](wiki/spec/language/conformances.md#declaration-and-selection)
-define generic evidence binders and say a Build provider row cannot fill one,
-without saying where a binder may be declared.
-[Build-owned target selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
-and [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
-require ordinary named implementations of an exact requirement and are silent
-on generic requirement telescopes. [Lifetimes](wiki/spec/language/lifetimes.md#binders-and-source-applications)
-lets static callable requirements bind fresh per-invocation lifetimes, and the
-[static machine binder categories](wiki/spec/language/generics.md#static-machine-binder-categories)
-cover machine binders; neither covers evidence binders on a requirement.
-
-### 4. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
+### 3. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
 
 [Epsilon's grammar](bootstrap/4_epsilon/LANGUAGE.md) (lines 128-139) lets an
 arm's continuation be `"return" expression?`, and lets the next arm's pattern
@@ -248,7 +202,7 @@ define observations and resources, not parsing;
 not fix Epsilon's grammar; `implementation_notes.md` describes the probe as
 implementation, not as a language rule.
 
-### 5. Is a layout used only inside unselected library code a Psi obligation under every target?
+### 4. Is a layout used only inside unselected library code a Psi obligation under every target?
 
 A fixed-representation use (`LayoutStorage`, `CLayout`) inside a body that no
 Build row selects and no entry reaches is laid out today by Psi's build-time
