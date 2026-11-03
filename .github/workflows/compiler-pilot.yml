@@ -185,12 +185,21 @@ jobs:
           paths=subprocess.check_output(['git','ls-files','source/library',str(project.relative_to(root))],text=True).splitlines()
           inputs={p:hashlib.sha256((root/p).read_bytes()).hexdigest() for p in paths}
           env=dict(os.environ,OMEGA_LIBRARY_ROOT=str(root/'source/library'))
+          runner=producer_path.parent/'corpus_runner';runner.chmod(0o755)
+          runner_profile=corpus_gate.require_optimized(runner)
+          assert runner_profile['sha256']==original['runner_profile']['sha256']=='5b26cde69deaa5d86a48aa18090731539b8a4a6a85c246adc63c4e77dea7ff86'
+          assert runner_profile['profile']==original['runner_profile']['profile'] and runner_profile['profile']['opt_level']=='1'
+          exits={}
           with (output/'trace.stdout').open('wb') as out,(output/'trace.stderr').open('wb') as err:
-              result=subprocess.run([str(cli),'--check',str(project/'main.omg'),'--target','macos_arm64'],cwd=root,env=env,stdout=out,stderr=err,timeout=240)
+              for leg in ['checking','both']:
+                  arguments=[sys.executable,'tools/corpus_gate.py','--runner',str(runner),'--filter','pass/ownership/runtime_generic_borrowed_case_restore_exit','--json',str(output/(leg+'.json'))]
+                  if leg=='both': arguments.append('--both')
+                  result=subprocess.run(arguments,cwd=root,env=env,stdout=out,stderr=err,timeout=240)
+                  exits[leg]=result.returncode
           for p,digest in inputs.items():assert hashlib.sha256((root/p).read_bytes()).hexdigest()==digest
-          record={'diagnostic_replay':True,'measured_source':source,'producer_run':41640292831,'producer':original,'restored_profile':profile,'inputs':inputs,'exit_code':result.returncode,'runtime':'No engine observation requested or claimed.'}
+          record={'diagnostic_replay':True,'measured_source':source,'producer_run':41640292831,'producer':original,'restored_profile':profile,'inputs':inputs,'exit_codes':exits,'restored_runner_profile':runner_profile,'runtime':'Actual corpus Source and BOTH outcomes are retained in their own JSON reports.'}
           (output/'replay.json').write_text(json.dumps(record,indent=2)+'\n')
-          print('Authenticated retained optimized compiler and replayed frozen source; diagnostic exit',result.returncode)
+          print('Authenticated retained optimized compiler and corpus runner; actual gate exits',exits)
           PYTRACE
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         if: always()
