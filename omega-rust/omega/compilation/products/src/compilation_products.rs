@@ -42,6 +42,10 @@ struct TerminalProduct {
     artifact: RetainedTerminalArtifact,
     /// Exact subtractive release overlay applied after build selection.
     optimization_rollback: Option<OptimizationRollbackReceipt>,
+    /// Present only when a native request stopped after runtime admission for
+    /// Terminal-only execution: the provisions an image of that same request
+    /// would have carried. An ordinary Terminal product grants no host reach.
+    runtime_provisions: Option<crate::TerminalRuntimeProvisions>,
 }
 
 /// A validated native payload retained before any output or runtime
@@ -618,6 +622,7 @@ impl CompileReport {
             }
             CompileProduct::NativeExecutable(product) => product.runtime_provisions.as_ref(),
             CompileProduct::DynamicElfExecutable(product) => product.runtime_provisions.as_ref(),
+            CompileProduct::TerminalArtifact(product) => product.runtime_provisions.as_ref(),
             _ => None,
         }
     }
@@ -699,6 +704,7 @@ impl CompileReport {
             CompileProduct::TerminalArtifact(TerminalProduct {
                 artifact,
                 optimization_rollback: None,
+                runtime_provisions: None,
             }),
         ))
     }
@@ -708,6 +714,20 @@ impl CompileReport {
             CompileProduct::TerminalArtifact(product) => Some(product.artifact.artifact()),
             _ => None,
         }
+    }
+
+    /// Attach the provisions admitted for this exact artifact by a native
+    /// request that stopped before image emission (Terminal-only execution).
+    /// The runtime rejoins their program identity before instantiation.
+    pub(crate) fn with_terminal_runtime_provisions(
+        mut self,
+        provisions: Option<crate::TerminalRuntimeProvisions>,
+    ) -> Result<Self, &'static str> {
+        let CompileProduct::TerminalArtifact(product) = &mut self.product else {
+            return Err("Terminal runtime provisions require a Terminal product");
+        };
+        product.runtime_provisions = provisions;
+        Ok(self)
     }
 
     /// Attach the subtractive build overlay only when the published Psi and

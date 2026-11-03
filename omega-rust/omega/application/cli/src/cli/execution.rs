@@ -3,8 +3,8 @@
 use super::arguments::RunArguments;
 use compiler::CompilerRequestOutcome;
 use omega::execution::{
-    CaseRunRequest, ExecutionOutcome, InterpreterComparison, RunError, RunRequest, run_project,
-    run_project_cases,
+    CaseRunRequest, ExecutionOutcome, ExecutionSelection, InterpreterComparison, RunError,
+    RunRequest, TerminalOutcome, run_project, run_project_cases,
 };
 use std::io::Write;
 
@@ -16,7 +16,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         private_entry_ram: arguments.private_entry_ram,
         root_path: arguments.main_path,
         target_name: arguments.target_name,
-        compare_interpreter: arguments.both,
+        selection: arguments.selection,
         terminal_fuel_allowance: arguments.terminal_fuel_allowance,
         keep_artifacts: arguments.keep,
     }) {
@@ -27,6 +27,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
         }
     };
     let status = match outcome.execution {
+        ExecutionOutcome::Terminal(terminal) => present_terminal(terminal),
         ExecutionOutcome::TargetOnly { target_name } => {
             eprintln!(
                 "compiled for target `{target_name}` OK ({})",
@@ -103,6 +104,74 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     std::process::exit(status);
 }
 
+/// `--engine terminal` status: the program's own exit status, 203 for a
+/// Terminal crash (a process cannot present the native trap signal without
+/// raising it), and 200 when execution support was unavailable before guest
+/// effects or execution stopped without a process result.
+fn present_terminal(outcome: TerminalOutcome) -> i32 {
+    use terminal_runtime::{TerminalExecutionResult, TerminalExecutionStatus};
+    let observation = match outcome {
+        TerminalOutcome::Completed(observation) => observation,
+        TerminalOutcome::Unavailable(reason) => {
+            eprintln!("terminal: UNAVAILABLE ({reason})");
+            return 200;
+        }
+        TerminalOutcome::Failed(reason) => {
+            eprintln!("Terminal execution FAILED: {reason}");
+            return 200;
+        }
+    };
+    let output = std::process::Output {
+        status: std::process::ExitStatus::default(),
+        stdout: observation.stdout,
+        stderr: observation.stderr,
+    };
+    if let Err(error) = forward_program_output(&output) {
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "cannot forward program output: {error}"
+        );
+        return 200;
+    }
+    for (position, contents) in &observation.private_entry_ram {
+        eprint!("entry RAM {position}: ");
+        for byte in contents {
+            eprint!("{byte:02x}");
+        }
+        eprintln!();
+    }
+    match observation.status {
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit) => {
+            eprintln!("terminal exit 0");
+            0
+        }
+        TerminalExecutionStatus::ExternalCompletion(completion) => {
+            eprintln!("terminal exit {}", completion.return_code);
+            completion.return_code
+        }
+        TerminalExecutionStatus::Crashed(crash) => {
+            eprintln!("terminal crash: {:?}", crash.cause);
+            203
+        }
+        TerminalExecutionStatus::Complete(result) => {
+            eprintln!("terminal: program entry returned a non-process result: {result:?}");
+            200
+        }
+        TerminalExecutionStatus::SponsorExhausted(_) => {
+            eprintln!("terminal: execution exhausted its sponsor fuel allowance");
+            200
+        }
+        TerminalExecutionStatus::AwaitingEffect(site) => {
+            eprintln!("terminal: execution awaits host readiness at {site:?}");
+            200
+        }
+        TerminalExecutionStatus::HostComputationPending(site) => {
+            eprintln!("terminal: execution has an unfinished host computation at {site:?}");
+            200
+        }
+    }
+}
+
 /// One compilation, one native run (and Terminal replay with `--both`) per
 /// case: every `*.stdin` file of `--inputs`, or each `--input` file in order.
 /// Per-case streams and statuses go to the output directory; the command
@@ -135,7 +204,7 @@ fn run_cases(arguments: RunArguments, outputs: std::path::PathBuf) -> ! {
     let outcome = match run_project_cases(CaseRunRequest {
         private_entry_ram: arguments.private_entry_ram,
         root_path: arguments.main_path,
-        compare_interpreter: arguments.both,
+        compare_interpreter: arguments.selection == ExecutionSelection::Both,
         terminal_fuel_allowance: arguments.terminal_fuel_allowance,
         inputs: cases,
         output_directory: outputs.clone(),

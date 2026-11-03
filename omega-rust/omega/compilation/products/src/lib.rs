@@ -54,7 +54,7 @@ pub use compile_outcomes::{
 };
 pub use compile_request::options::CompileOptions;
 pub use compile_request::{
-    CheckedCompileRequest, CheckedExecutionRequest, CompileRequest, NativeProductRequest,
+    CheckedCompileRequest, CheckedExecutionRequest, CompileRequest, NativeImageDemand, NativeProductRequest,
     RequestedCompileProduct, SettledCheckReuse,
 };
 pub use evaluated_build::{

@@ -47,6 +47,13 @@ pub(crate) fn complete_products<Owner: Send>(
     completed.into_iter().map(|(_, product)| product).collect()
 }
 
+/// Native production ends in an image, or, for Terminal-only execution, in
+/// the runtime provisions admitted for the retained Terminal artifact.
+enum NativeStop {
+    Image(native_production::RealizedNativeProduct),
+    RuntimeAdmission(Option<compilation_products::TerminalRuntimeProvisions>),
+}
+
 fn complete_native(
     product: PendingNativeProduct,
 ) -> Result<CompilationOutput, CompilationProductError> {
@@ -59,6 +66,7 @@ fn complete_native(
         subsystem,
         mut settlement,
     } = product;
+    let image = request.image;
     let produced = phase_profile::scope("omega.product.produce_native_product", || {
         let selected = components
             .as_ref()
@@ -100,7 +108,16 @@ fn complete_native(
                 .complete(completed)
                 .map_err(|reason| vec![Diagnostic::error(reason)])?;
         }
-        native_production::compile(prepared).map_err(|(_, diagnostics)| diagnostics)
+        match image {
+            compilation_products::NativeImageDemand::Emit => native_production::compile(prepared)
+                .map(NativeStop::Image)
+                .map_err(|(_, diagnostics)| diagnostics),
+            compilation_products::NativeImageDemand::RuntimeAdmissionOnly => {
+                native_production::admit_runtime(prepared)
+                    .map(NativeStop::RuntimeAdmission)
+                    .map_err(|(_, diagnostics)| diagnostics)
+            }
+        }
     });
     let produced = match produced {
         Ok(produced) => produced,
@@ -115,10 +132,15 @@ fn complete_native(
     let report = phase_profile::scope(
         "omega.product.settlement_finish_native",
         || -> Result<_, CompilationProductError> {
-            Ok(settlement
-                .finish_native(produced.artifact, rollback.into_receipt())?
-                .with_runtime_provisions(produced.runtime_provisions)
-                .map_err(|message| vec![Diagnostic::error(message)])?)
+            match produced {
+                NativeStop::Image(produced) => Ok(settlement
+                    .finish_native(produced.artifact, rollback.into_receipt())?
+                    .with_runtime_provisions(produced.runtime_provisions)
+                    .map_err(|message| vec![Diagnostic::error(message)])?),
+                NativeStop::RuntimeAdmission(provisions) => {
+                    Ok(settlement.finish_terminal_runtime(terminal, provisions)?)
+                }
+            }
         },
     )
     .map_err(|error| CompilationProductError::ProductionAttempt {
