@@ -13,7 +13,6 @@ use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::ExpressionNode;
-use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
 use crate::execution::terminal_unit::types::{
     base_type_identity, borrowed_slice_view_element, dense_scalar_parameter_index,
@@ -430,14 +429,9 @@ pub(crate) fn borrowed_storage_argument(
     } else {
         Default::default()
     };
-    if whole_storage
-        && !matches!(
-            program.type_multiplicity(reference),
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        )
-    {
-        return None;
-    }
+    // Lending a linear value keeps its owner and cleanup obligation intact.
+    // The borrowed-storage and exact loan checks below authorize this access;
+    // owned-value multiplicity cannot reject a loan of the same existing home.
     // The logical root is checked here, while its physical carrier is only
     // known after the dominating operation publishes storage. Keep the root
     // with every local loan; initializer spelling cannot decide whether that
