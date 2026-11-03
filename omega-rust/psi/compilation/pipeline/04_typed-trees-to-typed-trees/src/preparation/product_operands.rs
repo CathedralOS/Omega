@@ -178,10 +178,12 @@ pub fn prepare_product_requirement_operand(
     // This newly joined source occurrence may introduce a previously unused
     // outer telescope. Prepare its logical signatures through the same owner
     // as ordinary applied requirement calls before requesting an instance.
-    lower
+    let signatures = lower
         .program
         .prepare_applied_callable_signatures()
         .map_err(|reason| refuse(&reason))?;
+    crate::monomorphization::finalize_callable_signature_identities(lower.program, signatures)
+        .map_err(|diagnostic| vec![diagnostic])?;
     let Some((owner, signature)) = lower.program.trait_machine_signature(requirement) else {
         return Err(refuse(
             "an applied native declaration must be a public requirement member",

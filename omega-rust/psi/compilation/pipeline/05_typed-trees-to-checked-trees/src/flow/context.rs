@@ -187,13 +187,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// does not imply the same applied local index tuple.
     pub(super) call_result_identities: HashMap<
         (SymbolHandle, usize, typed_trees::types::TypeReferenceHandle),
-        Rc<
-            Vec<(
-                Vec<facts::PlaceSegment>,
-                SymbolHandle,
-                language_semantics::SemanticDomainId,
-            )>,
-        >,
+        Rc<Vec<validation::field_domains::FieldDomainContract>>,
     >,
     /// The type-driven half of `call_result_qualification_identities`:
     /// owned-field and constraint domain rows keyed by return type, shared
@@ -201,13 +195,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// pays the scan once rather than each distinct target.
     pub(super) result_identity_domain_rows: HashMap<
         typed_trees::types::TypeReferenceHandle,
-        Rc<
-            Vec<(
-                Vec<facts::PlaceSegment>,
-                SymbolHandle,
-                language_semantics::SemanticDomainId,
-            )>,
-        >,
+        Rc<Vec<validation::field_domains::FieldDomainContract>>,
     >,
     /// Out-parameter `ensures <parameter> in D` rows per invocation: the same
     /// program-pure contract collection as `call_result_identities`.

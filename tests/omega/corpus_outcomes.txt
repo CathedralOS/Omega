@@ -113,6 +113,16 @@ fail/contracts/completed_anonymous_cast_out_of_range_rejected rejected 401ms exp
 	anonymous value `2147483648` cannot land exactly in cast target `i32` in machine `exercise` state `entry` local `shifted`; type an operand before division if integer division was intended
 fail/contracts/completed_unit_call_requires_entry_case rejected 1331ms expected @d2f3e99f1e08
 	cannot prove requires contract for call retain from main: choice == constructor:80:package:d763eef68b74911c6c73d80b6728d886b63f0a89ca52797e221e9658799aab4d::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/generic_issued_result_exit rejected 3449ms expected @af6bba8b4fb9
+	cannot prove default-domain field requirement for return from Adapter::get, state get, at statement 0: Outcome::Ready.ticket requires Issued
+	construction value is not proven in domain `Issued` in Adapter::get$specialized$a688256335236c09$0$2689 state `get` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from Adapter::get$specialized$a688256335236c09$0$2689, state get, at statement 0: Outcome::Ready.ticket requires Issued
+	construction value is not proven in domain `Issued` in Adapter::get$specialized$732a66838ed32b27$1$2692 state `get` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from Adapter::get$specialized$732a66838ed32b27$1$2692, state get, at statement 0: Outcome::Ready.ticket requires Issued
+fail/contracts/generic_issued_result_wrong_type rejected 3333ms expected @af6bba8b4fb9
+	index compatibility condition `index-equality:Issued:relay::entry:call-1-0:Issued<Word>==Issued<FirstRole>` is not established: actual `Issued<Word>` and expected `Issued<FirstRole>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Issued:relay$specialized$686c6d9df5a0cdd5$0$2683::entry:call-1-0:Issued<Word>==Issued<FirstRole>` is not established: actual `Issued<Word>` and expected `Issued<FirstRole>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
+	index compatibility condition `index-equality:Issued:relay$specialized$18e2f5c80845adeb$1$2687::entry:call-1-0:Issued<Word>==Issued<FirstRole>` is not established: actual `Issued<Word>` and expected `Issued<FirstRole>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/contracts/recursive_private_arrival_exit rejected 2447ms expected @7391b2ce665a
 	cannot prove requires contract for call ones from emit: 48 <= 48 + rest && 48 + rest <= 57 (needs fact `48 <= value && value <= 57` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call ones from digit: 48 <= 48 + rest && 48 + rest <= 57 (needs fact `48 <= value && value <= 57` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -4927,6 +4937,7 @@ pass/contracts/float_guard_disjoint_operand_write rejected 5456ms check-target:m
 	call from `read` to `invalid` at statement 1 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 pass/contracts/folded_actual_requires checked 3653ms @ccdb99ca2214
 pass/contracts/generic_effective_result_comparison_exit checked 3300ms check-target:macos_arm64 @ccdb99ca2214
+pass/contracts/generic_issued_result_exit checked 4553ms check-target:macos_arm64 @af6bba8b4fb9
 pass/contracts/guard_conjunct_survives_disjoint_state_write_assert_exit checked 3923ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/guard_conjunct_survives_disjoint_state_write_exit checked 16651ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/header_blocks_before_body checked 2158ms @2fc408782574

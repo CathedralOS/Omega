@@ -333,8 +333,8 @@ fn resident_owners_in_type(
     }
     let mut paths = UniqueRoster::default();
     paths.push(Vec::new());
-    for (path, _, _) in roster.identities {
-        paths.push(path);
+    for row in roster.domains {
+        paths.push(row.identity.0);
     }
     for path in paths.into_vec() {
         let projected = project_type_reference_from_segments(program, reference, &path)?;
