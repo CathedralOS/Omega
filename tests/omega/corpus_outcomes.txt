@@ -3552,6 +3552,9 @@ fail/termination/forwarding_state_in_ranked_loop rejected 1682ms expected @a9ae3
 fail/termination/nested_helper_field_rank_subject_not_decreasing rejected 9094ms expected @7fc524eaec1a+wt
 	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/nested_helper_nested_field_rank_subject_not_decreasing rejected 7221ms expected @39f3b68ee83e
+	terminating machine iterate: cannot prove strict rank decrease on a recurrent arrival: the transition from `iterate` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `iterate` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/nested_machine_computed_distance_indexed_upper_rejected rejected 4231ms expected @6c0b29931314
 	machine call cycle: `count`, `forward`, `reduce` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/nested_machine_computed_distance_missing_formation rejected 3030ms expected @6c0b29931314
@@ -14579,6 +14582,7 @@ pass/termination/native_layout_family_premises checked 3817ms check-target:linux
 pass/termination/native_layout_ordinary_progress checked 4103ms check-target:linux_x86_64 @ccdb99ca2214
 pass/termination/natural_call_variable_step checked 2302ms @ccdb99ca2214
 pass/termination/nested_helper_field_rank_subject_exit checked 13418ms check-target:macos_arm64 @7fc524eaec1a+wt
+pass/termination/nested_helper_nested_field_rank_subject_exit checked 9507ms check-target:macos_arm64 @39f3b68ee83e
 pass/termination/nested_leaf_rank checked 2841ms @ccdb99ca2214
 pass/termination/nested_machine_computed_distance_indexed_upper_exit checked 4191ms check-target:macos_arm64 @6c0b29931314
 pass/termination/nested_machine_computed_distance_narrow_inputs_exit checked 3895ms check-target:macos_arm64 @6c0b29931314
