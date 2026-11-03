@@ -53,7 +53,7 @@ pub enum FunctionFragmentCallbackMaterializationEncoding {
 /// materialization emitted inside one callback-bearing normalized foreign
 /// call. Its fields stay unresolved for object construction, which binds them
 /// to the thunk's private symbol.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FunctionFragmentCallbackMaterialization {
     /// Where the materialized address lands — the exact register or outgoing
     /// stack slot the evaluated callback application names.

@@ -446,6 +446,13 @@ fn retained_formation_sources(
     if validation::reference_formation_source(program, expression).is_none() {
         return sources;
     }
+    retain_formation_parents(sources, loan_trackers)
+}
+
+pub(super) fn retain_formation_parents(
+    sources: Vec<RebasedBorrowPlace>,
+    loan_trackers: &[StateLoanTracker],
+) -> Vec<RebasedBorrowPlace> {
     sources
         .into_iter()
         .flat_map(|source| {

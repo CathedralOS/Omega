@@ -16,7 +16,7 @@ impl BoundaryCallingApplication {
             .span(self.signature.native_parameter_rows)
             .ok_or("native telescope has stale row storage")?;
         let mut strong =
-            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v8");
+            crate::digest_encoder::DomainDigestEncoder::new(b"omega.boundary-plan-application.v9");
         self.call_projection()?;
         strong.raw(&self.dispatch_only_parameter_count.to_le_bytes());
         strong.string(&self.requirement_identity);
@@ -132,7 +132,7 @@ impl BoundaryCallingApplication {
             .ok_or("callback catalog has stale entry storage")?;
         strong.len(catalog.len());
         for entry in catalog {
-            entry.field_offset(self.target)?;
+            entry.field_placements(self.target)?;
             entry.encode(&mut strong)?;
         }
         let bindings = self
