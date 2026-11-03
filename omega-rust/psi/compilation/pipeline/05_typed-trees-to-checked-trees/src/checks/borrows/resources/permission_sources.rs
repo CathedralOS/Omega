@@ -32,7 +32,7 @@ pub(super) fn lending_sources(
     source: Handle<FlowOperandFact>,
     projection: &[facts::PlaceSegment],
     access: &checked_trees::BorrowAccessKind,
-) -> Option<(Vec<PermissionSupplier>, Arena<Handle<BorrowLoanFact>>)> {
+) -> Result<(Vec<PermissionSupplier>, Arena<Handle<BorrowLoanFact>>), &'static str> {
     use super::formation_captures::{AddressReceiver, address_receiver, formation_capture};
     let capture = facts.flow.control.operands.get(source);
     let mut lending = source;
@@ -43,14 +43,16 @@ pub(super) fn lending_sources(
     if projection.is_empty()
         && let Some(formation) = validation::reference_formation_source(program, capture.expression)
     {
-        let target = formation_capture(facts, source, formation.source)?;
+        let target = formation_capture(facts, source, formation.source)
+            .ok_or("the explicit reference source has no completed capture")?;
         match address_receiver(program, facts, target) {
             AddressReceiver::Reference {
                 capture: receiver,
                 projection,
             } => {
                 let target_type = facts.flow.control.operands.get(target).type_reference;
-                let result = validation::reference_shell(program, capture.type_reference)?;
+                let result = validation::reference_shell(program, capture.type_reference)
+                    .ok_or("the captured formation is not a reference")?;
                 if formation.interpretation
                     == validation::ReferenceFormationInterpretation::Declared
                     && validation::storage_origin_types_match(program, result.referee, target_type)
@@ -66,7 +68,9 @@ pub(super) fn lending_sources(
                 }
             }
             AddressReceiver::InlineValue => argument_grant = true,
-            AddressReceiver::Unavailable => return None,
+            AddressReceiver::Unavailable => {
+                return Err("the formation receiver has no complete descriptor path");
+            }
         }
     }
     // An explicit argument formation or incoming association can request the
@@ -92,7 +96,10 @@ pub(super) fn lending_sources(
         &mut parents,
     );
     if !complete || suppliers.is_empty() {
-        return None;
+        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+            report_source_refusal(program, facts, state, lending, lending_path);
+        }
+        return Err("the saved descriptor has no complete checked borrowing source");
     }
     if !argument_grant {
         for supplier in &mut suppliers {
@@ -100,10 +107,11 @@ pub(super) fn lending_sources(
                 .backing
                 .segments
                 .extend_from_slice(&actual_projection);
-            crate::flow::compose_captured_view_segments(&mut supplier.backing.segments)?;
+            crate::flow::compose_captured_view_segments(&mut supplier.backing.segments)
+                .ok_or("the captured source projection cannot be composed")?;
         }
     }
-    Some((suppliers, parents))
+    Ok((suppliers, parents))
 }
 
 /// An unchanged entry descriptor has a borrowing owner at its captured cut.
@@ -705,7 +713,8 @@ fn is_independent_return(
         || !facts.borrow.state_owns_loan(borrow_state, loan)
         || !facts
             .borrow
-            .state_owns_incoming_reference(borrow_state, row.incoming_reference)
+            .incoming_references
+            .is_valid(row.incoming_reference)
     {
         return false;
     }
@@ -714,7 +723,14 @@ fn is_independent_return(
     else {
         return false;
     };
-    expression == capture.expression
+    identity.machine_symbol == state.machine_symbol
+        && identity.state_symbol == state.state_symbol
+        && facts
+            .borrow
+            .owner_segments
+            .span_or_empty(identity.owner_path)
+            == facts.borrow.loan_owner_path(row)
+        && expression == capture.expression
         && row.root == facts::PlaceRoot::Expression(expression)
         && state.calls.handles().any(|invocation| {
             let call = facts.flow.control.calls.get(invocation);
@@ -723,4 +739,80 @@ fn is_independent_return(
                 && validation::call_target_entry_symbol(program, call.target_symbol)
                     == validation::call_target_entry_symbol(program, target)
         })
+}
+
+fn report_source_refusal(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    source: Handle<FlowOperandFact>,
+    projection: &[facts::PlaceSegment],
+) {
+    let mut pending = vec![(source, projection.to_vec())];
+    let mut visited = Vec::new();
+    while let Some((source, projection)) = pending.pop() {
+        if !facts.flow.control.operands.is_valid(source)
+            || visited.contains(&(source, projection.clone()))
+        {
+            continue;
+        }
+        visited.push((source, projection.clone()));
+        let capture = facts.flow.control.operands.get(source);
+        let frozen = match frozen_reference_leaf(program, &facts.flow.control, source, &projection)
+        {
+            FrozenReferenceSelection::Unavailable => "unavailable",
+            FrozenReferenceSelection::NotFrozen => "ordinary",
+            FrozenReferenceSelection::ThroughReference => "crossing",
+            FrozenReferenceSelection::Endpoint { .. } => "frozen endpoint",
+        };
+        eprintln!(
+            "CHECKSITE projected-source capture={:?} expression={:?} statement={} type={:?} completion={:?} path={:?} frozen={} constraints={:?}",
+            source,
+            capture.expression,
+            capture.statement_index,
+            capture.type_reference,
+            capture.completion,
+            projection,
+            frozen,
+            facts
+                .flow
+                .borrow_loan_constraints(capture.constraints)
+                .collect::<Vec<_>>()
+        );
+        if let Some((_, borrow_state)) = facts
+            .borrow
+            .first_state_borrow(state.machine_symbol, state.state_symbol)
+        {
+            for (loan, row) in facts
+                .borrow
+                .state_loans(borrow_state)
+                .filter(|(_, row)| row.formation_expression == capture.expression)
+            {
+                eprintln!(
+                    "CHECKSITE projected-source formation={:?} statement={} path={:?} lineage={:?} origin={:?} independent={}",
+                    loan,
+                    row.statement_index,
+                    row.formation_owner_path
+                        .map(|path| facts.borrow.owner_segments.span_or_empty(path)),
+                    row.lineage,
+                    facts
+                        .borrow
+                        .incoming_references
+                        .is_valid(row.incoming_reference)
+                        .then(|| facts.borrow.incoming_references.get(row.incoming_reference)),
+                    is_independent_return(program, facts, state, loan, row, capture)
+                );
+            }
+        }
+        if let Some(previous) = validation::completed_storage::predecessors_in_control(
+            program,
+            &facts.flow.control,
+            source,
+            &projection,
+            validation::completed_storage::StoredObservation::Binding,
+            Some((state.state_symbol, state.statements)),
+        ) {
+            pending.extend(previous);
+        }
+    }
 }

@@ -189,7 +189,7 @@ fn validate_source(
     if projection.is_empty() || access.direct_reborrow_effect(&row.kind).is_none() {
         return refusal("returned projection exceeds its source presentation");
     }
-    let Some((suppliers, parent_rows)) = super::super::permission_sources::lending_sources(
+    let (suppliers, parent_rows) = super::super::permission_sources::lending_sources(
         program,
         facts,
         flow_state,
@@ -197,9 +197,12 @@ fn validate_source(
         source.operand,
         source_path,
         &access,
-    ) else {
-        return refusal("returned projection has incomplete captured source permission");
-    };
+    )
+    .map_err(|reason| {
+        vec![Diagnostic::error(format!(
+            "returned projection source permission is unavailable: {reason}"
+        ))]
+    })?;
     let mut selected = false;
     for supplier in suppliers {
         let mut place = supplier.backing;
