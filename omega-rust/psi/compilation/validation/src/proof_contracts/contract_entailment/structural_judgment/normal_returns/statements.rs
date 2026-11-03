@@ -143,6 +143,12 @@ impl<'program> StructuralJudge<'program> {
                         .equations
                         .into_iter()
                         .map(CapturedResultEquation::public)
+                        .chain(
+                            guarantees
+                                .data_identities
+                                .into_iter()
+                                .map(CapturedResultEquation::data_identity),
+                        )
                         .collect(),
                 );
                 for case in judge.normal_call_case_guarantees(

@@ -223,6 +223,7 @@ impl StructuralJudge<'_> {
                 )?,
                 EntryEvidence::UnconditionalBoolean(literal) => SelectedGuarantees {
                     equations: vec![(result?.clone(), literal.clone())],
+                    data_identities: Vec::new(),
                     content: Vec::new(),
                 },
             };
@@ -234,6 +235,17 @@ impl StructuralJudge<'_> {
                         .any(|(other_left, other_right)| {
                             (left == other_left && right == other_right)
                                 || (left == other_right && right == other_left)
+                        })
+                });
+                common.data_identities.retain(|(left, right)| {
+                    guarantees
+                        .data_identities
+                        .iter()
+                        .any(|(other_left, other_right)| {
+                            (left.same_resolution_payload(other_left)
+                                && right.same_resolution_payload(other_right))
+                                || (left.same_resolution_payload(other_right)
+                                    && right.same_resolution_payload(other_left))
                         })
                 });
                 common.content.retain_mut(|law| {
@@ -308,6 +320,7 @@ impl StructuralJudge<'_> {
             }
         }
         let mut equations = Vec::new();
+        let mut data_identities = Vec::new();
         for contract in owner_contracts(program, owner)
             .filter(|contract| contract.kind == SignatureContractKind::Ensures)
         {
@@ -323,6 +336,7 @@ impl StructuralJudge<'_> {
                         type_bindings,
                         result,
                         &mut equations,
+                        &mut data_identities,
                         depth + 1,
                     );
                 }
@@ -361,6 +375,10 @@ impl StructuralJudge<'_> {
         } else {
             Vec::new()
         };
-        Some(SelectedGuarantees { equations, content })
+        Some(SelectedGuarantees {
+            equations,
+            data_identities,
+            content,
+        })
     }
 }

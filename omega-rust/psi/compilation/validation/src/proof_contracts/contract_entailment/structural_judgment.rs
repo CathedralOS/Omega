@@ -24,6 +24,7 @@ use typed_trees::types::PrimitiveType;
 use typed_trees::types::TypeReferenceHandle;
 
 mod cases;
+mod data_identity;
 mod domain_premises;
 mod equations;
 pub(in crate::proof_contracts::contract_entailment) use domain_premises::data_application_static_bindings;
@@ -713,6 +714,10 @@ impl<'program> StructuralJudge<'program> {
                 .get(base.rewrites.entries().len()..)
                 .is_some_and(|added| added.iter().all(|(_, rhs)| is_bool(rhs)))
             && self
+                .captured_result_equations
+                .get(base.captured_result_equations.len()..)
+                .is_some_and(|added| added.iter().all(|equation| !equation.is_data_identity()))
+            && self
                 .normal_guarantees
                 .get(base.normal_guarantees.len()..)
                 .is_some_and(|added| {
@@ -1037,7 +1042,7 @@ impl<'program> StructuralJudge<'program> {
         }
         judge.premise_facts.extend_from_slice(requires);
         for fact in requires {
-            judge.intake(program, *fact);
+            judge.intake_proposition(program, *fact);
             judge.intake_entry_collection_predicate(*fact);
             if let Some(state) = state {
                 judge.retain_entry_scalar_reads(state, *fact);
@@ -1091,7 +1096,7 @@ impl<'program> StructuralJudge<'program> {
         requires: &[ExpressionHandle],
         resolve_applications: bool,
     ) -> Self {
-        Self::from_declaration_requires(
+        let mut judge = Self::from_declaration_requires(
             program,
             judged_machine.symbol,
             program
@@ -1101,7 +1106,11 @@ impl<'program> StructuralJudge<'program> {
                 .unwrap_or_default(),
             requires,
             resolve_applications,
-        )
+        );
+        for fact in requires {
+            judge.retain_proposition_identity(*fact);
+        }
+        judge
     }
 
     pub(super) fn from_declaration_requires(
@@ -3202,7 +3211,10 @@ impl<'program> StructuralJudge<'program> {
         term.for_each_child(|child| Self::self_applications(child, selected_target, found));
     }
 
-    pub(super) fn judge(
+    /// Contracts supply proposition context to this expression and its logical
+    /// children. Executable conditions use the observed-predicate entrance;
+    /// their equality operation cannot acquire mathematical data identity here.
+    pub(super) fn judge_proposition(
         &self,
         program: &dyn crate::CheckingInput,
         fact: ExpressionHandle,
@@ -3281,25 +3293,50 @@ impl<'program> StructuralJudge<'program> {
             BinaryOperator::And if self.has_boolean_connective_meaning(fact) => {
                 StructuralJudgment::connective(
                     BinaryOperator::And,
-                    self.judge(program, binary.left),
-                    self.judge(program, binary.right),
+                    self.judge_proposition(program, binary.left),
+                    self.judge_proposition(program, binary.right),
                 )
             }
             BinaryOperator::Or if self.has_boolean_connective_meaning(fact) => {
                 self.judge_disjunction(binary.left, binary.right)
             }
             BinaryOperator::Equal | BinaryOperator::NotEqual => {
-                if let Some(judgment) = self.judge_value_predicate(fact) {
-                    return judgment;
-                }
-                if let Some(judgment) = self.judge_ieee_equality(fact) {
-                    return judgment;
-                }
-                if self.entry_storage_observations_preserved(fact)
-                    && let Some(holds) = crate::proof_contracts::float_projection_bindings::semantic_values::closed_float_meaning_equality(
-                    program, self.machine_symbol, fact,
-                ) {
-                    return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };
+                let data_identity = self.declaration_scope().is_some_and(|(owner, parameters)| {
+                    super::structural_terms::data_identity_operand_references(
+                        program, owner, parameters, fact,
+                    )
+                    .is_some()
+                });
+                if data_identity {
+                    // Prop selects data Id before any executable comparison.
+                    // Failure to observe its operands cannot select Equatable
+                    // or IEEE comparison as an alternative meaning.
+                    let Some([left, right]) = self.declaration_data_identity_terms(fact) else {
+                        return StructuralJudgment::Unknown;
+                    };
+                    if matches!(
+                        self.judge_data_identity(left, right, 0),
+                        StructuralJudgment::Proven
+                    ) {
+                        return if binary.operator == BinaryOperator::Equal {
+                            StructuralJudgment::Proven
+                        } else {
+                            StructuralJudgment::Refuted
+                        };
+                    }
+                } else {
+                    if let Some(judgment) = self.judge_value_predicate(fact) {
+                        return judgment;
+                    }
+                    if let Some(judgment) = self.judge_ieee_equality(fact) {
+                        return judgment;
+                    }
+                    if self.entry_storage_observations_preserved(fact)
+                        && let Some(holds) = crate::proof_contracts::float_projection_bindings::semantic_values::closed_float_meaning_equality(
+                        program, self.machine_symbol, fact,
+                    ) {
+                        return if holds { StructuralJudgment::Proven } else { StructuralJudgment::Refuted };
+                    }
                 }
                 if !self.has_identity_equality_meaning(fact) {
                     if super::struct_trace() {

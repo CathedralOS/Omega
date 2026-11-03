@@ -50,6 +50,7 @@ impl StructuralJudge<'_> {
         state: &State,
         expression: ExpressionHandle,
         captured: &super::super::StructuralTerm,
+        pending: Vec<super::super::super::scoped_arithmetic::PendingScopedCallResultObservation>,
     ) -> Vec<super::super::normal_returns::PostCallStorage> {
         if !self.requires_value_preservation() {
             return Vec::new();
@@ -60,9 +61,24 @@ impl StructuralJudge<'_> {
             return Vec::new();
         };
         let mut staged = Vec::new();
-        for observation in
-            crate::scoped_call_result_observations(self.program, machine, state, expression)
-        {
+        for candidate in pending {
+            if !candidate.requires_backing
+                || !self.completed_result_coordinate_is_formed(reference, captured, &candidate)
+            {
+                continue;
+            }
+            let Some(observation) = (|| {
+                super::super::super::scoped_arithmetic::resolve_scoped_call_result_observation(
+                    self.program,
+                    machine,
+                    state,
+                    expression,
+                    candidate,
+                    Some(self.frame_resolver()?),
+                )
+            })() else {
+                continue;
+            };
             let Some(backing) = observation.backing else {
                 continue;
             };
@@ -143,6 +159,79 @@ impl StructuralJudge<'_> {
             }
         }
         staged
+    }
+
+    /// A coordinate becomes available only after the completed public promises
+    /// establish its case and extent. Project descriptor words for the extent;
+    /// the bytes themselves still require the separate backing authentication.
+    fn completed_result_coordinate_is_formed(
+        &self,
+        reference: TypeReferenceHandle,
+        captured: &super::super::StructuralTerm,
+        pending: &super::super::super::scoped_arithmetic::PendingScopedCallResultObservation,
+    ) -> bool {
+        let formed = (|| {
+            let path = &pending.observation.path;
+            for required in &pending.cases {
+                let prefix = path.get(..=required.prefix_length)?;
+                if !matches!(prefix.last(), Some(facts::PlaceSegment::Case { variant }) if *variant == required.variant)
+                {
+                    return None;
+                }
+                super::super::super::observed_projections::project_observed_value_in_scope(
+                    self.program,
+                    self,
+                    reference,
+                    captured.clone(),
+                    prefix,
+                )?;
+            }
+            for required in &pending.indices {
+                let prefix = path.get(..required.prefix_length)?;
+                if !matches!(path.get(required.prefix_length), Some(facts::PlaceSegment::FixedIndex { index }) if *index == required.index)
+                {
+                    return None;
+                }
+                let collection_type =
+                    crate::project_type_reference_from_segments(self.program, reference, prefix)?;
+                let descriptor =
+                    super::super::super::observed_projections::project_observed_value_in_scope(
+                        self.program,
+                        self,
+                        reference,
+                        captured.clone(),
+                        prefix,
+                    )?;
+                let length = super::super::super::structural_terms::observed_collection_measure(
+                    self.program,
+                    collection_type,
+                    language_semantics::declaration_selection::CollectionMeasure::Length,
+                    || Some(descriptor),
+                )?;
+                let index = u64::try_from(required.index).ok()?;
+                let question = super::super::StructuralTerm::MathematicalBinary {
+                    operator: typed_trees::expression::BinaryOperator::Less,
+                    left: Box::new(super::super::StructuralTerm::Integer(
+                        numerics::bignum::BigInt::from_u64(index),
+                    )),
+                    right: Box::new(length),
+                };
+                if !matches!(
+                    self.judge_observed_predicate(question, 0),
+                    super::super::StructuralJudgment::Proven
+                ) {
+                    return None;
+                }
+            }
+            Some(())
+        })();
+        if formed.is_none() && super::super::super::struct_trace() {
+            eprintln!(
+                "STRUCT result-observation-pending source={:?} path={:?} phase=case-or-extent",
+                pending.observation.expression, pending.observation.path,
+            );
+        }
+        formed.is_some()
     }
 
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn install_post_call_storage(

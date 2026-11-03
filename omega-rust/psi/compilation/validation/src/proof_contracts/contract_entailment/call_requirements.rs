@@ -799,17 +799,25 @@ fn runtime_predicate_fact(
                 && runtime_predicate_fact(program, machine, state, binary.right)
         }
         BinaryOperator::Equal | BinaryOperator::NotEqual => {
-            super::structural_terms::has_identity_equality_meaning(
-                program,
-                machine.symbol,
-                program.state_parameters(state),
-                expression,
-            ) || runtime_fact_for_parameters(
+            super::structural_terms::data_identity_operand_references(
                 program,
                 machine.symbol,
                 program.state_parameters(state),
                 expression,
             )
+            .is_some()
+                || super::structural_terms::has_identity_equality_meaning(
+                    program,
+                    machine.symbol,
+                    program.state_parameters(state),
+                    expression,
+                )
+                || runtime_fact_for_parameters(
+                    program,
+                    machine.symbol,
+                    program.state_parameters(state),
+                    expression,
+                )
         }
         _ => runtime_fact_for_parameters(
             program,
@@ -846,9 +854,14 @@ fn runtime_fact_for_parameters(
         if matches!(
             binary.operator,
             BinaryOperator::Equal | BinaryOperator::NotEqual
-        ) && super::structural_terms::has_identity_equality_meaning(
+        ) && (super::structural_terms::data_identity_operand_references(
             program, owner, parameters, expression,
-        ) {
+        )
+        .is_some()
+            || super::structural_terms::has_identity_equality_meaning(
+                program, owner, parameters, expression,
+            ))
+        {
             // A formed data-Id requirement is a supported prefix question,
             // not an executable Boolean equality application or a proof of it.
             return true;

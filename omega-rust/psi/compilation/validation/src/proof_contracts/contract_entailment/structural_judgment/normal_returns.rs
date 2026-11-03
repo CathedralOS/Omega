@@ -14,12 +14,13 @@ mod call_bindings;
 mod call_completion;
 mod call_preparation;
 mod collection_extents;
+mod completed_equations;
 mod completed_scalar_calls;
 mod completed_values;
 mod expression_completion;
 mod statement_completion;
 mod statements;
-pub(super) use completed_scalar_calls::CapturedResultEquation;
+pub(super) use completed_equations::CapturedResultEquation;
 pub(in crate::proof_contracts::contract_entailment) use statement_completion::CompletedStatement;
 mod match_captures;
 mod match_composition;
@@ -382,7 +383,11 @@ impl<'program> StructuralJudge<'program> {
             _ => (value, None),
         };
         let mut paths = Vec::new();
-        for equation in self.captured_result_equations.iter() {
+        for equation in self
+            .captured_result_equations
+            .iter()
+            .filter(|equation| !equation.is_data_identity())
+        {
             let (left, right) = (&equation.left, &equation.right);
             for term in [left, right] {
                 let StructuralTerm::Projection { subject, path } = term else {
@@ -435,7 +440,13 @@ impl<'program> StructuralJudge<'program> {
         if self.captured_result_equations.is_empty() {
             return value;
         }
-        self.completed_value_identity_at(value, 0, self.captured_result_equations.iter())
+        self.completed_value_identity_at(
+            value,
+            0,
+            self.captured_result_equations
+                .iter()
+                .filter(|equation| !equation.is_data_identity()),
+        )
     }
 
     /// Both views borrow the same ordered facts; numeric projection excludes

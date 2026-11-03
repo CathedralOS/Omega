@@ -2846,11 +2846,14 @@ pub(super) fn structural_arm_judge<'program>(
     // enclosing machine's entry contract would donate stale facts to a named
     // recurrent state whose same-spelled formals are distinct declarations.
     let requires = judge.premise_facts().to_vec();
-    let vacuous = requires
-        .iter()
-        .any(|fact| matches!(arm_judge.judge(program, *fact), StructuralJudgment::Refuted));
+    let vacuous = requires.iter().any(|fact| {
+        matches!(
+            arm_judge.judge_proposition(program, *fact),
+            StructuralJudgment::Refuted
+        )
+    });
     for fact in &requires {
-        arm_judge.intake(program, *fact);
+        arm_judge.intake_proposition(program, *fact);
         arm_judge.intake_preserved_predicate(*fact);
     }
     arm_judge.hypotheses_contradictory |= vacuous;

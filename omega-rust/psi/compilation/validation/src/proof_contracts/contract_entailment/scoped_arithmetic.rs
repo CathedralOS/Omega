@@ -189,6 +189,26 @@ pub struct ScopedCallResultObservation {
     pub(crate) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
 }
 
+/// A public result coordinate can be discovered before its case and extent
+/// are established at this call. These requirements grant no observation.
+pub(in crate::proof_contracts::contract_entailment) struct PendingScopedCallResultObservation {
+    pub observation: ScopedCallResultObservation,
+    pub declaration_root: ExpressionHandle,
+    pub cases: Vec<CallResultCaseRequirement>,
+    pub indices: Vec<CallResultIndexRequirement>,
+    pub requires_backing: bool,
+}
+
+pub(in crate::proof_contracts::contract_entailment) struct CallResultCaseRequirement {
+    pub prefix_length: usize,
+    pub variant: symbols::SymbolHandle,
+}
+
+pub(in crate::proof_contracts::contract_entailment) struct CallResultIndexRequirement {
+    pub prefix_length: usize,
+    pub index: usize,
+}
+
 pub fn scoped_call_result_observations(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -196,6 +216,28 @@ pub fn scoped_call_result_observations(
     expression: ExpressionHandle,
 ) -> Vec<ScopedCallResultObservation> {
     calls::result_observations::result_observations(program, machine, state, expression)
+}
+
+pub(in crate::proof_contracts::contract_entailment) fn pending_scoped_call_result_observations(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Vec<PendingScopedCallResultObservation> {
+    calls::result_observations::pending_result_observations(program, machine, state, expression)
+}
+
+pub(in crate::proof_contracts::contract_entailment) fn resolve_scoped_call_result_observation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    pending: PendingScopedCallResultObservation,
+    frames: Option<&crate::CallFrameResolver<'_>>,
+) -> Option<ScopedCallResultObservation> {
+    calls::result_observations::resolve_backing(
+        program, machine, state, expression, pending, frames,
+    )
 }
 
 /// One completed call's retained caller observations. Source ordinal belongs
