@@ -537,7 +537,7 @@ crashes Trap
         transition { _ -> member_clause(parser, input, owner, ClauseKind::Reaches, parser.token_end) }
     }
 
-    // A refinement may narrow an axis with an explicit Boolean. A bare axis
+    // A refinement may narrow an axis with an explicit Boolean. Either form
     // leaves the following clause or declaration terminator to its owner.
     machine operational_axis(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         let explicit: bool = Parser::at_keyword(parser, input, KeywordKind::True) || Parser::at_keyword(parser, input, KeywordKind::False);
@@ -559,21 +559,12 @@ crashes Trap
     machine axis_parsed(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind) {
         Parser::parse_expression(parser, input, ParseDiagnosticCode::ExpectedRefinementAxis, false, false);
         transition parser.output.accepted {
-            true -> axis_end(parser, input, owner, kind, parser.expression_result)
+            true -> axis_stated(parser, input, owner, kind, parser.expression_result)
             _ -> done()
         }
     }
 
-    machine axis_end(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind, value: u64 in Trapping) {
-        let semicolon: bool = Parser::at_punctuation(parser, input, PunctuationKind::Semicolon);
-        transition semicolon {
-            true -> axis_semicolon(parser, input, owner, kind, value)
-            _ -> reject(parser, input, ParseDiagnosticCode::ExpectedClauseEnd)
-        }
-    }
-
-    machine axis_semicolon(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind, value: u64 in Trapping) {
-        Parser::take_current(parser, input);
+    machine axis_stated(parser: &mut Parser, input: &TokenStream, owner: ClauseOwner, kind: ClauseKind, value: u64 in Trapping) {
         let stated: Clause = Parser::clause_row(parser, kind, parser.token_end);
         transition { _ -> store(parser, input, owner,
             Parser::with_clause_expression(parser, stated, value, parser.token_end)) }
