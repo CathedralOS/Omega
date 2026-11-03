@@ -66,14 +66,23 @@ positive. Its only refusal is an unresolved selected `output` field after checki
 locates it at `result.value.output` in the encoder trait's return contract. The
 successful payload is `Frame`, so the field lookup must retain that type through
 `Result::value`. The selection audit remains strict. The corrupt twin now rejects
-only its decoder field law; the positive still needs complete checking and execution.
+only its decoder field law.
+
+[The applied-field check](https://github.com/CathedralOS/Omega/actions/runs/41736761663)
+at `dd4b68c9c8e303df923df8bf2b16ded168fd8a06` settles that field selection. The
+local positive then reaches Terminal Psi production, which refuses `consume`'s
+entry requirement that the restored Pair equals the expected Pair. Checking
+already retains that identity; lowering must preserve the same proposition and
+exact parameter paths. The positive still needs complete artifact production
+and execution. One additional case control rejects before its intended obligation;
+that result remains unaccepted while its baseline is checked separately.
 
 Earlier traces retain entry byte identities, all three caller byte facts through
 owned Frame arguments and both decoder field equations. The retained seventeen-fixture result proves
 the individual `restore` field promises. The later local result proves its whole
 round-trip contract, but the selected-field refusal still blocks compilation.
 No buffered witness has execution acceptance; full qualification remains held
-until the source proofs pass.
+until complete checking and artifact production pass.
 
 Four extra reference controls have demonstrated pre-existing failures:
 [fresh checks of pinned main7fc](https://github.com/CathedralOS/Omega/actions/runs/41707158340)

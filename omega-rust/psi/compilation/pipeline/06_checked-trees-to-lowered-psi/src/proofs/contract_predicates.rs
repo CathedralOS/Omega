@@ -26,6 +26,14 @@ pub(crate) trait PredicateTerms {
     ) -> Result<Proposition, LoweringError> {
         unsupported("contract namespace has no structural case subject")
     }
+    fn structural_identity(
+        &self,
+        _identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        _left: &checked_trees::CheckedStructuralParameterField,
+        _right: &checked_trees::CheckedStructuralParameterField,
+    ) -> Result<Proposition, LoweringError> {
+        unsupported("contract namespace has no structural identity subjects")
+    }
     fn strict_bound(&self, left: ScalarTerm, right: ScalarTerm) -> Proposition {
         Proposition::LessThan(left, right)
     }
@@ -81,6 +89,17 @@ pub(crate) fn proposition_with_polarity(
         "scalar contract Boolean expansion exceeds its lowering budget",
     ))?;
     match predicate {
+        CheckedBooleanExpression::StructuralIdentity { left, right } => {
+            let identity = terms.structural_identity(identities, left, right)?;
+            Ok(if positive {
+                identity
+            } else {
+                Proposition::Implication {
+                    premise: Box::new(identity),
+                    conclusion: Box::new(Proposition::Falsehood),
+                }
+            })
+        }
         CheckedBooleanExpression::StructuralCaseMembership { .. } => {
             let membership = terms.case_membership(identities, predicate)?;
             Ok(if positive {
