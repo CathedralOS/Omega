@@ -103,7 +103,7 @@ impl ValidatedOptimizedAbstractPlan {
             transformation_ledger,
             identity_bundle,
         } = run;
-        // The completed producer and its analysis cache end here. Only explicit
+        // The completed producer and its analyses end here. Only explicit
         // replay inputs and immutable evidence accompany the current program.
         let (replay_input, replay_unit) = session.into_parts();
         Self {

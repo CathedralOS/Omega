@@ -3,7 +3,7 @@
 //! Optimizer module role: crate map.
 //! Post-Terminal abstract-operation optimization over units reconstructed from
 //! Terminal Psi. This does not implement the portable pre-Terminal Psi phase.
-//! Empty selection is identity and precedes `AnalysisManager` construction.
+//! Empty selection is identity and computes no analysis.
 //!
 //! Start at [`optimize_abstract_operations`] in `abstract_optimization.rs`: it
 //! admits the artifact, builds the verified unit, runs the selected passes
@@ -47,11 +47,11 @@ pub use abstract_optimization::{AbstractOptimizationError, optimize_abstract_ope
 pub(crate) use publication::OptimizedAbstractProjectionError;
 pub use publication::ValidatedOptimizedAbstractPlan;
 
-pub(crate) use analyses::{AnalysisManager, AnalysisProduct, compute_analysis};
 pub(crate) use analyses::{
-    AnalysisManagerError, CallGraphAnalysis, EffectClass, EffectKnowledge, EffectSummaryAnalysis,
+    AnalysisError, CallGraphAnalysis, EffectClass, EffectKnowledge, EffectSummaryAnalysis,
     OwnershipFrontierAnalysis, ScalarConstantAnalysis, UseDefinitionAnalysis, ValueRangeAnalysis,
 };
+pub(crate) use analyses::{AnalysisProduct, AnalysisRevision, compute_analysis};
 pub(crate) use analyses::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
     CountedLoopAnalysisError, ValidatedCountdownInvariantConstantAnalysis,
