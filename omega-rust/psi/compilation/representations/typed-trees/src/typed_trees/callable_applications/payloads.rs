@@ -164,6 +164,20 @@ impl CallableApplication {
                                 .into_iter()
                                 .map(|argument| self.type_reference(program, argument))
                                 .collect::<Result<Vec<_>, _>>()?;
+                            domain.semantic_id = Self::domain_identity(
+                                program,
+                                domain.symbol,
+                                &domain.arguments,
+                                domain.semantic_id,
+                            )?;
+                            domain.semantic_roles.denotation_dimension = domain
+                                .semantic_roles
+                                .denotation_dimension
+                                .map(|_| domain.semantic_id);
+                            domain.semantic_roles.arithmetic_policy = domain
+                                .semantic_roles
+                                .arithmetic_policy
+                                .map(|_| domain.semantic_id);
                             types::TypeConstraintNode::Domain(domain)
                         }
                         types::TypeConstraintNode::Range {
@@ -603,6 +617,14 @@ impl CallableApplication {
                     cast.result_type = self.type_reference(program, cast.result_type)?;
                     cast.semantic_domain_arguments =
                         self.type_arguments(program, cast.semantic_domain_arguments)?;
+                    let arguments = program.type_reference_table
+                        .type_reference_handles(cast.semantic_domain_arguments).to_vec();
+                    cast.semantic_domain_id = Self::domain_identity(
+                        program,
+                        cast.semantic_domain_symbol,
+                        &arguments,
+                        cast.semantic_domain_id,
+                    )?;
                     Some(expression::ExpressionNode::Cast(cast))
                 }
                 expression::ExpressionNode::TypeExpression(reference) => {

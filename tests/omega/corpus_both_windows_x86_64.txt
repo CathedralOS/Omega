@@ -4031,6 +4031,8 @@ pass/facts/resident_backing_call_result_exit built 16956ms exit:0 interpreter-ex
 pass/facts/resident_backing_coexisting_exit built 14333ms exit:0 interpreter-exit:0 interpreter:agrees @2f26bec1b1f6+wt
 pass/facts/resident_backing_const_name_exit built 18265ms exit:0 interpreter-exit:0 interpreter:agrees @9f1ea2b3a8e1
 pass/facts/resident_backing_field_exit built 18182ms exit:0 interpreter-exit:0 interpreter:agrees @9f1ea2b3a8e1
+pass/facts/resident_backing_generic_move_cleanup_exit built 51032ms exit:0 stdout:match interpreter-exit:0 interpreter-stdout:match interpreter:agrees @7051a9e0e500+wt
+pass/facts/resident_backing_generic_move_exit built 50668ms exit:0 interpreter-exit:0 interpreter:agrees @7051a9e0e500+wt
 pass/facts/resident_backing_local_exit built 15929ms exit:0 interpreter-exit:0 interpreter:agrees @9f1ea2b3a8e1
 pass/facts/resident_backing_match_join_exit built 15888ms exit:0 interpreter-exit:0 interpreter:agrees @9f1ea2b3a8e1
 pass/facts/resident_backing_other_machine_exit built 19352ms exit:0 interpreter-exit:0 interpreter:agrees @9f1ea2b3a8e1
