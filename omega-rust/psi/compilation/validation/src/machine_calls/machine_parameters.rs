@@ -961,14 +961,6 @@ fn validate_declaration_machine_selection(
     }
 }
 
-fn machine_parameter_contract(
-    program: &dyn crate::CheckingInput,
-    symbol: SymbolHandle,
-) -> Option<(&TypeParameter, &typed_trees::signature::StateSignature)> {
-    let (parameter, contract) = machine_parameter_contract_definition(program, symbol)?;
-    Some((parameter, machine_parameter_signature(program, contract)))
-}
-
 fn machine_parameter_contract_definition(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
