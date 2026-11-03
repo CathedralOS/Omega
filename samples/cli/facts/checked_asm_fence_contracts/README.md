@@ -78,10 +78,14 @@ missing/numeric/extra DMB operands, and an operand on LFENCE. These are source
 formation or contract refusals; malformed operands do not prove a hardware
 ordering or ownership obligation.
 
-## Unfinished target-body migration
+## Current target-body migration
 
-The current `target_body` program still declares target-prefixed `ordered` and `forward` machines. The earlier text claiming that this place had already migrated did not match its source or pins. The next milestone replaces those declarations with ordinary named implementations selected by explicit Build rows, while retaining input 37, the exact three-fence order and the empty-clobber requirement.
+The target-body example now uses ordinary `X86Ordered` and `ArmOrdered` implementations of `SelectedOrdered`. Four typed Build rows choose the appropriate implementation, and one free `forward` helper retains the original input and result contracts. The x86 and AArch64 instructions remain distinct. All 31 projects and their pins now use direct inline assembly contracts, preserving each assertion and instruction; no colon-entry label or source target prefix remains in this row.
 
-This row also retains colon-entry assembly contracts. The accepted assembly language uses direct inline `requires` and `ensures` clauses instead. The migration must keep the same assertions and every invented-clobber or malformed-instruction control; it cannot turn an assertion into an assumption.
+The match example calls both branches and checks independently initialized path markers. Both calls still produce 37 and the same six fence events. Its twin changes only the declared clobbers, just like the other nine twins.
 
-A fresh exact-source baseline and the complete migrated row remain pending. The older results above retain their original producer identities and are historical evidence, not observations of the current source.
+Two controls now distinguish source validity from target compatibility. An ordinary instruction body is valid source even when one Build row selects it for the wrong architecture. Those controls use target-specific native-publication refusal files and exit-zero promises only for their successful profiles. They are program-role samples and build-only pass pins; the other 19 controls remain source-invalid. No dummy memory input or attempted execution supplies a publication refusal.
+
+The exact baseline at `da4770bf800fd60355e7f815dd151b02f6f3d0ca`, based on published `7fc524eaec1a56fcd1b4e3809355f047b7d2d664`, failed [run 41679589443](https://github.com/CathedralOS/Omega/actions/runs/41679589443). All ten positives stopped during lowering with `state graph: structural return value: retained expression root`; neither engine executed, and public projects were not reached. All 21 controls matched their intended diagnostics. The audit verifies 227 frozen runtime input hashes, eight downloaded file hashes, the exact producer tree and both optimized profiles.
+
+Fresh observations of the direct-contract port are pending on Linux x86-64 and Linux ARM64. This source-only checkpoint changes no compiler or library bytes. The older results above retain their original producer identities and do not qualify this source. Full BUILD-OWNED-TARGET-SELECTION and CHECKED-ASM-LABEL-CONTRACTS acceptance remains open.
