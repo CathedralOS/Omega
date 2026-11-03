@@ -19542,7 +19542,7 @@ fail/domains/completed_membership_before_later_guarantee rejected 1962ms expecte
 	construction of `Selection` field `amount` is not proven in domain `Amount::Positive` in selected state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/completed_routed_record_join_unissued_arm rejected 1640ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from select_ticket: selected in Ticket::Issued in state `entry`
-fail/domains/computed_qualification_requires_operand_facts rejected 6149ms expected @8bffc84d2ff9
+fail/domains/computed_qualification_requires_operand_facts rejected 4616ms unexpected @3d9039f82547+wt
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
@@ -31930,10 +31930,9 @@ fail/float/format_conversion_exclusive_upper rejected 5315ms expected @ccdb99ca2
 	cannot prove ensures contract for exit from exclusive at statement 0: result >= 0.0 && result < 1.0
 fail/float/format_conversion_lookalike rejected 11859ms expected @8bffc84d2ff9
 	cannot prove ensures contract for exit from lookalike at statement 0: result >= 0.10000000149011612 && result <= 0.10000000149011612
-fail/float/format_conversion_requires_result_proof rejected 1870ms expected @ccdb99ca2214
+fail/float/format_conversion_requires_result_proof rejected 4461ms unexpected @3d9039f82547+wt
 	cannot prove initializer `F32.from_f64(huge())` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
 	cannot prove call argument `F32.from_f64(huge())` satisfies `finite` for bounded parameter `value` for `consume` in `overflow.entry`
-	cannot prove return value `F32.from_f64(value)` satisfies `finite` for bounded return type in `unknown.entry`
 fail/float/generic_constructor_suffix_format_disagrees rejected 1920ms expected @ccdb99ca2214
 	literal `3.0` is suffixed `f64` but lands in a `f32` place -- a width suffix chooses the literal's format at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/float/guarded_range_requires_builtin_boolean_wrapper rejected 3918ms expected @ccdb99ca2214
