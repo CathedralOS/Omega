@@ -294,3 +294,61 @@ define observations and resources, not parsing;
 [edge contracts](bootstrap/CONTRACT.md) require refinement independence but do
 not fix Epsilon's grammar; `implementation_notes.md` describes the probe as
 implementation, not as a language rule.
+
+### 6. Must Psi lay out unselected target-neutral library code under every target that has layout facts?
+
+Psi checks every supplied implementation independently of target selection.
+For a fixed-representation application (`LayoutStorage`, `CLayout`), checking
+includes forming its layout against a target's representation facts, and
+build-time admission does that under every selected target scope that carries
+facts. Since std moved its POSIX bindings to Build rows (#1617, #1622, #1625),
+portable std code that no selected provider reaches, such as `posix_canonicalize`,
+`FilesystemPosixProvider` and the Darwin C-layout stat and timespec records
+their closures reach, is no longer reached through a target's provider
+defaults. It is therefore unscoped and is laid out under every target with facts
+(#1653 stopped also demanding it from targets without facts). A console-only
+program now pays for laying out filesystem code it never calls, once per target.
+
+The product requirement is compile latency of ordinary std-dependent programs.
+`tests/omega/pass/host/console_exit_process_exit` was recorded at 5.8 s
+(`a92f1643`). It took 148.5 s per `omega --check` at `de9648a1` after #1653, of
+which the first 23 s had previously ended in a refusal. On
+`tests/omega/pass/control_flow/borrowed_state_argument`, W1-A measured 33.9 s per
+check in `evaluate_fixed_layout_applications` across 85 layout applications in 6
+target scopes (`prepare_execution_applications` 11.4 s,
+`source_checking_applications` 2.7 s, `compute_plan_laid_layouts_in` 19.7 s).
+That fixture and `control_flow/runtime_owned_state_parallel_swap_exit` and
+`write_only/state_forwarded_scalar_store_exit` exceed the 120 s corpus cap
+(regression claim `REGRESSION-9a8b1fbf5c`).
+
+A Build row's target cannot scope the code: a source declaration acquires no
+target tag, and the row demands only a body-less boundary requirement, not its
+portable callers.
+
+Option A, demand-limited layout in Psi: Psi forms fixed layouts only for
+applications that some selected or entry-reachable closure demands. An
+unselected implementation's source is still resolved, typed and checked, but
+its target-specific layout applicability is left to Omega's validation of the
+closure a row actually selects. The firewall rule keeps "every supplied
+implementation is checked" and narrows what that check includes for
+target-dependent representation.
+
+Option B, mandatory layout of all supplied code: every supplied fixed-layout
+application is laid out under every target with facts, whether or not anything
+selects it. The firewall rule stays as written, and the cost scales with the
+library's target-specific code times the number of targets for every program
+that depends on it.
+
+Contracts checked: [multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
+(lines 166-173) says checking does not observe a selected target and every
+supplied implementation is checked, without saying whether layout formation
+under target facts is part of that check. [Machines](wiki/spec/language/machines.md)
+(lines 186-190) says source declarations acquire no target tag, and Omega
+validates the selected closure's "ABI, imports, layout, and ISA applicability".
+[Provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
+(lines 91-93, 106-107) puts the target key on the Build row and assigns layout
+validation of each selected closure to Omega.
+[Build-owned native binding](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)
+(lines 36-39) makes a row's target binding intent, not a declaration keyword.
+[Layout plans](wiki/spec/layouts/plans.md) define target facts and plan validation
+but not which applications a compilation must lay out.
