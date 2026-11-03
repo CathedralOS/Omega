@@ -290,7 +290,13 @@ impl StructuralJudge<'_> {
         captured: &super::super::StructuralTerm,
         path: &[facts::PlaceSegment],
     ) -> Option<super::super::StructuralTerm> {
-        let (captured, mut prefix) = self.completed_result_read_source(captured, 0)?;
+        let (captured, mut prefix) = match self.completed_result_read_source(captured, 0) {
+            Ok(source) => source,
+            Err(reason) => {
+                self.trace_completed_result_read_refusal(captured, path, reason);
+                return None;
+            }
+        };
         let super::super::StructuralTerm::CapturedValue {
             expression,
             result_type,
@@ -300,24 +306,41 @@ impl StructuralJudge<'_> {
             return None;
         };
         prefix.extend_from_slice(path);
-        crate::structural_scalar_coordinate_in_type(
+        if crate::structural_scalar_coordinate_in_type(
             self.program,
             facts::PlaceRoot::Expression(*expression),
             *result_type,
             &prefix,
-        )?;
-        let coordinate = self.capture_storage_place(crate::CanonicalPlace {
+        )
+        .is_none()
+        {
+            self.trace_completed_result_read_refusal(&captured, path, "scalar-type");
+            return None;
+        }
+        let Some(coordinate) = self.capture_storage_place(crate::CanonicalPlace {
             root: facts::PlaceRoot::Expression(*expression),
             segments: prefix,
-        })?;
-        self.stored_values.iter().find_map(|stored| {
-            if stored.coordinate != coordinate
-                || stored.backing.is_none()
-                || !self.storage_value_transfer_is_current(stored, self.storage_version)
-            {
+        }) else {
+            self.trace_completed_result_read_refusal(&captured, path, "coordinate");
+            return None;
+        };
+        let mut refusal = "no-cell";
+        let value = self.stored_values.iter().find_map(|stored| {
+            if stored.coordinate != coordinate {
                 return None;
             }
-            let current = stored.current.as_ref()?;
+            if stored.backing.is_none() {
+                refusal = "no-backing";
+                return None;
+            }
+            if !self.storage_value_transfer_is_current(stored, self.storage_version) {
+                refusal = "storage-not-current";
+                return None;
+            }
+            let Some(current) = stored.current.as_ref() else {
+                refusal = "retired-cell";
+                return None;
+            };
             let mut root = current.semantic_value();
             loop {
                 root = match root {
@@ -330,38 +353,45 @@ impl StructuralJudge<'_> {
                     _ => break,
                 };
             }
+            refusal = "capture-identity";
             root.same_resolution_payload(&captured)
                 .then(|| current.clone())
-        })
+        });
+        if value.is_none() {
+            self.trace_completed_result_read_refusal(&captured, path, refusal);
+        }
+        value
     }
 
     /// A payload passed to another call still names its original result cell.
-    /// Follow only its already formed owned fields, keeping the original call
-    /// capture and storage cut instead of manufacturing another byte read.
+    /// Follow its already formed owned fields to the saved call identity. The
+    /// existing cell's current storage checks decide whether its contents
+    /// remain available to this caller.
     fn completed_result_read_source(
         &self,
         value: &super::super::StructuralTerm,
         depth: usize,
-    ) -> Option<(super::super::StructuralTerm, Vec<facts::PlaceSegment>)> {
+    ) -> Result<(super::super::StructuralTerm, Vec<facts::PlaceSegment>), &'static str> {
         if depth >= 64 {
-            return None;
+            return Err("prefix-depth");
         }
         match value.semantic_value() {
             captured @ super::super::StructuralTerm::CapturedValue { .. } => {
-                Some((captured.clone(), Vec::new()))
+                Ok((captured.clone(), Vec::new()))
             }
             super::super::StructuralTerm::Projection { subject, path } => {
                 let (captured, mut prefix) =
                     self.completed_result_read_source(subject, depth + 1)?;
                 let super::super::StructuralTerm::CapturedValue { result_type, .. } = &captured
                 else {
-                    return None;
+                    return Err("prefix-capture");
                 };
                 let reference = crate::project_type_reference_from_segments(
                     self.program,
                     *result_type,
                     &prefix,
-                )?;
+                )
+                .ok_or("prefix-type")?;
                 let observed =
                     super::super::super::observed_projections::project_observed_value_in_scope(
                         self.program,
@@ -373,7 +403,8 @@ impl StructuralJudge<'_> {
                             captured.clone(),
                         ),
                         &prefix,
-                    )?;
+                    )
+                    .ok_or("prefix-observation")?;
                 let names = path.split('.').collect::<Vec<_>>();
                 let paths = super::super::super::completed_values::owned_term_field_paths_in_scope(
                     self.program,
@@ -383,12 +414,54 @@ impl StructuralJudge<'_> {
                     &names,
                 );
                 let [selected] = paths.as_slice() else {
-                    return None;
+                    return Err("prefix-case-or-field");
                 };
                 prefix.extend_from_slice(selected);
-                Some((captured, prefix))
+                Ok((captured, prefix))
             }
-            _ => None,
+            _ => Err("source-value"),
+        }
+    }
+
+    fn trace_completed_result_read_refusal(
+        &self,
+        value: &super::super::StructuralTerm,
+        path: &[facts::PlaceSegment],
+        reason: &str,
+    ) {
+        if !super::super::super::struct_trace()
+            || !path.iter().any(|segment| {
+                matches!(
+                    segment,
+                    facts::PlaceSegment::FixedIndex { .. }
+                        | facts::PlaceSegment::Index { .. }
+                        | facts::PlaceSegment::Referent
+                )
+            })
+        {
+            return;
+        }
+        let mut root = value.semantic_value();
+        for _ in 0..64 {
+            match root {
+                super::super::StructuralTerm::Projection { subject, .. } => {
+                    root = subject.semantic_value();
+                }
+                super::super::StructuralTerm::CapturedValue {
+                    expression,
+                    callable,
+                    result_type,
+                    ..
+                } if callable.is_valid() => {
+                    eprintln!(
+                        "STRUCT completed-result-read-refused expression={expression:?} owner={callable:?} type={result_type:?} steps={} storage_version={:?} phase={reason}",
+                        path.len(),
+                        self.storage_version,
+                    );
+                    break;
+                }
+                _ => break,
+            }
         }
     }
 
