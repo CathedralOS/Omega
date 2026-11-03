@@ -72,6 +72,10 @@ The controls are pinned under
 - `reborrow_selected` passes `&selected` explicitly; `entry_source` forwards
   a genuine incoming reference. Neither a named local nor lifetime metadata
   about references inside an input is required to supply entry permission.
+- `independent_image` protects an already accepted image-backed window feeding
+  a byte-selection helper. Its saved result reads byte 50 from the sliced
+  window. The exact source window and primitive endpoint survive the return;
+  retaining that source never takes an owned byte-value snapshot.
 
 ## Requirements and evidence
 
@@ -111,15 +115,19 @@ The constant witness's initially malformed array projection was corrected and
 rechecked on that retained baseline before compiler edits. Original attempts,
 corrected frozen bytes and raw observations remain separately recorded.
 
-Candidate `6f254fd148f830b2ef933cdcfd9de349e849d327`, CLI SHA-256
-`cd372da148fcd08d35c36cc1df98a786b21816bb063db340f1584f65b8ac96ec`,
+Candidate `7a47a46691ce4d9a713e72ab74ad358d1541d7f0`, CLI SHA-256
+`8f04476f05c6e5708aa49dc945b679c3ab920a40f93260b2333c13115a536c04`,
 checks the nine positives and runs each with `omega run --both`: native 0 and
 Terminal 0. All nine twins name the original backings' forbidden policy.
 Focused controls have their own raw observations: the original-only policy
 refusal names `first`, and the alternative-only refusal names `second`, with
 no independent post-pause backing read. Five existing generic/attenuation
 positives remain accepted; three existing selected shared/exclusive/byte
-stored-output cases also execute in both engines.
+stored-output cases also execute in both engines. The separately frozen
+image composition was accepted by the baseline and exited 0 natively, but
+Terminal refused a byte projection. The repaired candidate executes it with
+native 0 and Terminal 0. This was a pre-existing Terminal failure, distinct
+from the introduced source refusal found during review.
 
 Matching-host execution on Windows and both Linux hosts remains unqualified.
 The scheduler completes inline: these runs establish the possible-suspension
