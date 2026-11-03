@@ -13548,6 +13548,7 @@ pass/proofs/accepted_axiom_cited_exit rejected 12195ms check-target:macos_arm64 
 pass/proofs/accumulator_guarantee_exit checked 12216ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/admitted_premises_disequality_direction checked 2653ms @ccdb99ca2214
 pass/proofs/admitted_premises_long_equality_chain checked 2625ms @ccdb99ca2214
+pass/proofs/alias_store_keeps_sibling_snapshot_exit checked 8152ms check-target:macos_arm64 @7a899fdd171e
 pass/proofs/applied_dependent_const_requires checked 2016ms @ccdb99ca2214
 pass/proofs/applied_dependent_const_requires_transitive_operand checked 2338ms @ccdb99ca2214
 pass/proofs/applied_operator_const_requires checked 2430ms @ccdb99ca2214
@@ -34245,7 +34246,8 @@ fail/proofs/runtime_static_result_projection_linear_receipt_reuse rejected 70175
 	cannot use `receipt` in machine `Main::main` state `main` (statement 2) after `receipt` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `receipt` first
 fail/proofs/runtime_static_result_projection_nonterminating_citation rejected 11842ms expected @ccdb99ca2214
 	recursive proof machine `nonterminating_projection` needs a single structural measure: declare `terminates by <param>;` naming one proof-data parameter -- a cycle without a measure is an unproven termination claim (measured recursion, both strata)
-fail/proofs/scalar_field_snapshot_after_alias_store checked 2393ms @ccdb99ca2214
+fail/proofs/scalar_field_snapshot_after_alias_store rejected 5887ms expected regressed-from:checked @7a899fdd171e
+	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/scalar_field_snapshot_after_call rejected 1954ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand_same from inspect: before == after (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/scalar_field_snapshot_after_indexed_store rejected 2093ms expected @ccdb99ca2214
@@ -35118,7 +35120,8 @@ fail/slices/predicate_scalar_store_invalid_membership rejected 3301ms expected @
 	cannot prove the value assigned to `items[1]` in main is in domain `i32::Selected`; a place declared `in i32::Selected` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
 fail/slices/projected_descriptor_index_requires_live_bound rejected 2121ms expected @ccdb99ca2214
 	cannot prove index `position` is within unknown slice length of `envelope.window.cells` in read::entry
-fail/slices/reborrowed_count_overwrite checked 2890ms @ccdb99ca2214
+fail/slices/reborrowed_count_overwrite rejected 1285ms expected regressed-from:checked @7a899fdd171e
+	exact arithmetic in machine `increment` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/slices/reborrowed_future_mutable_selector rejected 1731ms expected @ccdb99ca2214
 	cannot prove index `copied` is within unknown slice length of `output` in store::entry
 	cannot prove index `copied` is within unknown slice length of `output` in store::entry

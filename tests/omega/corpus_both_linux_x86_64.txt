@@ -6710,6 +6710,7 @@ pass/progress/provider_receiver_progress_installation built 2041ms @a92f16431042
 pass/proofs/accepted_axiom_cited_exit rejected 5254ms interpreter:unchecked @a92f16431042
 	machine `uses_axiom` state `body` statement 0: call stores a borrowed value without a complete destination/backing relation
 pass/proofs/accumulator_guarantee_exit built 5775ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/proofs/alias_store_keeps_sibling_snapshot_exit built 6666ms exit:0 interpreter-exit:0 interpreter:agrees @7a899fdd171e
 pass/proofs/axiom_citation rejected 1407ms @a92f16431042
 	machine `uses_axiom` state `body` statement 0: call stores a borrowed value without a complete destination/backing relation
 pass/proofs/boolean_return_assembly_shape checked 1396ms @a92f16431042
