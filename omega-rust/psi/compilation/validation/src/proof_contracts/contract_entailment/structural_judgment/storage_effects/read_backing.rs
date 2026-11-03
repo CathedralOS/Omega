@@ -433,9 +433,7 @@ impl StructuralJudge<'_> {
             || !path.iter().any(|segment| {
                 matches!(
                     segment,
-                    facts::PlaceSegment::FixedIndex { .. }
-                        | facts::PlaceSegment::Index { .. }
-                        | facts::PlaceSegment::Referent
+                    facts::PlaceSegment::FixedIndex { .. } | facts::PlaceSegment::Index { .. }
                 )
             })
         {
