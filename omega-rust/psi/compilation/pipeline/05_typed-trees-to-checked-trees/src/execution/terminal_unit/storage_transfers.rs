@@ -228,6 +228,7 @@ pub(in crate::execution::terminal_unit) fn from_storage(
     query_for_storage(
         program,
         facts,
+        state,
         prepared_calls,
         results,
         source,
@@ -241,6 +242,7 @@ pub(in crate::execution::terminal_unit) fn from_storage(
 fn query_for_storage<'a>(
     program: &'a dyn ::validation::CheckingInput,
     facts: &'a CheckFacts,
+    state: SymbolHandle,
     prepared_calls: &'a super::structural_value_calls::PreparedCalls,
     results: &'a Results,
     source: CheckedUnitStructuralArgumentSourcePlan,

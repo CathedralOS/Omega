@@ -35,6 +35,7 @@ pub(in crate::execution::terminal_unit) fn at_completion(
     let query = query_for_storage(
         program,
         facts,
+        completion.state,
         prepared_calls,
         results,
         source,

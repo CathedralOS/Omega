@@ -509,7 +509,9 @@ mod tests {
             .pages
             .values()
             .flat_map(|roots| roots.iter())
-            .filter(|(root, rows)| !Arc::ptr_eq(rows, &before.pages[&page(**root)][root]))
+            .filter(|(root, rows)| {
+                !Arc::ptr_eq(rows, before.pages[&page(**root)].get(root).unwrap())
+            })
             .count();
         assert_eq!(detached, 1);
         let detached_pages = map
