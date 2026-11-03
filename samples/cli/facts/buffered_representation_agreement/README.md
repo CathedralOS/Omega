@@ -43,25 +43,26 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [latest diagnostic source check](https://github.com/CathedralOS/Omega/actions/runs/41720751018)
-at clean `05d1a70565d039fdf2020fbf4d8c2e9c8f588c7b` checks the unchanged local
-positive only. It still reports six contract proof errors. The trace shows that
-ordinary owned-field reads use the saved-value lookup, but field reads in
-declared return contracts bypass it. The checker therefore misses the connection
-between the returned Request's value field and the Pair decoded earlier. The
-whole Request also contains a mutable buffer reference, so it correctly cannot
-be rewritten as a pure scalar value to recover that connection. The pending
-repair must follow each contract field to its exact saved value while preserving
-the existing reference and storage checks.
+The [latest seventeen-fixture source check](https://github.com/CathedralOS/Omega/actions/runs/41724179317)
+at clean `bbe054f7027e732e4078d00b9fb8b71fe38b5742` removes both contract
+errors in `restore`: declared field reads now recover the decoder's saved Pair
+fields. The returned-data identity positive checks, and all thirteen negatives
+reject their intended diagnostics. No timeout or infrastructure failure occurred.
 
-The [preceding seventeen-fixture check](https://github.com/CathedralOS/Omega/actions/runs/41715540573)
-at `3654be18daf857868e645affa0bbd6ec33fe26c2` checks the returned-data identity
-positive and preserves all thirteen intended negative diagnostics. Local, field
-and constant each retain six contract proof errors. Earlier traces retain entry
-byte identities, all three caller byte facts through owned Frame arguments and
-both decoder field equations. These observations do not establish the remaining
-return contracts. No buffered witness has execution acceptance; full
-qualification remains held until the source proofs pass.
+Local, field and constant each still have four contract proof errors, all in
+`FirstAgreement::round_trip` and its specialization at statements 2 and 3. The
+remaining obligation is equality of the complete returned and original Pairs.
+Before comparing their fields, the checker replaces the decoder projection with
+a fresh value introduced by the match. That obscures the original saved result.
+The pending repair must keep that typed source available while comparing the
+Pair's fields. The surrounding Request contains a mutable buffer reference;
+whole-value identity must not supply its current contents or access permission.
+
+Earlier traces retain entry byte identities, all three caller byte facts through
+owned Frame arguments and both decoder field equations. The new result proves
+the individual `restore` field promises, not the complete round-trip contract.
+No buffered witness has execution acceptance; full qualification remains held
+until the source proofs pass.
 
 Four extra reference controls have demonstrated pre-existing failures:
 [fresh checks of pinned main7fc](https://github.com/CathedralOS/Omega/actions/runs/41707158340)
@@ -73,9 +74,9 @@ reads a byte, replaces it, then asks to prove that the old and current bytes are
 equal. It now rejects precisely that equality at `need_unchanged`, without the
 earlier unrelated ownership failure. Five independent storage positives check,
 and three overlapping-loan or stale-descriptor controls reject their intended
-obligations. These are source checks, not execution observations. Decoder twins
-still need their intended field-law failures after the common restoration
-failures are repaired.
+obligations. These are source checks, not execution observations. The complete
+row still requires all nine positive runs and intended decoder rejections; the
+remaining whole-Pair proof errors are blockers.
 
 Eleven separate controls retain native/Terminal zero exits from
 [run 41672891758](https://github.com/CathedralOS/Omega/actions/runs/41672891758).

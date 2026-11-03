@@ -216,7 +216,6 @@ impl StructuralJudge<'_> {
             .rev()
             .find(|capture| capture.value.same_resolution_payload(root))
         else {
-            trace("saved-value", None, None, None);
             return None;
         };
         let names = path.split('.').collect::<Vec<_>>();

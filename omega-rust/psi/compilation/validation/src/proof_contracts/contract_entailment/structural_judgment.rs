@@ -3377,6 +3377,7 @@ impl<'program> StructuralJudge<'program> {
                 // not resolve the result again or memoize by term equality,
                 // which deliberately ignores some observation metadata.
                 let [left, right] = terms.resolved;
+                let [source_left, source_right] = terms.source;
                 if super::struct_trace() {
                     eprintln!(
                         "STRUCT equality caller={:?} left={left:?} right={right:?} rewrites={:?}",
@@ -3390,6 +3391,17 @@ impl<'program> StructuralJudge<'program> {
                     StructuralJudgment::Unknown => self
                         .declaration_expression_type(binary.left)
                         .map_or(StructuralJudgment::Unknown, |reference| {
+                            // Select the original scalar fields before a
+                            // parent case rewrite hides their saved subjects
+                            // behind a fresh payload binder.
+                            let original = self.judge_equation(
+                                self.record_fields_term(source_left, reference, &mut Vec::new()),
+                                self.record_fields_term(source_right, reference, &mut Vec::new()),
+                                0,
+                            );
+                            if !matches!(original, StructuralJudgment::Unknown) {
+                                return original;
+                            }
                             self.judge_equation(
                                 self.record_fields_term(left, reference, &mut Vec::new()),
                                 self.record_fields_term(right, reference, &mut Vec::new()),
