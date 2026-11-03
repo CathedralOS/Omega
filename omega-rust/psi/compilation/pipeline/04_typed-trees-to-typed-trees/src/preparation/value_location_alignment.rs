@@ -11,9 +11,11 @@
 //! The operand is observed once without being read or moved: it leaves the
 //! executable call here, so no load, loan or initialization is generated.
 //! A value leaf (a call result, literal or arithmetic) owns no location and
-//! rejects. A slice owes a proved nonempty view before its first element can
-//! be observed; that obligation is not yet checked, so slices reject rather
-//! than fabricate a location.
+//! rejects. A borrowed slice observes its first element's location, which
+//! exists only for a nonempty view. The settled request carries a proof-only
+//! `view[0]` index that range checking discharges with the same length facts
+//! as an ordinary index; it is never evaluated, so the query creates no
+//! implicit `&view[0]` and reads no element.
 
 use crate::tables::{expressions_of, expressions_of_mut};
 use arena::HandleSpan;
@@ -42,11 +44,11 @@ pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     let Some(place) = value_query_operand(program, query) else {
                         continue;
                     };
-                    if settled.iter().any(|(handle, _)| *handle == query) {
+                    if settled.iter().any(|(handle, _, _)| *handle == query) {
                         continue;
                     }
                     match observed_storage_type(program, state.symbol, statement_index, place) {
-                        Ok(subject) => settled.push((query, subject)),
+                        Ok(subject) => settled.push((query, place, subject)),
                         Err(message) => {
                             rejected.push(query);
                             diagnostics.push(
@@ -59,11 +61,31 @@ pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             }
         }
     }
-    for (query, subject) in settled {
+    for (query, place, subject) in settled {
+        let nonempty_view = match subject {
+            ObservedStorage::Place(_) => ExpressionHandle::invalid(),
+            ObservedStorage::FirstElement(_) => {
+                let span = expressions_of(program).source_span(query);
+                let table = expressions_of_mut(program);
+                let zero = table.insert(ExpressionNode::Integer(
+                    numerics::literals::IntegerLiteral::from_value(0),
+                ));
+                table.set_source_span(zero, span);
+                let first = table.insert(ExpressionNode::Indexed(
+                    typed_trees::expression::TableIndexedExpression {
+                        collection: place,
+                        index: zero,
+                    },
+                ));
+                table.set_source_span(first, span);
+                first
+            }
+        };
         if let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(query)
             && let Some(request) = call.layout_query.as_mut()
         {
-            request.operand.type_reference = subject;
+            request.operand.type_reference = subject.storage_type();
+            request.nonempty_view = nonempty_view;
             call.arguments = HandleSpan::empty();
         }
     }
@@ -124,7 +146,7 @@ fn observed_storage_type(
     state: symbols::SymbolHandle,
     statement_index: usize,
     place: ExpressionHandle,
-) -> Result<TypeReferenceHandle, &'static str> {
+) -> Result<ObservedStorage, &'static str> {
     // Only a local or parameter names storage; a constant is a value and a
     // value leaf (call result, literal, arithmetic) owns no location.
     let canonical =
@@ -163,15 +185,32 @@ fn observed_storage_type(
             .ok_or("`align_of(value)` requires an operand whose storage type is known")?;
     // A reference observes its referent's location, not its descriptor.
     let subject = referent(program, declared);
-    if matches!(
-        program.type_reference_table.type_reference(subject),
-        TypeReferenceNode::Slice { .. }
-    ) {
-        return Err(
-            "`align_of(value)` on a slice observes its first element and requires a proved nonempty view, which is not yet checked",
-        );
+    if let TypeReferenceNode::Slice { element_type } =
+        program.type_reference_table.type_reference(subject)
+    {
+        return Ok(ObservedStorage::FirstElement(unconstrained(
+            program,
+            *element_type,
+        )));
     }
-    Ok(subject)
+    Ok(ObservedStorage::Place(subject))
+}
+
+/// The storage a query observes: the place itself (or a reference's
+/// referent), or the first element of a borrowed slice, which owes a proved
+/// nonempty view.
+#[derive(Clone, Copy)]
+enum ObservedStorage {
+    Place(TypeReferenceHandle),
+    FirstElement(TypeReferenceHandle),
+}
+
+impl ObservedStorage {
+    fn storage_type(self) -> TypeReferenceHandle {
+        match self {
+            Self::Place(storage) | Self::FirstElement(storage) => storage,
+        }
+    }
 }
 
 fn referent(program: &TypedTrees, reference: TypeReferenceHandle) -> TypeReferenceHandle {
