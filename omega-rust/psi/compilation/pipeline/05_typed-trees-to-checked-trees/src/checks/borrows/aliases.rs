@@ -347,40 +347,9 @@ pub(in crate::checks::borrows) fn formation_lineage(
     state: &StateBorrowFact,
     handle: Handle<BorrowLoanFact>,
 ) -> Option<Vec<Handle<BorrowLoanFact>>> {
-    if !borrow.state_owns_loan(state, handle) {
-        return None;
-    }
-    let loan = borrow.loans.get(handle);
-    if loan.lineage != BorrowLoanLineage::LifetimeDependency {
-        return retained_lineage(borrow, state, handle);
-    }
-    let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
-    if suppliers.is_empty() || !loan.source_owner_symbol.is_valid() {
-        return None;
-    }
-    let mut common = Vec::new();
-    for (position, supplier) in suppliers.iter().enumerate() {
-        if !borrow.state_owns_loan(state, *supplier) {
-            return None;
-        }
-        let source = borrow.loans.get(*supplier);
-        if source.owner_symbol != loan.source_owner_symbol
-            || source.kind.direct_reborrow_effect(&loan.kind).is_none()
-        {
-            return None;
-        }
-        let lineage = retained_lineage(borrow, state, *supplier)?;
-        if position == 0 {
-            common = lineage;
-        } else {
-            common.retain(|ancestor| {
-                lineage
-                    .iter()
-                    .any(|candidate| same_descriptor(borrow, *ancestor, *candidate))
-            });
-        }
-    }
-    Some(common)
+    let debt = borrow.state_owns_loan(state, handle)
+        && borrow.loans.get(handle).lineage == BorrowLoanLineage::LifetimeDependency;
+    loan_lineage(borrow, state, handle, debt)
 }
 
 /// The exact occurrences a descriptor transfer transports. Each supplier is
@@ -412,6 +381,15 @@ pub(in crate::checks::borrows) fn retained_lineage(
     state: &StateBorrowFact,
     handle: Handle<BorrowLoanFact>,
 ) -> Option<Vec<Handle<BorrowLoanFact>>> {
+    loan_lineage(borrow, state, handle, false)
+}
+
+fn loan_lineage(
+    borrow: &BorrowFacts,
+    state: &StateBorrowFact,
+    handle: Handle<BorrowLoanFact>,
+    include_debts: bool,
+) -> Option<Vec<Handle<BorrowLoanFact>>> {
     // A descriptor transfer transports its suppliers' established lineage,
     // without turning the copied carrier into a new reborrow parent. Traverse
     // exact historical identities only: backing coincidence grants nothing.
@@ -435,6 +413,9 @@ pub(in crate::checks::borrows) fn retained_lineage(
                 }
                 BorrowLoanLineage::Reborrow { parent_loan } => std::slice::from_ref(parent_loan),
                 BorrowLoanLineage::UnretainedDerived => {
+                    borrow.loan_suppliers.span(loan.supplying_loans)?
+                }
+                BorrowLoanLineage::LifetimeDependency if include_debts => {
                     borrow.loan_suppliers.span(loan.supplying_loans)?
                 }
                 BorrowLoanLineage::LifetimeDependency => return None,
@@ -528,6 +509,24 @@ pub(in crate::checks::borrows) fn retained_lineage(
             }
             BorrowLoanLineage::UnretainedDerived => {
                 for supplier in transport_suppliers(borrow, state, handle)? {
+                    pending.push((*supplier, false));
+                }
+            }
+            BorrowLoanLineage::LifetimeDependency if include_debts => {
+                let suppliers = borrow.loan_suppliers.span(loan.supplying_loans)?;
+                if suppliers.is_empty() || !loan.source_owner_symbol.is_valid() {
+                    return None;
+                }
+                for supplier in suppliers {
+                    if !borrow.state_owns_loan(state, *supplier) {
+                        return None;
+                    }
+                    let source = borrow.loans.get(*supplier);
+                    if source.owner_symbol != loan.source_owner_symbol
+                        || source.kind.direct_reborrow_effect(&loan.kind).is_none()
+                    {
+                        return None;
+                    }
                     pending.push((*supplier, false));
                 }
             }

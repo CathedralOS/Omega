@@ -233,7 +233,10 @@ pub(super) fn reference_local_borrow_loans(
             retained_operand: source.retained_operand,
             source_owner_symbol: source.source_owner_symbol,
             supplying_loans: std::iter::once(source.source_loan)
-                .filter(|loan| loan.is_valid() && *loan != source.parent_loan)
+                .filter(|loan| {
+                    loan.is_valid()
+                        && (source.lifetime_access.is_some() || *loan != source.parent_loan)
+                })
                 .collect(),
             lineage: retained_reference_lineage(
                 program,
@@ -241,7 +244,10 @@ pub(super) fn reference_local_borrow_loans(
                 source,
                 &rebased,
             ),
-            kind: retained_access.clone(),
+            kind: source
+                .lifetime_access
+                .clone()
+                .unwrap_or_else(|| retained_access.clone()),
             formation: if is_call_result {
                 super::BorrowFormation::ReturnedDescriptor
             } else {

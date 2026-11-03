@@ -836,7 +836,9 @@ fn limit_access(
 
 pub(super) fn attenuate(loans: &mut [StatementBorrowLoan], access: &BorrowAccessKind) {
     for loan in loans {
-        if loan.kind == BorrowAccessKind::Mutable {
+        if loan.kind == BorrowAccessKind::Mutable
+            && loan.lineage != BorrowLoanLineage::LifetimeDependency
+        {
             loan.kind = access.clone();
         }
     }
@@ -938,6 +940,7 @@ pub(super) fn argument_loans(
             loan.owner_path = result_owner_path.to_vec();
             // A result's declared exclusivity cannot promote a captured shared loan.
             if !field.lifetime_only
+                && loan.lineage != BorrowLoanLineage::LifetimeDependency
                 && matches!(
                     field.kind,
                     BorrowAccessKind::Read | BorrowAccessKind::WriteOnly
