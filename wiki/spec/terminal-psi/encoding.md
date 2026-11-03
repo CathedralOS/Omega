@@ -2290,14 +2290,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (122). A receiver rejects an unknown magic or stale marker
+vocabulary marker (130). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 174 | yes |
+| semantic module | `PSITERM\0` | 237 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |
