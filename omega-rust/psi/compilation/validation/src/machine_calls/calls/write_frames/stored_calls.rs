@@ -248,8 +248,14 @@ fn invocation_reference_effects(
     // Closed dynamic suppliers use the same completed argument captures and
     // output-occurrence rebasing as concrete bodies. Missing closed coverage
     // retains declared lifetime debts without inventing a supplied pointer.
+    // The program's closed roster covers only selectors this program forms;
+    // one received from the caller may be any fitting implementation, so it
+    // keeps the requirement's declared outputs (dynamic_dispatch.md, source
+    // eligibility: an unknown selection retains the requirement ceiling).
     if let Some(slot) = program.dynamic_slot_by_symbol(target) {
-        if let Some(relative) = dynamic_outputs::relative_effects(program, slot, symbols, inference)
+        if !dynamic_outputs::caller_may_receive_selector(program, caller_state, slot)
+            && let Some(relative) =
+                dynamic_outputs::relative_effects(program, slot, symbols, inference)
         {
             return transfer(parameters, relative);
         }
