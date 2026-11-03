@@ -93,7 +93,7 @@ fail/cases/constructor_subject_range_unproved rejected 619ms expected @03bcba3fe
 	data `ByteRead` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/cases/constructor_subject_range_unsigned_to_signed_unproved rejected 1007ms expected @95750e8d2f8d
 	Exact integer cast in machine `make` state `entry` from `u64` to `i64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
-fail/comptime/const_recursive_counter_survives_unrelated_writes rejected 609ms expected @2273a6785226+wt
+fail/comptime/const_recursive_counter_survives_unrelated_writes rejected 609ms expected @c5cc3d874922+wt
 	fixed-array length `[u8; extent()]`: const evaluation of `extent` failed: machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/constants/target_layout_derived_ground_guarantee_reject rejected 1261ms expected @d6c89b306726
 	cannot prove ensures contract for exit from incorrect at statement 1: result >= 5
@@ -2548,31 +2548,54 @@ fail/facts/provider_contract_endpoint_closed_owner_through_parameter_rejected re
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
 fail/facts/provider_contract_endpoint_closed_owner_through_target_body_rejected rejected 3087ms expected @390bdce3859c
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
-fail/facts/provider_contract_endpoint_guarded_crash_through_call_result_rejected rejected 11197ms expected @2273a6785226+wt
-	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-expression-1` is not build-time admissible: a checked crash route remains possible (Trap); calls: [limit]; constant evaluation requires proof that no crash route can occur before execution"))
-fail/facts/provider_contract_endpoint_guarded_crash_through_const_name_rejected rejected 7860ms expected @2273a6785226+wt
-	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-expression-1` is not build-time admissible: a checked crash route remains possible (Trap); calls: [limit]; constant evaluation requires proof that no crash route can occur before execution"))
-fail/facts/provider_contract_endpoint_guarded_crash_through_field_rejected rejected 3123ms expected @2273a6785226+wt
-	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-expression-1` is not build-time admissible: a checked crash route remains possible (Trap); calls: [limit]; constant evaluation requires proof that no crash route can occur before execution"))
-fail/facts/provider_contract_endpoint_guarded_crash_through_local_rejected rejected 4009ms expected @2273a6785226+wt
-	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-expression-1` is not build-time admissible: a checked crash route remains possible (Trap); calls: [limit]; constant evaluation requires proof that no crash route can occur before execution"))
-fail/facts/provider_contract_endpoint_guarded_crash_through_match_join_rejected rejected 3127ms expected @2273a6785226+wt
-	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-expression-1` is not build-time admissible: a checked crash route remains possible (Trap); calls: [limit]; constant evaluation requires proof that no crash route can occur before execution"))
-fail/facts/provider_contract_endpoint_guarded_crash_through_other_machine_rejected rejected 3888ms expected @2273a6785226+wt
-	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-expression-1` is not build-time admissible: a checked crash route remains possible (Trap); calls: [limit]; constant evaluation requires proof that no crash route can occur before execution"))
-fail/facts/provider_contract_endpoint_guarded_crash_through_other_state_rejected rejected 4063ms expected @2273a6785226+wt
-	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-expression-1` is not build-time admissible: a checked crash route remains possible (Trap); calls: [limit]; constant evaluation requires proof that no crash route can occur before execution"))
-fail/facts/provider_contract_endpoint_guarded_crash_through_parameter_rejected rejected 6925ms expected @2273a6785226+wt
-	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-expression-1` is not build-time admissible: a checked crash route remains possible (Trap); calls: [limit]; constant evaluation requires proof that no crash route can occur before execution"))
-fail/facts/provider_contract_endpoint_guarded_crash_through_target_body_rejected rejected 7590ms expected @2273a6785226+wt
-	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-expression-1` is not build-time admissible: a checked crash route remains possible (Trap); calls: [limit]; constant evaluation requires proof that no crash route can occur before execution"))
+fail/facts/provider_contract_endpoint_guarded_crash_through_call_result_rejected rejected 2304ms expected @c5cc3d874922+wt
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+fail/facts/provider_contract_endpoint_guarded_crash_through_const_name_rejected rejected 2585ms expected @c5cc3d874922+wt
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+fail/facts/provider_contract_endpoint_guarded_crash_through_field_rejected rejected 2530ms expected @c5cc3d874922+wt
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+fail/facts/provider_contract_endpoint_guarded_crash_through_local_rejected rejected 2503ms expected @c5cc3d874922+wt
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+fail/facts/provider_contract_endpoint_guarded_crash_through_match_join_rejected rejected 3237ms expected @c5cc3d874922+wt
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+fail/facts/provider_contract_endpoint_guarded_crash_through_other_machine_rejected rejected 2549ms expected @c5cc3d874922+wt
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+fail/facts/provider_contract_endpoint_guarded_crash_through_other_state_rejected rejected 2860ms expected @c5cc3d874922+wt
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+fail/facts/provider_contract_endpoint_guarded_crash_through_parameter_rejected rejected 4650ms expected @c5cc3d874922+wt
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+fail/facts/provider_contract_endpoint_guarded_crash_through_target_body_rejected rejected 4617ms expected @c5cc3d874922+wt
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
+	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 fail/facts/provider_contract_endpoint_pending_call_through_call_result_rejected rejected 11005ms expected @4b50ded92ae9
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
 fail/facts/provider_contract_endpoint_pending_call_through_const_name_rejected rejected 4108ms expected @4b50ded92ae9
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
 fail/facts/provider_contract_endpoint_pending_call_through_field_rejected rejected 3600ms expected @4b50ded92ae9
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 2
-fail/facts/provider_contract_endpoint_pending_call_through_local_rejected rejected 9058ms expected @2273a6785226+wt
+fail/facts/provider_contract_endpoint_pending_call_through_local_rejected rejected 9058ms expected @c5cc3d874922+wt
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
 fail/facts/provider_contract_endpoint_pending_call_through_match_join_rejected rejected 4216ms expected @4b50ded92ae9
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
@@ -4255,7 +4278,7 @@ pass/build/sibling_module_service_exclusion_exit checked 4008ms check-target:mac
 pass/build/sibling_module_slot_family_rows_exit rejected 16789ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(gate::Gate::open),parameters(),result-dispatch())` has duplicate canonical realizations
 pass/build/static_assumed_binding_spelling_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/terminal_calling_policy_execution checked 78393ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @2273a6785226+wt
+pass/build/terminal_calling_policy_execution checked 78393ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @4b50ded92ae9
 pass/build/terminal_nested_input_contents checked 6990ms check-target:macos_arm64 terminal-runtime.inspect:unrequested terminal-runtime.inspect_second:unrequested terminal-runtime.inspect_erased:unrequested terminal-runtime.inspect_reference:unrequested terminal-inspections:match @38f862ee379f
 pass/build/terminal_private_callback_calling checked 79138ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @f8fd5ea66130
 pass/build/terminal_project_requests checked 6659ms check-target:macos_arm64 terminal-runtime.requests:unrequested terminal-inspections:match @ccdb99ca2214
@@ -4868,12 +4891,12 @@ pass/compile_time/const_overload_nested_dependency_exit checked 4023ms check-tar
 pass/compile_time/const_overload_selected_dependency_exit checked 3628ms check-target:macos_arm64 @ccdb99ca2214
 pass/components/independent_same_spelling_packages checked 9944ms check-target:macos_arm64 @230151eef4fe
 pass/comptime/const_joint_ranked_call_component checked 2290ms check-target:macos_arm64 @6416b0fdfbe3
-pass/comptime/const_recursive_counter_survives_unrelated_writes checked 3764ms check-target:macos_arm64 @2273a6785226+wt
+pass/comptime/const_recursive_counter_survives_unrelated_writes checked 3764ms check-target:macos_arm64 @c5cc3d874922+wt
 pass/comptime/provider_boundary_range_endpoint_exit rejected 32220ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
 pass/comptime/range_endpoint_requires_discharge_exit checked 16565ms check-target:macos_arm64 @ccdb99ca2214
 pass/comptime/runtime_const_array_anonymous_expression_exit checked 3661ms check-target:macos_arm64 @ccdb99ca2214
-pass/comptime/runtime_const_array_call_arguments_exit checked 15198ms check-target:macos_arm64 @2273a6785226+wt
+pass/comptime/runtime_const_array_call_arguments_exit checked 15198ms check-target:macos_arm64 @c5cc3d874922+wt
 pass/comptime/runtime_const_array_cast_expression_exit checked 7595ms check-target:macos_arm64 @911f6617ba9e
 pass/comptime/runtime_const_array_length_dependency_order_exit incomplete 20211ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	`table_size` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `table_size::entry`, statement 0
@@ -10228,21 +10251,21 @@ pass/facts/provider_contract_endpoint_control_field_snapshot_before_sibling_writ
 pass/facts/provider_contract_endpoint_control_forwarded_provider_selection checked 3245ms check-target:macos_arm64 @390bdce3859c
 pass/facts/provider_contract_endpoint_control_generic_forwarded_provider_selection checked 3418ms check-target:macos_arm64 @390bdce3859c
 pass/facts/provider_contract_endpoint_control_indirect_helper checked 3239ms check-target:macos_arm64 @390bdce3859c
-pass/facts/provider_contract_endpoint_control_unrelated_pending_target_contract checked 3305ms check-target:macos_arm64 @2273a6785226+wt
-pass/facts/provider_contract_endpoint_guarded_crash_runtime_zero_divisor_traps checked 5659ms check-target:macos_arm64 @2273a6785226+wt
-pass/facts/provider_contract_endpoint_guarded_crash_through_call_result_exit checked 5652ms check-target:macos_arm64 @2273a6785226+wt
-pass/facts/provider_contract_endpoint_guarded_crash_through_const_name_exit checked 4927ms check-target:macos_arm64 @2273a6785226+wt
-pass/facts/provider_contract_endpoint_guarded_crash_through_field_exit checked 4618ms check-target:macos_arm64 @2273a6785226+wt
-pass/facts/provider_contract_endpoint_guarded_crash_through_local_exit checked 5071ms check-target:macos_arm64 @2273a6785226+wt
-pass/facts/provider_contract_endpoint_guarded_crash_through_match_join_exit checked 4042ms check-target:macos_arm64 @2273a6785226+wt
-pass/facts/provider_contract_endpoint_guarded_crash_through_other_machine_exit checked 4212ms check-target:macos_arm64 @2273a6785226+wt
-pass/facts/provider_contract_endpoint_guarded_crash_through_other_state_exit checked 4457ms check-target:macos_arm64 @2273a6785226+wt
-pass/facts/provider_contract_endpoint_guarded_crash_through_parameter_exit checked 4324ms check-target:macos_arm64 @2273a6785226+wt
-pass/facts/provider_contract_endpoint_guarded_crash_through_target_body_exit checked 4814ms check-target:macos_arm64 @2273a6785226+wt
+pass/facts/provider_contract_endpoint_control_unrelated_pending_target_contract checked 3305ms check-target:macos_arm64 @c5cc3d874922+wt
+pass/facts/provider_contract_endpoint_guarded_crash_runtime_zero_divisor_traps checked 5659ms check-target:macos_arm64 @c5cc3d874922+wt
+pass/facts/provider_contract_endpoint_guarded_crash_through_call_result_exit checked 5652ms check-target:macos_arm64 @c5cc3d874922+wt
+pass/facts/provider_contract_endpoint_guarded_crash_through_const_name_exit checked 4927ms check-target:macos_arm64 @c5cc3d874922+wt
+pass/facts/provider_contract_endpoint_guarded_crash_through_field_exit checked 4618ms check-target:macos_arm64 @c5cc3d874922+wt
+pass/facts/provider_contract_endpoint_guarded_crash_through_local_exit checked 5071ms check-target:macos_arm64 @c5cc3d874922+wt
+pass/facts/provider_contract_endpoint_guarded_crash_through_match_join_exit checked 4042ms check-target:macos_arm64 @c5cc3d874922+wt
+pass/facts/provider_contract_endpoint_guarded_crash_through_other_machine_exit checked 4212ms check-target:macos_arm64 @c5cc3d874922+wt
+pass/facts/provider_contract_endpoint_guarded_crash_through_other_state_exit checked 4457ms check-target:macos_arm64 @c5cc3d874922+wt
+pass/facts/provider_contract_endpoint_guarded_crash_through_parameter_exit checked 4324ms check-target:macos_arm64 @c5cc3d874922+wt
+pass/facts/provider_contract_endpoint_guarded_crash_through_target_body_exit checked 4814ms check-target:macos_arm64 @c5cc3d874922+wt
 pass/facts/provider_contract_endpoint_pending_call_through_call_result_exit checked 7397ms check-target:macos_arm64 @4b50ded92ae9
 pass/facts/provider_contract_endpoint_pending_call_through_const_name_exit checked 5224ms check-target:macos_arm64 @4b50ded92ae9
 pass/facts/provider_contract_endpoint_pending_call_through_field_exit checked 5675ms check-target:macos_arm64 @4b50ded92ae9
-pass/facts/provider_contract_endpoint_pending_call_through_local_exit checked 4270ms check-target:macos_arm64 @2273a6785226+wt
+pass/facts/provider_contract_endpoint_pending_call_through_local_exit checked 4270ms check-target:macos_arm64 @c5cc3d874922+wt
 pass/facts/provider_contract_endpoint_pending_call_through_match_join_exit checked 5821ms check-target:macos_arm64 @4b50ded92ae9
 pass/facts/provider_contract_endpoint_pending_call_through_other_machine_exit checked 4397ms check-target:macos_arm64 @4b50ded92ae9
 pass/facts/provider_contract_endpoint_pending_call_through_other_state_exit checked 4982ms check-target:macos_arm64 @4b50ded92ae9
@@ -12684,7 +12707,7 @@ pass/generics/dependent_const_array_carrier checked 2375ms @ccdb99ca2214
 pass/generics/dependent_const_carrier_arguments checked 2386ms @ccdb99ca2214
 pass/generics/dependent_const_recursive_forwarding checked 2214ms @ccdb99ca2214
 pass/generics/erased_static_arguments_keep_lexical_scope_exit checked 5269ms check-target:macos_arm64 @911f6617ba9e
-pass/generics/folded_range_endpoint_selection_custody checked 26931ms check-target:macos_arm64 @2273a6785226+wt
+pass/generics/folded_range_endpoint_selection_custody checked 26931ms check-target:macos_arm64 @c5cc3d874922+wt
 pass/generics/foreign_case_membership_dispatch_exit checked 9835ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/foreign_case_payload_reads_exit checked 11738ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/forwarded_slice_result_local_receipt checked 2744ms @ccdb99ca2214
@@ -18194,9 +18217,9 @@ fail/constants/predicate_constant_generic_static_index_fence rejected 428ms unex
 fail/constants/predicate_constant_nested_projection_shadow rejected 810ms expected @46cdd6b85b82+wt
 	data `Packet` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/predicate_constant_static_index_fence checked 7636ms @911f6617ba9e
-fail/constants/target_layout_derived_crashing_helper_reject rejected 10781ms expected @2273a6785226+wt
+fail/constants/target_layout_derived_crashing_helper_reject rejected 10781ms expected @c5cc3d874922+wt
 	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-BAD` is not build-time admissible: a checked crash route remains possible (Trap); calls: [forbidden]; constant evaluation requires proof that no crash route can occur before execution"))
-fail/constants/target_layout_derived_demanded_crashing_helper_reject rejected 10192ms expected @2273a6785226+wt
+fail/constants/target_layout_derived_demanded_crashing_helper_reject rejected 10192ms expected @c5cc3d874922+wt
 	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-BAD` is not build-time admissible: a checked crash route remains possible (Trap); calls: [forbidden]; constant evaluation requires proof that no crash route can occur before execution"))
 fail/constants/target_layout_derived_dependency_cycle_reject rejected 143ms expected @d6c89b306726
 	constant initializer: target constant dependency cycle or unavailable canonical input
@@ -28194,9 +28217,9 @@ fail/facts/projection_call_premise_through_target_body_rejected rejected 2964ms 
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/provider_contract_endpoint_control_circular_endpoint_formation rejected 10387ms expected regressed-from:checked @2273a6785226+wt
+fail/facts/provider_contract_endpoint_control_circular_endpoint_formation rejected 10387ms expected regressed-from:checked @c5cc3d874922+wt
 	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
-fail/facts/provider_contract_endpoint_control_crashing_endpoint rejected 11644ms expected @34a84fc24962
+fail/facts/provider_contract_endpoint_control_crashing_endpoint rejected 11644ms expected @c5cc3d874922+wt
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 	constant expression `limit()` can crash with [Trap]; a build-time value must be formed without an unhandled crash route
 fail/facts/provider_contract_endpoint_control_direct_provider_protocol rejected 116ms expected @390bdce3859c
@@ -32912,7 +32935,7 @@ fail/generics/type_index_wrong_telescope rejected 1700ms expected @ccdb99ca2214
 	index compatibility condition `index-equality:Pair:wrong::entry:exit-0:Pair<Left, Right>==Pair<Left, Right>` is not established: actual `Pair<Left, Right>` and expected `Pair<Left, Right>` are distinct normalized instances; closed evaluation, licensed normalization, or an exact local equality fact is required
 fail/generics/typed_const_probe_false_extent_requires rejected 291ms unexpected @911f6617ba9e
 	cannot prove requires contract for specification call `extent` in closed const argument: establish its selected precondition in an independently formed prior requires fact
-fail/generics/typed_const_probe_trapping_extent rejected 398ms expected @2273a6785226+wt
+fail/generics/typed_const_probe_trapping_extent rejected 398ms expected @c5cc3d874922+wt
 	const-generic application evaluation failed: constant invocation retains unhandled [Trap] routes at its concrete arguments
 fail/generics/typed_const_probe_unused_bad_scalar rejected 310ms expected @911f6617ba9e
 	scalar constant `BAD` is invalid: const value `300` does not fit `u8`

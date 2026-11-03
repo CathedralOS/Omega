@@ -1,8 +1,8 @@
 # Endpoint formation and transport controls
 
-These controls belong to the same selected endpoint, captured bound and exact
-subtraction as the nine-place row. They challenge the prerequisites introduced
-by this repair rather than adding transport matrices.
+These controls check that a computed range limit stays valid when helpers call
+other helpers or values move through records. They use the same selected limit
+and exact subtraction as the nine-place examples.
 
 - `circular_endpoint_formation` rejects a helper that uses its own pending
   result to admit a call. The [pending-call examples](../pending_call/README.md)
@@ -35,7 +35,8 @@ by this repair rather than adding transport matrices.
   rejects.
 - `public_header_private_endpoint` rejects exposing a private endpoint.
   `runtime_self_forbidden`, `machine_contract_self_forbidden` and
-  `nested_self_forbidden` retain predicate-only logical-subject scope.
+  `nested_self_forbidden` reject using `self` outside the predicates where it
+  names the value being checked.
 - `composed_endpoint` and `indirect_helper` execute ordinary transitive checked
   calls rather than a recognized endpoint spelling.
 
@@ -46,9 +47,8 @@ match the frozen passing R6 probe. The constant still owes formation, while main
 checks the original bound seven; it does not directly observe the resulting eight.
 Current-candidate qualification remains pending.
 
-Historical generic-endpoint/static-actual and portable-family circular source
-experiments reached earlier unsupported formation. Their exit codes are not
-credited as enforcement of their later intended obligations. Their raw inputs
-and diagnostics remain in the qualification record. The direct ordinary
-circular control and the static-metadata source-model counterexample provide
-the applicable observations for those implementation premises.
+Some older generic and circular-call experiments stopped before reaching the
+call check they were intended to test. Their exit codes do not prove that check;
+the qualification record preserves their inputs and diagnostics. The direct
+circular control and the source-model test with distinct static arguments supply
+the applicable evidence instead.

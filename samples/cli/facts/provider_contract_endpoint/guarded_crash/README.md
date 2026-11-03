@@ -1,8 +1,8 @@
 # Prove a bound helper cannot crash before running it
 
-A helper with a guarded crash contract can compute a constant only when the
-compiler proves the guard false for that invocation. Executing the helper and
-then reporting its trap is too late.
+A helper used to calculate a range limit must be safe for the input the compiler
+gives it. Dividing seven by one is allowed; dividing by zero must reject before
+the helper runs.
 
 The selected provider makes limit() equal to 7; requires value <= limit() preserves the bound needed to prove 7 - value.
 
@@ -36,8 +36,9 @@ narrow an opaque declaration's contract.
 | Selected implementation | [program](target_body/main.omg) | [zero divisor](target_body/invalid/main.omg) | [pass](../../../../../tests/omega/pass/facts/provider_contract_endpoint_guarded_crash_through_target_body_exit/main.omg), [fail](../../../../../tests/omega/fail/facts/provider_contract_endpoint_guarded_crash_through_target_body_rejected/main.omg) |
 
 Each positive must pass `omega run --both` at exit zero. Each twin must reject
-with `constant evaluation requires proof that no crash route can occur before
-execution`, rather than an interpreted trap or an unrelated lowering failure.
+during source checking with ``constant expression `limit()` can crash with [Trap]``
+and `a build-time value must be formed without an unhandled crash route`.
+An interpreted trap or unrelated lowering failure does not establish admission.
 The [ordinary runtime call](controls/runtime_zero_divisor/main.omg) deliberately
 uses zero and must trap in both engines. Together with the safe runtime calls in
 the nine positives, it checks both branches and ensures constant admission does
@@ -89,6 +90,9 @@ exit zero. Each twin rejects before execution and names the `Trap` route through
 `limit`; the original crashing endpoint names the same route. The runtime-only
 zero-divisor control still produces native signal 5 and Terminal `Trap` on
 macOS ARM64. The array and layout customers retain their authored exits zero
-and 70. The focused corpus covers 32 fixtures with 16 checks and 16 intended
-rejects, including actual execution of the saved calling policy. Independent
-review and normal main landing remain separate publication requirements.
+and 70. Before integration, 32 corpus fixtures qualified, including saved-policy
+execution. The integrated corpus checks 15 positives and rejects 16 invalid
+controls; the saved-policy positive hits the same transport failure on exact
+main and candidate. That failure is retained explicitly in the measurement,
+not counted as current execution. Independent review and normal main landing
+remain separate publication requirements.

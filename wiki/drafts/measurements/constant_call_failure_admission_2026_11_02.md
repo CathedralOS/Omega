@@ -13,9 +13,12 @@ runtime call with zero still produces native signal 5 and Terminal `Trap`.
 
 The array and layout customers retain their authored exits zero and 70.
 The recursion and unrelated-pending-condition controls also check and run at zero.
-The focused corpus qualifies 32 fixtures: 16 positives check and 16 negatives
-reject for their intended reasons. The saved calling-policy inspection and its
-actual retained-program execution both match their oracles.
+Before integration, the R20 corpus qualified 32 fixtures: 16 positives checked
+and 16 invalid controls rejected. Its saved calling-policy inspection and actual
+execution matched their oracles. On the integrated source, 15 positives check
+and all 16 invalid controls reject. The saved-policy positive fails transport
+on both the fixed main baseline and the candidate; it is not counted as current
+execution success.
 
 ## Why the check is sufficient
 
@@ -42,7 +45,7 @@ routes do not count as impossible.
 The other effect, termination, resource and selection-authority checks remain
 mandatory before interpretation.
 
-## Executed evidence
+## Execution before integration (R20)
 
 | Programs or checks | Observed result |
 | --- | --- |
@@ -86,7 +89,7 @@ expected-diagnostic and accepted-lock replay inputs. They are not relabeled as
 clean source. All unselected golden blocks remain byte-identical and no fixture
 keys are removed.
 
-The first corpus attempt completed 29 applicable observations but stopped one
+The first R20 corpus attempt completed 29 applicable observations but stopped one
 positive recursion control at an old compiler-identity lock. That setup refusal
 receives no semantic credit. A normal update and actual execution passed, then
 three fresh corpus observations completed the 32-fixture selection. The other
@@ -94,27 +97,72 @@ three fresh corpus observations completed the 32-fixture selection. The other
 misclassified the correct CLI exit 70; the correction uses its completed native
 and Terminal observations without repeating the program.
 
-The eight saved-program tests are retained from the R17 component run. Its
-separate source-domain failure is not credited. Five source tests pass in R19;
-the compiled patch is byte-identical to the later source checkpoint. The archive
-keeps the failed intermediate tests, including the domain case that reached
-integer division, and the subsequent full-entry-requirement repair.
+R20 reused eight saved-program tests from R17 and five source tests from R19.
+R17's separate source-domain failure was not credited. The R19 compiled patch
+was byte-identical to the later source checkpoint. The archive preserves failed
+intermediate tests, including the domain case that reached integer division,
+and the subsequent repair that checked every recorded entry requirement.
 
 ## Bounded iteration repair
 
-The layout update completes in 134.31 seconds, within the recorded 180-second
-acceptance, and its runtime result remains 70. A slow intermediate version was
+The R20 layout update completed in 134.31 seconds, within the recorded 180-second
+acceptance, and its runtime result remained 70. A slow intermediate version was
 intentionally stopped after more than six minutes. Its live sample showed a
 redundant whole-program caller check despite completed analysis showing no crash
 routes. That analysis is reused only when there are no entry requirements. Every
 recorded entry requirement is checked at the actual call.
 
-Staged builds also co-select `package-source` to match the CLI's transitive
-features. The final CLI build marks all four warmed compiler owners fresh;
-the changed dependency takes 17.25 seconds and the final CLI command takes
-73.61 seconds. The corpus runner takes 80.87 seconds. Source changes differ from
+Earlier R20 build steps included `package-source` so Cargo enabled the same
+dependency features as the CLI. The final CLI build reused the four compiler
+crates built in those preceding steps. The changed crate took 17.25 seconds,
+the final CLI command took 73.61 seconds, and the corpus runner took 80.87 seconds. Source changes differ from
 the earlier build, so these are measured durations and reuse evidence, not a
 claimed like-for-like speedup ratio. No broader performance campaign is implied.
 
 Independent exact-candidate review and normal main landing are publication
 requirements; the raw execution results above do not substitute for them.
+
+## Qualification after integration
+
+A real overlap with the earlier source-checking repair required replaying this
+change on main at `5209eac451caf43591135c2b453033e60b4df917`. The integrated
+compiler source is `c5cc3d8749224ed1a76fa7abad1707dfd9f5dd1d`; its production
+patch is unchanged by that replay. Generated constant calls with a possible crash now refuse
+earlier during source checking, naming `limit()` and `Trap`. The two layout
+helpers still refuse before execution through the later admission check.
+
+Fresh integrated observations cover all nine positive places and nine twins,
+all 13 Rust tests in one run, array and layout exits zero and 70, the ordinary
+runtime Trap, recursion and unrelated-condition controls. Both CLI and runner
+Clippy commands pass. The 32-fixture corpus supplies 15 checked positives and
+16 intended rejects, plus one explicitly retained baseline failure.
+
+That remaining positive fails while transporting the saved policy's artifact,
+before failure admission. An optimized producer built from exact main at
+`5209eac451caf43591135c2b453033e60b4df917` reproduces the identical diagnostic
+with the same fixture/library paths and byte hashes. The diagnostic names a
+Windows filesystem body because one failed body adaptation empties the shared
+descriptor lookup; it does not identify that body as the original cause. The
+full replay is retained. Its historical golden row stays unchanged from main;
+the failure is neither credited as execution nor made an expected rejection.
+
+The layout customer's source is unchanged. Its normal update required package
+review after incoming main moved filesystem bindings into Build. Independent
+inspection found the same native symbols and unchanged boundary contracts; the
+fixture makes no filesystem calls. Ordinary reviewed resume passed, followed by
+native and Terminal exit 70. The first source-checking phase took 165.36 seconds,
+resume 78.29 seconds, and execution 50.58 seconds; these distinct phases are not
+collapsed into the earlier R20 timing. Disk-full link attempts and subsequent
+lossless storage repairs remain visible in the raw records.
+
+Integrated optimized producer SHA-256 identities:
+
+- CLI: `5ac449c900d6d3b72d89a5773c67b73768e5276cc9b148f4dc8c36aa00b2b475`.
+- Runner: `3ab0bb66e77a5a5de9c9537c7bae9f20eb523af2d0a6791c941f67620b197c41`.
+- Main baseline runner: `8dc24f641172af8488afccf04f5d7be07cf268a3bf69ef6de982b7883977e407`.
+
+All retain verified opt-level 1. Integrated corpus stamps retain `+wt` together
+with their diagnostic-oracle patch and exact replay inputs.
+
+[Integrated raw results, exact-main comparison and source bundle](https://github.com/CathedralOS/Omega/blob/024779c6ffe4db42ec4ce3d9771f35b5377e36cd/README.md)
+retain the successful scoped checks and the baseline failure as separate outcomes.
