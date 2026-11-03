@@ -311,11 +311,9 @@ fn observe_following(
                 extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
             }
         } else {
-            match source {
-                // Exact backing coordinates do not prove absence of a local
-                // parent. Locally formed values require the resident join above.
-                _ => return Err(Refusal::LocalOriginWithoutResident),
-            }
+            // Exact backing coordinates do not prove absence of a local
+            // parent. Locally formed values require the resident join above.
+            return Err(Refusal::LocalOriginWithoutResident);
         };
         origins.push(origin);
     }

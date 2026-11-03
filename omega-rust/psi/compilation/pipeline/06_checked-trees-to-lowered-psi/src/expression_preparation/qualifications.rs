@@ -237,7 +237,7 @@ impl PreparedScalarQualifications {
             identities
                 .text(left.identity)
                 .unwrap_or_default()
-                .cmp(&identities.text(right.identity).unwrap_or_default())
+                .cmp(identities.text(right.identity).unwrap_or_default())
         });
         for (ordinal, domain) in catalog.domains.iter_mut().enumerate() {
             domain.id = ScalarDomainId::new(

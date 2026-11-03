@@ -188,15 +188,15 @@ impl<'program> ProbeProjection<'program> {
         }
         for (_, row) in self.original.trait_implementation_applications.iter() {
             let source_owner = row.source_scope.supplying_owner();
-            let supplying_owner = row
-                .supplying_application
-                .is_valid()
-                .then(|| {
+            let supplying_owner = if row.supplying_application.is_valid() {
+                {
                     expression_table(self.original)
                         .static_machine_application(row.supplying_application)
                         .lexical_owner
-                })
-                .unwrap_or_default();
+                }
+            } else {
+                Default::default()
+            };
             if (owned_by(self.original, &self.removed, source_owner)
                 || owned_by(self.original, &self.removed, supplying_owner))
                 && !program

@@ -252,12 +252,12 @@ fn authored_spelling_parameters(
         // signatures author the spelling through shapes this pass does not
         // read into parameter carriers; they conservatively may bind.
         Item::Operator(operator) if operator.spelling == Some(spelling) => Some(vec![None, None]),
-        Item::Domain(domain) => syntax_items(&syntax)
+        Item::Domain(domain) => syntax_items(syntax)
             .operators(domain.operators)
             .iter()
             .any(|operator| operator.spelling == Some(spelling))
             .then(|| vec![None, None]),
-        Item::Trait(trait_definition) => syntax_items(&syntax)
+        Item::Trait(trait_definition) => syntax_items(syntax)
             .state_signatures(trait_definition.machines)
             .iter()
             .any(|handle| syntax.items.state_signature(*handle).spelling == Some(spelling))
@@ -270,7 +270,7 @@ fn authored_spelling_parameters(
 /// with the machine's own type binders left unread: `T` can carry any
 /// operand, so it stays `None`.
 fn machine_parameter_names(syntax: &SyntaxTrees, machine: &Machine) -> Vec<Option<String>> {
-    let binder_names: Vec<&str> = syntax_items(&syntax)
+    let binder_names: Vec<&str> = syntax_items(syntax)
         .type_parameters(machine.type_parameters)
         .iter()
         .map(|parameter| parameter.name.as_str(syntax))
@@ -279,12 +279,12 @@ fn machine_parameter_names(syntax: &SyntaxTrees, machine: &Machine) -> Vec<Optio
         return Vec::new();
     };
     let state = syntax.items.state(*entry);
-    syntax_items(&syntax)
+    syntax_items(syntax)
         .state_parameters(state.parameters)
         .iter()
         .map(|handle| {
             let parameter = syntax.items.state_parameter(*handle);
-            let name = syntax_type_references(&syntax)
+            let name = syntax_type_references(syntax)
                 .type_reference(parameter.type_reference)
                 .as_named()?;
             (!binder_names.contains(&name.as_str(syntax))).then(|| name.as_str(syntax).to_string())

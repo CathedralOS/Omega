@@ -870,30 +870,6 @@ fn fixed_index_within_extent(
     }
 }
 
-/// The window's bounds against a fixed byte-array container's literal
-/// extent. The `FixedRange` segment names a byte view's own window, so
-/// unlike the index arm a runtime-length slice cannot carry it — a stored
-/// `&[u8]` has no literal bound to re-prove against.
-pub(crate) fn fixed_byte_range_within_extent(
-    program: &dyn ::validation::CheckingInput,
-    container: typed_trees::types::TypeReferenceHandle,
-    start: usize,
-    end: usize,
-) -> Option<()> {
-    let container = unwrapped_type_reference(program, container)?;
-    let TypeReferenceNode::FixedArray {
-        element_type,
-        length: FixedArrayLength::Literal(length),
-    } = program.type_reference_table.type_reference(container)
-    else {
-        return None;
-    };
-    if program.primitive_type_reference(*element_type) != Some(PrimitiveType::U8) {
-        return None;
-    }
-    (start <= end && end <= usize::try_from(*length).ok()?).then_some(())
-}
-
 /// The container is a slice through any number of domain constraints and
 /// borrows.
 fn slice_type_reference(

@@ -274,9 +274,7 @@ pub(crate) fn selected_function_digest_with_prefix(
         }
         hasher.raw(&page_bytes);
         let registers: [crate::VirtualRegister; REGISTER_PAGE_SIZE] = chunk
-            .iter()
-            .cloned()
-            .collect::<Vec<_>>()
+            .to_vec()
             .try_into()
             .expect("chunk has exact REGISTER_PAGE_SIZE length");
         pages.push(std::sync::Arc::new(CachedRegisterPage {

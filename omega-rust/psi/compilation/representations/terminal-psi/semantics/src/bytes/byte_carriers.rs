@@ -52,9 +52,7 @@ pub fn byte_carrier_scalar_layout<'types>(
 ) -> Option<ByteCarrierLayout> {
     let declaration = types.clone().find(|item| item.id == root)?;
     let size = crate::reference_storage_size(types.clone(), root)?;
-    let Some(fields) = declaration.shape.record_fields() else {
-        return None;
-    };
+    let fields = declaration.shape.record_fields()?;
     let mut leaves = Vec::with_capacity(fields.len());
     for field in fields {
         if field.relevance.is_erased() {
@@ -64,9 +62,7 @@ pub fn byte_carrier_scalar_layout<'types>(
         let projection = crate::reference_storage_projection(
             types.clone(),
             root,
-            &[terminal_psi::StructuralPathSegment::Field(
-                field.identity.clone(),
-            )],
+            &[terminal_psi::StructuralPathSegment::Field(field.identity)],
         )?;
         if projection.logical_scalar != scalar_type || projection.stored_scalar != scalar_type {
             return None;

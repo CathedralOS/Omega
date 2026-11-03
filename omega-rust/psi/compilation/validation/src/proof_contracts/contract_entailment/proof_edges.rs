@@ -61,9 +61,7 @@ pub(crate) fn proof_interval_strict_decrease_judged(
     measure: &typed_trees::signature::StateParameter,
     ranked_entries: &[SymbolHandle],
 ) -> Option<SymbolHandle> {
-    let Some(entry) = program.machine_states(machine).first() else {
-        return None;
-    };
+    let entry = program.machine_states(machine).first()?;
     // Entry-relative premises describe all arrivals only on an acyclic state
     // graph. The shared prefix walker does not replay a recurrent arrival;
     // accepting its first visit would donate stale premises to that cycle.
@@ -72,9 +70,7 @@ pub(crate) fn proof_interval_strict_decrease_judged(
     ) {
         return None;
     }
-    let Some(relation) = selected_decrease_relation(program, machine, state, measure) else {
-        return None;
-    };
+    let relation = selected_decrease_relation(program, machine, state, measure)?;
     let requires = machine_requires_facts(program, machine);
     let judge = StructuralJudge::from_requires(program, machine, &requires, true);
     let mut edge = StrictDecrease {

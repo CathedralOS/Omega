@@ -520,6 +520,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             | Semantic::ReturnUnit
             | Semantic::Crash => MachineBarrier::ControlFlow,
             Semantic::CallScalar
+            | Semantic::InvokeNoNormal
             | Semantic::CallUnit
             | Semantic::CallAggregate
             | Semantic::NormalizedForeignCall => MachineBarrier::Call,
@@ -540,6 +541,7 @@ fn catalog_declares_alias_safe_subtraction_and_control_barriers() {
             | Semantic::ModelSpecificWrite
             | Semantic::ProcessorHalt
             | Semantic::InterruptControl
+            | Semantic::MemoryFence
             | Semantic::AtomicFence
             | Semantic::AtomicAccess(_)
             | Semantic::AccessorScalarAccess(_) => MachineBarrier::ExternalEffect,

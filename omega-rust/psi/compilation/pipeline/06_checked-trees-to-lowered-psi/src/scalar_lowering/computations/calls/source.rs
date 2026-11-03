@@ -72,7 +72,7 @@ impl<'a> Expansion<'a> {
                         ))?;
                 Ok(CallSource {
                     expression,
-                    evaluation_order: (0..retained.checked_arguments.len() as usize).collect(),
+                    evaluation_order: (0..retained.checked_arguments.len()).collect(),
                     arguments: plan
                         .application_call_arguments
                         .span(retained.checked_arguments)

@@ -6,7 +6,7 @@ requires column < spectrum.samples.len { spectrum.samples[column] }
 
 // Borrowed carriers and ordinary named calls retain the same bound.
 machine borrowed<'samples>(spectrum: &SpectrumView<'samples>, column: u64) -> f64
-requires column < spectrum.samples.len { Slice::index(spectrum.samples, column) }
+requires column < spectrum.samples.len { slice_index(spectrum.samples, column) }
 data Batch<'samples> [copy] { selected: SpectrumView<'samples>; other: SpectrumView<'samples>; }
 machine nested<'samples>(batch: Batch<'samples>, column: u64) -> f64
 requires column < batch.selected.samples.len { batch.selected.samples[column] }

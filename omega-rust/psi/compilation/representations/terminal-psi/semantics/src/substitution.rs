@@ -507,6 +507,11 @@ impl SharedRoster {
         self.shared.len() + self.tail.len()
     }
 
+    /// Whether the roster holds no facts.
+    pub fn is_empty(&self) -> bool {
+        self.shared.is_empty() && self.tail.is_empty()
+    }
+
     /// Iterate shared facts then tail facts — roster order.
     pub fn iter(&self) -> impl Iterator<Item = &Proposition> {
         self.shared.iter().chain(self.tail.iter())

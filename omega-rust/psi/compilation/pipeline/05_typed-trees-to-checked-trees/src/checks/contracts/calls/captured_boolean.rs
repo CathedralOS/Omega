@@ -841,7 +841,7 @@ fn exact_returned_loan(
         && place
             .segments
             .iter()
-            .all(|segment| crate::flow::fixed_selection_segment(segment))
+            .all(crate::flow::fixed_selection_segment)
         && loan_call_does_not_write(program, state_symbol, expression)
 }
 

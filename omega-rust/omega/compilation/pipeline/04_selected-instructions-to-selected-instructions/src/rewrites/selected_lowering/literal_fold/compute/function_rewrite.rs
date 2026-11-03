@@ -353,7 +353,7 @@ fn lower_id<Id: Copy + PartialEq>(
             function: function_index,
         });
     }
-    Ok(raw(id)
+    raw(id)
         .checked_sub(
             u32::try_from(removed.partition_point(|removed| raw(*removed) < raw(id))).map_err(
                 |_| LiteralFoldError::IdentifierUnderflow {
@@ -363,7 +363,7 @@ fn lower_id<Id: Copy + PartialEq>(
         )
         .ok_or(LiteralFoldError::IdentifierUnderflow {
             function: function_index,
-        })?)
+        })
 }
 
 /// The dense successor of `id` after the sorted `removed` set leaves: an

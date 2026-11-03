@@ -22,7 +22,7 @@ pub enum PsiCompilationStage {
 
 /// Stable name, input and output labels for each production leg, in
 /// `PsiCompilationStage` declaration order.
-const OBSERVATION_LABELS: [(&'static str, &'static str, &'static str); 10] = [
+const OBSERVATION_LABELS: [(&str, &str, &str); 10] = [
     (
         "terminal-production/machine-selection",
         "CheckedTrees",

@@ -106,7 +106,7 @@ fn named_type_operand(
             {
                 return None;
             }
-            let name = body_expressions(&program)
+            let name = body_expressions(program)
                 .name_path_members(path.members)
                 .iter()
                 .map(|member| member.as_str())
@@ -141,7 +141,7 @@ fn has_type_role(
     match program.tables.bodies.expressions.expression(expression) {
         ExpressionNode::Borrow(borrow) => has_type_role(program, borrow.target, depth + 1),
         ExpressionNode::ArrayLiteral(elements) => {
-            match body_expressions(&program).expression_handles(*elements) {
+            match body_expressions(program).expression_handles(*elements) {
                 [element] => has_type_role(program, *element, depth + 1),
                 _ => false,
             }
@@ -166,13 +166,13 @@ fn materialize_type_operand(
         ReferenceTypeReferenceStorage, SliceTypeReference, SliceTypeReferenceStorage,
         TypeConstraint,
     };
-    let mut occurrences = body_expressions(&program)
+    let mut occurrences = body_expressions(program)
         .authored_selection_occurrences(expression)
         .collect::<Vec<_>>();
     if let Some(reference) = named_type_operand(program, expression) {
         return (reference, occurrences);
     }
-    let reference = match body_expressions(&program).expression(expression).clone() {
+    let reference = match body_expressions(program).expression(expression).clone() {
         ExpressionNode::Borrow(borrow) => {
             let (reference, child_occurrences) = materialize_type_operand(program, borrow.target);
             occurrences.extend(child_occurrences);
@@ -191,7 +191,7 @@ fn materialize_type_operand(
             })
         }
         ExpressionNode::ArrayLiteral(elements) => {
-            let element = body_expressions(&program).expression_handles(elements)[0];
+            let element = body_expressions(program).expression_handles(elements)[0];
             let (reference, child_occurrences) = materialize_type_operand(program, element);
             occurrences.extend(child_occurrences);
             let element_type = program
@@ -256,7 +256,7 @@ pub(crate) fn type_operand_nodes(
     match program.tables.bodies.expressions.expression(expression) {
         ExpressionNode::Borrow(borrow) => type_operand_nodes(program, borrow.target, output),
         ExpressionNode::ArrayLiteral(elements) => {
-            for &element in body_expressions(&program).expression_handles(*elements) {
+            for &element in body_expressions(program).expression_handles(*elements) {
                 type_operand_nodes(program, element, output);
             }
         }

@@ -194,15 +194,12 @@ fn collect_call_targets(
         if let Some(call) = operation
             .call()
             .filter(|call| call.is_module() && call.scalar_result().is_some())
-        {
-            if !structural_only
+            && (!structural_only
                 || !call.structural_arguments.is_empty()
-                || !call.claim_transfers().is_empty()
-            {
-                if !targets.contains(&call.target.machine) {
-                    targets.push(call.target.machine);
-                }
-            }
+                || !call.claim_transfers().is_empty())
+            && !targets.contains(&call.target.machine)
+        {
+            targets.push(call.target.machine);
         }
     }
     Ok(targets)

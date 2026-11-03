@@ -24,7 +24,7 @@ pub(super) fn realize(
             (call.target_symbol, call.arguments)
         }
     };
-    let count = arguments.len() as usize;
+    let count = arguments.len();
     let Some(application) = program.closed_requirement_application(target) else {
         return Ok(());
     };

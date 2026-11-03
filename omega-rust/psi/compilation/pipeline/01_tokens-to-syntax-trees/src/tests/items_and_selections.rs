@@ -182,7 +182,7 @@ fn trait_defaults_share_atomic_binding_dispatch() {
 }
 
 fn first_machine_statements(parsed: &syntax_trees::SyntaxTrees) -> &[StatementHandle] {
-    let machine = super::root_machine(&parsed, "machine");
+    let machine = super::root_machine(parsed, "machine");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);
@@ -262,27 +262,50 @@ fn opposite_boolean_subject_arms_test_the_subject_once() {
             .items
             .state(parsed.items.state_handles(machine.states)[0]);
         let statements = parsed.items.statements(state.statements);
-        assert_eq!(statements.len(), 2);
-        let StatementNode::Transition(first_arm) = parsed.statements.statement(statements[0])
+        // The computed subject completes once, into its dispatch capture,
+        // before either arm; the arms then test that capture.
+        assert_eq!(statements.len(), 3);
+        let StatementNode::LocalData(capture) = parsed.statements.statement(statements[0]) else {
+            panic!("dispatch subject capture");
+        };
+        assert_eq!(
+            capture.role,
+            language_core::LocalBindingRole::DispatchSubject
+        );
+        assert!(matches!(
+            parsed.expressions.expression(capture.initial_value),
+            ExpressionNode::Call(_)
+        ));
+        let StatementNode::Transition(first_arm) = parsed.statements.statement(statements[1])
         else {
             panic!("first authored arm");
         };
-        let TransitionGuardNode::When(expression) = first_arm.guard else {
+        assert!(matches!(first_arm.guard, TransitionGuardNode::Always));
+        let [pattern] = parsed.statements.transition_patterns(first_arm.patterns) else {
             panic!("first arm tests the subject");
         };
-        let ExpressionNode::Binary(comparison) = parsed.expressions.expression(expression) else {
+        let ExpressionNode::Binary(comparison) =
+            parsed.expressions.expression(pattern.pattern.guard)
+        else {
             panic!("authored Boolean pattern comparison");
         };
-        assert!(matches!(
-            parsed.expressions.expression(comparison.left),
-            ExpressionNode::Call(_)
-        ));
+        assert_eq!(
+            parsed.display_expression_name(comparison.left),
+            capture.name.as_str(&parsed)
+        );
         assert!(matches!(parsed.expressions.expression(comparison.right),
             ExpressionNode::Boolean(value) if *value == first));
-        let StatementNode::Transition(last_arm) = parsed.statements.statement(statements[1]) else {
+        let StatementNode::Transition(last_arm) = parsed.statements.statement(statements[2]) else {
             panic!("second authored arm");
         };
         assert!(matches!(last_arm.guard, TransitionGuardNode::Always));
+        assert!(
+            parsed
+                .statements
+                .transition_patterns(last_arm.patterns)
+                .is_empty(),
+            "the opposite arm is the fall-through and tests nothing"
+        );
     }
 }
 
@@ -301,16 +324,30 @@ fn unrelated_or_nonpair_boolean_guards_keep_their_tests() {
             .items
             .state(parsed.items.state_handles(machine.states)[0]);
         let statements = parsed.items.statements(state.statements);
+        let mut arms = 0;
         for statement in statements {
-            let StatementNode::Transition(transition) = parsed.statements.statement(*statement)
-            else {
-                panic!("authored transition");
+            let transition = match parsed.statements.statement(*statement) {
+                StatementNode::Transition(transition) => transition,
+                // A subject is captured once before its arms; it tests nothing.
+                StatementNode::LocalData(local)
+                    if local.role == language_core::LocalBindingRole::DispatchSubject =>
+                {
+                    continue;
+                }
+                _ => panic!("authored transition"),
             };
-            assert!(
-                matches!(transition.guard, TransitionGuardNode::When(_)),
-                "{body}"
-            );
+            arms += 1;
+            // Anonymous arms keep their condition as the guard; subject arms
+            // keep their test as a pattern guard on the captured subject.
+            let tested = matches!(transition.guard, TransitionGuardNode::When(_))
+                || parsed
+                    .statements
+                    .transition_patterns(transition.patterns)
+                    .iter()
+                    .any(|pattern| pattern.pattern.guard.is_valid());
+            assert!(tested, "{body}");
         }
+        assert!(arms >= 2, "{body}");
     }
 }
 
@@ -377,40 +414,46 @@ fn decisive_compare_exchange_desugar_derives_scalar_result_custody() {
 }
 
 #[test]
-fn single_attempt_compare_exchange_is_not_admitted_as_public_atomic_source() {
+fn single_attempt_compare_exchange_keeps_its_outcome_instead_of_a_scalar_prior() {
     let tokens = Lexer::new(
         "machine update(cell: u64) { let outcome: u64 = cell.compare_exchange_once(0, 1, NoOrdering, NoOrdering); }",
     )
     .tokenize()
-    .expect("tokenize fenced single-attempt spelling");
-    let parsed = parse_syntax_trees(&tokens).expect("parse fenced spelling as an ordinary call");
+    .expect("tokenize single-attempt compare-exchange");
+    let parsed = parse_syntax_trees(&tokens).expect("parse single-attempt compare-exchange");
+    let statements = first_machine_statements(&parsed);
 
-    assert!(
-        parsed
-            .expressions
-            .iter_expressions()
-            .any(|(_, expression)| {
-                matches!(
-                    expression,
-                    ExpressionNode::Call(call) if call.target.as_str(&parsed) == "compare_exchange_once"
-                )
-            })
-    );
-    assert!(
-        !parsed
-            .expressions
-            .iter_expressions()
-            .any(|(_, expression)| {
-                matches!(
-                    expression,
-                    ExpressionNode::Atomic(atomic)
-                        if matches!(
-                            atomic.ordering,
-                            language_core::atomic::AtomicOrderingPlan::CompareExchangeOnce { .. }
-                        )
-                )
-            })
-    );
+    // A single attempt binds its whole outcome, including `Uncommitted`, to
+    // the authored local. It must not become the decisive form's observed
+    // prior placeholder plus a separate atomic assignment.
+    let [statement] = statements else {
+        panic!("one authored local, no result placeholder or assignment");
+    };
+    let StatementNode::LocalData(local) = parsed.statements.statement(*statement) else {
+        panic!("the outcome binds the authored local");
+    };
+    assert_eq!(local.name.as_str(&parsed), "outcome");
+    assert_eq!(local.role, language_core::LocalBindingRole::Value);
+    let ExpressionNode::Atomic(atomic) = parsed.expressions.expression(local.initial_value) else {
+        panic!("single-attempt compare-exchange is an atomic expression");
+    };
+    assert!(matches!(
+        atomic.ordering,
+        language_core::atomic::AtomicOrderingPlan::CompareExchangeOnce { .. }
+    ));
+    assert!(matches!(
+        atomic.result_custody,
+        AtomicExpressionResultCustody::ObservingCompareExchangeOnce(_)
+    ));
+    assert!(!atomic.result.is_valid());
+    // The receiver and both value operands remain the evaluation roster; the
+    // orderings became proof-static data on the plan.
+    let ExpressionNode::Call(roster) = parsed.expressions.expression(atomic.value) else {
+        panic!("retained operand roster");
+    };
+    assert_eq!(roster.target.as_str(&parsed), "compare_exchange_once");
+    assert!(roster.receiver.is_valid());
+    assert_eq!(roster.arguments.count(), 2);
 }
 
 #[test]

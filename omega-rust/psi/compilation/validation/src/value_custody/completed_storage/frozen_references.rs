@@ -70,10 +70,9 @@ pub fn frozen_reference_leaf(
                     program, *left, *right,
                 )
             })
+            && selected.replace((*leaf, leaf_path)).is_some()
         {
-            if selected.replace((*leaf, leaf_path)).is_some() {
-                return Unavailable;
-            }
+            return Unavailable;
         }
     }
     let Some((leaf, leaf_path)) = selected else {

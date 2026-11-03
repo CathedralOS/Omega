@@ -586,6 +586,7 @@ impl<'ranges> FailedDomain<'ranges> {
     // Prefer directly occupied fragments before their remote shared-home
     // peers. Both are eligible, but moving the directly live value removes
     // pressure here without depending on how much of its peer's range survives.
+    #[cfg(test)]
     fn direct_relief(&self, register: VirtualRegisterId) -> usize {
         self.direct_pressure
             .binary_search_by_key(&register, |&(reg, _)| reg)
@@ -1112,7 +1113,7 @@ fn recover_over(
         }
         let domain =
             FailedDomain::of_indexed(&failure, current_facts.range_functions(), &batch_indices);
-        let Some(pressured) = domain.as_ref().map(FailedDomain::function).or_else(|| {
+        let Some(pressured) = domain.as_ref().map(FailedDomain::function).or({
             if let crate::RegisterHomeError::NoCommonCandidate { function, .. } = &failure {
                 Some(*function)
             } else {
@@ -1239,7 +1240,8 @@ fn recover_over(
             // per use is strictly cheaper than private storage plus reload pairs,
             // so rematerialization is attempted first. Its admission failure does
             // not commit the step; spilling the same victim remains the fallback.
-            let rewrite = match phase_profile::scope("omega.05.remat_probe", || {
+
+            match phase_profile::scope("omega.05.remat_probe", || {
                 rematerialize_selected_runtime_value(
                     &selected,
                     function,
@@ -1330,8 +1332,7 @@ fn recover_over(
                         }
                     }
                 }
-            };
-            rewrite
+            }
         };
         // A rewrite can relieve every overlapping failed domain; defer those
         // until fresh placement. Retain only other pressure regions for this

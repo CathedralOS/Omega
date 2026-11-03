@@ -534,7 +534,7 @@ fn append_static_integer_bindings(
     }
 }
 
-/// The shared per-position arithmetic binding arms: a public parameter
+// The shared per-position arithmetic binding arms: a public parameter
 
 /// Push one position's arithmetic bindings when its peeled parameter type is
 /// an exact integer and the position sources a public parameter or literal —

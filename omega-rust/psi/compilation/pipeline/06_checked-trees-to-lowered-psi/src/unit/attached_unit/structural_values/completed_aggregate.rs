@@ -154,7 +154,7 @@ fn append_fields<'parameter>(
         {
             prefix.push(StructuralPathSegment::Case(selected_case));
         }
-        prefix.push(StructuralPathSegment::Field(declaration.identity.clone()));
+        prefix.push(StructuralPathSegment::Field(declaration.identity));
         member_memberships::append(
             argument,
             &prefix,
@@ -235,7 +235,7 @@ impl super::emission::Emission<'_, '_, '_> {
                     if let Some(selected_case) = selected_case {
                         prefix.push(StructuralPathSegment::Case(selected_case));
                     }
-                    prefix.push(StructuralPathSegment::Field(target.identity.clone()));
+                    prefix.push(StructuralPathSegment::Field(target.identity));
                     let child_type = super::field_carrier::resolve(
                         identities,
                         self.checked,

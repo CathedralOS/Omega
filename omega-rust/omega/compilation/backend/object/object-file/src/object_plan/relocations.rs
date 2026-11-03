@@ -177,33 +177,6 @@ pub enum RelocationKind {
     X86_64Relative32,
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::RelocationOrigin;
-    use arena::Handle;
-
-    #[test]
-    fn semantic_operation_and_edge_origins_keep_disjoint_identities() {
-        let function_symbol_handle = Handle::invalid();
-        let operation = RelocationOrigin::SemanticOperation {
-            function_symbol_handle,
-            operation_identity: 7,
-        };
-        let edge = RelocationOrigin::SemanticEdge {
-            function_symbol_handle,
-            edge_identity: 7,
-        };
-
-        assert_eq!(operation.symbol_handle(), function_symbol_handle);
-        assert_eq!(operation.semantic_operation_identity(), Some(7));
-        assert_eq!(operation.semantic_edge_identity(), None);
-        assert_eq!(edge.symbol_handle(), function_symbol_handle);
-        assert_eq!(edge.semantic_operation_identity(), None);
-        assert_eq!(edge.semantic_edge_identity(), Some(7));
-        assert_ne!(operation, edge);
-    }
-}
-
 /// The semantic origin an invocation pins a relocation to: the
 /// enclosing symbol plus the operation or completion-edge identity the site
 /// names. Both namespaces stay full-width so origins from different
@@ -239,5 +212,32 @@ pub const fn relocation_kind_tag(kind: RelocationKind) -> u8 {
         RelocationKind::Aarch64Branch26 => 3,
         RelocationKind::Absolute64 => 4,
         RelocationKind::X86_64Relative32 => 5,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::RelocationOrigin;
+    use arena::Handle;
+
+    #[test]
+    fn semantic_operation_and_edge_origins_keep_disjoint_identities() {
+        let function_symbol_handle = Handle::invalid();
+        let operation = RelocationOrigin::SemanticOperation {
+            function_symbol_handle,
+            operation_identity: 7,
+        };
+        let edge = RelocationOrigin::SemanticEdge {
+            function_symbol_handle,
+            edge_identity: 7,
+        };
+
+        assert_eq!(operation.symbol_handle(), function_symbol_handle);
+        assert_eq!(operation.semantic_operation_identity(), Some(7));
+        assert_eq!(operation.semantic_edge_identity(), None);
+        assert_eq!(edge.symbol_handle(), function_symbol_handle);
+        assert_eq!(edge.semantic_operation_identity(), None);
+        assert_eq!(edge.semantic_edge_identity(), Some(7));
+        assert_ne!(operation, edge);
     }
 }

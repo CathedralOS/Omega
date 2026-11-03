@@ -2,7 +2,7 @@ use super::super::application_realizations::project_boundary_application_realiza
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::api::operators::project_operator_coordinate;
-use crate::capture::semantics::conformances::policy_callable_identity;
+use crate::capture::providers::policy::realizations::ReviewedProviderRealization;
 use crate::capture::semantics::declarations::{
     nominal_identity, policy_provider_requirement_identity,
 };
@@ -103,9 +103,11 @@ pub(super) fn project(
                         "a nongeneric application detached from its selected machine",
                     ));
                 }
+                let reviewed = ReviewedProviderRealization::project(compilation, selected_symbol)?;
+                let realization = reviewed.policy_callable(compilation)?;
                 PackagePolicyBoundaryRealization::NongenericCheckedBody {
-                    declaration,
-                    realization: policy_callable_identity(compilation, selected_symbol)?,
+                    declaration: reviewed.declaration,
+                    realization,
                 }
             }
             PackageReviewBoundaryApplicationRealization::SpecializedCheckedBody {
@@ -117,9 +119,11 @@ pub(super) fn project(
                         "a specialized application detached from its authored selected template",
                     ));
                 }
+                let reviewed = ReviewedProviderRealization::project(compilation, selected_symbol)?;
+                let template = reviewed.policy_callable(compilation)?;
                 PackagePolicyBoundaryRealization::SpecializedCheckedBody {
-                    declaration,
-                    template: policy_callable_identity(compilation, selected_symbol)?,
+                    declaration: reviewed.declaration,
+                    template,
                 }
             }
             PackageReviewBoundaryApplicationRealization::ExactCompilerIntrinsic { execution } => {

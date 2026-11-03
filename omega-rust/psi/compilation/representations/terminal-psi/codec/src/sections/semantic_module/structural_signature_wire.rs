@@ -207,10 +207,8 @@ impl Field<Option<language_semantics::numeric_intrinsics::NumericIntrinsic>> for
         let bytes = [reader.u8()?, reader.u8()?, reader.u8()?, reader.u8()?];
         language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(bytes)
             .map(Some)
-            .ok_or_else(|| {
-                CodecError::MalformedStructuralFoundation(
-                    "invalid numeric intrinsic meaning".into(),
-                )
+            .ok_or({
+                CodecError::MalformedStructuralFoundation("invalid numeric intrinsic meaning")
             })
     }
 }

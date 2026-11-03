@@ -84,12 +84,11 @@ fn published_graph_preserves_nested_bindings_and_declaration_membership() {
         portable.membership("macos_arm64", false, &[], None).0,
         [109]
     );
-    assert_eq!(
-        portable
+    assert!(
+        !portable
             .membership("windows_x86_64", false, &[], None)
             .0
-            .contains(&107),
-        false
+            .contains(&107)
     );
     // Missing source summaries do not become empty summaries during capture.
     assert!(

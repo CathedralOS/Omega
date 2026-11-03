@@ -32,19 +32,18 @@ impl StateFootprintEvidence {
     }
 }
 
-/// Verify that a provider's realized exit is exactly the exit admitted by the
-/// boundary contract. Footprint validation covers state touched by the body;
-/// this separate check prevents an otherwise-valid footprint from returning
-/// through the wrong control mechanism or restore set. The plan's
-/// `initial_regime` is an entry fact, so this evidence deliberately does not
-/// invent a same-regime exit promise.
+// Verify that a provider's realized exit is exactly the exit admitted by the
+// boundary contract. Footprint validation covers state touched by the body;
+// this separate check prevents an otherwise-valid footprint from returning
+// through the wrong control mechanism or restore set. The plan's
+// `initial_regime` is an entry fact, so this evidence deliberately does not
+// invent a same-regime exit promise.
 
 /// Compose implementation evidence from independently derived code fragments.
 /// Register sets and machine-state classes are mathematical unions, so the
 /// result is deterministic across fragment ordering and repeated evidence.
 /// This remains implementation evidence: it does not enter boundary contract
 /// identity and does not claim to be a final placed-artifact certificate.
-
 impl StateFootprintEvidence {
     /// Non-authoritative report coordinate over the retained exact register
     /// and machine-state evidence.

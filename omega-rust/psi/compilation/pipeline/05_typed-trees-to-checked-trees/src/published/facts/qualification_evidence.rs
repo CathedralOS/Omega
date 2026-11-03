@@ -232,7 +232,7 @@ pub(crate) fn machine_domain_establishment_route(
             } => program
                 .machine_invokes_declaration(machine.symbol, *authorized)
                 .unwrap_or(false)
-                .then_some(route.clone()),
+                .then_some(*route),
             EstablishmentRoute::BoundaryRequirement { .. } => None,
         })
 }

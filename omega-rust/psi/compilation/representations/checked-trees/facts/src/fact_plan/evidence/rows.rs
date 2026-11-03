@@ -273,7 +273,6 @@ mod tests {
             &self,
             out: &mut compiler_storage::RecordWriter,
         ) -> Result<(), compiler_storage::RecordError> {
-            use compiler_storage::Record;
             out.record(|out| {
                 1u32.write(out)?;
                 false.write(out)?;

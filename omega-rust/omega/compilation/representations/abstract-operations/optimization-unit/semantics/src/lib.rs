@@ -152,7 +152,8 @@ pub fn structural_place_backing_access<'types>(
 }
 
 macro_rules! structural_write_preserves {
-    ($name:ident, $roster:path) => {
+    ($(#[$attribute:meta])* $name:ident, $roster:path) => {
+        $(#[$attribute])*
         pub fn $name(
             function: &optimization_unit::PsiOptimizationFunction,
             place: semantic_vocabulary::PlaceId,
@@ -185,19 +186,19 @@ macro_rules! structural_write_preserves {
     };
 }
 
-/// Check a write against the current root's complete membership roster. The
-/// path stays in the original carrier's coordinates, including every Referent
-/// crossing and the selected typed field; peeling a referent must not forget
-/// its enclosing predicates. This supplies no storage or live-loan authority.
 structural_write_preserves!(
+    /// Check a write against the current root's complete membership roster. The
+    /// path stays in the original carrier's coordinates, including every Referent
+    /// crossing and the selected typed field; peeling a referent must not forget
+    /// its enclosing predicates. This supplies no storage or live-loan authority.
     structural_write_preserves_memberships,
     terminal_semantics::store_preserves_qualifications
 );
 
-/// A checked scalar mutation may expire incoming predicate facts. Its exact
-/// root still owes both carried domain Content and independent entry claims;
-/// source checking, not a declaration roster, owns later predicate consumption.
 structural_write_preserves!(
+    /// A checked scalar mutation may expire incoming predicate facts. Its exact
+    /// root still owes both carried domain Content and independent entry claims;
+    /// source checking, not a declaration roster, owns later predicate consumption.
     structural_write_preserves_content,
     terminal_semantics::store_preserves_domain_content
 );

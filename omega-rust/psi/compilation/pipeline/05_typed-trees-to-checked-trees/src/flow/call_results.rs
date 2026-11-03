@@ -11,7 +11,6 @@ use checked_trees::expression::ExpressionHandle;
 use facts::{
     Fact, FactOrigin, FactPayload, FactPlace, FactPlan, ProgramPoint, QualificationEvidence,
 };
-use symbols::SymbolHandle;
 
 /// The return-type-driven identity rows: the complete checked child duties
 /// plus type-level constraint domains. Independent of the callable's explicit

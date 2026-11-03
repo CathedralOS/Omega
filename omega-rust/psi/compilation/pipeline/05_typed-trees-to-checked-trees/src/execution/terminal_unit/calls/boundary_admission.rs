@@ -128,14 +128,14 @@ pub(crate) fn fixed_byte_array_view_is_admitted(
 /// fixed array while `target` destructures as a shared-or-mutable reference to
 /// a slice. Returns the peeled source and both element types when the source/
 /// target shape is the fixed-array-to-slice view both admissions test.
-fn fixed_array_slice_view_parts<'a>(
-    program: &'a dyn ::validation::CheckingInput,
+fn fixed_array_slice_view_parts(
+    program: &dyn ::validation::CheckingInput,
     mut source: typed_trees::types::TypeReferenceHandle,
     target: typed_trees::types::TypeReferenceHandle,
 ) -> Option<(
     typed_trees::types::TypeReferenceHandle,
-    &'a typed_trees::types::TypeReferenceHandle,
-    &'a typed_trees::types::TypeReferenceHandle,
+    &typed_trees::types::TypeReferenceHandle,
+    &typed_trees::types::TypeReferenceHandle,
 )> {
     source = validation::peel_declared_constraints(program, source);
     if let TypeReferenceNode::Reference { referee, .. } =

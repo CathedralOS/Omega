@@ -50,22 +50,22 @@ impl Execution<'_, '_, '_> {
         projection: ReferenceProjection,
     ) -> Option<CapturedReferenceProjection> {
         let result = self.try_capture_reference_projection(actual, segments, projection);
-        if let Err(reason) = &result {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                eprintln!(
-                    "CHECKSITE reference-projection-refusal machine={:?} state={:?} statement={} expression={:?} type={:?} destination={} path_count={} path_prefix={:?} position={:?} reason={:?}",
-                    self.machine.symbol,
-                    self.state.symbol,
-                    self.statement_index,
-                    actual.expression,
-                    actual.type_reference,
-                    matches!(projection, ReferenceProjection::Destination),
-                    segments.len(),
-                    &segments[..segments.len().min(32)],
-                    reason.position(),
-                    reason,
-                );
-            }
+        if let Err(reason) = &result
+            && std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+        {
+            eprintln!(
+                "CHECKSITE reference-projection-refusal machine={:?} state={:?} statement={} expression={:?} type={:?} destination={} path_count={} path_prefix={:?} position={:?} reason={:?}",
+                self.machine.symbol,
+                self.state.symbol,
+                self.statement_index,
+                actual.expression,
+                actual.type_reference,
+                matches!(projection, ReferenceProjection::Destination),
+                segments.len(),
+                &segments[..segments.len().min(32)],
+                reason.position(),
+                reason,
+            );
         }
         result.ok()
     }

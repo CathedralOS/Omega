@@ -417,9 +417,7 @@ impl Builder<'_, '_> {
         expected_type: PrimitiveType,
     ) -> Option<ComputationHandle> {
         let operand = self.same_carrier_cast_operand(expression)?;
-        let Some(cast) = self.program.expression_table.cast_node(expression) else {
-            return None;
-        };
+        let cast = self.program.expression_table.cast_node(expression)?;
         if self.program.primitive_type_reference(cast.target_type) != Some(expected_type) {
             return None;
         }
@@ -882,7 +880,7 @@ impl Builder<'_, '_> {
                             state: target_state.symbol,
                         },
                         source_expression: expression,
-                        source_call: source_call.into(),
+                        source_call,
                         call_ordinal,
                         arguments,
                         structural_arguments,

@@ -1,3 +1,4 @@
+use super::realizations::ReviewedProviderRealization;
 use super::rejected;
 use crate::capture::PackageReviewInput;
 use crate::capture::semantics::declarations::{nominal_identity, producer_callable_identity};
@@ -16,9 +17,10 @@ pub(super) fn project(
     identities: &effects::provider_plan::ProviderIdentityTable,
     binding: &ProviderBinding,
     requirement: SymbolHandle,
-    realization: SymbolHandle,
+    reviewed_realization: Option<&ReviewedProviderRealization>,
     toolchain_settled: bool,
 ) -> Result<PackagePolicyProviderBinding, Vec<Diagnostic>> {
+    let realization = reviewed_realization.map_or_else(SymbolHandle::invalid, |value| value.symbol);
     if toolchain_settled {
         // A toolchain-settled row's binding comes from the settlement table:
         // only positional syscalls exist there, and they carry no evaluated
@@ -102,10 +104,24 @@ pub(super) fn project(
         ProviderBinding::CheckedAdapter {
             machine_identity,
             machine_package_identity,
-        } => PackagePolicyProviderBinding::CheckedAdapter {
-            machine_identity: identities.text(*machine_identity).to_owned(),
-            machine_package_identity: *machine_package_identity,
-        },
+        } => {
+            let reviewed = reviewed_realization
+                .ok_or_else(|| rejected("checked adapter has no exact selected realization"))?;
+            // Prove which executable the row selected before replacing its
+            // private name with the portable declaration and arguments.
+            if identities.text(*machine_identity) != reviewed.executable_callable
+                || *machine_package_identity
+                    != compilation.symbols.symbol_package_identity(realization)
+            {
+                return Err(rejected(
+                    "checked adapter binding differs from its exact selected machine",
+                ));
+            }
+            PackagePolicyProviderBinding::CheckedAdapter {
+                machine_identity: reviewed.portable_callable.clone(),
+                machine_package_identity: *machine_package_identity,
+            }
+        }
     })
 }
 
@@ -208,14 +224,14 @@ pub(super) fn native_producer(
                 .trait_requirement_callable_identity_text(owner, signature)
         })
         .ok_or_else(|| rejected("native Build producer lost its exact requirement"))?;
-    if origin.requirement_identity != requirement
+    let identities = compilation
+        .custody
+        .providers()
+        .evaluated_via_bindings
+        .identities();
+    if identities.text(origin.requirement_identity) != Some(requirement.as_str())
         || receipt.producer_package() != Some(production.producer.package)
-        || compilation
-            .custody
-            .providers()
-            .evaluated_via_bindings
-            .identities()
-            .text(receipt.producer_callable_identity())
+        || identities.text(receipt.producer_callable_identity())
             != Some(production.producer.callable_identity.as_str())
     {
         return Err(rejected(

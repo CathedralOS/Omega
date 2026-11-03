@@ -671,9 +671,7 @@ fn argument_contract(
             else {
                 return None;
             };
-            let Some(borrow) = program.expression_table.borrow_expression(expression) else {
-                return None;
-            };
+            let borrow = program.expression_table.borrow_expression(expression)?;
             if *reference_access != expected_access
                 || borrow.access != expected_access
                 || !program.expression_table.expression_is_valid(borrow.target)

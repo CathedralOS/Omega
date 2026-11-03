@@ -507,7 +507,7 @@ fn topology_identity(
         digest.u64(source.get());
         digest.u64(target.get());
     }
-    semantic_id(&digest.finish().into())
+    semantic_id(&digest.finish())
 }
 
 fn semantic_id<Identity: PsiSemanticId>(digest: &[u8; 32]) -> Identity {

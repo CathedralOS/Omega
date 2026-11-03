@@ -214,8 +214,8 @@ fn append_place_replacement(
             return Ok(None);
         }
     }
-    if descriptor {
-        if append_descriptor_death(
+    if descriptor
+        && append_descriptor_death(
             program,
             facts,
             cleanup,
@@ -227,9 +227,8 @@ fn append_place_replacement(
             remaining,
         )
         .is_none()
-        {
-            return Ok(None);
-        }
+    {
+        return Ok(None);
     }
     let discarded = if affine {
         remaining.disposal_paths(program, place.root, &place.segments)

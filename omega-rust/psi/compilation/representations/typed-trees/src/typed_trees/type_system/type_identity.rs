@@ -27,6 +27,7 @@ mod normalized_identities;
 mod open_index_identity;
 #[cfg(test)]
 mod package_policy_reading_tests;
+mod portable_machine_applications;
 mod result_dispatch_terms;
 mod static_operand_identity;
 mod storage_identity;
@@ -49,6 +50,7 @@ pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
     TypeIdentityTable,
 };
+pub use portable_machine_applications::portable_machine_application_identity;
 pub use static_operand_identity::{
     DeclaredStaticOperandIdentityRequest, StaticOperandIdentityRequest,
 };
@@ -1112,7 +1114,7 @@ impl TypedTrees {
         if !symbol.is_valid() {
             return Err("a hermetic identity contains an unresolved declaration".to_owned());
         }
-        match derived_declarations::nominal_name(
+        if let Some(identity) = derived_declarations::nominal_name(
             self,
             symbol,
             &TypeIdentityContext {
@@ -1123,8 +1125,7 @@ impl TypedTrees {
         )
         .map_err(str::to_owned)?
         {
-            Some(identity) => return Ok(identity),
-            None => {}
+            return Ok(identity);
         }
         let path = self.symbols.display_path(symbol, "::");
         if let Some(package) = self.symbols.symbol_package_identity(symbol) {

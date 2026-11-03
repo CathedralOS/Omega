@@ -46,5 +46,5 @@ pub(crate) fn non_authoritative_callee_save_storage_identity(
             hasher.raw(&slot.alignment_bytes.to_le_bytes());
         }
     }
-    NonAuthoritativeCalleeSaveStorageIdentity::from_bytes(hasher.finish().into())
+    NonAuthoritativeCalleeSaveStorageIdentity::from_bytes(hasher.finish())
 }

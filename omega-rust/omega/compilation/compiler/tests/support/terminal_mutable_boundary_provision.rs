@@ -1,10 +1,8 @@
 //! Source-produced mutable boundary calls retain receiver identity and stored
 //! view lifetimes across host effects and fuel pauses. This provision supplies
 //! an observation sink, not a replacement Build evaluator.
-#[path = "terminal_mutable_boundary.rs"]
-mod boundary;
-#[path = "terminal_provision.rs"]
-mod terminal_provision;
+use super::mutable_boundary as boundary;
+use super::terminal_provision;
 
 use semantic_vocabulary::IntegerValue;
 use terminal_codec::CanonicalTerminalArtifact;

@@ -52,15 +52,11 @@ pub use control_flow::{
 };
 pub mod provenance;
 mod reference_root;
-pub use reference_root::ReferenceRoot;
 pub use provenance::{CallSiteOwner, TerminalPsiProvenance};
+pub use reference_root::ReferenceRoot;
 pub mod boundary;
 mod boundary_origins;
 mod descriptor_input;
-pub use descriptor_input::{
-    DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
-};
-pub use boundary_origins::{BoundaryOriginFacts, ProgramEntryOrigin};
 pub use boundary::{
     AccessorScalarAccessRealization, BoundaryByteSequenceArgument, BoundaryExecutionBinding,
     BoundaryRealization, BoundaryScalarArgument, BoundarySettlementBinding,
@@ -73,6 +69,10 @@ pub use boundary::{
     NormalizedForeignCallBinding, NormalizedForeignCallMechanism, NormalizedForeignScalarArgument,
     NormalizedForeignStructuralArgument, NormalizedSystemCallBinding, ProviderExecutionBinding,
     ProviderPlanReportIdentity, conventional_atomic_once_layout, conventional_float_class_layout,
+};
+pub use boundary_origins::{BoundaryOriginFacts, ProgramEntryOrigin};
+pub use descriptor_input::{
+    DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
 };
 pub mod operations;
 pub use operations::{

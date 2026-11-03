@@ -497,7 +497,7 @@ mod tests {
                 .into_iter()
                 .map(|offset| {
                     numbered_layout_field_entry(
-                        "old_name".into(),
+                        "old_name",
                         91,
                         LayoutPlacementReport::At { offset },
                     )
@@ -509,8 +509,8 @@ mod tests {
         let mut image = vec![0; 10];
         materialize_aggregate_layout_into(
             &layout,
-            &[schema.clone()],
-            &[original.clone()],
+            std::slice::from_ref(&schema),
+            std::slice::from_ref(&original),
             ByteOrder::LittleEndian,
             &mut image,
         )

@@ -197,7 +197,7 @@ impl PreparedCallableBorrowRefinement {
             )
             .ok_or("callable lifetime partition has no retained declaration telescope")
         };
-        if own_parameters(&required)?.is_empty() && own_parameters(&actual)?.is_empty() {
+        if own_parameters(required)?.is_empty() && own_parameters(actual)?.is_empty() {
             // This query emits rows only for own source slots. An empty partition
             // adds no enclosing facts; final input/output refinement still runs.
             return Ok(super::CallableLifetimeFrame::default());
@@ -273,8 +273,8 @@ impl PreparedCallableBorrowRefinement {
                 .collect()
         };
         Ok(super::CallableLifetimeFrame {
-            required: rows(&required, &required_frontier.regions, false)?,
-            actual: rows(&actual, &actual_frontier.regions, true)?,
+            required: rows(required, &required_frontier.regions, false)?,
+            actual: rows(actual, &actual_frontier.regions, true)?,
         })
     }
 

@@ -4,7 +4,7 @@
 //! type and proof copies share its exact expression-handle rejoin; source
 //! spelling and equal-looking subtrees never establish expression identity.
 
-use crate::expression::{ExpressionHandle, MatchSubjectCapture, StaticMachineArgument};
+use crate::expression::{ExpressionHandle, StaticMachineArgument};
 use crate::item::{
     CapabilityContract, CapabilityContractKind, CapabilityDefinition, CapabilityField,
     CapabilityMember, CapabilityState, ConformanceItem, ConformanceMember, ConstDefinition,

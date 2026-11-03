@@ -398,7 +398,10 @@ mod tests {
                     Ok(child + 100)
                 }
             },
-            &mut |leaf| Ok(*leaf),
+            &mut |leaf| {
+                let _: () = *leaf;
+                Ok(())
+            },
         );
         assert_eq!(mapped, vec![11, 12]);
         assert_eq!(result, Err("missing formation"));
