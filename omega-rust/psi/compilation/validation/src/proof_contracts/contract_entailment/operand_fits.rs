@@ -273,11 +273,17 @@ fn exact_integer_float_alternatives(
     };
     let mut alternatives = Vec::new();
     for scale in 0..128u32 {
-        let limit = 1i128.checked_shl(precision.checked_add(scale)?).filter(|limit| *limit > 0);
+        let limit = 1i128
+            .checked_shl(precision.checked_add(scale)?)
+            .filter(|limit| *limit > 0);
         let mut conjuncts = Vec::new();
         if let Some(limit) = limit {
             if -limit > minimum {
-                conjuncts.push(compare(BinaryOperator::GreaterOrEqual, value.clone(), -limit));
+                conjuncts.push(compare(
+                    BinaryOperator::GreaterOrEqual,
+                    value.clone(),
+                    -limit,
+                ));
             }
             if limit < maximum {
                 conjuncts.push(compare(BinaryOperator::LessOrEqual, value.clone(), limit));
@@ -285,7 +291,9 @@ fn exact_integer_float_alternatives(
         }
         let covers_carrier = conjuncts.is_empty();
         if scale > 0 {
-            let divisor = 1i128.checked_shl(scale).filter(|divisor| *divisor <= maximum)?;
+            let divisor = 1i128
+                .checked_shl(scale)
+                .filter(|divisor| *divisor <= maximum)?;
             let remainder = compare(BinaryOperator::Modulo, value.clone(), divisor);
             conjuncts.push(compare(BinaryOperator::Equal, remainder, 0));
         }
@@ -1110,18 +1118,17 @@ impl StructuralPrefixVisitor for OperandFit {
                     reference,
                     precision,
                 } => {
-                    let proven = exact_integer_float_alternatives(
-                        program, reference, precision, value,
-                    )
-                    .is_some_and(|alternatives| {
-                        alternatives.into_iter().any(|predicate| match predicate {
-                            None => true,
-                            Some(predicate) => matches!(
-                                entry.judge.judge_observed_predicate(predicate, 0),
-                                super::structural_judgment::StructuralJudgment::Proven
-                            ),
-                        })
-                    });
+                    let proven =
+                        exact_integer_float_alternatives(program, reference, precision, value)
+                            .is_some_and(|alternatives| {
+                                alternatives.into_iter().any(|predicate| match predicate {
+                                    None => true,
+                                    Some(predicate) => matches!(
+                                        entry.judge.judge_observed_predicate(predicate, 0),
+                                        super::structural_judgment::StructuralJudgment::Proven
+                                    ),
+                                })
+                            });
                     if proven {
                         CarrierFit::Proven
                     } else {
