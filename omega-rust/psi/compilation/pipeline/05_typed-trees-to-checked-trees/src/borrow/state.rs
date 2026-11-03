@@ -396,12 +396,20 @@ pub(super) fn append_carrier_loans(
                 ReferenceOrigin::Invocation { expression, .. }
                     if expression == pending.formation_expression
                         && pending.place.root == PlaceRoot::Expression(expression));
-        if matches!(
-            pending.lineage,
-            checked_trees::BorrowLoanLineage::DirectRoot
-                | checked_trees::BorrowLoanLineage::Reborrow { .. }
-        ) && (pending.formation != super::loans::BorrowFormation::ReturnedDescriptor
-            || independent_return)
+        let supplied_output = pending.lineage == checked_trees::BorrowLoanLineage::SuppliedOutput
+            && established_by_call.is_valid()
+            && arenas
+                .incoming_references
+                .is_valid(pending.place.incoming_reference)
+            && matches!(arenas.incoming_references.get(pending.place.incoming_reference).origin,
+                ReferenceOrigin::Output { identity } if pending.place.root == PlaceRoot::InvocationOutput(identity));
+        if supplied_output
+            || (matches!(
+                pending.lineage,
+                checked_trees::BorrowLoanLineage::DirectRoot
+                    | checked_trees::BorrowLoanLineage::Reborrow { .. }
+            ) && (pending.formation != super::loans::BorrowFormation::ReturnedDescriptor
+                || independent_return))
         {
             permission_sources.push(super::tracker::RetainedBorrowSource {
                 loan: handle,

@@ -219,7 +219,7 @@ impl Execution<'_, '_, '_> {
                         lifetime_known = false;
                         break;
                     }
-                    let retained = crate::flow::call_phases::completed_output_retention(
+                    let retained = crate::borrow::lifetime_contract::completed_output_retention(
                         self.borrow,
                         self.machine.symbol,
                         self.state.symbol,

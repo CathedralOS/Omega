@@ -33,11 +33,13 @@ pub(super) fn initialize_checked_direct_borrow_resources(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(), Vec<Diagnostic>> {
     supplied_permissions::validate_normal_output_completions(&facts.borrow, &facts.flow)?;
+    call_operands::install(program, facts);
+    supplied_permissions::install(program, facts)?;
     formation_sources::validate(program, facts)?;
     let retentions = forwarded_lifetimes::plan(facts)?;
     let (direct, reborrows) =
         reconstruct_borrow_resource_rosters(program, &facts.borrow, &facts.flow, &retentions)?;
-    let installation = plan_resource_installation(&direct, &reborrows)?;
+    let installation = plan_resource_installation(&facts.borrow, &direct, &reborrows)?;
     let mut dispositions = plan_reborrow_disposition_events(
         &facts.borrow,
         &facts.flow,
@@ -61,7 +63,6 @@ pub(super) fn initialize_checked_direct_borrow_resources(
         &installation,
         &dispositions,
     );
-    call_operands::install(program, facts);
     Ok(())
 }
 

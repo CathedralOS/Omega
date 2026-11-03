@@ -33,9 +33,27 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
     let mut transfers: Vec<TransferHolders> = Vec::new();
     for (_, state) in facts.borrow.states.iter() {
         for (holder, _) in facts.borrow.state_loans(state) {
-            let Some(suppliers) =
-                crate::checks::borrows::transport_suppliers(&facts.borrow, state, holder)
-            else {
+            let row = facts.borrow.loans.get(holder);
+            let suppliers =
+                crate::checks::borrows::transport_suppliers(&facts.borrow, state, holder).or_else(
+                    || {
+                        // A debt copy holds the same declared input window. It
+                        // supplies no pointer or borrowing parent of its own.
+                        let sources = facts.borrow.loan_suppliers.span(row.supplying_loans)?;
+                        (row.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency
+                            && !sources.is_empty()
+                            && sources.iter().all(|source| {
+                                facts.borrow.state_owns_loan(state, *source)
+                                    && facts.borrow.loans.get(*source).lineage
+                                        == checked_trees::BorrowLoanLineage::LifetimeDependency
+                                    && facts.borrow.loans.get(*source).owner_symbol
+                                        == row.source_owner_symbol
+                                    && facts.borrow.loans.get(*source).kind == row.kind
+                            }))
+                        .then_some(sources)
+                    },
+                );
+            let Some(suppliers) = suppliers else {
                 continue;
             };
             for supplier in suppliers {
@@ -46,6 +64,38 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                 let entry = &mut transfers[position];
                 entry.loan = *supplier;
                 crate::shared::collections::push_unique(&mut entry.holders, holder);
+            }
+        }
+    }
+    // A completed output keeps each captured input held for its complete debt
+    // cohort. These edges extend lifetimes only, never spatial parentage.
+    for (_, output) in facts.borrow.supplied_output_resources.iter() {
+        for input in facts
+            .borrow
+            .supplied_output_inputs
+            .span_or_empty(output.inputs)
+        {
+            let input = facts.borrow.call_loan_resources.get(*input);
+            let mut sources = Vec::new();
+            match input.source {
+                checked_trees::CheckedCallBorrowLoanSource::StoredLoan { loan } => {
+                    sources.push(loan)
+                }
+                checked_trees::CheckedCallBorrowLoanSource::CallAccess { parents, .. } => {
+                    sources
+                        .extend_from_slice(facts.borrow.call_loan_parents.span_or_empty(parents));
+                }
+            }
+            for source in sources {
+                let position = source.arena_index() as usize;
+                if transfers.len() <= position {
+                    transfers.resize_with(position + 1, TransferHolders::default);
+                }
+                let entry = &mut transfers[position];
+                entry.loan = source;
+                for debt in facts.borrow.loan_suppliers.span_or_empty(output.debts) {
+                    crate::shared::collections::push_unique(&mut entry.holders, *debt);
+                }
             }
         }
     }
@@ -64,26 +114,31 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                 row.lineage,
                 checked_trees::BorrowLoanLineage::DirectRoot
                     | checked_trees::BorrowLoanLineage::Reborrow { .. }
+                    | checked_trees::BorrowLoanLineage::SuppliedOutput
             ) {
                 continue;
             }
-            let Ok((_, lexical)) =
-                exact_loan_lifecycle_rows(&facts.borrow, &facts.flow, flow_state, loan)
-            else {
+            let lexical = lexical_end(facts, flow_state, loan)?;
+            if lexical.is_none() && row.lineage != checked_trees::BorrowLoanLineage::SuppliedOutput
+            {
                 // Unevaluated formations have no permission to retain. Resource
                 // construction reports any required missing lifecycle rows.
                 continue;
-            };
+            }
+            if row.lineage == checked_trees::BorrowLoanLineage::SuppliedOutput
+                && super::supplied_permissions::normal_call(&facts.borrow, &facts.flow, loan)
+                    .is_none()
+            {
+                continue;
+            }
             let mut holders = vec![loan];
             let mut cursor = 0;
             let mut final_weakening = lexical;
             while cursor < holders.len() {
                 let supplier = holders[cursor];
                 cursor += 1;
-                let (_, supplier_end) =
-                    exact_loan_lifecycle_rows(&facts.borrow, &facts.flow, flow_state, supplier)
-                        .map_err(|error| vec![error])?;
-                let supplier_end = facts.flow.borrow_lifetimes.weakenings.get(supplier_end);
+                let supplier_end = lexical_end(facts, flow_state, supplier)?
+                    .map(|handle| facts.flow.borrow_lifetimes.weakenings.get(handle));
                 let Some(transferred) = transfers
                     .get(supplier.arena_index() as usize)
                     .filter(|row| row.loan == supplier)
@@ -94,27 +149,28 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                     if holders.contains(&candidate) {
                         continue;
                     }
-                    let (activation, weakening) = exact_loan_lifecycle_rows(
-                        &facts.borrow,
-                        &facts.flow,
-                        flow_state,
-                        candidate,
-                    )
-                    .map_err(|error| vec![error])?;
-                    let activation = facts.flow.borrow_lifetimes.activations.get(activation);
-                    if activation_boundary(activation.source)?
-                        >= weakening_event_boundary(supplier_end.source, supplier_end.reason)?
-                    {
+                    let start = holder_start(facts, flow_state, candidate)?;
+                    let weakening = lexical_end(facts, flow_state, candidate)?;
+                    if supplier_end.is_some_and(|end| {
+                        weakening_event_boundary(end.source, end.reason)
+                            .is_ok_and(|boundary| start >= boundary)
+                    }) {
                         return Err(vec![Diagnostic::error(
                             "saved descriptor was not captured before its supplier retired",
                         )]);
                     }
-                    let end = facts.flow.borrow_lifetimes.weakenings.get(weakening);
-                    let previous = facts.flow.borrow_lifetimes.weakenings.get(final_weakening);
-                    if weakening_event_boundary(end.source, end.reason)?
-                        > weakening_event_boundary(previous.source, previous.reason)?
-                    {
-                        final_weakening = weakening;
+                    if let Some(weakening) = weakening {
+                        let end = facts.flow.borrow_lifetimes.weakenings.get(weakening);
+                        let later = if let Some(previous) = final_weakening {
+                            let previous = facts.flow.borrow_lifetimes.weakenings.get(previous);
+                            weakening_event_boundary(end.source, end.reason)?
+                                > weakening_event_boundary(previous.source, previous.reason)?
+                        } else {
+                            true
+                        };
+                        if later {
+                            final_weakening = Some(weakening);
+                        }
                     }
                     holders.push(candidate);
                 }
@@ -126,15 +182,83 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
             rows[position] = LoanRetention {
                 loan,
                 retention: CheckedBorrowResourceRetention {
-                    lexical_weakening: lexical,
+                    lexical_weakening: lexical.unwrap_or_default(),
                     holders: holders_arena.insert_many(holders),
-                    final_weakening,
+                    final_weakening: final_weakening.unwrap_or_default(),
                 },
             };
         }
     }
     facts.borrow.resource_holders = holders_arena;
+    for (_, output) in facts.borrow.supplied_output_resources.iter_mut() {
+        let retained = get(&rows, output.loan)?;
+        output.holders = retained.holders;
+        output.final_weakening = retained.final_weakening;
+    }
     Ok(rows)
+}
+
+fn lexical_end(
+    facts: &CheckFacts,
+    state: &checked_trees::FlowStateFact,
+    loan: Handle<BorrowLoanFact>,
+) -> Result<Option<Handle<FlowBorrowWeakeningFact>>, Vec<Diagnostic>> {
+    let rows = state
+        .borrow_weakenings
+        .handles()
+        .filter(|handle| facts.flow.borrow_lifetimes.weakenings.get(*handle).loan == loan)
+        .collect::<Vec<_>>();
+    match rows.as_slice() {
+        [] => Ok(None),
+        [one] => Ok(Some(*one)),
+        _ => Err(vec![Diagnostic::error(
+            "retained descriptor has ambiguous lexical retirement",
+        )]),
+    }
+}
+
+fn holder_start(
+    facts: &CheckFacts,
+    state: &checked_trees::FlowStateFact,
+    loan: Handle<BorrowLoanFact>,
+) -> Result<super::lifecycle::LifecycleBoundaryKey, Vec<Diagnostic>> {
+    let row = facts.borrow.loans.get(loan);
+    if row.established_by_call.is_valid() {
+        let origin = facts.borrow.calls.get(row.established_by_call);
+        let normal = state
+            .calls
+            .handles()
+            .filter(|handle| {
+                let actual = facts.flow.control.calls.get(*handle);
+                actual.statement_index == origin.statement_index
+                    && actual.call_ordinal == origin.call_ordinal
+                    && actual.target_symbol == origin.target_symbol
+                    && actual.authored_expression == origin.authored_expression
+                    && facts
+                        .flow
+                        .borrow_loan_constraints(actual.exit_constraints)
+                        .any(|active| active == loan)
+            })
+            .collect::<Vec<_>>();
+        if normal.len() != 1 {
+            return Err(vec![Diagnostic::error(
+                "retained output holder has no exact normal completion",
+            )]);
+        }
+        return Ok(super::lifecycle::normal_completion_boundary(
+            origin.statement_index,
+        ));
+    }
+    let (activation, _) = exact_loan_lifecycle_rows(&facts.borrow, &facts.flow, state, loan)
+        .map_err(|error| vec![error])?;
+    activation_boundary(
+        facts
+            .flow
+            .borrow_lifetimes
+            .activations
+            .get(activation)
+            .source,
+    )
 }
 
 pub(super) fn get(

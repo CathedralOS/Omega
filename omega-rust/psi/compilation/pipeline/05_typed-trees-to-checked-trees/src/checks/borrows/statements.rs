@@ -271,6 +271,13 @@ pub(super) fn check_statement_borrows<'p>(
                 ) {
                     continue;
                 }
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                    eprintln!(
+                        "STRUCT local-loan-conflict new={loan_handle:?} row={loan:?} active={active_loan_handle:?} row={active_loan:?} new_path={:?} active_path={:?} lineage={retained_lineage:?}",
+                        facts.borrow.loan_segments(loan),
+                        facts.borrow.loan_segments(active_loan)
+                    );
+                }
                 diagnostics.push(Diagnostic::error(format!(
                     "statement {} creates local borrow `{}` while local borrow `{}` is still active ({})",
                     statement.statement_index,
@@ -612,6 +619,25 @@ pub(super) fn check_statement_borrows<'p>(
                 continue;
             }
             let loan = facts.borrow.loans.get(loan_handle);
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT mutation-loan-conflict statement={} loan={loan_handle:?} row={loan:?} path={:?} suppliers={:?} incoming={:?}",
+                    statement.statement_index,
+                    facts.borrow.loan_segments(loan),
+                    facts
+                        .borrow
+                        .loan_suppliers
+                        .span_or_empty(loan.supplying_loans),
+                    facts
+                        .borrow
+                        .incoming_references
+                        .is_valid(loan.incoming_reference)
+                        .then(|| facts
+                            .borrow
+                            .incoming_references
+                            .get(loan.incoming_reference))
+                );
+            }
             diagnostics.push(Diagnostic::error(format!(
                 "statement {} mutates `{}` while local borrow `{}` is still active ({})",
                 statement.statement_index,

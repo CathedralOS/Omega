@@ -21,10 +21,10 @@ use checked_trees::{
     FlowCallFact, FlowOperandFact, FlowStateFact,
 };
 
-struct ResourceDraft {
-    resource: CheckedCallBorrowLoanResource,
-    path: Vec<BorrowLoanOwnerSegment>,
-    backing: CapturedPlace,
+pub(super) struct ResourceDraft {
+    pub(super) resource: CheckedCallBorrowLoanResource,
+    pub(super) path: Vec<BorrowLoanOwnerSegment>,
+    pub(super) backing: CapturedPlace,
 }
 
 pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut CheckFacts) {
@@ -52,32 +52,48 @@ pub(super) fn install(program: &dyn validation::CheckingInput, facts: &mut Check
     facts.borrow.call_loan_paths.reset_retain_capacity();
     facts.borrow.call_loan_backing_paths.reset_retain_capacity();
     facts.borrow.call_loan_parents = parents;
-    for mut draft in resources {
-        let owner = facts
-            .flow
-            .control
-            .operands
-            .get(draft.resource.owner_operand);
-        let Some(path) = crate::borrow::carrier_path(program, owner.type_reference, &draft.path)
-        else {
-            continue;
-        };
-        if draft.backing.root != draft.resource.parent_lifetime.root {
-            continue;
-        }
-        draft.resource.backing_incoming_reference = draft.backing.incoming_reference;
-        draft.resource.backing_incoming_owner_path = facts
-            .borrow
-            .call_loan_backing_paths
-            .insert_many(draft.backing.incoming_owner_path);
-        draft.resource.backing_path = facts
-            .borrow
-            .call_loan_backing_paths
-            .insert_many(draft.backing.segments);
-        draft.resource.capture_path = facts.borrow.call_loan_paths.insert_many(path);
-        draft.resource.owner_path = facts.borrow.owner_segments.insert_many(draft.path);
-        facts.borrow.call_loan_resources.insert(draft.resource);
+    for draft in resources {
+        let _ = install_resource(program, facts, draft);
     }
+}
+
+/// Publish one captured permission without changing any already published
+/// handle. Completed output debts use the same original-source coordinates
+/// as ordinary call inputs, even when the actual's slot has since changed.
+pub(super) fn install_resource(
+    program: &dyn validation::CheckingInput,
+    facts: &mut CheckFacts,
+    mut draft: ResourceDraft,
+) -> Option<Handle<CheckedCallBorrowLoanResource>> {
+    if !facts
+        .flow
+        .control
+        .operands
+        .is_valid(draft.resource.owner_operand)
+    {
+        return None;
+    }
+    let owner = facts
+        .flow
+        .control
+        .operands
+        .get(draft.resource.owner_operand);
+    let path = crate::borrow::carrier_path(program, owner.type_reference, &draft.path)?;
+    if draft.backing.root != draft.resource.parent_lifetime.root {
+        return None;
+    }
+    draft.resource.backing_incoming_reference = draft.backing.incoming_reference;
+    draft.resource.backing_incoming_owner_path = facts
+        .borrow
+        .call_loan_backing_paths
+        .insert_many(draft.backing.incoming_owner_path);
+    draft.resource.backing_path = facts
+        .borrow
+        .call_loan_backing_paths
+        .insert_many(draft.backing.segments);
+    draft.resource.capture_path = facts.borrow.call_loan_paths.insert_many(path);
+    draft.resource.owner_path = facts.borrow.owner_segments.insert_many(draft.path);
+    Some(facts.borrow.call_loan_resources.insert(draft.resource))
 }
 
 fn collect(

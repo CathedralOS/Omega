@@ -93,7 +93,7 @@ pub(super) fn loans(
                     )
             })
             .collect::<Vec<_>>();
-        if !effect.suppliers_complete || selected.is_empty() {
+        if !effect.suppliers_complete || effect.has_static_values || selected.is_empty() {
             loans.extend(from_effects(program, vec![effect], loan_trackers));
             continue;
         }
@@ -101,6 +101,16 @@ pub(super) fn loans(
         // The destination selects storage, never a convenient backing loan;
         // every alternative and every nonspatial lifetime debt stays distinct.
         for source in selected {
+            // A weak store leaves unselected physical slots unchanged. Their
+            // old occurrences already remain current; only newly completed
+            // generations need another statement-continuation binding.
+            if effect.may_select
+                && loan_trackers
+                    .iter()
+                    .any(|incoming| incoming.handle == source.handle)
+            {
+                continue;
+            }
             loans.push(StatementBorrowLoan {
                 incoming_origin: None,
                 formation_expression: Default::default(),

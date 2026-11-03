@@ -85,12 +85,14 @@ impl CheckedReborrowLoanResourceDraft {
 pub(crate) enum ParentResourceIndex {
     Direct(usize),
     Reborrow(usize),
+    Supplied(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum DispositionTargetIndex {
     ParentResource(ParentResourceIndex),
     DirectRootLifetime(usize),
+    CompletedOutput(usize),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,6 +166,9 @@ impl CheckedReborrowDispositionEventDraft {
                             .clone(),
                     )
                 }
+                DispositionTargetIndex::CompletedOutput(index) => {
+                    CheckedBorrowResourceDispositionTarget::CompletedOutput(handles.supplied[index])
+                }
             },
             disposition: self.disposition,
             restored_call: self.restored_call,
@@ -177,6 +182,7 @@ impl CheckedReborrowDispositionEventDraft {
 pub(crate) struct ResourceHandles {
     pub(crate) direct: Vec<arena::Handle<CheckedDirectBorrowLoanResource>>,
     pub(crate) reborrows: Vec<arena::Handle<LoanResource>>,
+    pub(crate) supplied: Vec<arena::Handle<checked_trees::CheckedSuppliedOutputBorrowResource>>,
 }
 
 impl ResourceHandles {
@@ -187,6 +193,9 @@ impl ResourceHandles {
             },
             ParentResourceIndex::Reborrow(index) => BorrowResource::Reborrow {
                 resource: self.reborrows[index],
+            },
+            ParentResourceIndex::Supplied(index) => BorrowResource::SuppliedOutput {
+                resource: self.supplied[index],
             },
         }
     }

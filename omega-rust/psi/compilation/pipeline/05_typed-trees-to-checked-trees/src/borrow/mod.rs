@@ -34,6 +34,7 @@ pub(crate) mod accesses;
 pub(crate) mod calls;
 mod children;
 mod last_uses;
+pub(crate) mod lifetime_contract;
 mod loans;
 mod owner_geometry;
 mod roots;

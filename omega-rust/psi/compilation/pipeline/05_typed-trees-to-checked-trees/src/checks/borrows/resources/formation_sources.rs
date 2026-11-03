@@ -156,9 +156,9 @@ fn nearest_parents(
         }
         visited.push(loan);
         match borrow.loans.get(loan).lineage {
-            BorrowLoanLineage::DirectRoot | BorrowLoanLineage::Reborrow { .. } => {
-                parents.push(loan)
-            }
+            BorrowLoanLineage::DirectRoot
+            | BorrowLoanLineage::Reborrow { .. }
+            | BorrowLoanLineage::SuppliedOutput => parents.push(loan),
             BorrowLoanLineage::UnretainedDerived => {
                 let Some(suppliers) =
                     crate::checks::borrows::transport_suppliers(borrow, state, loan)
@@ -167,7 +167,7 @@ fn nearest_parents(
                 };
                 pending.extend(suppliers.iter().copied());
             }
-            BorrowLoanLineage::LifetimeDependency | BorrowLoanLineage::SuppliedOutput => {
+            BorrowLoanLineage::LifetimeDependency => {
                 return refusal("captured descriptor has no local borrowing resource");
             }
         }

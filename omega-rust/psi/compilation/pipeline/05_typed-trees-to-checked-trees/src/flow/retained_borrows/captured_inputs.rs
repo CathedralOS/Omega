@@ -234,7 +234,9 @@ pub(in crate::flow) fn captured_sources(
                     control,
                     control.operands.get(source.operand),
                     control.operand_retained_paths.span(source.projection)?,
-                    super::lifetime_contract::source_type(program, borrow, control, source)?,
+                    crate::borrow::lifetime_contract::source_type(
+                        program, borrow, control, source,
+                    )?,
                     stable_name,
                     active,
                 )?);

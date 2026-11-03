@@ -7,6 +7,37 @@
 use checked_trees::{BorrowFacts, BorrowLoanLineage, FlowFacts};
 use diagnostics::Diagnostic;
 
+mod completions;
+mod inputs;
+
+pub(super) use completions::install;
+
+/// The namespace is established only by this exact call's normal exit.
+/// Later uses separately require a current holder or a captured descendant.
+pub(super) fn normal_call(
+    borrow: &BorrowFacts,
+    flow: &FlowFacts,
+    loan: arena::Handle<checked_trees::BorrowLoanFact>,
+) -> Option<arena::Handle<checked_trees::FlowCallFact>> {
+    let source = borrow.supplied_output_call(loan)?;
+    let invocation = borrow.calls.get(source);
+    let state = flow
+        .control
+        .unique_state(invocation.machine_symbol, invocation.state_symbol)?;
+    let mut calls = state.calls.handles().filter(|handle| {
+        let actual = flow.control.calls.get(*handle);
+        actual.statement_index == invocation.statement_index
+            && actual.call_ordinal == invocation.call_ordinal
+            && actual.target_symbol == invocation.target_symbol
+            && actual.authored_expression == invocation.authored_expression
+            && flow
+                .borrow_loan_constraints(actual.exit_constraints)
+                .any(|live| live == loan)
+    });
+    let actual = calls.next()?;
+    calls.next().is_none().then_some(actual)
+}
+
 pub(super) fn validate_normal_output_completions(
     borrow: &BorrowFacts,
     flow: &FlowFacts,

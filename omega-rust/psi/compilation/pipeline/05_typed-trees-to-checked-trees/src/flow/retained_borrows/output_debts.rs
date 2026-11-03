@@ -150,8 +150,9 @@ pub(in crate::flow) fn sources(
             }
             let mut restored = RetainedSources::default();
             for supplier in sources {
-                let bound =
-                    super::lifetime_contract::source_type(program, borrow, control, supplier)?;
+                let bound = crate::borrow::lifetime_contract::source_type(
+                    program, borrow, control, supplier,
+                )?;
                 let supplied = super::captured_sources(
                     program,
                     borrow,

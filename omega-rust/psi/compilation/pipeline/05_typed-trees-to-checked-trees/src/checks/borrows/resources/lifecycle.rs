@@ -21,6 +21,9 @@ pub(crate) struct LifecycleBoundaryKey {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LifecycleEventKind {
+    CompleteOutput {
+        call: arena::Handle<checked_trees::FlowCallFact>,
+    },
     Activate {
         activation: arena::Handle<checked_trees::FlowBorrowActivationFact>,
     },
@@ -54,13 +57,15 @@ pub(crate) enum EphemeralResourceStatus {
 pub(crate) struct EphemeralStatuses {
     direct: Vec<Option<EphemeralResourceStatus>>,
     reborrows: Vec<Option<EphemeralResourceStatus>>,
+    supplied: Vec<Option<EphemeralResourceStatus>>,
 }
 
 impl EphemeralStatuses {
-    pub(crate) fn new(direct: usize, reborrows: usize) -> Self {
+    pub(crate) fn new(direct: usize, reborrows: usize, supplied: usize) -> Self {
         Self {
             direct: vec![None; direct],
             reborrows: vec![None; reborrows],
+            supplied: vec![None; supplied],
         }
     }
 
@@ -68,6 +73,7 @@ impl EphemeralStatuses {
         match resource {
             ParentResourceIndex::Direct(index) => self.direct.get(index).cloned().flatten(),
             ParentResourceIndex::Reborrow(index) => self.reborrows.get(index).cloned().flatten(),
+            ParentResourceIndex::Supplied(index) => self.supplied.get(index).cloned().flatten(),
         }
     }
 
@@ -79,6 +85,7 @@ impl EphemeralStatuses {
         let slot = match resource {
             ParentResourceIndex::Direct(index) => self.direct.get_mut(index),
             ParentResourceIndex::Reborrow(index) => self.reborrows.get_mut(index),
+            ParentResourceIndex::Supplied(index) => self.supplied.get_mut(index),
         };
         let Some(slot) = slot else {
             return false;
@@ -171,6 +178,13 @@ pub(crate) fn activation_boundary(
     })
 }
 
+pub(crate) fn normal_completion_boundary(statement_index: usize) -> LifecycleBoundaryKey {
+    LifecycleBoundaryKey {
+        statement_index,
+        phase: LifecyclePhase::NormalCompletion,
+    }
+}
+
 pub(crate) fn weakening_event_boundary(
     source: FlowInvalidationSource,
     reason: checked_trees::FlowBorrowWeakeningReason,
@@ -198,10 +212,14 @@ pub(crate) fn apply_activation_batch(
     reborrows: &[CheckedReborrowLoanResourceDraft],
 ) -> Result<(), Vec<Diagnostic>> {
     for event in batch {
-        let LifecycleEventKind::Activate { activation } = event.kind else {
-            return Err(reborrow_disposition_drift());
+        let valid = match event.kind {
+            LifecycleEventKind::Activate { activation } => activation.is_valid(),
+            LifecycleEventKind::CompleteOutput { call } => {
+                call.is_valid() && matches!(event.resource, ParentResourceIndex::Supplied(_))
+            }
+            LifecycleEventKind::Weaken { .. } => false,
         };
-        if !activation.is_valid() || statuses.get(event.resource).is_some() {
+        if !valid || statuses.get(event.resource).is_some() {
             return Err(reborrow_disposition_drift());
         }
         if let ParentResourceIndex::Reborrow(child_index) = event.resource {
