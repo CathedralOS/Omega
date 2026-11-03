@@ -30,8 +30,6 @@ pub(crate) const AARCH64_NORMALIZED_FOREIGN_CALL_PATCH_WIDTH: u8 = 4;
 
 /// One register-destination materialization group: an `adrp`/`add` pair.
 /// A record-field destination adds the scratch store word after its pair.
-pub(crate) const AARCH64_CALLBACK_MATERIALIZATION_BYTE_COUNT: u16 = 8;
-pub(crate) const AARCH64_CALLBACK_FIELD_MATERIALIZATION_BYTE_COUNT: u16 = 12;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Aarch64NormalizedForeignCallFixupKind {
@@ -46,12 +44,12 @@ pub enum Aarch64NormalizedForeignCallFixupState {
 /// Where one private callback address lands when the call executes: the
 /// parameter register the provider plan assigned, or a field inside the
 /// record addressed by `root_register` at `byte_offset`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Aarch64CallbackMaterializationDestination {
     Register(calling_conventions::MachineRegister),
     RecordField {
         root_register: calling_conventions::MachineRegister,
-        byte_offset: u32,
+        placements: calling_conventions::PrivateCallbackPlacements,
     },
 }
 
@@ -59,7 +57,7 @@ pub enum Aarch64CallbackMaterializationDestination {
 /// pair whose page and page-offset fields bind the selected private function
 /// symbol at object construction, followed by the scratch store when the
 /// destination is a record field.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Aarch64CallbackAddressMaterialization {
     pub destination: Aarch64CallbackMaterializationDestination,
     pub materialization_byte_offset: u16,
@@ -168,14 +166,14 @@ pub fn validate_aarch64_selected_normalized_foreign_call_template(
             else {
                 return None;
             };
-            match callback.destination {
+            match callback.destination.clone() {
                 calling_conventions::NativePlace::Parameter(_) => Some(
                     Aarch64CallbackMaterializationDestination::Register(*register),
                 ),
                 calling_conventions::NativePlace::Field { .. } => {
                     Some(Aarch64CallbackMaterializationDestination::RecordField {
                         root_register: *register,
-                        byte_offset: u32::try_from(callback.field_byte_offset?).ok()?,
+                        placements: callback.field_placements.clone()?,
                     })
                 }
             }
@@ -213,46 +211,49 @@ fn canonical_call_bytes(
 ) -> Option<Vec<u8>> {
     let mut bytes = Vec::new();
     for destination in destinations {
-        match *destination {
-            Aarch64CallbackMaterializationDestination::Register(register) => {
-                let calling_conventions::MachineRegister::Aarch64X(index) = register else {
-                    return None;
-                };
-                if index > 30 {
-                    return None;
-                }
-                let index = u32::from(index);
-                let adrp = (0x9000_0000_u32 | index).to_le_bytes();
-                let add = (0x9100_0000_u32 | (index << 5) | index).to_le_bytes();
-                push_encoded(&mut bytes, adrp);
-                push_encoded(&mut bytes, add);
-            }
-            Aarch64CallbackMaterializationDestination::RecordField {
-                root_register,
-                byte_offset,
-            } => {
-                let calling_conventions::MachineRegister::Aarch64X(root_index) = root_register
-                else {
-                    return None;
-                };
-                if root_index > 30 || byte_offset % 8 != 0 || byte_offset / 8 >= 4096 {
-                    return None;
-                }
-                let scratch = 16_u32;
-                let adrp = (0x9000_0000_u32 | scratch).to_le_bytes();
-                let add = (0x9100_0000_u32 | (scratch << 5) | scratch).to_le_bytes();
-                let store = (0xF900_0000_u32
-                    | ((byte_offset / 8) << 10)
-                    | (u32::from(root_index) << 5)
-                    | scratch)
-                    .to_le_bytes();
-                push_encoded(&mut bytes, adrp);
-                push_encoded(&mut bytes, add);
-                push_encoded(&mut bytes, store);
-            }
-        }
+        bytes.extend(callback_group_bytes(destination)?);
     }
     push_encoded(&mut bytes, 0x9400_0000_u32.to_le_bytes());
+    Some(bytes)
+}
+
+pub fn callback_group_bytes(
+    destination: &Aarch64CallbackMaterializationDestination,
+) -> Option<Vec<u8>> {
+    let mut bytes = Vec::new();
+    let register = match destination {
+        Aarch64CallbackMaterializationDestination::Register(register) => *register,
+        Aarch64CallbackMaterializationDestination::RecordField { .. } => {
+            calling_conventions::MachineRegister::Aarch64X(16)
+        }
+    };
+    let calling_conventions::MachineRegister::Aarch64X(index) = register else {
+        return None;
+    };
+    if index > 30 {
+        return None;
+    }
+    let index = u32::from(index);
+    push_encoded(&mut bytes, (0x9000_0000_u32 | index).to_le_bytes());
+    push_encoded(
+        &mut bytes,
+        (0x9100_0000_u32 | (index << 5) | index).to_le_bytes(),
+    );
+    if let Aarch64CallbackMaterializationDestination::RecordField {
+        root_register,
+        placements,
+    } = destination
+    {
+        let calling_conventions::MachineRegister::Aarch64X(root) = *root_register else {
+            return None;
+        };
+        if placements.as_slice().is_empty() {
+            return None;
+        }
+        for placement in placements.as_slice() {
+            crate::post_handoff_writer::append_fragment(&mut bytes, 16, root, 15, 17, *placement)?;
+        }
+    }
     Some(bytes)
 }
 
@@ -264,16 +265,9 @@ fn callback_fixup(
     let mut materializations = Vec::with_capacity(destinations.len());
     let mut offset = 0_u16;
     for destination in destinations {
-        let byte_count = match destination {
-            Aarch64CallbackMaterializationDestination::Register(_) => {
-                AARCH64_CALLBACK_MATERIALIZATION_BYTE_COUNT
-            }
-            Aarch64CallbackMaterializationDestination::RecordField { .. } => {
-                AARCH64_CALLBACK_FIELD_MATERIALIZATION_BYTE_COUNT
-            }
-        };
+        let byte_count = u16::try_from(callback_group_bytes(destination)?.len()).ok()?;
         materializations.push(Aarch64CallbackAddressMaterialization {
-            destination: *destination,
+            destination: destination.clone(),
             materialization_byte_offset: offset,
             materialization_byte_count: byte_count,
             page_relocation_byte_offset: offset,
@@ -319,14 +313,19 @@ mod tests {
             None => super::Aarch64CallbackMaterializationDestination::Register(placement.register),
             Some(byte_offset) => super::Aarch64CallbackMaterializationDestination::RecordField {
                 root_register: placement.register,
-                byte_offset: u32::try_from(byte_offset).unwrap(),
+                placements: calling_conventions::PrivateCallbackPlacements::new(&[
+                    layout_plans::LayoutPlacementReport::At {
+                        offset: u64::try_from(byte_offset).unwrap(),
+                    },
+                ]),
             },
         }
     }
 
     const CALLBACK_BYTE_COUNTS: fixture::CallbackByteCounts = fixture::CallbackByteCounts {
         register: 8,
-        field: 12,
+        // Address resolution, a source-preserving copy/extraction, and the store.
+        field: 16,
     };
 
     fn inputs(darwin: bool, input_layout: usize, result: usize) -> fixture::Case {
@@ -504,7 +503,7 @@ mod tests {
             },
             fixup_row: |callback| {
                 (
-                    callback.destination,
+                    callback.destination.clone(),
                     callback.materialization_byte_offset,
                     callback.materialization_byte_count,
                 )

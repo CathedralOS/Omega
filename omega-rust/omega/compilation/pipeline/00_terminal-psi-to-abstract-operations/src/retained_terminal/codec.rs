@@ -19,12 +19,10 @@ use entry::EntryRecord;
 use std::sync::Arc;
 use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, write_values};
 
-// Provider plans retain complete applications, exact numeric realizations and
-// checked table-field storage correspondence. Build-origin receipts retain
-// their requirement as an index into the evaluated binding identity table
-// (schema 12); schema 11 stored that requirement as inline text.
-// Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI12";
+// Saved native inputs must describe both the split handler-address fields and
+// the Build binding's requirement index. Schema 13 combines those changes;
+// earlier records lack one of them and must be rebuilt before decoding.
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI13";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -35,7 +33,13 @@ mod tests {
 
     #[test]
     fn retired_entry_field_record_schema_is_rejected() {
-        for bytes in [b"OMGNTI01", b"OMGNTI09", b"OMGNTI10"] {
+        for bytes in [
+            b"OMGNTI01",
+            b"OMGNTI09",
+            b"OMGNTI10",
+            b"OMGNTI11",
+            b"OMGNTI12",
+        ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
             let Err(error) = DerivationInputs::read(&mut input) else {
@@ -58,7 +62,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI13", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI14", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };

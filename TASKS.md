@@ -331,6 +331,11 @@ retired-syntax deletions to completion.
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
+    Preserve caller-supplied requirement-local evidence under
+    [generic requirements](wiki/spec/language/generics.md#generic-machine-requirements),
+    distinct from trait-level captured evidence and target provider selection;
+    reject binder-kind/order substitutions, weakened public contracts and any
+    provider attempt to fill or replace a caller's evidence argument.
   - Carry the facts that still refuse behind a selected implementation: opaque
     write-only boundaries requiring an admitted claim for the selected implementation. Their
     `target_body` places keep the retired prefix until then. A requirement

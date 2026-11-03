@@ -84,6 +84,6 @@ fn validate_entry(
     }
     entry
         .geometry()
-        .field_offset(signature.native_target)
+        .field_placements(signature.native_target)
         .map(|_| ())
 }
