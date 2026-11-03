@@ -348,6 +348,60 @@ selection syntax, implicit implementation search, or need to repeat a selection
 beside every index expression. Citing an exact equality remains an alternative
 when general algebraic normalization is unnecessary.
 
+### Literal identities
+
+A generic library can accept `Indexed<Count + 0>` as `Indexed<Count>` without a
+proof call at each use. Its selected implementation must prove both that adding
+its abstract zero preserves the operand and that this zero is the index literal
+`0`. An ordinary child trait adds the connection without making every abstract
+algebra use integer literals:
+
+```omega
+trait Additive<T> {
+    machine zero() -> T terminates;
+
+    machine + add(
+        left: T,
+        right: T
+    ) -> T terminates;
+
+    machine right_identity(value: T)
+    ensures add(value, zero()) == value;
+}
+
+trait WrappingByteIndices : Additive<u8 in Wrapping> {
+    machine zero_is_literal()
+    ensures zero() == 0;
+}
+
+domain<T, const Count: u8 in Wrapping> T::Indexed<Count>;
+
+machine remove_zero<
+    const Count: u8 in Wrapping,
+    Arithmetic satisfies WrappingByteIndices
+>(
+    value: u32 in Indexed<Count + 0>
+) -> u32 in Indexed<Count> {
+    value
+}
+```
+
+A caller selects a complete implementation, for example
+`remove_zero<8, ByteArithmetic>(value)`. `ByteArithmetic` supplies the inherited
+operations and proves both laws; their names have no compiler authority. The
+same pattern connects multiplicative identity to `1`. Each rewrite needs only
+its own laws, not a full ring or semiring. `Count + 1` is not an identity.
+
+Normalization uses the complete selected conformance, including inherited laws,
+and identifies the applications in signatures and specialization keys as well
+as value transfers. It does not evaluate abstract machines. Qualified operand
+types constrain which operation matches; the explicit conformance selects it.
+Wrapping and Saturating do not grant the same laws by name, and normalization
+cannot erase an Exact overflow obligation on an authored intermediate.
+
+See [literal-linked index identities](../spec/proofs/contracts.md#literal-linked-index-identities)
+for operation direction, formation, and bounded expansion rules.
+
 ## Machine Parameters
 
 A static parameter can select a machine declaration:

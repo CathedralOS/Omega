@@ -67,58 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. What evidence lets open index normalization drop an identity element (`N + 0`, `N * 1`)?
-
-[Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-lists zero/one identities among the normalizations a selected conformance
-licenses, each by its own law, and says connecting nullary algebra operations to
-constructor constants requires ordinary unfolding or citation. An open index
-spells an identity element as an integer leaf, `N + 0` or `N * 1`, and its
-expression fragment has no call, so no index can apply `zero()` or `one()`.
-`source/library/core/algebra.omg` states the identities over those nullary slot
-applications (`add(a, zero()) == a`) and says the checker has no compiler-known
-zero/one form. On base `05a6f6af37e` both spellings of an identity law leave
-`Indexed<N + 0>` and `Indexed<N>` distinct (`index compatibility condition ...
-is not established`): a trait whose laws name the literals (`add(a, 0) == a`,
-`multiply(a, 1) == a`) and a trait whose laws name the slot applications
-(`add(a, zero()) == a`). What evidence lets the normalizer drop a `0` or `1`
-leaf?
-
-Option A, the law names the literal: an identity law slot over the integer
-literal itself, detected by shape like commutativity and recorded on the
-selection beside the other laws. No connection between a nullary slot and a
-constant is needed because the law is stated about the leaf. The trait then
-fixes its operand to a numeric type, and left and right identity are separate
-laws.
-
-Option B, the library form plus a connection law: `CommutativeSemiring`'s
-identity laws over `zero()` and `one()`, plus a law slot `zero() == 0` (and
-`one() == 1`) that connects each nullary application to its constant. The
-normalizer drops a leaf only when the selected conformance declares both slots.
-
-Option C, no normalizer rule: identity elimination stays an ordinary
-established equality (a cited identity law and a local fact `N + 0 == N`), and
-open index normalization never removes a leaf. `N + 0` and `N` remain distinct
-instances whose compatibility needs that fact.
-
-The answer also fixes whether identities compose with distributivity
-(`A * (B + 1)` against `A * B + A`).
-
-Contracts checked: [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-names the identities and says nothing of their shape or of how an integer leaf
-meets a nullary slot. [Domains](wiki/spec/language/domains.md) says computed open
-indices retain their selected operation and normalized expression and that
-compatibility is a verification condition, not evaluation in type equality.
-[Canonical static identities](wiki/spec/language/evaluation.md#canonical-static-identities)
-keeps open symbolic indices as normalized artifact data and keeps machine
-evaluation out of type equality, which rules out evaluating `zero()` to `0`
-inside an identity. [Conformances](wiki/spec/language/conformances.md) says the
-index checker consumes selected evidence and does not infer an algebra from
-operator punctuation. None says how a literal leaf acquires an identity law.
-`samples/cli/facts/open_index_distributivity` records the distributivity
-evidence this question leaves out.
-
-### 2. Is the expanded sum of products the canonical form of an open index under a declared distributivity law?
+### 1. Is the expanded sum of products the canonical form of an open index under a declared distributivity law?
 
 [Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
 says distributivity requires its law, that changing the canonical form is an
@@ -157,7 +106,7 @@ publication, without defining the expression's form.
 `samples/cli/facts/open_index_distributivity` pins the expansion with its reject
 twins.
 
-### 3. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
+### 2. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
 
 [Epsilon's grammar](bootstrap/4_epsilon/LANGUAGE.md) (lines 128-139) lets an
 arm's continuation be `"return" expression?`, and lets the next arm's pattern
@@ -202,7 +151,7 @@ define observations and resources, not parsing;
 not fix Epsilon's grammar; `implementation_notes.md` describes the probe as
 implementation, not as a language rule.
 
-### 4. Is a layout used only inside unselected library code a Psi obligation under every target?
+### 3. Is a layout used only inside unselected library code a Psi obligation under every target?
 
 A fixed-representation use (`LayoutStorage`, `CLayout`) inside a body that no
 Build row selects and no entry reaches is laid out today by Psi's build-time
@@ -286,71 +235,3 @@ Contracts checked, and why they do not decide it:
   providers" and that a scope with no application needs no facts. Lines 96-98 and
   110-113 follow provider bodies "under each applicable target" and reject a bad
   target-family member "even when deployment requests another target".
-
-### 7. Must a domain membership's candidate have the domain's carrier?
-
-A `u8` value is accepted as a member of a `u16`-carrier domain in every form
-tried. With `domain u16::Small requires self <= 10;`, each of these checks:
-
-- `machine guarded() -> u16 requires 7u8 in Small { 3 }`, where `u8` appears
-  nowhere else in the program;
-- the same program with an unrelated `machine unrelated(value: u8) -> u8`, so
-  the `u8` carrier is otherwise present;
-- `machine guarded(value: u8) -> u16 requires value in Small { 3 }`, with no
-  literal at all.
-
-Observed on hosted compiler-pilot runs 41656219861 and 41657251758 (checking
-only, branch `work/wave3-membership-probe` over main `f2c75870eb`). The probes
-were written to test a compiler degrade path (a suffixed literal whose width
-row is missing); the outcome is the same with and without that row, so the
-acceptance comes from the membership rule itself.
-
-Option A, carrier-exact membership: `candidate in D` requires the candidate's
-carrier to equal the carrier named by `D`'s `Carrier::` prefix, and a
-cross-carrier `in` rejects; an explicit exact conversion is needed first. A
-heuristic scan of the 68,463 `.omg` files found no `requires` membership whose
-parameter's declared integer type differs from its domain's carrier (91
-integer-carrier domains), and none among qualified parameters (`x: uN in D`)
-whose type differs from the domain's carrier, so the known migration cost is
-small; the scan did not cover memberships on locals, fields or literal
-candidates.
-
-Option B, membership by exact value: `candidate in D` substitutes the
-candidate's exact mathematical value for `self`, across widths, as fixed-integer
-comparison already does. This is today's behavior.
-
-Contracts checked, and why they do not decide it:
-- [Domains, declaration and membership](wiki/spec/language/domains.md#declaration-and-membership):
-  "`Player::` determines the domain's carrier", and membership "substitutes that
-  exact candidate for `self`". It does not say whether the candidate must have
-  that carrier.
-- [Domains, refinement and executable membership](wiki/spec/language/domains.md#refinement-and-executable-membership):
-  "Domains classify values within the carrier's ordinary validity", and
-  "Establishing membership requires all carrier, predicate, and provenance
-  obligations". Whether a "carrier obligation" means the candidate has the
-  carrier's type, or only that its value is valid in that carrier, is the open
-  point.
-- [Domains, exact coercion and erasure](wiki/spec/language/domains.md#exact-coercion-and-erasure):
-  "Exact widening and proved representable narrowing are carrier coercions",
-  and a predicate-free qualification needs "carrier compatibility". This is the
-  explicit conversion Option A would require before a cross-carrier `in`; it
-  does not say a bare `in` needs one.
-- [Terminal Psi calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md):
-  a qualification change "strictly adds same-carrier membership". This governs
-  qualification-change edges, not a bare `in` proposition, though it leans
-  toward Option A.
-- [Numeric values, literal landing](wiki/spec/language/numeric_values.md#literal-landing-and-destinations):
-  "A suffixed integer or float literal retains its chosen carrier ... An
-  incompatible destination rejects". It does not say whether a membership
-  candidate is a destination.
-- [Numeric values, integer equality and order](wiki/spec/language/numeric_values.md#integer-equality-and-order):
-  "Builtin fixed-integer comparisons use exact mathematical integer values"
-  across width and signedness (`mixed-integer-comparison`), which supports
-  reading `self <= 10` across carriers. The same section says this "adds
-  neither implicit arithmetic widening nor conversion at assignments,
-  arguments, or returns"; a membership candidate is none of those positions.
-- Qualification `value: T in D` "requires the exact named domain `D`"
-  (domains.md, declaration and membership), which constrains the qualified
-  type, not a bare `in` proposition.
-- No clause in `state_contracts.md`, `generics.md` or elsewhere in
-  `wiki/spec` states a carrier rule for `in` propositions.
