@@ -98,12 +98,31 @@ fn package_publication_is_deterministic_and_binds_the_signed_identifier() {
     }
     assert_eq!(publish(), first);
     assert_eq!(read(plist_path).unwrap(), first_plist);
+    assert!(first.has_consistent_package_evidence());
     let mut changed = first.clone();
     changed.application_identifier = target::ApplicationIdentifier::new(b"org.other").unwrap();
+    assert!(
+        !changed.has_consistent_package_evidence(),
+        "a changed identifier must fail the receipt replay"
+    );
     let mut changed = first.clone();
     changed.components.reverse();
-    let mut changed = first;
+    assert!(
+        !changed.has_consistent_package_evidence(),
+        "reordered members must fail the receipt replay"
+    );
+    let mut changed = first.clone();
     changed.package_root = directory.0.join("different.app");
+    assert!(
+        !changed.has_consistent_package_evidence(),
+        "a changed package root must fail the receipt replay"
+    );
+    let mut changed = first;
+    changed.executable_byte_count += 1;
+    assert!(
+        !changed.has_consistent_package_evidence(),
+        "an executable byte count that disagrees with its member must fail the replay"
+    );
 }
 
 #[test]
@@ -161,4 +180,76 @@ fn invalid_identity_paths_and_staging_leave_the_previous_package_untouched() {
         1,
         "failed staging leaves no temporary package"
     );
+}
+
+/// Publish while `disturb` adds content to the tree at one observation point,
+/// and require rejection with nothing left behind: neither the package nor
+/// its staging directory survives a refused shape.
+fn publication_rejects_disturbed_tree(stage: bool, disturb: &dyn Fn(&Path)) {
+    let directory = PublicationDirectory::new();
+    let identifier = target::ApplicationIdentifier::new(b"org.omega.window-test").unwrap();
+    let executable = signed_executable(identifier.as_str());
+    let digest = executable_container_digest(&executable);
+    let observers = if stage {
+        PublicationObservers {
+            after_staging: disturb,
+            after_installation: &|_| {},
+        }
+    } else {
+        PublicationObservers {
+            after_staging: &|_| {},
+            after_installation: disturb,
+        }
+    };
+    let result = publish_package_with_observers(
+        &directory.0,
+        "window_test",
+        &identifier,
+        &executable,
+        digest,
+        observers,
+    );
+    assert!(result.is_err(), "a disturbed package tree must reject");
+    assert_eq!(
+        fs::read_dir(&directory.0).unwrap().count(),
+        0,
+        "a refused package leaves no staged or installed tree"
+    );
+}
+
+#[test]
+fn package_publication_rejects_an_extra_empty_directory_in_the_staged_tree() {
+    for extra in ["Contents/Resources", "Extra", "Contents/MacOS/Extra"] {
+        publication_rejects_disturbed_tree(true, &|root| {
+            fs::create_dir_all(root.join(extra)).unwrap();
+        });
+    }
+}
+
+#[test]
+fn package_publication_rejects_an_extra_empty_directory_in_the_installed_tree() {
+    for extra in ["Contents/Resources", "Extra", "Contents/MacOS/Extra"] {
+        publication_rejects_disturbed_tree(false, &|root| {
+            fs::create_dir_all(root.join(extra)).unwrap();
+        });
+    }
+}
+
+#[test]
+fn package_publication_rejects_an_extra_file_in_either_tree() {
+    for stage in [true, false] {
+        publication_rejects_disturbed_tree(stage, &|root| {
+            fs::write(root.join("Contents/PkgInfo"), b"APPL????").unwrap();
+        });
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn package_publication_rejects_an_extra_symlink_in_either_tree() {
+    for stage in [true, false] {
+        publication_rejects_disturbed_tree(stage, &|root| {
+            std::os::unix::fs::symlink("MacOS", root.join("Contents/Resources")).unwrap();
+        });
+    }
 }
