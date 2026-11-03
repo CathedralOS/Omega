@@ -1155,11 +1155,16 @@ fail/facts/match_runtime_view_extent_through_parameter_rejected rejected 803ms e
 fail/facts/match_runtime_view_extent_through_target_body_rejected rejected 682ms expected @fc74098f66b9+wt
 	exact arithmetic in machine `X86Apply::apply` state `apply` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmApply::apply` state `apply` local `last` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/may_write_nested_helper_captured_choice_overlapping rejected 6414ms expected @533e32a150157a3956bd4a4ea752df788308d10e
+fail/facts/may_write_nested_helper_captured_choice_overlapping rejected 8624ms expected @f3f387161017c5072f0359b017f0259405bb3327
 	cannot prove index `other` is within length 4 in main::entry
-fail/facts/may_write_nested_helper_unknown_choice rejected 6244ms expected @533e32a150157a3956bd4a4ea752df788308d10e
+fail/facts/may_write_nested_helper_reference_local_before_store rejected 2989ms expected @f3f387161017c5072f0359b017f0259405bb3327
+	machine `relay` state `entry` statement 1: reading `selected` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut u64`
+	machine `relay` state `entry` uses reference local `selected` before a store establishes it; a reference declared without an initializer holds no descriptor until it is assigned
+fail/facts/may_write_nested_helper_reference_local_overlapping rejected 7754ms expected @f3f387161017c5072f0359b017f0259405bb3327
+	cannot prove index `other` is within length 4 in main::entry
+fail/facts/may_write_nested_helper_unknown_choice rejected 8378ms expected @f3f387161017c5072f0359b017f0259405bb3327
 	cannot prove index `other` is within length 4 in exercise::entry
-fail/facts/may_write_nested_helper_unselected_live_loan rejected 6344ms expected @533e32a150157a3956bd4a4ea752df788308d10e
+fail/facts/may_write_nested_helper_unselected_live_loan rejected 8351ms expected @f3f387161017c5072f0359b017f0259405bb3327
 	state `observe` receives `other` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 borrows `other` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit) in machine `main`, state `entry`, statement 3
 fail/facts/method_array_operand_inference_element_not_copy_rejected rejected 5256ms expected @c79bb8268163+wt
@@ -8404,15 +8409,15 @@ pass/facts/may_write_choice_finite_cycle_through_target_body_exit rejected 3033m
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
-pass/facts/may_write_choice_through_call_result_exit checked 8962ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_choice_through_const_name_exit checked 7890ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_choice_through_field_exit checked 7658ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_choice_through_local_exit checked 7873ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_choice_through_match_join_exit checked 7863ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_choice_through_other_machine_exit checked 7948ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_choice_through_other_state_exit checked 7945ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_choice_through_parameter_exit checked 7698ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_choice_through_target_body_exit checked 8444ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
+pass/facts/may_write_choice_through_call_result_exit checked 14148ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_choice_through_const_name_exit checked 10085ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_choice_through_field_exit checked 11494ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_choice_through_local_exit checked 10526ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_choice_through_match_join_exit checked 11806ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_choice_through_other_machine_exit checked 10502ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_choice_through_other_state_exit checked 10473ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_choice_through_parameter_exit checked 10542ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_choice_through_target_body_exit checked 11399ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
 pass/facts/may_write_codec_argument_through_call_result_exit rejected 3011ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/may_write_codec_argument_through_const_name_exit rejected 3061ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -8500,16 +8505,17 @@ pass/facts/may_write_named_state_through_target_body_exit rejected 3113ms check-
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
-pass/facts/may_write_nested_helper_captured_choice_exit checked 8667ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_nested_helper_through_call_result_exit checked 7947ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_nested_helper_through_const_name_exit checked 8004ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_nested_helper_through_field_exit checked 7955ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_nested_helper_through_local_exit checked 7973ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_nested_helper_through_match_join_exit checked 7957ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_nested_helper_through_other_machine_exit checked 7972ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_nested_helper_through_other_state_exit checked 7962ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_nested_helper_through_parameter_exit checked 8026ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
-pass/facts/may_write_nested_helper_through_target_body_exit checked 8011ms check-target:macos_arm64 @533e32a150157a3956bd4a4ea752df788308d10e
+pass/facts/may_write_nested_helper_captured_choice_exit checked 10255ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_nested_helper_reference_local_exit checked 10319ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_nested_helper_through_call_result_exit checked 10729ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_nested_helper_through_const_name_exit checked 10688ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_nested_helper_through_field_exit checked 10288ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_nested_helper_through_local_exit checked 11506ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_nested_helper_through_match_join_exit checked 10197ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_nested_helper_through_other_machine_exit checked 10332ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_nested_helper_through_other_state_exit checked 10218ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_nested_helper_through_parameter_exit checked 10453ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
+pass/facts/may_write_nested_helper_through_target_body_exit checked 10066ms check-target:macos_arm64 @f3f387161017c5072f0359b017f0259405bb3327
 pass/facts/may_write_stored_rebind_through_call_result_exit rejected 3137ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call kept_index from main: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 pass/facts/may_write_stored_rebind_through_const_name_exit rejected 2578ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -25869,7 +25875,7 @@ fail/facts/may_write_nested_helper_through_field_overlapping rejected 2532ms exp
 	cannot prove index `bounds.other` is within length 4 in main::entry
 fail/facts/may_write_nested_helper_through_local_overlapping rejected 2605ms expected @ccdb99ca2214
 	cannot prove index `other` is within length 4 in main::entry
-fail/facts/may_write_nested_helper_through_match_join_overlapping rejected 6181ms expected @533e32a150157a3956bd4a4ea752df788308d10e
+fail/facts/may_write_nested_helper_through_match_join_overlapping rejected 8198ms expected @f3f387161017c5072f0359b017f0259405bb3327
 	cannot prove requires contract for call joined_index from exercise: other < 4 (needs fact `other < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/may_write_nested_helper_through_other_machine_overlapping rejected 3939ms expected @ccdb99ca2214
 	cannot prove requires contract for call read_at from main: other < 4 (needs fact `index < 4` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -25878,7 +25884,7 @@ fail/facts/may_write_nested_helper_through_other_state_overlapping rejected 3111
 fail/facts/may_write_nested_helper_through_parameter_overlapping rejected 3050ms expected @ccdb99ca2214
 	cannot prove index `index` is within length 4 in probe::entry
 	cannot prove index `index` is within length 4 in probe::entry
-fail/facts/may_write_nested_helper_through_target_body_overlapping rejected 6245ms expected @533e32a150157a3956bd4a4ea752df788308d10e
+fail/facts/may_write_nested_helper_through_target_body_overlapping rejected 8399ms expected @f3f387161017c5072f0359b017f0259405bb3327
 	cannot prove index `index` is within length 4 in NestedProbe::probe::probe
 	cannot prove index `index` is within length 4 in NestedProbe::probe::probe
 fail/facts/may_write_stored_rebind_through_call_result_overlapping rejected 2807ms expected @ccdb99ca2214

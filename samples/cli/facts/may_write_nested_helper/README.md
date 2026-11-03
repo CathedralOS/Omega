@@ -51,6 +51,12 @@ Each `invalid/` project is `intended-invalid`. The source differs only by passin
   input while the result's common lifetime still holds its exclusive loan.
 - The existing [view read before a store](../../../../tests/omega/fail/borrows/view_local_read_before_store/main.omg)
   rejects observation of a borrowed view whose descriptor has not been established.
+- [Declared reference](controls/reference_local_exit/main.omg), its
+  [overlapping-write twin](controls/reference_local_overlapping/main.omg), and
+  [use before the first store](controls/reference_local_before_store/main.omg)
+  keep declaration separate from establishing a pointer. The positive installs
+  the chosen reference before returning it. The twin changes only that choice;
+  the unestablished control omits its store.
 
 ## Pinned fixtures
 
@@ -76,100 +82,53 @@ contract, while retaining this nine-place mutation-summary fact.
 
 ## Validation
 
+[Run 41602883614](https://github.com/CathedralOS/Omega/actions/runs/41602883614)
+passed on optimized source `f3f387161017c5072f0359b017f0259405bb3327`:
+24 positive fixtures checked, all 39 invalid controls rejected, and all 24
+native/Terminal comparisons agreed. The nine-place row and its added reference
+controls observed exit `0`; one existing shared-view control retained its authored
+exit `70`. The 26 public projects produced 12 runtime passes and 14 intended
+rejections, including root, every place and twin, and the saved-choice and
+reference-declaration controls.
+
+Source checks use macOS arm64; actual runtime observations use Linux x86_64.
+The other hosted runtimes remain unverified. The exact observed source archive
+is published in [part 1](https://github.com/CathedralOS/Omega/pull/1571#issuecomment-6599293559),
+[part 2](https://github.com/CathedralOS/Omega/pull/1571#issuecomment-6599294218), and
+[part 3](https://github.com/CathedralOS/Omega/pull/1571#issuecomment-6599294893).
+The posted bytes were retrieved and verified against the retained bundle.
+That archive preserves source; the run’s engine reports provide execution evidence.
+
 The original programs and oracles are frozen against published main
-`04085b59f9c5227e69c5af03a29aa20e061e0e74`. Optimized baseline source
-`a4bbda39bf53e9a65d15cc9612a7feb304423573` changes only the README; its compiler
-and executable inputs equal that base. Run
-[41549165807](https://github.com/CathedralOS/Omega/actions/runs/41549165807)
-wrongly rejected all nine valid places because the nested write discarded the
-untouched input's bound. The twins rejected, and no positive reached an engine.
+`04085b59f9c5227e69c5af03a29aa20e061e0e74`. Baseline source
+`a4bbda39bf53e9a65d15cc9612a7feb304423573` changes only this README.
+[Run 41549165807](https://github.com/CathedralOS/Omega/actions/runs/41549165807)
+wrongly rejects all nine valid places because the nested write loses the
+untouched input’s bound. The twins reject; no positive reaches an engine.
+The declared-then-assigned reference is separately frozen at
+`d1eb93a2690b1dce07f9469255e78e49ededad5a`;
+[run 41565055825](https://github.com/CathedralOS/Omega/actions/runs/41565055825)
+records the same incorrect loss before any of its subsequent repairs.
 
-The repair records a Boolean choice when it is saved, including the private
-locals used to test transitions. A later store advances the current value;
-a reference that already formed keeps its captured choice. The shared producer
-of returned-reference origins supplies this information to write analysis.
-Unknown choices, opaque regions and complete loan obligations remain conservative.
-The target example has one checked `NestedProbe` implementation and four Build
-selection rows. Its public contract retains both input bounds. The join example
-runs both arms and observes an independent marker identifying the chosen path.
+The compiler now saves Boolean choices and the inputs selected by completed
+references. Later changes to a selector do not rewrite a saved choice. A local
+reference replacement captures the new contents before right-hand-side effects
+and installs them afterward. Storage declaration reserves a correctly typed
+home; only a checked store establishes its pointer value. Final return moves
+precede exit retirement, preventing a second disposal of the old local home.
+Unknown choices and hidden reference regions remain conservative. Borrow
+access, lifetime and cleanup obligations remain independent checks.
 
-Run [41560734861](https://github.com/CathedralOS/Omega/actions/runs/41560734861)
-validated optimized source `533e32a150157a3956bd4a4ea752df788308d10e`:
-20 positive fixtures checked, all 31 invalid controls rejected, and all 20
-native/Terminal comparisons observed exit `0` and agreement. The 23 public
-projects produced 11 runtime passes and 12 intended rejections. This includes
-all nine places, their twins, root `main`, and the declaration-then-store control.
-The source checks use `macos_arm64`; actual runtime observations cover
-`linux_x86_64`. Other hosted targets remain unverified at runtime.
+Earlier [run 41560734861](https://github.com/CathedralOS/Omega/actions/runs/41560734861)
+passed on `533e32a150157a3956bd4a4ea752df788308d10e`, before the additional
+reference-local controls. It observed 20 native/Terminal exit-zero agreements.
+Its historical source archive remains in [part 1](https://github.com/CathedralOS/Omega/pull/1571#issuecomment-6593497212)
+and [part 2](https://github.com/CathedralOS/Omega/pull/1571#issuecomment-6593497564).
+Those observations do not stand in for final acceptance of the added controls.
 
-The exact observed source is retained in a verified Git bundle published with
-[part 1](https://github.com/CathedralOS/Omega/pull/1571#issuecomment-6593497212)
-and [part 2](https://github.com/CathedralOS/Omega/pull/1571#issuecomment-6593497564)
-of the PR evidence. That archive preserves the observed source and its earlier pass. Review found a
-further missing-initializer lookup in the reference-choice walk. A guard now
-retains an unknown choice for a declaration-only reference; new controls declare
-and assign that reference before returning it, or reject its use before a store.
-Run [41565055825](https://github.com/CathedralOS/Omega/actions/runs/41565055825)
-confirmed that the valid declared-then-assigned reference still lost the untouched
-bound. The original local case passed both engines, and all four invalid controls
-rejected for their intended obligations. The next repair records the assigned
-reference's choice before replacing the old binding; writes through a reference
-keep its choice, while exposed or ambiguous replacements remain unknown.
-Run [41576089167](https://github.com/CathedralOS/Omega/actions/runs/41576089167)
-validated the original 20 positives in both engines and all 33 invalid controls,
-but the declared-then-assigned reference still wrongly lost the bound. A focused trace confirmed that the earlier write summary discarded the reference
-before saved-choice analysis ran. The next repair captures replacement pointer
-contents through the same stored-reference transfer used for record fields, then
-replaces the local slot after right-hand-side effects. It does not read the old
-pointer or discard writes through a reference. Full acceptance and publication
-remain unfinished.
-
-Run [41584866204](https://github.com/CathedralOS/Omega/actions/runs/41584866204)
-cleared the original bound-checking failure. The unchanged reference-local case
-then reached lowering, which lacked its exact first receiving establishment.
-The other 22 positives passed both engines and all 36 invalid controls rejected
-correctly; public projects did not run. The next repair authenticates the first
-installed reference from its complete checked loan activation. It retains all
-requirements for retiring an already installed pointer. Acceptance is unfinished.
-
-Run [41586945387](https://github.com/CathedralOS/Omega/actions/runs/41586945387)
-cleared that first-installation gate. The frozen reference-local case then stopped
-when returning the stored pointer: value production recognized initializers but
-ignored the later store. The other 22 positives and all 36 invalid controls kept
-their outcomes. The next repair removes that initializer-only representation
-gate; source and flow checking still require an established value before use.
-
-Run [41589081212](https://github.com/CathedralOS/Omega/actions/runs/41589081212)
-cleared the return-value representation gate. Lowering next counted the empty
-home declaration as a completed value needing disposal. The other 22 positives
-passed both engines, and all 39 invalid controls rejected for their intended
-reasons. The next repair distinguishes storage declaration from completed value
-at the disposition owner. Actual stored values retain every cleanup obligation.
-
-Run [41591449522](https://github.com/CathedralOS/Omega/actions/runs/41591449522)
-cleared that declaration-only obligation. Terminal-artifact production then found
-that the declared home had the borrowed referent's shape while its replacement
-had the stored pointer's shape. The next repair gives declared homes the same
-stored carrier and multiplicity used by initialized locals. The strict
-replacement-custody check stays in place; no old pointer or valid value is
-invented. The other 22 positives and all 39 invalid controls kept their outcomes.
-
-Run [41593563009](https://github.com/CathedralOS/Omega/actions/runs/41593563009)
-cleared the stored-carrier mismatch. The shared-view control passed both engines
-with its unchanged exit `70`; the other 22 healthy positives passed with exit
-`0`, and all 39 invalid controls rejected correctly. The frozen reference-local
-case reached a stale exit release: retirement was planned before the final
-return moved the installed reference. Diagnostic run
-[41600847871](https://github.com/CathedralOS/Omega/actions/runs/41600847871)
-confirmed the missing final operation. Exit retirement now follows completed
-state production and sees that actual transfer. Live-storage lookup, access,
-first-store admission and existing cleanup checks remain in place. Fresh full
-acceptance and publication are unfinished; the diagnostic ran no engines.
-
-The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
-on the frozen baseline in
-[41558699182](https://github.com/CathedralOS/Omega/actions/runs/41558699182).
-That checking-leg failure predates this repair and remains open outside this row;
-no baseline engine observation or adjunct success is claimed. The broader Build
-migration and runtime checks on the other three hosted targets remain open.
-See [PR 1571](https://github.com/CathedralOS/Omega/pull/1571) for detailed evidence.
+The separate dynamic-return adjunct reproduces a descriptor-reconstruction
+refusal on the fixed baseline in
+[run 41558699182](https://github.com/CathedralOS/Omega/actions/runs/41558699182).
+That checking-leg comparison establishes baseline attribution only; it makes no
+claim about adjunct execution or later main revisions. The wider target-source
+migration remains open in `TASKS.md`.
