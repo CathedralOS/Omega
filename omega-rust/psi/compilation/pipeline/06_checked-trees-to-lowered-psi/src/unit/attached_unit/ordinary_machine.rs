@@ -33,7 +33,6 @@ use super::operation_frame::{
 };
 use super::parameters::lower_declared_service_reach;
 use super::parameters::lower_installation_machine_service_ceiling;
-use super::provider_attachments::lower_provider_attachment_places;
 use super::signatures::MachineSignature;
 use super::{
     CheckedUnitProviderCandidate, argument_evaluation, argument_schedule, byte_subslices,
@@ -222,30 +221,10 @@ pub(super) fn emit(
         &plan.entry_claims,
         claim_bindings,
     )?;
-    let provider_boundaries = lowered_boundary_parameters
-        .iter()
-        .map(|boundary| (boundary.source, boundary.id))
-        .collect::<Vec<_>>();
     let attachment = plan
         .attachment_type_identity
         .map(|identity| lookup_type_id(type_ids, &identity))
         .transpose()?;
-    let provider_places = if let Some(attachment) = attachment {
-        let attachment_declaration =
-            terminal_psi::find_structural_type(structural_types, attachment)
-                .expect("lowered attachment declaration exists");
-        lower_provider_attachment_places(
-            identities,
-            checked,
-            attachment,
-            attachment_declaration,
-            &plan.provider_attachment_requirements,
-            &provider_boundaries,
-            &mut next_place,
-        )?
-    } else {
-        Vec::new()
-    };
     let local_places = plan
         .trivial_affine_locals
         .iter()
@@ -1090,7 +1069,6 @@ pub(super) fn emit(
                 position: parameter.position,
             },
         })
-        .chain(provider_places.iter().copied())
         .chain(local_places.iter().copied())
         .chain(primitive_local_places.iter().map(|local| local.declaration))
         .chain(private_places.iter().copied())

@@ -136,7 +136,6 @@ pub use calls::call_composition::{
     fixed_collection_storage_window, fixed_element_array_extent, shared_boundary_buffer_capacity,
     stored_view_field_presentation, validate_call_composition_semantic_rows,
 };
-pub use calls::service_binding::{fused_service_field_carrier, fused_service_field_matches};
 pub use references::reference_views::{
     descriptor_geometry_matches, descriptor_reborrow_matches, descriptor_reborrow_shapes_match,
     descriptor_source_projection_accessible, descriptor_value_transfer_matches,

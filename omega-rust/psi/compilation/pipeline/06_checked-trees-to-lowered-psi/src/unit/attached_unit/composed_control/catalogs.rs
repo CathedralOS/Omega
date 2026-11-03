@@ -22,8 +22,6 @@ pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) type_ids: Cow<'a, [(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)]>,
     pub(crate) domain_ids: Cow<'a, [StructuralDomainBinding]>,
     pub(crate) domain_declarations: &'a [terminal_psi::StructuralDomainDeclaration],
-    /// The boundaries a provider attachment names, by checked source.
-    pub(crate) lowered_boundaries: Vec<LoweredComposedBoundary>,
     pub(in crate::unit::attached_unit) boundary_parameters: Cow<'a, [BoundaryParameters]>,
     /// The allocated signature of every Unit body the closure emits; a
     /// state's internal calls substitute into the callee's.
@@ -49,20 +47,3 @@ pub(crate) struct ComposedCatalogs<'a> {
     pub(crate) next_edge: u64,
 }
 
-pub(crate) struct LoweredComposedBoundary {
-    pub(crate) source: symbols::SymbolHandle,
-    pub(crate) id: BoundaryMachineId,
-}
-
-impl LoweredComposedBoundary {
-    /// The provider-facing `(source, identity)` view of the call roster.
-    pub(super) fn roster(boundaries: &[BoundaryParameters]) -> Vec<Self> {
-        boundaries
-            .iter()
-            .map(|boundary| Self {
-                source: boundary.source,
-                id: boundary.id,
-            })
-            .collect()
-    }
-}

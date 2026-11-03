@@ -3280,6 +3280,8 @@ fail/providers/native_generic_binding_wrong_requirement rejected 1394ms expected
 	no provider is selected for boundary requirement `CText::length`, which the program entry reaches on target `windows_x86_64`
 fail/providers/provider_receiver_applied_trait_rejected rejected 418ms expected @777723466586+wt
 	data `Holder` field `identity` uses boundary trait `Identity` as a value type; call a `Identity` requirement directly, or carry an ordinary handle, session, or `dyn` value for runtime multiplicity
+fail/providers/provider_receiver_dyn_field_rejected rejected 2333ms expected @ece9347c21e5
+	data `Holder` field `counter` uses boundary trait `Counter` as a local dynamic value; local dynamic selectors cannot cross a replaceable component boundary
 fail/providers/raw_boundary_trait_ambiguous_whole_supply rejected 35888ms expected @2347ba1d4eca+wt
 	build selects two provider types for slot `RawStamp`: `FirstStampProvider` and `SecondStampProvider`
 fail/providers/selected_parent_and_descendant_overlap rejected 1846ms expected @002791b61f14

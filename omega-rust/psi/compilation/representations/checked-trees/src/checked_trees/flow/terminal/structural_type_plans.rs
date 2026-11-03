@@ -300,13 +300,6 @@ pub enum CheckedUnitStructuralFieldType {
     Structural {
         type_identity: TypeIdentityId,
     },
-    /// An authored dynamic boundary-trait field whose runtime carrier is
-    /// eliminated only by an exact provider-installation specialization.
-    /// The enclosing machine plan must retain one requirement row for every
-    /// boundary call routed through this field.
-    ProviderBacked {
-        provider_type_identity: TypeIdentityId,
-    },
     /// An erased semantic field does not require an executable structural
     /// carrier. Its exact normalized type identity remains independently
     /// checkable in terminal Psi.

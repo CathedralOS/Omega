@@ -114,7 +114,7 @@ use checked_trees::{
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
     CheckedGuardedJumpPlan, CheckedNominalAffineUnitCleanupMachinePlan,
     CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupPlans, CheckedProviderAttachmentRequirementPlan,
+    CheckedPartialAffineUnitCleanupPlans,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
     CheckedStructuralResultPlan, CheckedStructuralScalarArgumentPlan,
@@ -158,7 +158,6 @@ pub(crate) mod control;
 mod initialized_locals;
 mod local_storage;
 pub(crate) mod plan_gaps;
-mod providers;
 mod receiver_aliases;
 use validation::reference_result_custody as reference_results;
 mod scalar_locals;
