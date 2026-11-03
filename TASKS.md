@@ -167,8 +167,9 @@ retired-syntax deletions to completion.
     owned copies from borrowed outer input homes, runtime-selected stored-reference
     call operands (captured-loan access), other remaining declared body forms,
     nonscalar orders beyond fixed-integer
-    lexicographic products, or dependent distances with computed endpoints
-    without ambient parent entry facts).
+    lexicographic products, or an unranked helper whose rank endpoint is a computed
+    descriptor length such as `items.len - 1`, which the helper must express over its
+    own parameters ([probe](samples/cli/facts/nested_machine_invocation/joint_rank/parameter/bounded_distance/computed_length/README.md))).
   - Update Terminal production, codecs/checking, both interpreters, native
     lowering, and WCSU together so runtime cycles remain constant-stack with all
     live backing accounted for.
