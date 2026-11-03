@@ -410,7 +410,7 @@ pub(super) fn assignment_write_paths(
     {
         return Some(vec![path]);
     }
-    assignment_storage_origins(
+    let origins = assignment_storage_origins(
         program,
         machine,
         symbols,
@@ -419,11 +419,61 @@ pub(super) fn assignment_write_paths(
         state_assignments,
         state_prefix,
     )
-    .ok()?
-    .destinations
-    .iter()
-    .map(|destination| destination.write_path(program))
-    .collect()
+    .ok()?;
+    let mut paths = origins
+        .destinations
+        .iter()
+        .map(|destination| destination.write_path(program))
+        .collect::<Option<Vec<_>>>()?;
+    // A store through one reference changes what every current binding to the
+    // same storage reads. Those bindings keep their own names, so the frame
+    // names their read paths too; a disjoint referent stays outside it.
+    for origin in origins.references.iter().flatten() {
+        if !origin.local_segments.is_empty() {
+            continue;
+        }
+        let binding = program.symbols.name(origin.local_symbol);
+        for (destination, written) in origins.destinations.iter().zip(&paths.clone()) {
+            if let Some(path) =
+                binding_read_path(binding, origin.source.as_ref(), destination, written)
+                && !paths.contains(&path)
+            {
+                paths.push(path);
+            }
+        }
+    }
+    Some(paths)
+}
+
+/// The path through `binding` that observes the written storage, if any. An
+/// unknown or recast referent may be any storage, so the whole binding counts.
+fn binding_read_path(
+    binding: &str,
+    referent: Option<&LocalWriteSource>,
+    destination: &LocalWriteSource,
+    written: &str,
+) -> Option<String> {
+    let Some(referent) = referent.filter(|referent| {
+        referent.recasts.is_empty()
+            && referent.representation.is_none()
+            && destination.recasts.is_empty()
+            && destination.representation.is_none()
+    }) else {
+        return Some(binding.to_owned());
+    };
+    if referent.root != destination.root || !referent.root.is_valid() {
+        return None;
+    }
+    let within = |outer: &str, inner: &str| {
+        inner
+            .strip_prefix(outer)
+            .filter(|rest| rest.is_empty() || rest.starts_with('.') || rest.starts_with('['))
+            .map(str::to_owned)
+    };
+    if let Some(suffix) = within(&referent.path, written) {
+        return Some(format!("{binding}{suffix}"));
+    }
+    within(written, &referent.path).map(|_| binding.to_owned())
 }
 
 /// Address provenance of the performed store, not the contents before it.
