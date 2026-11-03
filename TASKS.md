@@ -1729,6 +1729,19 @@ defines the complete product bar.
   assumption closure, and a refreshed
   [metatheory evidence ledger](wiki/spec/proofs/kernel_metatheory.md#evidence-ledger).
 
+- **UNREACHABLE-BRANCH-DIAGNOSTICS.** Report source branches that contradict
+  their machine's entry contract or established facts, under
+  [unreachable branches](wiki/spec/language/state_contracts.md#unreachable-branches).
+  - Emit an advisory warning identifying the branch and conflicting premises,
+    retaining available source locations and exact subjects/storage versions.
+  - Keep routine generic-specialization and compile-time selection quiet without
+    suppressing contradictions already present in the generic's own contract.
+    Proof-internal impossible cases do not each produce a source warning.
+  Acceptance: focused examples pin warnings for source contradictions and no
+  warning for ordinary specialization; warning emission and code pruning do not
+  change proof acceptance. Missing, stale or out-of-scope contradiction evidence
+  cannot justify a reachable obligation, and malformed source remains rejected.
+
 ## Build-level behavior exclusions
 
 - **BUILD-SEMANTIC-EXCLUSIONS.** (Also covers **`BUILD-EXCLUSION-REALIZATION`**.)
