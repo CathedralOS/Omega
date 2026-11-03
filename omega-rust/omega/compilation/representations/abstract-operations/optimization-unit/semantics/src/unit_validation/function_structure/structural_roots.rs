@@ -936,12 +936,17 @@ pub(crate) fn validate_structural_root_operations(
                     // type. Whether a window is open there is debt evidence
                     // the Terminal verifier retained; the unit keeps the
                     // static contract honest.
+                    let whole_owned_store = path.is_empty()
+                        && field.is_none()
+                        && destination.parameter().is_none()
+                        && *disposition == terminal_psi::StructuralStoreDisposition::Vacant;
                     let valid = borrowed_window_root(
                         function,
                         destination,
                         &place_kinds,
                         disposition.required_access(),
-                    ) && root_window_loan(destination, path, *field)
+                    ) && (whole_owned_store
+                        || root_window_loan(destination, path, *field))
                         && value.access == StructuralAccess::Owned
                         && value.path.is_empty()
                         && window_field_type(

@@ -772,7 +772,7 @@ pub(super) fn declared_value_type(
 /// `&mut pointer` may lend the pointer's slot or the data it points to. The
 /// complete receiving type selects which value is borrowed; it supplies no
 /// permission to read or replace that value.
-pub(crate) fn borrow_selects_reference_storage(
+pub fn borrow_selects_reference_storage(
     program: &dyn crate::CheckingInput,
     source: ExpressionHandle,
     required: TypeReferenceHandle,

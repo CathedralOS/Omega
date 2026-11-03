@@ -90,7 +90,7 @@ pub(in crate::execution::terminal_unit) fn evaluated_argument_root<'a>(
             let state = program.state_by_symbol(state)?;
             (
                 argument,
-                formed_reference_type(program, machine, state, argument)?,
+                formed_reference_type(program, machine, state, argument, parameter.type_reference)?,
             )
         }
         // The descriptor is the view value; peeling its shell would look for
