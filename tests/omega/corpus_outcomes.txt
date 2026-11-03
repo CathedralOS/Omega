@@ -5446,9 +5446,9 @@ pass/core/interval_content_partition_exit checked 15853ms check-target:macos_arm
 pass/core/materialized_owned_entry_return checked 10328ms terminal-runtime.update:unrequested terminal-runtime.pack:unrequested terminal-inspections:match @ccdb99ca2214
 pass/core/named_extent_root_provider_adapter checked 2931ms @ccdb99ca2214
 pass/core/numeric_cross_signed_conversion_surface checked 16739ms check-target:macos_arm64 @ccdb99ca2214
-pass/core/numeric_signed_narrowing_policies timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-pass/core/numeric_signed_to_unsigned_policies timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-pass/core/numeric_signed_wide_to_unsigned_policies timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/core/numeric_signed_narrowing_policies checked 9882ms check-target:macos_arm64 @acba2ae29b6c
+pass/core/numeric_signed_to_unsigned_policies checked 9992ms check-target:macos_arm64 @acba2ae29b6c
+pass/core/numeric_signed_wide_to_unsigned_policies checked 9582ms check-target:macos_arm64 @acba2ae29b6c
 pass/core/numeric_trapping_conversion_overflow checked 12148ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_trapping_direct_conversion_negative checked 3384ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_trapping_discarded_conversion checked 3802ms check-target:macos_arm64 @ccdb99ca2214
@@ -5456,8 +5456,8 @@ pass/core/numeric_trapping_negative_to_unsigned checked 3569ms check-target:maco
 pass/core/numeric_trapping_signed_narrowing_above_maximum checked 3850ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_trapping_signed_narrowing_below_minimum checked 4179ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_trapping_unsigned_above_signed_maximum checked 3387ms check-target:macos_arm64 @ccdb99ca2214
-pass/core/numeric_unsigned_64_to_signed_policies timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-pass/core/numeric_unsigned_narrowing_policies timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/core/numeric_unsigned_64_to_signed_policies checked 11610ms check-target:macos_arm64 @acba2ae29b6c
+pass/core/numeric_unsigned_narrowing_policies checked 10776ms check-target:macos_arm64 @acba2ae29b6c
 pass/core/numeric_unsigned_to_signed_policies checked 16384ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_widening_preserves_values checked 4054ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_widening_published_ranges checked 4799ms check-target:macos_arm64 @ccdb99ca2214
