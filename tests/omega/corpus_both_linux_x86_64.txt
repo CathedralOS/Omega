@@ -8,6 +8,7 @@
 # Tab-indented lines under a fixture are its diagnostics, in order.
 # A `# context: {...}` line records the conditions of the --record run.
 # context: {"cpus": 5, "jobs": "1", "load1_end": 1.64, "load1_start": 0.54, "machine": "x86_64", "platform": "linux", "schema": "omega-corpus-context-v1"}
+pass/borrows/borrowed_literal_backing_releases_input_loan_exit built 9073ms exit:0 interpreter-exit:0 interpreter:agrees @accfac32d2bd
 pass/borrows/borrowed_reference_field_read_and_write_exit built 8133ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 pass/borrows/collection_metadata_descriptor_storage_exit built 14682ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
 pass/borrows/runtime_byte_case_partial_cleanup_exit built 15056ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
