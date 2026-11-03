@@ -5663,6 +5663,7 @@ pass/domains/intersected_qualifiers checked 3265ms @ccdb99ca2214
 pass/domains/issued_indexed_subject_predicate checked 2311ms @ccdb99ca2214
 pass/domains/linear_qualification_nested_move checked 15239ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/domains/linear_qualification_projected_sibling checked 20774ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/domains/linear_routed_erasure_keeps_storage_exit checked 8861ms check-target:macos_arm64 @a1f835d16c42
 pass/domains/local_alias_domain_transfer checked 2806ms @ccdb99ca2214
 pass/domains/logical_subject_constants checked 3023ms @ccdb99ca2214
 pass/domains/match_domain_patterns checked 2386ms @ccdb99ca2214
