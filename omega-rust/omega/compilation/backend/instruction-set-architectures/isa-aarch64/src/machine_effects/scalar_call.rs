@@ -64,11 +64,12 @@ pub fn aarch64_normalized_foreign_call_declaration(
     };
     let mut register_destinations = 0_u16;
     let mut field_destinations = 0_u16;
+    let mut callback_byte_count = 0_u16;
     for callback in &record.call.callbacks {
         if Some(callback.terminal_operation) != record.invocation_site.operation() {
             return None;
         }
-        match callback.destination {
+        match callback.destination.clone() {
             calling_conventions::NativePlace::Parameter(_) => {
                 if !matches!(
                     callback.application.placement.locations.as_slice(),
@@ -77,9 +78,21 @@ pub fn aarch64_normalized_foreign_call_declaration(
                     return None;
                 }
                 register_destinations = register_destinations.checked_add(1)?;
+                callback_byte_count = callback_byte_count.checked_add(8)?;
             }
             calling_conventions::NativePlace::Field { .. } => {
                 field_destinations = field_destinations.checked_add(1)?;
+                let [calling_conventions::ValueLocation::Register { register, .. }] =
+                    callback.application.placement.locations.as_slice()
+                else {
+                    return None;
+                };
+                let destination = crate::Aarch64CallbackMaterializationDestination::RecordField {
+                    root_register: *register,
+                    placements: callback.field_placements.clone()?,
+                };
+                let size = crate::selected_form_encoding::callback_group_bytes(&destination)?.len();
+                callback_byte_count = callback_byte_count.checked_add(u16::try_from(size).ok()?)?;
             }
         }
     }
@@ -90,19 +103,19 @@ pub fn aarch64_normalized_foreign_call_declaration(
     let byte_count = if supervisor || table.is_some() {
         20
     } else {
-        4_u16
-            .checked_add(register_destinations.checked_mul(8)?)?
-            .checked_add(field_destinations.checked_mul(12)?)?
+        4_u16.checked_add(callback_byte_count)?
     };
     Some(MachineEffectDeclaration {
         semantic: MachineSemanticKind::NormalizedForeignCall,
         constraint: row.key,
-        memory: if table.is_some() {
+        memory: if field_destinations != 0 {
+            MachineMemoryEffect::PrivateCallbackMaterializationV1
+        } else if table.is_some() {
             MachineMemoryEffect::ReadPointerV1
         } else {
             MachineMemoryEffect::NoneV1
         },
-        trap: if table.is_some() {
+        trap: if field_destinations != 0 || table.is_some() {
             MachineTrapBehavior::MayArchitecturalFaultV1
         } else {
             MachineTrapBehavior::NeverV1
@@ -142,6 +155,9 @@ pub fn aarch64_normalized_foreign_call_declaration(
                             pointer_operand: u16::try_from(position).ok()?,
                             byte_offset,
                         }
+                    }
+                    None if field_destinations != 0 => {
+                        MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1
                     }
                     None => MachineEncodedMemoryEffect::NoneV1,
                 },

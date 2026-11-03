@@ -22,7 +22,7 @@ use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, 
 // Provider plans retain complete applications, exact numeric realizations and
 // checked table-field storage correspondence.
 // Reject older private records before reading their differently shaped payload.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI11";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI12";
 
 #[cfg(test)]
 mod tests {
@@ -30,7 +30,7 @@ mod tests {
 
     #[test]
     fn retired_entry_field_record_schema_is_rejected() {
-        for bytes in [b"OMGNTI01", b"OMGNTI09", b"OMGNTI10"] {
+        for bytes in [b"OMGNTI01", b"OMGNTI09", b"OMGNTI10", b"OMGNTI11"] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
             let Err(error) = DerivationInputs::read(&mut input) else {
