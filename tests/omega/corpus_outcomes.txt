@@ -820,6 +820,9 @@ fail/facts/dynamic_selected_reach_through_parameter_rejected rejected 48787ms ex
 	machine `observe` publishes service reach `<none>` but its checked body reaches undeclared service `Journal`
 fail/facts/dynamic_selected_reach_through_target_body_rejected rejected 68242ms expected @863cdf432f5d+wt
 	machine `X86Observe::observe` state `observe` does not satisfy trait `SelectedObserve` machine `observe`: service `Journal` is not allowed by the trait requirement
+fail/facts/dynamic_suspension_through_target_body_rejected rejected 11216ms expected @769fa7b12a21
+	cannot prove requires contract for call dyn DeferredValue::get from X86Invoke::invoke: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `invoke`
+	cannot prove requires contract for call dyn DeferredValue::get from ArmInvoke::invoke: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `invoke`
 fail/facts/dynamic_trait_input_arithmetic_through_call_result_weakened_input rejected 7363ms expected @297562733b94
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_input_arithmetic_through_const_name_weakened_input rejected 9334ms expected @297562733b94
@@ -7551,6 +7554,7 @@ pass/facts/dynamic_selected_reach_through_other_machine_exit checked 37910ms che
 pass/facts/dynamic_selected_reach_through_other_state_exit checked 51334ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/dynamic_selected_reach_through_parameter_exit checked 42582ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/dynamic_selected_reach_through_target_body_exit checked 51589ms check-target:macos_arm64 @863cdf432f5d+wt
+pass/facts/dynamic_suspension_through_target_body_exit checked 14714ms check-target:macos_arm64 @769fa7b12a21
 pass/facts/dynamic_trait_dispatch_through_call_result_exit checked 6725ms check-target:macos_arm64 @281c0d530cb7
 pass/facts/dynamic_trait_dispatch_through_const_name_exit checked 6725ms check-target:macos_arm64 @281c0d530cb7
 pass/facts/dynamic_trait_dispatch_through_field_exit checked 7362ms check-target:macos_arm64 @281c0d530cb7
