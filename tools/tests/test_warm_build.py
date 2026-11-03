@@ -39,6 +39,7 @@ class WarmBuildTests(unittest.TestCase):
         output = self.built / "target" / "debug" / "build" / "crate" / "hash"
         output.mkdir(parents=True)
         (output / "artifact").write_bytes(b"compiled")
+        (self.built / "target/debug/incremental/crate-abc/s-session").mkdir(parents=True)
         patch = mock.patch.object(warm_build, "toolchain", return_value=dict(TOOLCHAIN))
         patch.start()
         self.addCleanup(patch.stop)
@@ -97,7 +98,8 @@ class WarmBuildTests(unittest.TestCase):
 
     def test_only_the_newest_incremental_session_of_each_crate_is_packed(self):
         crate = self.built / "target/debug/incremental/crate-abc"
-        crate.mkdir(parents=True)
+        crate.mkdir(parents=True, exist_ok=True)
+        (crate / "s-session").rmdir()
         for name, when in (("s-old", 1000), ("s-new", 2000)):
             (crate / name).mkdir()
             (crate / (name + ".lock")).write_text("")
@@ -105,6 +107,12 @@ class WarmBuildTests(unittest.TestCase):
         stale = warm_build.stale_incremental_sessions(self.built)
         self.assertEqual(sorted(stale), ["target/debug/incremental/crate-abc/s-old",
                                          "target/debug/incremental/crate-abc/s-old.lock"])
+
+    def test_a_build_without_incremental_state_is_not_published(self):
+        import shutil
+        shutil.rmtree(self.built / "target/debug/incremental")
+        with self.assertRaisesRegex(warm_build.WarmBuildError, "CARGO_INCREMENTAL=1"):
+            self.packed()
 
     def test_session_start_does_nothing_outside_cloud_sessions(self):
         with mock.patch.dict(os.environ, {"CLAUDE_CODE_REMOTE": "false"}), \

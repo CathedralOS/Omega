@@ -133,6 +133,11 @@ def pack(worktree, output):
     """Write the compressed build in parts plus its manifest; return the manifest path."""
     worktree = Path(worktree).resolve()
     require_clean(worktree)
+    # Incremental compilation is part of each crate's identity. A build made
+    # without it (Cargo's default when CI=true) is never reused by a session.
+    if not any(Path(worktree, "target/debug/incremental").glob("*/s-*")):
+        raise WarmBuildError("the build has no incremental state; build with CARGO_INCREMENTAL=1 "
+                             "(Cargo turns it off when CI=true) so sessions can reuse it")
     commit = run("git", "rev-parse", "HEAD", cwd=worktree)
     output.mkdir(parents=True, exist_ok=True)
     prefix = output / f"target-{commit[:12]}.tar.zst."
