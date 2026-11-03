@@ -533,8 +533,26 @@ pub struct CheckedSuppliedOutputBorrowResource {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedOutputLifetimeDependencyResource {
     pub loan: Handle<BorrowLoanFact>,
-    pub output: Handle<CheckedSuppliedOutputBorrowResource>,
+    pub source: CheckedOutputLifetimeDependencySource,
     pub inputs: HandleSpan<CheckedOutputBorrowInput>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub enum CheckedOutputLifetimeDependencySource {
+    Completion {
+        output: Handle<CheckedSuppliedOutputBorrowResource>,
+    },
+    Transfer {
+        suppliers: HandleSpan<Handle<CheckedOutputLifetimeDependencyResource>>,
+    },
+}
+
+impl Default for CheckedOutputLifetimeDependencySource {
+    fn default() -> Self {
+        Self::Completion {
+            output: Handle::invalid(),
+        }
+    }
 }
 
 /// A declared input edge and its selected permission retain different
@@ -854,6 +872,7 @@ pub struct BorrowFacts {
     pub supplied_output_resources: Arena<CheckedSuppliedOutputBorrowResource>,
     pub supplied_output_inputs: Arena<CheckedOutputBorrowInput>,
     pub output_lifetime_dependencies: Arena<CheckedOutputLifetimeDependencyResource>,
+    pub output_dependency_suppliers: Arena<Handle<CheckedOutputLifetimeDependencyResource>>,
     pub call_loan_resources: Arena<CheckedCallBorrowLoanResource>,
     pub call_loan_parents: Arena<Handle<BorrowLoanFact>>,
     pub call_loan_paths: Arena<crate::CheckedUnitStructuralPathSegment>,
@@ -921,6 +940,7 @@ impl BorrowFacts {
             supplied_output_resources: Arena::new(),
             supplied_output_inputs: Arena::new(),
             output_lifetime_dependencies: Arena::new(),
+            output_dependency_suppliers: Arena::new(),
             call_loan_resources: Arena::new(),
             call_loan_parents: Arena::new(),
             call_loan_paths: Arena::new(),

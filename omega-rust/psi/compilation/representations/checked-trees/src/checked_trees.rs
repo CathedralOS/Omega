@@ -40,13 +40,13 @@ pub use borrow::{
     CheckedBorrowResourceRetention, CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource,
     CheckedDirectBorrowLoanResource, CheckedDirectBorrowParentLifetime,
     CheckedDirectBorrowRestorationObligation, CheckedOutputBorrowInput,
-    CheckedOutputLifetimeDependencyResource, CheckedParentBorrowResource,
-    CheckedReborrowAccessEffect, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
-    CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
-    CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
-    CheckedRetiredParentResourceDispositionStep, CheckedSuppliedOutputBorrowResource,
-    IncomingReferenceIdentity, IncomingReferenceOrigin, ParentLexicalStatusAtChildEnd,
-    StateBorrowFact,
+    CheckedOutputLifetimeDependencyResource, CheckedOutputLifetimeDependencySource,
+    CheckedParentBorrowResource, CheckedReborrowAccessEffect, CheckedReborrowLoanResource,
+    CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
+    CheckedReborrowResourceDisposition, CheckedReborrowResourceDispositionEvent,
+    CheckedReborrowRestorationObligation, CheckedRetiredParentResourceDispositionStep,
+    CheckedSuppliedOutputBorrowResource, IncomingReferenceIdentity, IncomingReferenceOrigin,
+    ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{

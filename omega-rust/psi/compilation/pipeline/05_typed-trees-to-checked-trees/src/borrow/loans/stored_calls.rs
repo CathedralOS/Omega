@@ -381,12 +381,6 @@ fn transferred_place(
     if candidate.lifetime_access.is_some() && !lifetime_only {
         return None;
     }
-    if lifetime_only && candidate.source_loan.is_valid() {
-        // The complete evaluated carrier roster already selects these exact
-        // loans. A lifetime obligation retains their original windows; it
-        // neither locates the output inside them nor lends their addresses.
-        return Some(candidate.place.clone());
-    }
     // Preserve the existing exact join, including its presentation metadata
     // consumers. Only a genuinely derived output needs the additional base.
     if (candidate.place.root == facts::PlaceRoot::Symbol(backing.root)

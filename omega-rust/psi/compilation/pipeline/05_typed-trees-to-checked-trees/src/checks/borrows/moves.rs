@@ -9,7 +9,7 @@ use diagnostics::Diagnostic;
 
 use super::aliases::ResolvedAlias;
 use super::details::active_loan_detail;
-use super::overlap::{StatedOrderingPremise, canonical_place_loan_compatibility};
+use super::overlap::{StatedOrderingPremise, canonical_place_non_interfering};
 use crate::flow::DiscoveredMoveEvent;
 use crate::published::labels::symbol_name;
 
@@ -55,16 +55,14 @@ pub(super) fn check_storage_move<'program>(
         if loan.kind.is_exclusive() && resolved.lineage.contains(&loan_handle) {
             continue;
         }
-        if canonical_place_loan_compatibility(
+        if canonical_place_non_interfering(
             program,
             &place,
-            loan,
+            loan_handle,
             &facts.borrow,
             premises,
             bound_lookup,
-        )
-        .non_interfering
-        {
+        ) {
             continue;
         }
         diagnostics.push(Diagnostic::error(format!(

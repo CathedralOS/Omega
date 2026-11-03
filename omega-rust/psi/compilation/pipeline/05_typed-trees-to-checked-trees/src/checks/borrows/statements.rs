@@ -18,7 +18,7 @@ use crate::published::labels::symbol_name;
 
 use super::details::active_loan_detail;
 use super::overlap::{
-    StatedOrderingPremise, borrow_loan_compatibility, canonical_place_loan_compatibility,
+    StatedOrderingPremise, borrow_loan_compatibility, canonical_place_non_interfering,
 };
 
 pub(super) fn check_statement_borrows<'p>(
@@ -79,6 +79,13 @@ pub(super) fn check_statement_borrows<'p>(
             .state_loans(borrow_state)
             .filter(|(_, loan)| loan.statement_index == statement.statement_index)
         {
+            if super::resources::supplied_permissions::has_debt_resource(&facts.borrow, loan_handle)
+            {
+                // This completed/captured obligation holds an existing input;
+                // it does not form another spatial borrow. Actual accesses
+                // still face every retained input window independently.
+                continue;
+            }
             if facts
                 .borrow
                 .incoming_references
@@ -220,6 +227,24 @@ pub(super) fn check_statement_borrows<'p>(
                     continue;
                 }
                 let active_loan = facts.borrow.loans.get(active_loan_handle);
+                let retained_debt = super::overlap::retained_debt_non_interfering(
+                    program,
+                    &facts.borrow,
+                    active_loan_handle,
+                    &checked_trees::CapturedPlace {
+                        incoming_reference: loan.incoming_reference,
+                        incoming_owner_path: facts
+                            .borrow
+                            .access_segments
+                            .span_or_empty(loan.incoming_owner_path)
+                            .to_vec(),
+                        root: loan.root,
+                        segments: facts.borrow.loan_segments(loan).to_vec(),
+                    },
+                    &loan.kind,
+                    stated_premises,
+                    bound_lookup,
+                );
                 let compatibility = borrow_loan_compatibility(
                     program,
                     facts,
@@ -228,7 +253,9 @@ pub(super) fn check_statement_borrows<'p>(
                     stated_premises,
                     bound_lookup,
                 );
-                if compatibility.non_interfering
+                if retained_debt == Some(true)
+                    || (retained_debt.is_none()
+                        && (compatibility.non_interfering
                     || supplier_preserves_loan(
                         &facts.borrow, loan, active_loan_handle, active_loan, &compatibility,
                     )
@@ -255,20 +282,22 @@ pub(super) fn check_statement_borrows<'p>(
                                 source.place == compatibility.left
                                     && source.lineage.contains(&active_loan_handle)
                             })
-                    })
+                    })))
                 {
                     continue;
                 }
 
-                if completion_roster_supplies_operand_loan(
-                    program,
-                    facts,
-                    loan_handle,
-                    loan,
-                    active_loan,
-                    stated_premises,
-                    bound_lookup,
-                ) {
+                if retained_debt.is_none()
+                    && completion_roster_supplies_operand_loan(
+                        program,
+                        facts,
+                        loan_handle,
+                        loan,
+                        active_loan,
+                        stated_premises,
+                        bound_lookup,
+                    )
+                {
                     continue;
                 }
                 if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
@@ -791,16 +820,14 @@ fn check_call_mutation_borrows<'p>(
                     )
                 });
             for mutated_place in held_writes.as_ref().unwrap_or(&mutated_places) {
-                if canonical_place_loan_compatibility(
+                if canonical_place_non_interfering(
                     program,
                     mutated_place,
-                    loan,
+                    loan_handle,
                     &facts.borrow,
                     stated_premises,
                     bound_lookup,
-                )
-                .non_interfering
-                {
+                ) {
                     continue;
                 }
                 diagnostics.push(Diagnostic::error(format!(

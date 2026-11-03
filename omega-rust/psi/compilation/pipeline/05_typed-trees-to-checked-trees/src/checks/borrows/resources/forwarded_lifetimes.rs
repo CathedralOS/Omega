@@ -344,10 +344,12 @@ fn holding_end(
         .iter()
         .filter(|(_, row)| row.loan == loan)
     {
-        let output = facts
-            .borrow
-            .supplied_output_resources
-            .get(dependency.output);
+        let checked_trees::CheckedOutputLifetimeDependencySource::Completion { output } =
+            dependency.source
+        else {
+            continue;
+        };
+        let output = facts.borrow.supplied_output_resources.get(output);
         if facts
             .flow
             .borrow_lifetimes

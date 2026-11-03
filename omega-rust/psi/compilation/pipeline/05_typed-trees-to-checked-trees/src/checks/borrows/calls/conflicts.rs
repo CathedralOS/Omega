@@ -16,7 +16,7 @@ use crate::published::labels::{borrow_access_label, symbol_name};
 
 use super::super::details::active_loan_detail;
 use super::super::overlap::StatedOrderingPremise;
-use super::super::overlap::canonical_place_loan_compatibility;
+use super::super::overlap::canonical_place_non_interfering;
 use super::super::place_access;
 use super::super::simultaneous::{Hold, simultaneous_hold_conflict};
 
@@ -200,16 +200,14 @@ pub(super) fn check_call_access_conflicts<'p>(
         crate::flow::owned_call_operand_places(program, facts, state_flow, borrow_call)
     {
         for (loan_handle, loan) in &active_loans {
-            if canonical_place_loan_compatibility(
+            if canonical_place_non_interfering(
                 program,
                 &transferred,
-                loan,
+                *loan_handle,
                 &facts.borrow,
                 stated_premises,
                 bound_lookup,
-            )
-            .non_interfering
-            {
+            ) {
                 continue;
             }
             let detail =

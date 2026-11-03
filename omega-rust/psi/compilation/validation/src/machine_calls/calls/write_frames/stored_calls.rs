@@ -521,7 +521,7 @@ fn output_dependency_sources(
                         // already captured referent. Keep that leaf's own
                         // carrier/backing pair; the outer reference's carrier
                         // is the storage address, not this pointer value.
-                        stored_origins::completed_stored_reference_sources(
+                        stored_origins::completed_reference_projection_sources(
                             program,
                             &captured,
                             &projected,

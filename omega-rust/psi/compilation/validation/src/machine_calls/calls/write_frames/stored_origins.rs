@@ -60,7 +60,6 @@ pub(super) use reference_values::{
     CapturedReferenceRead, canonical_reference_origins, canonical_reference_sources,
     canonical_storage_origins, captured_reference_projection_origins, captured_reference_reads,
     completed_reference_projection_reads, completed_reference_projection_sources,
-    completed_stored_reference_sources,
 };
 pub(super) use storage_projection::{
     StorageProjectionCursor, projected_storage_type, projected_type,

@@ -15,7 +15,7 @@ mod loan_resources;
 mod permission_sources;
 mod reborrow_drafts;
 pub(in crate::checks::borrows) mod retained_backing;
-mod supplied_permissions;
+pub(in crate::checks::borrows) mod supplied_permissions;
 
 use crate::checks::borrows::resources::disposition_events::{
     bind_restored_call_uses, plan_reborrow_disposition_events,

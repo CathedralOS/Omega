@@ -8,9 +8,13 @@ use checked_trees::{BorrowFacts, BorrowLoanLineage, FlowFacts};
 use diagnostics::Diagnostic;
 
 mod completions;
+mod debts;
 mod inputs;
 
 pub(super) use completions::install;
+pub(in crate::checks::borrows) use debts::{
+    has_resource as has_debt_resource, windows as debt_windows,
+};
 
 /// The namespace is established only by this exact call's normal exit.
 /// Later uses separately require a current holder or a captured descendant.

@@ -418,6 +418,11 @@ pub(super) fn access_interferes<'p>(
 ) -> bool {
     let loan = borrow.loans.get(loan_handle);
     !backings.iter().all(|backing| {
+        if let Some(non_interfering) = super::overlap::retained_debt_non_interfering(
+            program, borrow, loan_handle, &backing.place, kind, premises, bound_lookup,
+        ) {
+            return non_interfering;
+        }
         if backing.retains_loan(borrow, loan_handle) {
             return true;
         }

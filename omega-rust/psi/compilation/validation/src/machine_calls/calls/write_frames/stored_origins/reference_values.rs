@@ -232,52 +232,6 @@ pub(in crate::machine_calls::calls::write_frames) fn completed_reference_project
     projected: &FramePlaceOrigin,
     stored: &[StoredLocalOrigins],
 ) -> Option<Vec<CapturedReferenceRead>> {
-    projection_reads(
-        program,
-        captured,
-        projected,
-        stored,
-        ProjectionEndpoint::Referent,
-    )
-}
-
-/// A declared Stored lifetime edge selects the descriptor at the endpoint,
-/// including an empty path. When its contents are unavailable in this frame's
-/// write inventory, retain that exact carrier without inventing its pointee.
-/// The borrowing owner can then retain the carrier's actual captured loans.
-pub(in crate::machine_calls::calls::write_frames) fn completed_stored_reference_sources(
-    program: &dyn crate::CheckingInput,
-    captured: &SlotSource,
-    projected: &FramePlaceOrigin,
-    stored: &[StoredLocalOrigins],
-) -> Option<Vec<SlotSource>> {
-    let captured = CapturedReferenceRead {
-        source: captured.clone(),
-        slots: Vec::new(),
-    };
-    projection_reads(
-        program,
-        &captured,
-        projected,
-        stored,
-        ProjectionEndpoint::StoredDescriptor,
-    )
-    .map(|reads| reads.into_iter().map(|read| read.source).collect())
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum ProjectionEndpoint {
-    Referent,
-    StoredDescriptor,
-}
-
-fn projection_reads(
-    program: &dyn crate::CheckingInput,
-    captured: &CapturedReferenceRead,
-    projected: &FramePlaceOrigin,
-    stored: &[StoredLocalOrigins],
-    endpoint: ProjectionEndpoint,
-) -> Option<Vec<CapturedReferenceRead>> {
     let source = &captured.source;
     if !source.origin.source.same_namespace(&projected.source)
         || !projected
@@ -303,14 +257,11 @@ fn projection_reads(
         },
         source.origin.source.segments.len(),
         Vec::new(),
-        endpoint == ProjectionEndpoint::StoredDescriptor,
     )];
     let mut completed = Vec::new();
-    while let Some((read, crossed, mut ancestors, needs_endpoint)) = pending.pop() {
+    while let Some((read, crossed, mut ancestors)) = pending.pop() {
         let source = read.source;
-        if (!needs_endpoint && source.origin.source.segments.len() == crossed)
-            || source.lifetime_access.is_some()
-        {
+        if source.origin.source.segments.len() == crossed || source.lifetime_access.is_some() {
             let read = CapturedReferenceRead {
                 source,
                 slots: read.slots,
@@ -350,17 +301,11 @@ fn projection_reads(
                     },
                     depth,
                     ancestors.clone(),
-                    false,
                 ));
             } else {
                 if step.source.lifetime_access.is_none() {
-                    if endpoint == ProjectionEndpoint::StoredDescriptor {
-                        step.source.carrier = step.source.origin.source.clone();
-                        step.source.carrier_backing = None;
-                    } else {
-                        step.source.carrier = source.carrier.clone();
-                        step.source.carrier_backing = source.carrier_backing.clone();
-                    }
+                    step.source.carrier = source.carrier.clone();
+                    step.source.carrier_backing = source.carrier_backing.clone();
                 }
                 let read = CapturedReferenceRead {
                     source: step.source,

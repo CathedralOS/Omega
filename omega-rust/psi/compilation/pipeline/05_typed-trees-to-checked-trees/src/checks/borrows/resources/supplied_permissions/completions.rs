@@ -124,6 +124,10 @@ pub(in crate::checks::borrows::resources) fn install(
         .borrow
         .output_lifetime_dependencies
         .reset_retain_capacity();
+    facts
+        .borrow
+        .output_dependency_suppliers
+        .reset_retain_capacity();
     for (mut output, inputs, debts) in plans {
         let mut handles = Vec::with_capacity(inputs.resources.len());
         for mut input in inputs.resources {
@@ -161,12 +165,15 @@ pub(in crate::checks::borrows::resources) fn install(
             facts.borrow.output_lifetime_dependencies.insert(
                 CheckedOutputLifetimeDependencyResource {
                     loan: debt,
-                    output,
+                    source: checked_trees::CheckedOutputLifetimeDependencySource::Completion {
+                        output,
+                    },
                     inputs,
                 },
             );
         }
     }
+    super::debts::install_transfers(facts)?;
     Ok(())
 }
 
