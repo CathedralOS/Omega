@@ -30,9 +30,13 @@ pub enum RuntimeRankOperand {
         primitive_type: PrimitiveType,
         observation: crate::RankPremiseObservation,
     },
-    /// Already formed in this exact participant's own entry namespace.
+    /// `state` declares the expression; `evaluator` is the participant whose
+    /// entry evaluates it. They differ when a participant reads a peer's
+    /// authored endpoint, and `bindings` then name the evaluator's coordinate
+    /// that supplies each formal the expression reads.
     Expression {
         state: SymbolHandle,
+        evaluator: SymbolHandle,
         expression: ExpressionHandle,
         primitive_type: PrimitiveType,
         application: Option<crate::IntegerApplicationFormation>,
@@ -122,6 +126,7 @@ impl RuntimeRankOperand {
             }
             Self::Expression {
                 state,
+                evaluator,
                 expression,
                 primitive_type,
                 application,
@@ -130,7 +135,7 @@ impl RuntimeRankOperand {
                 let formation = application
                     .as_ref()
                     .and_then(|application| {
-                        let (machine, _) = crate::find_state(program, *state)?;
+                        let (machine, _) = crate::find_state(program, *evaluator)?;
                         if application.owner() != *state || application.body() != *expression {
                             return None;
                         }
@@ -149,7 +154,7 @@ impl RuntimeRankOperand {
                             checked_trees::CheckedRankApplicationFormation {
                                 machine: machine.symbol,
                                 machine_body: machine.states,
-                                state: *state,
+                                state: *evaluator,
                                 application:
                                     checked_trees::CheckedRankApplicationFacts {
                                         owner: application.owner(),
@@ -211,10 +216,9 @@ impl RuntimeRankOperand {
                 primitive_type,
                 formation,
             } => {
-                let (application, bindings) = if formation.is_valid() {
+                let (application, bindings, evaluator) = if formation.is_valid() {
                     let row = plan.application_formations.get(*formation);
-                    if row.state != *state
-                        || row.application.owner != *state
+                    if row.application.owner != *state
                         || row.application.definition_body != *expression
                     {
                         return None;
@@ -236,12 +240,13 @@ impl RuntimeRankOperand {
                             super::RuntimeRankApplicationBinding::from_checked(plan, binding)
                         })
                         .collect::<Option<Vec<_>>>()?;
-                    (Some(application), bindings)
+                    (Some(application), bindings, row.state)
                 } else {
-                    (None, Vec::new())
+                    (None, Vec::new(), *state)
                 };
                 Self::Expression {
                     state: *state,
+                    evaluator,
                     expression: *expression,
                     primitive_type: *primitive_type,
                     application,

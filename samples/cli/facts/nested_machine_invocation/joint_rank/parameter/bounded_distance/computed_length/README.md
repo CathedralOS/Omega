@@ -1,57 +1,74 @@
 # Computed descriptor endpoint for an unranked helper
 
 Owner: `NESTED-MACHINE-UNIFICATION` in [TASKS.md](../../../../../../../../TASKS.md).
-This is an open probe, not a filled row: [main.omg](main.omg) is expected to
-exit 0 and is currently refused.
-
-A cycle may end one element before the end of a slice, so its rank is the
-distance from `cursor` to `items.len - 1`. The authored machine `count` states
-that endpoint; its private helper `forward` states no ranking and only passes the
-slice and `position + 1` back. The compiler must give `forward` an equivalent
-rank on its own, as it already does when the endpoint is `items.len` or `stop + 1`.
+This is a smaller witness inside the parameter place of the
+[bounded-distance row](../README.md). [main.omg](main.omg) now runs with its
+authored `Expected exit: 0` under `omega run --both`.
 
 Fact: a private helper preserves the invocation rank on a tail edge, and every
 complete cycle strictly descends toward the computed descriptor endpoint
 `items.len - 1` while advancing the explicit counter once.
 
-Baseline `90f3fe11ae75eb63246767979fe483cfe0c312f8` (optimized,
-`omega run --both main.omg`) refuses with `a rank upper expression lacks
-independent formation`. The same program passes when `forward` also authors
-`terminates by (position, view.len - 1) -> Nat::BoundedDistance`, when the
-cycle is a single self-recursive machine, and when the endpoint is `items.len + 1`
-under `requires items.len < 100`; so the gap is the helper, not the arithmetic.
+A cycle may stop one element before the end of a slice, so `count` ranks itself
+by the distance from `cursor` to `items.len - 1`. Its private helper `forward`
+states no ranking: it bumps the caller's counter and calls
+`count(counter, view, position + 1)`. Starting at cursor 0 over eight elements,
+the cycle runs seven times and raises the counter from 3 to 10; any other count
+traps.
 
-## What this change does
+## What changed
 
-`items.len - 1` could not be formed because the engine knew a slice length only
-as an unsigned unknown with no upper limit, so it could not show the subtraction
-fits `u64` even with `requires items.len > 0`. A length is a `u64` count, so
-`current_scalar_values.rs` now records the `0..=u64::MAX` interval with the
-length it hands to scalar expressions. Endpoint formation now succeeds, and the
-refusal moves to `no exact private-coordinate assignment proves every edge and
-complete cycle`. This alone changes no accepted program.
+Before this change the compiler refused the program with `no exact
+private-coordinate assignment proves every edge and complete cycle` (recorded
+on the rebased base `6672d7b68`, optimized build). `forward` could only measure
+toward values it owns — `view.len`, its own position, or a constant — and its
+distance to `view.len` is one larger than `count`'s distance to `items.len - 1`,
+so the call from `count` to `forward` would have raised the rank.
+
+`forward` may now measure toward the endpoint `count` authored, read through
+`forward`'s own call to `count`. That call passes `view` as `items`, so in
+`forward` the endpoint means `view.len - 1`. The rule is general: every formal
+the authored endpoint reads must arrive as one of the helper's whole parameters
+that the helper never reassigns, so the helper's entry already holds the value
+the authored machine will see. The pairing only proposes a bound; each actual
+edge and complete cycle is still proved by the existing component search.
+
+The retained rank plan records this as an expression operand that keeps two
+identities: the state that declares the expression (`count`) and the state that
+evaluates it (`forward`), with a binding from `items` to `view`. Executable rank
+observations read the endpoint through that binding, including the slice length
+`items.len`, which now reads `view`'s descriptor.
+
+## Reject twin
+
+[invalid/main.omg](invalid/main.omg) differs only in the helper's call:
+`count(counter, view, position)` does not advance, so no complete cycle
+descends and the program is refused with the same component diagnostic.
+
+Dropping `requires items.len > 0` is not a reject twin for this program: the
+remaining `requires cursor < items.len` already implies `items.len >= 1`, so the
+endpoint forms and the program is correctly accepted (native and Terminal exit 0).
+
+## Requirements
+
+- Establishment: `count`'s requires form the endpoint; `forward` establishes its
+  own `position < view.len - 1`. No caller guard supplies either.
+- Identity and lifetime: the helper's endpoint is read from its entry
+  parameters, which it does not reassign; the counter stays caller-owned.
+- Composition: both edges are proved against the transported endpoint, and only
+  the `forward -> count` edge is strict.
+- Checked-to-Terminal Psi lowering: the rank observation for `forward` evaluates
+  `count`'s expression through the retained formal binding.
+- Native realization and execution: linux_x86_64 native and Terminal Psi agree
+  on exit 0; the other hosted targets are declared but not executed here.
 
 ## What remains
 
-`forward` can only rank itself against the coordinates it owns: `view.len`,
-`position`, or a constant carried over from `count`'s frame. Its distance
-`view.len - position` is one larger than `count`'s `items.len - 1 - cursor`, so
-the edge `count -> forward` would increase the rank. The helper needs the
-authored endpoint expressed over its own parameters. The retained rank plan
-(`runtime_ranking/inputs.rs`, `rank_observations/operands.rs`) requires an
-expression operand's owner to be the state that evaluates it, so evaluating
-`count`'s expression from `forward` needs that plan format to carry a formal
-coordinate mapping from the authored machine to the helper. That is the next
-step; no recognizer for this program shape was added.
+- The other eight places of this computed-endpoint witness are unwritten.
+- A helper that supplies an endpoint formal through a field projection or a
+  computed argument has no transported bound yet.
 
-## Evidence
+## Pinned fixtures
 
-- Candidate build: `current_scalar_values.rs` only, optimized `opt-level = 1`.
-- 104 pinned fixtures named `joint_rank_bounded*`, `joint_rank_computed*` and
-  `private_bounds*` (48 pass, 56 fail) keep their recorded outcomes with the
-  change; 15 other fixtures using `terminates by ... .len` give the same
-  results on the baseline and the candidate (13 of them already differ from
-  their recorded rows on the baseline, for unrelated reasons).
-- Without `requires items.len > 0` the helper's `view.len - 1` is still refused
-  by ordinary exact-arithmetic checking.
-- Native/Terminal execution of this probe is unverified because it is refused.
+- [pass](../../../../../../../../tests/omega/pass/facts/nested_machine_joint_rank_bounded_computed_length_parameter_exit/main.omg)
+- [fail](../../../../../../../../tests/omega/fail/facts/nested_machine_joint_rank_bounded_computed_length_parameter_rejected/main.omg)
