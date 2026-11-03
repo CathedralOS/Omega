@@ -29,7 +29,11 @@ The nested `relay → hand → choose` calls retain explicit runtime arguments a
 
 The unchanged original row was measured at `45a95a51f7e69a9f311a6e0a00415847f8fa8d06`, against published base `75119cb23a6452b1889847b02a79015f2df2d5ea`, in [baseline run 41627538646](https://github.com/CathedralOS/Omega/actions/runs/41627538646). All 18 Source cases passed their oracles: nine checked positives and nine intended rejections. All nine pinned positives and all ten positive public projects, including root, produced native/Terminal exit-zero agreement. All nine invalid public projects rejected as intended. Optimized producer profiles, source hashes and raw observations were audited. The original source was already working; no compiler defect is claimed.
 
-Fresh execution of the migrated source is pending. Earlier macOS records at `b9060c9ca30d` and `8128744a9d77` remain historical observations, with their original source stamps.
+The migrated source `03a8bd68bb45d05f948d8d23bb1a1e172829c38d` passed [run 41629361575](https://github.com/CathedralOS/Omega/actions/runs/41629361575). Fresh measurements again show nine checked positives, nine intended bound rejections, nine pinned native/Terminal exit-zero agreements, ten positive public engine agreements including root, and nine intended public rejections. All nine downloaded file hashes, the exact source tree and both optimized profiles were verified. The 18 Source and nine Linux BOTH rows carry that observed source stamp; unrelated record bytes are preserved.
+
+The [published source archive](https://github.com/CathedralOS/Omega/pull/1669#issuecomment-6602976319) retains the measured commit through squash publication. It is 98,502 bytes with SHA-256 `ee76744e109ecdff001712b516066202812ae4fe4c67c319933fcd66dca76c52`; the decoded live comments were checked against the retained local bundle. This archive preserves source, separately from runtime evidence.
+
+Earlier macOS records at `b9060c9ca30d` and `8128744a9d77` remain historical observations, with their original source stamps.
 
 All nine positive/twin Main and Build files match their pins under `tests/omega/{pass,fail}/facts/may_write_named_state_through_<place>_*`. Each twin differs only in the Boolean passed to `relay`, and retains `cannot prove` as its diagnostic fragment. Every positive and root binds `ProgramEntry` for all four hosted targets and declares `Expected exit: 0`. There is no `std` dependency.
 
