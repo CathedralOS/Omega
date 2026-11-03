@@ -1,10 +1,10 @@
-# finite family returned descriptor
+# Returning a borrowed byte view through a runtime function choice
 
 Owning outcome: **FINITE-GENERIC-DISPATCH**.
 
 A finite-family method on a borrowed record returns a descriptor of the original backing, and reading its first byte yields 11.
 
-Canonical contracts: [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary), [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families), [returned views](../../../../wiki/spec/language/lifetimes.md#returned-views), and [target families](../../../../wiki/spec/language/machines.md#target-scoped-families).
+Canonical contracts: [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary), [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families), [returned views](../../../../wiki/spec/language/lifetimes.md#returned-views), and [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
 
 At `036605466510d2361fd579cf9fd97b722e070beb`, the frozen borrowed-record source passes normal update, then `run --both` exits 200 with `argument referent requires a reference carrier`. The parameter/state composition also exposes `captured reference leaves have no resources`. A stored pointer variation reaches the same root-coordinate problem and then exposes native result transport that considered only moved carrier metadata.
 
