@@ -188,6 +188,8 @@ fail/expressions/token_bound_machine_missing_body_rejected rejected 231ms expect
 	`Wrapped::add` has no body and is neither a boundary signature nor a compiler-catalog primitive; a nonboundary direct machine must own a checked body (`machine + Wrapped::add(...) { ... }`), a boundary contract is spelled `boundary machine + ...;`, and an external leaf `satisfies Requirement via <Binding>;`
 fail/expressions/token_bound_machine_unproved_premise_rejected rejected 3821ms expected @630d0f945fc2
 	cannot prove requires contract for call add from combine: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/expressions/type_operand_in_executable_position rejected 1989ms expected @c6a756120d23+wt
+	a type operand is valid only in a static type predicate
 fail/facts/abstract_signature_call_applied_callback_computed_const_premise_rejected rejected 847ms expected @d4295d67990d
 	constant initializer: demanded premise closure checking failed: machine `apply$specialized$b37cdd08ebba4760$0` state `entry` value call to `witness` violates required fact `premise(kept)`: the instantiated fact is structurally false
 fail/facts/abstract_signature_call_applied_callback_const_premise_rejected rejected 894ms expected @d4295d67990d
@@ -3174,10 +3176,10 @@ fail/facts/transparent_alias_rhs_captured_supplier_parameter_mismatch_rejected r
 fail/facts/transparent_alias_rhs_captured_supplier_target_body_mismatch_rejected rejected 1988ms expected @df2704cb8b18
 	argument `value` for state `forward` expects `[u8; 5]`, got `named value`; expected carrier `array(named(name(u8)),literal(5))`, declared place carrier `array(named(name(u8)),literal(4))`
 	machine `ArrayForward::forward` state `forward` terminal expression expects `[u8; 4]`, got `call expression`
-fail/facts/transparent_alias_rhs_const_expression_overflow_rejected rejected 957ms expected @143d3f1669fb
-	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
-fail/facts/transparent_alias_rhs_declaration_scope_overflow_rejected rejected 604ms expected @8436ab6a7742
-	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
+fail/facts/transparent_alias_rhs_const_expression_overflow_rejected rejected 830ms expected @3f59f4c9e33c+wt
+	const argument expression: fixed-array length must evaluate to a nonnegative integer count of `u64`: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
+fail/facts/transparent_alias_rhs_declaration_scope_overflow_rejected rejected 820ms expected @3f59f4c9e33c+wt
+	const argument expression: fixed-array length must evaluate to a nonnegative integer count of `u64`: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
 fail/facts/typed_reflection_active_case_selected_layout_alias_rejected rejected 787ms expected @9d8ac725f3d8
 	machine `field` requires type predicate does not hold for the supplied arguments
 fail/facts/typed_reflection_active_case_selected_layout_rejected rejected 792ms expected @dd3a6c22f839
@@ -3396,6 +3398,8 @@ fail/proofs/normal_call_overwritten_nested_field rejected 5721ms expected @b7a1f
 	cannot prove requires contract for call need from main: value == 2 (needs fact `value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/normal_call_replaced_nested_record rejected 4354ms expected @b7a1f6a9630c
 	cannot prove requires contract for call need from main: value == 2 (needs fact `value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/outcome_selector_on_record_result rejected 1217ms expected @c6a756120d23+wt
+	outcome proof selectors require an exact guarded result-case arm
 fail/proofs/refined_conversion_does_not_strengthen_base_view rejected 4347ms expected @e97ed21415d9
 	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
 	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
@@ -3653,6 +3657,7 @@ pass/arithmetic/typed_integer_remainder checked 2603ms @ccdb99ca2214
 pass/arithmetic/unsigned_computed_index checked 3949ms @ccdb99ca2214
 pass/arithmetic/wrapping_signed_divide_min_by_neg_one checked 17530ms check-target:macos_arm64 @ccdb99ca2214
 pass/arrays/array_operand_epochs checked 3725ms @ccdb99ca2214
+pass/arrays/computed_fixed_array_length_exit checked 5534ms check-target:macos_arm64 @900c01366355+wt
 pass/arrays/data_binding_index_hoist checked 6366ms @911f6617ba9e
 pass/arrays/guard_compound_index checked 3695ms @ccdb99ca2214
 pass/arrays/indexed_state_arg checked 3520ms @ccdb99ca2214
@@ -5446,9 +5451,9 @@ pass/core/interval_content_partition_exit checked 15853ms check-target:macos_arm
 pass/core/materialized_owned_entry_return checked 10328ms terminal-runtime.update:unrequested terminal-runtime.pack:unrequested terminal-inspections:match @ccdb99ca2214
 pass/core/named_extent_root_provider_adapter checked 2931ms @ccdb99ca2214
 pass/core/numeric_cross_signed_conversion_surface checked 16739ms check-target:macos_arm64 @ccdb99ca2214
-pass/core/numeric_signed_narrowing_policies timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-pass/core/numeric_signed_to_unsigned_policies timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-pass/core/numeric_signed_wide_to_unsigned_policies timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/core/numeric_signed_narrowing_policies checked 9882ms check-target:macos_arm64 @acba2ae29b6c
+pass/core/numeric_signed_to_unsigned_policies checked 9992ms check-target:macos_arm64 @acba2ae29b6c
+pass/core/numeric_signed_wide_to_unsigned_policies checked 9582ms check-target:macos_arm64 @acba2ae29b6c
 pass/core/numeric_trapping_conversion_overflow checked 12148ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_trapping_direct_conversion_negative checked 3384ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_trapping_discarded_conversion checked 3802ms check-target:macos_arm64 @ccdb99ca2214
@@ -5456,8 +5461,8 @@ pass/core/numeric_trapping_negative_to_unsigned checked 3569ms check-target:maco
 pass/core/numeric_trapping_signed_narrowing_above_maximum checked 3850ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_trapping_signed_narrowing_below_minimum checked 4179ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_trapping_unsigned_above_signed_maximum checked 3387ms check-target:macos_arm64 @ccdb99ca2214
-pass/core/numeric_unsigned_64_to_signed_policies timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-pass/core/numeric_unsigned_narrowing_policies timeout 120000ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/core/numeric_unsigned_64_to_signed_policies checked 11610ms check-target:macos_arm64 @acba2ae29b6c
+pass/core/numeric_unsigned_narrowing_policies checked 10776ms check-target:macos_arm64 @acba2ae29b6c
 pass/core/numeric_unsigned_to_signed_policies checked 16384ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_widening_preserves_values checked 4054ms check-target:macos_arm64 @ccdb99ca2214
 pass/core/numeric_widening_published_ranges checked 4799ms check-target:macos_arm64 @ccdb99ca2214
@@ -17537,8 +17542,8 @@ fail/build/provider_selection_missing_target rejected 20ms expected @ccdb99ca221
 	select_provider requires two bare declaration operands and its explicit mutable Build and catalog target arguments (plus an optional composition mode)
 fail/build/provider_structural_type_application_conflict rejected 1282ms expected @ccdb99ca2214
 	build selects two provider types for slot `Reading`: `SecondReading` and `SecondReading`
-fail/build/provider_structural_type_partial_extent rejected 41ms expected @ccdb99ca2214
-	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
+fail/build/provider_structural_type_partial_extent rejected 92ms expected @3f59f4c9e33c+wt
+	const argument expression: fixed-array length must evaluate to a nonnegative integer count of `u64`: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
 fail/build/provider_unused_const_divisor_rejected rejected 890ms expected @ccdb99ca2214
 	division by zero in closed const argument: the divisor is provably zero, which always traps at runtime. Remove the operation or use a nonzero divisor.
 	partial exact division in closed const argument: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
@@ -18183,16 +18188,16 @@ fail/collections/wrapping_range_index_unproven rejected 17059ms expected @ccdb99
 	cannot prove index `main.i` is within length 5 in read::entry
 fail/compile_time/const_overload_selected_dependency_cycle_rejected rejected 646ms expected @ccdb99ca2214
 	constant initializer: constant initializer dependency cycle
-fail/comptime/array_expression_fractional rejected 278ms unexpected @ccdb99ca2214
-	const argument expression: exact anonymous value `3/2` cannot land in an integer const argument
-fail/comptime/array_expression_negative rejected 458ms expected @ccdb99ca2214
-	const argument expression: anonymous constant expression cannot land exactly at the selected integer carrier
-fail/comptime/array_expression_runtime_local rejected 534ms expected @ccdb99ca2214
+fail/comptime/array_expression_fractional rejected 510ms expected @3f59f4c9e33c+wt
+	const argument expression: fixed-array length must evaluate to a nonnegative integer count of `u64`: exact anonymous value `3/2` cannot land in an integer const argument
+fail/comptime/array_expression_negative rejected 413ms expected @3f59f4c9e33c+wt
+	const argument expression: fixed-array length must evaluate to a nonnegative integer count of `u64`: anonymous constant expression cannot land exactly at the selected integer carrier
+fail/comptime/array_expression_runtime_local rejected 361ms expected @3f59f4c9e33c+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
-fail/comptime/array_expression_runtime_parameter rejected 292ms expected @ccdb99ca2214
+fail/comptime/array_expression_runtime_parameter rejected 379ms expected @3f59f4c9e33c+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
-fail/comptime/array_expression_u32_intermediate_overflow rejected 703ms expected @ccdb99ca2214
-	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
+fail/comptime/array_expression_u32_intermediate_overflow rejected 363ms expected @3f59f4c9e33c+wt
+	const argument expression: fixed-array length must evaluate to a nonnegative integer count of `u32`: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
 fail/comptime/array_expression_unused_invalid_call rejected 1176ms expected @ccdb99ca2214
 	data `Bad` field `bytes` constant expression call argument `false` does not form parameter `value` of `size`: actual bool, required u64
 fail/comptime/array_expression_unused_invalid_call_operand rejected 1128ms unexpected @ccdb99ca2214
@@ -32671,9 +32676,9 @@ fail/generics/open_const_selected_private_dependency_changed_helper rejected 564
 	exact arithmetic in machine `Selected::read` state `read` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/generics/open_const_unguarded_template rejected 802ms expected @ccdb99ca2214
 	exact arithmetic in machine `construct` const argument `Minimum` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/generics/open_const_unused_const_overflow rejected 338ms expected @ccdb99ca2214
+fail/generics/open_const_unused_const_overflow rejected 374ms expected @3f59f4c9e33c+wt
 	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
-fail/generics/open_const_unused_const_zero_divisor rejected 711ms expected @ccdb99ca2214
+fail/generics/open_const_unused_const_zero_divisor rejected 366ms expected @3f59f4c9e33c+wt
 	const argument expression: Exact integer constant operation overflows, divides by zero, or has an invalid shift count
 fail/generics/open_const_wrong_carrier rejected 1085ms expected @ccdb99ca2214
 	const argument `Minimum` has no static value with its exact declared carrier
@@ -32728,7 +32733,7 @@ fail/generics/returned_applied_field_does_not_widen_access rejected 926ms expect
 	mutable argument `returned` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/generics/returned_generic_result_parameter_mismatch rejected 938ms unexpected @ccdb99ca2214
 	machine `wrong` state `entry` terminal expression expects `Output`, got `call expression`
-fail/generics/runtime_difference_const_argument rejected 36ms expected @ccdb99ca2214
+fail/generics/runtime_difference_const_argument rejected 327ms expected @3f59f4c9e33c+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/generics/runtime_incoming_index_changed_after_mutation rejected 3394ms expected @ccdb99ca2214
 	machine `forward` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
@@ -32766,7 +32771,7 @@ fail/generics/runtime_index_carrier_call_selected_stale rejected 2986ms expected
 fail/generics/runtime_index_carrier_cast_stale rejected 2881ms expected @ccdb99ca2214
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
 	machine `preserve` state `entry` cannot prove runtime index subject equality at statement 3; an indexed value retains its captured index
-fail/generics/runtime_index_carrier_const rejected 48ms expected @ccdb99ca2214
+fail/generics/runtime_index_carrier_const rejected 330ms expected @3f59f4c9e33c+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/generics/runtime_index_carrier_descriptor_borrow_alias rejected 2536ms expected @ccdb99ca2214
 	mutable scalar loan cannot preserve a runtime index descriptor
@@ -32829,7 +32834,7 @@ fail/generics/runtime_value_member_argument_wrong_carrier rejected 1482ms expect
 	argument `Count` for state `entry` stores a boolean into a `u64` parameter, which holds a numeric value
 fail/generics/runtime_value_recipe_cannot_retag rejected 4947ms expected @911f6617ba9e
 	machine `retag` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-fail/generics/runtime_value_recipe_const_runtime_rejected rejected 421ms expected @ccdb99ca2214
+fail/generics/runtime_value_recipe_const_runtime_rejected rejected 341ms expected @3f59f4c9e33c+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/generics/runtime_value_recipe_dynamic_mutation_stale rejected 2267ms expected @ccdb99ca2214
 	cannot prove requires contract for call one from main: slot == 1 (needs fact `value == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -33439,7 +33444,7 @@ fail/modules/packaged_structured_const_wrong_carrier rejected 1093ms unexpected 
 	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "indexed-domain selected constant has canonical type `named(name(nominal\\\\(package-owner\\\\(32:e7c3bc3e4620222cf979d50d772f27fdaca17ff3531dd5cc50e17992df595c71\\\\)\\\\,path\\\\(ImpostorToken\\\\)\\\\)))`, expected `named(name(nominal\\\\(package-owner\\\\(32:d2b6f355532dc469c2b68bea58ac6901de02e35fdd1e7331c50b938ccbdaa53d\\\\)\\\\,path\\\\(Token\\\\)\\\\)))`", exceeded_provision: None, source_span: None, resolved_location: None })
 fail/modules/private_generic_dependency rejected 3717ms expected @ccdb99ca2214
 	package `private_generic_dependency` (79d8483c0c9e8f8edaba91f5750b0890756e9aa4815205b4d64c51952fd3da6f) selects private machine `values::Window::range`
-fail/modules/runtime_fixed_array_index rejected 129ms expected @ccdb99ca2214
+fail/modules/runtime_fixed_array_index rejected 345ms expected @3f59f4c9e33c+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/modules/same_name_record_field_extent rejected 3289ms expected @ccdb99ca2214
 	cannot prove index `3` is within length 2
@@ -36138,15 +36143,15 @@ fail/traits/applied_nominal_callback_proposition_tag_rejected rejected 1515ms ex
 	machine parameter `Callback` of provider machine `visit` for trait requirement `Visitor::visit` does not refine `Callback`: its requires facts are not a conservative refinement
 fail/traits/captured_const_contract_distinct_binders rejected 1767ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from Wrong::identity at statement 0: result <= Maximum
-fail/traits/computed_static_carrier rejected 517ms expected @c2cfe5f3dece+wt
+fail/traits/computed_static_carrier rejected 347ms expected @3f59f4c9e33c+wt
 	const argument expression: landed `u32` result cannot initialize `i32`
 fail/traits/computed_static_effect rejected 649ms expected @c2cfe5f3dece+wt
 	const-generic application evaluation failed: machine `effect` is not build-time admissible: service reach [Console]; build-time evaluation requires empty service reach, no possible suspension or blocking, ordinary checked termination, no unadmitted linear runtime carrier, and admitted declaration-selection authority across the complete call closure
-fail/traits/computed_static_fractional rejected 577ms expected @c2cfe5f3dece+wt
+fail/traits/computed_static_fractional rejected 312ms expected @3f59f4c9e33c+wt
 	const argument expression: exact anonymous value `1/2` cannot land in an integer const argument
-fail/traits/computed_static_overflow rejected 548ms expected @c2cfe5f3dece+wt
+fail/traits/computed_static_overflow rejected 324ms expected @3f59f4c9e33c+wt
 	const argument expression: anonymous constant expression cannot land exactly at the selected integer carrier
-fail/traits/computed_static_runtime rejected 506ms expected @c2cfe5f3dece+wt
+fail/traits/computed_static_runtime rejected 265ms expected @3f59f4c9e33c+wt
 	const argument expression: machine index operand must select a constant in its original lexical scope; runtime locals, parameters and open binders cannot be evaluated
 fail/traits/computed_static_type_category rejected 716ms expected @ccdb99ca2214
 	machine `type_only` static argument 1 requires its declared binder kind, not a const value
