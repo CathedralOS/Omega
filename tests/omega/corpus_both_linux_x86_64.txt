@@ -16,7 +16,8 @@ pass/calls/selected_crash_argument_snapshot_exit built 10692ms exit:0 interprete
 pass/calls/selected_crash_distinct_limits_exit built 10688ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_match_record_exit built 13834ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_private_forwarding_exit built 10143ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
-pass/facts/bounded_activation_generic_holder_transfer_exit built 14582ms exit:0 interpreter-exit:0 interpreter:agrees @ceeeec5b2b93
+pass/facts/bounded_activation_generic_holder_transfer_exit built 14417ms exit:0 interpreter-exit:0 interpreter:agrees @19e0e024c628
+pass/facts/bounded_activation_generic_nested_holder_transfer_exit built 11864ms exit:0 interpreter-exit:0 interpreter:agrees @19e0e024c628
 pass/facts/build_activation_borrow_entry_return_exit built 11951ms exit:0 interpreter-exit:0 interpreter:agrees @b208ceef9bc2
 pass/facts/domain_selected_cleanup_enclosing_generic_telescope_exit built 14212ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
 pass/facts/domain_selected_cleanup_erased_interface_exit built 13801ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
@@ -2250,7 +2251,7 @@ pass/facts/bounded_activation_cleanup_pure_exit built 12895ms exit:0 stdout:matc
 pass/facts/bounded_activation_computed_bound_exit built 12707ms exit:0 interpreter-exit:0 interpreter:agrees @e86e80cdccf0
 pass/facts/bounded_activation_extent_composition_exit built 17484ms exit:0 interpreter-exit:0 interpreter:agrees @e86e80cdccf0
 pass/facts/bounded_activation_field_transport_exit built 18401ms exit:0 interpreter-exit:0 interpreter:agrees @e86e80cdccf0
-pass/facts/bounded_activation_generic_bound_exit built 14435ms exit:0 interpreter-exit:0 interpreter:agrees @e86e80cdccf0
+pass/facts/bounded_activation_generic_bound_exit built 15185ms exit:0 interpreter-exit:0 interpreter:agrees @19e0e024c628
 pass/facts/bounded_activation_main_exit built 14021ms exit:0 interpreter-exit:0 interpreter:agrees @e86e80cdccf0
 pass/facts/bounded_activation_multiple_bounds_exit built 26549ms exit:0 interpreter-exit:0 interpreter:agrees terminal-runtime.main:unrequested terminal-inspections:match @e86e80cdccf0
 pass/facts/bounded_activation_named_attempt_exit incomplete 9959ms interpreter:unchecked regressed-from:built+exit:0+interpreter-exit:0+interpreter:agrees @e86e80cdccf0

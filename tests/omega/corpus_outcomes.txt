@@ -6452,8 +6452,9 @@ pass/facts/bounded_activation_cleanup_pure_exit checked 21176ms check-target:mac
 pass/facts/bounded_activation_computed_bound_exit checked 20695ms check-target:macos_arm64 @e86e80cdccf0
 pass/facts/bounded_activation_extent_composition_exit checked 12955ms check-target:macos_arm64 @e86e80cdccf0
 pass/facts/bounded_activation_field_transport_exit checked 12981ms check-target:macos_arm64 @e86e80cdccf0
-pass/facts/bounded_activation_generic_bound_exit checked 12425ms check-target:macos_arm64 @e86e80cdccf0
-pass/facts/bounded_activation_generic_holder_transfer_exit checked 14201ms check-target:macos_arm64 @ceeeec5b2b93
+pass/facts/bounded_activation_generic_bound_exit checked 14107ms check-target:macos_arm64 @19e0e024c628
+pass/facts/bounded_activation_generic_holder_transfer_exit checked 15040ms check-target:macos_arm64 @19e0e024c628
+pass/facts/bounded_activation_generic_nested_holder_transfer_exit checked 11763ms check-target:macos_arm64 @19e0e024c628
 pass/facts/bounded_activation_main_exit checked 11790ms check-target:macos_arm64 @e86e80cdccf0
 pass/facts/bounded_activation_multiple_bounds_exit checked 25395ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @e86e80cdccf0
 pass/facts/bounded_activation_named_attempt_exit incomplete 9250ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e86e80cdccf0
