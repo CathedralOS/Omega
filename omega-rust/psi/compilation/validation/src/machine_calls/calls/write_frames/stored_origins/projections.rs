@@ -262,10 +262,22 @@ fn reference_leaves_with_projection(
     };
     let established = tracked.or(declared_origins.as_ref());
     let Some(established) = established else {
-        return (super::super::type_is_caller_isolated_local(program, source_reference)
-            && !segments
-                .iter()
-                .any(|segment| matches!(segment, PlaceSegment::Case { .. })))
+        // The projected type's complete inventory includes shared descriptors,
+        // opaque storage and retained lifetime obligations. Its proven empty
+        // form transports no aliases, even when the enclosing case value has
+        // no saved origin record. Source formation independently checks the
+        // selected case, bounds and access before using the projected value.
+        let projected = super::type_origins::declared_origins_for_query(
+            program,
+            root,
+            source_name,
+            actual,
+            true,
+        )?;
+        return (!projected.symbolic
+            && projected.references.is_empty()
+            && projected.cases.is_empty()
+            && projected.moves.is_empty())
         .then(AggregateOrigins::default);
     };
     let source = super::super::FrameSourcePlace::from_expression(program, expression);

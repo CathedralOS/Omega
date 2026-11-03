@@ -1,7 +1,11 @@
 // An executable comparison may equate signed zeros without proving data Id.
 data Floating [copy] { value: f64; }
-machine == Floating::equal(left: Floating, right: Floating) -> bool
-{ left.value == right.value }
+trait Equatable<Value> {
+    machine equals(left: &Value, right: &Value) -> bool;
+}
+FloatingEquality satisfies Equatable<Floating> {
+    machine equals(left: &Floating, right: &Floating) -> bool { left.value == right.value }
+}
 
 machine demand_identity(left: Floating, right: Floating) -> u64
 requires left == right
@@ -14,5 +18,5 @@ machine guarded(left: Floating, right: Floating) -> u64 {
     }
 }
 machine main() {
-    guarded(Floating { value: -0.0f64 }, Floating { value: 0.0f64 });
+    _ = guarded(Floating { value: -0.0f64 }, Floating { value: 0.0f64 });
 }

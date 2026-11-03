@@ -115,6 +115,17 @@ impl StructuralJudge<'_> {
         }) {
             StructuralJudgment::Proven
         } else {
+            if super::super::struct_trace() {
+                eprintln!(
+                    "STRUCT data-identity-refused owner={:?} state={:?} left_forms={} right_forms={} remaining=({left_remaining},{right_remaining}) left={:?} right={:?}",
+                    self.machine_symbol,
+                    self.declaration_state,
+                    left.len(),
+                    right.len(),
+                    &left[..left.len().min(8)],
+                    &right[..right.len().min(8)],
+                );
+            }
             StructuralJudgment::Unknown
         }
     }

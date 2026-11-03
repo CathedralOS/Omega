@@ -4,7 +4,12 @@
 data Packet<'buffer> { tag: u8; output: &'buffer mut [u8]; }
 data Slot<'buffer> { before: u8; answer: Packet<'buffer>; after: u8; }
 data Floating [copy] { value: f64; }
-machine == Floating::equal(left: Floating, right: Floating) -> bool { false }
+trait Equatable<Value> {
+    machine equals(left: &Value, right: &Value) -> bool;
+}
+FloatingEquality satisfies Equatable<Floating> {
+    machine equals(left: &Floating, right: &Floating) -> bool { false }
+}
 
 machine through_field<'buffer>(incoming: Packet<'buffer>) -> Slot<'buffer>
 ensures result.answer == incoming

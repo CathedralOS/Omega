@@ -2,5 +2,5 @@
 data Packet<Value> { value: Value; }
 machine wrong_type(incoming: Packet<u8>) -> Packet<u16>
 ensures result == incoming
-{ Packet<u16> { value: 7u16 } }
+{ Packet { value: 7u16 } }
 machine main() {}

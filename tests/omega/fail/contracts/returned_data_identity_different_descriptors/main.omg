@@ -8,5 +8,5 @@ ensures result == incoming
 machine main() {
     let mut first: [u8; 3] = [41u8, 43u8, 47u8];
     let mut second: [u8; 3] = [41u8, 43u8, 47u8];
-    replace_buffer(Packet { tag: 37u8, output: &mut first[0u64..3u64] }, &mut second[0u64..3u64]);
+    _ = replace_buffer(Packet { tag: 37u8, output: &mut first[0u64..3u64] }, &mut second[0u64..3u64]);
 }
