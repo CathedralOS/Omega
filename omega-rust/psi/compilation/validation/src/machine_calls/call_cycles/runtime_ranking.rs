@@ -162,14 +162,21 @@ pub(super) fn extend_runtime_adjacency(
     selector_self_recursion
 }
 
-/// Every supplied implementation machine of each trait requirement, whatever
-/// any target selects: a statically dispatched requirement call is realized by
-/// one of them, chosen only after Psi.
+/// Every supplied implementation machine of each boundary-trait requirement,
+/// whatever any target selects: Build chooses which one realizes the call
+/// only after Psi. Ordinary trait requirements are resolved within Psi and
+/// keep their own call targets.
 fn supplied_requirement_implementations(
     program: &dyn CheckingInput,
 ) -> Vec<(SymbolHandle, Vec<usize>)> {
     let mut supplied: Vec<(SymbolHandle, Vec<usize>)> = Vec::new();
     for conformance in program.conformances() {
+        let boundary = program
+            .trait_definition_by_symbol(conformance.trait_symbol)
+            .is_some_and(|definition| definition.is_boundary);
+        if !boundary {
+            continue;
+        }
         for row in &conformance.rows {
             let Some(implementation) = target_machine(program, row.realization_machine) else {
                 continue;
