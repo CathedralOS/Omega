@@ -29,6 +29,7 @@ fn kind(name: &str) -> Option<MemoryFenceKind> {
 pub(super) fn observe(
     artifact: &CanonicalTerminalArtifact,
     proposals: &[backend_plan::TerminalTargetProviderProposal],
+    root_provisions: &[&compilation_products::TerminalRuntimeProvisions],
     fixture: &Path,
     allowance: u64,
 ) -> super::Observation {
@@ -82,7 +83,14 @@ pub(super) fn observe(
             }
         };
         targets.push(*target);
-        match observe_target(artifact, proposals, target, &expected, allowance) {
+        match observe_target(
+            artifact,
+            proposals,
+            root_provisions,
+            target,
+            &expected,
+            allowance,
+        ) {
             Ok(()) => observation
                 .facts
                 .push(format!("terminal-fences.{target}:{}", names.join(","))),
@@ -129,6 +137,7 @@ fn failure(message: String) -> super::Observation {
 fn observe_target(
     artifact: &CanonicalTerminalArtifact,
     proposals: &[backend_plan::TerminalTargetProviderProposal],
+    root_provisions: &[&compilation_products::TerminalRuntimeProvisions],
     target: &str,
     expected: &[MemoryFenceKind],
     allowance: u64,
@@ -165,11 +174,25 @@ fn observe_target(
                 .admit(artifact.view(), target)
         })
         .transpose()?;
+    // Use the entry produced for this target, just as target execution does.
+    // The portable artifact's default entry need not be this application's root.
+    let mut matching_roots = root_provisions
+        .iter()
+        .copied()
+        .filter(|provisions| provisions.target_slot().owner.target_name() == target);
+    let root = matching_roots.next();
+    if matching_roots.next().is_some() {
+        return Err("duplicate admitted target root".into());
+    }
+    if root.is_some_and(|root| root.identity() != artifact.view().identity()) {
+        return Err("target root names another Terminal artifact".into());
+    }
+    let entry = root.map(|root| terminal_psi::TargetMachineCallable::Machine(root.entry()));
     let supplies = |model| {
         program.admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
             memory_ordering: model,
-            entry: None,
+            entry,
             installation: installation.as_ref(),
             host_imports: &[],
             target_machines: Some(&selected),
