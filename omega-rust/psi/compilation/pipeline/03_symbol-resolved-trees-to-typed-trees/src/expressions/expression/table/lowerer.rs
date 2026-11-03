@@ -1107,6 +1107,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return Ok(Some(typed::expression::DataLayoutQueryRequest {
                 kind,
                 operand: typed::expression::StaticMachineArgument::default(),
+                nonempty_view: typed::expression::ExpressionHandle::invalid(),
             }));
         }
         if !call.arguments.is_empty() {
@@ -1171,6 +1172,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
         Ok(Some(typed::expression::DataLayoutQueryRequest {
             kind,
             operand: lowered,
+            nonempty_view: typed::expression::ExpressionHandle::invalid(),
         }))
     }
 

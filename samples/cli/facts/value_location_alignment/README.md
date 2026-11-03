@@ -1,6 +1,6 @@
 # Value-location alignment
 
-Fact: align_of(value) observes the storage location of a live u64 place, or the referent of a &u64, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
+Fact: align_of(value) observes the storage location of a live u64 place, the referent of a &u64, or the first element of a nonempty [u64] slice, and reports that location's guaranteed alignment, at least 8u64 on every hosted target, discharging exact subtraction alignment - 8u64 across all nine places.
 
 Before this row the compiler refused every value argument to `align_of`
 ("takes no value arguments; the queried type is its single `<T>` operand"),
