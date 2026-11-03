@@ -1,7 +1,8 @@
-//! Bind one completed actual roster before entering a checked runtime body.
-//! Caller values are captured before any formal name is installed. Live storage
-//! moves into the callee's declaration coordinates; detached evidence keeps its
-//! identity. This imports neither the callee's requirements nor its completion.
+//! Bind a call's evaluated arguments before checking its runtime body.
+//! Save caller values before binding the callee's parameter names. Storage
+//! observations use the callee's parameter paths; saved values keep their
+//! original identity. Entering the body does not establish its preconditions
+//! or prove its return guarantees.
 
 use super::{StructuralJudge, StructuralTerm, TypeReferenceHandle};
 use crate::machine_calls::calls::InvocationEntrySubject;
@@ -66,9 +67,9 @@ impl<'program> StructuralJudge<'program> {
             })
             .collect::<Vec<_>>();
         self.enter_storage_scope(entry, scope.1, subjects, &bindings);
-        // Expression caches and source premises are invocation-local. Their
-        // captured equations/predicates remain detached values, not a license
-        // to reevaluate a caller expression through new callee bindings.
+        // Cached expressions and source assumptions belong to this invocation.
+        // Saved equations still describe the original evaluated values; they
+        // cannot reevaluate caller expressions using the callee's parameters.
         self.normal_results = std::sync::Arc::new(Vec::new());
         self.completed_nominal_values = std::sync::Arc::new(Vec::new());
         self.premise_facts.clear();
@@ -98,9 +99,9 @@ impl<'program> StructuralJudge<'program> {
         Some((incoming, self))
     }
 
-    /// Restore the caller's source question without discarding the completed
-    /// path's detached predicates and value identities. Storage returns through
-    /// exact entry origins after applying the call's complete write summary.
+    /// Resume the caller with the completed path's saved facts and values.
+    /// Map storage back through the actual argument origins, accounting for
+    /// every write recorded for the call.
     pub(in crate::proof_contracts::contract_entailment) fn complete_invocation(
         mut self,
         caller: &Self,
@@ -139,6 +140,8 @@ impl<'program> StructuralJudge<'program> {
             std::sync::Arc::make_mut(&mut self.completed_nominal_values)
                 .extend(returned_nominal_values);
         }
+        // Preservation checks may read declaration-local scalar bindings.
+        // Run them only after restoring the caller's scope and saved values.
         self.advance_storage_version(completion_version);
         Some(self)
     }

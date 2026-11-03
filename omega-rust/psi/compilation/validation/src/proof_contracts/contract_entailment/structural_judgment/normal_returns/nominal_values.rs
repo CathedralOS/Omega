@@ -1,6 +1,6 @@
-//! Completed nominal values retain formation at their producing occurrence.
-//! Reads still authenticate current storage before consuming these receipts;
-//! an equal constructor spelling or receiving annotation supplies no validity.
+//! Keep the checked construction and saved fields of each completed data value.
+//! A later read must still establish that its storage is current. Matching
+//! constructor syntax or a destination type cannot establish that validity.
 use super::{ExpressionHandle, StructuralJudge, StructuralTerm, TypeReferenceHandle, ValueScope};
 
 impl StructuralJudge<'_> {
@@ -72,9 +72,9 @@ impl StructuralJudge<'_> {
         exported.into_iter().map(|(_, receipt)| receipt).collect()
     }
 
-    /// The caller owns independent admission at the completed operation cut.
-    /// A unique snapshot carries that validity through local/transition homes;
-    /// its denotation remains available without granting equal values admission.
+    /// Record the value established by this completed operation. Its unique
+    /// capture lets later uses recover the checked fields without treating
+    /// another equal-looking construction as already checked.
     pub(super) fn retain_completed_nominal_value(
         &mut self,
         expression: ExpressionHandle,
@@ -103,9 +103,9 @@ impl StructuralJudge<'_> {
         )
     }
 
-    /// Recover the denotation of this exact completed nominal value.
-    /// This receipt is produced by subject evaluation, not by value-equation
-    /// rewriting. Storage fences still govern obtaining the source observation.
+    /// Recover the saved fields of this exact completed value. Evaluation
+    /// creates this record; rewriting an equality cannot create one. Reading
+    /// the source still requires a valid storage observation.
     pub(in crate::proof_contracts::contract_entailment) fn completed_nominal_observation(
         &self,
         value: &StructuralTerm,
@@ -125,9 +125,9 @@ impl StructuralJudge<'_> {
         observed
     }
 
-    /// Follow owned capture identities without equating reconstructed values.
-    /// Membership can follow a captured field back to its admitted subject,
-    /// but two equal constructors cannot share an establishment receipt.
+    /// Follow an owned capture back to its checked value. A case-membership
+    /// question can use that value's fields; rebuilding an equal constructor
+    /// does not inherit the original construction's validity.
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn completed_nominal_subject(
         &self,
         value: &StructuralTerm,
