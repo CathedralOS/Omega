@@ -7074,6 +7074,7 @@ pass/recast/write_footprint/local built 1999ms exit:0 interpreter-exit:0 interpr
 pass/recast/write_footprint/state built 1776ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/references/mutable_loan_member_read_initializes_local_exit built 6293ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/references/rebound_local_reference_follows_new_referent_exit built 9819ms exit:0 interpreter-exit:0 interpreter:agrees @292918dbcd2d
+pass/references/rebound_parameter_reference_follows_new_referent_exit built 8403ms exit:0 interpreter-exit:0 interpreter:agrees @ebc975d3ee17
 pass/references/runtime_shared_ref_param_guard_exit built 6019ms exit:1 interpreter-exit:1 interpreter:agrees @a92f16431042
 pass/references/selected_record_loan_disjoint_fields_exit built 6654ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/register_allocation/fixed_uses_across_hosted_clobbers_exit built 6306ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042

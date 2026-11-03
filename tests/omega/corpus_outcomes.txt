@@ -3447,7 +3447,9 @@ fail/recast/u64_open_upper_bound_is_not_signed_ceiling rejected 559ms expected @
 	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Narrow` are not representation-compatible
 fail/references/rebound_local_reference_drops_referent_bound rejected 3383ms expected @292918dbcd2d
 	exact arithmetic in machine `observe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/references/rebound_parameter_reference_drops_referent_bound rejected 3546ms expected @292918dbcd2d
+fail/references/rebound_parameter_reference_drops_referent_bound rejected 1839ms expected @ebc975d3ee17
+	exact arithmetic in machine `observe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/references/twice_rebound_parameter_reference_drops_referent_bound rejected 2249ms expected @ebc975d3ee17
 	exact arithmetic in machine `observe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/reflection/schema_borrowed_facade_const rejected 2810ms expected @63af67b94f91
 	constant initializer: build-time result of machine `@const-argument-0` is not ConstEvaluable: result.storage contains Text; borrowed or dynamically sized text cannot cross the semantic const boundary
@@ -5803,9 +5805,7 @@ pass/drops/owned_qualified_contextual_cleanup_exit rejected 77409ms check-target
 	cannot prove automatic cleanup requires at selected edge from retire$specialized$453b300fedac3c8c$0$11792 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
 pass/drops/projected_case_subject_root_cleanup_exit checked 14476ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/qualified_scalar_control_consumed_owner_exit checked 17060ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/reference_rebinding_preserves_pointee_exit rejected 1750ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	cannot establish assignment invariants: performed write has unknown destination origins in machine `observe_rebound` state `entry` at statement 3: assignment has no complete incoming storage prefix
-	cannot establish assignment invariants: performed write has unknown destination origins in machine `observe_byte_view` state `entry` at statement 1: assignment has no complete incoming storage prefix
+pass/drops/reference_rebinding_preserves_pointee_exit checked 10959ms check-target:macos_arm64 @ebc975d3ee17
 pass/drops/result_cleanup_implicit_boolean_exit checked 15079ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/result_cleanup_integer_exit checked 13996ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/result_cleanup_named_boolean_exit checked 14043ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -10944,15 +10944,15 @@ pass/facts/shared_borrow_field_projection_through_other_machine_exit checked 726
 pass/facts/shared_borrow_field_projection_through_other_state_exit checked 7119ms check-target:macos_arm64 @13fd04e63afe+wt
 pass/facts/shared_borrow_field_projection_through_parameter_exit checked 7234ms check-target:macos_arm64 @13fd04e63afe+wt
 pass/facts/shared_borrow_field_projection_through_target_body_exit checked 7286ms check-target:macos_arm64 @13fd04e63afe+wt
-pass/facts/shared_byte_view_rebinding_through_call_result_exit checked 3533ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/shared_byte_view_rebinding_through_const_name_exit checked 3348ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/shared_byte_view_rebinding_through_field_exit checked 3318ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/shared_byte_view_rebinding_through_local_exit checked 3141ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/shared_byte_view_rebinding_through_match_join_exit checked 4952ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/shared_byte_view_rebinding_through_other_machine_exit checked 4143ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/shared_byte_view_rebinding_through_other_state_exit checked 3538ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/shared_byte_view_rebinding_through_parameter_exit checked 3974ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/shared_byte_view_rebinding_through_target_body_exit checked 3496ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/shared_byte_view_rebinding_through_call_result_exit checked 10911ms check-target:macos_arm64 @ebc975d3ee17
+pass/facts/shared_byte_view_rebinding_through_const_name_exit checked 8440ms check-target:macos_arm64 @ebc975d3ee17
+pass/facts/shared_byte_view_rebinding_through_field_exit checked 8401ms check-target:macos_arm64 @ebc975d3ee17
+pass/facts/shared_byte_view_rebinding_through_local_exit checked 7897ms check-target:macos_arm64 @ebc975d3ee17
+pass/facts/shared_byte_view_rebinding_through_match_join_exit checked 8692ms check-target:macos_arm64 @ebc975d3ee17
+pass/facts/shared_byte_view_rebinding_through_other_machine_exit checked 7868ms check-target:macos_arm64 @ebc975d3ee17
+pass/facts/shared_byte_view_rebinding_through_other_state_exit checked 8349ms check-target:macos_arm64 @ebc975d3ee17
+pass/facts/shared_byte_view_rebinding_through_parameter_exit checked 7429ms check-target:macos_arm64 @ebc975d3ee17
+pass/facts/shared_byte_view_rebinding_through_target_body_exit checked 7413ms check-target:macos_arm64 @ebc975d3ee17
 pass/facts/shared_qualification_erasure_through_call_result_exit checked 4061ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/shared_qualification_erasure_through_const_name_exit checked 4383ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/shared_qualification_erasure_through_field_exit checked 3509ms check-target:macos_arm64 @ccdb99ca2214
@@ -14335,6 +14335,7 @@ pass/recast/write_footprint/local checked 3384ms check-target:macos_arm64 @ccdb9
 pass/recast/write_footprint/state checked 3336ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/mutable_loan_member_read_initializes_local_exit checked 13571ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/rebound_local_reference_follows_new_referent_exit checked 10745ms check-target:macos_arm64 @292918dbcd2d
+pass/references/rebound_parameter_reference_follows_new_referent_exit checked 8295ms check-target:macos_arm64 @ebc975d3ee17
 pass/references/runtime_shared_ref_param_guard_exit checked 19666ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/selected_record_loan_disjoint_fields_exit checked 12565ms check-target:macos_arm64 @ccdb99ca2214
 pass/reflection/schema_query_scalar_const checked 32268ms check-target:macos_arm64 @63af67b94f91
@@ -14857,7 +14858,7 @@ pass/termination/progress_selector_owned_arrival_owned_parameter_exit rejected 2
 pass/termination/progress_selector_owned_arrival_reference_boundary_exit rejected 3124ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
 pass/termination/progress_selector_owned_arrival_reference_reborrow_exit checked 9694ms check-target:macos_arm64 @49d08ea371fd
-pass/termination/progress_selector_owned_arrival_repeated_rebind_exit rejected 2811ms check-target:macos_arm64 @ccdb99ca2214
+pass/termination/progress_selector_owned_arrival_repeated_rebind_exit rejected 5978ms check-target:macos_arm64 @ebc975d3ee17
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
 pass/termination/progress_selector_owned_arrival_replacement_helper_exit rejected 2258ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
@@ -29448,27 +29449,25 @@ fail/facts/shared_borrow_field_projection_through_target_body_rejected rejected 
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `evaluate` state `entry` local `diff` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/shared_byte_view_rebinding_through_call_result_rejected rejected 1142ms expected @ccdb99ca2214
+fail/facts/shared_byte_view_rebinding_through_call_result_rejected rejected 1622ms expected @ebc975d3ee17
 	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/facts/shared_byte_view_rebinding_through_const_name_rejected rejected 1296ms expected @ccdb99ca2214
+fail/facts/shared_byte_view_rebinding_through_const_name_rejected rejected 2217ms expected @ebc975d3ee17
 	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/facts/shared_byte_view_rebinding_through_field_rejected rejected 1052ms expected @ccdb99ca2214
+fail/facts/shared_byte_view_rebinding_through_field_rejected rejected 1696ms expected @ebc975d3ee17
 	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/facts/shared_byte_view_rebinding_through_local_rejected rejected 1324ms expected @ccdb99ca2214
+fail/facts/shared_byte_view_rebinding_through_local_rejected rejected 1852ms expected @ebc975d3ee17
 	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/facts/shared_byte_view_rebinding_through_match_join_rejected rejected 1486ms expected @ccdb99ca2214
+fail/facts/shared_byte_view_rebinding_through_match_join_rejected rejected 1727ms expected @ebc975d3ee17
 	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/facts/shared_byte_view_rebinding_through_other_machine_rejected rejected 1306ms expected @ccdb99ca2214
+fail/facts/shared_byte_view_rebinding_through_other_machine_rejected rejected 1910ms expected @ebc975d3ee17
 	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/facts/shared_byte_view_rebinding_through_other_state_rejected rejected 1407ms expected @ccdb99ca2214
+fail/facts/shared_byte_view_rebinding_through_other_state_rejected rejected 1839ms expected @ebc975d3ee17
 	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/facts/shared_byte_view_rebinding_through_parameter_rejected rejected 1156ms expected @ccdb99ca2214
+fail/facts/shared_byte_view_rebinding_through_parameter_rejected rejected 2120ms expected @ebc975d3ee17
 	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
-fail/facts/shared_byte_view_rebinding_through_target_body_rejected rejected 1212ms expected @ccdb99ca2214
-	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
-	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
-	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
-	machine `replace` state `entry` assignment requires mutable source access through every reference crossed by its destination
+fail/facts/shared_byte_view_rebinding_through_target_body_rejected rejected 2113ms expected @ebc975d3ee17
+	machine `X86Replace::replace` state `replace` assignment requires mutable source access through every reference crossed by its destination
+	machine `ArmReplace::replace` state `replace` assignment requires mutable source access through every reference crossed by its destination
 fail/facts/shared_qualification_erasure_through_call_result_rejected rejected 1420ms expected @ccdb99ca2214
 	machine `main` state `entry`: a qualification reference view must retain existing source qualifications required by its target; `as` cannot mint routed provenance
 fail/facts/shared_qualification_erasure_through_const_name_rejected rejected 422ms expected @ccdb99ca2214
@@ -35802,8 +35801,8 @@ fail/termination/progress_selector_owned_arrival_reference_boundary_rejected rej
 	machine `select` derives progress premise `package:ddebce287a2410acf05e2be1136d94f80860bd813699b342d93bb13a3c16c7cf:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
 fail/termination/progress_selector_owned_arrival_reference_reborrow_rejected rejected 1946ms expected @ccdb99ca2214
 	machine `select` derives progress premise `package:c55adbc29722acfd1c7d776c307cf5f99f2d48ac00352344adbbd8bdadcbdbe2:product::Token::Fair` for `select::entry::right` from a selected call, but its published termination contract does not cover that exact subject
-fail/termination/progress_selector_owned_arrival_repeated_rebind_exit rejected 2948ms expected @ccdb99ca2214
-	machine `select` derives progress premise `package:d739e7cf4526e7aaed524caf9a543734dc80f7f10da4f706bd957e3b91d28916:product::Token::Fair` for `select::entry::input` from a selected call, but its published termination contract does not cover that exact subject
+fail/termination/progress_selector_owned_arrival_repeated_rebind_exit rejected 5589ms expected @ebc975d3ee17
+	machine `select` derives progress premise `package:6178290994f9bf3eb15516186b460b4104da75a1577ba759d68909f1706a3636:product::Token::Fair` for `select::entry::input` from a selected call, but its published termination contract does not cover that exact subject
 fail/termination/progress_selector_owned_arrival_replaced_slot rejected 1767ms expected @ccdb99ca2214
 	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/progress_selector_owned_arrival_replacement_helper_exit rejected 2156ms unexpected @ccdb99ca2214
