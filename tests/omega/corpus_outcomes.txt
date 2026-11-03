@@ -3472,6 +3472,8 @@ fail/termination/private_rank_endpoint_effectful_rejected rejected 20140ms expec
 	specification call `endpoint` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/termination/private_rank_endpoint_missing_call_premise_rejected rejected 17486ms expected @4449c9d8ccc0
 	machine call cycle: `count`, `forward` -- a rank upper expression lacks independent formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/unselected_implementation_reentry_rejected rejected 6640ms expected @c807f05bace3
+	machine call cycle: `ArmSelection::selected`, `walk`, `done` -- a bounded cursor rank lacks independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/traits/declaration_identity_forwarded_as_callable rejected 2062ms expected @a03fad3bb4a0
 	machine parameter `Requirement` forwarded into `apply`: declaration identity and callable requirement are different parameter roles
 fail/traits/dyn_selected_reach_callee_rebind_rejected rejected 50577ms expected @863cdf432f5d+wt
@@ -14947,6 +14949,7 @@ pass/termination/slice_tail_rank rejected 1230ms regressed-from:checked @ccdb99c
 	terminal call `walk` does not select a declared machine entry or callable requirement
 pass/termination/state_cycle_record checked 7398ms @ccdb99ca2214
 pass/termination/stored_reference_endpoint_arrivals checked 5287ms @911f6617ba9e
+pass/termination/supplied_implementations_terminate_exit checked 11008ms check-target:macos_arm64 @c807f05bace3
 pass/termination/symbolic_quotient_endpoints checked 2384ms @ccdb99ca2214
 pass/termination/target_family_published_progress checked 2466ms @ccdb99ca2214
 pass/termination/unsigned_identity_measure_rank_range checked 2293ms @ccdb99ca2214
@@ -35647,7 +35650,8 @@ fail/termination/bounded_distance_suffix_needs_callee_progress rejected 1914ms e
 	cannot prove published termination for machine `walk`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/bounded_distance_suffix_nested_reentry rejected 2273ms expected @ccdb99ca2214
 	machine call cycle: `reenter`, `walk`, `done` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/bounded_distance_suffix_nonhost_reentry checked 3999ms @ccdb99ca2214
+fail/termination/bounded_distance_suffix_nonhost_reentry rejected 7567ms expected regressed-from:checked @c807f05bace3
+	machine call cycle: `LinuxSelection::selected`, `walk`, `done` -- a bounded cursor rank lacks independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/computed_distance_moving_bound rejected 2317ms expected @ccdb99ca2214
 	cannot prove the `terminates by` ranking for machine walk
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -35861,7 +35865,8 @@ fail/termination/rankless_boundary_progress_unpromised rejected 1631ms expected 
 	cannot prove published termination for machine `console_write_bytes`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/rankless_callback_suffix rejected 2572ms expected @792437fa610e
 	cannot prove published termination for machine `console_write_bytes`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/rankless_family_member_reentry checked 2793ms @ccdb99ca2214
+fail/termination/rankless_family_member_reentry rejected 7593ms expected regressed-from:checked @c807f05bace3
+	machine call cycle: `LinuxSelection::selected`, `count`, `finish` -- a private member has no compatible natural rank input; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/remainder_natural_descent rejected 2781ms expected @ccdb99ca2214
 	terminating machine greatest_common_divisor: cannot prove strict rank decrease on a recurrent arrival: the transition from `greatest_common_divisor` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `greatest_common_divisor` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle

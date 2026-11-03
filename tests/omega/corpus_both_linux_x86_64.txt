@@ -7611,6 +7611,7 @@ pass/termination/slice_rank_unrelated_float_operator checked 4660ms @a92f1643104
 pass/termination/slice_tail_rank checked 3182ms @a92f16431042
 pass/termination/state_cycle_record checked 2870ms @a92f16431042
 pass/termination/stored_reference_endpoint_arrivals checked 2009ms @a92f16431042
+pass/termination/supplied_implementations_terminate_exit built 10872ms exit:0 interpreter-exit:0 interpreter:agrees @c807f05bace3
 pass/termination/symbolic_quotient_endpoints checked 1998ms @a92f16431042
 pass/termination/target_family_published_progress checked 2421ms @a92f16431042
 pass/termination/unsigned_identity_measure_rank_range checked 2023ms @a92f16431042
