@@ -4611,10 +4611,11 @@ pass/calls/runtime_copied_record_call_results_reused_exit checked 3449ms check-t
 pass/calls/runtime_cross_machine_substate_name_exit checked 16238ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_cyclic_state_reference_result_exit checked 18257ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_dispatch_binary_call_argument_exit checked 16998ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_dispatch_float_terminal_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @7b4244a67630
-pass/calls/runtime_dispatch_machine_array_slice_arg_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @7b4244a67630
-pass/calls/runtime_dispatch_result_enum_case_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @7b4244a67630
-pass/calls/runtime_dispatch_slice_element_terminal_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @7b4244a67630
+pass/calls/runtime_dispatch_float_terminal_exit rejected 143298ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d7a81677e637
+	machine call cycle: `pick` -- the entry rank has no independently established lower bound; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+pass/calls/runtime_dispatch_machine_array_slice_arg_exit checked 201686ms check-target:macos_arm64 @d7a81677e637
+pass/calls/runtime_dispatch_result_enum_case_exit checked 177653ms check-target:macos_arm64 @d7a81677e637
+pass/calls/runtime_dispatch_slice_element_terminal_exit checked 178460ms check-target:macos_arm64 @d7a81677e637
 pass/calls/runtime_distinct_receiver_value_calls_exit checked 17710ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_enum_self_method_exit checked 19822ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_exact_division_call_span_exit checked 16966ms check-target:macos_arm64 @ccdb99ca2214
@@ -4726,7 +4727,7 @@ pass/calls/runtime_value_call_literal_len_arm_guard_exit checked 16947ms check-t
 pass/calls/runtime_value_call_nested_entry_call_exit checked 16621ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_value_call_return_types_exit checked 17928ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/runtime_value_call_single_execution_exit checked 17996ms check-target:macos_arm64 @ccdb99ca2214
-pass/calls/runtime_value_call_statement_recursive_walk_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @7b4244a67630
+pass/calls/runtime_value_call_statement_recursive_walk_exit checked 171070ms check-target:macos_arm64 @d7a81677e637
 pass/calls/runtime_value_call_terminal_exit rejected 38018ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
 	Terminal boundary application has no unique exact selected row
 pass/calls/runtime_wrapping_division_call_span_exit checked 16660ms check-target:macos_arm64 @ccdb99ca2214
@@ -13927,10 +13928,10 @@ pass/proofs/reviewed_mathematical_data_contract_exit checked 3510ms check-target
 pass/proofs/ring_full_polynomial_compile checked 11534ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/ring_law_conformance checked 12155ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/runtime_byte_predicate_state_contract_exit checked 12017ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/runtime_decreases_u64_measure_exit timeout 120003ms regressed-from:checked+check-target:macos_arm64 @7b4244a67630
+pass/proofs/runtime_decreases_u64_measure_exit checked 186528ms check-target:macos_arm64 @d7a81677e637
 pass/proofs/runtime_indexed_field_relations_exit checked 4182ms check-target:macos_arm64 @ccdb99ca2214
-pass/proofs/runtime_inductive_climbing_sum_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @7b4244a67630
-pass/proofs/runtime_inductive_gauss_sum_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @7b4244a67630
+pass/proofs/runtime_inductive_climbing_sum_exit checked 180002ms check-target:macos_arm64 @d7a81677e637
+pass/proofs/runtime_inductive_gauss_sum_exit checked 182883ms check-target:macos_arm64 @d7a81677e637
 pass/proofs/runtime_mutable_ranked_accumulator_exit checked 16024ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/runtime_nat_structural_recursion_exit checked 11113ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/runtime_qualified_copy_across_case_payload_exit rejected 129791ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
@@ -14918,7 +14919,7 @@ pass/termination/runtime_ranked_assignment_call_prefix_exit rejected 3147ms chec
 pass/termination/runtime_ranked_recursive_argmax_forwarding_exit checked 3956ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/runtime_ranked_sequence_arrival_coordinates_exit checked 3651ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/runtime_rankless_boundary_suffix_exit checked 3454ms check-target:macos_arm64 @ccdb99ca2214
-pass/termination/runtime_receiver_byte_slice_recursion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @7b4244a67630
+pass/termination/runtime_receiver_byte_slice_recursion_exit checked 183992ms check-target:macos_arm64 @d7a81677e637
 pass/termination/runtime_record_measure_constructed_arrivals_exit checked 6555ms check-target:macos_arm64 @911f6617ba9e
 pass/termination/runtime_same_pair_call_occurrence checked 3578ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/runtime_saved_boolean_descent_exit checked 3298ms check-target:macos_arm64 @ccdb99ca2214
@@ -14932,7 +14933,7 @@ pass/termination/runtime_selected_requirement_reference_identity_exit checked 35
 pass/termination/runtime_selected_result_ranked_arrival_exit checked 3901ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/runtime_self_call_forwarding_state_exit checked 3181ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/runtime_shift_result_rank_arrivals_exit checked 4191ms check-target:macos_arm64 @ccdb99ca2214
-pass/termination/runtime_shrinking_slice_recursion_exit timeout 120000ms regressed-from:checked+check-target:macos_arm64 @7b4244a67630
+pass/termination/runtime_shrinking_slice_recursion_exit checked 182015ms check-target:macos_arm64 @d7a81677e637
 pass/termination/runtime_stored_exclusive_endpoint_exit checked 91830ms check-target:macos_arm64 @911f6617ba9e
 pass/termination/runtime_zero_local_rank_prefix_exit checked 3033ms check-target:macos_arm64 @ccdb99ca2214
 pass/termination/satisfies_terminates checked 3274ms @ccdb99ca2214
