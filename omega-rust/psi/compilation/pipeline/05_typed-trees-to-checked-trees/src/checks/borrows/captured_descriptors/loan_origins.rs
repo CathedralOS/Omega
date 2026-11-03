@@ -50,7 +50,7 @@ fn captured_places(
         capture.expression,
     )?;
     source.segments.extend_from_slice(path);
-    let resolved = super::super::resources::call_operands::retained_places(
+    let resolved = super::super::resources::retained_backing::retained_places(
         program,
         facts,
         state,

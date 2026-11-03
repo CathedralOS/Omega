@@ -1,54 +1,41 @@
-//! Resolve a reached descriptor's permission supplier without rereading its
-//! former slot. Call stores retain exact source captures and projections; a
-//! temporary call access can end while its installed descriptor continues to
-//! carry that supplier. Neither equal geometry nor lifetime roots create this
-//! association. Every alternative must resolve, and cycles withhold coverage.
+//! A saved reference keeps access to its original data after its source slot
+//! changes. Follow that saved value to the checked borrow that permits its use.
+//! Completed captures and projections identify every possible supplier; equal
+//! geometry and lifetime roots cannot create that permission association.
+//! A temporary call access may end while its stored descriptor retains it.
 
-use super::{
-    Arena, BorrowLoanFact, BorrowLoanOwnerSegment, CheckFacts, FlowCallFact, FlowOperandFact,
-    FlowStateFact, Handle, ResourceDraft,
-};
+use super::retained_backing::retained_places;
 use crate::borrow::{owner_path_from_place_segments, owner_place_segments};
 use crate::published::places::place_at;
-use checked_trees::{
-    CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource, CheckedDirectBorrowParentLifetime,
-};
+use arena::{Arena, Handle};
+use checked_trees::CheckedCallBorrowLoanSource;
+use checked_trees::{BorrowLoanFact, CheckFacts, FlowCallFact, FlowOperandFact, FlowStateFact};
+use validation::completed_storage::{FrozenReferenceSelection, frozen_reference_leaf};
+
+/// Permission selected by an exact completed descriptor. Its consumer owns
+/// destination paths and invocation coordinates separately.
+pub(super) struct PermissionSupplier {
+    pub(super) source: CheckedCallBorrowLoanSource,
+    pub(super) backing: checked_trees::CapturedPlace,
+}
 
 pub(super) fn collect(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
-    owner_operand: Handle<FlowOperandFact>,
-    operand: Handle<FlowOperandFact>,
     source: Handle<FlowOperandFact>,
     projection: &[facts::PlaceSegment],
-    path: &[BorrowLoanOwnerSegment],
     output_access: &checked_trees::BorrowAccessKind,
     retained_by_store: bool,
     active: &mut Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>)>,
-    output: &mut Vec<ResourceDraft>,
+    output: &mut Vec<PermissionSupplier>,
     parents: &mut Arena<Handle<BorrowLoanFact>>,
 ) -> bool {
     macro_rules! push_stored_loan {
         ($loan:expr, $row:expr) => {
-            output.push(ResourceDraft {
-                resource: CheckedCallBorrowLoanResource {
-                    machine_symbol: state.machine_symbol,
-                    state_symbol: state.state_symbol,
-                    call,
-                    owner_operand,
-                    operand,
-                    source: CheckedCallBorrowLoanSource::StoredLoan { loan: $loan },
-                    access: output_access.clone(),
-                    parent_lifetime: CheckedDirectBorrowParentLifetime {
-                        machine_symbol: state.machine_symbol,
-                        state_symbol: state.state_symbol,
-                        root: $row.root,
-                    },
-                    ..Default::default()
-                },
-                path: path.to_vec(),
+            output.push(PermissionSupplier {
+                source: CheckedCallBorrowLoanSource::StoredLoan { loan: $loan },
                 backing: checked_trees::CapturedPlace {
                     incoming_reference: $row.incoming_reference,
                     incoming_owner_path: facts
@@ -69,11 +56,8 @@ pub(super) fn collect(
                 facts,
                 state,
                 call,
-                owner_operand,
-                operand,
                 $source,
                 $projection,
-                path,
                 output_access,
                 $retained_by_store,
                 active,
@@ -104,9 +88,19 @@ pub(super) fn collect(
         capture.retention,
         &mut Vec::new(),
     );
-    let frozen = super::frozen_reference_leaf(program, &facts.flow.control, source, projection);
-    let resolved = if matches!(&frozen, super::FrozenReferenceSelection::Unavailable) {
+    let frozen = frozen_reference_leaf(program, &facts.flow.control, source, projection);
+    let resolved = if matches!(&frozen, FrozenReferenceSelection::Unavailable) {
         false
+    } else if collect_completed_formations(
+        program,
+        facts,
+        state,
+        source,
+        projection,
+        output_access,
+        output,
+    ) {
+        true
     } else if let checked_trees::FlowOperandCompletion::Selected(alternatives) = capture.completion
     {
         facts
@@ -121,7 +115,7 @@ pub(super) fn collect(
                             && collect_supplier!(alternative.value, projection, retained_by_store)
                     })
             })
-    } else if let super::FrozenReferenceSelection::Endpoint {
+    } else if let FrozenReferenceSelection::Endpoint {
         owner,
         leaf,
         path: leaf_path,
@@ -152,10 +146,7 @@ pub(super) fn collect(
                     facts,
                     state,
                     call,
-                    owner_operand,
-                    operand,
                     capture,
-                    path,
                     output_access,
                     retained_by_store,
                     output,
@@ -243,13 +234,9 @@ pub(super) fn collect(
                             program,
                             facts,
                             state,
-                            call,
-                            owner_operand,
-                            operand,
                             source,
                             capture,
                             projection,
-                            path,
                             output_access,
                             output,
                         );
@@ -280,10 +267,7 @@ pub(super) fn collect(
             facts,
             state,
             call,
-            owner_operand,
-            operand,
             capture,
-            path,
             output_access,
             retained_by_store,
             output,
@@ -316,6 +300,50 @@ pub(super) fn collect(
     resolved
 }
 
+/// Resolve the installed descriptor generation before joining a loan. A later
+/// read has a different expression from its initializer; the completed-storage
+/// relation carries that exact earlier formation without rereading its slot.
+fn collect_completed_formations(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    source: Handle<FlowOperandFact>,
+    projection: &[facts::PlaceSegment],
+    access: &checked_trees::BorrowAccessKind,
+    output: &mut Vec<PermissionSupplier>,
+) -> bool {
+    let selected = validation::completed_storage::predecessors_in_control(
+        program,
+        &facts.flow.control,
+        source,
+        projection,
+        validation::completed_storage::StoredObservation::Binding,
+        Some((state.state_symbol, state.statements)),
+    );
+    let Some(selected) = selected.filter(|selected| !selected.is_empty()) else {
+        return false;
+    };
+    let before = output.len();
+    for (selected, projection) in selected {
+        if !facts.flow.control.operands.is_valid(selected)
+            || !collect_formed_projection(
+                program,
+                facts,
+                state,
+                selected,
+                facts.flow.control.operands.get(selected),
+                &projection,
+                access,
+                output,
+            )
+        {
+            output.truncate(before);
+            return false;
+        }
+    }
+    true
+}
+
 /// Exact checked access occurrences are permission evidence for a whole
 /// evaluated descriptor, including one projected from an earlier owned copy.
 /// A failed present roster cannot recover an older source-slot formation.
@@ -330,15 +358,15 @@ fn collect_invocation_accesses(
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
-    owner_operand: Handle<FlowOperandFact>,
-    operand: Handle<FlowOperandFact>,
     capture: &FlowOperandFact,
-    path: &[BorrowLoanOwnerSegment],
-    output_access: &checked_trees::BorrowAccessKind,
+    _output_access: &checked_trees::BorrowAccessKind,
     retained_by_store: bool,
-    output: &mut Vec<ResourceDraft>,
+    output: &mut Vec<PermissionSupplier>,
     parents: &mut Arena<Handle<BorrowLoanFact>>,
 ) -> InvocationAccessCoverage {
+    if !facts.flow.control.calls.is_valid(call) {
+        return InvocationAccessCoverage::Absent;
+    }
     let invocation = facts.flow.control.calls.get(call);
     let accesses = invocation
         .accesses
@@ -355,7 +383,7 @@ fn collect_invocation_accesses(
     let before = output.len();
     for access in accesses {
         let row = facts.borrow.argument_accesses.get(access);
-        let Some(backings) = super::retained_places(
+        let Some(backings) = retained_places(
             program,
             facts,
             state,
@@ -376,26 +404,11 @@ fn collect_invocation_accesses(
             return InvocationAccessCoverage::Unavailable;
         }
         for backing in backings {
-            output.push(ResourceDraft {
-                resource: CheckedCallBorrowLoanResource {
-                    machine_symbol: state.machine_symbol,
-                    state_symbol: state.state_symbol,
-                    call,
-                    owner_operand,
-                    operand,
-                    source: CheckedCallBorrowLoanSource::CallAccess {
-                        access,
-                        parents: parents.insert_many(backing.lineage),
-                    },
-                    access: output_access.clone(),
-                    parent_lifetime: CheckedDirectBorrowParentLifetime {
-                        machine_symbol: state.machine_symbol,
-                        state_symbol: state.state_symbol,
-                        root: backing.place.root,
-                    },
-                    ..Default::default()
+            output.push(PermissionSupplier {
+                source: CheckedCallBorrowLoanSource::CallAccess {
+                    access,
+                    parents: parents.insert_many(backing.lineage),
                 },
-                path: path.to_vec(),
                 backing: backing.place,
             });
         }
@@ -412,15 +425,11 @@ fn collect_formed_projection(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
-    call: Handle<FlowCallFact>,
-    owner_operand: Handle<FlowOperandFact>,
-    operand: Handle<FlowOperandFact>,
     source: Handle<FlowOperandFact>,
     capture: &FlowOperandFact,
     projection: &[facts::PlaceSegment],
-    path: &[BorrowLoanOwnerSegment],
     output_access: &checked_trees::BorrowAccessKind,
-    output: &mut Vec<ResourceDraft>,
+    output: &mut Vec<PermissionSupplier>,
 ) -> bool {
     if capture.state_symbol != state.state_symbol
         || !capture.expression.is_valid()
@@ -482,23 +491,8 @@ fn collect_formed_projection(
         {
             continue;
         }
-        output.push(ResourceDraft {
-            resource: CheckedCallBorrowLoanResource {
-                machine_symbol: state.machine_symbol,
-                state_symbol: state.state_symbol,
-                call,
-                owner_operand,
-                operand,
-                source: CheckedCallBorrowLoanSource::StoredLoan { loan },
-                access: output_access.clone(),
-                parent_lifetime: CheckedDirectBorrowParentLifetime {
-                    machine_symbol: state.machine_symbol,
-                    state_symbol: state.state_symbol,
-                    root: row.root,
-                },
-                ..Default::default()
-            },
-            path: path.to_vec(),
+        output.push(PermissionSupplier {
+            source: CheckedCallBorrowLoanSource::StoredLoan { loan },
             backing: checked_trees::CapturedPlace {
                 incoming_reference: row.incoming_reference,
                 incoming_owner_path: facts

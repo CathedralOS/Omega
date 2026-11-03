@@ -19,6 +19,25 @@ fail/borrows/inline_carried_reference_holds_backing rejected 9683ms expected @6b
 	state `observe` receives `bytes` as both mutable and read-only
 fail/borrows/match_effectful_subject_fresh_overlap_rejected rejected 16803ms expected @ee4dbb4b2d56
 	statement 2 creates local borrow `slot` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 3 and it is released at state exit)
+fail/borrows/suspension_saved_reference_view_earlier_operand_original_forbidden_rejected rejected 2533ms expected @24e82dfa56fd
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/borrows/suspension_saved_reference_view_forbidden_alternative_rejected rejected 2654ms expected @24e82dfa56fd
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/borrows/suspension_saved_reference_view_inherited_backing_rejected rejected 2638ms expected @24e82dfa56fd
+	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/borrows/suspension_saved_reference_view_retained_call_input_early_write_rejected rejected 2847ms expected @24e82dfa56fd
+	statement 10 mutates `source.second` while local borrow `narrow` is still active (borrowed at statement 4; its last use is at statement 11)
+	statement 10 mutates `source.second` while local borrow `copied` is still active (borrowed at statement 5; its last use is at statement 11)
+	statement 10 mutates `source.second` while local borrow `reference` is still active (borrowed at statement 6; its last use is at statement 11)
+	statement 10 mutates `source.second` while local borrow `message` is still active (borrowed at statement 8; its last use is at statement 11)
+fail/borrows/suspension_saved_reference_view_shared_cannot_write_rejected rejected 771ms expected @24e82dfa56fd
+	machine `main` state `entry` local `reference` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/suspension_saved_reference_view_shared_cohort_early_write_rejected rejected 3502ms expected @24e82dfa56fd
+	statement 9 mutates `parent[0]` while local borrow `storage` is still active (borrowed at statement 2; its last use is at statement 10)
+	statement 9 mutates `parent[0]` while local borrow `sibling` is still active (borrowed at statement 4; its last use is at statement 10)
+fail/borrows/suspension_saved_reference_view_write_only_cannot_read_rejected rejected 761ms expected @24e82dfa56fd
+	machine `main` state `entry` reads write-only parameter `copied`; `&write` permits replacement or exact `&write` forwarding, never observation
+	machine `main` state `entry` local `reference` may read, but the source supplies only write-only authority
 fail/boundary/requirement_case_precondition_unproved rejected 13880ms expected @57a69f8b8ad1
 	cannot prove requires contract for call fill from main: chosen == constructor:78:package:0f4fb3c3aaa826e755e2f71895ab48a8976b5b928cf24c7833be8a4f629a45dd::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected @3a020eca642a
@@ -3037,6 +3056,33 @@ fail/facts/stored_shared_byte_view_element_lend_through_parameter_rejected rejec
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/stored_shared_byte_view_element_lend_through_target_body_rejected rejected 1937ms expected @0fb500fb9d4b
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/suspension_saved_reference_view_through_call_result_rejected rejected 3124ms expected @24e82dfa56fd
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_saved_reference_view_through_const_name_rejected rejected 3113ms expected @24e82dfa56fd
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_saved_reference_view_through_field_rejected rejected 2632ms expected @24e82dfa56fd
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_saved_reference_view_through_local_rejected rejected 2069ms expected @24e82dfa56fd
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_saved_reference_view_through_match_join_rejected rejected 2573ms expected @24e82dfa56fd
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_saved_reference_view_through_other_machine_rejected rejected 2951ms expected @24e82dfa56fd
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_saved_reference_view_through_other_state_rejected rejected 2975ms expected @24e82dfa56fd
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_saved_reference_view_through_parameter_rejected rejected 2526ms expected @24e82dfa56fd
+	call to `entry` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `entry` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_saved_reference_view_through_target_body_rejected rejected 2480ms expected @24e82dfa56fd
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/facts/suspension_transported_loan_recast_through_call_result_rejected rejected 4524ms expected @56ac2516672d
 	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/facts/suspension_transported_loan_recast_through_const_name_rejected rejected 4524ms expected @56ac2516672d
@@ -4172,6 +4218,14 @@ pass/borrows/stored_reference_address_field_exit checked 3969ms check-target:mac
 pass/borrows/stored_reference_projection_exit checked 15667ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_view_return_consumers checked 2281ms @ccdb99ca2214
 pass/borrows/structural_operand_view_catalog_exit checked 3710ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/suspension_saved_reference_view_all_suppliers_exit checked 4817ms check-target:macos_arm64 @24e82dfa56fd
+pass/borrows/suspension_saved_reference_view_earlier_operand_capture_exit checked 4617ms check-target:macos_arm64 @24e82dfa56fd
+pass/borrows/suspension_saved_reference_view_inherited_backing_exit checked 3960ms check-target:macos_arm64 @24e82dfa56fd
+pass/borrows/suspension_saved_reference_view_projected_borrow_exit checked 3365ms check-target:macos_arm64 @24e82dfa56fd
+pass/borrows/suspension_saved_reference_view_retained_call_input_source_replaced_exit checked 3363ms check-target:macos_arm64 @24e82dfa56fd
+pass/borrows/suspension_saved_reference_view_shared_cohort_call_restore_exit checked 3615ms check-target:macos_arm64 @24e82dfa56fd
+pass/borrows/suspension_saved_reference_view_shared_cohort_source_replaced_exit checked 3645ms check-target:macos_arm64 @24e82dfa56fd
+pass/borrows/suspension_saved_reference_view_source_replaced_exit checked 3385ms check-target:macos_arm64 @24e82dfa56fd
 pass/borrows/tagged_scalar_field_live_copy_exit checked 3101ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/target_family_backing_alternatives_exit checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/terminal_call_loan_completion_exit checked 3580ms check-target:macos_arm64 @ccdb99ca2214
@@ -11473,6 +11527,15 @@ pass/facts/structural_issuer_forwarding_other_state checked 3373ms check-target:
 pass/facts/structural_issuer_forwarding_parameter checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/structural_issuer_forwarding_target_body checked 3943ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/subslice_state_extent_after_write_exit checked 3696ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/suspension_saved_reference_view_through_call_result_exit checked 3576ms check-target:macos_arm64 @24e82dfa56fd
+pass/facts/suspension_saved_reference_view_through_const_name_exit checked 3489ms check-target:macos_arm64 @24e82dfa56fd
+pass/facts/suspension_saved_reference_view_through_field_exit checked 3677ms check-target:macos_arm64 @24e82dfa56fd
+pass/facts/suspension_saved_reference_view_through_local_exit checked 3661ms check-target:macos_arm64 @24e82dfa56fd
+pass/facts/suspension_saved_reference_view_through_match_join_exit checked 3335ms check-target:macos_arm64 @24e82dfa56fd
+pass/facts/suspension_saved_reference_view_through_other_machine_exit checked 3329ms check-target:macos_arm64 @24e82dfa56fd
+pass/facts/suspension_saved_reference_view_through_other_state_exit checked 4058ms check-target:macos_arm64 @24e82dfa56fd
+pass/facts/suspension_saved_reference_view_through_parameter_exit checked 4018ms check-target:macos_arm64 @24e82dfa56fd
+pass/facts/suspension_saved_reference_view_through_target_body_exit checked 3898ms check-target:macos_arm64 @24e82dfa56fd
 pass/facts/suspension_transported_loan_recast_through_call_result_exit checked 5317ms check-target:macos_arm64 @56ac2516672d
 pass/facts/suspension_transported_loan_recast_through_const_name_exit checked 5190ms check-target:macos_arm64 @56ac2516672d
 pass/facts/suspension_transported_loan_recast_through_field_exit checked 5190ms check-target:macos_arm64 @56ac2516672d

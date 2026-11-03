@@ -71,11 +71,14 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
             .borrow_lifetimes
             .activations
             .get(child.parent_suspension.child_activation);
-        let child_weakening = flow.borrow_lifetimes.weakenings.get(event.child_weakening);
+        let child_weakening = flow
+            .borrow_lifetimes
+            .weakenings
+            .get(child.retention.final_weakening);
         let parent_weakening = flow
             .borrow_lifetimes
             .weakenings
-            .get(child.parent_end_status.parent_weakening);
+            .get(parent.retention.final_weakening);
         let call = flow.control.calls.get(event.restored_call);
         if !flow
             .contexts
@@ -119,7 +122,7 @@ pub(crate) fn retain_selected_reborrow_restored_call_uses(
                 let member_weakening = flow
                     .borrow_lifetimes
                     .weakenings
-                    .get(member.parent_end_status.child_weakening);
+                    .get(member.retention.final_weakening);
                 shared_cohort.push(TerminalReborrowSharedCohortMember {
                     child_owner_identity: identities
                         .intern(&identity(checked, member.owner_symbol)?),
