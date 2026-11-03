@@ -146,6 +146,14 @@ passed both engines, and all 39 invalid controls rejected for their intended
 reasons. The next repair distinguishes storage declaration from completed value
 at the disposition owner. Actual stored values retain every cleanup obligation.
 
+Run [41591449522](https://github.com/CathedralOS/Omega/actions/runs/41591449522)
+cleared that declaration-only obligation. Terminal-artifact production then found
+that the declared home had the borrowed referent's shape while its replacement
+had the stored pointer's shape. The next repair gives declared homes the same
+stored carrier and multiplicity used by initialized locals. The strict
+replacement-custody check stays in place; no old pointer or valid value is
+invented. The other 22 positives and all 39 invalid controls kept their outcomes.
+
 The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
 on the frozen baseline in
 [41558699182](https://github.com/CathedralOS/Omega/actions/runs/41558699182).

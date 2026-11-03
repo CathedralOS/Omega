@@ -944,8 +944,11 @@ fn establish_declared_home(
     let result = CheckedUnitStructuralResultBindingPlan {
         statement_index,
         binding_ordinal: u32::try_from(*structural_count).ok()?,
-        type_identity: shapes.add_type(local.type_reference, binders, &[])?,
-        multiplicity: validation::reference_result_custody::binding_multiplicity(
+        // The home stores the same carrier a later initializer or assignment
+        // supplies. Borrowed argument presentation would erase this pointer
+        // into its referent and give its binding the wrong custody.
+        type_identity: shapes.add_stored_type(local.type_reference, binders, &[])?,
+        multiplicity: validation::reference_result_custody::result_multiplicity(
             program,
             local.type_reference,
         ),
