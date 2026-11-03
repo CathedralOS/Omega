@@ -101,6 +101,9 @@ fail/contracts/assignment_destination_cannot_use_rhs_call_guarantee rejected 710
 	cannot prove index `index` is within length 1 in exercise::entry
 fail/contracts/assignment_destination_cannot_use_rhs_match_guard rejected 1464ms expected @d2f3e99f1e08
 	cannot prove index `index` is within length 1 in exercise::entry
+fail/contracts/borrowed_descriptor_guarded_end_exit rejected 2685ms expected @3c1e6529963a
+	cannot prove requires contract for call compare from walk: bytes[offset].number_of_pages <= 4503599627370495 && bytes[offset].physical_start <= 18446744073709551615 - bytes[offset].number_of_pages * 4096 (needs fact `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096`
+	cannot prove requires contract for call compare_mut from walk_mut: bytes[offset].number_of_pages <= 4503599627370495 && bytes[offset].physical_start <= 18446744073709551615 - bytes[offset].number_of_pages * 4096 (needs fact `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096`
 fail/contracts/case_requirement_constructed_array_wrong_tag rejected 871ms expected @00e93f641615+wt
 	cannot prove requires contract for call consume from exercise: items[slot] == constructor:78:package:15da86fb44407d53f7ef1b34e99f42239b2095b2bbbf8f19fc64c76c42030c65::Item10:name:Ready (needs fact `items[slot] == Item::Ready` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/contracts/case_requirement_referent_selector_changed rejected 593ms expected @00e93f641615+wt
@@ -4923,6 +4926,7 @@ pass/contracts/arith_ensures_selection checked 3686ms @ccdb99ca2214
 pass/contracts/assignment_destination_before_rhs_call_guarantee_exit checked 2213ms check-target:macos_arm64 @d2f3e99f1e08
 pass/contracts/assignment_destination_before_rhs_match_guard_exit checked 2213ms check-target:macos_arm64 @d2f3e99f1e08
 pass/contracts/boolean_result_all_normal_returns_exit checked 3700ms check-target:macos_arm64 @ccdb99ca2214
+pass/contracts/borrowed_descriptor_guarded_end_exit checked 3587ms check-target:macos_arm64 @3c1e6529963a
 pass/contracts/borrowed_field_ensures checked 3420ms @ccdb99ca2214
 pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2906ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/call_write_keeps_disjoint_guard_exit checked 17015ms check-target:macos_arm64 @ccdb99ca2214

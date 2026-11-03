@@ -662,6 +662,11 @@ impl StructuralJudge<'_> {
         subject: &crate::machine_calls::calls::InvocationEntrySubject,
         state: &State,
     ) -> Option<CapturedStorageCoordinate> {
+        // A view's logical fields cannot be appended to its raw backing path.
+        // Scalar views have their own authenticated representation translation.
+        if subject.has_aggregate_view(self.program) {
+            return None;
+        }
         // A finite origin join authorizes an entry observation, not one
         // physical write destination. No selected payload identifies an alias.
         let [source] = subject.sources.as_slice() else {
@@ -963,6 +968,76 @@ impl StructuralJudge<'_> {
         self.intake_storage_field_observations(&coordinate, reference, value, version);
     }
 
+    /// Capture this view's current fields before entering a call. The frame
+    /// already authenticated the complete readable supplier list. The descriptor
+    /// must still be the evaluated argument, and each field must independently
+    /// survive to this storage version. Unobserved fields remain unknown.
+    pub(super) fn capture_view_argument_fields(
+        &mut self,
+        subject: &crate::machine_calls::calls::InvocationEntrySubject,
+        actual: &super::StructuralTerm,
+        machine: &Machine,
+        state: &State,
+    ) -> Result<super::StructuralTerm, &'static str> {
+        self.storage_graph()
+            .ok_or("the current storage graph is unavailable")?;
+        let version = self
+            .storage_version
+            .ok_or("the call-entry storage version is unavailable")?;
+        let reference =
+            crate::expression_result_type_reference(self.program, machine, state, subject.argument)
+                .ok_or("the evaluated argument has no declared carrier")?;
+        let shell = crate::reference_shell(self.program, reference)
+            .ok_or("the evaluated argument is not a reference")?;
+        if !shell.access.is_readable() {
+            return Err("the evaluated reference does not permit reading");
+        }
+        if !crate::declared_carriers_match(self.program, shell.referee, subject.type_reference) {
+            return Err("the logical view carrier differs from the arriving referee");
+        }
+        let coordinate = self
+            .captured_storage_coordinate(Some((machine, state)), subject.argument)
+            .ok_or("the evaluated descriptor has no captured logical storage path")?;
+        let current = self
+            .current_storage_value_at(&coordinate, Some(version))
+            .ok_or("the descriptor has no current value at call entry")?;
+        let current_identity = current
+            .into_collection_descriptor()
+            .observation_identity_key()
+            .ok_or("the current descriptor has no captured identity")?;
+        let actual_identity = actual
+            .clone()
+            .into_collection_descriptor()
+            .observation_identity_key()
+            .ok_or("the evaluated argument has no captured identity")?;
+        if current_identity != actual_identity {
+            return Err("the current descriptor differs from the evaluated argument");
+        }
+        // A new content observation must not reuse the pointer's identity:
+        // the same pointer can designate different contents after a write.
+        self.capture_sequence += 1;
+        let value = super::StructuralTerm::CapturedValue {
+            expression: subject.argument,
+            statement: arena::Handle::invalid(),
+            callable: SymbolHandle::invalid(),
+            occurrence: self.capture_sequence,
+            result_type: subject.type_reference,
+            integer_range: None,
+        };
+        let observed = super::super::structural_terms::owned_projection_observation(
+            self.program,
+            subject.type_reference,
+            value,
+        );
+        self.intake_storage_field_observations(
+            &coordinate,
+            subject.type_reference,
+            &observed,
+            Some(version),
+        );
+        Ok(observed)
+    }
+
     /// Attach surviving child observations to a fresh aggregate identity. Both
     /// whole reads and normal-call handback must perform this join: replacing
     /// the whole observation alone would hide unchanged fields behind an opaque
@@ -1212,6 +1287,17 @@ impl StructuralJudge<'_> {
                     crate::declared_carriers_match(self.program, reference, *observed)
                 })
                 .map(|_| value.clone())
+                .or_else(|| {
+                    // A local pointer keeps its address when its referent can
+                    // change. Retain only the completed descriptor here;
+                    // subsequent reads must establish current field contents.
+                    crate::reference_shell(self.program, reference).map(|_| {
+                        super::super::structural_terms::descriptor_only_observation(
+                            reference,
+                            value.clone(),
+                        )
+                    })
+                })
                 .or_else(|| self.owned_argument_observation(reference, &value));
         let Some(value) = observed else {
             return;
