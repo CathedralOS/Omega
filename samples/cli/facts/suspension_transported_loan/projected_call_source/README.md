@@ -144,6 +144,30 @@ Terminal refused a byte projection. The repaired candidate executes it with
 native 0 and Terminal 0. This was a pre-existing Terminal failure, distinct
 from the introduced source refusal found during review.
 
+Final scoped measurements use source `f339c83f63595ae3bdd9cc083fbd1d05daee4f37`,
+optimized at level 1, with CLI SHA-256
+`79e1ba9c89672141b091a834e1210b4ce79671d37fa95fccf4e2b82d2544c954`
+and corpus-runner SHA-256
+`22718952be9693277fa04327543c515a70b154a998459672acb81bd06cb36cb6`.
+All 36 source fixtures meet their oracles: 21 check and 15 reject for their
+intended rules. All 21 positives exit 0 natively and in Terminal Psi and agree.
+The source and execution goldens add only these 36 and 21 observations,
+respectively. The nine-place sample check also passes 18/18, including its
+nine intended refusals. The old whole-record returned-reference control still
+runs in both engines after its saved source slot changes.
+
+Affected crate tests pass: 28 in checking, 15 in lowering and 88 in the
+interpreter, with one explicitly qualified interpreter test ignored. The latter
+two results retain their earlier exact source identities; the later lookup
+change affects checking alone. Two synthetic test helpers were supplied with
+missing checked crash summaries and return-storage declarations. Production
+admission rules and all existing assertions remain unchanged. The unchanged
+checked-tree String-identity guard still fails on ten pre-existing fields.
+One selected stored-byte compatibility fixture also has the same assignment
+refusal on the fixed baseline and candidate; it supplies no runtime acceptance.
+Raw observations, frozen sources, profiles and the local source bundle remain
+under `build/projected-call-loan/`.
+
 Matching-host execution on Windows and both Linux hosts remains unqualified.
 The scheduler completes inline: these runs establish the possible-suspension
 contract, not actual parking, resumption or cancellation. Supplied-output and
