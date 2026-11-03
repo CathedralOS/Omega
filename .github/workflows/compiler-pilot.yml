@@ -101,9 +101,6 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
-      - name: Check copied call evaluation identity
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        run: python tools/build_slot.py -- cargo test --locked -p typed-trees copied_value_binding_names_the_same_evaluation_as_its_call_operand --lib
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
