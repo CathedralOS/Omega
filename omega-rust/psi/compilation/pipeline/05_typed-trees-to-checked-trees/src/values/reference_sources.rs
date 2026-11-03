@@ -181,9 +181,9 @@ pub(crate) fn capture_source(
     // Loading through another reference replaces this with that reference's
     // contract, so a promise about one pointer cannot authorize another.
     let mut storage_contract = declared_type;
-    // The path producer already removed a borrowed parameter's ingress
-    // reference. Check its declared access without removing another shell:
-    // an inner reference is stored pointer data and must keep its crossing.
+    // Path planning already accounts for the parameter's incoming storage.
+    // Check its declared access here; removing another reference would skip
+    // a stored inner pointer that needs an explicit load.
     if place.segments.is_empty()
         && let facts::PlaceRoot::Symbol(root) = place.root
         && program.state_parameter_by_symbol(state, root).is_some()
