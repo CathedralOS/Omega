@@ -17,9 +17,11 @@ machine produce_joined(mode: Mode) -> u64 {
     }
 }
 
-    let joined: u64 = produce_joined(mode);
-// `Mode`'s requirement; the operation below must use the joined bound.
-machine run(mode: Mode) crashes Trap {
+// The mode arrives as a formal parameter, so only Mode's data `requires`
+// bounds `joined`; a constant actual would let the checker read the helper's
+// exact result instead.
+machine run(m: Mode) crashes Trap {
+    let joined: u64 = produce_joined(m);
     let diff1: u64 = 60u64 - joined;
     let diff2: u64 = joined - 20u64;
     transition diff1 == 20 && diff2 == 20 {

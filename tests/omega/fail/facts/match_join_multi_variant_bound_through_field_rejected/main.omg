@@ -21,9 +21,11 @@ data JoinedCarrier {
     joined: u64;
 }
 
-    let carrier: JoinedCarrier = JoinedCarrier { joined: evaluate(mode) };
-// `Mode`'s requirement; the operation below must use the joined bound.
-machine run(mode: Mode) crashes Trap {
+// The mode arrives as a formal parameter, so only Mode's data `requires`
+// bounds `joined`; a constant actual would let the checker read the helper's
+// exact result instead.
+machine run(m: Mode) crashes Trap {
+    let carrier: JoinedCarrier = JoinedCarrier { joined: evaluate(m) };
     let diff1: u64 = 60u64 - carrier.joined;
     let diff2: u64 = carrier.joined - 20u64;
     transition diff1 == 20 && diff2 == 20 {

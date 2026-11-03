@@ -21,7 +21,9 @@ machine evaluate(mode: Mode) -> u64 {
     }
 }
 
-// `Mode`'s requirement; the operation below must use the joined bound.
+// The mode arrives as a formal parameter, so only Mode's data `requires`
+// bounds `joined`; a constant actual would let the checker read the helper's
+// exact result instead.
 machine run(mode: Mode) crashes Trap {
     let joined: u64 = evaluate(mode);
     let diff1: u64 = UPPER - joined;
