@@ -127,14 +127,14 @@ pub(crate) fn view_local_root(
     // established local; classifying only slice/named carriers loses the
     // fixed loan before element selection. Establishment and each read still
     // enforce the access, extent and lifetime of the retained declaration.
-    (!local.is_mutable
-        && validation::reference_shell(program, local.type_reference).is_some_and(|shell| {
+    validation::reference_shell(program, local.type_reference)
+        .is_some_and(|shell| {
             matches!(
                 shell.access,
                 language_core::ReferenceAccess::Shared | language_core::ReferenceAccess::Mutable
             )
-        }))
-    .then_some((symbol, local.type_reference))
+        })
+        .then_some((symbol, local.type_reference))
 }
 
 /// The `let` symbol and declared type of an owned structural local that
