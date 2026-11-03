@@ -79,6 +79,15 @@ impl CarrierFit {
 enum OperandSource {
     Completed(TypeReferenceHandle),
     TruncatedFloat(TypeReferenceHandle),
+    /// An Exact float-to-integer cast keeps its denotation only for an
+    /// integral value the target can represent.
+    ExactFloat(TypeReferenceHandle),
+    /// A qualification cast owes every predicate of an unindexed domain over
+    /// the completed operand, with the domain subject bound to that value.
+    DomainPredicates {
+        reference: TypeReferenceHandle,
+        domain: symbols::SymbolHandle,
+    },
     AnonymousInteger,
     AnonymousValue,
     CompletedIntegerExclusion {
@@ -155,6 +164,113 @@ pub(crate) fn float_integer_conversion_fits_at_occurrence(
         ),
         CarrierFit::Proven
     )
+}
+
+/// An Exact float-to-integer coercion at `occurrence` (a cast or its derived
+/// call), proved from the operand's observed float bounds. The prefix walk
+/// runs first; a private nested machine's parameter is then proved on every
+/// closed arrival, so a caller's guard can justify the inferred requirement.
+pub(crate) fn exact_float_integer_cast_fits_at_occurrence(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    occurrence: ExpressionHandle,
+    source_reference: TypeReferenceHandle,
+    target: PrimitiveType,
+) -> bool {
+    target.is_fixed_integer()
+        && matches!(
+            operand_fits_at_occurrence(
+                program,
+                machine,
+                state,
+                OperandFitRequest {
+                    expression: occurrence,
+                    position: 0,
+                    source: OperandSource::ExactFloat(source_reference),
+                    target,
+                    context_reference: source_reference,
+                },
+            ),
+            CarrierFit::Proven
+        )
+}
+
+/// Every predicate of `domain` holds for the operand of the qualification
+/// cast at `occurrence`. Like the other operand fits, this is first observed
+/// on the machine's own prefix and then on every closed private arrival.
+/// Indexed domains and provenance-routed domains are not judged here.
+pub fn domain_predicates_hold_at_occurrence(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    occurrence: ExpressionHandle,
+    source_reference: TypeReferenceHandle,
+    domain: symbols::SymbolHandle,
+) -> bool {
+    let Some(target) = program.primitive_type_reference(source_reference) else {
+        return false;
+    };
+    matches!(
+        operand_fits_at_occurrence(
+            program,
+            machine,
+            state,
+            OperandFitRequest {
+                expression: occurrence,
+                position: 0,
+                source: OperandSource::DomainPredicates {
+                    reference: source_reference,
+                    domain,
+                },
+                target,
+                context_reference: source_reference,
+            },
+        ),
+        CarrierFit::Proven
+    )
+}
+
+/// The domain's predicates over `value`, or `None` when any cannot be bound.
+fn domain_predicate_terms(
+    program: &dyn crate::CheckingInput,
+    judge: &super::structural_judgment::StructuralJudge<'_>,
+    domain: symbols::SymbolHandle,
+    reference: TypeReferenceHandle,
+    value: &StructuralTerm,
+) -> Option<Vec<StructuralTerm>> {
+    let definition = program
+        .domain_definition(domain)
+        .filter(|definition| definition.alias.is_none())?;
+    if !typed_trees::domain::index_parameters(program, definition).is_empty()
+        || crate::field_domains::domain_requires_provenance(program, domain)
+    {
+        return None;
+    }
+    let parameters = [typed_trees::signature::StateParameter {
+        symbol: definition.subject_symbol,
+        name: definition.subject_name.clone(),
+        type_reference: reference,
+        ..Default::default()
+    }];
+    let bindings = [(definition.subject_symbol, value.clone())];
+    let mut terms = Vec::new();
+    for fact in program.proof_facts(definition) {
+        let typed_trees::domain::ProofFact::Expression(expression) = fact else {
+            return None;
+        };
+        terms.push(judge.bound_contract_term(
+            *expression,
+            domain,
+            &parameters,
+            domain,
+            &bindings,
+            &[],
+            None,
+            0,
+        )?);
+    }
+    (!terms.is_empty()).then_some(terms)
 }
 
 pub(crate) fn exact_cast_fits_at_occurrence(
@@ -877,6 +993,34 @@ impl StructuralPrefixVisitor for OperandFit {
                 continue;
             };
             let judgment = match self.request.source {
+                OperandSource::ExactFloat(reference) => {
+                    if entry
+                        .judge
+                        .observed_float_bounds(value, reference)
+                        .is_some_and(|bounds| bounds.is_exact_integer(self.request.target))
+                    {
+                        CarrierFit::Proven
+                    } else {
+                        CarrierFit::Unknown
+                    }
+                }
+                OperandSource::DomainPredicates { reference, domain } => {
+                    let proven =
+                        domain_predicate_terms(program, &entry.judge, domain, reference, value)
+                            .is_some_and(|terms| {
+                                terms.into_iter().all(|term| {
+                                    matches!(
+                                        entry.judge.judge_observed_predicate(term, 0),
+                                        super::structural_judgment::StructuralJudgment::Proven
+                                    )
+                                })
+                            });
+                    if proven {
+                        CarrierFit::Proven
+                    } else {
+                        CarrierFit::Unknown
+                    }
+                }
                 OperandSource::TruncatedFloat(reference) => {
                     if entry
                         .judge

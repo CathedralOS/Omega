@@ -174,6 +174,8 @@ fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch reject
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/domains/private_arrival_unguarded_qualification_rejected rejected 2417ms expected @18fc751d0060+wt
+	`as ... in Positive` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
 fail/drops/retired_attached_drop rejected 2739ms expected @ee4dbb4b2d56
 	`machine Token::drop` attaches cleanup to data `Token`, which is retired: data owns no cleanup machines; declare an independent static machine taking `&mut Token` and select it with `data Token dropped by <machine>`
 fail/effects/opaque_leaf_inherited_reach_exceeds_ceiling rejected 1453ms @409a3e82132d+wt
@@ -3287,6 +3289,9 @@ fail/float/constructor_case_invalid_narrow_widen_rejected rejected 3180ms expect
 	Exact integer cast in machine `make` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/float/constructor_case_invalid_wide_rejected rejected 3115ms expected @5de76022ee98
 	data `Choice` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/float/private_arrival_unguarded_exact_coercion_rejected rejected 3862ms expected @18fc751d0060+wt
+	machine `convert` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+	machine `convert` state `entry` cannot prove unqualified `I32::from_f64` operand `value` is finite and truncates into `i32`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `i32 in Trapping` or `i32 in Saturating`
 fail/generics/closed_requirement_in_generic_body_unproved_bound rejected 2491ms expected @2484aa7758a9+wt
 	static application of requirement `Echo::echo` violates its declared requires facts: the complete tuple is structurally false
 fail/generics/closed_requirement_in_generic_owner_false_bound rejected 492ms expected @390bdce3859c
@@ -5676,6 +5681,7 @@ pass/domains/named_const_subject_binding checked 11741ms check-target:macos_arm6
 pass/domains/named_subject_capacity_identity_exit checked 11323ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/policy_plan_shapes checked 3084ms @ccdb99ca2214
 pass/domains/predicate_domain_param checked 3743ms @ccdb99ca2214
+pass/domains/private_arrival_guarded_qualification_exit checked 10723ms check-target:macos_arm64 @18fc751d0060+wt
 pass/domains/progress_domain_provider checked 3733ms @ccdb99ca2214
 pass/domains/qualified_fixed_byte_field_loan_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/qualified_mutable_field_exit checked 3221ms check-target:macos_arm64 @ccdb99ca2214
@@ -5709,10 +5715,9 @@ pass/domains/runtime_authored_result_shadow_result_domain_exit checked 6434ms ch
 pass/domains/runtime_bodyless_routed_primitive_receiver_replacement_exit checked 11207ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_case_constructor_child_memberships_exit checked 2991ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_completed_routed_record_join_exit checked 3432ms check-target:macos_arm64 @ccdb99ca2214
-pass/domains/runtime_computed_qualification_exit rejected 2414ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `main` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	`as ... in Positive` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
-	`as ... in Three` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+pass/domains/runtime_computed_qualification_exit rejected 12288ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @18fc751d0060+wt
+	cannot prove scalar result domain for return from classified at statement 0: i32::Three
+	cannot prove requires contract for call observe from main: I32.from_f64(3.75) in i32::Three in state `entry`
 pass/domains/runtime_constructor_ensured_membership_exit checked 3851ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/runtime_forwarded_borrowed_result_domain_exit checked 5869ms check-target:linux_x86_64 @ccdb99ca2214
 pass/domains/runtime_generic_exact_issuer_exit checked 3717ms check-target:macos_arm64 @ccdb99ca2214
@@ -12619,9 +12624,7 @@ pass/float/runtime_classification_result_categories_exit checked 6668ms check-ta
 pass/float/runtime_coercion_future_policy_exit rejected 2538ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `convert` state `entry` cannot prove Exact float-to-`u8` cast operand `source` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 pass/float/runtime_exact_format_narrowing_exit checked 6281ms check-target:macos_arm64 @ccdb99ca2214
-pass/float/runtime_exact_integer_coercion_exit rejected 2198ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `truncate` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `convert` state `entry` cannot prove Exact float-to-`i32` cast operand `value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
+pass/float/runtime_exact_integer_coercion_exit checked 14465ms check-target:macos_arm64 @18fc751d0060+wt
 pass/float/runtime_exact_integer_to_float_coercion_exit rejected 2853ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `convert` state `entry` cannot prove integer-to-`f64` cast operand `value` preserves its denotation; prove exact format representability or use a named conversion to round
 pass/float/runtime_finite_record_invariant_window_exit checked 6183ms check-target:macos_arm64 @ccdb99ca2214

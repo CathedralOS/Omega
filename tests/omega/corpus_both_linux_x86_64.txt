@@ -16,6 +16,7 @@ pass/calls/selected_crash_argument_snapshot_exit built 10692ms exit:0 interprete
 pass/calls/selected_crash_distinct_limits_exit built 10688ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_match_record_exit built 13834ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_private_forwarding_exit built 10143ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
+pass/domains/private_arrival_guarded_qualification_exit built 10307ms exit:0 interpreter-exit:0 interpreter:agrees @18fc751d0060+wt
 pass/facts/build_activation_borrow_entry_return_exit built 11951ms exit:0 interpreter-exit:0 interpreter:agrees @b208ceef9bc2
 pass/facts/domain_selected_cleanup_enclosing_generic_telescope_exit built 14212ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
 pass/facts/domain_selected_cleanup_erased_interface_exit built 13801ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
@@ -5760,7 +5761,7 @@ pass/float/runtime_builtin_ieee_order_exit built 15176ms exit:70 interpreter-exi
 pass/float/runtime_classification_result_categories_exit built 8368ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/runtime_coercion_future_policy_exit built 5512ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/runtime_exact_format_narrowing_exit built 5553ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/float/runtime_exact_integer_coercion_exit built 7993ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/float/runtime_exact_integer_coercion_exit built 15377ms exit:0 interpreter-exit:0 interpreter:agrees @18fc751d0060+wt
 pass/float/runtime_exact_integer_to_float_coercion_exit built 7127ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/runtime_finite_record_invariant_window_exit built 7219ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/runtime_float_call_same_carrier_cast_exit built 6937ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
