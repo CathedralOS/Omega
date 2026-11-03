@@ -6638,7 +6638,7 @@ pass/facts/checked_asm_flag_restore_through_other_machine_exit checked 9598ms ch
 pass/facts/checked_asm_flag_restore_through_other_state_exit rejected 4349ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @0af7c594a1c0
 	machine `carried` uses asm instruction `popfq` but does not declare its service contract: add `reaches MachineControl` (every asm instruction's service reach must be declared where it is emitted)
 pass/facts/checked_asm_flag_restore_through_parameter_exit checked 8239ms check-target:linux_x86_64 @0af7c594a1c0
-pass/facts/checked_asm_flag_restore_through_target_body_exit checked 7960ms check-target:linux_x86_64 @0af7c594a1c0
+pass/facts/checked_asm_flag_restore_through_target_body_exit checked 65576ms check-target:linux_x86_64 @afaaf723073d
 pass/facts/checked_asm_flag_snapshot checked 7891ms check-target:linux_x86_64 @0af7c594a1c0
 pass/facts/checked_asm_flag_snapshot_alias_exit checked 32905ms check-target:linux_x86_64 @0af7c594a1c0
 pass/facts/checked_asm_flag_snapshot_backedge_exit incomplete 32081ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @0af7c594a1c0
@@ -11284,7 +11284,7 @@ pass/facts/static_callback_reach_through_match_join checked 7475ms check-target:
 pass/facts/static_callback_reach_through_other_machine checked 7808ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/static_callback_reach_through_other_state checked 8190ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/static_callback_reach_through_parameter checked 7968ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
-pass/facts/static_callback_reach_through_target_body checked 7382ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
+pass/facts/static_callback_reach_through_target_body checked 103211ms check-target:macos_arm64 terminal-inspections:match @afaaf723073d
 pass/facts/static_evidence_premise_through_call_result_exit checked 3665ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/static_evidence_premise_through_const_name_exit checked 2884ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/static_evidence_premise_through_field_exit checked 3085ms check-target:macos_arm64 @ccdb99ca2214
@@ -21969,9 +21969,7 @@ fail/facts/checked_asm_flag_restore_through_other_state_rejected rejected 951ms 
 	asm instruction `popfq` operand `saved flags` requires target register `rflags` constraint `u64`; integer literal `0` is outside that operand class
 fail/facts/checked_asm_flag_restore_through_parameter_rejected rejected 986ms expected @0af7c594a1c0
 	asm instruction `popfq` operand `saved flags` requires target register `rflags` constraint `u64`; integer literal `0` is outside that operand class
-fail/facts/checked_asm_flag_restore_through_target_body_rejected rejected 1463ms expected @0af7c594a1c0
-	asm instruction `popfq` operand `saved flags` requires target register `rflags` constraint `u64`; integer literal `0` is outside that operand class
-	asm instruction `popfq` operand `saved flags` requires target register `rflags` constraint `u64`; integer literal `0` is outside that operand class
+fail/facts/checked_asm_flag_restore_through_target_body_rejected rejected 8973ms expected @afaaf723073d
 	asm instruction `popfq` operand `saved flags` requires target register `rflags` constraint `u64`; integer literal `0` is outside that operand class
 fail/facts/checked_asm_flag_snapshot_false_invariant rejected 4046ms expected @0af7c594a1c0
 	cannot prove asm `requires` fact at block entry in main state `entry` (statement 28): snapshot & 64 == 0
@@ -30302,18 +30300,14 @@ fail/facts/static_callback_reach_through_parameter rejected 2918ms expected @ccd
 	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
 	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
 	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
-fail/facts/static_callback_reach_through_target_body rejected 2566ms expected @ccdb99ca2214
+fail/facts/static_callback_reach_through_target_body rejected 33068ms expected @afaaf723073d
 	machine argument `quiet` for `ordinary` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
-	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
-	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
 	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
 	machine argument `quiet` for `traverse` does not refine `Step`: service reach `Extra` exceeds its authored ceiling
 	machine `quiet` state `entry` does not satisfy trait `StepContract` machine `step`: service `Extra` is not allowed by the trait requirement
 	machine `pure_observer` publishes service reach `<none>` but its checked body reaches undeclared service `Extra`
-	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
-	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
-	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
-	machine `evaluate` publishes service reach `Console` but its checked body reaches undeclared service `Extra`
+	machine `X86Evaluate::evaluate` publishes service reach `Console + SelectedBodyCheck` but its checked body reaches undeclared service `Extra`
+	machine `ArmEvaluate::evaluate` publishes service reach `Console + SelectedBodyCheck` but its checked body reaches undeclared service `Extra`
 fail/facts/static_evidence_premise_through_call_result_rejected rejected 1398ms expected @ccdb99ca2214
 	machine `main` state `entry` value call to `project` violates required fact `Proof.holds(kept)`: the instantiated fact is structurally false
 fail/facts/static_evidence_premise_through_const_name_rejected rejected 1540ms expected @ccdb99ca2214
