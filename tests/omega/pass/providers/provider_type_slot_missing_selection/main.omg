@@ -17,5 +17,5 @@ machine main() -> i32 { Pick::choose() }
 // Keep the original choice observable through an ordinary Unit entry.
 machine entry() crashes Trap {
     let result: i32 = main();
-    transition result == 1 { true -> {} _ -> crash Trap }
+    transition result == 1 { true -> {} _ -> { crash Trap; } }
 }
