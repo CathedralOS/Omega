@@ -28,6 +28,7 @@ fn kind(name: &str) -> Option<MemoryFenceKind> {
 
 pub(super) fn observe(
     artifact: &CanonicalTerminalArtifact,
+    proposals: &[backend_plan::TerminalTargetProviderProposal],
     fixture: &Path,
     allowance: u64,
 ) -> super::Observation {
@@ -81,7 +82,7 @@ pub(super) fn observe(
             }
         };
         targets.push(*target);
-        match observe_target(artifact, target, &expected, allowance) {
+        match observe_target(artifact, proposals, target, &expected, allowance) {
             Ok(()) => observation
                 .facts
                 .push(format!("terminal-fences.{target}:{}", names.join(","))),
@@ -127,6 +128,7 @@ fn failure(message: String) -> super::Observation {
 
 fn observe_target(
     artifact: &CanonicalTerminalArtifact,
+    proposals: &[backend_plan::TerminalTargetProviderProposal],
     target: &str,
     expected: &[MemoryFenceKind],
     allowance: u64,
@@ -141,29 +143,59 @@ fn observe_target(
     let layouts =
         terminal_interpreter::admit_target_layouts(artifact.view(), &selected, &target_facts)
             .map_err(|error| error.to_string())?;
+    // Probe the same authored provider choices as ordinary target execution.
+    // Without their admitted installation, preflight stops at a missing
+    // boundary provider before it can inspect that provider's fence demands.
+    let mut matching = proposals
+        .iter()
+        .filter(|proposal| proposal.target == target);
+    let proposal = matching.next();
+    if matching.next().is_some() {
+        return Err("duplicate target provider proposal".into());
+    }
+    let installation = proposal
+        .map(|proposal| {
+            if proposal.terminal_psi != artifact.view().identity() {
+                return Err("provider proposal names another Terminal artifact".into());
+            }
+            proposal
+                .selection
+                .as_ref()
+                .map_err(|reasons| reasons.join("; "))?
+                .admit(artifact.view(), target)
+        })
+        .transpose()?;
     let supplies = |model| {
         program.admit_runtime_supplies(TerminalRuntimeSupplyRequest {
             x86_flags: None,
             memory_ordering: model,
             entry: None,
-            installation: None,
+            installation: installation.as_ref(),
             host_imports: &[],
             target_machines: Some(&selected),
             target_layouts: Some(&layouts),
         })
     };
     let absent = supplies(None).map_err(|error| error.to_string())?;
-    if !matches!(
-        program.execution_requirements(Some(&absent)),
-        Err(
-            terminal_interpreter::TerminalInterpretError::UnsupportedCapability(
-                terminal_interpreter::TerminalUnsupportedCapability::RegisterAccess {
-                    operation: terminal_psi::RegisterOperation::MemoryFence(_)
-                }
-            )
-        )
-    ) {
-        return Err("missing model did not refuse before entry effects".into());
+    match program.execution_requirements(Some(&absent)) {
+        Err(terminal_interpreter::TerminalInterpretError::UnsupportedCapability(
+            terminal_interpreter::TerminalUnsupportedCapability::RegisterAccess {
+                operation: terminal_psi::RegisterOperation::MemoryFence(_),
+            },
+        )) => {}
+        Err(error) => {
+            return Err(format!(
+                "missing ordering model refused for another reason: {error}"
+            ));
+        }
+        Ok(requirements) => {
+            return Err(format!(
+                "missing ordering model was accepted; {} imports, {} missing providers and {} external completions remain",
+                requirements.imports.len(),
+                requirements.missing_providers.len(),
+                requirements.external_completions.len(),
+            ));
+        }
     }
     let model = TerminalMemoryOrderingEnvironment::private_sequential(target)
         .ok_or("target has no private sequential model")?;

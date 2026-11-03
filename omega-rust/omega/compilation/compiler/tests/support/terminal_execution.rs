@@ -265,7 +265,7 @@ pub(super) fn target_installations(
             "differs"
         }
     ));
-    let fences = terminal_fences::observe(artifact, fixture_dir, fuel_allowance);
+    let fences = terminal_fences::observe(artifact, proposals, fixture_dir, fuel_allowance);
     observation.facts.extend(fences.facts);
     observation.diagnostics.extend(fences.diagnostics);
     observation
