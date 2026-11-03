@@ -412,6 +412,27 @@ retired-syntax deletions to completion.
     introducer ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
     `MachineSupplyMode::Boundary`.
+  - Restore the coverage `fail/float/guarded_range_requires_ieee_comparison`
+    lost when authored operators over bare primitive carriers became
+    declaration errors: a guard through a domain-homed `<` over
+    `f64 in <Domain>` must not supply the IEEE range fact, and a domain-homed
+    `+` in an index must not fold to element zero. Blocked because core's
+    bare-`f64` `Float::less` also matches domain-qualified operands
+    (`ambiguous operator spelling '<' has 2 viable candidates`), and a direct
+    guard over such a call fails Psi 04 with `cannot determine the dispatch
+    subject storage type`.
+  - Lower and prove the domain-qualified shapes that fixtures moved off bare
+    primitive operators had to avoid: `&mut` of a `mut` parameter whose type
+    is domain-qualified fails native selection (`SourceCustodyMismatch …
+    borrowed call argument does not match its retained source geometry and
+    ABI`); returning an `i32 in D` parameter as a bare `i32` result fails Psi 06
+    (`checked scalar return completion cannot erase unrelated membership`)
+    without an explicit `as`; `let mut value: i32 in D = start;` with a
+    predicate-free `D` fails with `primitive initializer lost its exact scalar
+    membership correspondence`; and builtin subtraction on a domain-qualified
+    saved local does not establish strict descent, so
+    `fail/termination/saved_rank_authored_operator_rejected` no longer has a
+    passing contrast without its authored `-`.
   Acceptance: `tests/omega/pass/expressions/declared_operator_match_result/`
   (exit 70), `samples/cli/facts/{body_bearing_comparison,generic_comparison_body,projection_call_premise,abstract_signature_call,static_evidence_premise}`,
   and new fixtures for generic/stateful bodies, private helpers, qualifiers,

@@ -5091,7 +5091,7 @@ pass/contracts/carry_contract_decl checked 3437ms @ccdb99ca2214
 pass/contracts/case_requires_payload_field_read_exit checked 3010ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/completed_anonymous_cast_preserves_prefix_exit checked 2307ms check-target:macos_arm64 @17690916d54b
 pass/contracts/completed_unit_call_post_case checked 2080ms check-target:macos_arm64 @d2f3e99f1e08
-pass/contracts/contract_declaration_boundary checked 2871ms @ccdb99ca2214
+pass/contracts/contract_declaration_boundary checked 7603ms @18fc751d0060+wt
 pass/contracts/current_computed_scalar_guard_exit checked 18790ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/disequality_disjoin checked 3443ms @ccdb99ca2214
 pass/contracts/disjunctive_ensures checked 3509ms @ccdb99ca2214
@@ -13487,12 +13487,13 @@ pass/objc/native_gui_loop checked 74683ms @911f6617ba9e
 pass/objc/objc_get_class checked 20027ms @ccdb99ca2214
 pass/objc/objc_msgsend_scalar checked 16737ms @ccdb99ca2214
 pass/operators/compound_assignment_exit checked 12736ms check-target:macos_arm64 @ccdb99ca2214
-pass/operators/core_operator_spelling_surface checked 4264ms check-target:macos_arm64 @ccdb99ca2214
+pass/operators/core_operator_spelling_surface checked 7641ms check-target:macos_arm64 @18fc751d0060+wt
+pass/operators/core_owned_primitive_operator_meaning checked 9444ms check-target:macos_arm64 @18fc751d0060+wt
 pass/operators/crash_routes checked 3630ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/division_value_entry_selection checked 12016ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/domain_operator_overload_signature_compile checked 2641ms @ccdb99ca2214
 pass/operators/domain_qualified_boundary_operator_exit checked 6439ms check-target:macos_arm64 @18fc751d0060+wt
-pass/operators/fixed_token_operators checked 2848ms @ccdb99ca2214
+pass/operators/fixed_token_operators checked 6157ms @18fc751d0060+wt
 pass/operators/fixed_use_survives_division_and_call_exit checked 12082ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/float_operator_identities checked 16714ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/integer_literal_suffix_exit checked 11189ms check-target:macos_arm64 @ccdb99ca2214
@@ -15974,8 +15975,10 @@ fail/asm/proposition_wrong_transparent_exit rejected 1922ms expected @0af7c594a1
 	cannot prove asm `ensures` fact at block exit in change state `entry` (statement 3): boolean:subject.value > 0
 fail/asm/requires_after_prior_block_write rejected 1896ms expected @0af7c594a1c0
 	cannot prove asm `requires` fact at block entry in Subject::change state `change` (statement 5): subject.ready
-fail/asm/scratch_catalog_subtract_meaning checked 3633ms @ccdb99ca2214
-fail/asm/scratch_catalog_zero_flag_meaning checked 3729ms @ccdb99ca2214
+fail/asm/scratch_catalog_subtract_meaning rejected 342ms expected regressed-from:checked @18fc751d0060+wt
+	`u32::replacement` binds the fixed operator token `-` over operands that name no declared type or domain (u32[in Wrapping], u32[in Wrapping]); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
+fail/asm/scratch_catalog_zero_flag_meaning rejected 358ms expected regressed-from:checked @18fc751d0060+wt
+	`u32::replacement` binds the fixed operator token `==` over operands that name no declared type or domain (u32, u32); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
 fail/asm/scratch_destination_finite_indexed rejected 816ms expected @ccdb99ca2214
 	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
 fail/asm/scratch_destination_indexed rejected 805ms expected @ccdb99ca2214
@@ -31956,8 +31959,9 @@ fail/float/guarded_range_requires_current_observation rejected 4859ms expected @
 	cannot prove requires contract for call bounded from reassigned_guard: value >= 0.0 && value <= 1.0 (needs fact `reassigned >= 0.0 && reassigned <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call bounded from changed_selector: values[selected] >= 0.0 && values[selected] <= 1.0 (needs fact `selected >= 0.0 && selected <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove index `selected` is within length 2 in changed_selector::entry
-fail/float/guarded_range_requires_ieee_comparison rejected 1119ms unexpected @ccdb99ca2214
-	cannot determine the dispatch subject storage type in `select::entry`
+fail/float/guarded_range_requires_ieee_comparison rejected 367ms expected @18fc751d0060+wt
+	`Unrelated::less` binds the fixed operator token `<` over operands that name no declared type or domain (f64, f64); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
+	`Unrelated::add` binds the fixed operator token `+` over operands that name no declared type or domain (u64, u64); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
 fail/float/guarded_range_requires_ordered_value rejected 4216ms expected @ccdb99ca2214
 	cannot prove requires contract for call bounded from negated_bounds: unordered >= 0.0 && unordered <= 1.0 (needs fact `negated >= 0.0 && negated <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call bounded from false_exit_bounds: unordered >= 0.0 && unordered <= 1.0 (needs fact `prior >= 0.0 && prior <= 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -32058,7 +32062,8 @@ fail/float/policy_cast_requires_unchanged_denotation rejected 1691ms expected @c
 	machine `lossy_format` state `entry` cannot prove Exact float-to-`f32` cast operand `3.0000000000000004` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `outside_carrier` state `entry` cannot prove Exact float-to-`u8` cast operand `300.0` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
 	machine `outside_carrier` state `entry` cannot prove unqualified `U8::from_f64` operand `300.0` is finite and truncates into `u8`; constrain it with a declared range or dominating non-NaN/range guard, or select result type `u8 in Trapping` or `u8 in Saturating`
-fail/float/primitive_comparison_forged_home checked 4419ms @ccdb99ca2214
+fail/float/primitive_comparison_forged_home rejected 394ms expected regressed-from:checked @18fc751d0060+wt
+	`Float::equal` binds the fixed operator token `==` over operands that name no declared type or domain (f64, f64); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
 fail/float/primitive_comparison_no_named_helper_exposure rejected 1933ms expected @ccdb99ca2214
 	validated named operator application has no checked selected use
 fail/float/private_float_projection_selection rejected 2788ms unexpected @ccdb99ca2214
@@ -33531,7 +33536,7 @@ fail/operators/result_domain_operator_family_wrong_signature rejected 3261ms exp
 	machine `wrong` does not match one exact overload of operator requirement `I8::from_f32`; its entry parameter and result types must equal one declared requirement signature
 fail/operators/root_operator_alpha_equivalent_generic_duplicate rejected 761ms expected @ccdb99ca2214
 	duplicate operator declaration `Slice::index`
-fail/operators/selected_crash_invocation rejected 3625ms expected @ccdb99ca2214
+fail/operators/selected_crash_invocation rejected 6334ms expected @18fc751d0060+wt
 	call from `compare` to `Float::equal` at statement 0 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/optimizer/unexecutable_post_allocation_rule_rejected rejected 3940ms expected @ccdb99ca2214
 	selected optimization `Aarch64ElideSameViewCopyI64BeforeReturnV1` failed in the complete verified optimizer pipeline during selected/physical validation: common physical staging failed: PostAllocationMachine(Optimization(NoExecutor { optimization: Aarch64ElideSameViewCopyI64BeforeReturnV1 })); no alternate compiler route was run and no output was installed

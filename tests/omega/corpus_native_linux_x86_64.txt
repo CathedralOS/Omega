@@ -5727,6 +5727,7 @@ pass/objc/objc_get_class checked 3894ms @a92f16431042
 pass/objc/objc_msgsend_scalar checked 3918ms @a92f16431042
 pass/operators/compound_assignment_exit built 19278ms exit:70 @a92f16431042
 pass/operators/core_operator_spelling_surface built 4841ms @a92f16431042
+pass/operators/core_owned_primitive_operator_meaning built 10254ms exit:0 @18fc751d0060+wt
 pass/operators/crash_routes built 5454ms exit:0 @a92f16431042
 pass/operators/division_value_entry_selection built 19089ms exit:70 @a92f16431042
 pass/operators/domain_operator_overload_signature_compile checked 2846ms @a92f16431042
