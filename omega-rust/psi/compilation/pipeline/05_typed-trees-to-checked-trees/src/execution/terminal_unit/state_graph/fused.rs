@@ -152,25 +152,3 @@ pub(in crate::execution::terminal_unit) fn fused_target_index(
         .iter()
         .position(|(_, state)| state.symbol == entry.symbol)
 }
-
-/// The authored statement where a state's terminator begins: its first
-/// transition, or the final expression that completes a value-returning
-/// state. Only that final expression completes the state; earlier Unit calls
-/// are ordinary operations even when their source nodes are expressions, so
-/// they stay in the statement sequence with their call occurrences in order.
-/// A body with neither completes after its last statement.
-pub(in crate::execution::terminal_unit) fn terminator_statement_index(
-    statements: &[StatementNode],
-    result: &checked_trees::CheckedControlResultPlan,
-) -> usize {
-    statements
-        .iter()
-        .enumerate()
-        .position(|(statement_index, statement)| {
-            matches!(statement, StatementNode::Transition(_))
-                || (*result != checked_trees::CheckedControlResultPlan::Unit
-                    && statement_index + 1 == statements.len()
-                    && matches!(statement, StatementNode::Expression(_)))
-        })
-        .unwrap_or(statements.len())
-}

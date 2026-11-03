@@ -798,6 +798,29 @@ pub(in super::super) fn build(
     )
 }
 
+/// Find where this state's ordinary operations hand control to its completion.
+/// Assembly markers and proved assertions remain in the prefix with their
+/// instruction calls. The first transition, or a final value expression,
+/// completes the state; earlier Unit expressions remain ordinary operations.
+/// This selects a coordinate only. The completion still needs its exact
+/// checked value, result type and exit obligations.
+pub(in super::super) fn terminator_statement_index(
+    program: &dyn ::validation::CheckingInput,
+    state: &typed_trees::state::State,
+) -> usize {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    statements
+        .iter()
+        .enumerate()
+        .position(|(statement_index, statement)| {
+            matches!(statement, StatementNode::Transition(_))
+                || (!is_unit(program, state.return_type)
+                    && statement_index + 1 == statements.len()
+                    && matches!(statement, StatementNode::Expression(_)))
+        })
+        .unwrap_or(statements.len())
+}
+
 /// Share scalar exit discovery while leaving operation storage with its sequence.
 /// The retained tail, when the state's statements end in control that returns
 /// the machine result — independent of what the result's carrier is. The
@@ -811,15 +834,7 @@ pub(in super::super) fn returning_terminator(
     state: &typed_trees::state::State,
 ) -> Option<(checked_trees::CheckedScalarStateTerminator, usize)> {
     let statements = program.statement_table.statements(state.statement_nodes);
-    let prefix_count = statements
-        .iter()
-        .take_while(|statement| {
-            matches!(
-                statement,
-                StatementNode::LocalData(_) | StatementNode::Assignment(_) | StatementNode::Call(_)
-            )
-        })
-        .count();
+    let prefix_count = terminator_statement_index(program, state);
     let mut guarded = facts
         .flow
         .guarded_exits
