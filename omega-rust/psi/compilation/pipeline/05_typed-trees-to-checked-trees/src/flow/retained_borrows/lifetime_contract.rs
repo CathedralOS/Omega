@@ -106,7 +106,7 @@ pub(super) fn source_type(
             call_ordinal: contract.call_ordinal,
             parameter_symbol: parameter.symbol,
         };
-        super::super::call_phases::completed_output_retention(
+        let completion = super::super::call_phases::completed_output_retention(
             borrow,
             machine.symbol,
             contract.state_symbol,
@@ -115,7 +115,15 @@ pub(super) fn source_type(
             identity,
             parameter.type_reference,
             &crate::borrow::owner_path_from_place_segments(program, owner_path),
-        )?;
+        );
+        if let Err(reason) = completion {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!(
+                    "STRUCT output-lifetime-contract-refused output={identity:?} reason={reason}"
+                );
+            }
+            return None;
+        }
         let relation =
             validation::borrow_contracts::resolve_provider_outputs(program, parameters).ok()?;
         if relation.readiness != validation::borrow_contracts::BorrowRelationReadiness::Complete {
