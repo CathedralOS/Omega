@@ -36,6 +36,17 @@ exists only for a nonempty view, so the twin rejects with "needs the nonempty
 fact `items.len >= 1`". A `&[u8]` companion reports 1, not the 8 of the
 slice descriptor.
 
+A third production observes a parameter from its own contract:
+[contract requirement](compositions/contract_requirement/main.omg) states
+`requires align_of(value) >= 8u64` on a `&u64` parameter, and every caller
+must satisfy it. Its [twin](compositions/contract_requirement/invalid/main.omg)
+changes only the referent to `u32`, so the clause is false for every caller
+and rejects with "scalar predicate is false: requires contract". Because each
+answer is the exact validated minimum, the body's own `align_of(value)` already
+proves its subtraction; the contract adds the caller-side obligation, not a
+premise the body depends on. A weaker clause therefore cannot make the body's
+subtraction fail, which is why the twin changes the storage, not the bound.
+
 Each twin changes only the observed location's storage to `u32`. Its
 guaranteed alignment is 4, so the unchanged `alignment - 8u64` is rejected with
 bounds `[-4, -4]`. Positives and twins are mirrored under
@@ -83,17 +94,18 @@ authored rows, unexecuted here.
   and the runtime checks follow it.
 - Identity: the subject is the exact place the operand names, through
   references to the referent. A value leaf, a constant, a slice not proved
-  nonempty or a query in a contract position is rejected rather than given a fabricated location.
+  nonempty, or a contract query that is not a whole parameter is rejected rather than given a fabricated location.
 - Composition: the result is an ordinary `u64` whose layout-observation fact
   survives copies, fields, call returns, joins and machine arguments, through
   the existing layout-observation route.
 
 ## What remains open
 
-- Contract positions: a query inside `requires` (such as
-  `requires align_of(value) >= 8u64`) has no resolved state for its place and
-  currently rejects with a source diagnostic; only executable statements are
-  answered.
+- Contract positions: `requires` on an ordinary machine accepts a whole
+  parameter or its referent. Still rejected: `ensures` clauses (a true clause
+  cannot yet be proved at exit), contracts on trait requirements (so a
+  per-target implementation cannot carry the clause), and field paths or
+  slices in any contract.
 - Stronger-than-type alignment from placement or allocator contracts, and
   runtime computation of a location's alignment, are not implemented; the
   result is always the type minimum.
