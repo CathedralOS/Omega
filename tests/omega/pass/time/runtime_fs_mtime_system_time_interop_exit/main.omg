@@ -18,6 +18,7 @@ use omega::language::core::filesystem_authority;
 // Expected exit: 70.
 use omega_language_std::posix_filesystem_host;
 use omega_language_std::time;
+use omega_language_std::time_host;
 
 use omega_language_std::console;
 use omega::language::core::numeric_conversion;

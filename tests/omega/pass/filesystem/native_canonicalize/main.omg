@@ -15,7 +15,7 @@ data Main {
 
 machine same_canonical_path(left: &[u8; 1024], right: &[u8; 1024]) -> bool {
     transition left[0] == 47 && right[0] == 47 {
-        true -> compare(left, right, 0)
+        true -> block compare(left, right, 0)
         false -> (false)
     }
     machine compare(left: &[u8; 1024], right: &[u8; 1024], position: u64) -> bool {
@@ -28,7 +28,7 @@ machine same_canonical_path(left: &[u8; 1024], right: &[u8; 1024]) -> bool {
     requires position < 1024
     {
         transition left[position] == right[position] {
-            true -> compare(left, right, position + 1)
+            true -> block compare(left, right, position + 1)
             false -> (false)
         }
     }
@@ -38,22 +38,22 @@ machine Main::main(main: &mut Main) reaches Console + FilesystemContentRead + Fi
     main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_alias.txt");
     main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_file.txt");
     main.result = block Filesystem::write_all(&mut main.filesystem, "/tmp/omega_canon_file.txt", "canonical");
-    transition main.result { UnitResult::Ok -> link(main) _ -> cleanup(main, false) }
+    transition main.result { UnitResult::Ok -> block link(main) _ -> block cleanup(main, false) }
     machine link(main: &mut Main) {
         main.result = block Filesystem::symlink(&mut main.filesystem, "/tmp/omega_canon_file.txt", "/tmp/omega_canon_alias.txt");
-        transition main.result { UnitResult::Ok -> target(main) _ -> cleanup(main, false) }
+        transition main.result { UnitResult::Ok -> block target(main) _ -> block cleanup(main, false) }
     }
     machine target(main: &mut Main) {
         main.result = block Filesystem::canonicalize(&mut main.filesystem, "/tmp/omega_canon_file.txt", &mut main.target);
-        transition main.result { UnitResult::Ok -> alias(main) _ -> cleanup(main, false) }
+        transition main.result { UnitResult::Ok -> block alias(main) _ -> block cleanup(main, false) }
     }
     machine alias(main: &mut Main) {
         main.result = block Filesystem::canonicalize(&mut main.filesystem, "/tmp/omega_canon_alias.txt", &mut main.alias);
-        transition main.result { UnitResult::Ok -> compare(main) _ -> cleanup(main, false) }
+        transition main.result { UnitResult::Ok -> block compare(main) _ -> block cleanup(main, false) }
     }
     machine compare(main: &mut Main) {
         let same: bool = same_canonical_path(&main.target, &main.alias);
-        transition { _ -> cleanup(main, same) }
+        transition { _ -> block cleanup(main, same) }
     }
     machine cleanup(main: &mut Main, correct: bool) {
         main.result = block Filesystem::remove(&mut main.filesystem, "/tmp/omega_canon_alias.txt");
