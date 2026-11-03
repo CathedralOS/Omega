@@ -103,6 +103,13 @@ pub(crate) fn validate_exact_float_coercion(
                 crate::proof_contracts::contract_entailment::exact_float_integer_cast_fits_at_occurrence(
                     program, machine, state, occurrence, reference, target,
                 )
+            }))
+        || (source.is_fixed_integer()
+            && matches!(target, PrimitiveType::F32 | PrimitiveType::F64)
+            && source_reference.is_some_and(|reference| {
+                crate::proof_contracts::contract_entailment::exact_integer_float_cast_fits_at_occurrence(
+                    program, machine, state, occurrence, reference, target,
+                )
             }));
     if !proven {
         let message = if matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {

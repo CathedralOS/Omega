@@ -1,0 +1,36 @@
+use omega::language::core::float_operations;
+
+// Twin of pass/float/private_arrival_exact_integer_coercion_exit: each
+// arrival's guard admits a value binary64 cannot represent exactly -- the band
+// guard reaches one past 2^53, and the pinned value is 3 * 2^60 + 1.
+machine band(value: i64) -> f64 {
+    transition value >= -9007199254740992i64 && value <= 9007199254740993i64 {
+        true -> convert(value)
+        false -> outside()
+    }
+    machine convert(value: i64) -> f64 { value as f64 }
+    machine outside() -> f64 { 1.0f64 }
+}
+
+machine scaled(value: i64) -> f64 {
+    transition value == 3458764513820540929i64 {
+        true -> convert(value)
+        false -> other()
+    }
+    machine convert(value: i64) -> f64 { value as f64 }
+    machine other() -> f64 { 2.0f64 }
+}
+
+machine main() crashes Trap {
+    let inside: f64 = band(-9007199254740992i64);
+    let outside: f64 = band(9007199254740993i64);
+    let large: f64 = scaled(3458764513820540928i64);
+    let other: f64 = scaled(5i64);
+    transition inside == -9007199254740992.0f64 && outside == 1.0f64
+        && large == 3458764513820540928.0f64 && other == 2.0f64 {
+        true -> done()
+        _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
