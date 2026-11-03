@@ -94,7 +94,12 @@ fn integer_operand(
     if matches!(value.semantic_value(), StructuralTerm::Integer(_)) {
         return Some(value);
     }
-    let reference = reference?;
+    // A selector read through a borrow (`&u64`, `&mut u64`) denotes its
+    // referent's integer, the same value its preceding bound conjunct names.
+    let mut reference = reference?;
+    while let Some(shell) = crate::reference_shell(program, reference) {
+        reference = shell.referee;
+    }
     program
         .primitive_type_reference(reference)
         .filter(|primitive| primitive.is_fixed_integer())?;

@@ -5795,6 +5795,7 @@ pass/float/runtime_std_trigonometric_endpoints built 17011ms exit:0 interpreter-
 pass/float/runtime_total_order_satisfiers_exit built 18512ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/float/saturating_named_operations_retain_ordered_inputs built 7445ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/scalar_helper_boundary_sequence_exit built 13407ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/float/specification_index_reference_selector_exit built 13529ms exit:0 interpreter-exit:0 interpreter:agrees @18fc751d0060+wt
 pass/float/state_arrival_ieee_predicates built 13382ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/float/state_loop_field_refinement_restoration_exit built 12564ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/float/symbolic_integer_conversion_finite_requires_exit built 8551ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
