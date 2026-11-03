@@ -1146,8 +1146,6 @@ mod tests {
                 &semantic,
                 &plans,
                 &operators,
-                &[],
-                &[],
                 None,
                 &mutation,
             );
