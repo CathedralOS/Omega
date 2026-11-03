@@ -58,6 +58,7 @@ mod aggregate_geometry;
 mod layout_reports;
 mod materialization;
 mod placement;
+mod private_callback_placements;
 mod symbolic_materialization;
 mod symbolic_values;
 
@@ -74,7 +75,8 @@ pub use layout_reports::{
     ConventionalSumPayloadFieldLayoutReport, IntegerInterpretation, LayoutFieldEntryReport,
     LayoutPlacementReport, LayoutPlanReport, NativeLayoutPlanReport,
     PrivateCallbackLayoutDemandReport, conventional_sum_layout_reports_match_for_replay,
-    layout_plan_reports_match_for_replay, normalized_conventional_sum_layout_report_fingerprint,
+    layout_placement_sort_key, layout_plan_reports_match_for_replay,
+    normalized_conventional_sum_layout_report_fingerprint,
     normalized_layout_plan_report_fingerprint, normalized_native_layout_plan_report_fingerprint,
 };
 pub use materialization::field_codec::{
@@ -112,3 +114,7 @@ pub mod test_support;
 
 mod target_facts;
 pub use target_facts::LayoutTargetFacts;
+
+pub use private_callback_placements::{
+    compose_private_callback_placements, validate_private_callback_placements,
+};

@@ -43,6 +43,7 @@ pub(super) fn decode_instruction(
         4 => MachineMemoryEffect::WritePointerV1,
         15 => MachineMemoryEffect::AtomicFenceV1,
         16 => MachineMemoryEffect::CatalogFenceV1,
+        17 => MachineMemoryEffect::PrivateCallbackMaterializationV1,
         8 => MachineMemoryEffect::AtomicPointerV1,
         _ => return Err(PreAllocationMachineEffectDecodeError::InvalidField),
     };
@@ -749,6 +750,7 @@ fn decode_encoded_effects(
 
         18 => MachineEncodedMemoryEffect::AtomicFenceV1,
         19 => MachineEncodedMemoryEffect::CatalogFenceV1,
+        20 => MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1,
         11 => MachineEncodedMemoryEffect::AtomicPointerV1 {
             pointer_operand: cursor.u16()?,
             form: crate::AtomicForm::from_ordinal(cursor.byte()?)

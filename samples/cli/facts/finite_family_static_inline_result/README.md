@@ -121,6 +121,12 @@ missing static type or bounds guarantee.
 
 ## Validation and remaining scope
 
+An actual result-record conflict required merging main `f5bae950d2fa` into this
+warm source chain. All 343 authored inputs remain unchanged. Main changes record
+predicates, borrowed-value checking and shared native validation, so the existing
+73-fixture and 29-project scope is being replayed on both full hosts. The table
+below retains the earlier measured sources while that replay is pending.
+
 The measured records combine runs at `a01810ff60d85`, `3bbbd01499e0` and
 `a2b3692b2360`. Every row keeps the compiler revision actually observed.
 

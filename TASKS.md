@@ -331,6 +331,11 @@ retired-syntax deletions to completion.
     captured operands, const/evidence telescopes, callbacks, entry backing,
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
+    Preserve caller-supplied requirement-local evidence under
+    [generic requirements](wiki/spec/language/generics.md#generic-machine-requirements),
+    distinct from trait-level captured evidence and target provider selection;
+    reject binder-kind/order substitutions, weakened public contracts and any
+    provider attempt to fill or replace a caller's evidence argument.
   - Carry the facts that still refuse behind a selected implementation: opaque
     write-only boundaries requiring an admitted claim for the selected implementation. Their
     `target_body` places keep the retired prefix until then. A requirement
@@ -410,13 +415,24 @@ retired-syntax deletions to completion.
   [declaration-owned executable supply](wiki/spec/language/expressions.md#executable-supply),
   [call preconditions](wiki/spec/language/machines.md#call-preconditions), and
   [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization).
-  - Record zero/one identity law evidence on `OpenIndexOperationSelection`
-    (`omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/values/expression/index_authority.rs`),
-    normalize `N + 0` and `N * 1` under it, and carry it through
-    `monomorphization::finalize_domain_instance_identities`. The law shape
-    waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 1; question 2
-    asks whether the landed distributivity expansion advances the normalizer
-    version.
+  - Implement [literal-linked index identities](wiki/spec/proofs/contracts.md#literal-linked-index-identities):
+    record identity and nullary-to-literal law evidence on
+    `OpenIndexOperationSelection`, collect the complete selected conformance's
+    inherited slots with exact requirement identities and substitutions, and
+    support qualified integer carriers without an unselected fallback.
+    Normalize `N + 0` and `N * 1` through signatures, conformance arguments,
+    value transfers, and `monomorphization::finalize_domain_instance_identities`.
+  - Preserve authored and newly introduced formation obligations, left/right
+    identity distinctions, and exact carrier/policy authority. Simplify operands
+    before budgeted expansion and normalize generated terms again; retain
+    rejection of unsafe Exact intermediates, conditional or foreign laws, and
+    unproved literal connections. Prove these cases through nine-place fact
+    witnesses, fact-sensitive reject twins, and their pinned corpus fixtures.
+  - Apply the eventual [distributivity representative decision](OWNER_QUESTIONS.md#1-is-the-expanded-sum-of-products-the-canonical-form-of-an-open-index-under-a-declared-distributivity-law).
+    Identity-law ratification does not choose that representative or a new
+    expansion limit. Internal normalizer provenance and rebuilding unreleased
+    development artifacts are implementation bookkeeping, not a legacy support
+    requirement.
   - Migrate top-level library/corpus/embedded declarations off the `operator`
     introducer ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
@@ -1105,6 +1121,36 @@ defines the complete product bar.
   rows, and escaping variable-shaped results without an authored sum/descriptor
   reject.
 
+- **DOMAIN-CARRIER-FORMATION.** Enforce
+  [carrier-exact membership](wiki/spec/language/domains.md#carrier-exact-membership)
+  through proof formation, executable tests, qualification, and published
+  evidence. On fixed base `79eb08a76a7`, an optimized exact-source compiler
+  accepts `machine guarded(value: u8) -> u16 requires value in Small { 3 }`
+  under `domain u16::Small requires self <= 10;`. Hosted checking observations
+  `41656219861` and `41657251758` also accepted a suffixed `7u8` with and without
+  an unrelated declaration mentioning `u8`.
+  - Make the exact resolved applied carrier a formation obligation before
+    predicate substitution or mathematical-value projection. The domain already
+    retains a `TypeReferenceHandle`; reconcile proof-fact validation with the
+    executable carrier check through the owning type-correspondence boundary,
+    not a spelling-based lookup or another value-only acceptance path.
+  - Preserve nominal data identities, generic substitutions and declared type
+    equations, qualified carriers, and normal borrow/projection semantics.
+    Cover domain/data predicates, callable and trait contracts, statement facts,
+    literals, fields, call results, and specialized domain applications without
+    per-source-shape exceptions or accepting absent type information as a match.
+  - Preserve same-carrier membership, explicit exact conversions, anonymous
+    literal landing, generic family applications, and cross-width numeric
+    comparisons. Reject typed cross-width, signedness, nominal, and applied
+    carrier mismatches even when predicate values coincide; an unrelated type
+    declaration must not affect the result. Migrate any source this rejects.
+  Acceptance: one carrier-identity fact runs through all nine transport places
+  with `omega run --both` and authored outcomes on the four hosted targets;
+  fact-sensitive wrong-carrier twins and focused formation controls reject and
+  are pinned in the corpus. Predicate, policy, provenance, ownership, and access
+  obligations remain intact. Arbitrary-width integers and integer-family
+  constraint syntax are not prerequisites.
+
 - **NOMINAL-FIELD-FLOW.** Close the Dungeon Crawler's field-domain execution and
   [representation-erased domain qualification](wiki/spec/language/domains.md)
   end to end under
@@ -1202,6 +1248,16 @@ defines the complete product bar.
   `omega-rust/psi/compilation/validation/src/machine_calls/call_cycles/runtime_ranking/`,
   Psi 06 `src/unit/attached_unit/`, and
   `omega-rust/psi/interpreter/terminal-interpreter/src/engine/terminators/`.
+  - A termination promise that reaches a recursive component with no ranking
+    of its own is accepted unchecked; twelve `fail/termination` twins
+    (`rank_arrival_*`, `rank_range_declared_step_unbounded`,
+    `rank_range_record_stepped_copy_stale`, `rank_state_dependent_bound_prefix_write`,
+    `endpoint_folded_into_payload`, `stored_reference_endpoint_reseat`) compile.
+    The reach rule is implemented on `work/wave1-termination-reach` and lands
+    last, with its positive migrations, once component ranking accepts the
+    projected and arrival rank subjects those helpers need: captured copies,
+    formal/result-equation arrivals, opaque children, ranges and
+    stored-reference endpoints.
   - Re-run the external-result and `std`-loop execution controls
     (`external_result_ranked_arrival_compile` currently refuses with `provider
     candidate requires beyond its boundary's declared obligations`) once
@@ -1980,8 +2036,8 @@ defines the complete product bar.
   ([acceptance](wiki/spec/packages/acceptance.md)), and package review's
   [review cache](omega-rust/omega/packages/package-manager/src/review/candidate/review_cache.rs)
   is a different artifact. Layouts used only inside unselected library code
-  are a separate share of the cost, tracked by owner question 6 in
-  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
+  are a separate share of the cost, covered by the
+  [layout formation scope](wiki/spec/layouts/plans.md#compile-time-journey-and-build).
   - Persist an admitted dependency's checked representation under its exact
     identity. Bind it to an applicability proof over the premises the
     specification lists: the target, the provider closure, root-sensitive
