@@ -1,33 +1,157 @@
-# finite family static inline result
+# Keep array sizes and bytes through a selected call
 
-Owning outcome: **FINITE-GENERIC-DISPATCH**.
+These programs pass arrays of 16 and 32 bytes through a function selected at
+runtime. Each result must keep its exact array size and the input's first and
+last bytes. Each nested function that supplies an input must run once.
+
+Owning tasks: **FINITE-GENERIC-DISPATCH** and
+**BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
 
 A literal finite-family call preserves its selected inline result shape and the first and last bytes of its input while evaluating each nested input producer once.
 
-This row exercises [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary), [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families), and [runtime index identity](../../../../wiki/spec/language/generics.md#runtime-index-identity-and-storage). Declaring requirements own the full correlated roster. A call's exact closed tuple owns operand/result types; it cannot erase another row from the table or select a provider's private shape as public authority.
+The declared family contains both widths, regardless of which call the program
+makes. The requirement owns that complete set; a caller cannot remove an unused
+row or use an implementation's private type as the public result type. This
+follows [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary)
+and [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families).
 
-Each of the nine places transports both concrete inputs into literal row selections. Row 16 preserves bytes 11 and 23 at its two ends; row 32 preserves bytes 17 and 29. Local, field, parameter, returned-value, match-join, named-const, state, independent-machine and target-body productions keep the same types and byte checks. Match joins execute both arms. Const arrays are materialized into ordinary owned records. Every project binds all four hosted entry targets and declares exit 0; only Linux x86-64 execution is available here.
+The 16-byte input has endpoints 11 and 23; the 32-byte input has endpoints 17 and
+29. `Selected` writes 31 at interior byte 1, while `Other` writes 47 there. The
+caller checks those markers on the actual returned arrays, alongside their
+endpoints and the input-producer count of two. Choosing the same implementation
+for both calls cannot satisfy these checks. The public types and promised
+endpoints are unchanged.
 
-The common operation exposed successive real gaps: closed calls lost their declaring roster, dependent parameter matching omitted local const/value substitutions, slot retargeting erased the closed tuple, and the Terminal catalog selected one checked call shape for all family rows. Exact public instances already existed for the complete roster. The repair retains their call contracts and qualifies each table row by interface, complete requirement identity and canonical tuple. Static calls select their exact row while every selected implementation still supplies the whole table.
+The match place also puts 3 or 7 in input byte 2. Its caller supplies the expected
+value independently and exercises both choices. The returned byte must match
+that expectation. An inverted match or a fixed arm cannot pass merely because
+both original arms had the same endpoints.
 
-All nine positives have current public-CLI native/Terminal exit-0 observations. Every twin changes only row16's selected tuple to32 while retaining its16-wide input; the tuple exists, but that input cannot satisfy its exact type. The nine twins reject with the authored conformance-argument diagnostic. Sources and oracles are mirrored under `tests/omega/{pass,fail}/facts/finite_family_static_inline_result`.
+## Places and controls
 
-Publication requires fixed-candidate qualification, independent review and the normal merge queue. Other task obligations, including std-backed customers and domain-selected automatic cleanup, are not inferred from this row.
+| Place | Valid program | Wrong tuple |
+| --- | --- | --- |
+| Local | [program](local/main.omg) | [reject](local/invalid/main.omg) |
+| Field | [program](field/main.omg) | [reject](field/invalid/main.omg) |
+| Parameter | [program](parameter/main.omg) | [reject](parameter/invalid/main.omg) |
+| Call result | [program](call_result/main.omg) | [reject](call_result/invalid/main.omg) |
+| Match join | [program](match_join/main.omg) | [reject](match_join/invalid/main.omg) |
+| Const name | [program](const_name/main.omg) | [reject](const_name/invalid/main.omg) |
+| Nested machine | [program](other_state/main.omg) | [reject](other_state/invalid/main.omg) |
+| Other machine | [program](other_machine/main.omg) | [reject](other_machine/invalid/main.omg) |
+| Selected target body | [program](target_body/main.omg) | [reject](target_body/invalid/main.omg) |
 
-Additional controls challenge the row's assumptions. `authored_sum` supplies the common concrete result ABI for runtime-selected sizes; `nested_static` keeps identically named nested const binders distinct. `runtime_shape/invalid` and `nested_runtime_shape/invalid` reject runtime extents in inline storage, including an ordinary machine without a finite call. This is a general storage check rather than a family-call recognizer. References, erased fields and explicit storage retain their independent contracts; absence of a diagnostic is never layout authority.
+Every twin changes only the first selected tuple from 16 to 32 while retaining
+its 16-byte input. The selected tuple exists, but the input cannot meet its exact
+type. Both versions retain the same member bodies and runtime checks. Each valid
+program binds the four required hosted targets and expects exit 0; the existing
+target place also retains its optional macOS x86-64 binding.
 
-`uncalled_target` calls only row 16 while row 32 requires a target-specific helper. Its invalid twin supplies that helper only on Linux ARM64; realizing Linux x86-64 must still reject the uncalled row. `argument_effect` supplies the focused nested-producer reproduction. Its invalid twin changes only the result annotation to index 32 while still selecting row 16; nested effects cannot erase that exact index mismatch.
+The other original projects remain in the same qualification scope:
 
-## Build-owned target-body migration
+- [authored_sum](authored_sum/main.omg) keeps one concrete result type when the
+  selected width varies at runtime.
+- [nested_static](nested_static/main.omg) distinguishes nested const binders
+  with the same spelling.
+- [argument_effect](argument_effect/main.omg) and its [twin](argument_effect/invalid/main.omg)
+  check completed input evaluation and the exact selected result index.
+- [stale_input](stale_input/main.omg) and its [twin](stale_input/invalid/main.omg)
+  distinguish a saved input from the value after an earlier operand changes it.
+- [runtime_shape](runtime_shape/invalid/main.omg) and
+  [nested_runtime_shape](nested_runtime_shape/invalid/main.omg) reject inline
+  arrays whose runtime extent has no valid storage representation.
+- [uncalled_target](uncalled_target/main.omg) and its
+  [missing-supply control](uncalled_target/invalid/main.omg) require target
+  support for the entire family, including the row that main does not call.
 
-The `target_body` place carries no source target prefix. Its four prefixed
-`pair` bodies became the requirement `SelectedPair::pair`, implemented by
-ordinary `X86...` and `Arm...` implementations and selected by explicit
-target-keyed `Build::select_provider` rows (`BUILD-OWNED-TARGET-SELECTION`).
-The operation, inputs, contracts and exit oracle are unchanged. The entry
-wrapper and each implementation check a target tag through a second selected
-requirement (17 for x86-64, 29 for AArch64), so a wrong Build row traps.
-Observed with the optimized producer at `11bdd2fe41f` on macOS x86-64: the
-migrated positive exits 0 under `omega run --both` (native and Terminal Psi
-agree), and the twin still rejects because the row argument does not match the binder's trait arguments. No compiler change was needed. The other hosted
-targets were not executed here.
+The added [bad interior index control](local/controls/out_of_bounds/invalid/main.omg)
+uses index 16 under the unchanged width choices. It fits width 32 but is one
+past the end of width 16. A proof that checks only the larger alternative must
+not admit it. The original 28 projects are retained; this control brings the
+sample scope to 29 projects.
+
+## Build selection and missing supply
+
+The `uncalled_target` program calls only row 16. Row 32 calls
+`SelectedInlineTarget::target_only`, so creating the complete function table
+still requires that target's supply. Four identical prefixed helpers become one
+ordinary `PortableInlineTarget` implementation, selected by four explicit Build
+rows. It returns its input unchanged.
+
+The control supplies that implementation only for Linux ARM64 while retaining
+all four entry bindings. Its source is valid. Linux ARM64 may execute with exit
+0; Linux x86-64, macOS ARM64 and Windows x86-64 must refuse publication because
+no provider is selected there. Target-specific publication and exit oracles
+state those separate expectations. Publication refusal is not engine execution.
+The corresponding pin is the build-only pass fixture
+`tests/omega/pass/facts/finite_family_static_inline_result/uncalled_target_missing_supply`.
+
+The existing `target_body` place still selects the x86-64 or ARM64 pair producer.
+Each actual provider call checks tag 17 or 29 through `SelectedBodyCheck`, so a
+swapped provider traps. That requirement uses no services; the pair requirement
+and implementations now preserve empty service reach and name the synchronous
+call separately with `invokes SelectedBodyCheck`.
+
+These declarations follow [provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection),
+[multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation)
+and [service reach](../../../../wiki/spec/language/effects.md).
+
+## Compiler requirements
+
+The checker must interpret an array field's extent through the actual arguments
+of its exact container. The data declaration's binder and a caller's binder are
+different declarations, even when both are named `Width`. The shared bounds
+judgment must prove index 1 safe for every alternative of `Width == 16 || Width == 32`.
+The contract remains intact; no width-specific source bodies or caller guards
+supply that proof.
+
+An array of bytes also contains no borrowed references regardless of its count.
+That proof does not establish an array's runtime size or storage. Reference-slot
+checking can omit element enumeration only after complete borrow-free contents
+and an empty retained-lifetime inventory are established. Pointer elements,
+unknown element types, opaque data and erased reference fields retain their
+independent restrictions.
+
+Public contracts establish the family and exact input/output types. Ordinary
+argument evaluation establishes the values and producer effects. Calls, stored
+values, joins and nested machines must retain their exact tuple and actual data
+through Terminal Psi, provider selection, calling plans and native emission.
+The runtime byte/count checks observe that behavior; they do not establish a
+missing static type or bounds guarantee.
+
+## Validation and remaining scope
+
+The original source is frozen at `d24ceb05541522559a6a41c9e8075390c18daea9`, whose
+tree equals published `e283856d96276d4c262d9b6c3f687584942da6c3`. The full original
+scope is 28 projects and 28 pins, with 196 authored input hashes and 56 matching
+Main/Build pairs. Its [Linux](https://github.com/CathedralOS/Omega/actions/runs/41576490895)
+and [macOS](https://github.com/CathedralOS/Omega/actions/runs/41576493746) reports
+both record 14 checked positives, 14 intended corpus refusals and 14 native/Terminal
+exit-zero agreements. The optimized producer profiles and downloaded report
+hashes are retained.
+
+Both jobs nevertheless failed the ordinary sample leg: 14 programs passed,
+13 source controls matched, and `uncalled_target/invalid` passed its source-only
+check instead of matching the target-qualification refusal. Its corpus diagnostic
+came from native execution inputs. This is retained as failed baseline evidence,
+not a green full gate or an observation that the control executed.
+
+The strengthened local program then exposed a separate checking defect with
+the same verified baseline compiler: both writes to byte 1 refused despite the
+member's width-16-or-32 contract. The new boundary bridge also exposed an
+incomplete reference-slot inventory for its reference-free generic byte array.
+Those source snapshots and diagnostics are retained before compiler edits.
+The current repairs and migrated programs still require fresh qualification;
+no new engine success is claimed here.
+
+Earlier documentation reports Linux executions after fixes to family identity,
+argument substitution and row-specific call shapes, plus a macOS x86-64 target
+migration at `11bdd2fe41f`. Those observations belong to their original source.
+They remain historical and do not qualify these changed programs.
+
+Raw reports, frozen input hashes, source archives and current qualification
+records remain under `build/finite-inline-selected-20261103/`. The original
+baseline source is retained separately. This row does not close either parent
+task. Other hosted runtimes, product-compiler parity, automatic cleanup and
+other finite-family requirements remain open. No owner design decision is
+needed for this migration.
