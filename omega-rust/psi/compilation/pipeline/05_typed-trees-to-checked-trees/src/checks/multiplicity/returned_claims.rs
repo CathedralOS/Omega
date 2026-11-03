@@ -1,15 +1,11 @@
-//! Current custody at an exact completed structural consumption.
+//! Track which resources a returned value owns. Every declared resource must
+//! be accounted for on every possible return, and one live resource cannot fill
+//! two fields that exist at the same time.
 //!
-//! A call's origin alternatives and the claim currently held by its caller
-//! answer different questions. This query starts at the flow owner's exact
-//! outgoing capture, joins its consuming permission occurrences, and keeps
-//! the caller's identities. A lineage consumer can subsequently expand those
-//! identities through call receipts; content substitution must not replace a
-//! completed invocation with its callee's static establishment.
-//! Affine storage transfers accompany these claims but are not claim rows:
-//! their debt-free carrier is neither an inactive linear payload nor a new
-//! aggregate root claim. Storage movement and cleanup retain those events in
-//! their own custody replay.
+//! Start from the completed value and its actual consuming events. Keep the
+//! caller's claim identities; the callee's original declarations cannot replace
+//! them. Ordinary affine storage moves are checked separately: they neither
+//! create linear resources nor prove that a case payload is absent.
 
 use super::claim_outcomes::claim_paths_are_case_alternatives;
 use super::claim_outcomes::preserved_inactive_place;
@@ -22,6 +18,7 @@ use checked_trees::{
 };
 use facts::PlaceSegment;
 use language_semantics::{PermissionAccess, PermissionClaimIdentity, PermissionEventKind};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum ReturnedClaimSource {
@@ -578,14 +575,19 @@ fn captured_claims(
             }
         }
     }
+    // Filling missing case payloads needs exact path membership, not a scan of
+    // every existing claim for each field. Keep all claims, including duplicates;
+    // check_frontier still checks their conditions and consuming identities.
+    let mut represented_paths: HashSet<_> = claims.iter().map(|claim| claim.path.clone()).collect();
     if matches!(observation, ClaimObservation::Consumed)
         && frontier
             .iter()
-            .any(|expected| !claims.iter().any(|claim| claim.path == expected.path))
+            .any(|expected| !represented_paths.contains(&expected.path))
     {
         let completed = completed_call_claims(program, facts, consumer, operand, conditions)?;
         if claims.is_empty() {
             claims = completed;
+            represented_paths.extend(claims.iter().map(|claim| claim.path.clone()));
         } else {
             // A whole result transfers only live resources. The exact call's
             // establishment also records positively absent case payloads, which
@@ -593,7 +595,7 @@ fn captured_claims(
             // missing live transfer from the established result.
             for claim in completed {
                 if claim.source == ReturnedClaimSource::Inactive
-                    && !claims.iter().any(|existing| existing.path == claim.path)
+                    && represented_paths.insert(claim.path.clone())
                 {
                     claims.push(claim);
                 }
@@ -601,7 +603,7 @@ fn captured_claims(
         }
     }
     for expected in &frontier {
-        if claims.iter().any(|claim| claim.path == expected.path) {
+        if represented_paths.contains(&expected.path) {
             continue;
         }
         if receiving.is_none()
@@ -613,6 +615,7 @@ fn captured_claims(
                 &expected.path,
             )
         {
+            represented_paths.insert(expected.path.clone());
             claims.push(ReturnedClaim {
                 path: expected.path.clone(),
                 source: ReturnedClaimSource::Inactive,
@@ -647,6 +650,7 @@ fn captured_claims(
             )
             .is_some()
             {
+                represented_paths.insert(expected.path.clone());
                 claims.push(ReturnedClaim {
                     path: expected.path.clone(),
                     source: ReturnedClaimSource::Inactive,
@@ -668,6 +672,7 @@ fn captured_claims(
                 conditions,
             )?
         {
+            represented_paths.extend(stored.iter().map(|claim| claim.path.clone()));
             claims.extend(stored);
         }
     }
@@ -816,12 +821,29 @@ fn check_frontier(
     claims: &[ReturnedClaim],
     conditions: &mut SelectionConditions,
 ) -> Result<(), &'static str> {
+    let measured = phase_profile::guard("psi.05.returned_claim_frontier");
     let frontier = super::linear_claim_frontier(program, operand.type_reference);
+    phase_profile::count(
+        "psi.05.returned_claim_frontier.paths",
+        frontier.len() as u64,
+    );
+    phase_profile::count("psi.05.returned_claim_frontier.claims", claims.len() as u64);
+    // Most fields own different resources. Group exact paths and identities so
+    // their checks need not repeatedly visit every unrelated field. Keep the
+    // original indices and walk the original lists to preserve diagnostic order.
+    let mut by_path: HashMap<&[PlaceSegment], Vec<&ReturnedClaim>> = HashMap::new();
+    let mut by_identity: HashMap<PermissionClaimIdentity, Vec<usize>> = HashMap::new();
+    for (index, claim) in claims.iter().enumerate() {
+        by_path.entry(&claim.path).or_default().push(claim);
+        if let ReturnedClaimSource::Live(identity) = claim.source {
+            by_identity.entry(identity).or_default().push(index);
+        }
+    }
     for expected in &frontier {
-        let matching = claims
-            .iter()
-            .filter(|claim| claim.path == expected.path)
-            .collect::<Vec<_>>();
+        let matching = by_path
+            .get(expected.path.as_slice())
+            .map(Vec::as_slice)
+            .unwrap_or_default();
         let mut coverage = conditions.never();
         for (index, claim) in matching.iter().enumerate() {
             if claim.source == ReturnedClaimSource::Inactive && !expected.conditional {
@@ -841,10 +863,13 @@ fn check_frontier(
         }
     }
     for (index, claim) in claims.iter().enumerate() {
-        if matches!(claim.source, ReturnedClaimSource::Inactive) {
+        let ReturnedClaimSource::Live(identity) = claim.source else {
             continue;
-        }
-        for other in &claims[index + 1..] {
+        };
+        let matching = &by_identity[&identity];
+        let later = matching.partition_point(|other| *other <= index);
+        for other_index in &matching[later..] {
+            let other = &claims[*other_index];
             if claim.path != other.path
                 && claim.source == other.source
                 && !claim_paths_are_case_alternatives(&claim.path, &other.path)
@@ -856,11 +881,30 @@ fn check_frontier(
             }
         }
     }
+    let declared_paths: HashSet<_> = frontier
+        .iter()
+        .map(|expected| expected.path.as_slice())
+        .collect();
     if claims
         .iter()
-        .any(|claim| !frontier.iter().any(|expected| expected.path == claim.path))
+        .any(|claim| !declared_paths.contains(claim.path.as_slice()))
     {
         return Err("returned permission frontier contains an undeclared claim path");
+    }
+    drop(measured);
+    if frontier.len() >= 256 {
+        phase_profile::checkpoint(
+            "large returned resource check",
+            "psi.05.returned_claim_frontier",
+        );
+        phase_profile::checkpoint(
+            "returned resource paths",
+            "psi.05.returned_claim_frontier.paths",
+        );
+        phase_profile::checkpoint(
+            "returned resource claims",
+            "psi.05.returned_claim_frontier.claims",
+        );
     }
     Ok(())
 }

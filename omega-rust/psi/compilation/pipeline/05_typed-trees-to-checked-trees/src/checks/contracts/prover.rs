@@ -49,7 +49,7 @@ pub(super) use place_predicates::place_predicate;
 pub(in crate::checks) mod call_guarantees;
 mod current_boolean;
 mod field_actuals;
-pub(crate) use current_boolean::boolean_value_at_place;
+pub(crate) use current_boolean::{BooleanValueQueries, boolean_value_at_place};
 
 use self::booleans::{
     semantic_context_proves_boolean_expression,

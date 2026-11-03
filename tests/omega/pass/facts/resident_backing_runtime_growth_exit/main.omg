@@ -227,8 +227,31 @@ machine main() crashes Trap {
             false -> bad()
         }
     }
-    machine finish(strategy: Bump, vector: Vec, old: Extent in Granted & Vacant) {
+    machine finish(strategy: Bump, vector: Vec, old: Extent in Granted & Vacant)
+    requires old.base == strategy.base, old.length == 8,
+        vector.storage.length == 20,
+        embed(vector.storage.base) == embed(old.base) + embed(old.length),
+        strategy.remaining == 20, strategy.capacity == 48 {
         let returned: Extent in Granted & Vacant = Vec::close(vector);
+        let returned_old: Released = release(strategy, old);
+        let returned_new: Released = release(returned_old.strategy, returned);
+        let prefix: Extent in Granted & Vacant = merge_vacant_extents(returned_old.retired_storage, returned_new.retired_storage);
+        let mut restored: Bump = reset(returned_new.strategy, prefix);
+        let reused: Extent in Granted & Vacant = allocate(&mut restored, 48, 48);
+        let new_vector: Vec = Vec::open(reused, 12);
+        let pushed: Vec = Vec::push(new_vector, 97);
+        let read_back: Read = Vec::get(pushed, 0);
+        transition read_back.value == 97 && read_back.vec.capacity == 12 && restored.remaining == 0 {
+            true -> exit(restored, read_back.vec)
+            false -> bad()
+        }
+    }
+    machine exit(strategy: Bump, vector: Vec)
+    requires vector.storage.base == strategy.base, vector.storage.length == strategy.capacity,
+        strategy.remaining == 0 {
+        let returned: Extent in Granted & Vacant = Vec::close(vector);
+        let released: Released = release(strategy, returned);
+        let whole: Bump = reset(released.strategy, released.retired_storage);
         ProcessExit::exit_process(0);
     }
     machine bad() { crash Trap; }

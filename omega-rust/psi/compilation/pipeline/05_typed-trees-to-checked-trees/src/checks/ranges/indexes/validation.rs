@@ -365,7 +365,7 @@ fn check_recipe_extent_index(
         return true;
     }
     // The tightest upper bound the judgment established for the index.
-    let interval = validation::expression_interval(facts.expression_intervals, index);
+    let interval = program.expression_interval(index);
     let declared_range = expression_enforced_declared_range(program, machine, state, index);
     let (standing_low, standing_high) =
         validation::standing_integer_bounds(program, machine, state, index).unwrap_or_default();
@@ -545,15 +545,13 @@ fn check_known_length_index(
             // short-circuit's left operand and earlier arms' refutations. An
             // interval inside the length proves both halves, for a computed
             // index (`values[position - 1]`) as for a name.
-            if validation::expression_interval(facts.expression_intervals, index).is_some_and(
-                |interval| {
-                    interval.low.is_some_and(|low| low >= 0)
-                        && interval
-                            .high
-                            .and_then(|high| usize::try_from(high).ok())
-                            .is_some_and(|high| high < length)
-                },
-            ) {
+            if program.expression_interval(index).is_some_and(|interval| {
+                interval.low.is_some_and(|low| low >= 0)
+                    && interval
+                        .high
+                        .and_then(|high| usize::try_from(high).ok())
+                        .is_some_and(|high| high < length)
+            }) {
                 return true;
             }
             let Some(index_value) = expression_integer_value(program, facts, index) else {

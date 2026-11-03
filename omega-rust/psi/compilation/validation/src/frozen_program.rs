@@ -133,6 +133,16 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
         None
     }
 
+    /// The arithmetic walk's enclosure of `expression` over every clean
+    /// evaluation. Stage 05 attaches validation's intervals after its machine
+    /// loop; before that, and for inputs without them, there is none.
+    fn expression_interval(
+        &self,
+        _expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<crate::ExpressionInterval> {
+        None
+    }
+
     fn prepared_mathematics(
         &self,
     ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
@@ -230,6 +240,7 @@ pub struct CheckingContext<'program> {
     finalized_selections: Option<&'program AuthoredDeclarationSelections>,
     prepared_effects: Option<&'program PreparedEffectPlans>,
     storage_graph: OnceLock<Arc<checked_trees::FlowFacts>>,
+    expression_intervals: OnceLock<Arc<[crate::ExpressionInterval]>>,
     prepared_mathematics:
         Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
     opaque_selections: Option<&'program [OpaqueRepresentationSelection]>,
@@ -279,6 +290,7 @@ impl<'program> CheckingContext<'program> {
             finalized_selections: None,
             prepared_effects: None,
             storage_graph: OnceLock::new(),
+            expression_intervals: OnceLock::new(),
             prepared_mathematics: None,
             opaque_selections: None,
             memos: Arc::new(CheckingMemos::default()),
@@ -307,6 +319,12 @@ impl<'program> CheckingContext<'program> {
     /// effect answer, so borrowers of this context keep their views.
     pub fn attach_storage_graph(&self, graph: Arc<checked_trees::FlowFacts>) {
         let _ = self.storage_graph.set(graph);
+    }
+
+    /// Attach validation's expression intervals, once, before the checks that
+    /// read them run. Like the storage graph, they change no memoized answer.
+    pub fn attach_expression_intervals(&self, intervals: Arc<[crate::ExpressionInterval]>) {
+        let _ = self.expression_intervals.set(intervals);
     }
 
     /// Switch to the ownership-complete execution graph. Effects participate
@@ -345,6 +363,7 @@ impl<'program> CheckingContext<'program> {
             finalized_selections: self.finalized_selections,
             prepared_effects: Some(plans),
             storage_graph: self.storage_graph.clone(),
+            expression_intervals: self.expression_intervals.clone(),
             prepared_mathematics: self.prepared_mathematics,
             opaque_selections: self.opaque_selections,
             memos,
@@ -436,6 +455,13 @@ impl CheckingInput for CheckingContext<'_> {
 
     fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
         self.storage_graph.get().map(|graph| &graph.control)
+    }
+
+    fn expression_interval(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<crate::ExpressionInterval> {
+        crate::expression_interval(self.expression_intervals.get()?, expression).copied()
     }
 
     fn prepared_mathematics(
@@ -554,6 +580,13 @@ impl CheckingInput for CheckingProjection<'_> {
 
     fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
         self.memo_source()?.storage_graph()
+    }
+
+    fn expression_interval(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<crate::ExpressionInterval> {
+        self.memo_source()?.expression_interval(expression)
     }
 
     fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {

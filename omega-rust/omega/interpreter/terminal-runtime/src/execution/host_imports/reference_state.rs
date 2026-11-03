@@ -181,17 +181,23 @@ fn validate(
             )
         }
         ReferenceStateOperation::LibcVersion => {
-            let integer = IntegerType::new(IntegerSign::Unsigned, 8)
-                .map_err(|_| invalid("libc version requires a supported u8 carrier"))?;
+            // The libc version cell is one scalar leaf; admitted referents
+            // may wrap it in layout storage, so the leaf's declared carrier —
+            // not the operation — chooses the integer width. The semantic
+            // model supplies the same stable small version for every
+            // carrier.
+            let integer = super::native_word::scalar_leaf_integer(program, *referent)?;
+            let value = match integer.sign() {
+                IntegerSign::Signed => IntegerValue::Signed(2),
+                IntegerSign::Unsigned => IntegerValue::Unsigned(2),
+            };
             scalar_state(
                 program,
                 *referent,
                 ScalarType::Integer(integer),
-                // A stable nonzero byte: the semantic version cell this
-                // provider owns for the invocation's life.
                 TerminalScalarValue::Integer {
                     scalar_type: integer,
-                    value: IntegerValue::Unsigned(2),
+                    value,
                 },
             )
         }

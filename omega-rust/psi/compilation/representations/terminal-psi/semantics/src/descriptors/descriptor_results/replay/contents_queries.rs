@@ -25,9 +25,12 @@ impl Replay<'_> {
     ) -> Value {
         let _read = depth.enter()?;
         query.validate(self.types, *machine.place_types.get(&query.root)?)?;
-        // A view's creation record can cross a reference without supplying a
-        // physical address. Preserve every captured formation alternative;
-        // incoming pointer contents still use the invalidation checks below.
+        // Access provenance can cross a reference without supplying a physical
+        // address. Retain both completed formations and symbolic ingress tokens:
+        // an edge inside a helper cannot resolve its callers yet. Admission
+        // later substitutes every caller and requires actual formations; an
+        // incoming token is not itself backing authority. Unresolved pointer
+        // contents still use the invalidation checks below.
         if self.slot_kind == DescriptorSlotKind::AccessOrigins {
             if state.contents_path_invalidated(query) {
                 return None;
@@ -37,7 +40,9 @@ impl Replay<'_> {
                 && origins.iter().all(|origin| {
                     matches!(
                         origin,
-                        Origin::Backing(DescriptorCallOrigin::AccessFormation { .. })
+                        Origin::Incoming(_)
+                            | Origin::IncomingContents(_, _)
+                            | Origin::Backing(DescriptorCallOrigin::AccessFormation { .. })
                     )
                 })
             {
