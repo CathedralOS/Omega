@@ -512,7 +512,15 @@ impl Evaluation {
                         self.retired_structural_homes,
                         self.retired_structural_bindings
                             .iter()
-                            .map(|binding| (binding.symbol, binding.place, binding.statement))
+                            .map(|binding| (
+                                binding.symbol,
+                                binding.place,
+                                binding.statement,
+                                match binding.end {
+                                    StructuralBindingEnd::ConsumedSource => "consumed source",
+                                    StructuralBindingEnd::RetiredHome => "retired home",
+                                }
+                            ))
                             .collect::<Vec<_>>(),
                     );
                     return unsupported("value storage local is not established");
@@ -534,6 +542,7 @@ impl Evaluation {
     /// Checked cleanup can outlive the source frontier that established an
     /// anonymous producer. Its conditional schedule names that exact producer;
     /// only its completed geometry is needed here, never sibling permissions.
+    #[track_caller]
     pub(crate) fn cleanup_value_storage(
         &self,
         source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,

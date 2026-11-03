@@ -40,6 +40,7 @@ pub(crate) fn lower_reference_completion_regions(
         else {
             continue;
         };
+        eprintln!("corpus_runner: REFERENCE_COMPLETION_TRACE operation={operation:?}");
         let storage = evaluation.cleanup_value_storage(source, parameters, &mut result_storage)?;
         let suffix =
             crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
