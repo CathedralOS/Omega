@@ -4193,7 +4193,7 @@ pass/borrows/runtime_independent_qualified_owner_reference_exit checked 6375ms c
 pass/borrows/runtime_index_mut_loan_write_exit checked 16911ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_indexed_bounded_primitive_loan_write_exit checked 9511ms check-target:macos_arm64 @21213f5ea3d3
 pass/borrows/runtime_indexed_carrier_bounded_reference_read_exit checked 52817ms check-target:macos_arm64 @911f6617ba9e
-pass/borrows/runtime_indexed_carrier_conditional_exit checked 3561ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/runtime_indexed_carrier_conditional_exit checked 7658ms check-target:macos_arm64 @4178fb6d3bc2
 pass/borrows/runtime_indexed_carrier_reference_read_exit checked 112356ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_indexed_carrier_repeated_exit checked 3651ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_indexed_primitive_loan_current_selector_exit checked 33661ms check-target:macos_arm64 @911f6617ba9e
@@ -16439,7 +16439,7 @@ fail/borrows/incoming_carrier_duplicate_exclusive_leaf rejected 2033ms expected 
 	machine `duplicate` returns `carrier` as mutable more than once
 fail/borrows/indexed_carrier_case_neighbor_stays_borrowed rejected 2946ms expected @ccdb99ca2214
 	statement 4 mutates `neighbor.value` while local borrow `slots` is still active (borrowed at statement 2; its last use is at statement 8 and it is released at state exit)
-fail/borrows/indexed_carrier_conditional_retains_backing rejected 1870ms expected @ccdb99ca2214
+fail/borrows/indexed_carrier_conditional_retains_backing rejected 5757ms expected @4178fb6d3bc2
 	statement 5 mutates `original.value` while local borrow `slots` is still active (borrowed at statement 4; its last use is at statement 6 and it is released at state exit)
 fail/borrows/indexed_carrier_detached_child_stays_borrowed rejected 2203ms expected @ccdb99ca2214
 	statement 6 mutates `original.value` while local borrow `detached` is still active (borrowed at statement 4; its last use is at statement 7 and it is released at state exit)
@@ -17006,21 +17006,21 @@ fail/borrows/stored_reference_write_only_array_copy rejected 2130ms expected @cc
 	cannot use `windows` in machine `main` state `entry` (statement 3) after `windows` was transferred or consumed at statement 2: it holds no value; read what is needed before the transfer or assign a whole value to `windows` first
 fail/borrows/stored_returned_reference_live_source_write rejected 2402ms expected @ccdb99ca2214
 	statement 2 mutates `value` while local borrow `held` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
-fail/borrows/stored_subview_live_child rejected 1906ms expected @ccdb99ca2214
+fail/borrows/stored_subview_live_child rejected 4179ms expected @4178fb6d3bc2
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/borrows/stored_subview_live_exclusive_child rejected 1862ms expected @ccdb99ca2214
+fail/borrows/stored_subview_live_exclusive_child rejected 4229ms expected @4178fb6d3bc2
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 creates local borrow `window` while local borrow `child` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
-fail/borrows/stored_subview_new_backing_write rejected 2536ms expected @ccdb99ca2214
+fail/borrows/stored_subview_new_backing_write rejected 4272ms expected @4178fb6d3bc2
 	statement 4 mutates `cells[1].value` while local borrow `window` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `cells[1].value` while local borrow `window` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
 	statement 4 mutates `cells[1].value` while local borrow `window` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
-fail/borrows/stored_subview_preserved_backing_write rejected 2523ms expected @ccdb99ca2214
+fail/borrows/stored_subview_preserved_backing_write rejected 4062ms expected @4178fb6d3bc2
 	statement 3 mutates `cells[0].value` while local borrow `window` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 	statement 3 mutates `cells[0].value` while local borrow `window` is still active (borrowed at statement 2; its last use is at statement 4 and it is released at state exit)
 fail/borrows/stored_writeonly_carrier_descriptor_replacement rejected 675ms expected @ccdb99ca2214
