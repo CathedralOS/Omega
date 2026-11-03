@@ -96,8 +96,9 @@ The chain reaches the checked-assembly boundary and stops:
   (`machine-emission/src/private_callback.rs`) also writes `Vec::new()`, which
   is correct by construction — `object_artifact/private_functions.rs` rejects
   any private function whose `port_effects` is nonempty.
-- Corpus: `tests/omega/pass/ports` does not exist; only
-  `fail/ports/asm_port_in_unsettled` and the `fail/inline_asm/asm_port_*`
+- Corpus: `tests/omega/pass/ports/asm_port_in_immediate` checks an
+  immediate-port read (its twin `fail/ports/asm_port_in_missing_reach` drops
+  the `PortIo` reach); otherwise only the `fail/inline_asm/asm_port_*`
   type-check rejections are registered. The positive fixture
   `pass/inline_asm/asm_port_out_final_validation` is a direct-root `out` that
   deliberately rejects at custody review, and

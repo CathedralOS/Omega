@@ -1,7 +1,8 @@
-// `in` resolves its declared `u8` result type, but no checked unit operation
-// arm exists for a port read yet: the machine reports an Incomplete plan gap
-// at the call's planning phase rather than carrying a settled port effect
-// into the artifact.
+// A port read from an immediate port number checks and lowers: `in` writes
+// the declared `u8` destination, and the machine declares the `PortIo` reach
+// the instruction needs. This replaces an earlier fence that expected port
+// reads to be unlowered; the missing-reach twin is
+// fail/ports/asm_port_in_missing_reach.
 use omega::language::core::assembly;
 
 data Main {
