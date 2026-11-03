@@ -20,6 +20,12 @@ pub(super) fn operand(
         }
     };
     let sources = frames.completed_reference_read_sources(machine, state, expression)?;
+    if std::env::var_os("OMEGA_REFERENCE_SLOT_TRACE").is_some() {
+        eprintln!(
+            "SLOT read-sources machine={} expression={expression:?} sources={sources:?}",
+            machine.name
+        );
+    }
     let mut sources = sources.iter();
     let first = source_operand(program, state, sources.next()?)?;
     // Alternative descriptors can share an identity only when every exact

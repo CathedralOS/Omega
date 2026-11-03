@@ -881,41 +881,18 @@ fn walk_state_write_prefix_body(
                     replacement?.install(inference, &mut stored);
                     continue;
                 }
-                let receiving = reference_subjects::assignment_stored_value_type(
-                    program, machine, state, assignment,
+                let relative = stable_assignment_target_path(
+                    program,
+                    machine,
+                    &machine_symbols,
+                    inference,
+                    assignment.target,
+                    parameters,
+                    &isolated_local_roots,
+                    &local_alias_origins,
+                    symbols,
                 )?;
-                let paths = if crate::reference_shell(program, receiving).is_some() {
-                    // Installing a pointer changes this descriptor slot. Its
-                    // old shared pointer cannot erase the store or redirect it
-                    // to the old pointee. Ancestor pointer loads still use this
-                    // captured prefix, including every selected alternative.
-                    let target = super::frame_place_path(program, assignment.target)?;
-                    stored_origins::canonical_storage_origins(
-                        program,
-                        &target,
-                        &local_alias_origins,
-                        &divergent_alias_origins,
-                        &stored,
-                    )
-                    .into_iter()
-                    .collect::<Option<Vec<_>>>()?
-                    .into_iter()
-                    .map(|origin| origin.path)
-                    .collect::<Vec<_>>()
-                } else {
-                    let relative = stable_assignment_target_path(
-                        program,
-                        machine,
-                        &machine_symbols,
-                        inference,
-                        assignment.target,
-                        parameters,
-                        &isolated_local_roots,
-                        &local_alias_origins,
-                        symbols,
-                    )?;
-                    expand_write_path(program, &relative, &local_alias_origins, &stored)?
-                };
+                let paths = expand_write_path(program, &relative, &local_alias_origins, &stored)?;
                 push_queried_assignment_and_visible_paths(
                     queried_assignment,
                     &mut assignments,
@@ -925,14 +902,6 @@ fn walk_state_write_prefix_body(
                     parameters,
                     &locals,
                 )?;
-                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
-                    && crate::reference_shell(program, receiving).is_some()
-                {
-                    eprintln!(
-                        "STRUCT descriptor-store-write-paths callee={} state={:?} statement={statement_index} paths={paths:?} written={written:?}",
-                        machine.name, state.symbol
-                    );
-                }
                 // The write target and returned origins are captured before
                 // RHS effects. Install the final store after those effects.
                 assignment_replacement = replacement;
