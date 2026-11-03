@@ -202,6 +202,9 @@ fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch reject
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/domains/float_conversion_qualification_wrong_domain_rejected rejected 9740ms expected @30013776d577
+	cannot prove scalar result domain for return from truncated at statement 0: i32::Three
+	cannot prove requires contract for call observe from main: I32.from_f64(3.75) in i32::Three in state `entry`
 fail/domains/inherited_requirement_issuer_wrong_owner rejected 2295ms expected @f2c75870ebaf+wt
 	construction value is not proven in domain `Ticket::Issued` in make state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 	cannot prove default-domain field requirement for return from make, state entry, at statement 0: Ticket requires Ticket::Issued
@@ -5798,6 +5801,7 @@ pass/domains/established_by_domain checked 2632ms @ccdb99ca2214
 pass/domains/executable_domain_membership_expression_exit checked 12605ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/executable_domain_membership_union_guard_exit checked 17146ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/explicit_domain_erasure checked 1990ms @0cea3356c5b0+wt
+pass/domains/float_conversion_qualification_transport_exit checked 14070ms check-target:macos_arm64 @30013776d577
 pass/domains/guard_predicate_establishes_domain checked 2359ms @ccdb99ca2214
 pass/domains/inactive_impossible_payload_exit rejected 1343ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `consume` state `entry` value call to `impossible` violates required fact `false`: the instantiated fact is structurally false
