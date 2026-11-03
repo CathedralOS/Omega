@@ -31864,7 +31864,7 @@ fail/float/constructed_ieee_match_unsafe_arm rejected 7185ms expected @911f6617b
 	cannot prove requires contract for call admit from probe: value >= 0.0 && value <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/constructed_ieee_outside rejected 2511ms expected @911f6617ba9e
 	data `Reading` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/float/constructed_ieee_selector_changed rejected 4071ms expected @ccdb99ca2214
+fail/float/constructed_ieee_selector_changed rejected 9143ms expected @18fc751d0060+wt
 	cannot prove requires contract for call admit from probe: observed >= 0.0 && observed <= 0.5 (needs fact `value >= 0.0 && value <= 0.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/constructed_ieee_stale rejected 2507ms expected @911f6617ba9e
 	data `Reading` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
