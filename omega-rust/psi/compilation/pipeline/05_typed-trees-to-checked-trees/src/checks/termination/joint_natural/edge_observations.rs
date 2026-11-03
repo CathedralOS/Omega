@@ -120,12 +120,24 @@ pub(super) fn compare(
             .value
     } else {
         let coordinate = destination.subject.scalar()?;
-        coordinate.bounded_value(coordinate.current(
+        let current = coordinate.current(
             &edge.values,
             actual,
             machines[edge.destination],
             edge.arguments,
-        )?)?
+        );
+        if std::env::var_os("OMEGA_TRACE_RECURSIVE_ADMISSION").is_some() {
+            eprintln!(
+                "rank values {}:{} -> {}:{} initial={:?} current={:?}",
+                machines[edge.source].name,
+                source.subject.position(),
+                machines[edge.destination].name,
+                destination.subject.position(),
+                initial,
+                current
+            );
+        }
+        coordinate.bounded_value(current?)?
     };
     let proves = |operator, left: &ScopedArithmeticValue, right: &ScopedArithmeticValue| {
         edge.values
