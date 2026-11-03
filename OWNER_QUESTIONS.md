@@ -203,54 +203,7 @@ lets static callable requirements bind fresh per-invocation lifetimes, and the
 [static machine binder categories](wiki/spec/language/generics.md#static-machine-binder-categories)
 cover machine binders; neither covers evidence binders on a requirement.
 
-### 4. Is derived ex falso part of the certificate fragment?
-
-Two accepted passages disagree about whether a `Falsehood` premise may close an
-arbitrary goal. [Classicality](wiki/spec/proofs/classicality.md) (lines 68-70)
-says `Falsehood` has no elimination rule, that there is no ex falso in the
-certificate fragment, and that the calculus is therefore stricter than
-intuitionistic logic on that point. [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md)
-(lines 111-119) describe how an impossible arrival closes: the `Truth`/`Falsehood`
-denotation conversion turns `3 < 3` into `Falsehood`, and "existing conversion
-of `Falsehood` to `Falsehood AND goal`, followed by conjunction elimination,
-then closes an impossible arrival" without an integer-contradiction rule. That
-derived route proves any goal from `Falsehood`, which is ex falso.
-
-The implementation takes the second reading. `connective` in
-`omega-rust/psi/compilation/proof/admission/src/predicate_denotation.rs`
-(lines 464-468) collapses a conjunction containing `Falsehood` to `Falsehood`,
-and `predicate_denotation_relation` in `proof/equality_rules.rs` (line 30)
-admits a step whose premise and conclusion have equal normalized denotations,
-so `Falsehood` converts to `Falsehood AND goal` and the goal follows by
-elimination.
-
-The customers are the existing closure of unreachable arrivals from
-contradictory bounds (checked transitivity yielding `3 < 3`), which must keep
-working under either answer, and the classicality statement that the kernel
-metatheory and the matching-logic comparison cite as a property of the fragment.
-
-Option A, ex falso is an intended derived rule: keep the conversion and the
-integer-certificate route; reword classicality.md to say the fragment has no
-primitive `Falsehood` elimination but derives one through denotation
-conversion, and drop "stricter than intuitionistic on that point".
-
-Option B, the fragment has no ex falso: the denotation conversion may not
-introduce conjuncts (no `Falsehood` to `Falsehood AND goal`), and impossible
-arrivals close through an explicit arrival-pruning or contradiction step that
-integer_certificates.md currently says is not added. That is a new certificate
-rule and a change to the integer-certificate route and its fixtures.
-
-Contracts checked: the classicality structural boundary (lines 61-70) states
-the absence; integer_certificates.md (lines 111-119) states the derived route;
-[foundation](wiki/spec/proofs/foundation.md) and
-[kernel metatheory](wiki/spec/proofs/kernel_metatheory.md) do not mention
-`Falsehood` elimination for the certificate fragment;
-[fact validity](wiki/spec/terminal-psi/fact_validity.md) (lines 86-92) defines
-the bounded conversion and says false is not inferred from a search failure,
-without saying whether a false denotation may be strengthened by a conjunct.
-None says which passage governs.
-
-### 5. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
+### 4. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
 
 [Epsilon's grammar](bootstrap/4_epsilon/LANGUAGE.md) (lines 128-139) lets an
 arm's continuation be `"return" expression?`, and lets the next arm's pattern
@@ -295,7 +248,7 @@ define observations and resources, not parsing;
 not fix Epsilon's grammar; `implementation_notes.md` describes the probe as
 implementation, not as a language rule.
 
-### 6. Is a layout used only inside unselected library code a Psi obligation under every target?
+### 5. Is a layout used only inside unselected library code a Psi obligation under every target?
 
 A fixed-representation use (`LayoutStorage`, `CLayout`) inside a body that no
 Build row selects and no entry reaches is laid out today by Psi's build-time

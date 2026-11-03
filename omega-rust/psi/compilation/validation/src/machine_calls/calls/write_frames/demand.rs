@@ -1031,6 +1031,20 @@ impl<'program> CallFrameResolver<'program> {
         )
     }
 
+    /// The whole local or parameter binding this assignment replaces, when it
+    /// rebinds a reference rather than storing through it. The old referent
+    /// keeps its value; facts that read through the binding no longer apply.
+    pub fn assignment_replaced_binding(
+        &self,
+        current_machine: &Machine,
+        statement: &StatementNode,
+    ) -> Option<String> {
+        match self.assignment_write_target(current_machine, statement)? {
+            AssignmentWriteTarget::LocalBindingReplacement { path } => Some(path),
+            AssignmentWriteTarget::Storage { .. } => None,
+        }
+    }
+
     /// Whether RHS execution preserves the address inputs needed to name the
     /// completed store by its current destination expression. A complete write
     /// footprint alone supplies no such correspondence.
