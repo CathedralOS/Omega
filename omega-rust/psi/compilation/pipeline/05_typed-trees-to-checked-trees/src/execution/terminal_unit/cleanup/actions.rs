@@ -11,6 +11,7 @@
 //! a moved region nor a hook. An unknown tag retains a runtime selection
 //! condition; it never becomes static authority for every possible payload.
 
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::types::{ShapeCollector, machine_binders};
 use checked_trees::{
     CheckFacts, CheckedNormalCleanupAction as CleanupAction, CheckedUnitCallableEntry,
@@ -122,7 +123,7 @@ pub(super) fn selected_region(
             None,
             None,
         )?
-        .1
+        .path
     };
     Some(checked_trees::CheckedUnitStructuralArgumentPlan {
         projection_evaluations: Default::default(),
@@ -215,7 +216,7 @@ pub(super) fn disposition_actions(
             None,
         )
         .ok_or("cleanup cannot lower its disposed path")?
-        .1
+        .path
     };
     let mut moved = Vec::new();
     for removed in facts
@@ -269,19 +270,22 @@ pub(super) fn disposition_actions(
                 .then(Vec::new)
                 .ok_or("cleanup whole-region exclusion does not identify an empty owner");
         }
-        let (reference, relative_path) =
-            crate::execution::terminal_unit::calls::projected_argument_path(
-                program,
-                disposition.state,
-                statement_index,
-                &validation::CanonicalPlace {
-                    root: facts::PlaceRoot::TypeReference(reference),
-                    segments: relative_segments.to_vec(),
-                },
-                None,
-                None,
-            )
-            .ok_or("cleanup cannot lower its excluded relative path")?;
+        let ProjectedArgumentPath {
+            storage_type: reference,
+            path: relative_path,
+            ..
+        } = crate::execution::terminal_unit::calls::projected_argument_path(
+            program,
+            disposition.state,
+            statement_index,
+            &validation::CanonicalPlace {
+                root: facts::PlaceRoot::TypeReference(reference),
+                segments: relative_segments.to_vec(),
+            },
+            None,
+            None,
+        )
+        .ok_or("cleanup cannot lower its excluded relative path")?;
         // The excluded subtree is a stored field or element: a stored loan keeps
         // its Reference shape exactly as the owner's field plan registered it,
         // so the residual walk compares like identities. `add_type` would peel
@@ -324,16 +328,19 @@ pub(super) fn disposition_actions(
                 root: facts::PlaceRoot::TypeReference(reference),
                 segments: relative_segments,
             };
-            let (selected_reference, relative_path) =
-                crate::execution::terminal_unit::calls::projected_argument_path(
-                    program,
-                    disposition.state,
-                    statement_index,
-                    &selected_place,
-                    None,
-                    None,
-                )
-                .ok_or("cleanup cannot lower its selected hook path")?;
+            let ProjectedArgumentPath {
+                storage_type: selected_reference,
+                path: relative_path,
+                ..
+            } = crate::execution::terminal_unit::calls::projected_argument_path(
+                program,
+                disposition.state,
+                statement_index,
+                &selected_place,
+                None,
+                None,
+            )
+            .ok_or("cleanup cannot lower its selected hook path")?;
             let selected_type = shapes
                 .add_type(selected_reference, &binders, &[])
                 .ok_or("cleanup cannot lower its selected hook type")?;
@@ -379,19 +386,21 @@ pub(super) fn disposition_actions(
             if relative.is_empty() {
                 continue;
             }
-            let (_, selected_path) =
-                crate::execution::terminal_unit::calls::projected_argument_path(
-                    program,
-                    disposition.state,
-                    statement_index,
-                    &validation::CanonicalPlace {
-                        root: facts::PlaceRoot::TypeReference(reference),
-                        segments: relative.to_vec(),
-                    },
-                    None,
-                    None,
-                )
-                .ok_or("cleanup cannot lower its selected transfer path")?;
+            let ProjectedArgumentPath {
+                path: selected_path,
+                ..
+            } = crate::execution::terminal_unit::calls::projected_argument_path(
+                program,
+                disposition.state,
+                statement_index,
+                &validation::CanonicalPlace {
+                    root: facts::PlaceRoot::TypeReference(reference),
+                    segments: relative.to_vec(),
+                },
+                None,
+                None,
+            )
+            .ok_or("cleanup cannot lower its selected transfer path")?;
             crate::shared::collections::push_unique(&mut partition_paths, selected_path);
         }
     }

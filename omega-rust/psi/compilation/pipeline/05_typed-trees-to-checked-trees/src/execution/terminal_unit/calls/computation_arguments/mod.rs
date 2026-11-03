@@ -13,8 +13,8 @@ use crate::execution::terminal_unit::CheckedStructuralAccess;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::ExpressionNode;
-use crate::execution::terminal_unit::Multiplicity;
 use crate::execution::terminal_unit::PrimitiveType;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::types::{
     base_type_identity, borrowed_slice_view_element, dense_scalar_parameter_index,
     dense_structural_parameter_index, parameter_qualifications,
@@ -430,14 +430,9 @@ pub(crate) fn borrowed_storage_argument(
     } else {
         Default::default()
     };
-    if whole_storage
-        && !matches!(
-            program.type_multiplicity(reference),
-            Multiplicity::Affine | Multiplicity::Unrestricted
-        )
-    {
-        return None;
-    }
+    // Borrowing keeps the resource's owner responsible for using or releasing it.
+    // The checks below authorize access to the existing storage; requiring an
+    // owned argument's multiplicity here would reject valid loans.
     // The logical root is checked here, while its physical carrier is only
     // known after the dominating operation publishes storage. Keep the root
     // with every local loan; initializer spelling cannot decide whether that
@@ -455,8 +450,16 @@ pub(crate) fn borrowed_storage_argument(
             root_reference_hops: 0,
         };
     }
-    let (reference, path) = if place.segments.is_empty() {
-        (reference, Vec::new())
+    let ProjectedArgumentPath {
+        storage_type: reference,
+        path,
+        ..
+    } = if place.segments.is_empty() {
+        ProjectedArgumentPath {
+            declared_type: reference,
+            storage_type: reference,
+            path: Vec::new(),
+        }
     } else {
         projected_evaluated_path(
             program,
@@ -647,8 +650,16 @@ pub(in crate::execution) fn borrowed_view_argument(
     // the descriptor being lent. Whole and field views use one operation, and
     // the endpoint's own reference shell supplies access (never the containing
     // record's mutability). Source replay independently rejoins this exact path.
-    let (source_type, path) = if place.segments.is_empty() {
-        (source_type, Vec::new())
+    let ProjectedArgumentPath {
+        storage_type: source_type,
+        path,
+        ..
+    } = if place.segments.is_empty() {
+        ProjectedArgumentPath {
+            declared_type: source_type,
+            storage_type: source_type,
+            path: Vec::new(),
+        }
     } else {
         projected_evaluated_path(
             program,
@@ -769,7 +780,11 @@ pub(crate) fn storage_argument(
             reference = shell.referee;
         }
     }
-    let (mut selected_type, mut path) = projected_evaluated_path(
+    let ProjectedArgumentPath {
+        storage_type: mut selected_type,
+        mut path,
+        ..
+    } = projected_evaluated_path(
         program,
         machine,
         state.symbol,

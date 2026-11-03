@@ -9,6 +9,7 @@
 
 use super::super::{Builder, ExpressionHandle, ExpressionNode, TypeReferenceNode};
 use super::place_types::{projection_root_expression, readable_place};
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use checked_trees::{
     CheckedScalarComputationHandle, CheckedScalarExpressionRole,
     CheckedStructuralAccess as StructuralAccess, CheckedStructuralValueKind as ValueKind,
@@ -177,7 +178,8 @@ impl Builder<'_, '_> {
         // locals, rather than replaying the selector's original storage read.
         // The retained coordinate grants no bounds or copy permission.
         let selectors = self.projection_selector_evaluations(evaluation_owner, expression)?;
-        let (_, mut path) = self.projected_place_path(&place, &selectors)?;
+        let ProjectedArgumentPath { mut path, .. } =
+            self.projected_place_path(&place, &selectors)?;
         // A local owns its descriptor, whereas a borrowed formal already
         // denotes its referent. Selecting below the local crosses that stored
         // address; copying the whole descriptor does not cross it. View
@@ -253,7 +255,11 @@ impl Builder<'_, '_> {
         // compared against this path downstream, not trusted here.
         let place = self.canonical_place(expression)?;
         let selectors = self.projection_selector_evaluations(expression, expression)?;
-        let (projected, mut path) = self.projected_place_path(&place, &selectors)?;
+        let ProjectedArgumentPath {
+            storage_type: projected,
+            mut path,
+            ..
+        } = self.projected_place_path(&place, &selectors)?;
         // A checked qualification changes the receiving occurrence, not the
         // selected storage carrier. Keep projections in the same carrier
         // namespace as whole owned values; their exact membership decisions

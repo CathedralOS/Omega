@@ -3,6 +3,7 @@
 //! the value graph retains one owned result before any target operand runs.
 
 use super::builder::Builder;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use checked_trees::{
     CheckedStructuralAccess, CheckedStructuralValueKind as ValueKind,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
@@ -236,7 +237,11 @@ impl Builder<'_, '_> {
         let selectors =
             crate::values::authored_projection_selectors_below(self.program, expression, receiver)?;
         let selectors = self.retain_projection_selector_evaluations(expression, selectors)?;
-        let (projected, mut path) = self.projected_place_path(&place, &selectors)?;
+        let ProjectedArgumentPath {
+            storage_type: projected,
+            mut path,
+            ..
+        } = self.projected_place_path(&place, &selectors)?;
         if !validation::declared_carriers_match(self.program, projected, expected) {
             return None;
         }

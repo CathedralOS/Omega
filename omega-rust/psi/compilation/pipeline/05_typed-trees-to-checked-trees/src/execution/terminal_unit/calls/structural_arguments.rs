@@ -1385,7 +1385,7 @@ fn claim_operand_path_matches(
         &actual,
         Some(&selector),
     )
-    .is_some_and(|(_, path)| path == selected_path)
+    .is_some_and(|projection| projection.path == selected_path)
 }
 
 /// Join a computed call's owned operands to the call's complete linear

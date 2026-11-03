@@ -35,6 +35,7 @@ use super::{
     scalar_computation_local_at, structural_operands,
 };
 use crate::execution::terminal_unit::borrowed_windows::OpenWindows;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::calls::byte_sequence_literal_argument;
 use crate::execution::terminal_unit::calls::projected_evaluated_path;
 use crate::execution::terminal_unit::calls::value_index_segment;
@@ -872,7 +873,11 @@ fn place_loan(
         }),
     );
     let path = match projected {
-        Some((storage, path)) => {
+        Some(ProjectedArgumentPath {
+            storage_type: storage,
+            path,
+            ..
+        }) => {
             if !recast_source.is_valid()
                 && program.normalized_type_identity(storage)
                     != program.normalized_type_identity(referee)

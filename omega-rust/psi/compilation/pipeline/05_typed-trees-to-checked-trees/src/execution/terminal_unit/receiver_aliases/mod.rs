@@ -84,7 +84,7 @@ fn formation(
         statement_index,
         &place,
     )?
-    .0;
+    .storage_type;
     if lent_storage_identity(program, projected_type, &[])?
         != lent_storage_identity(program, local.type_reference, &[])?
     {
