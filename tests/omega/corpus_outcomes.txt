@@ -7216,42 +7216,42 @@ pass/facts/copied_case_before_later_argument_through_other_machine_exit checked 
 pass/facts/copied_case_before_later_argument_through_other_state_exit checked 10221ms check-target:macos_arm64 @1f3c4da0217e
 pass/facts/copied_case_before_later_argument_through_parameter_exit checked 10262ms check-target:macos_arm64 @1f3c4da0217e
 pass/facts/copied_case_before_later_argument_through_target_body_exit checked 10796ms check-target:macos_arm64 @1f3c4da0217e
-pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 4405ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_const_name rejected 4273ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_field rejected 3647ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_local rejected 6158ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_match_join rejected 5786ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_machine rejected 5382ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_state rejected 6299ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_parameter rejected 4770ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_target_body rejected 4745ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 3713ms check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_const_name rejected 4715ms check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_field rejected 6114ms check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_local rejected 6153ms check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_match_join rejected 6123ms check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_other_machine rejected 6046ms check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_other_state rejected 7403ms check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_parameter rejected 4963ms check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_target_body rejected 5046ms check-target:macos_arm64 @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 11158ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(126), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_const_name rejected 11279ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(125), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_field rejected 11130ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(125), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_local rejected 11029ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(125), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_match_join rejected 9945ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(125), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_machine rejected 9692ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(126), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_state rejected 10145ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(126), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_parameter rejected 9981ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(126), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_target_body rejected 11751ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(129), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 11757ms check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(126), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_const_name rejected 10789ms check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(125), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_field rejected 10955ms check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(125), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_local rejected 11208ms check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(125), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_match_join rejected 10526ms check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(125), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_other_machine rejected 9802ms check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(126), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_other_state rejected 10459ms check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(126), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_parameter rejected 9506ms check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(126), reason: "caller descriptor snapshots could not be reconstructed" }))
+pass/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_target_body rejected 10570ms check-target:macos_arm64 @c97d728430ec
+	native artifact identity physical pipeline failed: common physical staging failed: Selection(Legalization(DescriptorCallOrigins { machine: MachineId(1), result: PlaceId(129), reason: "caller descriptor snapshots could not be reconstructed" }))
 pass/facts/core_float_representation_through_call_result_exit checked 6486ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/core_float_representation_through_const_name_exit checked 7959ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/core_float_representation_through_field_exit checked 7613ms check-target:macos_arm64 @ccdb99ca2214
@@ -10700,24 +10700,15 @@ pass/facts/runtime_index_application_mutating_operator_through_other_machine_exi
 pass/facts/runtime_index_application_mutating_operator_through_other_state_exit checked 4396ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/runtime_index_application_mutating_operator_through_parameter_exit checked 3619ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/runtime_index_application_mutating_operator_through_target_body_exit checked 4104ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/runtime_index_application_nested_forwarded_through_call_result_exit rejected 3279ms check-target:macos_arm64 @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-pass/facts/runtime_index_application_nested_forwarded_through_const_name_exit rejected 3213ms check-target:macos_arm64 @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-pass/facts/runtime_index_application_nested_forwarded_through_field_exit rejected 3151ms check-target:macos_arm64 @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-pass/facts/runtime_index_application_nested_forwarded_through_local_exit rejected 4362ms check-target:macos_arm64 @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-pass/facts/runtime_index_application_nested_forwarded_through_match_join_exit rejected 4320ms check-target:macos_arm64 @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-pass/facts/runtime_index_application_nested_forwarded_through_other_machine_exit rejected 5232ms check-target:macos_arm64 @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-pass/facts/runtime_index_application_nested_forwarded_through_other_state_exit rejected 4235ms check-target:macos_arm64 @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-pass/facts/runtime_index_application_nested_forwarded_through_parameter_exit rejected 4134ms check-target:macos_arm64 @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-pass/facts/runtime_index_application_nested_forwarded_through_target_body_exit rejected 3329ms check-target:macos_arm64 @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
+pass/facts/runtime_index_application_nested_forwarded_through_call_result_exit checked 9376ms check-target:macos_arm64 @c97d728430ec
+pass/facts/runtime_index_application_nested_forwarded_through_const_name_exit checked 10575ms check-target:macos_arm64 @c97d728430ec
+pass/facts/runtime_index_application_nested_forwarded_through_field_exit checked 9957ms check-target:macos_arm64 @c97d728430ec
+pass/facts/runtime_index_application_nested_forwarded_through_local_exit checked 10106ms check-target:macos_arm64 @c97d728430ec
+pass/facts/runtime_index_application_nested_forwarded_through_match_join_exit checked 8963ms check-target:macos_arm64 @c97d728430ec
+pass/facts/runtime_index_application_nested_forwarded_through_other_machine_exit checked 8835ms check-target:macos_arm64 @c97d728430ec
+pass/facts/runtime_index_application_nested_forwarded_through_other_state_exit checked 9083ms check-target:macos_arm64 @c97d728430ec
+pass/facts/runtime_index_application_nested_forwarded_through_parameter_exit checked 9202ms check-target:macos_arm64 @c97d728430ec
+pass/facts/runtime_index_application_nested_forwarded_through_target_body_exit checked 9657ms check-target:macos_arm64 @c97d728430ec
 pass/facts/runtime_index_application_ordinary_call_through_call_result_exit checked 4447ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/runtime_index_application_ordinary_call_through_const_name_exit checked 3374ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/runtime_index_application_ordinary_call_through_field_exit checked 3479ms check-target:macos_arm64 @ccdb99ca2214
@@ -23188,78 +23179,60 @@ fail/facts/copied_case_before_later_argument_through_parameter_rejected rejected
 	cannot prove requires contract for call apply from main: chosen == constructor:78:package:ec2d414258e1185b825c3567a563fef4d3485aa4b5c0c28af88948591f6b2439::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/copied_case_before_later_argument_through_target_body_rejected rejected 9199ms expected @1f3c4da0217e
 	cannot prove requires contract for call apply from main: chosen == constructor:78:package:3cf80b530b5095095686b658b429503983bce9940880e0e06d216af4512f7f95::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 5261ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_const_name rejected 4630ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_field rejected 4335ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_local rejected 10829ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_match_join rejected 6831ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_machine rejected 6835ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_state rejected 5572ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_parameter rejected 5257ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_target_body rejected 4324ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 5752ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_const_name rejected 4190ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_field rejected 4183ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_local rejected 4175ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_match_join rejected 5719ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_other_machine rejected 8023ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_other_state rejected 8032ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_parameter rejected 8024ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_target_body rejected 10485ms expected @911f6617ba9e
-	machine `retain_counted` state `entry` cannot prove runtime index subject equality at statement 1; an indexed value retains its captured index
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 6562ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2703 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2703 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_const_name rejected 7281ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2701 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2701 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_field rejected 6457ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2702 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2702 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_local rejected 7540ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2700 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2700 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_match_join rejected 6740ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2700 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2700 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_machine rejected 7559ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2703 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2703 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_other_state rejected 7207ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2702 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2702 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_parameter rejected 6744ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2702 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2702 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_computed_ranked_indexed_byte_view_argument_snapshot_through_target_body rejected 7411ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2719 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2719 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_call_result rejected 7759ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2700 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2700 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_const_name rejected 7058ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2698 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2698 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_field rejected 7961ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2699 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2699 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_local rejected 7983ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2697 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2697 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_match_join rejected 6967ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2697 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2697 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_other_machine rejected 6928ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2700 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2700 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_other_state rejected 6993ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2699 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2699 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_parameter rejected 7021ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2699 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2699 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/copied_ranked_indexed_byte_view_argument_snapshot_through_target_body rejected 6660ms expected @c97d728430ec
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2716 from main: <saved subject #2:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call receive_inferred$specialized$1814538dc046bb3b$0$2716 from main: <saved subject #3:1>.Count == 7 (needs fact `Count == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/core_float_representation_through_call_result_rejected rejected 3168ms expected @ccdb99ca2214
 	machine `probe` state `entry` value call to `consume` violates required fact `float::to_bits(value) == 0xff800123`: the instantiated fact is structurally false (`4286578980 == 4286578979`)
 fail/facts/core_float_representation_through_const_name_rejected rejected 3569ms expected @ccdb99ca2214
@@ -28910,44 +28883,35 @@ fail/facts/runtime_index_application_mutating_operator_through_parameter_rejecte
 fail/facts/runtime_index_application_mutating_operator_through_target_body_rejected rejected 1493ms expected @ccdb99ca2214
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/facts/runtime_index_application_nested_forwarded_through_call_result_rejected rejected 7087ms expected @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_const_name_rejected rejected 5454ms expected @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_field_rejected rejected 6858ms expected @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_local_rejected rejected 8058ms expected @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_match_join_rejected rejected 8377ms expected @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_other_machine_rejected rejected 4190ms expected @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_other_state_rejected rejected 4663ms expected @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_parameter_rejected rejected 6403ms expected @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/runtime_index_application_nested_forwarded_through_target_body_rejected rejected 5069ms expected @911f6617ba9e
-	machine `observe$specialized$b092260c25ef5449$0` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from X86Probe::probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from X86Probe::probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
-	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0 from ArmProbe::probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
-	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0 from ArmProbe::probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+fail/facts/runtime_index_application_nested_forwarded_through_call_result_rejected rejected 6980ms expected @c97d728430ec
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2679 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2687 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_const_name_rejected rejected 7103ms expected @c97d728430ec
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2677 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2685 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_field_rejected rejected 6762ms expected @c97d728430ec
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2683 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2691 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_local_rejected rejected 6725ms expected @c97d728430ec
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2676 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2684 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_match_join_rejected rejected 6978ms expected @c97d728430ec
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2678 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2686 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_other_machine_rejected rejected 7132ms expected @c97d728430ec
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2678 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2686 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_other_state_rejected rejected 6439ms expected @c97d728430ec
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2678 from construct: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2686 from construct: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_parameter_rejected rejected 7534ms expected @c97d728430ec
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2675 from probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2683 from probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/runtime_index_application_nested_forwarded_through_target_body_rejected rejected 6783ms expected @c97d728430ec
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2709 from X86Probe::probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2717 from X86Probe::probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+	cannot prove requires contract for call forward$specialized$744e90cd591abf80$0$2709 from ArmProbe::probe: 10 < limit (needs fact `value < Forwarded` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
+	cannot prove requires contract for call observe$specialized$b092260c25ef5449$0$2717 from ArmProbe::probe: indexed.value < limit (needs fact `value < Observed` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
 fail/facts/runtime_index_application_ordinary_call_through_call_result_rejected rejected 1046ms expected @ccdb99ca2214
 	data `Index` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/facts/runtime_index_application_ordinary_call_through_const_name_rejected rejected 796ms expected @ccdb99ca2214
