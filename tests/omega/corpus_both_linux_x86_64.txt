@@ -7520,6 +7520,7 @@ pass/termination/nested_projection_measure rejected 2044ms @a92f16431042
 	machine call cycle: `walk` -- rank range membership, pinned endpoints, or nonincrease is unproven at a call site; runtime calls must be tail, and every complete cycle must decrease the shared `terminates by ...` ranking
 pass/termination/predicate_requires_ranked_cycle checked 1613ms @a92f16431042
 pass/termination/private_self_call_without_promise_compile checked 1995ms @a92f16431042
+pass/termination/progress_selector_owned_arrival_reference_reborrow_exit built 9840ms exit:0 interpreter-exit:0 interpreter:agrees @49d08ea371fd
 pass/termination/progress_selector_owned_snapshot_exit built 2250ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/termination/progress_selector_reference_snapshot_exit built 2239ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/termination/projected_subject_measure rejected 1847ms @a92f16431042
