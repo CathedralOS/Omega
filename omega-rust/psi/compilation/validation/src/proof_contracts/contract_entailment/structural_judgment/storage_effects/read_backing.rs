@@ -557,7 +557,7 @@ impl StructuralJudge<'_> {
     /// Follow its already formed owned fields to the saved call identity. The
     /// existing cell's current storage checks decide whether its contents
     /// remain available to this caller.
-    fn completed_result_read_source(
+    pub(super) fn completed_result_read_source(
         &self,
         value: &super::super::StructuralTerm,
         depth: usize,

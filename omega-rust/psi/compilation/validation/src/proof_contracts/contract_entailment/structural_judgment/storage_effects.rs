@@ -239,11 +239,11 @@ impl StructuralJudge<'_> {
         bindings: &[(SymbolHandle, Option<super::StructuralTerm>)],
     ) {
         let caller_version = self.storage_version;
+        let mut values = self.owned_argument_storage_values(entry, caller_state, bindings);
         self.storage_version = self.incoming_storage_version(entry);
         // Operand writes belong to the caller; this invocation starts at its
         // own entry cut before any of its body writes.
         self.storage_write_sequence = 0;
-        let mut values = Vec::new();
         for subject in subjects {
             if !crate::reference_shell(self.program, subject.parameter_type)
                 .is_some_and(|shell| shell.access.is_readable())
@@ -483,36 +483,8 @@ impl StructuralJudge<'_> {
         let Some(machine) = self.program.machine(self.machine_symbol) else {
             return;
         };
-        let mut expressions = Vec::new();
-        crate::queries::expression_traversal::collect_expression_tree(
-            self.program,
-            fact,
-            &mut expressions,
-        );
-        for expression in expressions {
-            if super::super::observed_projections::scalar_storage_read(
-                self.program,
-                machine,
-                state,
-                expression,
-            )
-            .is_none()
-            {
-                continue;
-            }
-            if !self.ordinary_storage_path(Some((machine, state)), expression) {
-                continue;
-            }
-            let Some(place) = crate::canonical_place_from_expression(self.program, expression)
-                .and_then(|place| self.capture_entry_storage_place(place))
-            else {
-                continue;
-            };
-            let Some(canonical) = crate::canonical_place_from_expression(self.program, expression)
-            else {
-                continue;
-            };
-            let Some(root) = place.root.as_symbol() else {
+        for (canonical, expression) in self.entry_scalar_read_coordinates(machine, state, fact) {
+            let Some(root) = canonical.root.as_symbol() else {
                 continue;
             };
             let Some(value) = self.declaration_term(expression) else {

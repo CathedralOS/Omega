@@ -43,15 +43,18 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [current source check](https://github.com/CathedralOS/Omega/actions/runs/41702001857)
-at `25c7948b99244262d63b27c7f31f746d7c051acb` proves the encoder's byte
-promises and the buffer-capacity requirement at restoration entry. All 28 field
-formation conflicts are resolved: each case field retains its own source, and
-formation distinguishes lifetime obligations and opposite cases of the same
-saved Result. Local and field still have six restoration proof failures.
-Three additional reference controls reject before their intended obligations,
-and a sibling control times out. Their attribution is pending a same-host
-comparison of retained producers; these are not accepted controls yet.
+The [current source check](https://github.com/CathedralOS/Omega/actions/runs/41706602598)
+at `10e13c58527a01caf604b7e5a6b45b470020fa28` preserves the encoder's byte
+promises, restoration-entry capacity requirement and correct field-loan
+transport. Local, field and constant each still have six restoration proof
+failures. The trace recovers the standalone tag byte but lacks entry identities
+for bytes 1 and 2. Known byte facts are also dropped when an owned Frame carrying
+its buffer enters another call.
+
+Four extra reference controls have demonstrated pre-existing failures:
+[fresh checks of pinned main7fc](https://github.com/CathedralOS/Omega/actions/runs/41707158340)
+reproduce their early refusals or timeout with the same fixture/library inputs.
+They remain unchanged and unaccepted, separately from this row's requirements.
 
 The [stale-byte control](../../../../tests/omega/fail/contracts/forwarded_data_identity_does_not_preserve_mutated_contents/main.omg)
 reads a byte, replaces it, then asks to prove that the old and current bytes are

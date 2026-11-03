@@ -1064,6 +1064,7 @@ impl<'program> StructuralJudge<'program> {
             for fact in requires {
                 judge.retain_entry_scalar_reads(state, *fact);
             }
+            judge.retain_declared_entry_scalar_reads(machine, state);
         }
         judge
     }
