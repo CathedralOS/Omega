@@ -78,14 +78,10 @@ missing/numeric/extra DMB operands, and an operand on LFENCE. These are source
 formation or contract refusals; malformed operands do not prove a hardware
 ordering or ownership obligation.
 
-## Build-owned target-body migration
+## Unfinished target-body migration
 
-The `target_body` place and its twin carry no source target prefix.
-`BUILD-OWNED-TARGET-SELECTION` replaces the prefixed family with ordinary named
-implementations (`X86...` and `Arm...`) of a boundary-trait requirement, selected
-by explicit target-keyed Build rows. The operation, inputs, contracts and exit
-oracle are unchanged. The entry wrapper and each implementation check a tag
-(17 for x86-64, 29 for AArch64), so a wrong Build row traps. Observed evidence is
-Linux x86-64 native and Terminal Psi agreement for the positive and source
-rejection for the twin; the other hosted targets keep their authored rows,
-unexecuted here.
+The current `target_body` program still declares target-prefixed `ordered` and `forward` machines. The earlier text claiming that this place had already migrated did not match its source or pins. The next milestone replaces those declarations with ordinary named implementations selected by explicit Build rows, while retaining input 37, the exact three-fence order and the empty-clobber requirement.
+
+This row also retains colon-entry assembly contracts. The accepted assembly language uses direct inline `requires` and `ensures` clauses instead. The migration must keep the same assertions and every invented-clobber or malformed-instruction control; it cannot turn an assertion into an assumption.
+
+A fresh exact-source baseline and the complete migrated row remain pending. The older results above retain their original producer identities and are historical evidence, not observations of the current source.
