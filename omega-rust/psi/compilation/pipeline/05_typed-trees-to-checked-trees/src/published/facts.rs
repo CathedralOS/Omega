@@ -273,7 +273,6 @@ pub(crate) fn build_check_facts(
                     &service_reach_inference,
                     &prepared.values.scalar_expressions,
                     &prepared.operators,
-                    &validation_facts.exact_integer_casts,
                     mutation_summaries,
                     call_frames.as_ref(),
                 )
