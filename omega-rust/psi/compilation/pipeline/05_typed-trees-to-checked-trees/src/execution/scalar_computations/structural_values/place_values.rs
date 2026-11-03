@@ -33,7 +33,6 @@ use validation::reference_shell;
 use validation::stored_structural_type_identity;
 use validation::stores_reference_shape;
 use validation::value_preserving_cast_operand;
-use validation::zeroed_structural_parts;
 
 impl Builder<'_, '_> {
     /// A shared reference with the same unrestricted carrier retains
@@ -394,19 +393,11 @@ impl Builder<'_, '_> {
             let (_, local) = self
                 .program
                 .state_local_declaration(state, name.symbol)
-                .filter(|&(ordinal, local)| {
-                    // An uninitialized local of a zero-constructible shape is
-                    // established by its declaration (the ZeroedStructural root
-                    // minted at its statement) and filled by later stores; it
-                    // transfers as completely as an initialized one.
-                    ordinal < self.statement_index
-                        && (local.initial_value.is_valid()
-                            || (self
-                                .program
-                                .primitive_type_reference(local.type_reference)
-                                .is_none()
-                                && zeroed_structural_parts(self.program, local.type_reference)))
-                })?;
+                .filter(|&(ordinal, _)| ordinal < self.statement_index)?;
+            // This names the declared home, not its initial contents. A later
+            // store can establish a value without an initializer. Source and
+            // flow checking still prove availability, access and each transfer;
+            // rebuilding that proof from initializer syntax loses valid stores.
             (
                 SourcePlan::StructuralLocal {
                     symbol: local.symbol,

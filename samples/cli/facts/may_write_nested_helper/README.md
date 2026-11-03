@@ -132,6 +132,13 @@ correctly; public projects did not run. The next repair authenticates the first
 installed reference from its complete checked loan activation. It retains all
 requirements for retiring an already installed pointer. Acceptance is unfinished.
 
+Run [41586945387](https://github.com/CathedralOS/Omega/actions/runs/41586945387)
+cleared that first-installation gate. The frozen reference-local case then stopped
+when returning the stored pointer: value production recognized initializers but
+ignored the later store. The other 22 positives and all 36 invalid controls kept
+their outcomes. The next repair removes that initializer-only representation
+gate; source and flow checking still require an established value before use.
+
 The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
 on the frozen baseline in
 [41558699182](https://github.com/CathedralOS/Omega/actions/runs/41558699182).
