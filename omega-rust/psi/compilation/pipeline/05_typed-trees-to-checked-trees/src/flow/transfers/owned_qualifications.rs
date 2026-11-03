@@ -186,34 +186,26 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
     }
 }
 
-/// `value as T` names a target that omits a non-owning meaning, and that
-/// meaning does not follow the value into its new place (domains.md, "Exact
-/// coercion and erasure"). A routed membership records how the value was
-/// issued and a predicate-free tag records an asserted meaning; neither
-/// survives an erasing cast anywhere in the source's cast chain. A predicate
-/// membership still follows: erasure cannot change its truth on an unchanged
-/// value.
+/// Whether an erasing cast in the source's cast chain drops this membership
+/// before the value reaches its new place. The single rule lives with
+/// validation's place lookup, which uses it to stop such a cast from naming
+/// the operand's storage.
 pub(super) fn explicitly_erased(
     program: &dyn ::validation::CheckingInput,
     mut source_expression: typed_trees::expression::ExpressionHandle,
     domain_symbol: symbols::SymbolHandle,
     semantic_domain: language_semantics::SemanticDomainId,
 ) -> bool {
-    let meaning_only = validation::field_domains::domain_requires_provenance(program, domain_symbol)
-        || program
-            .domain_definition(domain_symbol)
-            .is_some_and(|domain| !domain.predicate_presence.is_present());
-    if !meaning_only {
-        return false;
-    }
     while let Some(cast) = program.expression_table.cast_node(source_expression) {
         if cast.form.is_recast() || !cast.result_type.is_valid() {
             return false;
         }
-        if !validation::field_domains::domain_constraint_identities(program, cast.result_type)
-            .iter()
-            .any(|(symbol, identity)| *symbol == domain_symbol && *identity == semantic_domain)
-        {
+        if validation::field_domains::cast_erases_membership(
+            program,
+            cast,
+            domain_symbol,
+            semantic_domain,
+        ) {
             return true;
         }
         source_expression = cast.value;

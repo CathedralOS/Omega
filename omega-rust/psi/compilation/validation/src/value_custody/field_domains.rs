@@ -851,6 +851,61 @@ pub fn domain_constraint_identities(
         .collect()
 }
 
+/// Whether `value as T` drops a membership the operand carries. A routed or
+/// predicate-free domain names a meaning, not a property of the bits, so a
+/// target that omits it erases it (domains.md, "Exact coercion and erasure").
+/// A predicate membership still holds on the unchanged value and is never
+/// erased here. A recast re-views the same storage, and an unresolved target
+/// erases nothing. A target alias keeps its constituents.
+pub fn cast_erases_membership(
+    program: &dyn crate::CheckingInput,
+    cast: &typed_trees::expression::TableCastExpression,
+    domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> bool {
+    fn names(
+        program: &dyn crate::CheckingInput,
+        symbol: SymbolHandle,
+        wanted: SymbolHandle,
+        stack: &mut Vec<SymbolHandle>,
+    ) -> bool {
+        if symbol == wanted {
+            return true;
+        }
+        if stack.contains(&symbol) {
+            return false;
+        }
+        let Some(alias) = program
+            .domain_definition(symbol)
+            .and_then(|domain| domain.alias.as_ref())
+        else {
+            return false;
+        };
+        stack.push(symbol);
+        let found = alias
+            .constituents
+            .iter()
+            .any(|part| names(program, part.domain_symbol, wanted, stack));
+        stack.pop();
+        found
+    }
+    if cast.form.is_recast() || !cast.result_type.is_valid() {
+        return false;
+    }
+    let meaning_only = domain_requires_provenance(program, domain_symbol)
+        || program
+            .domain_definition(domain_symbol)
+            .is_some_and(|domain| !domain.predicate_presence.is_present());
+    meaning_only
+        && !domain_constraint_identities(program, cast.result_type)
+            .iter()
+            .any(|(symbol, identity)| {
+                (*symbol == domain_symbol && *identity == semantic_domain)
+                    || (*symbol != domain_symbol
+                        && names(program, *symbol, domain_symbol, &mut Vec::new()))
+            })
+}
+
 /// The exact declared domain constraints of a type-reference conjunction,
 /// including each application's closed index roster.
 ///

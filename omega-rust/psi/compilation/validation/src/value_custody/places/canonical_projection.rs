@@ -708,8 +708,16 @@ pub(super) fn cast_preserves_place(
         return false;
     };
     match operand_pos {
+        // A cast that erases the operand's issued or tagged meaning yields a
+        // new value. Naming the operand's storage would hand that meaning
+        // back to every reader of the result, such as a call argument.
         super::member_resolution::MemberPosition::Reference(operand_ref) => {
             carriers_match(program, operand_ref, target_carrier)
+                && !crate::field_domains::domain_constraint_identities(program, operand_ref)
+                    .into_iter()
+                    .any(|(symbol, identity)| {
+                        crate::field_domains::cast_erases_membership(program, cast, symbol, identity)
+                    })
         }
         super::member_resolution::MemberPosition::Declaration(symbol) => {
             match program.type_reference_table.type_reference(target_carrier) {
