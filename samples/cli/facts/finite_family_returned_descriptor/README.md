@@ -1,12 +1,24 @@
 # Returning a borrowed byte view through a runtime function choice
 
-Owning outcome: **FINITE-GENERIC-DISPATCH**.
+A runtime-selected function returns a view of bytes owned by its caller. These
+programs check that the view still reads the caller's data after the record
+holding it passes through each place below. A byte view carries an address and
+a length; those describe the original array, not temporary storage inside the
+function that returns it.
 
-A finite-family method on a borrowed record returns a descriptor of the original backing, and reading its first byte yields 11.
+Fact: a finite-family method on a borrowed record returns a descriptor of the original backing, and reading its first byte yields 11.
 
-Canonical contracts: [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary), [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families), [returned views](../../../../wiki/spec/language/lifetimes.md#returned-views), and [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
+**BUILD-OWNED-TARGET-SELECTION** owns moving the remaining platform-specific
+helper selection into Build. **FINITE-GENERIC-DISPATCH** owns preserving the
+public input-to-result borrowing contract through runtime function selection.
+Both parent outcomes remain open.
 
-At `036605466510d2361fd579cf9fd97b722e070beb`, the frozen borrowed-record source passes normal update, then `run --both` exits 200 with `argument referent requires a reference carrier`. The parameter/state composition also exposes `captured reference leaves have no resources`. A stored pointer variation reaches the same root-coordinate problem and then exposes native result transport that considered only moved carrier metadata.
+The original array is `[11, 22, 33]`. Every transport place also carries
+`[11, 44, 55]`. Both views must still begin with 11; their different trailing
+bytes make choosing the wrong array observable. Each uses the original width
+arguments 16 and 32. The trailing-byte expectation is a runtime check only;
+it supplies no proof or borrowing permission. The length check makes both byte
+reads safe independently of the returned reference's lifetime.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
@@ -20,31 +32,105 @@ At `036605466510d2361fd579cf9fd97b722e070beb`, the frozen borrowed-record source
 | other_machine | [other_machine/main.omg](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | target_body | [target_body/main.omg](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
-Run each positive with `omega update --project <place> --target windows_x86_64` then `omega run --both <place>/main.omg`. All nine positives and reject twins are mirrored under `tests/omega/{pass,fail}/facts/finite_family_returned_descriptor/`. Every positive binds all four hosted targets and declares exit 0. The local resumption measures Windows x86-64; earlier Linux observations retain their original producer identity, and other hosts are unmeasured for this repair.
+Both match choices run with independently supplied expected bytes, so always
+choosing one arm traps. The field example checks the neighboring values 17 and
+23 around its stored views. Named arrays are copied into owned runtime storage
+before borrowing them. The `other_state` folder remains the nested-machine place.
 
-Requirement evidence:
+Each lifetime twin changes only `Header::window`: it returns a view of an array
+local to that invocation instead of the caller's array. It must still reject
+because that storage does not outlive the call. Every sample's Main and Build
+files match its fixture under `tests/omega/{pass,fail}/facts/finite_family_returned_descriptor/`.
+All positives bind the four hosted targets and declare exit 0.
 
-- Establishment: source admission owns the incoming record and its complete stored-reference frontier. The provider returns that backing, not the address of its private carrier.
-- Identity and lifetime: public and captured origins use executable structural-formal coordinates. Incoming content profiles retain every admitted leaf at the operand snapshot; known replacement captures and unknown writes remain authoritative. The reject changes only provider storage to an invocation-local backing and must diagnose that it does not outlive the call.
-- Composition: the same record-backed descriptor survives local/field/parameter/call-result/join/const/nested/other-machine/target-body transport and forwarding through a returned record and state argument. The length branch supplies bounds for reading the runtime oracle; it cannot establish source custody. `const_name` first materializes the named array value into owned runtime storage, then borrows it.
-- Soundness: no input-type relation creates a pointer or access permission. Synthetic resident-content profiles contain lifetime debt only; the actual outer view remains separate. Additional [pointer-field](pointer_field/main.omg) and [escape](pointer_field/invalid/main.omg) witnesses challenge stored-pointer crossings.
-- Replacement composition: [replaced source](replaced_source/main.omg) installs an incoming shared pointer in borrowed caller storage before selecting and returning it, and checks that both outputs read 11. Its [twin](replaced_source/invalid/main.omg) changes only the installed backing to invocation-local storage and rejects with `does not outlive the call`. At fixed baseline `7df8b4d92070d83d357849fb2eb77e05c61f36a4`, normal `run --both` succeeds but the retained audit rejects the shared pointer's simultaneous stored/returned outputs as duplicate custody. The audit now forms independent shared receiving occurrences from the actual source contract and stored-effect summary; exclusive output transfer still rejects duplication.
-- Checked-to-Terminal Psi: normal checked call/result custody and state transport feed canonical Terminal production and the Terminal interpreter; no alternate source execution route is introduced.
-- Provider/layout/ABI: selector and data arguments remain separate, both finite tuples retain one common descriptor result, and native pointer metadata follows either moved storage or an existing typed resident observation. [Target qualification](target_qualification/main.omg) has every required body; its [invalid twin](target_qualification/invalid/main.omg) is valid source whose requested realization must reject a missing target body.
-- Instruction/frame realization and native emission: real `run --both` observations check native and Terminal exit 0, including the first-byte payload. No ISA, frame, encoding, or permission rule is changed.
+The [stored-pointer example](pointer_field/main.omg) carries a reference to a
+single caller-owned byte. Its [twin](pointer_field/invalid/main.omg) substitutes
+invocation-local storage. The [replacement example](replaced_source/main.omg)
+changes a stored reference from the caller's byte 29 to its byte 11, returns the
+new reference, and checks that both the stored and returned references read 11.
+Its [twin](replaced_source/invalid/main.omg) installs invocation-local storage.
+These are additional productions of the same borrowing requirement.
 
-The resumption's ignored `build/slot9-resume-evidence` records frozen baseline inputs, immutable optimized producer digests, command exits, engine observations and exact-candidate review. Retained auditing stays explicit rather than becoming a phase of normal compilation. Passing transport alone does not establish automatic cleanup, production package approval or other-host native acceptance of the parent task.
+The [target-qualification example](target_qualification/main.omg) calls an
+ordinary `SelectedTarget::target_only` requirement from a selected family member.
+Its public lifetime explicitly relates the returned view to its input. Four
+Build rows select the same identity implementation because the original four
+bodies all returned their input unchanged. The [missing-provider control](target_qualification/invalid/main.omg)
+has identical source and supplies only the Linux ARM64 row. Realizing another
+target must reject missing supply, even though only width 16 is called.
 
-## Build-owned target-body migration
+The main `target_body` place also selects one ordinary forwarding implementation
+through explicit Build rows. Its requirement has empty service reach; the entry
+names its synchronous call with `invokes SelectedForward`. The qualification
+example similarly publishes `invokes SelectedTarget` on `Windowing::window`.
+Calling a boundary requirement does not itself add a service to its reach.
+The existing optional macOS x86-64 entry remains in the target place.
 
-The `target_body` place carries no source target prefix. Its four prefixed
-`forward` bodies became the requirement `SelectedForward::forward`, implemented by
-ordinary `X86...` and `Arm...` implementations and selected by explicit
-target-keyed `Build::select_provider` rows (`BUILD-OWNED-TARGET-SELECTION`).
-The operation, inputs, contracts and exit oracle are unchanged. The entry
-wrapper and each implementation check a target tag through a second selected
-requirement (17 for x86-64, 29 for AArch64), so a wrong Build row traps.
-Observed with the optimized producer at `11bdd2fe41f` on macOS x86-64: the
-migrated positive exits 0 under `omega run --both` (native and Terminal Psi
-agree), and the twin still rejects for returning a view of a local that does not outlive the call. No compiler change was needed. The other hosted
-targets were not executed here.
+The governing contracts are [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary),
+[dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families),
+[returned views](../../../../wiki/spec/language/lifetimes.md#returned-views),
+[Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
+and [service reach and synchronous calls](../../../../wiki/spec/language/effects.md).
+
+The complete acceptance requires the following:
+
+- Checked construction establishes each incoming view and its access. A lifetime
+  name or matching field name cannot create a reference or permission.
+- Returning a view preserves every reference it contains and its relationship to
+  the caller's backing. Replacing one stored reference retires that old reference
+  without changing an unrelated one. Both resulting shared references may coexist;
+  an exclusive reference still cannot be duplicated.
+- Calls and joins preserve the actual selected input. The caller's later length
+  and byte checks cannot justify returning storage that has already died.
+- The public requirement owns the borrowed result contract. A private provider's
+  local variables cannot stand in for public input coordinates, and every family
+  row must have valid target supply.
+- Terminal Psi and native execution must both read the caller's original storage,
+  including its correct address and length. Successful checking or image emission
+  alone does not establish that result.
+
+## Current validation
+
+The frozen baseline at `04ff8c536ae05d4460591625073bb954df308df6`
+([hosted run](https://github.com/CathedralOS/Omega/actions/runs/41563092092))
+checks eleven positives and rejects all twelve controls for their intended
+reasons. Eleven positive fixtures exit 0 in both native and Terminal execution.
+The replacement example remains incomplete in both legs: lowering reports
+`reference result has no complete captured origin paths`. Public sample
+execution was not reached. This is an open compiler failure, not a passing row.
+
+That baseline retains its actual producer identity. The next candidate uses the
+integrated compiler at `0d2886a26e6b17ede96f1accbb6501a2a85fbd30`; a focused
+replacement comparison is pending before any compiler repair. The changed
+programs and their missing-provider control are not yet qualified. Evidence is
+retained under `build/finite-descriptor-selected-20261103/`.
+
+<details>
+<summary>Earlier observations</summary>
+
+At `036605466510d2361fd579cf9fd97b722e070beb`, the borrowed-record source passed
+normal update but `run --both` exited 200 with `argument referent requires a
+reference carrier`. Parameter and nested-machine composition also reported
+`captured reference leaves have no resources`. A stored-pointer variation exposed
+the same source-coordinate problem and native result transport that retained
+only moved reference metadata. The historical repair's inputs and optimized
+producer observations remain under `build/slot9-resume-evidence`.
+
+At fixed baseline `7df8b4d92070d83d357849fb2eb77e05c61f36a4`, the replacement
+example passed ordinary execution, while the separate retained audit incorrectly
+reported duplicate custody for its shared stored and returned references. That
+repair allowed independent shared receiving references under the actual source
+contract; it did not permit duplicating exclusive access. Retained auditing
+remained separate from ordinary compilation.
+
+The previous target-place migration was measured with optimized producer
+`11bdd2fe41f` on macOS x86-64: the positive exited 0 in both engines, and the twin
+rejected for returning local storage that did not outlive the call. Those older
+programs used separate x86 and ARM forwarding wrappers and marker checks. Their
+observations do not validate the changed programs here.
+
+</details>
+
+Windows x86-64, macOS ARM64 and Linux ARM64 execution remain unverified for this
+change. Broader generic dispatch, automatic cleanup and product-compiler
+acceptance are not established by this row. No owner design decision is needed.

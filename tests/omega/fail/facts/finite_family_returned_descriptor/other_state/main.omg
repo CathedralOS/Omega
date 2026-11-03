@@ -17,25 +17,28 @@ machine dispatch(selected: dyn Windowing, source: &Packet, width: u32) -> Packet
 requires width == 16 || width == 32 {
     Windowing::window<width>(selected, source)
 }
-machine check(packet: &Packet, width: u32) crashes Trap
+machine check(packet: &Packet, width: u32, last: u8) crashes Trap
 requires width == 16 || width == 32
 {
     let selected: dyn Windowing = Header as dyn Windowing;
     let result: Packet = dispatch(selected, packet, width);
-    transition result.bytes.len == 3 { true -> read(result) false -> bad() }
-    machine read(result: Packet) requires result.bytes.len == 3 {
-        transition result.bytes[0] == 11 { true -> done() false -> bad() }
+    transition result.bytes.len == 3 { true -> read(result, last) false -> bad() }
+    machine read(result: Packet, last: u8) requires result.bytes.len == 3 {
+        transition result.bytes[0] == 11 && result.bytes[2] == last { true -> done() false -> bad() }
     }
     machine done() {}
     machine bad() { crash Trap; }
 }
 
-machine forward(packet: Packet) crashes Trap {
-    transition { _ -> nested(packet) }
-    machine nested(packet: Packet) { check(&packet, 16); check(&packet, 32); }
+machine forward(packet: Packet, last: u8) crashes Trap {
+    transition { _ -> nested(packet, last) }
+    machine nested(packet: Packet, last: u8) { check(&packet, 16, last); check(&packet, 32, last); }
 }
 machine main() crashes Trap {
     let backing: [u8; 3] = [11, 22, 33];
+    let alternate: [u8; 3] = [11, 44, 55];
     let packet: Packet = Packet { bytes: &backing[..] };
-    forward(packet);
+    let second: Packet = Packet { bytes: &alternate[..] };
+    forward(packet, 33);
+    forward(second, 55);
 }
