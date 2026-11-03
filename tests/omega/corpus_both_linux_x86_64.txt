@@ -5759,7 +5759,7 @@ pass/float/runtime_authored_max_selection_exit built 14696ms exit:70 interpreter
 pass/float/runtime_builtin_guard_application_exit built 14641ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/float/runtime_builtin_ieee_order_exit built 15176ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/float/runtime_classification_result_categories_exit built 8368ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/float/runtime_coercion_future_policy_exit built 5512ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/float/runtime_coercion_future_policy_exit built 16416ms exit:0 interpreter-exit:0 interpreter:agrees @6fbf73342bf2
 pass/float/runtime_exact_format_narrowing_exit built 5553ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/runtime_exact_integer_coercion_exit built 15377ms exit:0 interpreter-exit:0 interpreter:agrees @18fc751d0060+wt
 pass/float/runtime_exact_integer_to_float_coercion_exit built 7127ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
