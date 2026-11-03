@@ -5,7 +5,6 @@
 //! an arbitrary application/result type supplies no such observation.
 
 use super::super::{StructuralJudge, StructuralTerm};
-use super::CapturedResultEquation;
 use typed_trees::types::PrimitiveType;
 
 impl StructuralJudge<'_> {

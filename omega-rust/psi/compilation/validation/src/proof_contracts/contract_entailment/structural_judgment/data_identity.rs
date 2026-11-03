@@ -22,7 +22,7 @@ impl StructuralJudge<'_> {
         else {
             return None;
         };
-        [(&left, references[0]), (&right, references[1])]
+        let observed = [(&left, references[0]), (&right, references[1])]
             .into_iter()
             .all(|(value, reference)| {
                 super::super::structural_terms::scalar_operand_is_observed(
@@ -30,8 +30,8 @@ impl StructuralJudge<'_> {
                     reference,
                     value,
                 )
-            })
-            .then_some([left, right])
+            });
+        observed.then_some([left, right])
     }
 
     /// The caller supplies an actual contract proposition. An executable
