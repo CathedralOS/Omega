@@ -257,7 +257,8 @@ impl StructuralJudge<'_> {
             return value;
         }
         let mut selected = collection;
-        if self.data_identity_is_observed(&selected)
+        if !self.case_facts_only
+            && self.data_identity_is_observed(&selected)
             && self
                 .captured_result_equations
                 .iter()
