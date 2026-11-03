@@ -76,7 +76,7 @@ fn value_query_operand(program: &TypedTrees, expression: ExpressionHandle) -> Op
         return None;
     };
     let request = call.layout_query.as_ref()?;
-    if request.kind != DataLayoutQueryKind::Align || request.operand.type_reference.is_valid() {
+    if request.kind != DataLayoutQueryKind::Alignment || request.operand.type_reference.is_valid() {
         return None;
     }
     match expressions_of(program).expression_handles(call.arguments) {

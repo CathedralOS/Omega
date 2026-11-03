@@ -1096,7 +1096,7 @@ impl<'program, 'target, 'scope> ExpressionTableLowerer<'program, 'target, 'scope
             return Ok(None);
         }
         let spelling = kind.target_name();
-        if kind == language_core::data_layout_queries::DataLayoutQueryKind::Align
+        if kind == language_core::data_layout_queries::DataLayoutQueryKind::Alignment
             && call.arguments.len() == 1
             && call.machine_arguments.is_empty()
         {

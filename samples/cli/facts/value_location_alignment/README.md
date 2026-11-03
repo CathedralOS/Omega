@@ -53,7 +53,9 @@ guarantee for the location, not its greatest power-of-two divisor.
 Every positive also observes narrower neighbours and checks the exact
 results at run time: a `u8` location must report 1 and a `u32` field 4. A
 query that measured the reference descriptor (8), the whole record, or the
-wrong field would trap. The match join calls both arms with distinct results
+wrong field would trap. A `&u64` parameter alone cannot tell referent from
+descriptor, since both align to 8; the `&u8` companion in the parameter and
+call-result places does, because its referent reports 1. The match join calls both arms with distinct results
 (8 and 16). The selected-implementation place checks its Build tag (17 for
 x86-64, 29 for AArch64) so a wrong provider row traps.
 
