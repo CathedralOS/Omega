@@ -33,6 +33,90 @@ fn descriptor_geometry_access(
     types: &[StructuralTypeDeclaration],
     metadata: bool,
 ) -> Option<ReferenceSourceGeometry> {
+    if std::env::var_os("OMEGA_DESCRIPTOR_GEOMETRY_TRACE").is_some() {
+        let actual = optimization_unit_semantics::structural_place_backing_access(
+            function,
+            source.place,
+            types.iter(),
+        );
+        let root = function
+            .structural_parameters
+            .iter()
+            .find(|parameter| parameter.place == source.place)
+            .map(|parameter| parameter.structural_type)
+            .or_else(|| {
+                function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.structural_parameters)
+                    .find(|parameter| parameter.place == source.place)
+                    .map(|parameter| parameter.structural_type)
+            })
+            .or_else(|| {
+                super::structural_case::source_result(function, source.place)
+                    .ok()
+                    .map(|(_, result)| result.structural_type)
+            })
+            .or_else(|| {
+                super::literals::declaration_producer(function, source.place)
+                    .map(|(_, identity)| identity)
+            });
+        let requested = if source.access == StructuralAccess::Owned {
+            StructuralAccess::SharedBorrow
+        } else {
+            source.access
+        };
+        let accessible = if source.access == StructuralAccess::WriteOnlyBorrow {
+            optimization_unit_semantics::descriptor_metadata_argument_accessible(
+                function, source, types, requested,
+            )
+        } else {
+            optimization_unit_semantics::descriptor_argument_accessible(
+                function, source, types, requested,
+            )
+        };
+        let geometry = root
+            .and_then(|root| descriptor_source_geometry(root, &source.path, types))
+            .map(|geometry| {
+                (
+                    geometry.region_root,
+                    geometry.selected,
+                    geometry.readable,
+                    geometry.byte_offset,
+                    geometry.pointer_slots.len(),
+                    geometry.elements.len(),
+                )
+            });
+        let arrivals = function
+            .blocks
+            .iter()
+            .flat_map(|block| {
+                block.structural_parameters.iter().map(move |parameter| {
+                    (
+                        block.id,
+                        parameter.place,
+                        parameter.structural_type,
+                        parameter.access,
+                        parameter.multiplicity,
+                    )
+                })
+            })
+            .collect::<Vec<_>>();
+        eprintln!(
+            "corpus_runner: DESCRIPTOR_GEOMETRY_TRACE entry={:?} metadata={} source={:?} arrival={:?} actual={:?} root={:?} shape={:?} accessible={} geometry={:?} arrivals={:?}",
+            function.entry,
+            metadata,
+            source,
+            function.arrival_parameter(source.place),
+            actual,
+            root,
+            root.and_then(|root| types.iter().find(|row| row.id == root))
+                .map(|row| &row.shape),
+            accessible,
+            geometry,
+            arrivals
+        );
+    }
     let actual = optimization_unit_semantics::structural_place_backing_access(
         function,
         source.place,
