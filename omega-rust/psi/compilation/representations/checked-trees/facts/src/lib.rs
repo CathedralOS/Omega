@@ -24,8 +24,8 @@ pub use predicates::{
 
 pub use fact_plan::contexts::view::FactContextView;
 pub use fact_plan::contexts::{
-    BooleanFact, DomainMembershipFact, FactContext, FactContextGroup, FactContexts, FactRef,
-    ProgramPoint, SymbolFactSet, TypeConstraintFact, view,
+    AssignedFactRef, BooleanFact, DomainMembershipFact, FactContext, FactContextGroup,
+    FactContexts, FactRef, ProgramPoint, SymbolFactSet, TypeConstraintFact, view,
 };
 pub use fact_plan::evidence::{
     BoundaryQualificationIssuerRecord, ContractFactKind, ContractMemberProjection,
