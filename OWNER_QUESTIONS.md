@@ -414,3 +414,48 @@ the absence; integer_certificates.md (lines 111-119) states the derived route;
 the bounded conversion and says false is not inferred from a search failure,
 without saying whether a false denotation may be strengthened by a conjunct.
 None says which passage governs.
+
+### 9. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
+
+[Epsilon's grammar](bootstrap/4_epsilon/LANGUAGE.md) (lines 128-139) lets an
+arm's continuation be `"return" expression?`, and lets the next arm's pattern
+start with an integer literal, `true`, `false`, or `IDENT "::" IDENT`
+(lines 131-134), which are also valid expression starts (lines 163-164).
+Nothing in the grammar or in section 8 (machines, states, and transitions)
+says whether `-> return` followed by `3 -> ...` returns `3` or returns nothing
+and begins a new arm. The evaluator resolves it with a lookahead probe
+(`bootstrap/4_epsilon/implementation_notes.md`, lines 30-31): a `return` is
+bare when the next token is `}` or end of source, or when the tokens ahead
+form a `pattern ->` prefix. The independent refinement model reproduces that
+probe instead of deriving the read from the contract
+(`tests/epsilon/refinement/README.md`, lines 24-27; `model.py`,
+`return_is_bare`).
+
+The customer is the conformance obligation in LANGUAGE.md (lines 818-826,
+item 5): direct checked evaluator refinement with mutations needs a model
+derived from the written language. While the disambiguation is unwritten the
+model and the evaluator share one unverified decision, and a parse that depends
+on the following arm cannot be checked against the contract. The admitted
+Epsilon sources, including D under `bootstrap/5_omega/`, are parsed under the
+current probe; a rule that changes how any admitted source parses changes that
+identity chain.
+
+Option A, write the probe as the rule: a `return` continuation carries an
+expression unless the following tokens form a complete `pattern ->` prefix or
+the arm list ends. This ratifies the current evaluator, keeps every admitted
+source unchanged, and makes the model's probe contract-derived. The probe then
+has to be specified exactly: which token sequences count as `pattern ->`, and
+what happens when an expression itself could start with such a sequence.
+
+Option B, an explicit delimiter: terminate a `return` continuation (for
+example `return expression ;` and `return ;`) or forbid an expression after
+`return` in a non-final arm, so no lookahead past the arm is needed. This is a
+grammar change that migrates every Epsilon source including D and re-admits
+their identities; the former translator-era corpus is not authoritative.
+
+Contracts checked: the grammar (lines 119-139, 160-166) and section 8 of
+LANGUAGE.md state no rule; `EVALUATOR_ENTRY.md` and `EVALUATOR_PROFILE.md`
+define observations and resources, not parsing;
+[edge contracts](bootstrap/CONTRACT.md) require refinement independence but do
+not fix Epsilon's grammar; `implementation_notes.md` describes the probe as
+implementation, not as a language rule.
