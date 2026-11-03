@@ -1239,10 +1239,18 @@ pub(crate) fn refine_published_crash_routes(
         arguments,
         exact_integer_casts,
     );
+    let mut intervals = crate::values::CapturedCallIntervals::new(
+        program,
+        operators,
+        semantic,
+        flow,
+        state_flow,
+        call_flow,
+        target_parameters,
+    );
     let mut surviving = Vec::new();
-    // Ordinary argument lists omit self. Keep formal positions aligned without
-    // inventing receiver-entry custody; a guard that reads self must still use
-    // the existing receiver-aware evidence paths.
+    // The checked guard's formal positions follow the authored argument order.
+    // Projected reads still need evidence for the exact field they observe.
     let mut ordinary_arguments = arguments.iter().copied();
     let operands = target_parameters
         .iter()
@@ -1285,6 +1293,16 @@ pub(crate) fn refine_published_crash_routes(
                                     )
                                 })
                                 .unwrap_or(false);
+                    if builtin_meaning
+                        && identity.scalar_expression().is_some_and(|guard| {
+                            intervals.as_mut().is_some_and(|intervals| {
+                                validation::selected_boolean_decision(guard, intervals)
+                                    == Some(false)
+                            })
+                        })
+                    {
+                        continue;
+                    }
                     if builtin_meaning
                         && crate::published::facts::operator_crashes::statement_entry_route_is_false(
                             program,

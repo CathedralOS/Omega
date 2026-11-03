@@ -88,7 +88,10 @@ pub(super) fn collect_read_accesses(
                 collection.statement_index,
                 validation::call_target_symbol(collection.program, call),
             );
-            collection.finish_nested_call(first_access, expression);
+            let reference = collection
+                .value_type_reference(expression)
+                .unwrap_or_default();
+            collection.finish_completed_value(first_access, expression, reference);
         }
         ExpressionNode::Indexed(indexed) => {
             if !append_read_access(collection, expression) {

@@ -155,6 +155,12 @@ variable-length wire placement, and explicit endianness. Exact source forms
 for programmable unions and runtime strides remain unspecified; conventional
 sum-layout reports do not define those forms.
 
+[Typed runs](../resources/typed_runs.md) repeat an established placement for a
+runtime count of owned cells. Their count does not require a runtime-sized inline
+array type or settle arbitrary programmable runtime-stride syntax. The run's
+cell footprint is retained with its validated layout; ordinary native placement
+uses the same stride as a native array of `T`.
+
 | Placement | Meaning |
 | --- | --- |
 | `At(offset)` | Whole-field placement at a byte offset. |

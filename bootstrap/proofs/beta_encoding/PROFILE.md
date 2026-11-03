@@ -174,13 +174,17 @@ Owner decision `beta-encoding-certificate-admission` settles admission on the
 native-backing route, recorded at the
 [checking ledger](../checker/CHECKING.md#complete-generic-execution-provision);
 the buffered-output provision is one of the extents that grows with it.
-The request
-cannot be admitted by the selected checker; the projected work uses the
-measured 13.9-16.5 work/row across the checked encoder batches, not an
-executed run. That ledger now selects the coupled provisions — the
-136,314,880-byte request extent, the 137,363,456-byte evaluator frame, the
-67,108,864-unit work counter, and the 3,387,293,850-pair arena — pending the
-Alpha extent-supply leg that realizes them.
+The coupled provisions that ledger selects are landed: the checker's
+`implementation/admission/extents.gamma` admits requests up to the
+136,314,880-byte request extent, which the 135,485,028-byte request fits;
+`implementation/comparison/session.gamma` carries the 67,108,864-unit work
+counter; and the AlphaBootstrapV5 extent supply frames the request in the
+137,363,456-byte evaluator frame and admits 3,422,453,760 pair nodes, above
+the selected 3,387,293,850-pair arena. A complete checking run under these
+provisions remains unexecuted: the projected work uses the measured
+13.9-16.5 work/row across the checked encoder batches, and the 2026-09-27
+macOS arm64 evaluator run reached the 43,200-second host timeout without
+`Checked`.
 This is one straightforward producer shape, not a lower bound;
 the [cost review](../../../wiki/drafts/reference/bootstrap_cost_review.md) records the
 named reduction levers and confirms the remaining shortfall is structural.

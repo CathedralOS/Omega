@@ -24,7 +24,7 @@ pub enum PsiCandidateDeclaration {
     /// A session-level cyclic-component relocation proposed, validated, and
     /// applied by the loop-invariant scalar-motion boundary. Its custody —
     /// components, member blocks, effects, custody reconstruction — is owned
-    /// by the verified session rather than the analysis manager, so the
+    /// by the verified session rather than an analysis revision, so the
     /// declaration binds the component and relocation roster directly.
     LoopInvariantScalarMotion(LoopInvariantScalarMotionCandidate),
 }

@@ -12,7 +12,6 @@ use crate::lowering::structural_layout::structural_shape;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
 use calling_conventions::ValueShape;
-use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetStructuralArgument, TargetStructuralArgumentSource, TargetStructuralHomeOrigin,
     TargetStructuralParameter,
@@ -40,7 +39,7 @@ pub(super) fn shared_owner_view(
         ))
         || declaration.access != StructuralAccess::SharedBorrow
         || !types
-            .get(&declaration.structural_type)
+            .get(declaration.structural_type)
             .is_some_and(|declared| declared.shape.is_shared_readable_byte_view())
     {
         return Ok(None);
@@ -98,8 +97,6 @@ pub(super) fn shared_owner_view(
         } else {
             return Ok(None);
         };
-    let mut shapes = BTreeMap::new();
-    let mut active = BTreeSet::new();
     // An element view crosses its backing pointer even without an explicit
     // Referent marker. This adapter stages a descriptor over contiguous owner
     // storage; crossing-aware call transport owns other address regions.
@@ -110,8 +107,7 @@ pub(super) fn shared_owner_view(
     {
         return Ok(None);
     }
-    let (selected, _, offset, runs) =
-        runtime_storage_projection(root_type, &argument.path, types, &mut shapes, &mut active)?;
+    let (selected, _, offset, runs) = runtime_storage_projection(root_type, &argument.path, types)?;
     let Some(selected_shape) = selected.shape(types) else {
         return Ok(None);
     };
@@ -134,7 +130,7 @@ pub(super) fn shared_owner_view(
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }
-    let root_shape = structural_shape(root_type, types, &mut shapes, &mut active)?;
+    let root_shape = structural_shape(root_type, types)?;
     if !matches!(
         access,
         StructuralAccess::Owned | terminal_psi::borrowed_access_pair_pattern!()

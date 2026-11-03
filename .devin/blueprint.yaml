@@ -22,7 +22,9 @@ maintenance:
     run: |
       export PATH="$HOME/.cargo/bin:$PATH"
       cargo fetch
-      cargo check --workspace --all-targets
+      # Build the compiler binary itself: `cargo check` writes only metadata,
+      # so a session that warmed with it still compiled omega from scratch.
+      cargo build -p omega
       cargo nextest run --workspace --lib --no-run
 knowledge:
   - name: rules

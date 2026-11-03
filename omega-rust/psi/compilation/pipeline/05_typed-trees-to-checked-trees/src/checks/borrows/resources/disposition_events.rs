@@ -68,9 +68,11 @@ pub(crate) fn plan_reborrow_disposition_events(
                 loan_order: resource.loan.arena_index(),
                 kind: LifecycleEventKind::Activate { activation },
             });
-            let weakening_fact = flow.borrow_lifetimes.weakenings.get(weakening);
             events.push(LifecycleEvent {
-                boundary: weakening_event_boundary(weakening_fact.source, weakening_fact.reason)?,
+                boundary: weakening_event_boundary(
+                    resource.weakening_source,
+                    resource.weakening_reason,
+                )?,
                 resource: ParentResourceIndex::Direct(index),
                 loan_order: resource.loan.arena_index(),
                 kind: LifecycleEventKind::Weaken { weakening },

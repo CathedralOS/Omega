@@ -81,7 +81,6 @@ pub(crate) fn check_indexed_accesses(
     borrows: &checked_trees::BorrowFacts,
     flow: &checked_trees::FlowFacts,
     semantic: &::facts::FactPlan,
-    expression_intervals: &[validation::ExpressionInterval],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     incoming_guards: &IncomingGuardIndex,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
@@ -183,7 +182,6 @@ pub(crate) fn check_indexed_accesses(
                     facts.collection_bounds = Some(&collection_bounds);
                     facts.mutation_summaries = std::borrow::Cow::Borrowed(mutation_summaries);
                     facts.checked_operators = Some(operators);
-                    facts.expression_intervals = expression_intervals;
                     facts.checked_calls = Some(calls);
                     // State parameters are stable named places for the duration of
                     // the state, just like locals introduced by `let`. Retain a
@@ -330,7 +328,17 @@ fn expression_contains_indexed(
     expression: typed_trees::expression::ExpressionHandle,
 ) -> bool {
     program.subtree_any(expression, typed_trees::SubtreeEdges::VALUES, |_, node| {
-        if matches!(node, typed_trees::expression::ExpressionNode::Indexed(_)) {
+        // A slice alignment query owes its view's first-element bound just
+        // like an ordinary index, though it reads nothing.
+        let owes_index = match node {
+            typed_trees::expression::ExpressionNode::Indexed(_) => true,
+            typed_trees::expression::ExpressionNode::Call(call) => call
+                .layout_query
+                .as_ref()
+                .is_some_and(|query| query.nonempty_view.is_valid()),
+            _ => false,
+        };
+        if owes_index {
             typed_trees::SubtreeVisit::Found
         } else {
             typed_trees::SubtreeVisit::Descend

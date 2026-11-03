@@ -110,7 +110,11 @@ fn place(
     } else {
         calls::projected_selected_path
     };
-    let (projected, path) = projector(
+    let calls::ProjectedArgumentPath {
+        storage_type: projected,
+        path,
+        ..
+    } = projector(
         program,
         machine.symbol,
         state.symbol,

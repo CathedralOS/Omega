@@ -3,7 +3,7 @@
 //! comparison does not expose. It never supplies a source interpreter fallback.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use orchestration::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::{fs, path::PathBuf};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 fn main() {
@@ -53,6 +53,6 @@ fn run() {
             }
         }
     }
-    let (_, executable) = omega_build::publication::publish_native_artifact(report, &output.join("native-build")).unwrap();
+    let (_, executable) = orchestration::publication::publish_native_artifact(report, &output.join("native-build")).unwrap();
     fs::write(output.join("executable.txt"), executable.to_string_lossy().as_bytes()).unwrap();
 }

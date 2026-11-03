@@ -147,6 +147,137 @@ fn checked_constant_retains_unsigned_result_meaning() {
 }
 
 #[test]
+fn checked_constant_admits_the_retained_recursive_component() {
+    on_compilation_stack(|| {
+        let program = checked(
+            "data Node { step: u64; count: u64 }
+             machine descend(node: Node, index: u64, fuel: u64) -> u64
+             reaches terminates by fuel
+             requires fuel >= 1 && index <= 8 && node.count <= 8
+             {
+                 transition index < node.count && fuel > 1 {
+                     true -> through(node, index, fuel - 1)
+                     _ -> fuel
+                 }
+                 machine through(node: Node, index: u64, fuel: u64) -> u64
+                 requires fuel >= 1 && index <= 7
+                 {
+                     descend(node, index + 1, fuel)
+                 }
+             }
+             machine answer() -> u64 {
+                 descend(Node { step: 1u64, count: 8u64 }, 0u64, 3u64)
+             }",
+        );
+        let symbol = program
+            .typed()
+            .realized_machine_named("answer")
+            .expect("answer")
+            .symbol;
+        let entry = program.entry(symbol).expect("entry");
+        let result = program
+            .evaluate_checked_constant(&entry, &[], &EvaluationAccounting::default())
+            .expect("Terminal execution");
+        assert!(
+            matches!(
+                result,
+                TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
+                    value: IntegerValue::Unsigned(1),
+                    ..
+                })
+            ),
+            "{result:?}"
+        );
+    });
+}
+
+#[test]
+fn checked_constant_admits_mutating_recursive_component() {
+    on_compilation_stack(|| {
+        let program = checked(
+            "data Node { step: u64; count: u64 }
+             machine descend(node: Node, index: u64, fuel: u64) -> u64
+             reaches terminates by fuel
+             requires fuel >= 1 && index <= 8 && node.count <= 8
+             {
+                 transition index < node.count && fuel > 1 {
+                     true -> through(node, index, fuel - 1)
+                     _ -> fuel
+                 }
+                 machine through(mut node: Node, index: u64, fuel: u64) -> u64
+                 requires fuel >= 1 && index <= 7 && node.count <= 8
+                 {
+                     node.step = node.step;
+                     descend(node, index + 1, fuel)
+                 }
+             }
+             machine answer() -> u64 {
+                 descend(Node { step: 1u64, count: 8u64 }, 0u64, 3u64)
+             }",
+        );
+        let symbol = program
+            .typed()
+            .realized_machine_named("answer")
+            .expect("answer")
+            .symbol;
+        let entry = program.entry(symbol).expect("entry");
+        let result = program
+            .evaluate_checked_constant(&entry, &[], &EvaluationAccounting::default())
+            .expect("Terminal execution");
+        assert!(
+            matches!(
+                result,
+                TerminalExecutionResult::Scalar(TerminalScalarValue::Integer {
+                    value: IntegerValue::Unsigned(1),
+                    ..
+                })
+            ),
+            "{result:?}"
+        );
+    });
+}
+
+#[test]
+fn checked_constant_refuses_a_cycle_without_descent() {
+    on_compilation_stack(|| {
+        let (typed, preparation) = typed_trees_to_typed_trees::prepare_typed_trees(
+            typed(
+                "machine descend(fuel: u64) -> u64
+                 reaches terminates by fuel
+                 requires fuel >= 1
+                 {
+                     transition fuel > 1 {
+                         true -> through(fuel)
+                         _ -> fuel
+                     }
+                     machine through(fuel: u64) -> u64
+                     requires fuel >= 1
+                     {
+                         descend(fuel)
+                     }
+                 }",
+            ),
+            &typed_trees_to_typed_trees::PreparationRequest::settled(),
+        )
+        .expect("prepare");
+        let error = typed_trees_to_checked_trees::lower_typed_trees(
+            typed,
+            preparation,
+            &typed_trees_to_checked_trees::CheckingRequest::new(),
+        )
+        .expect_err("an undescended recursion cannot carry a measure promise");
+        assert!(
+            error.iter().any(|diagnostic| {
+                diagnostic.message.contains("termination")
+                    || diagnostic.message.contains("descent")
+                    || diagnostic.message.contains("measure")
+            }),
+            "{error:?}"
+        );
+    });
+}
+
+#[test]
 fn checked_constant_does_not_install_boundary_imports() {
     on_compilation_stack(|| {
         let program = checked(

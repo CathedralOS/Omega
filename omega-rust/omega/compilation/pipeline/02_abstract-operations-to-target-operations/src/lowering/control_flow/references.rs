@@ -44,7 +44,6 @@ pub(super) struct ReferenceStorage {
     pub(super) placed: Option<target_operations::TargetAccessInterpretation>,
 }
 
-
 /// A live reference's payload producer and geometry after dereferencing it.
 /// Custody retains every possible origin; physical addressing loads the one
 /// address stored in the carrier, never a selected entry from that origin set.
@@ -123,7 +122,7 @@ pub(super) fn window_projection(
     let carrier_path = &path[..crossing];
     let root_type = source_contract(function, live, carrier)?;
     let descriptor = leaf_type(types, root_type, carrier_path)?;
-    let StructuralTypeShape::Reference { referent, access } = types.get(&descriptor)?.shape else {
+    let StructuralTypeShape::Reference { referent, access } = types.get(descriptor)?.shape else {
         return None;
     };
     if !required_access.admits_referent(access) {
@@ -239,7 +238,7 @@ pub(super) fn reference_call_argument(
 
 /// Inspect owned containment only. A reference's referent is not its payload.
 pub(super) fn contains_reference(types: &StructuralTypeLookup<'_>, root: StructuralTypeId) -> bool {
-    terminal_psi::structural_type_contains_reference_by(|id| types.get(&id).copied(), root)
+    terminal_psi::structural_type_contains_reference_by(|id| types.get(id).copied(), root)
 }
 
 /// Possible descriptor slots in owned storage, stopping at reference edges.
@@ -256,7 +255,7 @@ pub(super) fn leaf_paths(
         if !contains_reference(types, current) {
             continue;
         }
-        let Some(declaration) = types.get(&current) else {
+        let Some(declaration) = types.get(current) else {
             continue;
         };
         match &declaration.shape {
@@ -342,7 +341,7 @@ pub(super) fn referent(
     types: &StructuralTypeLookup<'_>,
     structural_type: StructuralTypeId,
 ) -> Option<StructuralTypeId> {
-    match types.get(&structural_type)?.shape {
+    match types.get(structural_type)?.shape {
         StructuralTypeShape::Reference {
             referent,
             access:
@@ -362,7 +361,7 @@ pub(super) fn leaf_referent(
     fields: &[StructuralPathSegment],
 ) -> Option<StructuralTypeId> {
     let leaf = leaf_type(types, current, fields)?;
-    match &types.get(&leaf)?.shape {
+    match &types.get(leaf)?.shape {
         StructuralTypeShape::Reference { .. } => referent(types, leaf),
         _ => Some(leaf),
     }
@@ -476,7 +475,7 @@ pub(super) fn reference_source_type(
                 continue;
             }
             current = leaf_type(types, current, &source.path[start..position])?;
-            let StructuralTypeShape::Reference { referent, access } = &types.get(&current)?.shape
+            let StructuralTypeShape::Reference { referent, access } = &types.get(current)?.shape
             else {
                 // Preserve the existing terminal spelling for a direct leaf.
                 return (position + 1 == source.path.len()).then_some(current);
@@ -518,7 +517,7 @@ fn storage_projection(
             &source.path[..crossing],
         )?;
         let StructuralTypeShape::Reference { referent, access } =
-            types.get(&leaf.carrier_type)?.shape
+            types.get(leaf.carrier_type)?.shape
         else {
             return None;
         };
@@ -784,7 +783,7 @@ fn normalized_direct_source(
                 .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
             return match leaf_type(types, carrier, carrier_path).and_then(|leaf| {
                 types
-                    .get(&leaf)
+                    .get(leaf)
                     .and_then(|declaration| match declaration.shape {
                         StructuralTypeShape::Reference { .. } => None,
                         _ if suffix.is_empty() => Some(()),
@@ -1009,10 +1008,7 @@ pub(super) fn establish_access(
     let StructuralTypeShape::Reference {
         referent: carrier,
         access,
-    } = types
-        .get(&result.structural_type)
-        .ok_or_else(invalid)?
-        .shape
+    } = types.get(result.structural_type).ok_or_else(invalid)?.shape
     else {
         return Err(invalid());
     };
@@ -1339,16 +1335,14 @@ pub(super) fn boundary_result_references(
         let referent = referent(types, carrier_type)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let leaf = ReferenceStorage {
-            root: ReferenceRoot::Alternatives(vec![
-                target_operations::TargetReferenceOrigin {
-                    base: target_operations::TargetReferenceOriginBase::Invocation {
-                        root: result.place,
-                        carrier_type: referent,
-                    },
-                    path: Vec::new(),
-                    extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+            root: ReferenceRoot::Alternatives(vec![target_operations::TargetReferenceOrigin {
+                base: target_operations::TargetReferenceOriginBase::Invocation {
+                    root: result.place,
+                    carrier_type: referent,
                 },
-            ]),
+                path: Vec::new(),
+                extent: semantic_vocabulary::ReferenceOriginExtent::Projected,
+            }]),
             carrier_type,
             referent,
             placed: None,
@@ -1425,7 +1419,7 @@ pub(super) fn call_results(
         let expected = leaf_referent(types, result.structural_type, &mapping.path)
             .ok_or_else(|| LoweringError::unsupported_control_flow(function.machine))?;
         let result_access = leaf_type(types, result.structural_type, &mapping.path)
-            .and_then(|leaf| types.get(&leaf))
+            .and_then(|leaf| types.get(leaf))
             .and_then(|declaration| match declaration.shape {
                 StructuralTypeShape::Reference { access, .. } => Some(access),
                 _ => None,

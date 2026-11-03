@@ -2,26 +2,26 @@
 // ordinary generic consuming machine. `drop(g)` moves the whole value into
 // the callee, so the caller's path is proved by transfer; inside the machine
 // `value` reaches its checked cleanup edge, which selects the exact
-// owner-attached `Guard::drop` hook for the instantiated type. Erased fields
+// `dropped by` hook `drop_guard` for the instantiated type. Erased fields
 // remain semantically present but carry no runtime representation, so
 // `Carrier`'s erased `Evidence` member never produces runtime cleanup — not
-// even its own `Evidence::drop` attachment — and `drop(c)` consumes the
-// record without requiring `Carrier::drop`.
+// even its own `drop_evidence` attachment — and `drop(c)` consumes the
+// record without requiring a `dropped by` hook on `Carrier`.
 
 use omega::language::core::drop;
 
-data Evidence {
+data Evidence dropped by drop_evidence {
     tag: i32;
 }
 
-machine Evidence::drop(evidence: &mut Evidence) {
+machine drop_evidence(evidence: &mut Evidence) {
 }
 
-data Guard {
+data Guard dropped by drop_guard {
     handle: i32;
 }
 
-machine Guard::drop(guard: &mut Guard) {
+machine drop_guard(guard: &mut Guard) {
 }
 
 data Carrier {

@@ -2,6 +2,7 @@
 //! The same dynamic field computations retain their calls, traps and selected
 //! operators; knowing the constructed case does not erase their evaluation.
 use super::{Builder, CheckedScalarComputationHandle, ExpressionHandle, PrimitiveType};
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::published::places::place_at;
 use checked_trees::{
     CheckedScalarCaseComputationField, CheckedScalarCaseConstruction,
@@ -114,7 +115,11 @@ impl Builder<'_, '_> {
             };
             checked_trees::CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol }
         };
-        let (projected, path) = crate::execution::terminal_unit::calls::projected_observed_path(
+        let ProjectedArgumentPath {
+            storage_type: projected,
+            path,
+            ..
+        } = crate::execution::terminal_unit::calls::projected_observed_path(
             self.program,
             self.machine,
             self.state,

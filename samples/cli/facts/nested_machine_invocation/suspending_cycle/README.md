@@ -90,10 +90,31 @@ arm's block.
 
 Pins: `tests/omega/{pass,fail}/facts/nested_machine_suspending_cycle_*`.
 
+## Parking scheduler
+
+The inline scheduler answers at once, so `omega run --both` never parks. The
+Terminal-interpreter test
+`readiness_parks_every_step_of_a_fused_suspending_cycle`
+(`omega-rust/omega/compilation/compiler/tests/terminal_effect_readiness.rs`)
+runs the unchanged local place with `Scheduler::advance` bound to a host
+scheduler that reports "not ready" twice for every call before answering three
+times its argument. The activation parks 200,000 times (twice per round), a
+re-poll charges no fuel, arguments arrive as 100,000 down to 1, and the
+program's own oracle completes with Unit, as with the inline scheduler.
+
+At base `11bdd2fe41f` the first park failed with ``host readiness cannot
+suspend a call without a checked suspension crossing``. Stage 06 bound
+crossings only for source machines, and the fused component's members `step`
+and `fold` lower into `sum`'s composed machine, so the `Scheduler::advance`
+call in `step` carried no crossing and no suspension plan. The inline
+scheduler never asks to park, so every place still exited 0. Crossings are now
+bound for every emitted state; the member-to-member transfers are then
+recognised as fused edges, as before.
+
 ## Open
 
-Native execution on the four hosted targets is not observed here. Suspension
-was exercised with an inline scheduler that never actually parks; a provider
-that parks and resumes the activation is not covered. The parent outcome keeps
-its remaining invocation/custody acceptance, product-compiler support and
-migration.
+Native execution on the four hosted targets is not observed here. Native
+realization has no task runtime that parks and resumes an activation, so a
+natively parking scheduler waits on **TR3-TR8**; native runs here use the
+inline scheduler. The parent outcome keeps its remaining invocation/custody
+acceptance, product-compiler support and migration.

@@ -2,9 +2,9 @@
 // A qualification changes neither that claim identity nor its moved status.
 use omega::language::core::drop;
 
-data Receipt [linear] { code: i32; }
+data Receipt [linear] dropped by drop_receipt { code: i32; }
 domain Receipt::Issued;
-machine Receipt::drop(receipt: &mut Receipt) {}
+machine drop_receipt(receipt: &mut Receipt) {}
 
 machine issue(code: i32) -> Receipt in Issued {
     let issued: Receipt in Issued = Receipt { code: code };

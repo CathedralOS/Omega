@@ -44,6 +44,22 @@ that backing. Bulk reclamation never substitutes for debt-bearing value cleanup.
 contract. A counted byte residual summarizes capacity; the tail extent supplies
 placement. These are distinct premises.
 
+## Dense collections over allocated backing
+
+A library `Vec<T>` uses a [live typed run](typed_runs.md) for its established
+prefix and adjacent granted vacant backing for spare capacity. Push initializes
+one spare cell and joins it to the run; pop transfers the last cell out and
+returns its vacant range to the spare portion. Growth acquires compatible backing
+and moves the live run before returning the old backing under its allocation
+contract. Neither operation creates allocator authority.
+
+This representation has no per-element occupancy tag. Linear values, contained
+loans and cleanup obligations remain owned by the live run. A zero-sized element
+still contributes one logical cell and its obligations even though it consumes
+no payload bytes. Allocation failure preserves the existing vector and accounts
+for any attempted input. Growth policy and fallible versus pre-proved capacity
+remain ordinary library choices.
+
 ## Reuse and fragmentation
 
 Value cleanup, extent return, and immediate capacity reuse are separate

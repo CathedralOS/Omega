@@ -99,7 +99,6 @@ pub(in crate::unit::attached_unit) fn emit(
         type_ids: Cow::Borrowed(shared.type_ids),
         domain_ids: Cow::Borrowed(shared.domain_ids),
         domain_declarations: shared.domain_declarations,
-        lowered_boundaries: catalogs::LoweredComposedBoundary::roster(shared.boundary_parameters),
         boundary_parameters: Cow::Borrowed(shared.boundary_parameters),
         signatures: Cow::Borrowed(shared.signatures),
         closure: shared.closure,

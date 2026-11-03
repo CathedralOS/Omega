@@ -185,10 +185,10 @@ fn measure(name: &str, source: String, selections: &OptimizationSelections) {
     allocated_bytes.sort();
     let usage = usage.expect("one measured run");
     // Content-identity recompute happens once per bound revision (one per
-    // pass iteration), once per committed rewrite, and once per validated
-    // candidate's produced unit — `AnalysisRevision` requests reuse the
-    // already-validated immutable borrow and do not re-encode.
-    let identity_recomputes = usage.iterations + usage.commits + usage.validation_steps;
+    // pass iteration) and once per validated candidate's produced unit —
+    // `AnalysisRevision` requests reuse the already-validated immutable
+    // borrow and do not re-encode.
+    let identity_recomputes = usage.iterations + usage.validation_steps;
     let identity_total_bytes = identity_recomputes as usize * identity_bytes;
     println!(
         "{name}: nodes={nodes} median={:?} allocations={} requested_bytes={}",

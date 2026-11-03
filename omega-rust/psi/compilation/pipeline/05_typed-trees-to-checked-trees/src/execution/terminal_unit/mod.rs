@@ -114,7 +114,7 @@ use checked_trees::{
     CheckedComposedUnitControlStatePlan, CheckedComposedUnitControlTerminatorPlan,
     CheckedGuardedJumpPlan, CheckedNominalAffineUnitCleanupMachinePlan,
     CheckedNominalAffineUnitCleanupPlans, CheckedPartialAffineUnitCleanupMachinePlan,
-    CheckedPartialAffineUnitCleanupPlans, CheckedProviderAttachmentRequirementPlan,
+    CheckedPartialAffineUnitCleanupPlans,
     CheckedScalarExpression, CheckedScalarExpressionRole, CheckedStructuralAccess,
     CheckedStructuralControlSuccessorPlan, CheckedStructuralControlTransferPlan,
     CheckedStructuralResultPlan, CheckedStructuralScalarArgumentPlan,
@@ -158,7 +158,6 @@ pub(crate) mod control;
 mod initialized_locals;
 mod local_storage;
 pub(crate) mod plan_gaps;
-mod providers;
 mod receiver_aliases;
 use validation::reference_result_custody as reference_results;
 mod scalar_locals;
@@ -1286,7 +1285,7 @@ fn body_route(
     let statements = program.statement_table.statements(state.statement_nodes);
     // Transitions are control: loops, guarded arms and returned values out
     // of arms. A state's own contracts, and a local or by-value parameter
-    // whose owner may run a nominal `::drop` at return, need the graph's
+    // whose owner may run a selected cleanup hook at return, need the graph's
     // state signature and normal-exit cleanup; the sequence has neither. A
     // linear owner is consumed explicitly by construction, never dropped at
     // return.

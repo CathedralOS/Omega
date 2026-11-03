@@ -39,6 +39,7 @@ pub(super) fn update_state_loan_last_uses(
     argument_accesses: &arena::Arena<BorrowArgumentAccessFact>,
     loan_trackers: &[StateLoanTracker],
     loans: &mut arena::Arena<checked_trees::BorrowLoanFact>,
+    loan_suppliers: &arena::Arena<arena::Handle<checked_trees::BorrowLoanFact>>,
 ) {
     if loan_trackers.is_empty() {
         return;
@@ -136,6 +137,25 @@ pub(super) fn update_state_loan_last_uses(
     // of the already observed statement coordinates.
     loop {
         let mut changed = false;
+        // A copied descriptor keeps the permission occurrence it captured,
+        // even though its pointee geometry no longer names the old slot.
+        for alias in loan_trackers {
+            if !loans.is_valid(alias.handle) {
+                continue;
+            }
+            let alias = loans.get(alias.handle);
+            let last_use = alias.last_use_statement_index;
+            let suppliers = loan_suppliers.span_or_empty(alias.supplying_loans);
+            for supplier in suppliers {
+                if loans.is_valid(*supplier) {
+                    changed |= extend_last_use(
+                        &order,
+                        &mut loans.get_mut(*supplier).last_use_statement_index,
+                        last_use,
+                    );
+                }
+            }
+        }
         for carrier in loan_trackers {
             if !loans.is_valid(carrier.handle) {
                 continue;

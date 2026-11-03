@@ -16,6 +16,7 @@ mod machine_selections;
 mod namespaces;
 pub use machine_instances::MachineInstantiation;
 mod payloads;
+mod realization_scopes;
 mod requirement_instances;
 mod selected_operands;
 mod signatures;
@@ -61,6 +62,7 @@ impl TypedTrees {
             .iter()
             .filter_map(move |(_, prepared)| match prepared.owner {
                 AppliedCallableOwner::RequirementInvocation { lexical_owner, .. }
+                | AppliedCallableOwner::Realization { lexical_owner, .. }
                     if lexical_owner == caller =>
                 {
                     Some(&prepared.signature)
@@ -93,7 +95,8 @@ impl TypedTrees {
 
     fn callable_application_owner_is_live(&self, prepared: &AppliedCallableSignature) -> bool {
         match prepared.owner {
-            AppliedCallableOwner::RequirementInvocation { lexical_owner, .. } => {
+            AppliedCallableOwner::RequirementInvocation { lexical_owner, .. }
+            | AppliedCallableOwner::Realization { lexical_owner, .. } => {
                 self.machine_by_symbol(lexical_owner).is_some()
             }
             _ => true,
@@ -146,6 +149,7 @@ impl TypedTrees {
                 AppliedCallableOwner::Trait { declaration, .. }
                 | AppliedCallableOwner::RequirementInstance { declaration, .. }
                 | AppliedCallableOwner::RequirementInvocation { declaration, .. }
+                | AppliedCallableOwner::Realization { declaration, .. }
                     if removed(declaration) =>
                 {
                     Some(handle)
@@ -187,6 +191,11 @@ impl AppliedCallableSignature {
 enum AppliedCallableOwner {
     #[default]
     Absent,
+    Realization {
+        declaration: SymbolHandle,
+        application: crate::type_identity::NormalizedTypeIdentity,
+        lexical_owner: SymbolHandle,
+    },
     Trait {
         declaration: SymbolHandle,
         application: crate::type_identity::NormalizedTypeIdentity,

@@ -51,7 +51,7 @@ fn realization_and_execution_borrow_the_retained_terminal_module() {
         request = request.with_package_inputs(package_inputs);
     }
     let retained =
-        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+        orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
             .and_then(compiler::CompileOutcomes::into_single_report)
             .unwrap_or_else(|diagnostics| panic!("{FIXTURE} must reach Terminal: {diagnostics:#?}"))
             .into_retained_terminal_artifact()
@@ -315,7 +315,7 @@ fn exercise_owned_and_borrowed_instances() {
         request = request.with_package_inputs(package_inputs);
     }
     let report =
-        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+        orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
             .and_then(compiler::CompileOutcomes::into_single_report)
             .expect("ordinary empty entry produces Terminal");
     let retained = report

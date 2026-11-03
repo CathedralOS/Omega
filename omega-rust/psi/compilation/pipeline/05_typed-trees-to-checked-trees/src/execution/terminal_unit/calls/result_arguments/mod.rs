@@ -12,6 +12,7 @@ use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralResultBindingPlan;
 use crate::execution::terminal_unit::ExpressionNode;
 use crate::execution::terminal_unit::Multiplicity;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::execution::terminal_unit::types::borrowed_named_view;
@@ -352,6 +353,7 @@ fn argument_contract(
                     place,
                     selectors,
                 )
+                .map(|projection| (projection.storage_type, projection.path))
             })
             .and_then(|(selected, path)| {
                 super::argument_paths::borrowed_argument_endpoint(
@@ -436,10 +438,16 @@ fn argument_contract(
                 place,
                 selectors,
             )
-            .and_then(|(selected, path)| {
-                (base_type_identity(program, selected, &[], &[])? == target_identity)
-                    .then_some(path)
-            })
+            .and_then(
+                |ProjectedArgumentPath {
+                     storage_type: selected,
+                     path,
+                     ..
+                 }| {
+                    (base_type_identity(program, selected, &[], &[])? == target_identity)
+                        .then_some(path)
+                },
+            )
         }
     } else {
         None

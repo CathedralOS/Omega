@@ -5,7 +5,7 @@ Seed.code == 7 survives each place into borrowed anonymous storage and its exact
 This CML4 row carries the same code fact into cleanup hook prerequisites.
 Each place keeps the original projected `Pair` argument to a Unit call, including
 its unselected linear sibling. Two additional compositions carry that fact into
-`CapturedReceipt::drop`: a scalar read through a returned `CapturedView`, and a
+`drop_captured_receipt`: a scalar read through a returned `CapturedView`, and a
 copied descriptor staged through a fixed array into a scalar-returning call.
 The counter is zero while the call reads and one after normal completion;
 `verify_captured` checks the value and that once-only cleanup in both engines.
@@ -19,7 +19,7 @@ parent hook and both linear-child hooks, and the parent counter becomes one.
 
 Each invalid twin changes only the transported code to 6, keeping both hooks'
 code-7 prerequisites. The pinned invalid oracles require the new
-`CapturedReceipt::drop` and `CapturedToken::drop` refusals as well as
+`drop_captured_receipt` and `drop_captured_token` refusals as well as
 automatic-cleanup rejection. The root
 retains ordered construction, explicit/implicit loans, returned aggregates and
 fixed-array projections alongside these descriptor compositions.

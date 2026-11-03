@@ -63,10 +63,8 @@ use crate::trait_definition::TraitDefinition;
 fn program_intern_type_identity(program: &TypedTrees, identity: String) -> TypeIdentityId {
     // The rendered text is the structural key, and the table only grows, so
     // the same key mints the same handle for the program's lifetime, even
-    // across arena revisions. See `arena::OwnedInterner`.
-    program
-        .type_identities
-        .with_mut(|table| table.intern(&identity))
+    // across arena revisions.
+    program.type_identities.intern(&identity)
 }
 use crate::typed_trees::type_system::type_identity::constraint_identity::atom;
 use crate::typed_trees::type_system::type_identity::constraint_identity::compound;
@@ -1158,8 +1156,7 @@ impl TypedTrees {
     /// The retained rendering of one interned type identity: diagnostics
     /// and artifact encoding only. Identity comparisons read the handle.
     pub fn type_identity_text(&self, identity: TypeIdentityId) -> Option<String> {
-        self.type_identities
-            .with(|table| table.text(identity).map(str::to_owned))
+        self.type_identities.text(identity).map(str::to_owned)
     }
 
     /// A runtime carrier occupies its declared invocation ordinal, but is not
@@ -1189,7 +1186,7 @@ impl TypedTrees {
     /// when the text was never an identity of this program. Boundary readers
     /// rehydrate their `String` payload through this reverse join.
     pub fn type_identity_by_text(&self, text: &str) -> TypeIdentityId {
-        self.type_identities.with(|table| table.by_text(text))
+        self.type_identities.by_text(text)
     }
 
     /// The ordinary named-type identity of an exact resolved nominal symbol,

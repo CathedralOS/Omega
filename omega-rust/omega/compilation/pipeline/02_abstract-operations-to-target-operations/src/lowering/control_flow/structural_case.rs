@@ -7,7 +7,6 @@ use crate::lowering::structural_layout::reference_projection_regions;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
 use semantic_vocabulary::{PlaceId, ScalarType, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetControlCasePayload, TargetControlCaseSuccessor, TargetControlTerminator,
     TargetScalarBlockValue, TargetStructuralCaseSource, TargetStructuralParameter,
@@ -163,17 +162,11 @@ fn case_projection(
         crate::lowering::structural_layout::reference_projection_regions(identity, path, types)
             .ok_or_else(invalid)?;
     let (identity, _, tag_byte_offset, leaf_runs) =
-        crate::lowering::structural_layout::runtime_projection(
-            regions.root,
-            regions.path,
-            types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
-        )?;
+        crate::lowering::structural_layout::runtime_projection(regions.root, regions.path, types)?;
     // The operation owns selectors on both sides of every pointer load. Keep
     // them in authored region order; offsets belong to the final region only.
     let runs = regions.selector_runs(leaf_runs);
-    let declaration = types.get(&identity).ok_or_else(invalid)?;
+    let declaration = types.get(identity).ok_or_else(invalid)?;
     // A mixed shape's tag sits at the same carrier offset as a sum's: its
     // common fields follow the tag, so the case ordinal alone selects.
     let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
@@ -222,11 +215,9 @@ pub(super) fn lower(
             regions.root,
             regions.path,
             structural_types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
         )?;
     let declaration = structural_types
-        .get(&selected_type)
+        .get(selected_type)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
     let (StructuralTypeShape::Sum {
         cases: declared_cases,
@@ -238,12 +229,8 @@ pub(super) fn lower(
     else {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     };
-    let layout = crate::lowering::structural_layout::structural_sum_layout(
-        selected_type,
-        structural_types,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )?;
+    let layout =
+        crate::lowering::structural_layout::structural_sum_layout(selected_type, structural_types)?;
     if cases.len() != declared_cases.len() || cases.len() != layout.cases.len() {
         return Err(LoweringError::unsupported_control_flow(function.machine));
     }

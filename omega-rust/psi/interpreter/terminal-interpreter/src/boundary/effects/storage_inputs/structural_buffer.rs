@@ -29,6 +29,16 @@ pub struct TerminalBoundaryReferenceSelection {
     pub(super) access: StructuralAccess,
 }
 
+impl PartialEq for TerminalBoundaryReferenceSelection {
+    fn eq(&self, other: &Self) -> bool {
+        Arc::ptr_eq(&self.identity, &other.identity)
+            && self.argument_index == other.argument_index
+            && self.path == other.path
+            && self.access == other.access
+    }
+}
+impl Eq for TerminalBoundaryReferenceSelection {}
+
 #[derive(Debug)]
 pub(super) struct BoundaryReferenceReplacement {
     pub path: Vec<StructuralPathSegment>,

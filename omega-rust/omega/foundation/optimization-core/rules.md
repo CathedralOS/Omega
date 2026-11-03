@@ -67,9 +67,14 @@ as mechanically verified.
 
 ## Supported composition policy
 
-- The source vocabulary names eight Psi suites; the executable
-  `lowered-psi-to-lowered-psi` phase runs every member through
-  `run_psi_optimization` over the complete validated carrier.
+- The source vocabulary names nine Psi members. The executable
+  `lowered-psi-to-lowered-psi` phase dispatches every selected member through
+  `run_psi_optimization` over the complete carrier. Control-flow cleanup,
+  sparse conditional constant propagation, copy propagation, global value
+  numbering, and dead pure scalar elimination execute there. Proof-check
+  elision, state specialization, representation specialization, and
+  loop-invariant scalar motion run no rule there; they execute in the
+  post-Terminal rule catalog.
 - One checked-tree product-pruning rule may follow authored checking when the
   compilation binds an exact product root; it prunes unreachable machine
   declarations and retains the identity-bearing product selection evidence.

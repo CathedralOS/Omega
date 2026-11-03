@@ -1,10 +1,10 @@
 // Expected exit: 0.
 // Inline children transfer their original claims into the complete parent.
-data Receipt [linear] { code: u64; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+data Receipt [linear] dropped by drop_receipt { code: u64; }
+machine drop_receipt(receipt: &mut Receipt) {}
 data Pair { first: Receipt; second: Receipt; }
-data LinearParent [linear] { receipt: Receipt; }
-machine LinearParent::drop(parent: &mut LinearParent) {}
+data LinearParent [linear] dropped by drop_linear_parent { receipt: Receipt; }
+machine drop_linear_parent(parent: &mut LinearParent) {}
 machine issue(code: u64) -> Receipt { Receipt { code: code } }
 
 machine main() crashes Trap {

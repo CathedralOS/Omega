@@ -291,7 +291,7 @@ fn capture(
                 .ok_or("checked capture declaration lost its independent receipt")?;
             let template_identity = checked
                 .type_identities
-                .with_mut(|table| table.intern(&capture.normalized_template_identity));
+                .intern(&capture.normalized_template_identity);
             Ok(CheckedDeclarationCapture {
                 template_identity,
                 template_contract: receipt.template_contract_commitment.as_bytes(),

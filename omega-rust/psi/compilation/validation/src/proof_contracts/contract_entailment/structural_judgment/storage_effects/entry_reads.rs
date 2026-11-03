@@ -7,6 +7,9 @@ use super::super::StructuralTerm;
 use super::{CapturedStorageCoordinate, StructuralJudge};
 use typed_trees::{expression::ExpressionHandle, machine::Machine, state::State};
 
+/// Largest fixed array whose slots each keep an entry observation.
+const ENTRY_SLOT_OBSERVATION_LIMIT: usize = 64;
+
 impl StructuralJudge<'_> {
     /// A readable scalar parameter supplies initialized entry contents even
     /// when Requires says nothing about their value. Keep that unknown value
@@ -83,6 +86,15 @@ impl StructuralJudge<'_> {
             crate::field_domains::readable_fixed_array_elements(program, reference)
         {
             if !Self::nominal_type_has_data_predicates(program, element, active) {
+                return None;
+            }
+            // Every judge for a state repeats this walk, so a per-slot copy of
+            // a 131072-slot table cost the Psi product gate about 45 ms per
+            // judge and over an hour per check. Past the limit an array keeps
+            // no entry slot observations, as before slot retention existed.
+            // ponytail: slot limit; one quantified observation over all slots
+            // would keep large arrays' bounds if a program needs them.
+            if length > ENTRY_SLOT_OBSERVATION_LIMIT {
                 return None;
             }
             for element_index in 0..length {

@@ -701,17 +701,18 @@ crashes Trap
         }
     }
 
+    // `parameter` keeps the caller's guarded count across `record_erased`.
     machine retain(parser: &mut Parser, input: &TokenStream) {
         let parameter: u64 in Trapping = parser.output.parameter_count as u64 in Trapping;
         let type_end: u64 in Trapping = parser.type_end;
         Parser::record_erased(parser, ErasedBindingKind::Parameter, parameter, type_end);
-        parser.output.parameters[parser.output.parameter_count] = Parameter {
+        parser.output.parameters[parameter] = Parameter {
             name: Parser::identifier_span(parser, parser.parameter_name_start, parser.parameter_name_end),
             type_reference: parser.type_result,
             is_mutable: parser.parameter_mutable,
             source_span: Parser::source_span(parser, parser.parameter_name_start, parser.type_end)
         };
-        parser.output.parameter_count = parser.output.parameter_count + 1;
+        parser.output.parameter_count = (parameter + 1) as u64;
         let separator: bool = Parser::at_punctuation(parser, input, PunctuationKind::Comma);
         transition separator {
             true -> separator_taken(parser, input)

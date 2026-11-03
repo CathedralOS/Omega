@@ -60,6 +60,7 @@ impl CarrierFit {
                 let obligation = checked_trees::IntegerRangeObligation::retain_address_fit(
                     expression,
                     owner,
+                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
                     low,
                     high,
                     description.to_owned(),

@@ -49,6 +49,7 @@ pub(super) fn roster_at_expression(
         kind: loan.kind,
         lineage: loan.lineage,
         call_result: loan.call_result,
+        permission_sources: Vec::new(),
         owner_path: loan.owner_path,
         place: loan.place,
         retained_operand: loan.retained_operand,

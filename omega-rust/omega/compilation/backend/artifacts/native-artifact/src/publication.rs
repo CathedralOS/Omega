@@ -131,7 +131,9 @@ pub(crate) fn native_publication_evidence_digest(
     NativePublicationEvidenceDigest::from_digest(digest.finish())
 }
 
-pub(crate) fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
+/// The v1 container commitment over one executable's exact installed bytes.
+/// Callers that replay a published image compute it from the bytes they read.
+pub fn executable_container_digest(bytes: &[u8]) -> ExecutableContainerDigest {
     ExecutableContainerDigest::from_digest(DomainDigestEncoder::content(
         b"omega.published-executable-container.sha256.v1\0",
         bytes,

@@ -20,6 +20,7 @@ mod opaque_property_receipts;
 mod runtime_index_fields;
 mod runtime_value_applications;
 mod selections;
+mod value_location_alignment;
 
 pub use selections::bind_pre_specialization_authored_selections;
 
@@ -191,6 +192,9 @@ pub fn prepare_typed_trees(
     // pass in a product compiler. Demands are invocation-owned, so recheck them
     // before any exact-input memo can return a prior language judgment.
     validation::validate_wire_protocol(&program, request.wire_compatibility_demands)?;
+    // A value-form alignment query names its storage subject before any
+    // layout consumer or specialization copies the request.
+    value_location_alignment::settle(&mut program)?;
     // Input completeness belongs to this stage.
     if !request.admits_pending_inputs {
         deferred_constants::require_evaluated_constants(&program)?;
@@ -514,6 +518,7 @@ pub fn prepare_execution_applications(program: &mut TypedTrees) -> Result<(), Ve
 /// evaluation owner still admits each demanded invocation before execution.
 pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees, Vec<Diagnostic>> {
     let type_frontier = program.type_reference_table.type_reference_count();
+    value_location_alignment::settle(&mut program)?;
     elaborate(&mut program)?;
     validation::resolve_dynamic_call_targets(&mut program)?;
     program.retain_static_argument_contexts();

@@ -17,7 +17,7 @@ use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::IeeeFloatValue;
 use semantic_vocabulary::{IeeeFloatFormat, OperationId, PlaceId, ScalarType, ValueId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use target_operations::TargetStructuralArgumentSource;
 use target_operations::TargetUnitWriteOnlyPrimitiveStoreSource;
 use target_operations::{
@@ -88,8 +88,6 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
                 let root_shape = super::super::structural_layout::structural_shape(
                     parameter.structural_type,
                     structural_types,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
                 )?;
                 let expected_shape =
                     crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
@@ -149,7 +147,7 @@ pub(in crate::lowering) fn lower_write_only_primitive_store(
         }
     };
     let destination_type = structural_types
-        .get(&destination.structural_type())
+        .get(destination.structural_type())
         .copied()
         .ok_or_else(invalid)?;
     // Each runtime element scales its selector's exact dominating source by

@@ -2675,6 +2675,12 @@ impl TerminalExecution<'_> {
             {
                 self.structural_primitive_storage
                     .remove(&StructuralRuntimePlace::from(&view));
+                let origin = self
+                    .reference_referents
+                    .get(&StructuralRuntimePlace::from(&view))
+                    .cloned();
+                self.retired_structural_homes
+                    .push((place.id, view, origin));
             }
         }
     }

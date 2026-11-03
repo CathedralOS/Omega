@@ -2,8 +2,8 @@
 // not return. `exercise` only borrows its `token`, so the return runs the
 // nominal drop; `relay` moves its token into a call before returning —
 // the callee drops it and the return must not drop it again.
-data Token { mark: i32; }
-machine Token::drop(token: &mut Token) {
+data Token dropped by drop_token { mark: i32; }
+machine drop_token(token: &mut Token) {
     token.mark = 0;
 }
 machine watch(token: &Token) -> i32 {

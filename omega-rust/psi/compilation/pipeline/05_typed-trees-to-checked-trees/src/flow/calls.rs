@@ -519,12 +519,25 @@ fn append_call_result_field_domain_facts<'plans>(
     // an exact result membership the adapter's own contract carries is kept
     // because its body owes it. A promise about an input, another projection,
     // or another domain application cannot stand in for this result row.
-    let realization = checked_realization_result_identities(program, build, call);
+    let realization = checked_realization_result_identities(program, build, machine.symbol, call);
     let rows = paths.iter().filter(|row| {
-        result_identity_is_available(program, realization.as_deref().map(Vec::as_slice), row)
+        result_identity_is_available(
+            program,
+            machine.symbol,
+            expression,
+            call,
+            realization.as_deref().map(Vec::as_slice),
+            row,
+        )
     });
     super::call_results::append_memberships(
-        semantic, build, exit, expression, point, evidence, rows,
+        semantic,
+        build,
+        exit,
+        expression,
+        point,
+        evidence,
+        rows.map(|row| &row.identity),
     );
 }
 
@@ -533,17 +546,50 @@ fn append_call_result_field_domain_facts<'plans>(
 /// requirement's boundary-only authority cannot supply a missing promise.
 pub(in crate::flow) fn result_identity_is_available(
     program: &dyn ::validation::CheckingInput,
-    realization: Option<&[validation::field_domains::FieldDomainIdentity]>,
-    row: &validation::field_domains::FieldDomainIdentity,
+    caller: SymbolHandle,
+    expression: typed_trees::expression::ExpressionHandle,
+    call: &typed_trees::expression::TableCallExpression,
+    realization: Option<&[validation::field_domains::FieldDomainContract]>,
+    row: &validation::field_domains::FieldDomainContract,
 ) -> bool {
-    !realization.is_some_and(|guaranteed| !guaranteed.contains(row))
-        || !program.domain_definition(row.1).is_some_and(|domain| {
-            domain.establishment_routes.iter().any(|route| {
-                matches!(
-                    route,
-                    language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
-                )
+    let Some(guaranteed) = realization else {
+        return true;
+    };
+    if guaranteed.iter().any(|own| own.identity == row.identity)
+        || !program
+            .domain_definition(row.identity.1)
+            .is_some_and(|domain| {
+                domain.establishment_routes.iter().any(|route| {
+                    matches!(
+                        route,
+                        language_semantics::DomainEstablishmentRoute::BoundaryRequirement { .. }
+                    )
+                })
             })
+    {
+        return true;
+    }
+    let site = validation::CallSite::Expression { expression, call };
+    guaranteed
+        .iter()
+        .filter(|own| own.identity.0 == row.identity.0 && own.identity.1 == row.identity.1)
+        .any(|own| {
+            match validation::selected_call_result_domain_matches(
+                program,
+                caller,
+                &site,
+                row.identity.1,
+                &own.arguments,
+                &row.arguments,
+            ) {
+                Ok(matches) => matches,
+                Err(reason) => {
+                    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                        eprintln!("selected result domain correspondence: {reason}");
+                    }
+                    false
+                }
+            }
         })
 }
 
@@ -556,34 +602,33 @@ pub(in crate::flow) fn result_identity_is_available(
 pub(in crate::flow) fn checked_realization_result_identities<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
+    lexical_owner: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
-) -> Option<
-    std::rc::Rc<
-        Vec<(
-            Vec<facts::PlaceSegment>,
-            SymbolHandle,
-            language_semantics::SemanticDomainId,
-        )>,
-    >,
-> {
+) -> Option<std::rc::Rc<Vec<validation::field_domains::FieldDomainContract>>> {
     let dispatch = call.static_requirement_dispatch.as_ref()?;
     program
         .machine_by_symbol(dispatch.realization_machine)
         .filter(|machine| machine.body_is_present)?;
-    // The dispatch retains the selected declaration's template identity.
-    // Monomorphization has already joined the executable target to that
-    // selection. Read the actual target's substituted types and contracts:
-    // template parameter identities cannot match a closed invocation's rows.
+    // A still-generic call may retain declaration-scoped result indices.
+    // The result publisher compares them under this call's authenticated
+    // arguments; the cached declaration roster stays independent of callers.
     // This fence reads the checked realization's own declared result, not a
     // public requirement's stronger receiving annotation.
-    let return_type = memoized_call_target_return_type(program, build, call.target_symbol)?;
-    let key = (call.target_symbol, 0, return_type);
+    let selected = program.realization_call_signature(lexical_owner, call);
+    let return_type = selected
+        .map(|signature| signature.return_type)
+        .or_else(|| memoized_call_target_return_type(program, build, call.target_symbol))?;
+    let key = (
+        call.target_symbol,
+        selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
+        return_type,
+    );
     if !build.call_result_identities.contains_key(&key) {
         let computed = std::rc::Rc::new(call_result_qualification_identities_indexed(
             program,
             build,
             call.target_symbol,
-            None,
+            selected,
             return_type,
         ));
         build.call_result_identities.insert(key, computed);
@@ -798,6 +843,9 @@ pub(crate) fn call_result_qualification_identities(
         &contracts,
         &qualification_contract,
     )
+    .into_iter()
+    .map(|row| row.identity)
+    .collect()
 }
 
 /// `call_result_qualification_identities` on the context's memoized lookups
@@ -811,11 +859,7 @@ pub(in crate::flow) fn call_result_qualification_identities_indexed<'plans>(
     target: SymbolHandle,
     selected: Option<&'plans typed_trees::signature::StateSignature>,
     return_type: typed_trees::types::TypeReferenceHandle,
-) -> Vec<(
-    Vec<facts::PlaceSegment>,
-    SymbolHandle,
-    language_semantics::SemanticDomainId,
-)> {
+) -> Vec<validation::field_domains::FieldDomainContract> {
     if !return_type.is_valid() {
         return Vec::new();
     }
@@ -853,11 +897,7 @@ fn result_identity_rows(
     parameters: Option<&[typed_trees::signature::StateParameter]>,
     contracts: &[&typed_trees::signature::SignatureContract],
     qualification_contract: &validation::CallQualificationContract<'_>,
-) -> Vec<(
-    Vec<facts::PlaceSegment>,
-    SymbolHandle,
-    language_semantics::SemanticDomainId,
-)> {
+) -> Vec<validation::field_domains::FieldDomainContract> {
     if !return_type.is_valid() {
         return Vec::new();
     }
@@ -908,11 +948,7 @@ fn append_ensures_result_rows(
     parameters: Option<&[typed_trees::signature::StateParameter]>,
     contracts: &[&typed_trees::signature::SignatureContract],
     qualification_contract: &validation::CallQualificationContract<'_>,
-    domains: &mut Vec<(
-        Vec<facts::PlaceSegment>,
-        SymbolHandle,
-        language_semantics::SemanticDomainId,
-    )>,
+    domains: &mut Vec<validation::field_domains::FieldDomainContract>,
 ) {
     visit_qualified_ensures(program, contracts, qualification_contract, |membership| {
         // This occurrence is already selected from this exact callable's
@@ -932,7 +968,15 @@ fn append_ensures_result_rows(
             membership.domain_symbol,
             membership.semantic_domain,
         );
-        crate::shared::collections::push_unique(&mut *domains, row);
+        if !domains.iter().any(|existing| existing.identity == row) {
+            domains.push(validation::field_domains::FieldDomainContract {
+                identity: row,
+                arguments: program
+                    .type_reference_table
+                    .type_reference_handles(membership.domain_arguments)
+                    .to_vec(),
+            });
+        }
     });
 }
 

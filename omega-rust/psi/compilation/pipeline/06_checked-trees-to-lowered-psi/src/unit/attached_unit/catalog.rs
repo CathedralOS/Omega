@@ -1,11 +1,11 @@
 //! Structural type, domain, and service catalog publication for attached Unit
 //! closures.
 use super::super::{
-    BTreeSet, CheckedUnitStructuralFieldType, CheckedUnitStructuralTypeShape, DomainSemanticId,
+    BTreeSet, CheckedUnitStructuralTypeShape, DomainSemanticId,
     InstallationReachDependency, ProgramLocalRootIntroductionSchema, ServiceDeclaration, ServiceId,
     ServiceReachId, ServiceReachInterface, ServiceReachPlan, ServiceReachRowId, StructuralAccess,
     StructuralCaseDeclaration, StructuralCaseId, StructuralDomainDeclaration,
-    StructuralFieldDeclaration, StructuralFieldType, StructuralParameterDeclaration,
+    StructuralFieldDeclaration, StructuralParameterDeclaration,
     StructuralTypeDeclaration, lower_mixed_cases, lower_mixed_fields,
     program_local_root_introduction_compatibility_report_identity, service_id,
     structural_domain_id, structural_field_id, structural_type_id, terminal_byte_sequence_carrier,
@@ -889,16 +889,10 @@ pub(crate) fn lower_unit_structural_type_roots<'checked>(
                         "Unit structural type contains an empty or duplicate field identity",
                     ));
                 }
-                let (relevance, field_type) = match &field.field_type {
-                    CheckedUnitStructuralFieldType::ProviderBacked {
-                        provider_type_identity,
-                    } => (field.relevance, StructuralFieldType::Erased {
-                        type_identity: identities.intern(&checked
-                            .type_identity_text(*provider_type_identity)
-                            .unwrap_or_default()),
-                    }),
-                    field_type => (field.relevance, lower_field_type(identities, checked, field_type, &type_ids)?),
-                };
+                let (relevance, field_type) = (
+                    field.relevance,
+                    lower_field_type(identities, checked, &field.field_type, &type_ids)?,
+                );
                 let declaration = StructuralFieldDeclaration {
                     inline_carrier: crate::shared::structural_types::lower_inline_carrier(field, &type_ids)?,
                     storage: field.storage.clone(),

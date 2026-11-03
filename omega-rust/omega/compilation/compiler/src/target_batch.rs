@@ -34,7 +34,7 @@ impl PreparedCompilation {
     pub fn product_queries(&self) -> Option<crate::ProductQueries> {
         Some(self.source.as_ref()?.as_ref().ok()?.product_queries())
     }
-    pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+    pub fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.source.as_mut()?.as_mut().ok()?.execution()
     }
 }
@@ -75,7 +75,7 @@ impl crate::CompilationSession {
     pub fn complete_compilation(
         &mut self,
         prepared: PreparedCompilation,
-        returned: Result<Option<build_evaluation::ReturnedBuild>, crate::CompileFailure>,
+        returned: Result<Option<build_settings::ReturnedBuild>, crate::CompileFailure>,
     ) -> Result<Vec<TargetProductOutcome>, Vec<Diagnostic>> {
         run_on_compile_thread(|| {
             let PreparedCompilation {

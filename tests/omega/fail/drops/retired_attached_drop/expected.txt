@@ -1,0 +1,1 @@
+attaches cleanup to data `Token`, which is retired

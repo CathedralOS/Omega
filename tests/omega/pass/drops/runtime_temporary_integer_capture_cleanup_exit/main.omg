@@ -1,5 +1,5 @@
-data Token { value: u64; marker: u64; }
-machine Token::drop(token: &mut Token)
+data Token dropped by drop_token { value: u64; marker: u64; }
+machine drop_token(token: &mut Token)
 requires token.value == 7
 {
     token.value = 0;

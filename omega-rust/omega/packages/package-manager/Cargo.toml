@@ -12,7 +12,7 @@ evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting"
 terminal-fuel = { path = "../../../psi/compilation/representations/terminal-psi/fuel" }
 artifacts = { path = "../../foundation/artifacts" }
 build-declarations = { path = "../build-declarations" }
-build-evaluation = { path = "../../build-system/build-evaluation" }
+build-settings = { path = "../../build-system/build-settings" }
 build-output = { path = "../build-output" }
 boundary-applications = { path = "../../compilation/backend/artifacts/boundary-applications" }
 compiler = { path = "../../compilation/compiler" }

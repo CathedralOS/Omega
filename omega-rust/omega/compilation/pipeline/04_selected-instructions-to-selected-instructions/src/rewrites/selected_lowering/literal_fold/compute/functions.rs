@@ -10,7 +10,7 @@ use crate::{
 use super::actions::derive_actions;
 use super::constraints::AdmittedPairs;
 use super::function_rewrite::apply_actions;
-use crate::rewrites::block_edges::{block_instruction_ids, virtual_register_ids_are_dense};
+use crate::rewrites::block_edges::block_instruction_ids;
 
 pub(super) fn derive_function_folds(
     selected: &impl ValidatedSelectedAnalysis,
@@ -65,7 +65,7 @@ fn validate_dense_identifiers(
     function_index: usize,
     function: &SelectedFunction,
 ) -> Result<(), LiteralFoldError> {
-    if !virtual_register_ids_are_dense(function) {
+    if !function.ids_are_positions() {
         return Err(LiteralFoldError::FunctionMismatch {
             function: function_index,
         });

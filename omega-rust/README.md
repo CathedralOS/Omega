@@ -51,7 +51,7 @@ implies deletion.
 - [Package management](omega/packages/package-manager/README.md): package operations,
   with independent source acquisition, resolver execution, and review evidence
   packages in `omega/packages/`.
-- [Build evaluation](omega/build-system/build-evaluation/README.md): Build
+- [Build evaluation](omega/build-system/build-settings/README.md): Build
   activation, declaration admission, restricted-request consent and execution,
   independent of compiler coordination.
 - [Psi interpreters](psi/interpreter): separate checked-tree and Terminal Psi

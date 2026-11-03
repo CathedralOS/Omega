@@ -1,5 +1,4 @@
 use crate::build_time_evaluation::type_reference_table;
-use crate::machine_execution::admission::require_established_arguments;
 use checked_interpreter::BuildMachineEvaluationRequest;
 use diagnostics::Diagnostic;
 use layout_plans::LayoutPlacementReport;
@@ -401,7 +400,14 @@ pub(crate) fn compute_plan_laid_layouts_in(
                 schema_value.clone(),
                 build_time_values::BuildTimeValue::LayoutTarget(target.clone()),
             ];
-            require_established_arguments(&execution, machine, &mut arguments).map_err(fail)?;
+            admission
+                .require_invocation_failures(
+                    crate::BuildTimeProgram::Typed(&execution),
+                    machine,
+                    &mut arguments,
+                    None,
+                )
+                .map_err(fail)?;
             let evaluation = match domain.accounting.evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(&execution),
                 BuildMachineEvaluationRequest::symbol(machine.symbol, arguments),

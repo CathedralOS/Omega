@@ -76,14 +76,7 @@ pub(super) fn prepare(
             })
             .transpose()?
     };
-    let signature = StructuralCallSignature::derive(
-        &scalar_shapes,
-        formals,
-        result,
-        types,
-        &mut std::collections::BTreeMap::new(),
-        &mut std::collections::BTreeSet::new(),
-    )?;
+    let signature = StructuralCallSignature::derive(&scalar_shapes, formals, result, types)?;
     let call_plan = signature.plan(target)?;
     let shapes = [scalar_shapes.as_slice(), signature.structural_shapes()].concat();
     if call_plan.parameters.len() != shapes.len() {

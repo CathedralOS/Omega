@@ -1,6 +1,6 @@
 //! Execute authored calling code after external canonical artifact ingress.
 
-use build_evaluation::evaluate_terminal_calling_policy;
+use build_settings::evaluate_terminal_calling_policy;
 use calling_conventions::{MachineRegister, ValueLocation};
 use evaluation_accounting::{
     BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
@@ -299,8 +299,8 @@ pub(super) fn observe(
         if usage.total_units() == 0 {
             return Err("calling fixture recorded no execution fuel".into());
         }
-        // Envelope ingress retains obligations, not producer authority. Even
-        // otherwise valid calling code must refuse a false module predicate.
+        // Loading a serialized calling program must still check its conditions.
+        // Reject a false module predicate even when the calling code is valid.
         let mut false_module = module.clone();
         let mut nodes = arena::Arena::new();
         let root = nodes.insert(terminal_psi::ScalarPredicateNode(
@@ -314,6 +314,7 @@ pub(super) fn observe(
             .conditions
             .retain_predicate(
                 terminal_psi::ScalarConditionSubject::Module,
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
                 control.into(),
                 nodes,
                 root,

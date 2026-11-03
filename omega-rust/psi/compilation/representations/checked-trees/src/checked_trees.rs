@@ -36,8 +36,8 @@ pub use borrow::{
     BorrowFacts, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRetainedOperand,
     BorrowReturnedLoanFact, BorrowRootKind, BorrowWritableRootFact, CapturedPlace,
     CapturedPlaceCompatibility, CapturedPlaceContainment, CheckedBorrowResourceDispositionTarget,
-    CheckedBorrowResourceLifecyclePhase, CheckedCallBorrowLoanResource,
-    CheckedCallBorrowLoanSource, CheckedDirectBorrowLoanResource,
+    CheckedBorrowResourceLifecyclePhase, CheckedBorrowResourceRetention,
+    CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource, CheckedDirectBorrowLoanResource,
     CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
     CheckedParentBorrowResource, CheckedReborrowAccessEffect, CheckedReborrowLoanResource,
     CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
@@ -85,9 +85,9 @@ pub use facts::{
 pub use facts::{
     BlockingFacts, CallServiceReachRows, CarryFacts, CheckFacts,
     CheckedAcceptedTemplateClassification, CheckedAcceptedTemplateIdentities,
-    CheckedAcceptedTemplateIdentity, CheckedAccessViewInput, CheckedBoundaryAdapterDispatch,
-    CheckedCallableHeader, CheckedCallbackResourceReceipt, CheckedCrashCallSite,
-    CheckedCrashOperatorSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
+    CheckedAcceptedTemplateIdentity, CheckedAccessViewInput, CheckedBodyCrashSummary,
+    CheckedBoundaryAdapterDispatch, CheckedCallableHeader, CheckedCallbackResourceReceipt,
+    CheckedCrashCallSite, CheckedCrashOperatorSite, CheckedCrashSite, CheckedEntryResourceEnvelope,
     CheckedFactCallProjection, CheckedMachineContractEnvelopeIdentity,
     CheckedMachineContractRefinement, CheckedMachineResourceEnvelopes,
     CheckedMachineSpecializationIdentity, CheckedNominalMachineUse, CheckedProofRankingRelation,
@@ -211,6 +211,35 @@ impl CheckedTrees {
             typed: typed.into(),
             facts,
         }
+    }
+
+    /// Return the crashes already checked for this exact body. Missing,
+    /// competing or stale body evidence cannot establish invocation safety.
+    /// Callers still owe the body's entry contract for their actual arguments.
+    pub fn body_crash_summary(
+        &self,
+        machine: symbols::SymbolHandle,
+    ) -> Option<&CheckedBodyCrashSummary> {
+        let mut bodies = self
+            .typed
+            .machines()
+            .iter()
+            .filter(|body| body.symbol == machine);
+        let body = bodies.next()?;
+        if bodies.next().is_some() {
+            return None;
+        }
+        let mut plans = self
+            .facts
+            .contract_plans
+            .machines
+            .iter()
+            .filter(|plan| plan.machine == machine);
+        let plan = plans.next()?;
+        if plans.next().is_some() {
+            return None;
+        }
+        plan.crash.checked_body_summary(machine, body.states)
     }
 
     /// The `u64` literal the selected target's fold landed at a retained

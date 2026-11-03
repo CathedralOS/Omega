@@ -488,7 +488,6 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
                     statement_index,
                     statement,
                 )
-                .map(|places| (*places).clone())
         };
         // Scalar observations require an exact logical coordinate. Binding
         // invalidation only needs a complete physical may-write enclosure;

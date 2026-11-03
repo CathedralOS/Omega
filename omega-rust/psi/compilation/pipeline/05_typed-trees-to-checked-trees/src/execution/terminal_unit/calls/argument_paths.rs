@@ -214,6 +214,15 @@ pub(crate) fn checked_call_erased_scalar_arguments(
         .collect()
 }
 
+/// A borrowed value keeps its declared promises when its pointer is presented
+/// as runtime storage. Keep that complete type beside the physical endpoint
+/// and path; removing an ingress reference must not erase its qualifications.
+pub(crate) struct ProjectedArgumentPath {
+    pub(crate) declared_type: TypeReferenceHandle,
+    pub(crate) storage_type: TypeReferenceHandle,
+    pub(crate) path: Vec<PathSegment>,
+}
+
 /// `projected_argument_path` with runtime-index admission for the borrowed
 /// lanes — a `&`-rooted call receiver or argument, or a `self.nodes[i]`-shape
 /// copied leaf. A runtime `Index` segment retains `RuntimeIndex` naming the
@@ -229,7 +238,7 @@ pub(crate) fn projected_borrowed_path(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: &CanonicalPlace,
-) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
+) -> Option<ProjectedArgumentPath> {
     projected_argument_path(
         program,
         state_symbol,
@@ -300,7 +309,7 @@ pub(crate) fn projected_selected_path(
     local_selector: &dyn Fn(
         typed_trees::expression::ExpressionHandle,
     ) -> Option<CheckedRuntimeIndex>,
-) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
+) -> Option<ProjectedArgumentPath> {
     projected_argument_path(
         program,
         state_symbol,
@@ -324,8 +333,12 @@ pub(crate) fn projected_observed_path(
     local_selector: &dyn Fn(
         typed_trees::expression::ExpressionHandle,
     ) -> Option<CheckedRuntimeIndex>,
-) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
-    let (mut projected, mut path) = projected_selected_path(
+) -> Option<ProjectedArgumentPath> {
+    let ProjectedArgumentPath {
+        mut declared_type,
+        storage_type: mut projected,
+        mut path,
+    } = projected_selected_path(
         program,
         machine,
         state_symbol,
@@ -366,9 +379,14 @@ pub(crate) fn projected_observed_path(
         {
             path.push(PathSegment::Referent);
         }
+        declared_type = projected;
         projected = shell.referee;
     }
-    Some((projected, path))
+    Some(ProjectedArgumentPath {
+        declared_type,
+        storage_type: projected,
+        path,
+    })
 }
 
 /// A computation owner supplies executable selectors at the same projected
@@ -380,7 +398,7 @@ pub(crate) fn projected_evaluated_path(
     statement: usize,
     place: &CanonicalPlace,
     selector: Option<&dyn Fn(typed_trees::expression::ExpressionHandle) -> Option<PathSegment>>,
-) -> Option<(TypeReferenceHandle, Vec<PathSegment>)> {
+) -> Option<ProjectedArgumentPath> {
     projected_argument_path(program, state, statement, place, Some(machine), selector)
 }
 
@@ -414,7 +432,7 @@ pub(crate) fn projected_argument_path(
     local_selector: Option<
         &dyn Fn(typed_trees::expression::ExpressionHandle) -> Option<PathSegment>,
     >,
-) -> Option<(typed_trees::types::TypeReferenceHandle, Vec<PathSegment>)> {
+) -> Option<ProjectedArgumentPath> {
     let mut path = Vec::with_capacity(place.segments.len());
     // A borrowed root's own declared reference shells denote storage the
     // rooted subject already names — a `&`-parameter's member projection
@@ -593,13 +611,18 @@ pub(crate) fn projected_argument_path(
             }
         }
     }
-    let mut projected = if matches!(place.segments.last(), Some(PlaceSegment::FixedRange { .. })) {
-        // A region has no standalone type. Its original array supplies the
-        // storage catalog; the final path segment retains its exact extent.
-        let container = prefix_container(place.segments.len().checked_sub(1)?)?;
-        unwrapped_type_reference(program, container)?
+    // A range has no standalone type: its original container supplies the
+    // declaration, while the path keeps the selected extent.
+    let is_range = matches!(place.segments.last(), Some(PlaceSegment::FixedRange { .. }));
+    let declared_type = if is_range {
+        prefix_container(place.segments.len().checked_sub(1)?)?
     } else {
         canonical_place_type_reference(program, state_symbol, statement_index, place)?
+    };
+    let mut projected = if is_range {
+        unwrapped_type_reference(program, declared_type)?
+    } else {
+        declared_type
     };
     // A whole parameter already denotes its ingress storage, just as the
     // root of a member/index path above does. Its declared reference is not
@@ -621,7 +644,11 @@ pub(crate) fn projected_argument_path(
             return None;
         }
     }
-    Some((projected, path))
+    Some(ProjectedArgumentPath {
+        declared_type,
+        storage_type: projected,
+        path,
+    })
 }
 
 /// The checked segment a borrow-carried `Index` selector resolves to. An
@@ -980,8 +1007,11 @@ fn byte_array_range_path(
         root: place.root,
         segments: fields.to_vec(),
     };
-    let (backing_type, mut path) =
-        projected_argument_path(program, state, statement_index, &backing, None, None)?;
+    let ProjectedArgumentPath {
+        storage_type: backing_type,
+        mut path,
+        ..
+    } = projected_argument_path(program, state, statement_index, &backing, None, None)?;
     let extent = fixed_array_literal_length(program, backing_type)?;
     // An omitted end names the backing's literal extent.
     let end = end.unwrap_or(extent);

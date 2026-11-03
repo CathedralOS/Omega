@@ -6,6 +6,7 @@
 //! the source-selected storage interpretation separately from the logical
 //! referee. Borrow admission still owns access, lineage and lifetime.
 
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use checked_trees::{
     CheckedReferenceStorage, CheckedStructuralAccess as StructuralAccess,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan as SourcePlan,
@@ -127,7 +128,11 @@ pub(crate) fn capture_source(
     }
     let target = formation.source;
     let place = place_at(program, state.symbol, statement_index, target)?;
-    let (backing_type, mut path) = match calls::projected_evaluated_path(
+    let ProjectedArgumentPath {
+        declared_type,
+        storage_type: backing_type,
+        mut path,
+    } = match calls::projected_evaluated_path(
         program,
         machine.symbol,
         state.symbol,
@@ -146,7 +151,11 @@ pub(crate) fn capture_source(
             {
                 return None;
             }
-            (referent, Vec::new())
+            ProjectedArgumentPath {
+                declared_type: referent,
+                storage_type: referent,
+                path: Vec::new(),
+            }
         }
     };
     // An exclusive reference cannot erase a field's receiving restriction,
@@ -166,17 +175,22 @@ pub(crate) fn capture_source(
     // owes the corresponding load. Equal peeled identities cannot distinguish
     // those operations. Stage05 consumes these explicit physical crossings.
     let mut endpoint = backing_type;
-    // A whole borrowed formal denotes ingress referent storage, not a stored
-    // pointer value. Only subsequent reference shells are physical crossings.
+    // A borrowed parameter keeps its promise about the storage it lends.
+    // Crossing its ingress reference does not change that storage, so retain
+    // qualifications wrapped around the reference as well as its referee.
+    // Loading through another reference replaces this with that reference's
+    // contract, so a promise about one pointer cannot authorize another.
+    let mut storage_contract = declared_type;
+    // Path planning already accounts for the parameter's incoming storage.
+    // Check its declared access here; removing another reference would skip
+    // a stored inner pointer that needs an explicit load.
     if place.segments.is_empty()
         && let facts::PlaceRoot::Symbol(root) = place.root
         && program.state_parameter_by_symbol(state, root).is_some()
-        && let Some(shell) = validation::reference_shell(program, endpoint)
+        && let Some(shell) = validation::reference_shell(program, declared_type)
+        && !access_can_supply(shell.access.into(), access)
     {
-        if !access_can_supply(shell.access.into(), access) {
-            return None;
-        }
-        endpoint = shell.referee;
+        return None;
     }
     let mut crossings = 0;
     let requested_storage =
@@ -203,6 +217,7 @@ pub(crate) fn capture_source(
             return None;
         }
         crossings += 1;
+        storage_contract = endpoint;
         endpoint = shell.referee;
     }
     path.extend(std::iter::repeat_n(
@@ -239,7 +254,7 @@ pub(crate) fn capture_source(
         Some(
             formation
                 .interpretation
-                .access_storage(program, endpoint, plan)?,
+                .access_storage(program, storage_contract, plan)?,
         )
     } else {
         None

@@ -29,13 +29,21 @@ pub struct ProviderApplicationDeclarations {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderRowDeclarations {
     pub reach: Result<Option<ProviderReachDeclaration>, String>,
-    pub leaf_applications: Result<Vec<String>, Vec<String>>,
+    pub leaf_applications: Result<Vec<ProviderRequirementApplication>, Vec<String>>,
     pub external_applications: ProviderApplicationDeclarations,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderDeclarations {
     pub rows: Vec<ProviderRowDeclarations>,
+}
+
+/// A closed requirement belongs to one complete receiver type, including its
+/// type and lifetime arguments. Keep that type when selecting its provider.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProviderRequirementApplication {
+    pub requirement: String,
+    pub receiving_application: String,
 }
 
 /// Exact callable coordinates. Psi uses checked identity handles; the plan
@@ -52,5 +60,6 @@ pub struct ClosedProviderInstance<Identity> {
 /// consuming an individual declaration's refusal.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ProviderInstanceApplication<Identity> {
+    pub receiving_application: Result<String, String>,
     pub candidates: Vec<Result<ClosedProviderInstance<Identity>, String>>,
 }

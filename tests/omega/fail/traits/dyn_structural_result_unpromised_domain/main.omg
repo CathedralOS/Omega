@@ -2,8 +2,8 @@
 // Issued is routed, so a result needs its issuer's provenance; a predicate-free,
 // route-free domain would admit any Token and test nothing (domains.md).
 use omega::language::core::drop;
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 domain Token::Issued established by Token::issue;
 machine Token::issue() -> Token
 ensures result in Token::Issued {

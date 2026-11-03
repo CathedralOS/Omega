@@ -12,6 +12,7 @@ use arena::{Arena, HandleSpan};
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
 use numerics::integer_bounds::{self, IntegerBoundStep};
+use semantic_vocabulary::ScalarConditionRole;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::expression::{BinaryOperator, ExpressionHandle};
@@ -128,6 +129,7 @@ pub struct IntegerRangeModel {
 pub struct IntegerRangeObligation {
     expression: ExpressionHandle,
     owner: SymbolHandle,
+    role: ScalarConditionRole,
     steps: Arena<RangeStep>,
     recipe: HandleSpan<RangeStep>,
     requirement: RangeRequirement,
@@ -140,6 +142,7 @@ impl IntegerRangeObligation {
     pub fn retain(
         expression: ExpressionHandle,
         owner: SymbolHandle,
+        role: ScalarConditionRole,
         recipe: IntegerRangeRecipe,
         minimum: BigInt,
         maximum: BigInt,
@@ -148,6 +151,7 @@ impl IntegerRangeObligation {
         Self::with_requirement(
             expression,
             owner,
+            role,
             recipe,
             RangeRequirement::Fixed { minimum, maximum },
             description,
@@ -157,6 +161,7 @@ impl IntegerRangeObligation {
     fn with_requirement(
         expression: ExpressionHandle,
         owner: SymbolHandle,
+        role: ScalarConditionRole,
         recipe: IntegerRangeRecipe,
         requirement: RangeRequirement,
         description: String,
@@ -166,6 +171,7 @@ impl IntegerRangeObligation {
         Self {
             expression,
             owner,
+            role,
             steps,
             recipe,
             requirement,
@@ -182,6 +188,7 @@ impl IntegerRangeObligation {
     pub fn retain_address_fit(
         expression: ExpressionHandle,
         owner: SymbolHandle,
+        role: ScalarConditionRole,
         low: BigInt,
         high: BigInt,
         description: String,
@@ -189,6 +196,7 @@ impl IntegerRangeObligation {
         Self::with_requirement(
             expression,
             owner,
+            role,
             IntegerRangeRecipe::bounds(low, high),
             RangeRequirement::AddressModel,
             description,
@@ -205,6 +213,9 @@ impl IntegerRangeObligation {
 
     pub fn owner(&self) -> SymbolHandle {
         self.owner
+    }
+    pub fn role(&self) -> ScalarConditionRole {
+        self.role
     }
     pub fn expression(&self) -> ExpressionHandle {
         self.expression

@@ -896,10 +896,13 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         target: SymbolHandle,
         reference: SourceSpan,
     ) -> Result<(), String> {
+        // A bound requirement child keeps only its spelling and inherits its
+        // provenance from the evidence binder that installed it, so its
+        // declaration source is that binder's, not a name span of its own.
         let declaration = self
             .program
             .symbols
-            .symbol_source_span(target)
+            .symbol_provenance_source_span(target)
             .ok_or("constant logical call lost its exact declaration source")?;
         let selection = (reference, declaration);
         if !self.dependencies.calls.contains(&selection) {

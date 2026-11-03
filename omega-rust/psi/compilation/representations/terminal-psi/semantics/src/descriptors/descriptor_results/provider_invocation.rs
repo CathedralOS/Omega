@@ -67,6 +67,7 @@ pub fn provider_invocation(
     slot_kind: DescriptorSlotKind,
     declaration: &terminal_psi::BoundaryMachineDeclaration,
     actuals: &[StructuralArgument],
+    result: Option<&terminal_psi::StructuralOperationResult>,
     place_types: &BTreeMap<PlaceId, StructuralTypeId>,
 ) -> Option<DescriptorInvocation> {
     if actuals.len() != declaration.structural_parameters.len()
@@ -174,18 +175,24 @@ pub fn provider_invocation(
             }
         }
     }
+    let results = if declaration.result_reference_regions.is_empty() {
+        Vec::new()
+    } else {
+        super::public_result_slots(types, slot_kind, declaration, result?.place)?
+    };
+    let result = (!results.is_empty())
+        .then(|| crate::descriptor_lifetimes::DescriptorLocation::whole(result.unwrap().place));
     Some(DescriptorInvocation {
         operation,
         target: DescriptorInvocationTarget::Provider {
-            results: Vec::new(),
+            results,
             effects,
             invalidates_contents,
         },
         arguments,
         argument_contents,
-        // Returned values keep the ordinary declared result provenance.
-        // This invocation contributes only simultaneous parameter writes;
-        // intercepting result lookup here would erase its independent origin.
-        result: None,
+        // Parameter writes and returned regions share the captured precall
+        // tuple. Calls without a returned-region contract keep ordinary lookup.
+        result,
     })
 }

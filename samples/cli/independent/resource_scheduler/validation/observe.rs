@@ -4,7 +4,7 @@
 //! Both streams and exact statuses are exported before native publication.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use orchestration::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::{fs, path::PathBuf, process::Command};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 
@@ -54,7 +54,7 @@ fn observe() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         fs::write(output.join("terminal").join(format!("{name}.exit")), format!("{exit}\n"))?;
         println!("terminal {name} exit={exit}");
     }
-    let (_published, executable) = omega_build::publication::publish_native_artifact(
+    let (_published, executable) = orchestration::publication::publish_native_artifact(
         report, &output.join("product"),
     )?;
     for fixture in &fixtures {

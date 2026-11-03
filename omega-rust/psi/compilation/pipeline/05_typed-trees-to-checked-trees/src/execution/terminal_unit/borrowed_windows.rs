@@ -33,6 +33,7 @@ use super::structural_scalar_store::scalar_capture_destination;
 use super::types::byte_sequence_carrier;
 use super::types::machine_binders;
 use crate::checks;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::initialized_locals::initialized_local;
 use crate::flow::reference_route_source;
 use crate::flow::reference_source_place;
@@ -120,7 +121,7 @@ fn assignment_path(
         place,
         Some(&|expression| selectors.runtime_segment(expression)),
     )
-    .map(|(_, path)| path)
+    .map(|projection| projection.path)
 }
 
 /// Descriptor retirement consumes the completed store's semantic coordinate.
@@ -565,7 +566,7 @@ pub(in crate::execution::terminal_unit) fn window_place(
         SourcePlan::StructuralLocal { symbol } => PlaceRoot::Symbol(symbol),
         _ => storage.root,
     };
-    let (_, path) = projected_evaluated_path(
+    let ProjectedArgumentPath { path, .. } = projected_evaluated_path(
         program,
         machine.symbol,
         state.symbol,

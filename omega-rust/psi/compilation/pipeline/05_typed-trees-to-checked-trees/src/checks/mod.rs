@@ -83,8 +83,8 @@ pub(crate) use multiplicity::ClaimOutcomePreparation;
 pub(crate) use multiplicity::prepare_permission_events;
 pub(crate) use multiplicity::publish_owned_transfer_paths;
 pub(crate) use multiplicity::{
-    nominal_drop_machine_symbol, owned_temporary_type, reference_access,
-    type_carries_linear_obligation, type_multiplicity, type_reference_is_reference,
+    owned_temporary_type, reference_access, type_carries_linear_obligation, type_multiplicity,
+    type_reference_is_reference,
 };
 pub(crate) use ranges::incoming_guards::IncomingGuardIndexCache;
 
@@ -106,7 +106,6 @@ pub(crate) fn check_checked_facts_recording(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     guard_index: &IncomingGuardIndexCache,
     proven_machine_contracts: &[(SymbolHandle, validation::ProvenContractExpressions)],
-    expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let setup_guard =
@@ -190,7 +189,6 @@ pub(crate) fn check_checked_facts_recording(
                 incoming_guards,
                 call_frames.as_ref(),
                 &mut entailment,
-                expression_intervals,
             )
         },
     ) {
@@ -257,6 +255,12 @@ pub(crate) fn check_checked_facts_recording(
                 diagnostics.append(&mut crash_diagnostics);
             }
 
+            if let Err(mut entry_diagnostics) =
+                crashes::check_constant_expression_entries_cannot_crash(program, facts)
+            {
+                diagnostics.append(&mut entry_diagnostics);
+            }
+
             if let Err(mut content_diagnostics) =
                 content::check_retained_content_custody(program, facts)
             {
@@ -287,7 +291,6 @@ pub(crate) fn check_checked_facts_recording(
             &facts.borrow,
             &facts.flow,
             &facts.semantic,
-            expression_intervals,
             call_frames.as_ref(),
             incoming_guards,
             mutation_summaries,

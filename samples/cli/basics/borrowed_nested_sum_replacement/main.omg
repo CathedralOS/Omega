@@ -1,7 +1,7 @@
 use omega::language::core::drop;
 
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 data InnerChoice { case Empty; case Value(token: Token); }
 data OuterChoice { case Absent; case Present(inner: InnerChoice); }
 data Holder { marker: u64; choice: OuterChoice; }

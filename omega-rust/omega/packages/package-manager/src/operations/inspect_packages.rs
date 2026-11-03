@@ -121,7 +121,7 @@ impl PackageInspectionTransaction {
             .options
             .build_inputs
             .clone()
-            .map(|inputs| build_evaluation::BuildSnapshotRequest::scoped(Vec::new(), inputs));
+            .map(|inputs| build_settings::BuildSnapshotRequest::scoped(Vec::new(), inputs));
         Ok(PreparedPackageInspection {
             identity: Arc::new(InspectionIdentity),
             transaction: self,
@@ -149,7 +149,7 @@ pub struct PreparedPackageInspection<'inspection> {
     accepted: Option<PackageLock>,
     targets: Vec<TargetProfile>,
     storage: Result<InspectionStorage<'inspection>, PackageInspectionError>,
-    build_snapshot: Option<build_evaluation::BuildSnapshotRequest>,
+    build_snapshot: Option<build_settings::BuildSnapshotRequest>,
     completed_targets: usize,
     outcome: PackageInspectionOutcome,
 }
@@ -174,7 +174,7 @@ impl PreparedPackageInspection<'_> {
         .map_err(failure)
     }
 
-    pub fn build_snapshot(&self) -> Option<&build_evaluation::BuildSnapshotRequest> {
+    pub fn build_snapshot(&self) -> Option<&build_settings::BuildSnapshotRequest> {
         self.build_snapshot.as_ref()
     }
 

@@ -35,8 +35,6 @@ pub(super) struct RangeFacts<'field> {
     pub(super) caller: SymbolHandle,
     pub(super) collection_bounds: Option<&'field validation::CollectionBoundsObservations<'field>>,
     pub(super) checked_operators: Option<&'field checked_trees::CheckedOperatorFacts>,
-    /// Integer expression intervals from validation's arithmetic walk.
-    pub(super) expression_intervals: &'field [validation::ExpressionInterval],
     pub(super) checked_calls: Option<&'field RangeCallContext<'field>>,
     pub(super) mutation_summaries: std::borrow::Cow<'field, StateMutationSummaryCache>,
     pub(super) statement_index: usize,
@@ -111,7 +109,6 @@ impl<'field> RangeFacts<'field> {
             caller,
             collection_bounds: None,
             checked_operators: None,
-            expression_intervals: &[],
             checked_calls: None,
             mutation_summaries: std::borrow::Cow::Owned(StateMutationSummaryCache::default()),
             statement_index: 0,

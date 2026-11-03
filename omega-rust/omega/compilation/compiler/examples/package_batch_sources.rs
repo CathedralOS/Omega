@@ -9,7 +9,7 @@ use compilation_products::NativeProductRequest;
 use compiler::{
     CompilationProduct, CompletedBuild, PackageCompilationRequest, PackageSourceRequest,
 };
-use omega_build::BuildSession;
+use orchestration::BuildSession;
 use package_manager::operations::{
     ProjectCompilationAdmissionRequest, ProjectCompilationCompletion, admit_project_products,
     begin_local_project_preparation,
@@ -56,7 +56,7 @@ fn measure() {
             &[TargetProfile::host_if_supported().expect("Build host")],
             CompilationProduct::Check,
         );
-        let build = omega_build::prepare_package(
+        let build = orchestration::prepare_package(
             session.compiler(),
             requests.remove(0).occurrences,
             &mut completed,
@@ -147,7 +147,7 @@ fn measure() {
         first.remove(0),
     ];
     let prepared = work_counts();
-    let mut outputs = omega_build::compile_packages(session.compiler(), requests, &mut completed);
+    let mut outputs = orchestration::compile_packages(session.compiler(), requests, &mut completed);
     assert_eq!(outputs.len(), 4, "every request keeps its outcome");
     let rejected = match outputs.remove(1) {
         Err(error) => error,
@@ -215,9 +215,9 @@ fn discover(
     let preparation = begin_local_project_preparation(entry, targets, true)
         .expect("prepare project")
         .expect("package project");
-    let resolved = omega_build::resolve_project_sources(
+    let resolved = orchestration::resolve_project_sources(
         session,
-        omega_build::ProjectSourceRequest {
+        orchestration::ProjectSourceRequest {
             preparation,
             execution: package_compilation::BuildExecutionInputs {
                 profile: Some(host),
@@ -279,6 +279,7 @@ fn work_counts() -> (u64, u64, u64, u64) {
 
 fn native_product() -> CompilationProduct {
     CompilationProduct::Native(NativeProductRequest {
+        image: Default::default(),
         private_entry_ram: Vec::new(),
         terminal_authority_policy: current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
@@ -311,7 +312,7 @@ fn reject_unsettled_inputs(
             .collect::<Vec<_>>()
     };
     let before = work_counts();
-    let missing = omega_build::prepare_package(session.compiler(), copy_product(), &mut []);
+    let missing = orchestration::prepare_package(session.compiler(), copy_product(), &mut []);
     let Err(missing) = missing else {
         panic!("missing settled custody must reject");
     };
@@ -329,7 +330,7 @@ fn reject_unsettled_inputs(
     root.execution.snapshot = Some(package_compilation::BuildSnapshotRequest::new([
         b"late-required-output.omg".to_vec(),
     ]));
-    let late = omega_build::prepare_package(session.compiler(), changed, completed);
+    let late = orchestration::prepare_package(session.compiler(), changed, completed);
     let Err(late) = late else {
         panic!("late execution obligations must reject");
     };
@@ -358,7 +359,7 @@ fn measure_component_review(
     completed: &mut [CompletedBuild],
     request: PackageCompilationRequest,
 ) {
-    let build = omega_build::prepare_package(session.compiler(), request.occurrences, completed)
+    let build = orchestration::prepare_package(session.compiler(), request.occurrences, completed)
         .unwrap_or_else(|error| panic!("{:?}", error.failure.into_diagnostics()));
     let review = session
         .compiler()
@@ -420,7 +421,7 @@ fn measure_component_scalars(
         let mut builds = Vec::new();
         for (target, request) in targets.into_iter().zip(requests) {
             let build =
-                omega_build::prepare_package(session.compiler(), request.occurrences, completed)
+                orchestration::prepare_package(session.compiler(), request.occurrences, completed)
                     .unwrap_or_else(|error| {
                         panic!("preparation: {:?}", error.failure.into_diagnostics())
                     });
@@ -513,7 +514,7 @@ fn measure_inspection_scalars(
             CompilationProduct::Inspection(machine.to_owned()),
         );
         let before = work_counts();
-        let outputs = omega_build::compile_packages(session.compiler(), requests, completed);
+        let outputs = orchestration::compile_packages(session.compiler(), requests, completed);
         let counts = work_since(before);
         assert_eq!(outputs.len(), 2);
         let mut inspected_programs = Vec::new();
@@ -599,7 +600,7 @@ fn measure_inspection_roots(
     );
     requests.insert(1, missing_requests.remove(0));
     let before = work_counts();
-    let mut outputs = omega_build::compile_packages(session.compiler(), requests, completed);
+    let mut outputs = orchestration::compile_packages(session.compiler(), requests, completed);
     let counts = work_since(before);
     assert_eq!(outputs.len(), 4);
     let error = match outputs.remove(1) {

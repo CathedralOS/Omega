@@ -157,6 +157,17 @@ pub(super) fn record(
                     ));
                 }
             }
+            // A peer's authored endpoint is read from this participant's
+            // own formals: its retained bindings name which one supplies each
+            // formal the endpoint reads.
+            if let RankMeasure::Distance { lower, upper } = rank.measure {
+                let Some(transported) =
+                    operands::transported_bindings(admitted, state.symbol, [lower, upper])
+                else {
+                    continue;
+                };
+                declaration_bindings.extend(transported);
+            }
             let parameters = inputs
                 .iter()
                 .filter(|parameter| {

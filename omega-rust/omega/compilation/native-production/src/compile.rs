@@ -16,6 +16,44 @@ use terminal_psi_to_abstract_operations::RetainedNativeProviderInputs;
 pub fn compile(
     prepared: PreparedNativeCompilation<'_>,
 ) -> Result<crate::RealizedNativeProduct, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
+    match produce(prepared, NativeProductionStop::Image)? {
+        Produced::Image(product) => Ok(product),
+        Produced::Runtime(_) => unreachable!("image production returned runtime admission"),
+    }
+}
+
+/// Run the same preparation, provider and entry admission as [`compile`] for
+/// Terminal-only execution (`omega run --engine terminal`), returning the
+/// admitted runtime provisions without emitting an object or image.
+/// Independently selected components execute only as their own native
+/// images, so a program that binds one is unavailable on this route.
+pub fn admit_runtime(
+    prepared: PreparedNativeCompilation<'_>,
+) -> Result<
+    Option<native_artifact::TerminalRuntimeProvisions>,
+    (ExecutableImageEmissionRequest, Vec<Diagnostic>),
+> {
+    match produce(prepared, NativeProductionStop::RuntimeAdmission)? {
+        Produced::Runtime(provisions) => Ok(provisions),
+        Produced::Image(_) => unreachable!("runtime admission emitted an image"),
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum NativeProductionStop {
+    Image,
+    RuntimeAdmission,
+}
+
+enum Produced {
+    Image(crate::RealizedNativeProduct),
+    Runtime(Option<native_artifact::TerminalRuntimeProvisions>),
+}
+
+fn produce(
+    prepared: PreparedNativeCompilation<'_>,
+    stop: NativeProductionStop,
+) -> Result<Produced, (ExecutableImageEmissionRequest, Vec<Diagnostic>)> {
     let PreparedNativeCompilation {
         retained,
         request,
@@ -41,6 +79,11 @@ pub fn compile(
             proposal.target_profile(),
             NativePipelineUnit::Application,
         );
+        if stop == NativeProductionStop::RuntimeAdmission && !prepared_components.is_empty() {
+            return Err(vec![Diagnostic::error(
+                "Terminal engine unavailable: this program binds independently produced components, which execute only as native images",
+            )]);
+        }
         let emitted_components = crate::components::emit_components(
             prepared_components,
             &request.terminal_authority_policy,
@@ -50,10 +93,11 @@ pub fn compile(
             .iter()
             .map(crate::components::EmittedComponent::admit_call)
             .collect::<Result<Vec<_>, _>>()?;
-        let (input, execution) = phase_profile::scope("omega.native.prepare_native_execution", || {
-            observation.enter(NativePipelineStage::TerminalToAbstract);
-            work.lower(scalar_input)
-        })?;
+        let (input, execution) =
+            phase_profile::scope("omega.native.prepare_native_execution", || {
+                observation.enter(NativePipelineStage::TerminalToAbstract);
+                work.lower(scalar_input)
+            })?;
         let prepared = phase_profile::scope("omega.native.prepare_native_providers", || {
             proposal.prepare_native_providers(
                 &artifact,
@@ -73,22 +117,29 @@ pub fn compile(
             &request.terminal_authority_policy,
             &request.terminal_authority_permission_policy,
         );
+        let realization = crate::request::NativeRealizationRequest {
+            observation: &observation,
+            proposal,
+            execution: &execution,
+            scalar_applications: scalars.native_input()?,
+            program_entry: proposal.program_entry().as_settlement(),
+            admission,
+            image_request: request.image_request,
+            elf_interpreter: proposal.application().elf_interpreter.as_ref(),
+            optimization_selections: request.optimization_selections,
+            callback_thunks: &prepared.callback_thunks,
+            target_provider_proposals: proposal.target_provider_proposals(),
+        };
+        if stop == NativeProductionStop::RuntimeAdmission {
+            let provisions =
+                crate::realization::admit_terminal_runtime(artifact, input, realization)?;
+            observation.complete();
+            return Ok(Produced::Runtime(provisions));
+        }
         let mut produced = crate::realization::realize_native_artifact(
             std::sync::Arc::clone(artifact),
             input,
-            crate::request::NativeRealizationRequest {
-                observation: &observation,
-                proposal,
-                execution: &execution,
-                scalar_applications: scalars.native_input()?,
-                program_entry: proposal.program_entry().as_settlement(),
-                admission,
-                image_request: request.image_request,
-                elf_interpreter: proposal.application().elf_interpreter.as_ref(),
-                optimization_selections: request.optimization_selections,
-                callback_thunks: &prepared.callback_thunks,
-                target_provider_proposals: proposal.target_provider_proposals(),
-            },
+            realization,
         )?;
         drop(components);
         let component_products = emitted_components
@@ -108,7 +159,7 @@ pub fn compile(
             );
         }
         observation.complete();
-        Ok(produced)
+        Ok(Produced::Image(produced))
     })();
     result.map_err(|diagnostics| (recoverable_image_request, diagnostics))
 }

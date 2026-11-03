@@ -767,18 +767,21 @@ machine Lexer::lex_cooked_string(lexer: &mut Lexer) {
         }
     }
 
+    // `hex_digit_value` may write anywhere in `lexer`, which ends the guard's
+    // fact that the high digit is below 16; the digit travels as a value.
     machine hex_second(lexer: &mut Lexer) {
+        let high: u32 in Trapping = lexer.byte1;
         let source_byte: u8 = SourceUnit::byte_or_nul(&lexer.source, lexer.index2);
         Lexer::hex_digit_value(lexer, source_byte as u32 in Trapping);
         lexer.byte2 = lexer.digit_value;
         transition lexer.byte2 < 16 {
-            true -> hex_emit(lexer)
+            true -> hex_emit(lexer, high)
             _ -> hex_invalid_second(lexer)
         }
     }
 
-    machine hex_emit(lexer: &mut Lexer) {
-        let byte: u8 = (lexer.byte1 * 16 + lexer.byte2) as u8;
+    machine hex_emit(lexer: &mut Lexer, high: u32 in Trapping) {
+        let byte: u8 = (high * 16 + lexer.byte2) as u8;
         Lexer::push_decoded(lexer, byte);
         lexer.cursor = lexer.cursor + 3;
         transition lexer.output.accepted { true -> scan(lexer) _ -> done() }

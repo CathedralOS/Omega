@@ -18,6 +18,7 @@ use super::{
     Multiplicity, TransitionExit, TransitionGuardNode, TypeReferenceNode,
 };
 use crate::execution::terminal_unit::ScalarCalleeClosure;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::control;
 use crate::execution::terminal_unit::types::ShapeCollector;
 use crate::published::places::place_at;
@@ -1202,7 +1203,11 @@ fn projected_value_subject(
     if root_access == CheckedStructuralAccess::WriteOnlyBorrow {
         return None;
     }
-    let (projected_type, path) = calls::projected_borrowed_path(
+    let ProjectedArgumentPath {
+        storage_type: projected_type,
+        path,
+        ..
+    } = calls::projected_borrowed_path(
         program,
         machine.symbol,
         source.symbol,
@@ -1319,7 +1324,11 @@ fn projected_loan_transfer(
     let selector = |expression| {
         transition_selector(facts, machine, source, ordinal, target.position, expression)
     };
-    let (projected_type, path) = calls::projected_evaluated_path(
+    let ProjectedArgumentPath {
+        storage_type: projected_type,
+        path,
+        ..
+    } = calls::projected_evaluated_path(
         program,
         machine,
         source,

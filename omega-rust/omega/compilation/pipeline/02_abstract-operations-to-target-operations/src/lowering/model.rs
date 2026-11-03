@@ -218,6 +218,8 @@ pub enum LoweringError {
         required_access: terminal_psi::StructuralAccess,
         reason: &'static str,
     },
+    /// The module catalog must name its structural types as one dense run.
+    NonDenseStructuralTypes(semantic_vocabulary::NonDenseIdentities),
     UnknownStructuralType(StructuralTypeId),
     RecursiveStructuralType(StructuralTypeId),
     EmptyStructuralType(StructuralTypeId),

@@ -3,7 +3,7 @@
 // read evaluates BEFORE the move extracts the member, even
 // though both appear in one statement.
 //
-//   * `Token::drop` hook writes `token.value = 0` (mutating
+//   * `drop_token` hook writes `token.value = 0` (mutating
 //     disposition).
 //   * `repair(&mut Holder)` forwards the field place.
 //
@@ -12,8 +12,8 @@
 
 use omega::language::core::drop;
 
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) { token.value = 0; }
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 
 data Holder { marker: u64; token: Token; }
 

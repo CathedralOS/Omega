@@ -24,10 +24,10 @@ boundary trait WindowsConsoleIo {
 // Expected output contains: CBA
 // A nested Pair completed only after a conditional child transfer still
 // disposes the retained completed value in reverse declaration order.
-data Token requires value >= 1 && value <= 100 { value: u64; byte: i32; }
+data Token dropped by drop_token requires value >= 1 && value <= 100 { value: u64; byte: i32; }
 data Pair<Value> { first: Value; second: Value; }
 data Shell<Value> { pair: Pair<Value>; }
-machine Token::drop(token: &mut Token) reaches Console { Console::write_byte(token.byte); }
+machine drop_token(token: &mut Token) reaches Console { Console::write_byte(token.byte); }
 machine consume(token: Token) -> u64 reaches Console { token.value }
 machine nested_complete(enabled: bool) -> bool reaches Console {
     let mut selected: bool = enabled;

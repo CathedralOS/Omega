@@ -147,7 +147,7 @@ pub(super) fn immutable(
     expression: ExpressionHandle,
 ) -> bool {
     const_symbol(program, expression).is_some()
-        || validation::immutable_record_projection(program, expression).is_some()
+        || validation::immutable_const_projection(program, expression).is_some()
 }
 
 pub(super) fn projection_atom(
@@ -157,7 +157,7 @@ pub(super) fn projection_atom(
 ) -> Option<ScopedArithmeticValue> {
     projections::atom(
         program,
-        &validation::immutable_record_projection(program, expression)?,
+        &validation::immutable_const_projection(program, expression)?,
         primitive,
     )
 }
@@ -213,7 +213,7 @@ pub(super) fn bindings(
     append_expression_occurrences(program, expression, &mut occurrences);
     let mut result = Vec::<ScopedArithmeticBinding>::new();
     for occurrence in occurrences {
-        if let Some(projection) = validation::immutable_record_projection(program, occurrence) {
+        if let Some(projection) = validation::immutable_const_projection(program, occurrence) {
             let formal = is_invocation_formal(program, invocation, projection.root)?;
             let binding = tuple.and_then(|tuple| {
                 tuple

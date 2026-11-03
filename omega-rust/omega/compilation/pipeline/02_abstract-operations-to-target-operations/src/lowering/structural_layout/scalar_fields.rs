@@ -2,9 +2,9 @@
 
 use super::LoweringError;
 use super::structural_sum_layout;
+use calling_conventions::terminal_layout::StructuralLayouts;
 use semantic_vocabulary::{ScalarType, StructuralFieldId, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
-use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::{StructuralFieldType, StructuralTypeShape};
 
 /// One static field address, including a selected payload namespace. Case is
 /// layout data, not permission: Psi has separately checked the live tag. The
@@ -14,7 +14,7 @@ pub(in crate::lowering) fn static_field_geometry(
     path: &[terminal_psi::StructuralPathSegment],
     field: StructuralFieldId,
     expected: ScalarType,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<(u32, u32), LoweringError> {
     let invalid = || LoweringError::UnknownStructuralType(root);
     let (_, declaration) = terminal_semantics::static_field_projection(
@@ -36,16 +36,13 @@ pub(in crate::lowering) fn static_field_geometry(
         Some((terminal_psi::StructuralPathSegment::Case(case), prefix)) => (prefix, Some(*case)),
         _ => (path, None),
     };
-    let mut cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
-    let (carrier, _, offset, indices) =
-        super::runtime_projection(root, prefix, declarations, &mut cache, &mut active)?;
+    let (carrier, _, offset, indices) = super::runtime_projection(root, prefix, declarations)?;
     if !indices.is_empty() {
         return Err(invalid());
     }
     let (displacement, bytes) = if let Some(case) = selected_case {
         let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
-            &declarations.get(&carrier).ok_or_else(invalid)?.shape
+            &declarations.get(carrier).ok_or_else(invalid)?.shape
         else {
             return Err(invalid());
         };
@@ -59,7 +56,7 @@ pub(in crate::lowering) fn static_field_geometry(
             .filter(|candidate| !candidate.relevance.is_erased())
             .position(|candidate| candidate.id == field)
             .ok_or_else(invalid)?;
-        let layout = super::structural_sum_layout(carrier, declarations, &mut cache, &mut active)?;
+        let layout = super::structural_sum_layout(carrier, declarations)?;
         let placed = layout.cases[case_position].fields[field_position];
         (placed.byte_offset, placed.shape.byte_size)
     } else {
@@ -71,10 +68,10 @@ pub(in crate::lowering) fn direct_scalar_field_offset(
     structural_type: StructuralTypeId,
     field: StructuralFieldId,
     expected_type: ScalarType,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<u32, LoweringError> {
     if declarations
-        .get(&structural_type)
+        .get(structural_type)
         .is_some_and(|declaration| {
             let fields = match &declaration.shape {
                 terminal_psi::record_or_mixed_shape_pattern!(fields) => fields,
@@ -102,14 +99,12 @@ pub(in crate::lowering) fn direct_scalar_field_geometry(
     structural_type: StructuralTypeId,
     field: StructuralFieldId,
     expected_type: ScalarType,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<(u32, u32), LoweringError> {
     let declaration = declarations
-        .get(&structural_type)
+        .get(structural_type)
         .copied()
         .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
-    let mut cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
     // A mixed shape's common field sits after the tag at the offset the
     // conventional sum layout assigns it, the same in every case.
     if let StructuralTypeShape::Mixed { fields, .. } = &declaration.shape {
@@ -122,7 +117,7 @@ pub(in crate::lowering) fn direct_scalar_field_geometry(
         if candidate.field_type.scalar_type() != Some(expected_type) {
             return Err(LoweringError::UnknownStructuralType(structural_type));
         }
-        return structural_sum_layout(structural_type, declarations, &mut cache, &mut active)?
+        return structural_sum_layout(structural_type, declarations)?
             .common_fields
             .get(position)
             .map(|common| (common.byte_offset, common.shape.byte_size))
@@ -166,13 +161,8 @@ pub(in crate::lowering) fn direct_scalar_field_geometry(
                     .map_err(|_| LoweringError::StructuralTypeTooLarge(structural_type))?,
             ));
         }
-        let shape = super::structural_field_storage_shape(
-            candidate,
-            structural_type,
-            declarations,
-            &mut cache,
-            &mut active,
-        )?;
+        let shape =
+            super::structural_field_storage_shape(candidate, structural_type, declarations)?;
         offset =
             super::structural_field_offset(candidate, offset, shape.alignment, structural_type)?;
         if candidate.id == field {

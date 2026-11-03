@@ -62,7 +62,7 @@ fn calling_policies_share_product_code_across_targets_and_single_target_outputs(
         if let Some(inputs) = &prepared.package_inputs {
             request = request.with_package_inputs(inputs.clone());
         }
-        omega_build::compile_sources(&mut CompilationSession::default(), request)
+        orchestration::compile_sources(&mut CompilationSession::default(), request)
             .expect("Product request")
             .into_outcomes()
             .into_iter()
@@ -215,7 +215,7 @@ fn assert_calling_review_outlives_source(
         let package_inputs = fixture.package_inputs;
         let mut request = CheckedCompileRequest::new(&fixture.root_path, Some("macos_arm64"));
         request.package_inputs = package_inputs.clone();
-        let checked = omega_build::check_source(&mut CompilationSession::default(), request)
+        let checked = orchestration::check_source(&mut CompilationSession::default(), request)
             .result
             .expect("source and original calling policies check");
         let execution = checked.execution();
@@ -539,7 +539,7 @@ fn late_application_attachment_outlives_source_and_preserves_recovered_attributi
         let prepared = prepare("tests/omega/pass/build/retained_behavior_admission/main.omg");
         let mut request = CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"));
         request.package_inputs = prepared.package_inputs;
-        let checked = omega_build::check_source(&mut CompilationSession::default(), request)
+        let checked = orchestration::check_source(&mut CompilationSession::default(), request)
             .result
             .expect("source checks");
         let source = checked.source_inspection().program();
@@ -637,7 +637,7 @@ fn executed_values_keep_helper_identity_and_omit_untaken_exclusions() {
     let prepared = prepare("tests/omega/pass/build/executed_exclusion_values_exit/main.omg");
     let mut request = CheckedCompileRequest::new(&prepared.root_path, Some("macos_arm64"));
     request.package_inputs = prepared.package_inputs.clone();
-    let checked = omega_build::check_source(&mut CompilationSession::default(), request)
+    let checked = orchestration::check_source(&mut CompilationSession::default(), request)
         .result
         .expect("executed Build checks");
     let grants = &checked.build().config.grants;
@@ -707,7 +707,7 @@ fn executed_values_keep_helper_identity_and_omit_untaken_exclusions() {
     if let Some(inputs) = prepared.package_inputs {
         request = request.with_package_inputs(inputs);
     }
-    let outcomes = omega_build::compile_sources(&mut CompilationSession::default(), request)
+    let outcomes = orchestration::compile_sources(&mut CompilationSession::default(), request)
         .expect("target batch")
         .into_outcomes();
     for outcome in outcomes {
@@ -742,7 +742,7 @@ fn exclusion_tickets_reject_foreign_receivers_and_replay(checked: &compiler::Che
         program.entry().unwrap().structural_parameters[0].structural_type,
         Vec::new(),
     );
-    let host = build_evaluation::host::bindings::TerminalBuildBindingHost::new(
+    let host = build_settings::host::bindings::TerminalBuildBindingHost::new(
         artifact,
         produced.build_bindings(),
         original.clone(),
@@ -825,7 +825,7 @@ fn executed_crash_selection_rejects_only_the_trapping_target() {
     if let Some(inputs) = prepared.package_inputs {
         request = request.with_package_inputs(inputs);
     }
-    let outcomes = omega_build::compile_sources(&mut CompilationSession::default(), request)
+    let outcomes = orchestration::compile_sources(&mut CompilationSession::default(), request)
         .expect("target batch")
         .into_outcomes();
     assert_eq!(
@@ -878,7 +878,7 @@ fn service_selections_use_exact_product_identity_and_actual_reach() {
         if let Some(inputs) = prepared.package_inputs {
             request = request.with_package_inputs(inputs);
         }
-        let outcomes = omega_build::compile_sources(&mut CompilationSession::default(), request)
+        let outcomes = orchestration::compile_sources(&mut CompilationSession::default(), request)
             .expect("service target batch")
             .into_outcomes();
         let result = outcomes
@@ -939,7 +939,7 @@ fn physical_selections_use_the_shared_mechanism_classification() {
         if let Some(inputs) = prepared.package_inputs {
             request = request.with_package_inputs(inputs);
         }
-        let outcomes = omega_build::compile_sources(&mut CompilationSession::default(), request)
+        let outcomes = orchestration::compile_sources(&mut CompilationSession::default(), request)
             .expect("physical target batch")
             .into_outcomes();
         let diagnostics = match outcomes.into_iter().next().unwrap().into_result() {

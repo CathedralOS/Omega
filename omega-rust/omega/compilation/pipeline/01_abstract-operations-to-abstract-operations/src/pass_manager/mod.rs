@@ -20,7 +20,7 @@ use crate::validation::{
     ValidatedOptimizerCycleComponents, validate_transformed_psi_context,
     validate_verified_psi_context,
 };
-use crate::{AnalysisManagerError, RuleProposalError, RuleRegistryError};
+use crate::{AnalysisError, RuleProposalError, RuleRegistryError};
 use crate::{
     CountdownInvariantConstantAnalysisError, CountdownInvariantConstantPlacementAnalysisError,
     CountedLoopAnalysisError, ValidatedCountdownInvariantConstantAnalysis,
@@ -274,7 +274,7 @@ impl OptimizationRun {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationRunError {
     InitialValidation(OptimizationUnitValidationError),
-    Analysis(AnalysisManagerError),
+    Analysis(AnalysisError),
     Proposal {
         rule: OptimizationRuleIdentity,
         error: RuleProposalError,

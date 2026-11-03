@@ -1,10 +1,10 @@
 // A resource-owning value moves into a target state through a transition
 // argument: the source hands `g` to `hold(...)`, transferring the cleanup
 // obligation; the receiving state owns it and lets it die.
-data Guard {
+data Guard dropped by drop_guard {
     handle: i32;
 }
-machine Guard::drop(guard: &mut Guard) {
+machine drop_guard(guard: &mut Guard) {
 }
 
 data Main {}
