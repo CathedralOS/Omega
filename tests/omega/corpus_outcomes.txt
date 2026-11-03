@@ -4864,8 +4864,8 @@ pass/comptime/runtime_const_array_wrapping_result_exit checked 3183ms check-targ
 pass/comptime/runtime_const_measured_recursion_exit rejected 8407ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	fixed-array length `[u8; table_size()]`: const evaluation of `table_size` failed: machine call cycle: `triangle`, `step` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 pass/comptime/runtime_generic_constructor_field_demand_extent_exit checked 8491ms check-target:macos_arm64 @911f6617ba9e
-pass/comptime/selected_float_array_length_exit rejected 21033ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	constant checking: scalar evaluation needs an unavailable provider or external effect
+pass/comptime/selected_float_array_length_exit rejected 324036ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @72a0af2d293d
+	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(482)]
 pass/comptime/selected_float_array_length_layout_query_exit rejected 383631ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @d73dac294b53
 	constant checking: scalar evaluation requires exact authored selection before evaluation; missing providers: [], external imports unavailable to constant execution: [BoundaryMachineId(482)]
 pass/concurrency/boundary_suspension_inline_completion_exit rejected 26987ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
@@ -12442,12 +12442,9 @@ pass/float/requirement_nested_record_arithmetic_exit checked 15740ms check-targe
 pass/float/returned_record_computed_fields_exit checked 15972ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_absolute_return_sum_exit checked 350973ms check-target:macos_arm64 @ff514b7f093c
 pass/float/runtime_absolute_shared_call_operands_exit checked 348202ms check-target:macos_arm64 @ff514b7f093c
-pass/float/runtime_authored_max_selection_exit rejected 33283ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_builtin_guard_application_exit rejected 32518ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_builtin_ieee_order_exit rejected 31576ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
+pass/float/runtime_authored_max_selection_exit checked 416979ms check-target:macos_arm64 @72a0af2d293d
+pass/float/runtime_builtin_guard_application_exit checked 412660ms check-target:macos_arm64 @72a0af2d293d
+pass/float/runtime_builtin_ieee_order_exit checked 409821ms check-target:macos_arm64 @72a0af2d293d
 pass/float/runtime_classification_result_categories_exit checked 6668ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/runtime_coercion_future_policy_exit rejected 2538ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `convert` state `entry` cannot prove Exact float-to-`u8` cast operand `source` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -12487,14 +12484,10 @@ pass/float/runtime_resultless_law_equality_custody_exit rejected 11796ms check-t
 	cannot prove ensures contract for exit from same32 at statement 0: value == value
 	cannot prove ensures contract for exit from same64 at statement 0: value == value
 	cannot prove ensures contract for exit from same64 at statement 0: value == value
-pass/float/runtime_shared_float_lazy_branch_exit rejected 32687ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_shared_float_operand_once_exit rejected 32395ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_std_is_finite_exit rejected 32449ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
-pass/float/runtime_std_trigonometric_endpoints rejected 33378ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @1e29a538216e
-	Terminal boundary application has no unique exact selected row
+pass/float/runtime_shared_float_lazy_branch_exit checked 437221ms check-target:macos_arm64 @72a0af2d293d
+pass/float/runtime_shared_float_operand_once_exit checked 369140ms check-target:macos_arm64 @72a0af2d293d
+pass/float/runtime_std_is_finite_exit checked 356819ms check-target:macos_arm64 @72a0af2d293d
+pass/float/runtime_std_trigonometric_endpoints checked 352134ms check-target:macos_arm64 @72a0af2d293d
 pass/float/runtime_total_order_satisfiers_exit checked 14841ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/saturating_named_operations_retain_ordered_inputs checked 7007ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/scalar_helper_boundary_sequence_exit checked 16852ms check-target:macos_arm64 @ccdb99ca2214
@@ -36616,9 +36609,7 @@ run/proofs/quotient_copy_paths rejected 57231ms check-target:macos_arm64 regress
 	`Quotient::define` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
 	`Quotient::define` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
 	`Quotient::lift` retains its exact representative operation and selected theorem machine application, but executable quotient operations are not admitted until quotient formation, theorem-schema, correspondence, and result-flow obligations are independently checked
-run/providers/module_named_float_conversion_family_exit rejected 280506ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ff514b7f093c
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
+run/providers/module_named_float_conversion_family_exit checked 335066ms check-target:macos_arm64 @72a0af2d293d
 run/providers/target_applicable_provider_closure checked 9910ms check-target:macos_arm64 @ccdb99ca2214
 run/providers/target_family_provider_boundary_identity_exit checked 11036ms check-target:macos_arm64 @ccdb99ca2214
 run/ranges/borrowed_case_payload_alias checked 2774ms check-target:macos_arm64 @02f650a3c5b1
@@ -36639,14 +36630,8 @@ run/slices/returned_record_fixed_array_window checked 3473ms check-target:macos_
 run/slices/returned_record_parameter_length checked 2713ms check-target:macos_arm64 @ccdb99ca2214
 run/state_owned_nested_borrow checked 3200ms check-target:macos_arm64 @ccdb99ca2214
 run/state_shared_nested_backing checked 2950ms check-target:macos_arm64 @ccdb99ca2214
-run/stores/runtime_float_indexed_call_result_exit rejected 246132ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ff514b7f093c
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-run/stores/runtime_float_store_selector_snapshot_exit rejected 220531ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ff514b7f093c
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
-	hosted `ProgramEntry` exposes no arrival parameters, but `Main::main` declares `application`
+run/stores/runtime_float_indexed_call_result_exit checked 340220ms check-target:macos_arm64 @72a0af2d293d
+run/stores/runtime_float_store_selector_snapshot_exit checked 339598ms check-target:macos_arm64 @72a0af2d293d
 run/traits/named_map_record_result_contract checked 2913ms check-target:macos_arm64 @ccdb99ca2214
 run/traits/static_implementation_method_arguments rejected 1441ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call `keep` has an invalid argument correspondence: selected executable carrier differs from its exact public application
