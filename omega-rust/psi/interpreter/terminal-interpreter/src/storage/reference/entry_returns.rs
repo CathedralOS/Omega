@@ -56,6 +56,7 @@ impl TerminalExecution<'_> {
             &self.aggregate_argument_backings,
             &self.primitive_loan_values,
             &self.element_view_values,
+            &self.byte_sequence_values,
             &self.access_view_occurrences,
         )?;
         self.entry_reference_backings = Some(EntryReferenceBackings {

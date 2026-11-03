@@ -41,6 +41,11 @@ shared descendants and the complete originating call input borrowed until they
 finish. Its nine places and fact-sensitive twins are pinned alongside the
 inherited-policy, access and restoration controls.
 
+The [helper-returned projection production](projected_call_source/README.md)
+keeps a saved field view usable after a possible suspension, including selected
+sources, source-slot replacement and later argument writes. Its controls retain
+the complete original call input and every possible supplier.
+
 Twins change only the backing's declaration to
 `carry(suspension: forbidden, ...)`. No twin reads the backing after the call;
 it is live only because the transported descriptor retains it, so its

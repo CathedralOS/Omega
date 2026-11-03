@@ -228,22 +228,22 @@ fn x86_64_callback_replay(
         else {
             return Err(Error::ArtifactMismatch);
         };
-        let destination = match callback.destination {
+        let destination = match callback.destination.clone() {
             machine_code::CallbackAddressDestination::Register(register) => {
                 X86_64CallbackMaterializationDestination::Register(register)
             }
             machine_code::CallbackAddressDestination::RecordField {
                 root_register,
-                byte_offset,
+                placements,
             } => X86_64CallbackMaterializationDestination::RecordField {
                 root_register,
-                byte_offset,
+                placements,
             },
             machine_code::CallbackAddressDestination::OutgoingStack { byte_offset } => {
                 X86_64CallbackMaterializationDestination::OutgoingStack { byte_offset }
             }
         };
-        destinations.push(destination);
+        destinations.push(destination.clone());
         callbacks.push(X86_64CallbackAddressMaterialization {
             destination,
             materialization_byte_offset: callback.code_row_offset,
@@ -273,22 +273,22 @@ fn aarch64_callback_replay(
         else {
             return Err(Error::ArtifactMismatch);
         };
-        let destination = match callback.destination {
+        let destination = match callback.destination.clone() {
             machine_code::CallbackAddressDestination::Register(register) => {
                 Aarch64CallbackMaterializationDestination::Register(register)
             }
             machine_code::CallbackAddressDestination::RecordField {
                 root_register,
-                byte_offset,
+                placements,
             } => Aarch64CallbackMaterializationDestination::RecordField {
                 root_register,
-                byte_offset,
+                placements,
             },
             machine_code::CallbackAddressDestination::OutgoingStack { .. } => {
                 return Err(Error::ArtifactMismatch);
             }
         };
-        destinations.push(destination);
+        destinations.push(destination.clone());
         callbacks.push(Aarch64CallbackAddressMaterialization {
             destination,
             materialization_byte_offset: callback.code_row_offset,

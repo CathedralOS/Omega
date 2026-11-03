@@ -45,10 +45,12 @@ impl CallFrameResolver<'_> {
                     ReferenceResultTransport::Reference(leaf) => &leaf.source,
                     ReferenceResultTransport::Value { source, .. } => source,
                 };
-                source
-                    .segments
-                    .iter()
-                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+                source.segments.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        facts::PlaceSegment::Index { .. } | facts::PlaceSegment::OpaqueRange
+                    )
+                })
             })
         {
             return Some(ordinary);
@@ -119,10 +121,15 @@ impl CallFrameResolver<'_> {
             // cannot mask a constructed or unresolved leaf on another.
             // Unknown reference origins therefore still refuse here;
             // the capture consumer independently checks case presence.
+            let mut origin = leaf.origin?.into_symbolic_place()?;
+            // A caller cannot interpret this callee's selector expression.
+            // Preserve its checked window dimension without treating it as an
+            // element index or inventing exact bounds in the caller's scope.
+            super::super::summary_windows::coarsen_origin(self.program, &mut origin);
             transports.push(ReferenceResultTransport::Reference(
                 ReferenceResultLeafOrigin {
                     result_path: leaf.local_segments,
-                    source: LocalWriteSource::from(leaf.origin?.into_symbolic_place()?),
+                    source: LocalWriteSource::from(origin),
                 },
             ));
         }

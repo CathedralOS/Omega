@@ -421,13 +421,19 @@ pub(super) fn check_exit_ensures(
                         missing_origins.join(", ")
                     )
                 };
-                diagnostics.push(Diagnostic::error(format!(
+                let diagnostic = Diagnostic::error(format!(
                     "cannot prove ensures contract for exit from {} at statement {}: {}{}",
                     machine_name(program, state_flow.machine_symbol),
                     exit_flow.statement_index,
                     semantic_fact_requirement_label(program, &facts.semantic, fact),
                     origin_diagnostic,
-                )));
+                ));
+                diagnostics.push(
+                    match super::return_values::exit_source_span(program, exit_flow) {
+                        Some(span) => diagnostic.with_source_span(span),
+                        None => diagnostic,
+                    },
+                );
             }
         }
     }

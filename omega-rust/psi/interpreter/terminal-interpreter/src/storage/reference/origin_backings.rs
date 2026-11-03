@@ -16,6 +16,9 @@ impl ReferenceBacking {
         &self,
         retained: &mut crate::storage::structural_storage::RetainedStorage,
     ) {
+        if let Some(binding) = &self.byte_binding {
+            retained.byte_binding(binding);
+        }
         if let Some(storage) = &self.primitive_storage {
             retained.primitive_endpoint(&storage.endpoint);
         }
@@ -60,6 +63,7 @@ impl TerminalExecution<'_> {
         };
         let mut remaining = backing.suffix.as_slice();
         let mut captured_view = backing.element_view.as_ref();
+        let mut captured_bytes = backing.byte_binding.as_ref();
         loop {
             let family = remaining
                 .iter()
@@ -73,16 +77,37 @@ impl TerminalExecution<'_> {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             if !prefix.is_empty() {
-                let Some(projected) =
-                    self.resolve_origin_projection(&selected, &prefix, backing.access)?
-                else {
+                let projected = match (captured_bytes, prefix.as_slice()) {
+                    (Some(binding), [StructuralPathSegment::FixedIndex(index)]) => self
+                        .resolve_captured_byte_origin(
+                            &selected,
+                            binding,
+                            actual,
+                            backing.access,
+                            Some(*index),
+                        )?,
+                    _ => self.resolve_origin_projection(&selected, &prefix, backing.access)?,
+                };
+                let Some(projected) = projected else {
                     return Ok(None);
                 };
                 selected = projected;
                 captured_view = None;
+                captured_bytes = None;
             }
             let Some(position) = family else {
                 if backing.extent == semantic_vocabulary::ReferenceOriginExtent::WithinRegion {
+                    if let Some(binding) =
+                        captured_bytes.filter(|_| actual.primitive_loan.is_some())
+                    {
+                        return self.resolve_captured_byte_origin(
+                            &selected,
+                            binding,
+                            actual,
+                            backing.access,
+                            None,
+                        );
+                    }
                     return self.resolve_region_return(
                         selected,
                         captured_view,
@@ -132,6 +157,24 @@ impl TerminalExecution<'_> {
                 };
                 selected = projected;
                 captured_view = None;
+                captured_bytes = None;
+                remaining = &remaining[position + 1..];
+                continue;
+            }
+            if let Some(binding) = captured_bytes {
+                let Some(projected) = self.resolve_captured_byte_origin(
+                    &selected,
+                    binding,
+                    actual,
+                    backing.access,
+                    None,
+                )?
+                else {
+                    return Ok(None);
+                };
+                selected = projected;
+                captured_bytes = None;
+                captured_view = None;
                 remaining = &remaining[position + 1..];
                 continue;
             }
@@ -158,6 +201,79 @@ impl TerminalExecution<'_> {
             captured_view = None;
             remaining = &remaining[position + 1..];
         }
+    }
+
+    /// A returned byte keeps the exact admitted descriptor window. Its index
+    /// proposes a coordinate; the same formation helper checks bounds/access
+    /// and constructs the original primitive endpoint before final equality.
+    fn resolve_captured_byte_origin(
+        &self,
+        source: &ResolvedStructuralProjection,
+        binding: &crate::storage::byte_sequences::binding::ByteSequenceBinding,
+        actual: &ReferenceReferent,
+        access: StructuralAccess,
+        expected_index: Option<u64>,
+    ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
+        if !access_covers(binding.access(), access) {
+            return Ok(None);
+        }
+        let Some(loan) = &actual.primitive_loan else {
+            return Ok(None);
+        };
+        // The endpoint proposes an index only. Rebuilding it from the captured
+        // descriptor below authenticates its allocation, original window and
+        // array offset before ordinary return equality can accept it.
+        use crate::storage::primitive_storage::PrimitiveStorageEndpoint;
+        let index = match &loan.storage.endpoint {
+            PrimitiveStorageEndpoint::ViewByte { index, .. } => {
+                u64::try_from(*index).map_err(|_| malformed())?
+            }
+            PrimitiveStorageEndpoint::RepresentationByte(byte) => {
+                u64::try_from(byte.index).map_err(|_| malformed())?
+            }
+            PrimitiveStorageEndpoint::ArrayElement { index, .. } => {
+                let crate::storage::byte_sequences::binding::ByteSequenceBinding::MutableArray {
+                    offset,
+                    ..
+                } = binding
+                else {
+                    return Ok(None);
+                };
+                let Some(index) = u64::try_from(*index)
+                    .ok()
+                    .and_then(|index| index.checked_sub(*offset))
+                else {
+                    return Ok(None);
+                };
+                index
+            }
+            _ => return Ok(None),
+        };
+        if expected_index.is_some_and(|expected| expected != index) {
+            return Ok(None);
+        }
+        let path = [StructuralPathSegment::FixedIndex(index)];
+        let Some(structural_type) = terminal_semantics::primitive_projection_declaration(
+            self.structural_types().values(),
+            source.value.structural_type,
+            &path,
+        ) else {
+            return Ok(None);
+        };
+        let mut byte = self.bound_byte_element_storage(&source.value, binding, index, access)?;
+        if actual
+            .primitive_loan
+            .as_ref()
+            .is_none_or(|loan| loan.storage != byte.storage)
+        {
+            return Ok(None);
+        }
+        byte.referent.structural_type = structural_type;
+        Ok(Some(ResolvedStructuralProjection {
+            value: byte.referent,
+            primitive_storage: Some(byte.storage),
+            ..source.clone()
+        }))
     }
 
     /// Continue within an already authenticated backing. An empty suffix must

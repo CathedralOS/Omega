@@ -275,9 +275,9 @@ clause, per-expression binder, or index-operation registry is introduced.
 
 Normalize only operations licensed by that instance. Associativity,
 commutativity, distributivity, and zero/one identities require their respective
-laws; one does not imply another. Connecting nullary algebra operations to
-constructor constants requires ordinary unfolding or citation. Search limits
-and unequal normal forms do not establish inequality.
+laws; one does not imply another. Literal-linked identities follow the checked
+connection rule below. Search limits and unequal normal forms do not establish
+inequality.
 
 Having a static index does not itself require commutativity or associativity.
 Those laws are required only for transformations that consume them. Without a
@@ -299,6 +299,72 @@ diagnostic names. Closed integer leaves share canonical value identity across
 expression and named-const forms. Established equality operands use this same
 normalizer under simultaneous call bindings; they do not change declared type
 identities or license an operation from a different conformance application.
+
+### Literal-linked index identities
+
+Named decision: `literal-linked-index-identities`, settled 2026-11-03.
+
+A generic program can identify `Indexed<N + 0>` with `Indexed<N>` when its
+selected algebra proves that adding the literal zero preserves the operand.
+This changes canonical application identity in signatures, conformance
+arguments, specialization keys, and value transfers alike; it is not merely a
+compatibility conversion at a value boundary.
+
+An abstract identity law such as `add(value, zero()) == value` combines with a
+checked connection law `zero() == 0`. Multiplication similarly combines
+`mul(value, one()) == value` with `one() == 1`. An ordinary index-specific trait
+may add those connections while inheriting general algebra operations and
+laws. A consumer requests that contract through its explicit conformance
+binder, and callers supply the implementation. No new syntax, implicit algebra,
+or proof citation at each use is introduced. Each rewrite needs only its own
+laws, not a complete ring or semiring.
+
+Collect the complete selected conformance's direct and inherited law slots under
+their exact applications and substitutions. Recognize law structure and
+mathematical equality, never requirement names or operator punctuation; match
+operations and nullary slots by exact requirement identity, not same-spelled
+names. Both laws must refer to the same selected conformance application and
+its corresponding slots. The connection names the exact typed integer literal.
+Identity-bearing laws must be checked, unconditional guarantees; a law with an
+undischarged premise cannot license a canonical rewrite. Concrete providers may
+use ordinary admitted computation or citation to prove a connection law, but
+generic use consumes the published law without evaluating an abstract machine
+or unfolding its implementation inside type equality.
+
+Canonical integer indices may retain domain qualifications, including an
+arithmetic policy. The conformance bound selects the operation; qualified
+operand types constrain matching and do not supply a default implementation.
+Retain the exact carrier, qualifications, selected operation, and law evidence.
+Wrapping, Saturating, and Exact do not grant any algebraic law by their names.
+For example, signed saturating addition is not associative: in `i8`,
+`(100 + 100) + -100` gives `27`, but `100 + (100 + -100)` gives `100`.
+
+Left and right identities are separate laws. A right identity removes a right
+operand, or an identity with a preceding operand in an associative chain;
+removing a leading identity needs a left-identity or commutativity law. A chain
+of identity elements reduces to the correctly typed identity, not an empty
+expression. `N + 1` is not an identity. `A * (B + 1)` may compose distributivity
+and multiplicative identity into `A * B + A`; removing `A * 0` separately needs
+an annihilation law and its literal connection.
+
+Discharge the authored expression's formation obligations independently of
+canonical identity simplification, and justify every newly introduced
+operation. Normalization may help prove an obligation but cannot remove it or
+use the goal to justify its own formation. Thus `0 * (B + C)` cannot erase the
+Exact representability obligation on `B + C`, and regrouping cannot hide an
+overflowing intermediate. An operation with preconditions is not categorically
+excluded: Exact `N + 0` is formed for every `u8 N`, and its checked identity law
+remains usable. Full unconditional algebra laws still owe their full formation
+and totality contracts.
+
+Normalize operands and remove licensed identities before considering parent
+expansion. Enforce the deterministic expansion budget before allocating the
+expansion, using the simplified operands, and normalize the generated terms
+again. Neither an exhausted budget nor a different remaining form proves
+inequality. This ordering does not select a distributive representative or a
+new expansion limit. Normalizer versions record policy provenance, not a new
+nominal type; unreleased development artifacts may be rebuilt rather than
+requiring historical-normalizer support or an artifact migration framework.
 
 ## Axioms and receiving policy
 

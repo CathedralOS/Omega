@@ -5,9 +5,9 @@ requires index < items.len {
     items[index]
 }
 
-// Descriptor construction stays in its own module: this body does not import
-// the public range requirement it realizes. The ordinary builtin range carries
-// checked bounds and the source's backing loan into the returned view.
+// Build the descriptor with the builtin range operation. Its checked bounds
+// and the input backing loan survive in the returned view; the public helper
+// delegates here without introducing another provider requirement.
 machine subslice<T>(items: &[T], start: u64, end: u64) -> &[T]
 requires
     start <= end && end <= items.len

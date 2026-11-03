@@ -206,10 +206,12 @@ fn is_carrier_type(
                 else {
                     return false;
                 };
-                return program
-                    .proof_facts
-                    .span_or_empty(definition.where_facts)
-                    .is_empty()
+                // A quotient's equivalence is not a field-by-field reading.
+                return definition.quotient.is_none()
+                    && program
+                        .proof_facts
+                        .span_or_empty(definition.where_facts)
+                        .is_empty()
                     && program.data_members(definition).iter().all(|member| {
                         member.as_field().is_some_and(|field| {
                             is_carrier_type(program, field.type_reference, depth + 1)

@@ -12,44 +12,44 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
     let original: i32 = block WindowsFilesystemHost::delete_file("omega_raw_link_original.bin");
     let linked: i32 = block WindowsFilesystemHost::delete_file("omega_raw_link_alias.bin");
     main.original = block WindowsFilesystemHost::create_file("omega_raw_link_original.bin", 3221225472, 7, 2, 128);
-    transition main.original != 0 { true -> link(main) false -> finish(main, 71) }
+    transition main.original != 0 { true -> block link(main) false -> block finish(main, 71) }
     machine link(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::hard_link("omega_raw_link_original.bin", "omega_raw_link_alias.bin");
-        transition status == 0 { true -> write(main) false -> finish(main, 72) }
+        transition status == 0 { true -> block write(main) false -> block finish(main, 72) }
     }
     machine write(main: &mut Main) {
         let count: i64 = block WindowsFilesystemHost::write_file(main.original, "linked");
-        transition count == 6 { true -> release_original(main) false -> finish(main, 73) }
+        transition count == 6 { true -> block release_original(main) false -> block finish(main, 73) }
     }
     machine release_original(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::close_handle(main.original);
         main.original = 0;
-        transition status == 0 { true -> unlink(main) false -> finish(main, 74) }
+        transition status == 0 { true -> block unlink(main) false -> block finish(main, 74) }
     }
     machine unlink(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::delete_file("omega_raw_link_original.bin");
-        transition status == 0 { true -> open_alias(main) false -> finish(main, 75) }
+        transition status == 0 { true -> block open_alias(main) false -> block finish(main, 75) }
     }
     machine open_alias(main: &mut Main) {
         main.linked = block WindowsFilesystemHost::create_file("omega_raw_link_alias.bin", 2147483648, 7, 3, 128);
-        transition main.linked != 0 { true -> read(main) false -> finish(main, 76) }
+        transition main.linked != 0 { true -> block read(main) false -> block finish(main, 76) }
     }
     machine read(main: &mut Main) {
         let mut bytes: [u8; 6];
         let count: i64 = block WindowsFilesystemHost::read_file(main.linked, &mut bytes, 6);
         transition count == 6 && bytes[0] == 108 && bytes[1] == 105 && bytes[2] == 110
             && bytes[3] == 107 && bytes[4] == 101 && bytes[5] == 100 {
-            true -> existing(main)
-            false -> finish(main, 77)
+            true -> block existing(main)
+            false -> block finish(main, 77)
         }
     }
     machine existing(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::hard_link("omega_raw_link_alias.bin", "omega_raw_link_alias.bin");
-        transition status < 0 { true -> missing(main) false -> finish(main, 78) }
+        transition status < 0 { true -> block missing(main) false -> block finish(main, 78) }
     }
     machine missing(main: &mut Main) {
         let status: i32 = block WindowsFilesystemHost::hard_link("omega_raw_link_original.bin", "omega_raw_link_original.bin");
-        transition status < 0 { true -> finish(main, 70) false -> finish(main, 79) }
+        transition status < 0 { true -> block finish(main, 70) false -> block finish(main, 79) }
     }
     machine finish(main: &mut Main, code: i32) {
         let linked: i32 = block close_present(main.linked);
@@ -65,7 +65,7 @@ reaches Console + FilesystemContentRead + FilesystemContentWrite + FilesystemMet
 }
 
 machine close_present(handle: u64) -> i32 {
-    transition handle != 0 { true -> release(handle) false -> 0 }
+    transition handle != 0 { true -> block release(handle) false -> 0 }
     machine release(handle: u64) -> i32 { block WindowsFilesystemHost::close_handle(handle) }
 }
 
