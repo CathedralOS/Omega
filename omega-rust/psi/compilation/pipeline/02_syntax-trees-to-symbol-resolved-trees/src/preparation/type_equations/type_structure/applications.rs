@@ -107,7 +107,7 @@ impl Solver<'_, '_> {
                             (
                                 base_name.clone(),
                                 declaration,
-                                syntax_items(&self.syntax)
+                                syntax_items(self.syntax)
                                     .type_parameters(definition.type_parameters)
                                     .to_vec(),
                                 None,
@@ -529,7 +529,7 @@ impl Solver<'_, '_> {
     }
 
     fn integer_constructor_parameter(&self, reference: TypeReferenceHandle) -> bool {
-        syntax_type_references(&self.syntax)
+        syntax_type_references(self.syntax)
             .type_reference(reference)
             .as_named()
             .is_some_and(|name| const_binder_envelope(name.as_str(self.syntax)).is_some())
@@ -615,7 +615,7 @@ impl Solver<'_, '_> {
 
     /// The identifier a reference names, absent a structural node.
     fn type_reference_name(&self, reference: TypeReferenceHandle) -> Option<&Identifier> {
-        syntax_type_references(&self.syntax)
+        syntax_type_references(self.syntax)
             .type_reference(reference)
             .as_named()
     }

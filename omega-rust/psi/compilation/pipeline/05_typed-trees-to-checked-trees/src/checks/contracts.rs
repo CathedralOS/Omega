@@ -299,7 +299,7 @@ pub(super) fn check_flow_call_contracts(
         constant_obligations.extend(state_constant_obligations);
         recipe_obligations.extend(state_recipe_obligations);
         for (_, qualification) in state_value_qualifications.iter() {
-            value_qualifications.append(qualification.clone());
+            value_qualifications.append(*qualification);
         }
         diagnostics.extend(state_diagnostics);
         for exit_flow in facts.flow.control.exits.span_or_empty(state_flow.exits) {

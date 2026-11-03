@@ -128,7 +128,7 @@ pub(super) fn policy_rows_and_commitment(
 {
     let (rows, _) = policy
         .canonical_rows_with_limits(package_evidence::record::PackagePolicyRowLimits::default())?;
-    let commitment = crate::digest_encoder::content_identity(&policy.canonical_bytes()?).into();
+    let commitment = crate::digest_encoder::content_identity(&policy.canonical_bytes()?);
     Ok((rows, commitment))
 }
 

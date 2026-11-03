@@ -467,10 +467,9 @@ impl Resolver<'_> {
                         *right,
                     )
                 })
+                && matched.replace((*leaf, leaf_path)).is_some()
             {
-                if matched.replace((*leaf, leaf_path)).is_some() {
-                    return Some(Selection::Unavailable);
-                }
+                return Some(Selection::Unavailable);
             }
         }
         let (leaf, leaf_path) = matched?;

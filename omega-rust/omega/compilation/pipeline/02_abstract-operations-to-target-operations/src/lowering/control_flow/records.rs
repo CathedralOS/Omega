@@ -133,7 +133,7 @@ pub(super) fn establish(
             if let Some(case) = case {
                 destination.push(terminal_psi::StructuralPathSegment::Case(case));
             }
-            destination.push(StructuralPathSegment::Field(declaration.identity.clone()));
+            destination.push(StructuralPathSegment::Field(declaration.identity));
             Ok((
                 &declaration.field_type,
                 Some(declaration),

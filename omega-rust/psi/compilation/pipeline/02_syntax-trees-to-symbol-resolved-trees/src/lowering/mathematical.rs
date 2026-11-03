@@ -115,7 +115,7 @@ fn lower_mathematical_type(
             codomain: lower_mathematical_type(lowerer, syntax, *codomain)?,
         },
         syntax::item::MathematicalTypeNode::Application { callee, arguments } => {
-            let arguments = syntax_expressions(&syntax)
+            let arguments = syntax_expressions(syntax)
                 .expression_handles(*arguments)
                 .iter()
                 .map(|argument| lower_expression_into_table(lowerer, syntax, *argument))

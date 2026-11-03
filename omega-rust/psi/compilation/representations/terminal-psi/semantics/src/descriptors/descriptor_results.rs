@@ -552,10 +552,10 @@ pub enum FlowFeasibility {
 }
 
 /// The graph row for `id`, when the catalog covers that machine.
-pub fn descriptor_machine<'graph>(
-    graph: &'graph [DescriptorMachine],
+pub fn descriptor_machine(
+    graph: &[DescriptorMachine],
     id: MachineId,
-) -> Option<&'graph DescriptorMachine> {
+) -> Option<&DescriptorMachine> {
     graph.iter().find(|current| current.id == id)
 }
 

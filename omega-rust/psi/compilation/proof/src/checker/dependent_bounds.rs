@@ -93,7 +93,7 @@ fn guard_conjunct_proves_dependent_upper(
         return false;
     }
     let Some(DependentBoundClass::SelfField(bound)) =
-        dependent_bound_class(&proof_plan.program, bound_side)
+        dependent_bound_class(proof_plan.program, bound_side)
     else {
         return false;
     };
@@ -576,7 +576,7 @@ fn sibling_conjunct_proves(
     if expression_display_name(proof_plan, argument_side) != argument_label {
         return false;
     }
-    let Some(bound) = dependent_bound_class(&proof_plan.program, bound_side)
+    let Some(bound) = dependent_bound_class(proof_plan.program, bound_side)
         .and_then(|class| match class {
             DependentBoundClass::SiblingLen(bound) => Some((bound.sibling, bound.offset)),
             _ => None,

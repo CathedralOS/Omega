@@ -101,7 +101,7 @@ mod tests {
                 3 => cases[1].fields[0].identity = terminal_psi::TerminalIdentityIndex(0),
                 4 => cases[1].id = cases[0].id,
                 5 => cases[0].id = semantic_vocabulary::StructuralCaseId::new(3).unwrap(),
-                6 => cases[1].identity = cases[0].identity.clone(),
+                6 => cases[1].identity = cases[0].identity,
                 7 => cases[1].fields[0].relevance = terminal_psi::BindingRelevance::Erased,
                 _ => unreachable!(),
             }

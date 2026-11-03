@@ -288,9 +288,7 @@ fn substituted_callback_displacement_or_data_pointer_rejects_on_replay() {
                 &candidate.envelope,
                 &candidate.contents,
             );
-        let error = validate_candidate(candidate)
-            .err()
-            .expect("text drift rejects");
+        let error = validate_candidate(candidate).expect_err("text drift rejects");
         assert!(
             error.diagnostic.message.contains("unowned byte"),
             "{}",
@@ -305,9 +303,7 @@ fn substituted_callback_displacement_or_data_pointer_rejects_on_replay() {
                 &candidate.envelope,
                 &candidate.contents,
             );
-        let error = validate_candidate(candidate)
-            .err()
-            .expect("data drift rejects");
+        let error = validate_candidate(candidate).expect_err("data drift rejects");
         assert!(
             error.diagnostic.message.contains("source data"),
             "{}",

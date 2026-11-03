@@ -32,8 +32,8 @@ fn only_selected_disposal_restores_original_parent() {
     let mut custody = Custody::default();
     custody.retire(child, event(1)).unwrap();
     assert_eq!(
-        restored_parents(&custody, &[grant.clone()], event(2)).unwrap(),
-        [grant.clone()]
+        restored_parents(&custody, std::slice::from_ref(&grant), event(2)).unwrap(),
+        std::slice::from_ref(&grant)
     );
     assert_eq!(
         restored_parents(&custody, &[grant], event(1)).unwrap(),
@@ -50,8 +50,8 @@ fn live_descendants_and_independent_validity_keep_the_grant() {
     let child = leaf(2, vec![grant.clone()]);
     custody.leaves.insert((child.identity.place, vec![]), child);
     assert_eq!(
-        restored_parents(&custody, &[grant.clone()], event(1)).unwrap(),
-        [grant.clone()]
+        restored_parents(&custody, std::slice::from_ref(&grant), event(1)).unwrap(),
+        std::slice::from_ref(&grant)
     );
     custody.leaves.clear();
     custody
@@ -66,7 +66,7 @@ fn live_descendants_and_independent_validity_keep_the_grant() {
             parents: vec![],
         });
     assert_eq!(
-        restored_parents(&custody, &[grant.clone()], event(1)).unwrap(),
+        restored_parents(&custody, std::slice::from_ref(&grant), event(1)).unwrap(),
         [grant]
     );
 }
@@ -81,8 +81,8 @@ fn different_backing_and_cyclic_ancestry_do_not_disappear() {
         descriptor_backing::Backing::Source(Root::Place(PlaceId::new(98).unwrap())),
     );
     assert_eq!(
-        restored_parents(&custody, &[grant.clone()], event(1)).unwrap(),
-        [grant.clone()]
+        restored_parents(&custody, std::slice::from_ref(&grant), event(1)).unwrap(),
+        std::slice::from_ref(&grant)
     );
     let retired = custody.retired.get_mut(&grant).unwrap();
     retired.leaf.backing.pop();

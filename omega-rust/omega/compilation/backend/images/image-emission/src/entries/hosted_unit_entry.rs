@@ -633,7 +633,7 @@ mod tests {
         bytes[0x220..0x230].copy_from_slice(&shim);
         assert!(pe_entry_points_to(&bytes, 0x20, &shim));
         assert!(!pe_entry_points_to(&bytes, 0x24, &shim));
-        assert!(!pe_entry_points_to(&bytes, 0x20, &vec![0x91; 16]));
+        assert!(!pe_entry_points_to(&bytes, 0x20, &[0x91; 16]));
         for offset in [
             0,
             0x3c,
@@ -698,7 +698,7 @@ mod tests {
             62,
             text_address,
             0x140,
-            &vec![0x91; 19]
+            &[0x91; 19]
         ));
         for offset in [0, 4, 16, 18, 24, 64, 68, 0x1140] {
             let mut hostile = bytes.clone();

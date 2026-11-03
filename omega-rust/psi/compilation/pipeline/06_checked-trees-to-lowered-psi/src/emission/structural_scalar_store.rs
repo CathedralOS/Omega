@@ -285,11 +285,11 @@ pub(crate) fn validate_root_access(
 fn validate_storage_access(
     parameter: &StructuralParameterDeclaration,
 ) -> Result<(), LoweringError> {
-    let access_matches = match parameter.access {
-        terminal_psi::ownership::StructuralAccess::Owned => true,
-        terminal_psi::exclusive_borrow_pair_pattern!() => true,
-        _ => false,
-    };
+    let access_matches = matches!(
+        parameter.access,
+        terminal_psi::ownership::StructuralAccess::Owned
+            | terminal_psi::exclusive_borrow_pair_pattern!()
+    );
     // Mutating a scalar does not consume or duplicate its containing resource.
     // The caller and receiving validator separately preserve every root
     // predicate and Content projection against the complete write footprint.

@@ -166,7 +166,7 @@ pub(super) fn owner_path_matches(
 ) -> bool {
     owner_path.len() <= place_segments.len()
         && owner_path.iter().zip(place_segments).all(|(owner, place)| {
-            owner_segment_matches_place_segment(program, owner, place).unwrap_or_else(|| {
+            owner_segment_matches_place_segment(program, owner, place).unwrap_or({
                 matches!(
                     (owner, place),
                     (

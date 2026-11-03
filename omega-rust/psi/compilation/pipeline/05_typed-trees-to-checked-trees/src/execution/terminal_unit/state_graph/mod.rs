@@ -54,7 +54,7 @@ mod terminal_calls;
 mod terminator;
 
 use fused::fused_states;
-pub(super) use fused::{FusedStates, fused_target_index, terminator_statement_index};
+pub(super) use fused::{FusedStates, fused_target_index};
 use guards::checked_qualified_arrivals;
 pub(super) use guards::{guard_is_boolean, retained_guard};
 pub(super) use result_custody::retained_structural_result;
@@ -321,7 +321,8 @@ pub(super) fn build_traced(
         trace.state(Some(state.symbol));
         let (structural, scalar) = &signatures[state_index];
         let statements = program.statement_table.statements(state.statement_nodes);
-        let terminator_index = terminator_statement_index(statements, &result);
+        let terminator_index =
+            control::statement_sequence::terminator_statement_index(program, state);
         let terminator_statement_ordinal = u32::try_from(terminator_index).ok()?;
         trace.phase("state graph: state flow");
         let flow = state_flow(facts, owner.symbol, state.symbol)?;
@@ -346,7 +347,7 @@ pub(super) fn build_traced(
         {
             std::ops::Bound::Included(terminator_index)
         } else if control::terminal_invocation(program, owner, state, terminator_index)
-            .is_some_and(|target| fused_target_index(program, &fused, target).is_none())
+            .is_some_and(|target| fused_target_index(program, fused, target).is_none())
         {
             // An unconditional terminal machine call is this state's last
             // operation (`terminal_calls`), whatever the machine's result: the
@@ -679,15 +680,10 @@ pub(super) fn build_traced(
         }
     }
     trace.phase("state graph: finish");
-    let mut plan = composed_control::finish_state_graph(
-        program,
-        facts,
-        machine,
-        attachment,
-        planned,
-    )
-    .map_err(|reason| trace.phase(reason))
-    .ok()?;
+    let mut plan =
+        composed_control::finish_state_graph(program, facts, machine, attachment, planned)
+            .map_err(|reason| trace.phase(reason))
+            .ok()?;
     plan.natural_ranks = natural_ranks;
     plan.rank_components = rank_components;
     plan.preserving_rank_edges = preserving_rank_edges;

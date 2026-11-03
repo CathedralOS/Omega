@@ -96,10 +96,10 @@ pub(crate) fn carried_slice_length(
     collection: ExpressionHandle,
 ) -> Option<Interval> {
     let collection = strip_borrow(program, collection);
-    if let Some(path) = super::place_path(program, collection) {
-        if let Some(interval) = environment.get(&format!("{path}.len")) {
-            return Some(interval);
-        }
+    if let Some(path) = super::place_path(program, collection)
+        && let Some(interval) = environment.get(&format!("{path}.len"))
+    {
+        return Some(interval);
     }
     slice_length_interval(program, machine, state, environment, collection)
 }

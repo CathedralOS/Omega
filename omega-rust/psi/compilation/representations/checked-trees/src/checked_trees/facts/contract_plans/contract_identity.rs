@@ -297,7 +297,7 @@ impl ContractHasher {
     pub(super) fn complete(self) -> MachineContractIdentity {
         MachineContractIdentity {
             report_fingerprint: self.report.finish(),
-            commitment: MachineContractCommitment::from_digest(self.commitment.finish().into()),
+            commitment: MachineContractCommitment::from_digest(self.commitment.finish()),
         }
     }
 }

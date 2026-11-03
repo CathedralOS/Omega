@@ -775,7 +775,7 @@ fn byte_class_fact_covers(
             .place_segments
             .span_or_empty(place.segments)
             .iter()
-            .all(|segment| crate::flow::fixed_selection_segment(segment))
+            .all(crate::flow::fixed_selection_segment)
 }
 
 enum CarrierAssignment {

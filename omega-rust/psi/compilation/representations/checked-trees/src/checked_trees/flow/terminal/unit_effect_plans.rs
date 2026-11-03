@@ -3,10 +3,10 @@
 
 use crate::checked_trees::flow::terminal::structural_return::CheckedUnitStructuralReturnPlan;
 use crate::checked_trees::flow::terminal::{
-    CheckedBoundaryMachinePlan, CheckedCallScalarArgument, CheckedComposedUnitControlMachinePlan,  CheckedScalarStateTerminator,
-    CheckedStructuralScalarParameterPlan, CheckedTrivialAffineStructuralLocalPlan,
-    CheckedUnitCallCoordinate, CheckedUnitCallPlan, CheckedUnitCallResult,
-    CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
+    CheckedBoundaryMachinePlan, CheckedCallScalarArgument, CheckedComposedUnitControlMachinePlan,
+    CheckedScalarStateTerminator, CheckedStructuralScalarParameterPlan,
+    CheckedTrivialAffineStructuralLocalPlan, CheckedUnitCallCoordinate, CheckedUnitCallPlan,
+    CheckedUnitCallResult, CheckedUnitEntryClaimPlan, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralArgumentPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralDomainPlan, CheckedUnitStructuralParameterPlan,
     CheckedUnitStructuralPathSegment, CheckedUnitStructuralResultBindingPlan,

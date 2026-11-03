@@ -92,6 +92,13 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Result<Option<(CheckedScalarComputationHandle, TypeReferenceHandle)>, &'static str> {
+        // Only a declaring application (a peer's endpoint or a declared
+        // measure) rebinds a sequence formal. Without one, for example a
+        // state's own `terminates by (i, path.len)`, the caller's ordinary
+        // expression lowering reads the length, as it did before this route.
+        let Some(scope) = self.declaration_scope.as_ref() else {
+            return Ok(None);
+        };
         if self.declaration_bindings.is_empty() {
             return Ok(None);
         }
@@ -150,10 +157,6 @@ impl Builder<'_, '_> {
         )
         .ok_or("a rebound sequence length has no descriptor observation")?;
         // The expression belongs to the declaring state, not the evaluator.
-        let scope = self
-            .declaration_scope
-            .as_ref()
-            .ok_or("a rebound sequence length has no declaring application")?;
         let owner = scope
             .plan
             .application_formations

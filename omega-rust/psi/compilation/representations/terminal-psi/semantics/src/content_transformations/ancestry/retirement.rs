@@ -261,16 +261,15 @@ fn advance_owned_frontier(
                 "opaque or dynamic custody transfer is not an authenticated nominal retirement",
             );
         }
-        if let OperationKind::StoreStructuralField { value, .. } = &operation.kind {
-            if value.access == StructuralAccess::Owned
-                && frontier
-                    .iter()
-                    .any(|claim| claim.place == value.place && claim.path.starts_with(&value.path))
-            {
-                return Err(
-                    "borrowed-storage custody exit needs its own exact restoration evidence, not a nominal-disposal inference",
-                );
-            }
+        if let OperationKind::StoreStructuralField { value, .. } = &operation.kind
+            && value.access == StructuralAccess::Owned
+            && frontier
+                .iter()
+                .any(|claim| claim.place == value.place && claim.path.starts_with(&value.path))
+        {
+            return Err(
+                "borrowed-storage custody exit needs its own exact restoration evidence, not a nominal-disposal inference",
+            );
         }
     }
     // Moves, constructions and selected extractions retain the nominal identity
@@ -509,14 +508,13 @@ fn entry_claim_is_retired(
                     if let Terminator::ReturnStructural {
                         returned_claims, ..
                     } = &body.terminator
-                    {
-                        if returned_claims.iter().any(|returned| {
+                        && returned_claims.iter().any(|returned| {
                             frontier
                                 .iter()
                                 .any(|claim| claim.identity == returned.claim)
-                        }) {
-                            return Ok(false);
-                        }
+                        })
+                    {
+                        return Ok(false);
                     }
                     apply_nominal_disposals(module, machine, cleanup_actions, &mut frontier)?;
                     normal = true;

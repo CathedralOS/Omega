@@ -30,8 +30,8 @@ use crate::checks::ranges::incoming_guards::IncomingGuardIndex;
 pub(super) use conflicts::check_staged_operand_move;
 pub(super) use staging::{InvocationBoundary, access_released_in_prefix};
 
-pub(super) fn check_compatibility<'p>(
-    program: &'p dyn ::validation::CheckingInput,
+pub(super) fn check_compatibility(
+    program: &dyn ::validation::CheckingInput,
     facts: &CheckFacts,
     state_flows: &[(&FlowStateFact, Option<&checked_trees::StateBorrowFact>)],
     incoming_guards: &IncomingGuardIndex,

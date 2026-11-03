@@ -464,15 +464,15 @@ impl TypedTrees {
 
     /// Rejoin the exact direct occurrence or the evidence-bound invocation.
     /// Neither an executable target nor another caller's tuple selects a map.
-    pub fn selected_conformance_applications<'a>(
-        &'a self,
+    pub fn selected_conformance_applications(
+        &self,
         owner: symbols::SymbolHandle,
         selection_application: StaticMachineApplicationHandle,
         evidence_parameter: symbols::SymbolHandle,
         requirement: symbols::SymbolHandle,
         report_fingerprint: u64,
         commitment: super::ClosedConformanceApplicationCommitment,
-    ) -> Vec<&'a super::ClosedConformanceApplication> {
+    ) -> Vec<&super::ClosedConformanceApplication> {
         if selection_application.is_valid() {
             if evidence_parameter.is_valid() {
                 return Vec::new();

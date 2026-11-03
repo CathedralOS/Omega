@@ -184,13 +184,20 @@ mod tests {
             ),
             IntegerMathTerm::embed(maximum.clone()).unwrap(),
         );
-        let proof = super::super::prove(&context, &goal, &[premise.clone()], 0).unwrap();
-        proof_admission::check_certificate(&context, &goal, &[premise.clone()], &[], &proof)
-            .unwrap();
+        let proof =
+            super::super::prove(&context, &goal, std::slice::from_ref(&premise), 0).unwrap();
+        proof_admission::check_certificate(
+            &context,
+            &goal,
+            std::slice::from_ref(&premise),
+            &[],
+            &proof,
+        )
+        .unwrap();
         proof_admission::verify_bounded_certificate(
             &context,
             &goal,
-            &[premise.clone()],
+            std::slice::from_ref(&premise),
             &[],
             &proof,
             &mut proof_admission::Budget::default(),

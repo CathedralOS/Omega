@@ -36,9 +36,7 @@ pub(crate) fn float_field_literal_bound_meaning(
     if !expression_table(program).expression_is_valid(conjunct) {
         return None;
     }
-    let Some(binary) = expression_table(program).binary_node(conjunct) else {
-        return None;
-    };
+    let binary = expression_table(program).binary_node(conjunct)?;
     let field_format = |expression| {
         let field = declared_field(program, definition, expression)?;
         match program.primitive_type_reference(field.type_reference)? {

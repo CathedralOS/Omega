@@ -304,8 +304,20 @@ pub struct BorrowCallReferenceSlotEffect {
     pub may_select: bool,
 }
 
+/// A returned pointer can forward an existing descriptor or form a new view.
+/// Projected returns require the complete checked invocation association before
+/// their source permission can become a borrowing parent.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub enum BorrowLoanFormation {
+    #[default]
+    Ordinary,
+    ReturnedDescriptor,
+    ReturnedProjection,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowLoanFact {
+    pub formation: BorrowLoanFormation,
     pub incoming_reference: Handle<IncomingReferenceIdentity>,
     pub incoming_owner_path: HandleSpan<facts::PlaceSegment>,
     /// Address admitted with a representation footprint, in this loan's same
@@ -856,11 +868,11 @@ impl BorrowFacts {
         &self,
         state: &StateBorrowFact,
     ) -> impl Iterator<Item = (Handle<BorrowLoanFact>, &BorrowLoanFact)> {
-        state.loans.handles().filter_map(|handle| {
-            self.loans
-                .is_valid(handle)
-                .then(|| (handle, self.loans.get(handle)))
-        })
+        state
+            .loans
+            .handles()
+            .filter(|&handle| self.loans.is_valid(handle))
+            .map(|handle| (handle, self.loans.get(handle)))
     }
 
     /// Exact state membership and the statement-resource role share one

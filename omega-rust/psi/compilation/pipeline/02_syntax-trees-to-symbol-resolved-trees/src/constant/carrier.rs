@@ -39,7 +39,7 @@ fn retain_value_carrier(
         let element_type = program.child_type_reference(array.element_type).clone();
         for element_ordinal in 0..elements.count() {
             let element =
-                *body_expressions(&program).expression_handle_at_offset(elements, element_ordinal);
+                *body_expressions(program).expression_handle_at_offset(elements, element_ordinal);
             retain_value_carrier(program, element, &element_type, reference)?;
         }
         return Ok(());

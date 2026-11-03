@@ -377,10 +377,7 @@ impl<'typed> ReplayTyped<'typed> {
     fn reborrow(&mut self) -> ReplayTyped<'_> {
         match self {
             Self::Direct(typed) => ReplayTyped::Direct(typed),
-            Self::Lazy { base, replay } => ReplayTyped::Lazy {
-                base: *base,
-                replay,
-            },
+            Self::Lazy { base, replay } => ReplayTyped::Lazy { base, replay },
         }
     }
 

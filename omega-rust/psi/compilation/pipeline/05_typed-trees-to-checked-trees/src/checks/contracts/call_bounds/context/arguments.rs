@@ -71,7 +71,7 @@ pub(super) fn capture_is_current<'program>(
         .is_some_and(|writes| {
             writes.iter().all(|write| {
                 let root = write.root;
-                !captured.iter().any(|captured| root == (*captured))
+                !captured.contains(&root)
             })
         })
     })

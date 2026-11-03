@@ -101,7 +101,7 @@ impl TerminalExecution<'_> {
                     .filter_map(|field| match field.field_type {
                         StructuralFieldType::Structural(structural_type) => {
                             let mut path = parent_path.to_vec();
-                            path.push(StructuralPathSegment::Field(field.identity.clone()));
+                            path.push(StructuralPathSegment::Field(field.identity));
                             Some(StructuralAffineDiscard {
                                 place: destination,
                                 path,

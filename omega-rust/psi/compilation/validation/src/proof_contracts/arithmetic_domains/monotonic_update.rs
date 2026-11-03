@@ -26,9 +26,7 @@ pub fn builtin_monotonic_integer_update_bounds(
     if !crate::has_builtin_bound_expression_meaning(program, machine, Some(state), expression) {
         return None;
     }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     let (operand, literal) = match binary.operator {
         BinaryOperator::Add
             if matches!(

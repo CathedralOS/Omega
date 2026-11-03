@@ -126,14 +126,8 @@ pub(super) fn check(
     let receiver_offset = usize::from(
         matches!(&site, validation::CallSite::Expression { call, .. } if call.receiver.is_valid()),
     );
-    let mut argument_index = 0;
-    for parameter in parameters {
-        let position = argument_index;
-        let argument = {
-            let argument = arguments.get(argument_index).copied();
-            argument_index += 1;
-            argument
-        };
+    for (position, parameter) in parameters.iter().enumerate() {
+        let argument = arguments.get(position).copied();
         let operand_position = position + receiver_offset;
         // Every formal owes the same declared fields, including a subject
         // forwarded from the caller, independently of declaration qualification.

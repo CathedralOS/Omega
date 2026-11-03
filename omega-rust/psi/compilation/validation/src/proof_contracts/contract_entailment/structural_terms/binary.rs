@@ -69,9 +69,7 @@ pub(crate) fn binary_term_in_scope(
     left: StructuralTerm,
     right: StructuralTerm,
 ) -> Option<StructuralTerm> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     let state_scope = scope
         .map(|(machine, state, _)| (machine, state))
         .or_else(|| {
@@ -261,10 +259,10 @@ fn sealed_primitive_float_scalar(
 }
 
 /// Walk an anchored name's symbol upward to its declaring machine and state.
-pub(super) fn scoped_machine_state<'program>(
-    program: &'program dyn crate::CheckingInput,
+pub(super) fn scoped_machine_state(
+    program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
-) -> Option<(&'program Machine, &'program State)> {
+) -> Option<(&Machine, &State)> {
     let mut owner = symbol;
     let mut visited = Vec::new();
     loop {

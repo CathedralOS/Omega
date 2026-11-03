@@ -369,12 +369,12 @@ fn decode_completion_claim_source(
     let claim = decode_id(cursor, ClaimId::new)?;
     let entry = crate::cursor::optional(
         cursor,
-        |c| Ok(decode_entry_claim(c)?),
+        decode_entry_claim,
         FixedViewCopyDecodeError::UnknownOption,
     )?;
     let content = crate::cursor::optional(
         cursor,
-        |c| Ok(decode_content_entry_claim(c)?),
+        decode_content_entry_claim,
         FixedViewCopyDecodeError::UnknownOption,
     )?;
     Ok(CompletionClaimSource {

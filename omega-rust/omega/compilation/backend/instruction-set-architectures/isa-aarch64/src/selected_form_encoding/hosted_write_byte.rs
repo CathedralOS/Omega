@@ -345,7 +345,7 @@ mod tests {
                         MachineEncodedStackEffect::UnchangedV1
                     );
                     reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |changed| {
-                        validate(target, kind, &operands, displacement, &changed).is_err()
+                        validate(target, kind, &operands, displacement, changed).is_err()
                     });
                     let rejects = |kind, displacement, bytes: &[u8]| {
                         validate(target, kind, &operands, displacement, bytes).is_err()

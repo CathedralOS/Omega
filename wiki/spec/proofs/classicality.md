@@ -65,9 +65,11 @@ boundary: no rule may map to `Classical`, and only `SemanticAxiom` is a
   disjunction and implication only. Excluded middle and double-negation
   elimination are not merely absent from the rule set — no certificate can
   state them.
-- `Falsehood` has **no elimination rule**: there is no ex falso in the
-  certificate fragment, so the calculus is stricter than intuitionistic on
-  that point.
+- Contradiction elimination (`ex falso`) is constructive: a checked proof of
+  `Falsehood` can establish any well-formed goal under those same premises.
+  The current certificate fragment derives this through predicate-denotation
+  conversion and conjunction elimination rather than a primitive falsehood
+  elimination rule. See [contradiction elimination](#contradiction-elimination).
 - Recursion admission (`admission/recursion.rs`) is well-founded
   induction: a named ranking relation, a proved well-foundedness
   obligation, and a per-edge decrease certificate. This is the
@@ -77,6 +79,35 @@ boundary: no rule may map to `Classical`, and only `SemanticAxiom` is a
   relevant/strict universes — no cumulativity, no self-typing universe,
   predicative formation only. Its checked theorems (e.g. identity
   transport through `J`) are ordinary re-decided definitions, not axioms.
+
+## Contradiction elimination
+
+Named decision: `scoped-contradiction-elimination`, settled 2026-11-03.
+
+A proved contradiction establishes that no execution satisfies the premises of
+that path. For example, an entry requirement `count >= 10` and a branch condition
+`count < 5` cannot both hold for the same value. Obligations on that arrival may
+therefore close by contradiction elimination. This is ordinary constructive
+reasoning, not classical proof by contradiction or an unchecked escape.
+
+The contradiction must be independently checked from valid premises about the
+exact values and storage versions in scope. Failed proof search does not prove
+falsehood. Local branch assumptions and their conclusions cannot escape their
+scope or justify another reachable arrival; joins retain the ordinary
+all-predecessor obligations. Existing well-formedness, operand formation,
+ownership and authority boundaries are not waived.
+
+The language permits contradiction elimination without prescribing its encoding.
+The current derivation converts a checked `Falsehood` to `Falsehood AND goal`
+through their equal bounded predicate denotations, then eliminates the
+conjunction. Both the contradiction and all its premise dependencies remain
+checkable. An explicit elimination rule would require the ordinary rule audit,
+not a change from constructive to classical logic.
+
+Proving an arrival impossible, removing its emitted instructions and warning
+about unreachable source are separate decisions. Neither code pruning nor a
+warning is required to make the proof valid. Diagnostic policy is specified
+under [unreachable branches](../language/state_contracts.md#unreachable-branches).
 
 ## Trusted admissions outside the rule set
 

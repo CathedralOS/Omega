@@ -26,15 +26,14 @@ pub(crate) fn for_call<'a>(
         .facts
         .at_point(point)
         .into_iter()
-        .filter_map(move |fact| {
-            (fact.origin == facts::FactOrigin::CallEnsures
+        .filter(move |fact| {
+            fact.origin == facts::FactOrigin::CallEnsures
                 && fact.point == point
                 && fact
                     .place
                     .as_place()
                     .is_some_and(|place| has_home(checked.facts.semantic.places.get(place).root))
-                && fact.payload.domain_membership().is_some())
-            .then_some(fact)
+                && fact.payload.domain_membership().is_some()
         })
 }
 

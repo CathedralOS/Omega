@@ -142,5 +142,5 @@ where
 pub(crate) fn domain_identity(domain: &[u8], content: &[u8]) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(domain);
     digest.raw(content);
-    digest.finish().into()
+    digest.finish()
 }

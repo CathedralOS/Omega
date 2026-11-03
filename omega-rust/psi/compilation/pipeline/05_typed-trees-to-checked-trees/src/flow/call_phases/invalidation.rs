@@ -205,18 +205,18 @@ fn call_storage_mutations(
         // transported view proves that the physical store is content, not
         // descriptor replacement. Both namespaces must see invalidation.
         phase_profile::scope("psi.05.build_check_facts.flow.invoke.entry_origins", || {
-            if let crate::flow::mutation::StorageRegion::Declared(place) = &write.region {
-                if let Some(region) = crate::flow::entry_origins::nonresident_content_region(
+            if let crate::flow::mutation::StorageRegion::Declared(place) = &write.region
+                && let Some(region) = crate::flow::entry_origins::nonresident_content_region(
                     program,
                     build,
                     machine,
                     state,
                     borrow_call.statement_index,
                     place,
-                ) {
-                    observations.push(region.anchor().clone());
-                    write.region = region;
-                }
+                )
+            {
+                observations.push(region.anchor().clone());
+                write.region = region;
             }
             crate::flow::entry_origins::extend_invocation_observations(
                 program,

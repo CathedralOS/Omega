@@ -3,8 +3,8 @@
 //! qualifications, each with its source correspondence retained.
 
 use super::{
-    ExpressionHandle, Fact, FactOrigin, FactPayload, FactPlace, FactPlan, FlowBuildContext,
-    HandleSpan, ProgramPoint, SymbolHandle, retain_qualification_correspondence,
+    ExpressionHandle, Fact, FactOrigin, FactPayload, FactPlace, FactPlan, HandleSpan, ProgramPoint,
+    SymbolHandle, retain_qualification_correspondence,
 };
 use crate::flow::canonical_place_from_semantic_place;
 use crate::flow::canonical_places_agree;

@@ -31,24 +31,16 @@ struct PackageFrontier<Owner> {
     owner: Owner,
     remaining: std::vec::IntoIter<PackageSourceRequest>,
     products: Vec<OccurrenceProduct>,
-    /// The Product root a joining frontier receives its dependencies'
-    /// generated source into instead of preparing; `None` prepares the last
-    /// remaining occurrence as the root.
-    joined_root: Option<PackageSourceRequest>,
 }
 
-/// How one package plan finished: its root's prepared Build, or the root
-/// request joined with every dependency occurrence's generated source.
+/// How one package plan finished: its root's prepared Build.
 pub(crate) enum PreparedPackageRoot {
     Build(Box<PackageBuild>),
-    Joined(CheckedCompileRequest),
 }
 
 /// One dependency-ordered plan and what to do with its Product root.
 pub(crate) struct PackagePlan {
     pub occurrences: Vec<PackageSourceRequest>,
-    /// Join generated source into the root instead of preparing its Build.
-    pub join_root: bool,
 }
 
 fn prepare_package_source(
@@ -180,29 +172,17 @@ pub(crate) fn prepare_packages<Owner>(
     let mut outcomes = Vec::with_capacity(plans.len());
     let mut frontiers = Vec::new();
     for (position, (owner, plan)) in plans.into_iter().enumerate() {
-        let PackagePlan {
-            mut occurrences,
-            join_root,
-        } = plan;
+        let PackagePlan { occurrences } = plan;
         if let Err(error) = validate_order(&occurrences) {
             outcomes.push((position, owner, Err(error)));
             continue;
         }
-        let joined_root = if join_root { occurrences.pop() } else { None };
-        let mut frontier = PackageFrontier {
+        let frontier = PackageFrontier {
             position,
             owner,
             products: Vec::with_capacity(occurrences.len()),
             remaining: occurrences.into_iter(),
-            joined_root,
         };
-        if frontier.remaining.len() == 0 {
-            // A joining root with no dependency occurrence joins the
-            // empty roster; a preparing root always has its own.
-            let joined = frontier.join_root();
-            outcomes.push((position, frontier.owner, joined));
-            continue;
-        }
         frontiers.push(frontier);
     }
 
@@ -285,7 +265,7 @@ pub(crate) fn prepare_packages<Owner>(
                         }),
                     ));
                 }
-                Ok(build) if frontier.remaining.len() == 0 && frontier.joined_root.is_none() => {
+                Ok(build) if frontier.remaining.len() == 0 => {
                     outcomes.push((
                         frontier.position,
                         frontier.owner,
@@ -300,12 +280,7 @@ pub(crate) fn prepare_packages<Owner>(
                         prepared: Some(build),
                         description: None,
                     });
-                    if frontier.remaining.len() == 0 {
-                        let joined = frontier.join_root();
-                        outcomes.push((frontier.position, frontier.owner, joined));
-                    } else {
-                        frontiers.push(frontier);
-                    }
+                    frontiers.push(frontier);
                 }
             }
         }
@@ -366,30 +341,6 @@ fn complete_components<Owner>(
                     occurrence.failure = Some(failure.into());
                 }
             }
-        }
-    }
-}
-
-impl<Owner> PackageFrontier<Owner> {
-    /// Finish a joining frontier: its root receives every dependency
-    /// occurrence's generated source and is returned unprepared.
-    fn join_root(&mut self) -> Result<PreparedPackageRoot, PackageCompileFailure> {
-        let occurrence = self.products.len();
-        let refuse = |failure| PackageCompileFailure {
-            occurrence,
-            failure,
-        };
-        let root = self.joined_root.take().ok_or_else(|| {
-            refuse(vec![Diagnostic::error("package frontier lost its joined root")].into())
-        })?;
-        match join_generated_sources(root, &self.products).map_err(refuse)? {
-            PackageSourceRequest::Execute(request) => Ok(PreparedPackageRoot::Joined(request)),
-            PackageSourceRequest::Product(_) => Err(refuse(
-                vec![Diagnostic::error(
-                    "Product preparation cannot be returned as a new Build execution request",
-                )]
-                .into(),
-            )),
         }
     }
 }

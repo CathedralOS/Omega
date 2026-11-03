@@ -3,7 +3,7 @@
 //! including recursive edges. This is a type/effect judgment, not a guessed
 //! initial result for recursive origin inference. A writable slot or unknown
 //! indirect descriptor retains the ordinary position-sensitive replay.
-use super::replay::{Replay, Summary};
+use super::engine::{Replay, Summary};
 use super::*;
 
 impl Replay<'_> {

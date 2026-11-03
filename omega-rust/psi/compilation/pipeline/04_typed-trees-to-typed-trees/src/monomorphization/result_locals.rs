@@ -34,10 +34,10 @@ pub(super) use reference_observations::materialize as materialize_reference_obse
 /// Walk one state body's locals in statement order. Derived result rows only
 /// ever visit local declarations; any other statement carries no inferred
 /// result and needs no row.
-fn local_bindings<'a>(
-    program: &'a TypedTrees,
+fn local_bindings(
+    program: &TypedTrees,
     statements: arena::HandleSpan<StatementNode>,
-) -> impl Iterator<Item = (usize, &'a TableLocalData)> {
+) -> impl Iterator<Item = (usize, &TableLocalData)> {
     program
         .statement_table
         .indexed_statements(statements)

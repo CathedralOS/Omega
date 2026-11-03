@@ -170,7 +170,7 @@ pub(super) fn build(
         },
         route: CheckedUnitCallRoute::Dynamic {
             selector,
-            interface_identity: slot.interface_identity.clone(),
+            interface_identity: slot.interface_identity,
             requirement: slot.requirement,
             family_operands,
         },

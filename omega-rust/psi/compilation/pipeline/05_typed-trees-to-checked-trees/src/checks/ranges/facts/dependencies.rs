@@ -366,10 +366,7 @@ impl<'field> RangeFacts<'field> {
                         return None;
                     }
                     let suffix = &place.segments[storage.segments.len()..];
-                    if !suffix
-                        .iter()
-                        .all(|segment| flow::fixed_selection_segment(segment))
-                    {
+                    if !suffix.iter().all(flow::fixed_selection_segment) {
                         return None;
                     }
                     Some((

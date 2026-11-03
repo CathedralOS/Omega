@@ -69,28 +69,27 @@ pub(super) fn state_edges(program: &dyn CheckingInput, states: &[State]) -> Vec<
                 continue;
             };
             for handle in transition.targets() {
-                match program.statement_table.transition_target(handle) {
-                    // Resolve by SYMBOL first (the termination graph's proven
-                    // rule), name as the fallback.
-                    TransitionTargetNode::Named { path, .. } => {
-                        let to = states
-                            .iter()
-                            .position(|candidate| candidate.symbol == path.symbol)
-                            .or_else(|| {
-                                expression_table(program)
-                                    .name_path_members(path.members)
-                                    .last()
-                                    .and_then(|target_name| {
-                                        states
-                                            .iter()
-                                            .position(|candidate| candidate.name == *target_name)
-                                    })
-                            });
-                        if let Some(to) = to {
-                            edges.push((from, to));
-                        }
+                // Resolve by SYMBOL first (the termination graph's proven
+                // rule), name as the fallback.
+                if let TransitionTargetNode::Named { path, .. } =
+                    program.statement_table.transition_target(handle)
+                {
+                    let to = states
+                        .iter()
+                        .position(|candidate| candidate.symbol == path.symbol)
+                        .or_else(|| {
+                            expression_table(program)
+                                .name_path_members(path.members)
+                                .last()
+                                .and_then(|target_name| {
+                                    states
+                                        .iter()
+                                        .position(|candidate| candidate.name == *target_name)
+                                })
+                        });
+                    if let Some(to) = to {
+                        edges.push((from, to));
                     }
-                    _ => {}
                 }
             }
         }

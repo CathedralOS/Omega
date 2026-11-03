@@ -227,7 +227,7 @@ pub(crate) fn build_checked_machine_residual_parts(
                         .and_then(|index| index.checked_add(1))
                         .unwrap_or(local.declaration_ordinal),
                     declaration_ordinal: local.declaration_ordinal,
-                    type_identity: local.type_identity.clone(),
+                    type_identity: local.type_identity,
                 },
             )
         })

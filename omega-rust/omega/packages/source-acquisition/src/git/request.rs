@@ -188,7 +188,7 @@ impl GitSourceRequest {
             Some(locator) => locator.to_owned(),
             None => {
                 let path_identity = crate::digest_encoder::content_identity(
-                    &repository.as_os_str().to_string_lossy().as_bytes(),
+                    repository.as_os_str().to_string_lossy().as_bytes(),
                 );
                 format!(
                     "https://local-fixture.invalid/{}.git",

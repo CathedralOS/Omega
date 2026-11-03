@@ -178,10 +178,10 @@ fn erased_family_demands(program: &dyn validation::CheckingInput) -> Vec<SymbolH
                 }
             }
             for statement in program.statement_table.statements(state.statement_nodes) {
-                if let typed_trees::statement::StatementNode::LocalData(local) = statement {
-                    if local.relevance == language_core::BindingRelevance::Erased {
-                        demand(program, local.type_reference, &mut result);
-                    }
+                if let typed_trees::statement::StatementNode::LocalData(local) = statement
+                    && local.relevance == language_core::BindingRelevance::Erased
+                {
+                    demand(program, local.type_reference, &mut result);
                 }
             }
         }

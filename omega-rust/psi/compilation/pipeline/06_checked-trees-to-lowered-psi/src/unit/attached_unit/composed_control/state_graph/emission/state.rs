@@ -626,7 +626,7 @@ impl StateGraphEmission<'_, '_> {
                 let value = StateFrame::new(checked, owner, state, &self.state_erased[position])
                     .evaluate(
                         self.catalogs,
-                        &state_parameters,
+                        state_parameters,
                         &mut sequence,
                         FrameValues {
                             source_value_count: values.len(),
@@ -1497,7 +1497,7 @@ impl StateGraphEmission<'_, '_> {
             evaluation,
             operations,
             super::seal::SealFrame {
-                state_parameters: &state_parameters,
+                state_parameters,
                 current_rank: current_rank.as_deref(),
                 is_guarded_return,
                 dispatches,

@@ -227,10 +227,8 @@ pub(super) fn validate_export_trie(
                     return Err(invalid("duplicate linkedit segment"));
                 }
             }
-            0x1d => {
-                if signature.replace(word(command, 8)? as usize).is_some() {
-                    return Err(invalid("duplicate signature command"));
-                }
+            0x1d if signature.replace(word(command, 8)? as usize).is_some() => {
+                return Err(invalid("duplicate signature command"));
             }
             _ => {}
         }

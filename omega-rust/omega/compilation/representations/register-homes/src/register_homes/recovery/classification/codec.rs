@@ -68,7 +68,7 @@ impl RecoveryClassificationPlan {
                 let machine = machine(&mut *cursor)?;
                 let classification = crate::cursor::optional(
                     &mut *cursor,
-                    |c| Ok(classification_row(&mut *c)?),
+                    |c| classification_row(&mut *c),
                     RecoveryClassificationDecodeError::UnknownOption,
                 )?;
                 Ok(FunctionRecoveryClassification {

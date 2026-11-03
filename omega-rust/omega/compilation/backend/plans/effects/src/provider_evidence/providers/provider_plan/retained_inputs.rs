@@ -693,7 +693,7 @@ mod tests {
                 "truncated application prefix {end}"
             );
         }
-        for version in [b'4', b'5', b'6', b'8'] {
+        for version in *b"4568" {
             let mut other_schema = bytes.clone();
             other_schema[PROVIDER_PLAN_DOMAIN.len() - 2] = version;
             assert_eq!(

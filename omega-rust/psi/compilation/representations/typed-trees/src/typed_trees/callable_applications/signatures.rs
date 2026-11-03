@@ -328,20 +328,26 @@ impl CallableApplication {
                         trait_definition,
                         requirement,
                         trait_arguments,
-                        ..
+                        instantiated,
                     } => {
                         let arguments = trait_arguments
                             .into_iter()
                             .map(|argument| self.type_reference(program, argument))
                             .collect::<Result<Vec<_>, _>>()?;
-                        let instantiated = self
-                            .nominal(program, trait_definition, requirement, &arguments)?
-                            .map(Box::new);
-                        data::MachineParameterContract::Nominal {
-                            trait_definition,
-                            requirement,
-                            trait_arguments: arguments,
-                            instantiated,
+                        if let Some(signature) = instantiated {
+                            data::MachineParameterContract::Nominal {
+                                trait_definition,
+                                requirement,
+                                trait_arguments: arguments,
+                                instantiated: Some(Box::new(self.signature(program, &signature)?)),
+                            }
+                        } else {
+                            self.nominal_contract(
+                                program,
+                                trait_definition,
+                                requirement,
+                                arguments,
+                            )?
                         }
                     }
                     data::MachineParameterContract::RequirementIdentity => {

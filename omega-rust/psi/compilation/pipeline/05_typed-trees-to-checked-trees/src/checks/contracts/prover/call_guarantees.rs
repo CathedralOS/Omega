@@ -766,7 +766,7 @@ fn captured_actual_operand<'facts>(
             segments: Vec::new(),
         },
     );
-    place.segments.extend_from_slice(&path);
+    place.segments.extend_from_slice(path);
     if !operands.all(|other| {
         if post_state {
             crate::flow::operand_bindings_agree(program, &facts.flow, operand, other, &place)

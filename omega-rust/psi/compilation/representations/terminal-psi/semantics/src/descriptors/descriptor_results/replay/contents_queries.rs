@@ -2,7 +2,7 @@
 //! Reads and writes share the same exhaustive typed traversal. Incoming contents
 //! stay symbolic until a caller supplies backing; unresolved candidates cannot
 //! be discarded just because another candidate has a usable address.
-use super::replay::{DescriptorReadDepth, Origin, State, Value};
+use super::engine::{DescriptorReadDepth, Origin, State, Value};
 use super::*;
 use crate::descriptors::descriptor_lifetimes::descriptor_location;
 

@@ -179,7 +179,7 @@ impl Call {
         bytes: &[u8],
     ) -> Result<(), TerminalEffectRejection> {
         if self.path_argument(index)
-            && (bytes.len() != 8192 || !bytes.chunks_exact(2).any(|word| word == [0, 0]))
+            && (bytes.len() != 8192 || !bytes.as_chunks::<2>().0.contains(&[0, 0]))
         {
             return Err(rejection(
                 "Windows path has no WCHAR terminator inside its complete captured array",
@@ -324,20 +324,20 @@ impl Call {
         value: TerminalScalarValue,
         result: Option<TerminalScalarValue>,
     ) -> Result<Option<TerminalScalarValue>, TerminalEffectRejection> {
-        if matches!(self.effect, Effect::OpenRelative) && argument == 0 {
-            if signed(
+        if matches!(self.effect, Effect::OpenRelative)
+            && argument == 0
+            && signed(
                 result.ok_or_else(|| rejection("NT acquisition lost its completion status"))?,
             )? == 0
-            {
-                let native = handle_bits(value)?;
-                if native == 0 || native == -1 {
-                    return Err(rejection(
-                        "successful NT acquisition returned no owned HANDLE",
-                    ));
-                }
-                return replace_handle(value, self.context.windows.borrow_mut().acquire(native)?)
-                    .map(Some);
+        {
+            let native = handle_bits(value)?;
+            if native == 0 || native == -1 {
+                return Err(rejection(
+                    "successful NT acquisition returned no owned HANDLE",
+                ));
             }
+            return replace_handle(value, self.context.windows.borrow_mut().acquire(native)?)
+                .map(Some);
         }
         if (matches!(self.effect, Effect::Duplicate) && argument == 0)
             || (matches!(self.effect, Effect::Pipe) && argument < 2)

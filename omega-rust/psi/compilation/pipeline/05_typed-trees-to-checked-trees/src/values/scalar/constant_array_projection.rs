@@ -28,9 +28,7 @@ pub(crate) fn selected_leaf(
         return None;
     }
     let mut reference = validation::declared_constant_array_type(program, root)?;
-    if validation::closed_literal_array_elements(program, root, reference).is_none() {
-        return None;
-    }
+    validation::closed_literal_array_elements(program, root, reference)?;
     let mut selected = root;
     for (projection, index) in projections.into_iter().rev() {
         let TypeReferenceNode::FixedArray {

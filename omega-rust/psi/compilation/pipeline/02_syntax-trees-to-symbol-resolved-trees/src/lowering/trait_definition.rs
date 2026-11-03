@@ -148,7 +148,7 @@ fn lower_trait_requirement_node(
     syntax_trees: &SyntaxTrees,
     handle: syntax::types::TypeReferenceHandle,
 ) -> Result<TraitRequirement, Diagnostic> {
-    let (name, lifetime_arguments, arguments) = match syntax_type_references(&syntax_trees)
+    let (name, lifetime_arguments, arguments) = match syntax_type_references(syntax_trees)
         .type_reference(handle)
     {
         syntax::types::TypeReferenceNode::Named(name) => (name, Vec::new(), HandleSpan::empty()),
@@ -159,7 +159,7 @@ fn lower_trait_requirement_node(
             ..
         } => (
             base_name,
-            lower_names(syntax_trees, &lifetime_arguments),
+            lower_names(syntax_trees, lifetime_arguments),
             lower_child_type_references(lowerer, syntax_trees, *arguments)?,
         ),
         _ => {

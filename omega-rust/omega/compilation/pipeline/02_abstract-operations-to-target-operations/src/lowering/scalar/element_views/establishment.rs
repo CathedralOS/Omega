@@ -285,17 +285,16 @@ pub(super) fn source(
     {
         return Err(invalid());
     }
-    if let Some(layout) = representation {
-        if layout.size != u64::from(element_stride)
+    if let Some(layout) = representation
+        && (layout.size != u64::from(element_stride)
             || layout.alignment != u64::from(element_shape.alignment)
             || layout.leaves.iter().any(|leaf| {
                 scalar_leaf_offset(structural_types, element, &leaf.path, leaf.scalar_type)
                     .map(u64::from)
                     != Some(leaf.offset)
-            })
-        {
-            return Err(invalid());
-        }
+            }))
+    {
+        return Err(invalid());
     }
     let (window_offset, extent) = match (byte_window, extent_kind) {
         (Some((start, end)), terminal_semantics::CollectionExtent::Fixed(length))

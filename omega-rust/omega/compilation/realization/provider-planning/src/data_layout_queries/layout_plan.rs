@@ -249,7 +249,7 @@ pub struct TargetClosedPrivateCallbackDemand {
     pub layout: calling_conventions::LayoutPlanId,
     pub slot: calling_conventions::LayoutSlotId,
     pub requirement: calling_conventions::CallbackRequirementId,
-    pub offset: usize,
+    pub placements: calling_conventions::PrivateCallbackPlacements,
     pub byte_size: usize,
     pub alignment: usize,
 }

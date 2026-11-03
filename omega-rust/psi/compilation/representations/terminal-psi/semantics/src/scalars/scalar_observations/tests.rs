@@ -17,7 +17,7 @@ fn descriptor_extents_require_exact_readable_crossings() {
         shape,
         scalar_restriction: None,
     };
-    let mut types = vec![
+    let mut types = [
         declaration(
             bytes,
             StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BorrowedView {

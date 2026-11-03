@@ -69,13 +69,13 @@ pub fn apply_relocations(
                     relocation.addend
                 ))
             })?;
-        if let Some(kind_architecture) = kind_architecture(relocation.kind) {
-            if kind_architecture != architecture {
-                return Err(Diagnostic::error(format!(
-                    "{output_name} {isa} image received {} relocation",
-                    architecture_name(kind_architecture)
-                )));
-            }
+        if let Some(kind_architecture) = kind_architecture(relocation.kind)
+            && kind_architecture != architecture
+        {
+            return Err(Diagnostic::error(format!(
+                "{output_name} {isa} image received {} relocation",
+                architecture_name(kind_architecture)
+            )));
         }
 
         match relocation.kind {

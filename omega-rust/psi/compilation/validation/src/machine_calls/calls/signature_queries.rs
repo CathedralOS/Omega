@@ -83,10 +83,10 @@ fn call_argument_signature(
 
 /// The single machine state `symbol` selects, when exactly one state carries
 /// it.
-pub(crate) fn unique_state_by_symbol<'p>(
-    program: &'p dyn crate::CheckingInput,
+pub(crate) fn unique_state_by_symbol(
+    program: &dyn crate::CheckingInput,
     symbol: symbols::SymbolHandle,
-) -> Option<&'p typed_trees::state::State> {
+) -> Option<&typed_trees::state::State> {
     let matches = program
         .machines()
         .iter()

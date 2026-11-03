@@ -97,7 +97,7 @@ impl ProgramEntryPhysicalContractPackageSourceDigest {
         hash_digest_field(&mut digest, source);
         Self {
             package,
-            bytes: digest.finish().into(),
+            bytes: digest.finish(),
         }
     }
 

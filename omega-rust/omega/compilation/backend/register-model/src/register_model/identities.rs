@@ -16,7 +16,7 @@ pub(crate) fn domain_digest(domain: &[u8], canonical: &[u8]) -> [u8; IDENTITY_WI
             .expect("canonical register identity input length fits u64")
             .to_le_bytes(),
     );
-    digest.raw(&canonical);
+    digest.raw(canonical);
     digest.finish()
 }
 

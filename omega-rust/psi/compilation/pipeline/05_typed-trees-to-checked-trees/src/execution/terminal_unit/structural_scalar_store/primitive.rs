@@ -122,7 +122,7 @@ pub(super) fn store_at(site: &super::Site<'_, '_, '_>) -> Option<CheckedUnitEffe
             {
                 return None;
             }
-            super::destination::Root::Local { symbol } => {
+            super::destination::Root::Local { symbol }
                 // A local root names a `let mut` local or, when the
                 // destination found its storage row, a `mut` scalar formal.
                 if primitive_local_before(program, state, statement_index as usize, symbol)
@@ -131,10 +131,9 @@ pub(super) fn store_at(site: &super::Site<'_, '_, '_>) -> Option<CheckedUnitEffe
                         .state_parameters(state)
                         .iter()
                         .any(|parameter| parameter.symbol == symbol && parameter.is_mutable)
-                {
+                => {
                     return None;
                 }
-            }
             _ => {}
         }
     }
@@ -230,13 +229,11 @@ fn primitive_store_value(
             root.root,
         ));
     }
-    let Some((binding, value)) = facts.values.scalar_expressions.bound_expression_at(
+    let (binding, value) = facts.values.scalar_expressions.bound_expression_at(
         state.symbol,
         statement_index,
         ExpressionRole::AssignmentValue,
-    ) else {
-        return None;
-    };
+    )?;
     if binding.expression != assignment.value
         || binding.destination
             != if authored_whole {

@@ -83,7 +83,7 @@ pub(crate) fn publish_storage(
     let id = operations.allocate();
     operations.push(Operation::unsuspended(
         id,
-        terminal_psi::OperationResult::Scalar(value.clone()),
+        terminal_psi::OperationResult::Scalar(value),
         OperationKind::IntegerConstant {
             value: semantic_vocabulary::IntegerValue::Unsigned(0),
         },

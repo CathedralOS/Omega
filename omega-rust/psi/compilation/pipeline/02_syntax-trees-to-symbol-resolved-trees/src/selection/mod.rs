@@ -172,11 +172,11 @@ pub(crate) fn finalize(lowerer: &mut Lowerer) -> Result<(), Vec<Diagnostic>> {
 
 /// The authored-nominal machine contract beneath a type parameter, when it
 /// carries one, with its `::`-rendered requirement path.
-pub(super) fn authored_nominal_requirement<'parameter>(
-    parameter: &'parameter symbol_resolved_trees::data::TypeParameter,
+pub(super) fn authored_nominal_requirement(
+    parameter: &symbol_resolved_trees::data::TypeParameter,
 ) -> Option<(
-    &'parameter Vec<symbol_resolved_trees::name::DiagnosticName>,
-    &'parameter arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
+    &Vec<symbol_resolved_trees::name::DiagnosticName>,
+    &arena::HandleSpan<symbol_resolved_trees::types::TypeReference>,
     String,
 )> {
     let symbol_resolved_trees::data::TypeParameterKind::Machine {

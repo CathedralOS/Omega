@@ -17,6 +17,7 @@ use symbols::JoinedPath;
 /// shape may select among overloads.
 pub(crate) struct ExactSignatureFreeRequirement<'program> {
     pub(crate) trait_definition: &'program TraitDefinition,
+    pub(crate) declaring_trait: &'program TraitDefinition,
     pub(crate) requirement: &'program StateSignature,
 }
 
@@ -45,24 +46,64 @@ pub(crate) fn resolve_signature_free_requirement<'program>(
         return Err(SignatureFreeRequirementResolutionError::TraitNotUnique);
     };
 
-    let matching_requirements = program
-        .trait_machine_signatures(trait_definition.machines)
-        .iter()
-        .filter(|signature| {
-            signature.name.as_str() == requirement_name.as_str()
-                && program
-                    .symbols
-                    .source_reference_can_see_symbol(use_span, signature.symbol)
-        })
-        .collect::<Vec<_>>();
-    let [requirement] = matching_requirements.as_slice() else {
+    let matching_requirements = inherited_requirement_candidates(
+        program,
+        trait_definition,
+        requirement_name.as_str(),
+        use_span,
+    );
+    let [(declaring_trait, requirement)] = matching_requirements.as_slice() else {
         return Err(SignatureFreeRequirementResolutionError::RequirementNotUnique);
     };
 
     Ok(ExactSignatureFreeRequirement {
         trait_definition,
+        declaring_trait,
         requirement,
     })
+}
+
+/// Inherited names keep their original declarations. Reaching one declaration
+/// through both sides of a diamond does not create a second overload; distinct
+/// declarations with the same name remain ambiguous. Typed application checking
+/// separately checks that every path supplies the same parent arguments.
+fn inherited_requirement_candidates<'program>(
+    program: &'program SymbolResolvedTrees,
+    selected_trait: &'program TraitDefinition,
+    name: &str,
+    use_span: source::SourceSpan,
+) -> Vec<(&'program TraitDefinition, &'program StateSignature)> {
+    let mut pending = vec![selected_trait];
+    let mut visited = Vec::new();
+    let mut requirements = Vec::new();
+    while let Some(declaration) = pending.pop() {
+        if visited.contains(&declaration.symbol) {
+            continue;
+        }
+        visited.push(declaration.symbol);
+        requirements.extend(
+            program
+                .trait_machine_signatures(declaration.machines)
+                .iter()
+                .filter(|signature| {
+                    signature.name.as_str() == name
+                        && program
+                            .symbols
+                            .source_reference_can_see_symbol(use_span, signature.symbol)
+                })
+                .map(|signature| (declaration, signature)),
+        );
+        for parent in program
+            .trait_requirements(declaration.requires)
+            .iter()
+            .chain(declaration.refines.iter())
+        {
+            if let Some(parent) = program.trait_definition(parent.symbol) {
+                pending.push(parent);
+            }
+        }
+    }
+    requirements
 }
 
 /// One exact machine declaration selected by a path that carries no call
@@ -264,20 +305,26 @@ fn collect_ambiguous_use(
     let [trait_definition] = matching_traits.as_slice() else {
         return;
     };
-    let count = program
-        .trait_machine_signatures(trait_definition.machines)
-        .iter()
-        .filter(|signature| {
-            signature.name.as_str() == requirement_name.as_str()
-                && program.symbols.source_reference_can_see_symbol(
-                    requirement_name.source_span(),
-                    signature.symbol,
-                )
-        })
-        .count();
-    if count <= 1 {
+    let candidates = inherited_requirement_candidates(
+        program,
+        trait_definition,
+        requirement_name.as_str(),
+        requirement_name.source_span(),
+    );
+    if candidates.len() <= 1 {
         return;
     }
+    // An inherited overload addition belongs to its original declaration.
+    // Different parents with the same member name become ambiguous at the child.
+    let first_owner = candidates[0].0;
+    let trait_definition = if candidates
+        .iter()
+        .all(|(owner, _)| owner.symbol == first_owner.symbol)
+    {
+        first_owner
+    } else {
+        trait_definition
+    };
     uses.push(AmbiguousUse {
         trait_symbol: trait_definition.symbol,
         trait_name: trait_definition.name.as_str().to_owned(),

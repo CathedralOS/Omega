@@ -343,8 +343,10 @@ mod completed_integer_tests {
         let symbol = builder
             .insert_children(namespace, [(SymbolKind::Const, SymbolNameRef::Static("C"))])
             .start();
-        let mut program = TypedTrees::default();
-        program.symbols = builder.finish();
+        let mut program = TypedTrees {
+            symbols: builder.finish(),
+            ..Default::default()
+        };
         let carrier = program
             .type_reference_table
             .insert(TypeReferenceNode::Named {
