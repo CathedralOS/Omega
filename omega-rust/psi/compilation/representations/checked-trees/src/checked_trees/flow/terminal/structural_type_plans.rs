@@ -679,7 +679,7 @@ mod field_identity_tests {
 
     #[test]
     fn receiving_type_identity_not_source_allocation_controls_field_equality() {
-        let mut identities = typed_trees::type_identity::TypeIdentityTable::default();
+        let identities = typed_trees::type_identity::TypeIdentityTable::default();
         let counter_reader = identities.intern("dyn Reader<Counter>");
         let other_reader = identities.intern("dyn Reader<Other>");
         let field = CheckedUnitStructuralFieldPlan {

@@ -414,22 +414,20 @@ mod tests {
                 ],
                 clauses: Vec::new(),
             };
-            program.type_identities.with(|table| {
-                checked_trees::contract_identity(
-                    language_semantics::MachineSupplyMode::CheckedBody,
-                    None,
-                    &[],
-                    language_semantics::SynchronousInvocationInterface::PublishedCeiling,
-                    &[],
-                    language_semantics::SuspensionInterface::PublishedMaySuspend(false),
-                    language_semantics::BlockingInterface::PublishedMayBlock(false),
-                    checked_trees::CrashInterface::PublishedCeiling,
-                    &checked_trees::DeclaredTermination::NoGuarantee,
-                    &declaration,
-                    table,
-                )
-                .commitment
-            })
+            checked_trees::contract_identity(
+                language_semantics::MachineSupplyMode::CheckedBody,
+                None,
+                &[],
+                language_semantics::SynchronousInvocationInterface::PublishedCeiling,
+                &[],
+                language_semantics::SuspensionInterface::PublishedMaySuspend(false),
+                language_semantics::BlockingInterface::PublishedMayBlock(false),
+                checked_trees::CrashInterface::PublishedCeiling,
+                &checked_trees::DeclaredTermination::NoGuarantee,
+                &declaration,
+                &program.type_identities,
+            )
+            .commitment
         };
         assert_eq!(contract(&first, alpha_type), contract(&second, alpha_type));
         assert_ne!(

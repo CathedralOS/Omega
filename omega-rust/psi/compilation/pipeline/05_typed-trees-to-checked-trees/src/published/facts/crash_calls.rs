@@ -119,12 +119,13 @@ fn predicate_expression(
     {
         let left = lower(binary.left);
         let right = lower(binary.right);
-        let identity = program
-            .type_identities
-            .with(|types| {
-                CrashPredicateExpression::structural_identity(type_identity, types, left, right)
-            })
-            .unwrap_or(CrashPredicateExpression::Invalid);
+        let identity = CrashPredicateExpression::structural_identity(
+            type_identity,
+            &program.type_identities,
+            left,
+            right,
+        )
+        .unwrap_or(CrashPredicateExpression::Invalid);
         return if binary.operator == typed_trees::expression::BinaryOperator::NotEqual {
             CrashPredicateExpression::Unary {
                 operator: typed_trees::expression::UnaryOperator::LogicalNot as u8,
