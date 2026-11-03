@@ -1928,6 +1928,48 @@ defines the complete product bar.
   hung-worker recovery via `omega run --both`, while foreign/stale tickets,
   dropped custody, early reclaim, and unbacked suspension borrows reject.
 
+- **CHECKED-REPRESENTATION-REUSE.** Checking a short program that uses `std`
+  takes about a minute and a half, because every compilation checks all of
+  `std` again. `omega --check tests/omega/pass/host/console_exit_process_exit`
+  checks about 3,184 supplied `std` machines and has a median of 96.7 s on a
+  4-core `linux_x86_64` host at `91b6625545`. On the hosted runner,
+  `tests/omega/pass/control_flow/borrowed_state_argument`,
+  `tests/omega/pass/control_flow/runtime_owned_state_parallel_swap_exit` and
+  `tests/omega/pass/write_only/state_forwarded_scalar_store_exit` still exceed
+  the 120 s per-fixture cap. That is Post-merge smoke run 41618901953 at
+  `39d196dd9`, after #1656. Local
+  optimization cannot close the gap. A sampled profile shows no frame above
+  7% of busy time and allocation at about 25% of leaf time, and the best
+  measured local repair (2%) was inside run-to-run noise. The remaining cost
+  is the checking each compilation repeats for unchanged dependencies, so it
+  needs reuse rather than tuning. The specification already allows reusing an
+  admitted dependency's checked representation once its applicability is
+  proved ([execution contexts and reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse),
+  [products and reuse](wiki/spec/build/testing.md#products-reuse-and-native-harnesses)).
+  Today the compiler reuses checks only within one live session
+  ([orchestration](omega-rust/omega/build-system/orchestration/README.md)).
+  Reuse is never admission: a cached analysis is not an admission certificate
+  ([acceptance](wiki/spec/packages/acceptance.md)), and package review's
+  [review cache](omega-rust/omega/packages/package-manager/src/review/candidate/review_cache.rs)
+  is a different artifact. Layouts used only inside unselected library code
+  are a separate share of the cost, tracked by owner question 6 in
+  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
+  - Persist an admitted dependency's checked representation under its exact
+    identity. Bind it to an applicability proof over the premises the
+    specification lists: the target, the provider closure, root-sensitive
+    facts, the optimization premise and the accepted policy.
+  - Make the CLI `--check` and `run` routes consume a stored representation
+    whose applicability holds.
+  - Re-check instead of reusing when any premise changes.
+  - Keep admission and review independent of reuse, so a stored
+    representation never stands in for either.
+  Acceptance: with a warm store, `console_exit_process_exit` checks in under
+  half its cold time on the same host; cold, it checks with unchanged
+  semantics. The three smoke
+  fixtures pass under the 120 s cap on the hosted runner. Changing a premise
+  (another target or provider closure) re-checks instead of reusing, and
+  fixtures pin both reuse and re-checking.
+
 ## Connected scientific library
 
 - **W100-CONNECTED.** (new-scope) Complete the connected rank-two scientific
