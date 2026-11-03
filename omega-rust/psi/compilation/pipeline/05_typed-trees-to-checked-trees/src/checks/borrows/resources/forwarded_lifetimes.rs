@@ -81,11 +81,12 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
             let mut final_weakening = lexical;
             while cursor < holders.len() {
                 let supplier = holders[cursor];
+                let supplier_end_handle = holder_ends[cursor];
                 let supplier_end = facts
                     .flow
                     .borrow_lifetimes
                     .weakenings
-                    .get(holder_ends[cursor]);
+                    .get(supplier_end_handle);
                 cursor += 1;
                 let Some(transferred) = transfers
                     .get(supplier.arena_index() as usize)
@@ -109,7 +110,7 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                         .established_by_call
                         .is_valid()
                     {
-                        holder_ends.push(holder_ends[cursor - 1]);
+                        holder_ends.push(supplier_end_handle);
                         holders.push(candidate);
                         continue;
                     }
