@@ -3350,6 +3350,13 @@ fail/float/constructor_case_invalid_wide_rejected rejected 3115ms expected @5de7
 fail/float/finite_return_arm_guard_misses_bound rejected 4813ms expected @66107356a089
 	cannot prove return value `narrowed` satisfies `finite` for bounded return type in `early.entry`
 	cannot prove return value `narrowed` satisfies `finite` for bounded return type in `late.entry`
+fail/float/specification_index_reference_selector_unbounded rejected 4743ms expected @e8827ad1dd64+wt
+	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
+	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
+	cannot form specification index in machine `peek` requires contract: independent collection bounds are not established by preceding formed facts
+	cannot form specification index in machine `peek` requires contract: independent collection bounds are not established by preceding formed facts
+fail/float/specification_index_write_only_selector rejected 2468ms expected @e8827ad1dd64+wt
+	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
 fail/generics/closed_requirement_in_generic_body_unproved_bound rejected 2491ms expected @2484aa7758a9+wt
 	static application of requirement `Echo::echo` violates its declared requires facts: the complete tuple is structurally false
 fail/generics/closed_requirement_in_generic_owner_false_bound rejected 492ms expected @390bdce3859c
@@ -12766,6 +12773,7 @@ pass/float/runtime_std_trigonometric_endpoints rejected 33378ms check-target:mac
 pass/float/runtime_total_order_satisfiers_exit checked 14841ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/saturating_named_operations_retain_ordered_inputs checked 7007ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/scalar_helper_boundary_sequence_exit checked 16852ms check-target:macos_arm64 @ccdb99ca2214
+pass/float/specification_index_reference_selector_exit checked 13950ms check-target:macos_arm64 @e8827ad1dd64+wt
 pass/float/state_arrival_ieee_predicates rejected 9570ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `bounded` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
 pass/float/state_loop_field_refinement_restoration_exit checked 57026ms check-target:macos_arm64 @911f6617ba9e
