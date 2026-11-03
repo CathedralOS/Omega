@@ -105,6 +105,9 @@ fail/contracts/completed_anonymous_cast_out_of_range_rejected rejected 401ms exp
 	anonymous value `2147483648` cannot land exactly in cast target `i32` in machine `exercise` state `entry` local `shifted`; type an operand before division if integer division was intended
 fail/contracts/completed_unit_call_requires_entry_case rejected 1331ms expected @d2f3e99f1e08
 	cannot prove requires contract for call retain from main: choice == constructor:80:package:d763eef68b74911c6c73d80b6728d886b63f0a89ca52797e221e9658799aab4d::Choice9:name:Cell (needs fact `choice == Choice::Cell` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/contracts/returned_case_geometry_domain_exit rejected 2460ms expected @12dc24de59c1+wt
+	construction of `BootGeometryCheck` field `geometry` is not proven in domain `BootGeometry::Separated` in separate state `entry` at statement 3; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from separate, state entry, at statement 3: BootGeometryCheck::Ready.geometry requires BootGeometry::Separated
 fail/contracts/runtime_recursive_result_false_base rejected 5958ms expected @3a4409d34005
 	cannot prove ensures contract for exit from carry at statement 2: result.first == first
 	cannot prove ensures contract for exit from carry at statement 2: result.second == second
@@ -4915,6 +4918,7 @@ pass/contracts/range_requires_discharge checked 3350ms @ccdb99ca2214
 pass/contracts/recurrent_call_prefix_preserves_model checked 3269ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/requires_narrow_ceiling_unproven checked 16071ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/requires_u8_ceiling_below_carrier checked 17670ms check-target:macos_arm64 @ccdb99ca2214
+pass/contracts/returned_case_geometry_domain_exit checked 4563ms check-target:macos_arm64 @12dc24de59c1+wt
 pass/contracts/returned_owned_field_mutation_exit checked 3355ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/returned_reference_field_mutation_exit checked 3207ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/runtime_address_field_contract_exit checked 3034ms check-target:macos_arm64 @ccdb99ca2214
