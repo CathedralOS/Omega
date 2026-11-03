@@ -2,7 +2,9 @@
 //! temporary name allocated while compiling it. Executable lookup is unchanged.
 
 use super::IndexIdentityArgument;
-use super::constraint_identity::{atom, byte_atom, compound};
+mod conformances;
+
+use super::constraint_identity::{atom, compound};
 use super::coordinates::CoordinateTag;
 use super::identity_context::{TypeIdentityContext, TypeIdentityQualification};
 use crate::TypedTrees;
@@ -229,46 +231,28 @@ impl PortableSpecializations {
                     );
                 }
             };
-            let identity = super::substitution::index_argument(program, operand, &argument_context);
-            let mut fields = vec![atom(Label::Kind, kind), identity.clone()];
-            if matches!(binding.value, StaticMachineBindingValue::Conformance(_)) {
+            let mut fields = vec![atom(Label::Kind, kind)];
+            if let StaticMachineBindingValue::Conformance(argument) = &binding.value {
                 let closed = conformances
                     .next()
                     .ok_or("specialized callable lost a checked conformance application")?;
-                if conformance_declarations.next() != Some(&closed.declaration)
-                    || closed.identity_encoding.is_empty()
-                {
+                if conformance_declarations.next() != Some(&closed.declaration) {
                     return Err(
                         "specialized callable has inconsistent checked conformance selection"
                             .into(),
                     );
                 }
-                let selected = crate::expression::StaticMachineArgument {
-                    symbol: closed.declaration,
-                    application: Some(Box::new(crate::expression::StaticSymbolApplication {
-                        member: Default::default(),
-                        lifetime_arguments: closed
-                            .lifetime_arguments
-                            .iter()
-                            .map(crate::name::Identifier::generated)
-                            .collect(),
-                        arguments: closed.arguments.clone(),
-                    })),
-                    ..Default::default()
-                };
-                let selected_identity = super::substitution::index_argument(
+                fields.push(conformances::project(
                     program,
-                    IndexIdentityArgument::StaticArgument(&selected),
+                    closed,
+                    argument,
                     &argument_context,
-                );
-                if identity != selected_identity {
-                    return Err("specialized callable conformance binding differs from its checked application".into());
-                }
-                // Keep both the full own telescope above and the checked
-                // selection's complete encoding; a compact hash is not enough.
-                fields.push(byte_atom(
-                    CoordinateTag::Declaration,
-                    &closed.identity_encoding,
+                )?);
+            } else {
+                fields.push(super::substitution::index_argument(
+                    program,
+                    operand,
+                    &argument_context,
                 ));
             }
             arguments.push(compound(CoordinateTag::Parameter, fields));
