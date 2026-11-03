@@ -17,10 +17,8 @@ machine evaluate(mode: Mode) -> u64 {
     }
 }
 
-// The mode arrives as a formal parameter, so only Mode's data `requires`
-// bounds `joined`; a constant actual would let the checker read the helper's
-// exact result instead.
-machine run(m: Mode) crashes Trap {
+machine main() crashes Trap {
+    let m: Mode = Mode::Mid { val: 40 };
     let joined: u64 = match true {
         true -> evaluate(m)
         _ -> evaluate(m)
@@ -33,8 +31,4 @@ machine run(m: Mode) crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
-}
-
-machine main() crashes Trap {
-    run(Mode::Mid { val: 40 });
 }

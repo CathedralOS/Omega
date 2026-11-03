@@ -53,10 +53,16 @@ with the exact-arithmetic obligation
 (``exact arithmetic in machine `run` state `entry` local `diff1` may overflow
 `u64`: the operands are not provably in range (decision 17 -- exact arithmetic
 is a proof obligation)``, pinned as ``may overflow `u64` `` in each twin's
-`expected.txt`). Each place receives the mode as a formal parameter, as
-`other_machine` always did: if `main` passed its constant `Mode::Mid { val: 40 }`
-straight into the helper, the checker would substitute that exact actual and
-read the result 40, so the twin's widened `High` gate would never be consulted.
+`expected.txt`). The local, field, parameter, call-result and const-name
+places receive the mode as a formal parameter, as `other_machine` always did:
+if `main` passed its constant `Mode::Mid { val: 40 }` straight into the helper,
+the checker would substitute that exact actual and read the result 40, so the
+twin's widened `High` gate would never be consulted. The match-join and
+nested-machine places still pass the constant, so their twins still compile:
+with a formal input the match-join positive does not lower ("does not lower a
+statement of it yet (outer calls: ordered statement call)") and the nested
+machine `step` does not receive the joined bound (`60u64 - val` may overflow).
+Those are open compiler gaps, not fixture choices.
 Corrupting the observed
 transition instead of the bound (`diff1 == 20 && diff2 == 20` to
 `diff1 == 21 && diff2 == 20`) routes to `bad()`, which executes `crash Trap;`;
