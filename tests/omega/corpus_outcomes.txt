@@ -481,6 +481,18 @@ fail/facts/component_scalar_lending_through_target_body_rejected rejected 8139ms
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/compound_index_guard_wrong_call_actual rejected 4670ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
+fail/facts/computed_subslice_extent_exclusive_predicate_input_rejected rejected 6361ms expected @93ac4da811fe
+	specification call `accepts` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+fail/facts/computed_subslice_extent_exclusive_public_predicate_input_rejected rejected 5399ms expected @93ac4da811fe
+	specification call `accepts` has no observation-free, reach-free, crash-free value denotation
+	specification call `accepts` carries forbidden denotational content
+fail/facts/computed_subslice_extent_linear_elements_rejected rejected 5631ms expected @93ac4da811fe
+	specification call `accepts` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+fail/facts/computed_subslice_extent_nested_reference_elements_rejected rejected 5607ms expected @93ac4da811fe
+	specification call `accepts` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+fail/facts/computed_subslice_extent_reference_result_rejected rejected 5443ms expected @93ac4da811fe
+	fact-position projection from call `identity` is not denotational: runtime arguments contain borrowed, opaque, linear or routed custody
+	specification call `identity` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/facts/contract_excluded_case_through_branch_world_rejected rejected 5621ms expected @f8ae8d815e07
 	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
 fail/facts/contract_excluded_case_through_call_result_rejected rejected 2949ms expected @f8ae8d815e07
@@ -7205,15 +7217,16 @@ pass/facts/computed_record_window_through_other_machine_exit checked 8438ms chec
 pass/facts/computed_record_window_through_other_state_exit checked 6860ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/computed_record_window_through_parameter_exit checked 7958ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/computed_record_window_through_target_body_exit checked 25498ms check-target:macos_arm64 @25f8bb78090b
-pass/facts/computed_subslice_extent_through_call_result_exit checked 4130ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_const_name_exit checked 4207ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_field_exit checked 4040ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_local_exit checked 4054ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_match_join_exit checked 3686ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_other_machine_exit checked 3974ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_other_state_exit checked 3727ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_parameter_exit checked 4672ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_target_body_exit checked 3904ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/computed_subslice_extent_shared_predicate_inputs_exit checked 9569ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_call_result_exit checked 7809ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_const_name_exit checked 9775ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_field_exit checked 11253ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_local_exit checked 8207ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_match_join_exit checked 8053ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_other_machine_exit checked 8062ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_other_state_exit checked 8238ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_parameter_exit checked 7977ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_target_body_exit checked 8137ms check-target:macos_arm64 @93ac4da811fe
 pass/facts/content_interval_adjacency_through_call_result_exit checked 14304ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/content_interval_adjacency_through_const_name_exit checked 11269ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/content_interval_adjacency_through_field_exit checked 19721ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -13589,8 +13602,8 @@ pass/operators/runtime_generic_reference_selector_snapshot_exit checked 6639ms c
 pass/operators/runtime_named_unit_statement_effects_exit checked 4455ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/runtime_selected_operator_requires_after_effects_exit checked 3267ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/runtime_xorshift_prng_exit checked 13755ms check-target:macos_arm64 @ccdb99ca2214
-pass/operators/slice_index_bounds_from_operator_contract checked 2563ms @ccdb99ca2214
-pass/operators/slice_range_bounds_from_operator_contract checked 2838ms @ccdb99ca2214
+pass/operators/slice_index_bounds_from_operator_contract checked 8246ms @93ac4da811fe
+pass/operators/slice_range_bounds_from_operator_contract checked 9186ms @93ac4da811fe
 pass/operators/unary_negation_exit checked 12215ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/unqualified_boundary_transition checked 2317ms @ccdb99ca2214
 pass/optimizer/address_offset_selection_exit checked 6642ms check-target:macos_arm64 @911f6617ba9e
@@ -13918,7 +13931,7 @@ pass/proofs/erased_mathematical_initializers checked 2617ms @ccdb99ca2214
 pass/proofs/exact_widening_keeps_source_carrier checked 3588ms @b80d7416b671+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 2906ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/family_carrier_relation_laws checked 2732ms @ccdb99ca2214
-pass/proofs/field_view_index_contract checked 5485ms @ccdb99ca2214
+pass/proofs/field_view_index_contract checked 10931ms @93ac4da811fe
 pass/proofs/float_guarded_negated_result_contract checked 5232ms @ccdb99ca2214
 pass/proofs/float_named_contract_literal_landing checked 5145ms @ccdb99ca2214
 pass/proofs/guarded_dynamic_field_arrival checked 12441ms check-target:macos_arm64 @ccdb99ca2214
@@ -14548,7 +14561,7 @@ pass/slices/runtime_guarded_view_copy_cycle_exit checked 11102ms check-target:ma
 pass/slices/runtime_helper_stored_view_return_exit rejected 3031ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	statement 3 creates local borrow `windows` while local borrow `returned` is still active (borrowed at statement 3; its last use is at statement 4)
 pass/slices/runtime_imported_range_views_exit checked 3789ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_imported_slice_provider_composition_exit checked 3940ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/runtime_imported_slice_provider_composition_exit checked 8229ms check-target:macos_arm64 @93ac4da811fe
 pass/slices/runtime_inclusive_call_endpoint_order_exit rejected 12556ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18197, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(30), requested: StructuralArgument { place: PlaceId(106), path: [], access: Owned }, requested_type: StructuralTypeId(30), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 12614ms check-target:macos_arm64 @ccdb99ca2214
@@ -16753,7 +16766,7 @@ fail/borrows/guard_subject_alias_held_through_call rejected 1839ms expected @ccd
 	statement 6 mutates `frames[__hoist_1]` while local borrow `saved` is still active (borrowed at statement 0)
 fail/borrows/guarded_structural_producer_shared_argument_cannot_mutate rejected 726ms expected @ccdb99ca2214
 	mutable argument `envelope` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/borrows/imported_range_retains_backing_loan rejected 1924ms expected @ccdb99ca2214
+fail/borrows/imported_range_retains_backing_loan rejected 5791ms expected @93ac4da811fe
 	statement 1 mutates `main.bytes` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/incoming_carrier_duplicate_exclusive_leaf rejected 2033ms expected @ccdb99ca2214
 	machine `duplicate` returns `carrier` as mutable more than once
@@ -23048,34 +23061,31 @@ fail/facts/computed_record_window_through_parameter_rejected rejected 4148ms exp
 fail/facts/computed_record_window_through_target_body_rejected rejected 20522ms expected @25f8bb78090b
 	cannot prove ensures contract for exit from X86Window::window at statement 1: result.len == 2
 	cannot prove ensures contract for exit from ArmWindow::window at statement 1: result.len == 2
-fail/facts/computed_subslice_extent_effectful_actual rejected 1708ms expected @ccdb99ca2214
-	exact arithmetic in machine `read` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/computed_subslice_extent_saved_predicate rejected 2570ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: cursor.low + 0 <= cursor.low + 2 && cursor.low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_stale_field rejected 3020ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_call_result_rejected rejected 3855ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from window: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_const_name_rejected rejected 3612ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_field_rejected rejected 3366ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_local_rejected rejected 3198ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_match_join_rejected rejected 2877ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_other_machine_rejected rejected 2718ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_other_state_rejected rejected 3460ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_parameter_rejected rejected 3486ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from exercise: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_target_body_rejected rejected 3018ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: __hoist_4 <= __hoist_5 && __hoist_5 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: __hoist_6 <= __hoist_7 && __hoist_7 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: __hoist_8 <= __hoist_9 && __hoist_9 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_effectful_actual rejected 3008ms expected @93ac4da811fe
+	exact arithmetic in machine `read` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/computed_subslice_extent_saved_predicate rejected 5825ms expected @93ac4da811fe
+	cannot prove subslice range end bound `cursor.low + 0..cursor.low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_stale_field rejected 6070ms expected @93ac4da811fe
+	cannot prove subslice range end bound `cursor.low + 0..cursor.low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_call_result_rejected rejected 5605ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in window::entry
+fail/facts/computed_subslice_extent_through_const_name_rejected rejected 6118ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_field_rejected rejected 6059ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_local_rejected rejected 6081ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_match_join_rejected rejected 6081ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in marked_window::entry
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_other_machine_rejected rejected 6142ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_other_state_rejected rejected 6141ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_parameter_rejected rejected 6026ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in exercise::entry
+fail/facts/computed_subslice_extent_through_target_body_rejected rejected 6026ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in ComputedWindowRead::read::read
 fail/facts/content_interval_adjacency_through_call_result_rejected rejected 10961ms expected @ee4dbb4b2d56
 	cannot prove ensures contract for exit from carry at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
@@ -35372,8 +35382,8 @@ fail/slices/inclusive_negative_endpoint rejected 2033ms expected @ccdb99ca2214
 	cannot prove subslice range end bound `0..end` is within unknown slice length of `values` in prefix::entry
 fail/slices/independent_returned_field_lengths rejected 1732ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand_same from main: short.values.len == long.values.len (needs fact `left.len == right.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/slices/index_operator_contract_unproven rejected 2601ms unexpected @ccdb99ca2214
-	cannot prove requires contract for call index from Main::main: 3 < main.values.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/slices/index_operator_contract_unproven rejected 5789ms expected @93ac4da811fe
+	cannot prove index `3` is within length 3
 fail/slices/inline_mutable_call_windows_overlap rejected 1357ms expected @ccdb99ca2214
 	state `inspect` receives `values[0..2]` as mutable more than once
 fail/slices/inline_shared_window_mutable_call rejected 1301ms expected @ccdb99ca2214
@@ -35591,8 +35601,8 @@ fail/slices/stored_write_only_view_mutable_call rejected 809ms expected @ccdb99c
 fail/slices/stored_write_only_view_shared_call rejected 625ms expected @ccdb99ca2214
 	machine `misuse` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	argument `values` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
-fail/slices/subslice_range_operator_contract_unproven rejected 1006ms expected @ccdb99ca2214
-	machine `Main::main` state `main` value call to `Slice::range` violates required fact `start <= end && end <= items.len`: the instantiated fact is structurally false (`9 <= 4 && 4 <= view.len`)
+fail/slices/subslice_range_operator_contract_unproven rejected 6859ms expected @93ac4da811fe
+	cannot prove subslice range start bound `9..4` is within slice length 4
 fail/slices/termination_slice_length_order_unimplemented rejected 982ms unexpected @ccdb99ca2214
 	terminal call `walk` does not select a declared machine entry or callable requirement
 fail/slices/unbounded_length_increment_requires_fit rejected 969ms expected @ccdb99ca2214
