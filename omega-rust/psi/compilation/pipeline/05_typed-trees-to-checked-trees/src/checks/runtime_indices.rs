@@ -471,15 +471,50 @@ impl Scope<'_> {
                         ExpressionNode::Integer(_) | ExpressionNode::Boolean(_)
                     );
                 let value = stable
-                    .then(|| values?.current(*argument))
-                    .flatten()
-                    .map(ScopedArithmeticValue::Term);
+                    .then(|| {
+                        values?
+                            .current(*argument)
+                            .map(ScopedArithmeticValue::Term)
+                            .or_else(|| self.descriptor_read_value(*argument))
+                    })
+                    .flatten();
                 (
                     (parameter.symbol, value),
                     (parameter.symbol, stable.then_some(*argument)),
                 )
             })
             .unzip()
+    }
+
+    /// A read of an indexed value's descriptor field (`selected.Count`) is
+    /// that value's captured index: construction and every descriptor store
+    /// prove the field equals the applied index, so the read names the same
+    /// scalar the value's type does. Specialization passes runtime binders
+    /// this way, so a forwarded indexed value keeps its subject identity.
+    fn descriptor_read_value(&self, expression: ExpressionHandle) -> Option<ScopedArithmeticValue> {
+        let ExpressionNode::Member(member) = self.program.expression_table.expression(expression)
+        else {
+            return None;
+        };
+        // A call operand is evaluated once; its saved subject names that
+        // same completed value.
+        let mut receiver = member.receiver;
+        if let ExpressionNode::SavedSubject(saved) =
+            self.program.expression_table.expression(receiver)
+        {
+            receiver = self
+                .program
+                .expression_table
+                .value_capture(saved.capture)
+                .subject;
+        }
+        let receiver = self.actual(receiver)?;
+        let (_, _, index) = self
+            .program
+            .data_application_value_fields(receiver.reference)
+            .into_iter()
+            .find(|(_, field, _)| field.symbol == member.member_symbol)?;
+        self.index(index, &receiver)
     }
 
     fn call_substitutions(
