@@ -389,16 +389,10 @@ impl<'checked> StorageDemand<'checked, '_, '_> {
             // A borrowed local's root identity is its logical referent, already
             // past the reference shells the producer spelled as leading
             // crossings. The plan counts those crossings; emission strips the
-            // same count before walking the projection, so a borrow through
-            // `& &T` loses two here, not one.
-            for _ in 0..root_reference_hops {
-                let Some((Segment::Referent, suffix)) = path.split_first() else {
-                    return unsupported(
-                        "borrowed projection lost its producer-spelled root crossing",
-                    );
-                };
-                path = suffix;
-            }
+            // same count, and refuses a path that lacks them, before walking
+            // the projection. Skip them here so a borrow through `& &T` walks
+            // from `T`, not from a shell already crossed.
+            path = path.get(root_reference_hops as usize..).unwrap_or_default();
         }
         self.roots.push(root);
         collect_path(self.checked, self.plans, root, path, self.roots)
