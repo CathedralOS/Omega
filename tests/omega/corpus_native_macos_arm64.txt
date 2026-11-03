@@ -4477,6 +4477,7 @@ pass/providers/same_name_requirement_dispatch_exit built 1026ms exit:70 @b14cbb2
 pass/providers/same_name_requirement_right_dispatch_exit built 934ms exit:70 @b14cbb25f486
 pass/providers/same_target_internal checked 9582ms @5041ef1af684+wt
 pass/providers/selected_const_provider_call_identity_exit built 5838ms exit:70 @4ffd613e37f1
+pass/providers/selected_lifecycle_review_exit built 11837ms exit:0 @73e41145e49b
 pass/providers/service_borrowed_parameter checked 226ms @48008365d839
 pass/providers/service_fused_root checked 9747ms @5041ef1af684+wt
 pass/providers/service_fused_root_establishment built 256ms
