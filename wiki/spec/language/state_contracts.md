@@ -136,6 +136,30 @@ Every reachable predecessor participates in a join. Unknown input cannot be
 omitted to preserve a convenient invariant. A minimum collection length is not
 an exact extent, and declaration initializers are not recurring loop invariants.
 
+## Unreachable branches
+
+Named decision: `scoped-contradiction-elimination`, settled 2026-11-03.
+
+A checked contradiction between valid premises can establish that a particular
+arrival is impossible. Obligations on that arrival may close by constructive
+[contradiction elimination](../proofs/classicality.md#contradiction-elimination).
+The contradiction must retain exact subjects, storage versions, scope and premise
+dependencies. Failure to prove an obligation is not evidence that its arrival
+is impossible; a dead branch cannot supply facts to a reachable predecessor.
+Source and operand well-formedness remain required.
+
+By default, issue an unreachable-branch warning when an authored branch
+contradicts its machine's entry contract or established source facts independent
+of specialization. The diagnostic identifies the branch condition and the
+conflicting premises, with their source locations where available. Do not warn
+merely because ordinary generic specialization or compile-time selection removes
+an alternative; a generic branch that already contradicts its own contract is
+not exempt. Proof-internal impossible cases do not each create source warnings.
+
+This is an advisory diagnostic, not an inherent language error. Proving the path
+impossible, pruning its emitted code and issuing a warning are separate decisions.
+Proof soundness does not depend on pruning or on warning emission.
+
 ## Terminal calls in transition arms
 
 Resolve every called target as a machine, nested or otherwise. A terminal call

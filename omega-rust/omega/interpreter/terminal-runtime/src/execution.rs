@@ -164,7 +164,7 @@ impl TerminalRuntimeError {
             TerminalInterpretError::UnsupportedCapability(_)
                 | TerminalInterpretError::UnsupportedSemanticVariant(_)
                 | TerminalInterpretError::ScalarEntryQualificationUnsupported
-                | TerminalInterpretError::AffineProjectionNotRepresentable
+                | TerminalInterpretError::AffineProjectionNotRepresentable { .. }
         )
     }
 

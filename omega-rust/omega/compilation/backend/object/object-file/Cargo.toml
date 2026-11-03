@@ -9,6 +9,8 @@ name = "object_file"
 path = "src/lib.rs"
 
 [dependencies]
+calling-conventions = { path = "../../calling-conventions" }
+layout-plans = { path = "../../../../../psi/foundation/layout-plans" }
 provider-admission = { path = "../../../realization/provider-admission" }
 machine-emission = { path = "../../machine-emission" }
 machine-code = { path = "../../../representations/machine-code" }

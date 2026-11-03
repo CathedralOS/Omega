@@ -766,14 +766,22 @@ impl<'program> CurrentScalarValues<'program> {
             {
                 continue;
             }
-            match self
-                .anchors
-                .iter_mut()
-                .find(|(anchored, _)| *anchored == place)
-            {
-                Some((_, anchor)) => *anchor = snapshot,
-                None => self.anchors.push((place, snapshot)),
-            }
+            self.anchor_at(place, snapshot);
+        }
+    }
+
+    fn anchor_at(
+        &mut self,
+        place: validation::CanonicalPlace,
+        snapshot: validation::completed_storage::versions::Snapshot,
+    ) {
+        match self
+            .anchors
+            .iter_mut()
+            .find(|(anchored, _)| *anchored == place)
+        {
+            Some((_, anchor)) => *anchor = snapshot,
+            None => self.anchors.push((place, snapshot)),
         }
     }
 
@@ -792,20 +800,35 @@ impl<'program> CurrentScalarValues<'program> {
     /// invocation, not addressable storage, and a stable descriptor's length
     /// survives endpoint stores. Without a graph position the effect is
     /// unknown: every other entry retires.
+    ///
+    /// A replay calls this at each write of the state prefix, in order. An
+    /// entry that survives at `at` is re-anchored there, so the next call
+    /// walks only the writes after `at` instead of the whole prefix again;
+    /// a std program spent seconds repeating those walks. When `at` lies on
+    /// every path to the next position, the shorter walk gives the same
+    /// answer. When it does not, the walk runs past `at` to the state's
+    /// start and the entry retires: a less precise answer, never an unsound
+    /// one. An entry that already holds no value has nothing to retire and
+    /// skips its walk.
     pub(crate) fn retire_unpreserved(
         &mut self,
         at: Option<validation::completed_storage::versions::Snapshot>,
     ) {
         let graph = self.program.storage_graph();
-        let preserved = |place: &validation::CanonicalPlace| match (at, graph) {
+        let mut survived = Vec::new();
+        let mut preserved = |place: validation::CanonicalPlace| match (at, graph) {
             (Some(at), Some(graph)) => {
-                validation::completed_storage::versions::place_preserved_since(
+                let kept = validation::completed_storage::versions::place_preserved_since(
                     self.program,
                     graph,
                     at,
-                    place,
-                    self.anchor_of(place),
-                )
+                    &place,
+                    self.anchor_of(&place),
+                );
+                if kept {
+                    survived.push(place);
+                }
+                kept
             }
             _ => false,
         };
@@ -815,7 +838,8 @@ impl<'program> CurrentScalarValues<'program> {
             .map(|binding| {
                 binding.immutable_coordinate
                     || binding.unwritable
-                    || preserved(&validation::CanonicalPlace {
+                    || (binding.value.is_none() && binding.alternatives.is_empty())
+                    || preserved(validation::CanonicalPlace {
                         root: facts::PlaceRoot::Symbol(binding.symbol),
                         segments: Vec::new(),
                     })
@@ -825,17 +849,18 @@ impl<'program> CurrentScalarValues<'program> {
             .fields
             .iter()
             .map(|field| {
-                preserved(&validation::CanonicalPlace {
-                    root: facts::PlaceRoot::Symbol(field.owner),
-                    segments: scalar_fields::source_path(&field.path),
-                })
+                field.value.is_none()
+                    || preserved(validation::CanonicalPlace {
+                        root: facts::PlaceRoot::Symbol(field.owner),
+                        segments: scalar_fields::source_path(&field.path),
+                    })
             })
             .collect::<Vec<_>>();
         let conditions = self
             .conditions
             .iter()
             .map(|condition| {
-                preserved(&validation::CanonicalPlace {
+                preserved(validation::CanonicalPlace {
                     root: facts::PlaceRoot::Symbol(condition.owner),
                     segments: condition
                         .path
@@ -850,9 +875,15 @@ impl<'program> CurrentScalarValues<'program> {
             .iter()
             .map(|length| {
                 length.stable
-                    || length_place(&length.subject).map_or(at.is_some(), |place| preserved(&place))
+                    || length.value.is_none()
+                    || length_place(&length.subject).map_or(at.is_some(), &mut preserved)
             })
             .collect::<Vec<_>>();
+        if let Some(at) = at {
+            for place in survived {
+                self.anchor_at(place, at);
+            }
+        }
         for (binding, preserved) in self.current.iter_mut().zip(bindings) {
             if !preserved {
                 binding.value = None;
