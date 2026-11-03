@@ -237,9 +237,9 @@ impl StructuralJudge<'_> {
         let type_bindings = self.data_application_type_bindings(subject_type);
         let definition = selected_definition;
         let variant = selected_variant;
-        // Taking this guard establishes the tag on the observed subject even
-        // when its complete default-domain predicates are unavailable. Keep
-        // that classifier separate from admission of payload predicates.
+        // A successful case test identifies this observed value's case even
+        // when its declared constraints are unavailable. Record the tag
+        // separately; payload and domain facts still need their own checks.
         self.intake_case_guarantee(&super::CaseGuarantee {
             subject: admitted_subject.clone(),
             data: definition.symbol,

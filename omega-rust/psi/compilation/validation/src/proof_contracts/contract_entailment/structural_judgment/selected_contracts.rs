@@ -835,6 +835,32 @@ pub(super) fn selected_requirement_judgment(
     type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
     depth: usize,
 ) -> StructuralJudgment {
+    selected_contract_predicate_judgment(
+        judge,
+        expression,
+        callable,
+        parameters,
+        bindings,
+        type_bindings,
+        None,
+        depth,
+    )
+}
+
+/// Completed public clauses can mention this call's exact result. Entry
+/// requirements use the same predicate owner without any result binding;
+/// neither route imports the clause being tested as one of its own premises.
+#[allow(clippy::too_many_arguments)]
+fn selected_contract_predicate_judgment(
+    judge: &StructuralJudge<'_>,
+    expression: ExpressionHandle,
+    callable: SymbolHandle,
+    parameters: &[typed_trees::signature::StateParameter],
+    bindings: &[(SymbolHandle, StructuralTerm)],
+    type_bindings: &[(SymbolHandle, TypeReferenceHandle)],
+    result: Option<&StructuralTerm>,
+    depth: usize,
+) -> StructuralJudgment {
     if depth >= 32 {
         return StructuralJudgment::Unknown;
     }
@@ -843,7 +869,7 @@ pub(super) fn selected_requirement_judgment(
         && matches!(binary.operator, BinaryOperator::And | BinaryOperator::Or)
     {
         // Knowing P or Q does not select either disjunct. First discharge the
-        // complete substituted requirement from retained predicate evidence.
+        // complete substituted predicate from retained evidence.
         if let Some(required) = judge.bound_contract_term(
             expression,
             callable,
@@ -851,7 +877,7 @@ pub(super) fn selected_requirement_judgment(
             callable,
             bindings,
             type_bindings,
-            None,
+            result,
             depth + 1,
         ) {
             let judgment = judge.judge_observed_predicate(required, depth);
@@ -864,28 +890,30 @@ pub(super) fn selected_requirement_judgment(
         // prevent a neighboring scalar leaf from reaching its judge.
         return StructuralJudgment::connective(
             binary.operator,
-            selected_requirement_judgment(
+            selected_contract_predicate_judgment(
                 judge,
                 binary.left,
                 callable,
                 parameters,
                 bindings,
                 type_bindings,
+                result,
                 depth + 1,
             ),
-            selected_requirement_judgment(
+            selected_contract_predicate_judgment(
                 judge,
                 binary.right,
                 callable,
                 parameters,
                 bindings,
                 type_bindings,
+                result,
                 depth + 1,
             ),
         );
     }
     if super::super::structural_terms::is_case_observation(program, expression) {
-        let Some(map) = parameters
+        let Some(mut map) = parameters
             .iter()
             .map(|parameter| {
                 let (_, value) = bindings
@@ -897,6 +925,9 @@ pub(super) fn selected_requirement_judgment(
         else {
             return StructuralJudgment::Unknown;
         };
+        if let Some(result) = result {
+            map.push((super::super::RESULT_BINDER.to_owned(), result.clone()));
+        }
         return judge.instantiated_case_judgment(callable, parameters, expression, &map);
     }
     if let Some(references) = super::super::structural_terms::data_identity_operand_references(
@@ -913,7 +944,7 @@ pub(super) fn selected_requirement_judgment(
                 callable,
                 bindings,
                 type_bindings,
-                None,
+                result,
                 depth + 1,
             )
         });
@@ -984,7 +1015,7 @@ pub(super) fn selected_requirement_judgment(
         callable,
         bindings,
         type_bindings,
-        None,
+        result,
         depth + 1,
     ) else {
         return StructuralJudgment::Unknown;
@@ -1064,27 +1095,24 @@ pub(super) fn capture_guarantees(
     }
     if let Some(binary) = binary
         && binary.operator == BinaryOperator::Or
-        && let Some(mut substitution) = parameters
-            .iter()
-            .map(|parameter| {
-                let (_, value) = bindings
-                    .iter()
-                    .find(|(symbol, _)| *symbol == parameter.symbol)?;
-                Some((parameter.name.to_string(), value.clone()))
-            })
-            .collect::<Option<Vec<_>>>()
+        && parameters.iter().all(|parameter| {
+            bindings
+                .iter()
+                .any(|(symbol, _)| *symbol == parameter.symbol)
+        })
     {
-        if let Some(result) = result {
-            substitution.push((super::super::RESULT_BINDER.to_owned(), result.clone()));
-        }
         let mut selected = false;
         for (alternative, sibling) in [(binary.left, binary.right), (binary.right, binary.left)] {
             if matches!(
-                judge.captured_operand_predicate_judgment(
+                selected_contract_predicate_judgment(
+                    judge,
+                    sibling,
                     scope,
                     parameters,
-                    sibling,
-                    &substitution
+                    bindings,
+                    type_bindings,
+                    result,
+                    depth + 1,
                 ),
                 StructuralJudgment::Refuted
             ) {
