@@ -16,18 +16,18 @@ reaches Console
     main.line[3] = 35;
     let empty: LineReadResult = block Console::read_line(&mut main.line[0..0]);
     transition empty {
-        LineReadResult::Full { count } -> empty_result(main, count)
+        LineReadResult::Full { count } -> block empty_result(main, count)
         _ -> invalid(main)
     }
     machine empty_result(main: &mut Main, count: u64) {
-        transition count == 0 { true -> read(main) false -> invalid(main) }
+        transition count == 0 { true -> block read(main) false -> invalid(main) }
     }
     machine read(main: &mut Main) {
         let result: LineReadResult = block Console::read_line(&mut main.line);
         transition result {
-            LineReadResult::LineComplete { count } -> report(main, 10, count)
-            LineReadResult::EndOfInput { count } -> report(main, 20, count)
-            LineReadResult::Full { count } -> report(main, 30, count)
+            LineReadResult::LineComplete { count } -> block report(main, 10, count)
+            LineReadResult::EndOfInput { count } -> block report(main, 20, count)
+            LineReadResult::Full { count } -> block report(main, 30, count)
             LineReadResult::Invalid -> invalid(main)
         }
     }

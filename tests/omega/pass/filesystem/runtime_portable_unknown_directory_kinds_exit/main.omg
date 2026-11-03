@@ -203,60 +203,60 @@ linux_arm64 machine directory_kind_offset() -> u64 ensures result >= 18 && resul
 macos_arm64 machine directory_kind_offset() -> u64 ensures result >= 18 && result <= 20 { 20 }
 
 data Main { filesystem: Filesystem; index: u64 in Wrapping; seen: u32; }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let result: UnitResult = block Filesystem::create_dir_all(&mut main.filesystem, "omega_unknown_kinds/sub");
-    transition result { UnitResult::Ok -> payload(main) _ -> bad(10) }
+    transition result { UnitResult::Ok -> block payload(main) _ -> bad(10) }
     machine payload(main: &mut Main) {
         let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "omega_unknown_kinds/sub/file", "contents");
-        transition result { UnitResult::Ok -> outside(main) _ -> bad(11) }
+        transition result { UnitResult::Ok -> block outside(main) _ -> bad(11) }
     }
     machine outside(main: &mut Main) {
         let result: UnitResult = block Filesystem::create_dir(&mut main.filesystem, "omega_unknown_outside");
-        transition result { UnitResult::Ok -> outside_file(main) _ -> bad(12) }
+        transition result { UnitResult::Ok -> block outside_file(main) _ -> bad(12) }
     }
     machine outside_file(main: &mut Main) {
         let result: UnitResult = block Filesystem::write_all(&mut main.filesystem, "omega_unknown_outside/keep", "keep");
-        transition result { UnitResult::Ok -> link(main) _ -> bad(13) }
+        transition result { UnitResult::Ok -> block link(main) _ -> bad(13) }
     }
     machine link(main: &mut Main) {
         let result: UnitResult = block Filesystem::symlink(&mut main.filesystem, "../omega_unknown_outside", "omega_unknown_kinds/link");
-        transition result { UnitResult::Ok -> read(main) _ -> bad(14) }
+        transition result { UnitResult::Ok -> block read(main) _ -> bad(14) }
     }
     machine read(main: &mut Main) {
         let result: DirEntryResult = block Filesystem::read_dir_nth(&mut main.filesystem, "omega_unknown_kinds", main.index as u64);
-        transition result { DirEntryResult::Ok { entry } -> classify(main, entry) DirEntryResult::End -> listed(main) _ -> bad(15) }
+        transition result { DirEntryResult::Ok { entry } -> block classify(main, entry) DirEntryResult::End -> block listed(main) _ -> bad(15) }
     }
     machine classify(main: &mut Main, entry: DirEntry) {
         transition {
-            entry.name_len == 3 && entry.name[0] == 115 && entry.is_dir && !entry.is_file -> directory(main)
-            entry.name_len == 4 && entry.name[0] == 108 && !entry.is_dir && !entry.is_file -> symlink(main)
+            entry.name_len == 3 && entry.name[0] == 115 && entry.is_dir && !entry.is_file -> block directory(main)
+            entry.name_len == 4 && entry.name[0] == 108 && !entry.is_dir && !entry.is_file -> block symlink(main)
             _ -> bad(16)
         }
     }
-    machine directory(main: &mut Main) { main.seen = main.seen | 1; transition { _ -> next(main) } }
-    machine symlink(main: &mut Main) { main.seen = main.seen | 2; transition { _ -> next(main) } }
+    machine directory(main: &mut Main) { main.seen = main.seen | 1; transition { _ -> block next(main) } }
+    machine symlink(main: &mut Main) { main.seen = main.seen | 2; transition { _ -> block next(main) } }
     machine next(main: &mut Main) {
         main.index += 1;
-        transition main.index <= 2 { true -> read(main) _ -> bad(17) }
+        transition main.index <= 2 { true -> block read(main) _ -> bad(17) }
     }
     machine listed(main: &mut Main) {
-        transition main.index == 2 && main.seen == 3 { true -> read_file(main) _ -> bad(18) }
+        transition main.index == 2 && main.seen == 3 { true -> block read_file(main) _ -> bad(18) }
     }
     machine read_file(main: &mut Main) {
         let result: DirEntryResult = block Filesystem::read_dir_nth(&mut main.filesystem, "omega_unknown_kinds/sub", 0);
-        transition result { DirEntryResult::Ok { entry } -> file_kind(main, entry) _ -> bad(19) }
+        transition result { DirEntryResult::Ok { entry } -> block file_kind(main, entry) _ -> bad(19) }
     }
     machine file_kind(main: &mut Main, entry: DirEntry) {
-        transition entry.is_file && !entry.is_dir { true -> remove(main) _ -> bad(20) }
+        transition entry.is_file && !entry.is_dir { true -> block remove(main) _ -> bad(20) }
     }
     machine remove(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove_dir_all(&mut main.filesystem, "omega_unknown_kinds");
-        transition result { UnitResult::Ok -> preserved(main) _ -> bad(21) }
+        transition result { UnitResult::Ok -> block preserved(main) _ -> bad(21) }
     }
     machine preserved(main: &mut Main) {
         let present: bool = block Filesystem::exists(&mut main.filesystem, "omega_unknown_outside/keep");
         let removed: bool = block Filesystem::exists(&mut main.filesystem, "omega_unknown_kinds");
-        transition present && !removed { true -> cleanup(main) _ -> bad(22) }
+        transition present && !removed { true -> block cleanup(main) _ -> bad(22) }
     }
     machine cleanup(main: &mut Main) {
         let result: UnitResult = block Filesystem::remove_dir_all(&mut main.filesystem, "omega_unknown_outside");
@@ -280,7 +280,7 @@ machine metadata_at_refuses_short_output() -> bool reaches FilesystemMetadataQue
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

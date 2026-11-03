@@ -210,9 +210,7 @@ impl StructuralJudge<'_> {
         self.stored_values
             .values_at(&coordinate)
             .find_map(|stored| {
-                if stored.backing.is_none() {
-                    return None;
-                }
+                stored.backing.as_ref()?;
                 let current = stored.current.as_ref()?;
                 let mut root = current.semantic_value();
                 loop {

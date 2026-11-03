@@ -231,9 +231,9 @@ fn decode_native_callback_argument(
         placement: decode_placement(cursor)?,
     };
     let destination = decode_native_place(cursor)?;
-    let field_byte_offset = crate::cursor::optional(
+    let field_placements = crate::cursor::optional(
         cursor,
-        |c| usize::try_from(c.u64()?).map_err(|_| FixedViewCopyDecodeError::LengthOverflow),
+        decode_callback_placements,
         FixedViewCopyDecodeError::UnknownOption,
     )?;
     let registrar_boundary_entry_plan = BoundaryEntryPlan {
@@ -261,7 +261,7 @@ fn decode_native_callback_argument(
         callback_function,
         application,
         destination,
-        field_byte_offset,
+        field_placements,
         registrar_boundary_entry_plan,
         registrar_context: CallbackMaterializationContext { binders, demands },
         registrar_application_commitment,
@@ -413,6 +413,39 @@ fn decode_call_binding(
         return Err(FixedViewCopyDecodeError::InvalidForeignTargetProfile);
     }
     Ok(binding)
+}
+
+fn decode_callback_placements(
+    cursor: &mut Cursor<'_>,
+) -> Result<calling_conventions::PrivateCallbackPlacements, FixedViewCopyDecodeError> {
+    use layout_plans::{IntegerInterpretation, LayoutPlacementReport};
+    let placements = decode_list::<_, FixedViewCopyDecodeError>(cursor, |cursor| {
+        Ok(match cursor.byte()? {
+            0 => LayoutPlacementReport::At {
+                offset: cursor.u64()?,
+            },
+            1 => LayoutPlacementReport::IntegerAt {
+                offset: cursor.u64()?,
+                stored_width: cursor.u64()?,
+                interpretation: match cursor.byte()? {
+                    0 => IntegerInterpretation::Signed,
+                    1 => IntegerInterpretation::Unsigned,
+                    tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+                },
+            },
+            2 => LayoutPlacementReport::Bits {
+                container: cursor.u64()?,
+                container_width: cursor.u64()?,
+                destination_lsb: cursor.u64()?,
+                source_lsb: cursor.u64()?,
+                width: cursor.u64()?,
+            },
+            tag => return Err(FixedViewCopyDecodeError::UnknownOption(tag)),
+        })
+    })?;
+    Ok(calling_conventions::PrivateCallbackPlacements::new(
+        &placements,
+    ))
 }
 
 #[cfg(test)]
