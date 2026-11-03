@@ -417,11 +417,13 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         let statements = typed_trees::statement::reachable_state_statements(
             program.statement_table.statements(state.statement_nodes),
         );
-        // A tail that transfers control to a named state produces no scalar
-        // completion; the state terminator owns those exits.
-        if !matches!(statements.last(), Some(StatementNode::Transition(_))) {
-            let expression = statements.last()?.as_expression()?;
-            let statement_index = u32::try_from(statements.len().checked_sub(1)?).ok()?;
+        let completion_index = statements.len().checked_sub(1)?;
+        // The retained computation owns a bare result and its normalized
+        // terminal invocation alike. Named state transfers keep their edge.
+        if let Some(expression) =
+            super::super::completion_expression(program, machine, state, completion_index)
+        {
+            let statement_index = u32::try_from(completion_index).ok()?;
             let role = CheckedScalarExpressionRole::Return;
             let computations = &facts.values.scalar_computations;
             let mut roots =
@@ -431,7 +433,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                     || !computations.is_authored_root(
                         root,
                         machine.symbol,
-                        *expression,
+                        expression,
                         primitive_type,
                     )
                     || facts
@@ -449,7 +451,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                     statement_index,
                     role,
                 )?;
-                if binding.expression != *expression
+                if binding.expression != expression
                     || crate::values::scalar_expression_type(value) != Some(primitive_type)
                 {
                     return None;
