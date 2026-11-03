@@ -52,6 +52,21 @@ constant boundary: Pair checks, byte snapshots, extent checks and write markers.
 The live mutable reference stays inside that evaluation. Main verifies those
 constant observations and runs the same observer at runtime.
 
+The following obligations remain open until the programs check, execute and
+reject their controls as authored:
+
+| Requirement | How the programs exercise it |
+| --- | --- |
+| Establishment | The writer must prove its byte promises from its stores. The reader must prove its field promises from the bytes it reads. |
+| Value identity and lifetime | The input pair keeps its saved value, and the returned buffer permits a write visible to the caller. The frame borrow has a separate lifetime from its buffer. |
+| Composition | The public round-trip promise justifies the consuming call directly. Each place carries the completed Result before that call. |
+| Ownership and proof boundaries | Reading borrows the frame while its owner keeps the mutable buffer. Only owned snapshots leave constant evaluation. The corrupt decoder must fail its field promise. |
+| Checked source to Terminal Psi | Both engines must run the complete operation once, preserve the borrowed storage and return the authored result. No Terminal execution has passed yet. |
+| Build selection, layout and calls | All four hosted entries are bound. The selected-body place checks which implementation ran, and neighboring fields and bytes detect misplaced storage or arguments. |
+| Instructions, registers and frames | Native execution must preserve both pair fields and the returned buffer across the nested and selected calls. This remains unverified. |
+| Encoding and native image | The emitted program must execute and agree with Terminal Psi. Other-host observations remain open. |
+| Runtime falsifiability | Main traps on a wrong pair, byte, extent, marker or neighbor. It exercises both pair inputs, both join arms, short capacity and malformed input. |
+
 | Place | Completed-result transport | Reject twin |
 | --- | --- | --- |
 | [Local](local/main.omg) | Local completed result | [Wrong last-byte load](local/invalid/main.omg) |
