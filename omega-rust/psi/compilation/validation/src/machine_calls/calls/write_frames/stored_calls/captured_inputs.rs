@@ -233,7 +233,8 @@ fn observations(
             ),
             ReferenceSource::Symbolic(_) => return None,
         };
-        for mut source in [candidate] {
+        {
+            let mut source = candidate;
             if !has_captured_namespace(&source.origin.source)
                 || !source.origin.source.builtin_coordinates
                 || !has_captured_namespace(&source.carrier)

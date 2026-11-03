@@ -45,7 +45,7 @@ impl CapturedSourceEntry {
     pub fn file(bytes: impl Into<Arc<[u8]>>, executable: bool) -> Self {
         let bytes = bytes.into();
         Self::File {
-            digest: crate::digest_encoder::content_identity(bytes.as_ref()).into(),
+            digest: crate::digest_encoder::content_identity(bytes.as_ref()),
             bytes,
             executable,
         }
@@ -56,7 +56,7 @@ impl CapturedSourceEntry {
     pub fn symlink(target: impl Into<Arc<[u8]>>) -> Self {
         let target = target.into();
         Self::Symlink {
-            digest: crate::digest_encoder::content_identity(target.as_ref()).into(),
+            digest: crate::digest_encoder::content_identity(target.as_ref()),
             target,
         }
     }

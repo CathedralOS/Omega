@@ -129,10 +129,10 @@ fn case_membership_test(
     )
 }
 
-fn domain_definition<'p>(
-    program: &'p resolved::SymbolResolvedTrees,
+fn domain_definition(
+    program: &resolved::SymbolResolvedTrees,
     domain_symbol: SymbolHandle,
-) -> Result<&'p resolved::domain::DomainDefinition, Diagnostic> {
+) -> Result<&resolved::domain::DomainDefinition, Diagnostic> {
     program
         .domain_definition_by_symbol(domain_symbol)
         .ok_or_else(|| {

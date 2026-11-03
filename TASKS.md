@@ -2075,17 +2075,18 @@ defines the complete product bar.
 ## Rust compiler release closure
 
 - **RC-RELEASE-RECORD-AND-CLOSURE.** (Also covers **`RC-REPOSITORY-CLOSURE`**,
-  **`IND19-SPECTRUM-VALIDATION-RED`**, **`RC-NATIVE-MATRIX-LINUX-X86-64`**,
+  **`RC-NATIVE-MATRIX-LINUX-X86-64`**,
   **`RC-NATIVE-MATRIX-LINUX-ARM64`**, **`RC-NATIVE-MATRIX-MACOS-ARM64`**, and
   **`RC-NATIVE-MATRIX-WINDOWS-X64`**.) Produce the same-commit release record
   across all four required hosts (`linux_x86_64`, `linux_arm64`, `macos_arm64`,
   `windows_x86_64`) via `tools/release/release_record.py` under the
   [completion contract](wiki/drafts/reference/rust_compiler_completion.md):
-  - Repair the `ind19-spectrum-validation` API drift
-    (`TerminalRuntimeRequest.x86_flags`, `CheckedCompilation::into_program`) and
-    pass `python tools/fmt.py --check`, workspace all-target Clippy, workspace
+  - Pass `python tools/fmt.py --check`, workspace all-target Clippy, workspace
     all-target check, and `mbx nextest run --workspace --lib --no-fail-fast` at
-    one clean commit.
+    one clean commit on each required host. Frontier on linux_x86_64: format,
+    Clippy and check pass; 65 library tests fail (48 already failing at
+    `61d32e24eb90`, 16 more at `b6579dc23f59`, and one const-width rejection
+    test that compiles again; listed in #1646).
   - Pass `RC-NATIVE-MATRIX` and `RC-REPRESENTATIVE-PROGRAMS`
     (`tools/sample_native_gate.py`) with direct native execution on Linux
     x86-64, Linux ARM64, macOS ARM64, and Windows x86-64 (including Windows

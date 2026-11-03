@@ -87,9 +87,7 @@ pub fn aarch64_normalized_foreign_call_declaration(
         return None;
     }
     let variant = u32::from(register_destinations != 0) | (u32::from(field_destinations != 0) << 1);
-    let byte_count = if supervisor {
-        20
-    } else if table.is_some() {
+    let byte_count = if supervisor || table.is_some() {
         20
     } else {
         4_u16

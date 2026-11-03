@@ -701,7 +701,7 @@ fn push_field_leaf(
         return None;
     }
     let mut child_path = path.to_vec();
-    child_path.push(StructuralPathSegment::Field(field.identity.clone()));
+    child_path.push(StructuralPathSegment::Field(field.identity));
     pending.push((child, child_path));
     Some(())
 }
@@ -1857,7 +1857,7 @@ fn call_results(
                     function,
                     custody,
                     types,
-                    &source,
+                    source,
                     psi_operation,
                     &root,
                 )?;
@@ -2638,7 +2638,7 @@ pub(in crate::legalization) fn apply(
                     if let Some(case) = case {
                         prefix.push(StructuralPathSegment::Case(case));
                     }
-                    prefix.push(StructuralPathSegment::Field(declaration.identity.clone()));
+                    prefix.push(StructuralPathSegment::Field(declaration.identity));
                     operands.push((argument, *nested, prefix));
                 }
             }

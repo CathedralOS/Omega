@@ -473,10 +473,10 @@ impl<'a> Replay<'a> {
                     matches!(origin, Origin::Storage(backing) if backing.root != root.root)
                 })
                 });
-        if let Some(value) = state.slots.get(&location) {
-            if value.is_some() || location.path.is_empty() || !external_pointee {
-                return value.clone();
-            }
+        if let Some(value) = state.slots.get(&location)
+            && (value.is_some() || location.path.is_empty() || !external_pointee)
+        {
+            return value.clone();
         }
         if self.slot_kind.tracks_references()
             && location.path.contains(&DescriptorPathSegment::Referent)
@@ -1123,10 +1123,9 @@ impl<'a> Replay<'a> {
                     .case_successors
                     .get(&position)
                     .and_then(|cases| cases.get(ordinal))
+                    && !super::case_flow::select(self, machine, &mut selected, predicate, *truth)?
                 {
-                    if !super::case_flow::select(self, machine, &mut selected, predicate, *truth)? {
-                        continue;
-                    }
+                    continue;
                 }
                 let carried = self.transfer_edge(machine, &selected, edge, &case_storage)?;
                 match states.get_mut(&edge.target) {
@@ -2044,7 +2043,11 @@ mod snapshot_tests {
         );
         assert!(hidden.contents_path_invalidated(&below));
         assert!(hidden.contents_address_invalidated(&below));
-        assert!(replay.contents_targets(&graph[0], &hidden, &below).is_none());
+        assert!(
+            replay
+                .contents_targets(&graph[0], &hidden, &below)
+                .is_none()
+        );
         drop(replay);
 
         let mut limited = Replay::with_slot_kind(&types, &graph, DescriptorSlotKind::References);

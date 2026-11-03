@@ -323,9 +323,7 @@ fn field_plus_constant(
     program: &dyn ::validation::CheckingInput,
     value: ExpressionHandle,
 ) -> Option<(String, i64)> {
-    let Some(binary) = program.expression_table.binary_node(value) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(value)?;
     let positive_constant = |side: ExpressionHandle| match program.expression_table.expression(side)
     {
         ExpressionNode::Integer(constant) => constant.value_i64().filter(|constant| *constant > 0),

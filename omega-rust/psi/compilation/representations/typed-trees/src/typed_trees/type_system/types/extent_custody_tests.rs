@@ -68,8 +68,10 @@ fn completed_extent_custody_survives_distinct_arenas_and_replacement() {
     assert_eq!(source.array_extent_argument(fresh), argument);
 
     let mut program = crate::TypedTrees::default();
-    program.type_reference_table = source;
-    program.expression_table = expressions;
+    // The tables live behind `DerefMut`, which also resets derived indexes.
+    let tables = &mut *program;
+    tables.type_reference_table = source;
+    tables.expression_table = expressions;
     let applied = program
         .apply_callable_type(fresh, &[], &[], SymbolHandle::invalid())
         .unwrap();

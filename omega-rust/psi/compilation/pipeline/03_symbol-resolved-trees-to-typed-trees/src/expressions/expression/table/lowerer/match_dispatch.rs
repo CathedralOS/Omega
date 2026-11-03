@@ -112,7 +112,7 @@ impl ExpressionTableLowerer<'_, '_, '_> {
                     pattern_head: head,
                 }))
         });
-        let case = expression_table(&self.target_trees)
+        let case = expression_table(self.target_trees)
             .name_path_node(head)
             .map(|name| name.symbol)
             .filter(|symbol| {

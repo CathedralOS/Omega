@@ -412,6 +412,21 @@ semantic_id!(
     "Stable identity of an installation profile's acceptance decision."
 );
 
+impl compiler_storage::Record for PackageKeyIdentity {
+    fn write(
+        &self,
+        output: &mut compiler_storage::RecordWriter,
+    ) -> Result<(), compiler_storage::RecordError> {
+        compiler_storage::Record::write(&self.digest(), output)
+    }
+    fn read<Context>(
+        input: &mut compiler_storage::RecordReader<'_, Context>,
+    ) -> Result<Self, compiler_storage::RecordError> {
+        Self::from_digest(compiler_storage::Record::read(input)?)
+            .ok_or_else(|| input.error("package identity has the reserved zero digest"))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{FuelScheduleIdentity, PackageKeyIdentity};
@@ -438,20 +453,5 @@ mod tests {
                 .digest(),
             digest
         );
-    }
-}
-
-impl compiler_storage::Record for PackageKeyIdentity {
-    fn write(
-        &self,
-        output: &mut compiler_storage::RecordWriter,
-    ) -> Result<(), compiler_storage::RecordError> {
-        compiler_storage::Record::write(&self.digest(), output)
-    }
-    fn read<Context>(
-        input: &mut compiler_storage::RecordReader<'_, Context>,
-    ) -> Result<Self, compiler_storage::RecordError> {
-        Self::from_digest(compiler_storage::Record::read(input)?)
-            .ok_or_else(|| input.error("package identity has the reserved zero digest"))
     }
 }

@@ -285,7 +285,7 @@ pub(crate) fn lower_state_signature_parts(
             name: crate::lowering::name::lower_name(syntax_trees, name),
             storage: StateSignatureStorage {
                 spelling,
-                lifetime_parameters: lower_names(syntax_trees, &lifetime_parameters),
+                lifetime_parameters: lower_names(syntax_trees, lifetime_parameters),
                 type_parameters,
                 conformance_bounds,
                 is_default,
@@ -361,7 +361,7 @@ pub(crate) fn lower_machine_signature_contracts(
     contracts: HandleSpan<CapabilityContract>,
     states: HandleSpan<Handle<symbol_resolved_trees::state::State>>,
 ) -> Result<HandleSpan<SignatureContract>, Diagnostic> {
-    let has_outcome_rows = syntax_items(&syntax_trees)
+    let has_outcome_rows = syntax_items(syntax_trees)
         .capability_contracts(contracts)
         .iter()
         .any(|contract| {
@@ -660,7 +660,7 @@ pub(crate) fn lower_state_parameters(
     let mut span = HandleSpan::empty();
 
     for parameter in syntax_trees.items.state_parameters(parameters) {
-        let authored_type = syntax_items(&syntax_trees)
+        let authored_type = syntax_items(syntax_trees)
             .state_parameter(*parameter)
             .type_reference;
         let parameter = lower_state_parameter(lowerer, syntax_trees, *parameter)?;

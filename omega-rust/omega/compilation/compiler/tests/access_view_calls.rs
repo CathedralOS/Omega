@@ -403,8 +403,7 @@ fn reordered_views_preserve_origin_and_reject_conflicting_shared_descriptors() {
         }
         let bytes = terminal_codec::encode_module(&module).expect("tampered relation encodes");
         let error = terminal_codec::decode_module(&bytes)
-            .err()
-            .expect("tampered relation rejects at external ingress");
+            .expect_err("tampered relation rejects at external ingress");
         assert!(format!("{error:?}").contains("AccessViewInput"));
         eprintln!("tampered formal relation {corruption}: {error:?}");
     }

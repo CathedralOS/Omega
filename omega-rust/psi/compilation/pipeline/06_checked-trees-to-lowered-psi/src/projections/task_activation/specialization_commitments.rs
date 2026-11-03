@@ -30,8 +30,8 @@ pub(crate) fn exact_task_machine_contract<'program>(
     Ok(plan)
 }
 
-pub(crate) fn task_specialization_commitment<'program>(
-    typed: &'program checked_trees::typed_trees::TypedTrees,
+pub(crate) fn task_specialization_commitment(
+    typed: &checked_trees::typed_trees::TypedTrees,
     check_facts: &checked_trees::CheckFacts,
     selection: &TaskStartSelection,
     target_machine: &checked_trees::machine::Machine,
@@ -153,9 +153,9 @@ impl ExactSpecializationEncoder {
         }
     }
 
-    fn target_machine_specialization<'program>(
+    fn target_machine_specialization(
         &mut self,
-        typed: &'program checked_trees::typed_trees::TypedTrees,
+        typed: &checked_trees::typed_trees::TypedTrees,
         check_facts: &checked_trees::CheckFacts,
         target_machine: symbols::SymbolHandle,
     ) -> Result<(), Vec<Diagnostic>> {
@@ -224,7 +224,7 @@ impl ExactSpecializationEncoder {
         }
         let operator_realizations =
             checked_trees::typed_trees::operator::canonical_closed_operator_realization_bytes(
-                &typed,
+                typed,
                 specialization.instance,
                 &specialization.operator_realizations,
             )
@@ -237,9 +237,9 @@ impl ExactSpecializationEncoder {
         Ok(())
     }
 
-    fn machine<'program>(
+    fn machine(
         &mut self,
-        typed: &'program checked_trees::typed_trees::TypedTrees,
+        typed: &checked_trees::typed_trees::TypedTrees,
         machine: &checked_trees::machine::Machine,
     ) -> Result<(), Vec<Diagnostic>> {
         let identity = typed
@@ -260,9 +260,9 @@ impl ExactSpecializationEncoder {
         Ok(())
     }
 
-    fn state<'program>(
+    fn state(
         &mut self,
-        typed: &'program checked_trees::typed_trees::TypedTrees,
+        typed: &checked_trees::typed_trees::TypedTrees,
         owner: &checked_trees::machine::Machine,
         state: &checked_trees::state::State,
     ) {
@@ -279,7 +279,7 @@ impl ExactSpecializationEncoder {
     }
 
     fn finish(self) -> [u8; 32] {
-        self.0.finish().into()
+        self.0.finish()
     }
 }
 

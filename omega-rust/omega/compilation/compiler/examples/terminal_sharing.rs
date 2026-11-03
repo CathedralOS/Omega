@@ -309,11 +309,13 @@ fn main() {
             if let Some(inputs) = &prepared.package_inputs {
                 request = request.with_package_inputs(inputs.clone());
             }
-            let single =
-                orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
-                    .expect("single target admission")
-                    .into_single_report()
-                    .expect("single target production");
+            let single = orchestration::compile_sources(
+                &mut compiler::CompilationSession::default(),
+                request,
+            )
+            .expect("single target admission")
+            .into_single_report()
+            .expect("single target production");
             let shared = &shared
                 .retained_native_artifact()
                 .expect("shared native")

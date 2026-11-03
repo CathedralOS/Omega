@@ -527,7 +527,7 @@ pub(crate) fn encode_unchecked(
             return super::register_access::encode(operation, registers);
         }
         Kind::AtomicAccess { form } => bytes.extend(crate::selected_form_encoding::atomic::encode(
-            form, &registers,
+            form, registers,
         )?),
         // Float arithmetic is encoded only by its own module.
         Kind::AccessorScalarAccess { .. }

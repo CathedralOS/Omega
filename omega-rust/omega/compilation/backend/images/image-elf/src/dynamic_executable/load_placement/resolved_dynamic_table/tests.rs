@@ -23,7 +23,6 @@ fn placed(target: TargetProfile, imported_symbol: &[u8]) -> ValidatedElfPlacedSe
         "versioned import locator",
     );
     let load = crate::test_support::import_call_load_layout(image, symbol_handle, target);
-    let load = load;
     apply_elf_section_header_placements(load).unwrap()
 }
 

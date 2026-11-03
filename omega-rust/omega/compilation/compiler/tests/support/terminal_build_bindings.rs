@@ -1,7 +1,6 @@
 //! The complete source Build entry, with real host binding effects and helper
 //! writeback. Product bodies stay inert; fuel pauses resume the same activation.
-#[path = "terminal_provision.rs"]
-mod terminal_provision;
+use super::terminal_provision;
 
 use build_settings::host::bindings::TerminalBuildBindingHost;
 use build_settings::host::requests::TerminalBuildRequestHost;

@@ -139,14 +139,13 @@ impl LinearForm {
     fn set_coefficient(&mut self, atom: LinearAtom, coefficient: i64) {
         if let Some(existing) = self.terms.iter_mut().find(|(term, _)| *term == atom) {
             existing.1 = coefficient;
-            if let LinearAtom::Field { place, .. } = atom {
-                if let LinearAtom::Field {
+            if let LinearAtom::Field { place, .. } = atom
+                && let LinearAtom::Field {
                     place: existing_place,
                     ..
                 } = &mut existing.0
-                {
-                    *existing_place = place;
-                }
+            {
+                *existing_place = place;
             }
         } else if coefficient != 0 {
             self.terms.push((atom, coefficient));
@@ -264,15 +263,13 @@ impl ExitScalars<'_, '_> {
             ExpressionNode::Name(path) => path.resolved_symbol(),
             _ => None,
         };
-        if let Some(symbol) = named {
-            if substitution
+        if let Some(symbol) = named
+            && substitution
                 .iter()
                 .all(|(parameter, _)| *parameter != symbol)
-            {
-                if let Some(initializer) = self.local_initializer(symbol, state) {
-                    return self.reconstruction_forms(initializer, state, substitution, depth + 1);
-                }
-            }
+            && let Some(initializer) = self.local_initializer(symbol, state)
+        {
+            return self.reconstruction_forms(initializer, state, substitution, depth + 1);
         }
         let call = match self.program.expression_table.expression(peeled) {
             ExpressionNode::Call(call) => Some(CopiedCall {

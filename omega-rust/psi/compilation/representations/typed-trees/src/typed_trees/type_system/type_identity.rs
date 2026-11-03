@@ -1114,7 +1114,7 @@ impl TypedTrees {
         if !symbol.is_valid() {
             return Err("a hermetic identity contains an unresolved declaration".to_owned());
         }
-        match derived_declarations::nominal_name(
+        if let Some(identity) = derived_declarations::nominal_name(
             self,
             symbol,
             &TypeIdentityContext {
@@ -1125,8 +1125,7 @@ impl TypedTrees {
         )
         .map_err(str::to_owned)?
         {
-            Some(identity) => return Ok(identity),
-            None => {}
+            return Ok(identity);
         }
         let path = self.symbols.display_path(symbol, "::");
         if let Some(package) = self.symbols.symbol_package_identity(symbol) {

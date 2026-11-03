@@ -240,7 +240,7 @@ mod tests {
                 let encoded = encode(target, kind, &operands).unwrap();
                 assert_eq!(encoded.footprint().encoded, effects(target).unwrap());
                 reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupted| {
-                    validate(target, &operands, &corrupted).is_err()
+                    validate(target, &operands, corrupted).is_err()
                 });
                 let different = [physical
                     .model()

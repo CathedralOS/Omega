@@ -675,19 +675,21 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &state_views,
         &presents,
     )?;
-    let mut occurrences = super::super::ComposedOccurrences::default();
-    occurrences.state_blocks = plan
-        .states
-        .iter()
-        .zip(&state_ids)
-        .zip(&admitted.live)
-        .filter(|(_, live)| **live)
-        .map(|((state, block), _)| lowered_psi::LoweredStateBlock {
-            machine: terminal_machine,
-            state: state.state,
-            block: *block,
-        })
-        .collect();
+    let occurrences = super::super::ComposedOccurrences {
+        state_blocks: plan
+            .states
+            .iter()
+            .zip(&state_ids)
+            .zip(&admitted.live)
+            .filter(|(_, live)| **live)
+            .map(|((state, block), _)| lowered_psi::LoweredStateBlock {
+                machine: terminal_machine,
+                state: state.state,
+                block: *block,
+            })
+            .collect(),
+        ..Default::default()
+    };
     let captured_loans = captured_loans::CapturedLoans::plan(
         plan,
         &checked.facts.values.structural_values,

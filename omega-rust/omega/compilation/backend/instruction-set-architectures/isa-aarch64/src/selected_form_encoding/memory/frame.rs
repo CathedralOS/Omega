@@ -285,8 +285,10 @@ mod tests {
                         let mut address = stack;
                         for word in encoded
                             .bytes()
-                            .chunks_exact(4)
-                            .map(|bytes| u32::from_le_bytes(bytes.try_into().unwrap()))
+                            .as_chunks::<4>()
+                            .0
+                            .iter()
+                            .map(|bytes| u32::from_le_bytes(*bytes))
                         {
                             if word & 0xffc0_0000 == 0x9240_0000 {
                                 let mask = (u64::MAX >> (63 - ((word >> 10) & 63)))
@@ -321,7 +323,7 @@ mod tests {
                             &[value],
                             frame_offset,
                             alignment,
-                            &corrupt,
+                            corrupt,
                         )
                         .is_err()
                     });
@@ -458,7 +460,7 @@ mod tests {
                         &operands,
                         displacement,
                         1,
-                        &corrupt,
+                        corrupt,
                     )
                     .is_err()
                 });

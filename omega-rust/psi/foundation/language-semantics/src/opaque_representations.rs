@@ -44,7 +44,7 @@ pub fn selected_application_commitment(
         OpaqueRepresentationCopyDisposition::CheckedSemanticCopy => 2,
     });
     digest.raw(&conformance_application_commitment);
-    digest.finish().into()
+    digest.finish()
 }
 
 /// Exact portable declaration roles and the complete existing Source-v4

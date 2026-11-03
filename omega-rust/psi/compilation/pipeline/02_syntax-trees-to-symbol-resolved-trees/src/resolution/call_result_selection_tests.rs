@@ -10,7 +10,7 @@ use symbol_resolved_trees::{
 };
 
 fn call_identities(program: &SymbolResolvedTrees) -> Vec<String> {
-    body_expressions(&program)
+    body_expressions(program)
         .iter_expressions()
         .filter_map(|(_, expression)| {
             let ExpressionNode::Call(call) = expression else {

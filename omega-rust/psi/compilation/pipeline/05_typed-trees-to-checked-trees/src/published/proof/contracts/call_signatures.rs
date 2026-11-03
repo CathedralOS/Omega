@@ -189,10 +189,10 @@ pub(crate) fn owns_contract(
             })
 }
 
-pub(crate) fn signature<'proof>(
-    proof: &'proof checked_trees::ProofFacts,
+pub(crate) fn signature(
+    proof: &checked_trees::ProofFacts,
     selected: ContractProofFactOwner,
-) -> Option<&'proof typed_trees::signature::StateSignature> {
+) -> Option<&typed_trees::signature::StateSignature> {
     let ContractProofFactOwner::CallSignature { application, .. } = selected else {
         return None;
     };

@@ -430,9 +430,7 @@ fn observed_scalar_field(
     // Common fields sit beside the tag regardless of the active case.
     let carrier = terminal_semantics::record_field_carrier(structural_types.iter(), root, path)?;
     let declaration = exact_structural_type(structural_types, carrier.structural_type)?;
-    let Some(fields) = declaration.shape.direct_fields() else {
-        return None;
-    };
+    let fields = declaration.shape.direct_fields()?;
     unique_relevant_scalar_field(fields, field, true)
 }
 

@@ -90,30 +90,23 @@ pub(super) fn selected_call_path(
     content_conservation: &[ContentConservationSourcePlan],
 ) -> Option<SiteFallthrough> {
     let mut guards = Vec::new();
-    let Some(state) = program.state_in_machine(machine, location.state()) else {
-        return None;
-    };
+    let state = program.state_in_machine(machine, location.state())?;
     let ordinal = location.statement_ordinal() as usize;
-    let Some(transition) = program
+    let transition = program
         .statement_table
         .statement_at(state, ordinal)
-        .and_then(|statement| statement.as_transition())
-    else {
-        return None;
-    };
+        .and_then(|statement| statement.as_transition())?;
     let TransitionGuardNode::When(guard) = transition.guard else {
         return None;
     };
-    let Some(target) = transition_call_target(
+    let target = transition_call_target(
         program,
         machine,
         state,
         ordinal,
         location.call_ordinal() as usize,
     )
-    .filter(|target| target.is_valid()) else {
-        return None;
-    };
+    .filter(|target| target.is_valid())?;
     collect_stable_consequences(
         program,
         machine.symbol,

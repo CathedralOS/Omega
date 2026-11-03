@@ -278,7 +278,7 @@ fn join_import_coverage_rows<'input>(
             .entry(*boundary)
             .or_insert_with(|| ImportCoverageRows {
                 boundary: *boundary,
-                requirement: *requirement,
+                requirement,
                 selected_count: 0,
                 selected_external: None,
                 external: None,

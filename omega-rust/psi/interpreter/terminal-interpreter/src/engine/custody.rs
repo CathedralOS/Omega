@@ -1213,7 +1213,7 @@ pub(crate) fn split_affine_frontier_at_projection(
                 let Some(field_type) = cleanup_field_type(structural_types, field)? else {
                     continue;
                 };
-                let segment = StructuralPathSegment::Field(field.identity.clone());
+                let segment = StructuralPathSegment::Field(field.identity);
                 let mut path = current.path.clone();
                 path.push(segment.clone());
                 let child = StructuralAffineDiscard {
@@ -1274,7 +1274,7 @@ pub(crate) fn split_affine_frontier_at_projection(
                     let Some(field_type) = cleanup_field_type(structural_types, field)? else {
                         continue;
                     };
-                    let segment = StructuralPathSegment::Field(field.identity.clone());
+                    let segment = StructuralPathSegment::Field(field.identity);
                     let mut path = current.path.clone();
                     if let Some(case) = case {
                         path.push(StructuralPathSegment::Case(case));
@@ -1604,9 +1604,7 @@ pub(crate) fn direct_scalar_field_type(
     field: StructuralFieldId,
 ) -> Option<ScalarType> {
     let declaration = structural_types.get(&structural_type)?;
-    let Some(fields) = declaration.shape.direct_fields() else {
-        return None;
-    };
+    let fields = declaration.shape.direct_fields()?;
     fields.iter().find_map(|candidate| {
         (candidate.id == field && !candidate.relevance.is_erased())
             .then_some(&candidate.field_type)

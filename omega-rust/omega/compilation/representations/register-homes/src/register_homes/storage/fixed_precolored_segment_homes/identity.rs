@@ -23,7 +23,7 @@ pub fn fixed_precolored_segment_home_plan_identity(
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());
     encode_family(&mut bytes, &plan.functions);
-    FixedPrecoloredSegmentHomePlanIdentity(crate::digest_encoder::content_identity(&bytes).into())
+    FixedPrecoloredSegmentHomePlanIdentity(crate::digest_encoder::content_identity(&bytes))
 }
 
 fn encode_family(bytes: &mut Vec<u8>, functions: &[crate::FunctionFixedPrecoloredSegmentHomes]) {

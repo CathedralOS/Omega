@@ -239,7 +239,7 @@ fn validate_boundary_requirements(program: &dyn CheckingInput, diagnostics: &mut
                             trait_definition.name,
                             signature.name,
                             domain.name,
-                            if language_core::is_reserved_result(&subject_name) {
+                            if language_core::is_reserved_result(subject_name) {
                                 "result"
                             } else {
                                 "parameter"

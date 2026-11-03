@@ -358,7 +358,7 @@ impl ComputedBuildConfig {
         }
         application.evaluation_usage = execution.evaluation_usage;
         application.observation_summary = execution.observation_summary.clone();
-        application.optimization_report_request = execution.optimization_report_request.clone();
+        application.optimization_report_request = execution.optimization_report_request;
         Ok(application)
     }
 

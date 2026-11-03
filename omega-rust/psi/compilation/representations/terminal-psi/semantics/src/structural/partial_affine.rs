@@ -218,7 +218,7 @@ fn fields_residuals(
             count = count.checked_add(child(
                 types,
                 child_type,
-                StructuralPathSegment::Field(field.identity.clone()),
+                StructuralPathSegment::Field(field.identity),
                 moved,
                 prefix,
                 max_residuals,

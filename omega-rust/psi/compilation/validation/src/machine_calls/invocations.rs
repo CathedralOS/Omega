@@ -98,7 +98,7 @@ fn validate_target_names(
                 )));
             }
             AuthoredInvocationTarget::Parameter { ordinal, symbol } => {
-                let parameter = parameters.iter().nth(ordinal as usize);
+                let parameter = parameters.get(ordinal as usize);
                 if parameter.is_none_or(|parameter| {
                     parameter.symbol != symbol
                         || boundary_trait_for_type(program, parameter.type_reference).is_none()
@@ -169,7 +169,7 @@ fn validate_conformance_refinement(
                     program,
                     machine,
                     trait_definition.symbol,
-                    parameters.iter().count(),
+                    parameters.len(),
                 );
             let actual = summary
                 .inferred_transitive
@@ -248,8 +248,7 @@ fn invocation_target_label(
 ) -> String {
     match target {
         flow_effects::InvocationTarget::Parameter(index) => parameters
-            .iter()
-            .nth(index as usize)
+            .get(index as usize)
             .map(|parameter| parameter.name.as_str().to_owned())
             .unwrap_or_else(|| format!("parameter#{index}")),
         flow_effects::InvocationTarget::Service(symbol) => program

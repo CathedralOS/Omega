@@ -78,7 +78,8 @@ pub fn validate_authored_declaration_selections(
 pub fn checked_selection_requirements(
     program: &CheckedTrees,
 ) -> arena::Arena<checked_trees::CheckedSelectionRequirement> {
-    let skipped = crate::queries::execution_projection::descriptor_selection_occurrences(&program.typed);
+    let skipped =
+        crate::queries::execution_projection::descriptor_selection_occurrences(&program.typed);
     let mut result = Vec::new();
     for selection in program.facts.authored_declaration_selections() {
         let selected_is_pruned = match selection.target() {

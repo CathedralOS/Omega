@@ -367,10 +367,10 @@ fn assign_type_value_expressions_with_declarations(
             if let FixedArrayLength::Expression(value) = array.length {
                 child(value);
             }
-            if let FixedArrayLength::ConstParameter { symbol, name } = &mut array.length {
-                if let Some(selected) = resolve_index_subject(symbols, machine, parameters, name) {
-                    *symbol = selected;
-                }
+            if let FixedArrayLength::ConstParameter { symbol, name } = &mut array.length
+                && let Some(selected) = resolve_index_subject(symbols, machine, parameters, name)
+            {
+                *symbol = selected;
             }
         }
         TypeReference::Slice(slice) => child(slice.element_type),
@@ -418,12 +418,10 @@ fn assign_type_value_expressions_with_declarations(
                         continue;
                     }
                     if let TypeReference::Named { symbol, name, .. } = child_types.get_mut(argument)
-                    {
-                        if let Some(selected) =
+                        && let Some(selected) =
                             resolve_index_subject(symbols, machine, parameters, name)
-                        {
-                            *symbol = selected;
-                        }
+                    {
+                        *symbol = selected;
                     }
                 }
             }
@@ -589,9 +587,7 @@ fn resolve_index_subject(
         .split("::")
         .map(|member| DiagnosticName::from_str(member, name.source_span()))
         .collect::<Vec<_>>();
-    let Some((head_name, suffix)) = members.split_first() else {
-        return None;
-    };
+    let (head_name, suffix) = members.split_first()?;
     let (_, declared) = crate::symbols::scoped_paths::resolve_state_scoped_members(
         symbols,
         machine.symbol,

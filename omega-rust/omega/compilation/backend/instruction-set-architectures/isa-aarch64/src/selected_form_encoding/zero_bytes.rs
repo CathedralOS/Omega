@@ -136,7 +136,7 @@ mod tests {
         assert_eq!(encoded.footprint.register_reads, operands[..2]);
         assert_eq!(encoded.footprint.register_writes, operands[2..]);
         reject_every_bit_flip(&encoded.bytes, "zero word stream", |changed| {
-            validate(&physical, alternative, &operands, &changed).is_err()
+            validate(&physical, alternative, &operands, changed).is_err()
         });
         for length in 0..encoded.bytes.len() {
             assert!(validate(&physical, alternative, &operands, &encoded.bytes[..length]).is_err());

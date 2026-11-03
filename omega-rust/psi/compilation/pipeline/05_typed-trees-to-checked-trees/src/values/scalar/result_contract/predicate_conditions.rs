@@ -47,7 +47,7 @@ impl ContractPredicates<'_, '_> {
                     let left = self.condition_operand(&condition.left, None, depth + 1);
                     let right = self.condition_operand(
                         &condition.right,
-                        left.as_ref().and_then(|term| scalar_expression_type(term)),
+                        left.as_ref().and_then(scalar_expression_type),
                         depth + 1,
                     )?;
                     let left = left.or_else(|| {

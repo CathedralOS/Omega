@@ -41,9 +41,11 @@ impl ImportQueue {
     }
 
     pub fn take_frontier(&mut self) -> Vec<(PathBuf, DependencyScope)> {
-        (!self.pending.is_empty())
-            .then(|| self.pending.drain(..).collect())
-            .unwrap_or_default()
+        if !self.pending.is_empty() {
+            self.pending.drain(..).collect()
+        } else {
+            Default::default()
+        }
     }
 
     fn push(&mut self, path: PathBuf, scope: DependencyScope) {

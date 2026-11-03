@@ -96,7 +96,6 @@ pub fn evaluate_ordinary_boundary_entry_plan(
 /// instruction, stack, and control state in addition to the ordinary ABI
 /// volatile banks. An explicit source-selected boundary plan remains
 /// authoritative and must not be widened through this compatibility path.
-
 fn evaluate_ordinary_boundary_entry_plan_from_call(
     call: CallPlan,
     signature: &CallSignature,

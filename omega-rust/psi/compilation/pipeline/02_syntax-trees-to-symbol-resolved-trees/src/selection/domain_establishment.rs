@@ -613,12 +613,11 @@ fn ensured_mutable_parameter_domain_symbols(
             let ProofFact::Membership(membership) = fact else {
                 continue;
             };
-            let ExpressionNode::Name(path) =
-                body_expressions(&program).expression(membership.value)
+            let ExpressionNode::Name(path) = body_expressions(program).expression(membership.value)
             else {
                 continue;
             };
-            let [name] = body_expressions(&program).name_path_members(path.members) else {
+            let [name] = body_expressions(program).name_path_members(path.members) else {
                 continue;
             };
             let names_out_parameter =
@@ -707,7 +706,7 @@ fn expression_is_bare_result(program: &SymbolResolvedTrees, expression: Expressi
     else {
         return false;
     };
-    let [name] = body_expressions(&program).name_path_members(path.members) else {
+    let [name] = body_expressions(program).name_path_members(path.members) else {
         return false;
     };
     language_core::is_reserved_result(name.as_str())

@@ -191,10 +191,10 @@ impl MachineContractPlans {
 }
 
 /// The contract plan for `machine` in a plan roster, if present.
-pub fn contract_plan_by_machine<'plans>(
-    plans: &'plans [MachineContractPlan],
+pub fn contract_plan_by_machine(
+    plans: &[MachineContractPlan],
     machine: SymbolHandle,
-) -> Option<&'plans MachineContractPlan> {
+) -> Option<&MachineContractPlan> {
     plans.iter().find(|plan| plan.machine == machine)
 }
 

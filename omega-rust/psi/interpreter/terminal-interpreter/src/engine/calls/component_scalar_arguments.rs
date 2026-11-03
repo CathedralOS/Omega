@@ -281,10 +281,10 @@ impl LentScalarArgument {
             return Err(malformed());
         }
         for (key, address) in &addresses {
-            if let Some(existing) = child.component_borrowed_addresses.get(key) {
-                if self.access != StructuralAccess::SharedBorrow || existing != address {
-                    return Err(malformed());
-                }
+            if let Some(existing) = child.component_borrowed_addresses.get(key)
+                && (self.access != StructuralAccess::SharedBorrow || existing != address)
+            {
+                return Err(malformed());
             }
         }
         // These are aliases of the existing endpoints. Fund receiving rows

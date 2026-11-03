@@ -47,6 +47,10 @@ mod derivation;
 mod fragment_publication;
 mod identity_bytes;
 mod operator_applications;
+#[expect(
+    dead_code,
+    reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
+)]
 mod projection;
 
 use crate::NativeSelectedProviderPlanDigest;
@@ -1111,6 +1115,14 @@ fn native_optimization_projection(
     }
 }
 
+// Tests exercise this retained-but-unwired path, so it is dead only outside them.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
+    )
+)]
 fn validated_optimized_native_physical_evidence_scope(
     validation: OptimizedAbstractPlanProjectionIdentity,
     final_unit: OptimizationUnitIdentity,
@@ -1128,6 +1140,10 @@ fn validated_optimized_native_physical_evidence_scope(
     }
 }
 
+#[expect(
+    dead_code,
+    reason = "unwired, not superseded: native-artifact physical/mod.rs and TASKS_OPTIMIZER.md PIPELINE-OWNER-CONSOLIDATION"
+)]
 fn validated_fragment_native_physical_evidence_scope(
     mut scope: ValidatedOptimizedNativePhysicalEvidenceScope,
     publication: self::fragment_publication::FragmentPublicationBinding,

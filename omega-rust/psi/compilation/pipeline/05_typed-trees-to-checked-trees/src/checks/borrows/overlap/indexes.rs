@@ -590,7 +590,7 @@ pub(super) fn normalized_bound(
     // handle is its bound, so a nested call's `ensures` minted in the same
     // statement names this exact production — and any resolved projection
     // through it (`choose(seed).first`) names that occurrence's path.
-    if let Some(_) = program.expression_table.call_node(expression) {
+    if program.expression_table.call_node(expression).is_some() {
         return Some(NormalizedBound::CallResult {
             expression,
             segments: Vec::new(),

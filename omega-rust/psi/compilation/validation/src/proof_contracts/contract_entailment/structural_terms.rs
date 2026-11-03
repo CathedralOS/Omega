@@ -455,13 +455,13 @@ pub(super) fn structural_call_target(
         .unwrap_or(call.target_symbol)
 }
 
-/// Read an expression as a structural term. Single-segment names are
-/// variables; a resolved payload-free case path constructs its common fields.
-/// Record and case literals retain complete sorted fields, including established
-/// runtime defaults; unsupported expressions stay opaque or fail closed.
-/// Without a declaring frame, selected applications retain absent result-type
-/// authority. This route serves closed literals and structural shape matching;
-/// semantic premises/goals must use the state or parameter-frame entry point.
+// Read an expression as a structural term. Single-segment names are
+// variables; a resolved payload-free case path constructs its common fields.
+// Record and case literals retain complete sorted fields, including established
+// runtime defaults; unsupported expressions stay opaque or fail closed.
+// Without a declaring frame, selected applications retain absent result-type
+// authority. This route serves closed literals and structural shape matching;
+// semantic premises/goals must use the state or parameter-frame entry point.
 
 /// Both operands of `binary` read as structural terms, or `None` when
 /// either stays opaque — the pair every equality/ordering consumer opens.
@@ -499,10 +499,10 @@ pub(super) fn structural_term_pair_for_parameters(
     .then_some((left, right))
 }
 
-/// `structural_term` with an explicit declaring `(machine, state)` fallback for
-/// name-free binary operands and selected application result references. The
-/// runtime state binds actual source storage; abstract declaration telescopes
-/// use the parameter-frame form of `structural_term` and never borrow a caller's state.
+// `structural_term` with an explicit declaring `(machine, state)` fallback for
+// name-free binary operands and selected application result references. The
+// runtime state binds actual source storage; abstract declaration telescopes
+// use the parameter-frame form of `structural_term` and never borrow a caller's state.
 
 /// Compare selected scalar value operations in one exact declaration scope.
 /// Symbol leaves stay exact even though the specification equation vocabulary

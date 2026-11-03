@@ -856,11 +856,11 @@ impl BorrowFacts {
         &self,
         state: &StateBorrowFact,
     ) -> impl Iterator<Item = (Handle<BorrowLoanFact>, &BorrowLoanFact)> {
-        state.loans.handles().filter_map(|handle| {
-            self.loans
-                .is_valid(handle)
-                .then(|| (handle, self.loans.get(handle)))
-        })
+        state
+            .loans
+            .handles()
+            .filter(|&handle| self.loans.is_valid(handle))
+            .map(|handle| (handle, self.loans.get(handle)))
     }
 
     /// Exact state membership and the statement-resource role share one

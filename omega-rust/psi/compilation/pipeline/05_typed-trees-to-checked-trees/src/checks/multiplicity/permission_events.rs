@@ -531,8 +531,7 @@ pub(crate) fn prepare_permission_events(
                                     statement_index as u32,
                                     evaluation,
                                 )
-                            {
-                                if let Err(diagnostic) = selected_cleanup.observe_selection(
+                                && let Err(diagnostic) = selected_cleanup.observe_selection(
                                     program,
                                     handle,
                                     &facts.flow.ownership,
@@ -540,10 +539,10 @@ pub(crate) fn prepare_permission_events(
                                     &evaluated.observations,
                                     &permission_events[event_start..],
                                     &occurrences,
-                                ) {
-                                    selection_diagnostics.push(diagnostic);
-                                    return;
-                                }
+                                )
+                            {
+                                selection_diagnostics.push(diagnostic);
+                                return;
                             }
                         }
                         let produced_storage = match complete_statement_permissions(
@@ -1146,9 +1145,7 @@ pub(crate) fn exact_positive_case_test(
 ) -> Option<(typed_trees::expression::ExpressionHandle, SymbolHandle)> {
     use typed_trees::expression::{BinaryOperator, ExpressionNode};
 
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     if !matches!(
         binary.operator,
         BinaryOperator::Equal | BinaryOperator::CaseMembership

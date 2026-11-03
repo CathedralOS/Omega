@@ -182,7 +182,7 @@ fn trait_defaults_share_atomic_binding_dispatch() {
 }
 
 fn first_machine_statements(parsed: &syntax_trees::SyntaxTrees) -> &[StatementHandle] {
-    let machine = super::root_machine(&parsed, "machine");
+    let machine = super::root_machine(parsed, "machine");
     let state = parsed
         .items
         .state(parsed.items.state_handles(machine.states)[0]);

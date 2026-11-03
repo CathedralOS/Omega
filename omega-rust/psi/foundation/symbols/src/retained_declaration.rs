@@ -14,6 +14,104 @@ pub struct RetainedDeclaration {
     kind: SymbolKind,
 }
 
+impl RetainedDeclaration {
+    /// Recover an inert declaration anchor from retained source custody.
+    /// This establishes only a well-formed coordinate. The receiving compiler
+    /// must still admit the source and rejoin its checked declaration.
+    pub fn from_retained_parts(
+        mut source: SourceFile,
+        span: Span,
+        kind: SymbolKind,
+    ) -> Result<Self, &'static str> {
+        if span.start >= span.end || source.source.get(span.start..span.end).is_none() {
+            return Err("retained declaration has an invalid authored source coordinate");
+        }
+        // A retained anchor has no numeric coordinate in a receiving map.
+        // Rejoin authenticates its immutable source, never this placeholder.
+        source.source_id = source::SourceId(0);
+        Ok(Self { source, span, kind })
+    }
+
+    /// The immutable source custody captured when this declaration was selected.
+    pub fn source(&self) -> &SourceFile {
+        &self.source
+    }
+
+    /// The original declaration anchor, independent of any later source number.
+    pub const fn span(&self) -> Span {
+        self.span
+    }
+
+    /// The declaration role retained beside its source anchor.
+    pub const fn kind(&self) -> SymbolKind {
+        self.kind
+    }
+
+    pub fn capture(symbols: &SymbolTable, selected: SymbolHandle) -> Result<Self, &'static str> {
+        if !selected.is_valid() {
+            return Err("selected declaration has no symbol");
+        }
+        let span = symbols
+            .symbol_source_span(selected)
+            .ok_or("selected declaration has no authored source coordinate")?;
+        let source = symbols
+            .source_file(span)
+            .ok_or("selected declaration lost its source custody")?;
+        Ok(Self {
+            source: source.clone(),
+            span: span.span,
+            kind: symbols.get(selected).kind,
+        })
+    }
+
+    /// Rejoin the exact authored occurrence among the destination's declarations.
+    /// Source IDs and arena handles may change; source bytes, location, stratum,
+    /// origin and checked dependency scope may not. An anonymous source may gain
+    /// its final package owner, but an existing owner cannot be replaced.
+    pub fn rejoin(
+        &self,
+        symbols: &SymbolTable,
+        candidates: impl IntoIterator<Item = SymbolHandle>,
+    ) -> Result<SymbolHandle, &'static str> {
+        let mut selected = SymbolHandle::invalid();
+        for candidate in candidates {
+            if !candidate.is_valid() || symbols.get(candidate).kind != self.kind {
+                continue;
+            }
+            let Some(span) = symbols.symbol_source_span(candidate) else {
+                continue;
+            };
+            if span.span != self.span {
+                continue;
+            }
+            let Some(source) = symbols.source_file(span) else {
+                continue;
+            };
+            if source.path != self.source.path
+                || source.package_root != self.source.package_root
+                || source.origin != self.source.origin
+                || source.resolution_stratum != self.source.resolution_stratum
+                || source.dependency_scope != self.source.dependency_scope
+                || self
+                    .source
+                    .package_identity
+                    .is_some_and(|owner| source.package_identity != Some(owner))
+                || source.source != self.source.source
+            {
+                continue;
+            }
+            if selected.is_valid() && selected != candidate {
+                return Err("retained declaration is ambiguous in the admitted source context");
+            }
+            selected = candidate;
+        }
+        if !selected.is_valid() {
+            return Err("retained declaration is absent or changed in the admitted source context");
+        }
+        Ok(selected)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -119,103 +217,5 @@ mod tests {
             selected.rejoin(&symbols, candidates).unwrap_err(),
             "retained declaration is ambiguous in the admitted source context"
         );
-    }
-}
-
-impl RetainedDeclaration {
-    /// Recover an inert declaration anchor from retained source custody.
-    /// This establishes only a well-formed coordinate. The receiving compiler
-    /// must still admit the source and rejoin its checked declaration.
-    pub fn from_retained_parts(
-        mut source: SourceFile,
-        span: Span,
-        kind: SymbolKind,
-    ) -> Result<Self, &'static str> {
-        if span.start >= span.end || source.source.get(span.start..span.end).is_none() {
-            return Err("retained declaration has an invalid authored source coordinate");
-        }
-        // A retained anchor has no numeric coordinate in a receiving map.
-        // Rejoin authenticates its immutable source, never this placeholder.
-        source.source_id = source::SourceId(0);
-        Ok(Self { source, span, kind })
-    }
-
-    /// The immutable source custody captured when this declaration was selected.
-    pub fn source(&self) -> &SourceFile {
-        &self.source
-    }
-
-    /// The original declaration anchor, independent of any later source number.
-    pub const fn span(&self) -> Span {
-        self.span
-    }
-
-    /// The declaration role retained beside its source anchor.
-    pub const fn kind(&self) -> SymbolKind {
-        self.kind
-    }
-
-    pub fn capture(symbols: &SymbolTable, selected: SymbolHandle) -> Result<Self, &'static str> {
-        if !selected.is_valid() {
-            return Err("selected declaration has no symbol");
-        }
-        let span = symbols
-            .symbol_source_span(selected)
-            .ok_or("selected declaration has no authored source coordinate")?;
-        let source = symbols
-            .source_file(span)
-            .ok_or("selected declaration lost its source custody")?;
-        Ok(Self {
-            source: source.clone(),
-            span: span.span,
-            kind: symbols.get(selected).kind,
-        })
-    }
-
-    /// Rejoin the exact authored occurrence among the destination's declarations.
-    /// Source IDs and arena handles may change; source bytes, location, stratum,
-    /// origin and checked dependency scope may not. An anonymous source may gain
-    /// its final package owner, but an existing owner cannot be replaced.
-    pub fn rejoin(
-        &self,
-        symbols: &SymbolTable,
-        candidates: impl IntoIterator<Item = SymbolHandle>,
-    ) -> Result<SymbolHandle, &'static str> {
-        let mut selected = SymbolHandle::invalid();
-        for candidate in candidates {
-            if !candidate.is_valid() || symbols.get(candidate).kind != self.kind {
-                continue;
-            }
-            let Some(span) = symbols.symbol_source_span(candidate) else {
-                continue;
-            };
-            if span.span != self.span {
-                continue;
-            }
-            let Some(source) = symbols.source_file(span) else {
-                continue;
-            };
-            if source.path != self.source.path
-                || source.package_root != self.source.package_root
-                || source.origin != self.source.origin
-                || source.resolution_stratum != self.source.resolution_stratum
-                || source.dependency_scope != self.source.dependency_scope
-                || self
-                    .source
-                    .package_identity
-                    .is_some_and(|owner| source.package_identity != Some(owner))
-                || source.source != self.source.source
-            {
-                continue;
-            }
-            if selected.is_valid() && selected != candidate {
-                return Err("retained declaration is ambiguous in the admitted source context");
-            }
-            selected = candidate;
-        }
-        if !selected.is_valid() {
-            return Err("retained declaration is absent or changed in the admitted source context");
-        }
-        Ok(selected)
     }
 }

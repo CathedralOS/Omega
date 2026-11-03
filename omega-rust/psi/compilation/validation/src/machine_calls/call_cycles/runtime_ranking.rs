@@ -692,7 +692,7 @@ fn admit_ranked_edge(
         return Err("a call target has no checked entry binding");
     };
     let parameters = program.state_parameters(callee_entry);
-    if arguments.len() != parameters.iter().count() {
+    if arguments.len() != parameters.len() {
         return Err("call arguments do not match the exact entry parameters");
     }
     if arguments
@@ -906,17 +906,16 @@ pub(crate) fn internal_arrival_sites<'program>(
             for target in transition.targets() {
                 if let Some((path, arguments)) =
                     program.statement_table.named_transition_target(target)
+                    && let Some(destination) = internal_state_index(program, machine, path.symbol)
                 {
-                    if let Some(destination) = internal_state_index(program, machine, path.symbol) {
-                        arrivals.push(InternalArrival {
-                            source,
-                            destination,
-                            statement_index,
-                            target,
-                            arguments: program.statement_table.expression_handles(arguments),
-                            recurrent: false,
-                        });
-                    }
+                    arrivals.push(InternalArrival {
+                        source,
+                        destination,
+                        statement_index,
+                        target,
+                        arguments: program.statement_table.expression_handles(arguments),
+                        recurrent: false,
+                    });
                 }
             }
         }

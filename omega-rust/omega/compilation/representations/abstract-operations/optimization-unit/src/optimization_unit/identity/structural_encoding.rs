@@ -239,7 +239,6 @@ fn encode_retained_borrow_projection(
 
 /// One access byte, shared by every identity that encodes one. The values
 /// start at 1 so a zero byte stays a decoder's unwritten-field signal.
-
 fn encode_retained_borrow_custody(bytes: &mut CanonicalBytes, custody: &RetainedBorrowCustody) {
     bytes.u32(custody.callable_identity.0);
     encode_retained_borrow_place(bytes, &custody.source);

@@ -69,7 +69,7 @@ pub(crate) fn build_termination_facts(
                             checked_trees::CheckedProofRankingRelation::StructuralSubtermCycles
                         }
                     },
-                    rank_type_identity: component.rank_type_identity.clone(),
+                    rank_type_identity: component.rank_type_identity,
                     edges: component
                         .edges
                         .iter()

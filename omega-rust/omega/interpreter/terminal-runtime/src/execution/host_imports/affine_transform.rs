@@ -70,7 +70,7 @@ impl TerminalEffectHandler for AffineTransformImport {
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let invalid =
             super::refusal("affine construction differs from its admitted six-double contract");
-        let call = super::call_operands(effect, &invalid)?;
+        let call = super::call_operands(effect, invalid)?;
         if call.arguments.len() != 6
             || !call.structural_arguments.is_empty()
             || *call.result != self.signature.result

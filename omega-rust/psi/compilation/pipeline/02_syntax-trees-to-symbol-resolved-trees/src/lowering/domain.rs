@@ -243,7 +243,7 @@ pub(crate) fn lower_proof_facts_excluding(
             syntax::item::ProofFact::Membership(membership) => {
                 let value = lower_expression_into_table(lowerer, syntax_trees, membership.value)?;
                 let mut domain = arena::HandleSpan::empty();
-                for member in syntax_items(&syntax_trees).identifier_path_members(membership.domain)
+                for member in syntax_items(syntax_trees).identifier_path_members(membership.domain)
                 {
                     lowerer
                         .symbol_resolved_trees

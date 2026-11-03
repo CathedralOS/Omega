@@ -204,7 +204,7 @@ pub(crate) fn instantiate_call_contract_expression_label(
         program.expression_table.expression(expression),
         &render,
         &name_label,
-        &|literal| program.render_proof_constructor_value(literal, |value| render(value)),
+        &|literal| program.render_proof_constructor_value(literal, render),
     )
 }
 

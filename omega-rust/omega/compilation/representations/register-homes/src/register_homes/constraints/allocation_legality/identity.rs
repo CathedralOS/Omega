@@ -22,7 +22,7 @@ pub fn allocation_legality_identity_from_digests(
     for digest in digests {
         bytes.extend_from_slice(digest);
     }
-    AllocationLegalityIdentity::from_bytes(crate::digest_encoder::content_identity(&bytes).into())
+    AllocationLegalityIdentity::from_bytes(crate::digest_encoder::content_identity(&bytes))
 }
 
 /// One function's share of `allocation_legality_identity`.
@@ -63,7 +63,7 @@ pub fn allocation_legality_function_digest(function: &FunctionAllocationLegality
             crate::codec_bytes::push_encoded(&mut bytes, transition.to_view.0.to_le_bytes());
         }
     }
-    crate::digest_encoder::content_identity(&bytes).into()
+    crate::digest_encoder::content_identity(&bytes)
 }
 
 fn length(bytes: &mut Vec<u8>, value: usize) {

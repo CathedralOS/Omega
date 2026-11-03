@@ -104,7 +104,7 @@ impl<'input> ComponentNativeCall<'input> {
                 .program_fingerprint
                 .as_bytes(),
         );
-        digest.u64(u64::from(selection.receiving_boundary().get()));
+        digest.u64(selection.receiving_boundary().get());
         digest.raw(&application.commitment);
         digest.u64(bytes);
         digest.u32(demand.stack_alignment());
@@ -143,10 +143,6 @@ impl<'input> ComponentNativeCall<'input> {
             same_stack,
             commitment,
         })
-    }
-
-    pub const fn call(&self) -> &AdmittedNativeComponentCall<'input> {
-        self.call
     }
 
     pub fn settlement(&self) -> NativeProviderSettlement<'_> {

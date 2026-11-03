@@ -168,17 +168,21 @@ fn apply_fact_pruning(
         operator_use.is_generic_template &= retained_template(operator_use.origin);
     });
     let mut requirements = arena::Arena::new();
-    requirements.insert_many(facts.operators.provider_requirements.iter().filter_map(
-        |(_, requirement)| {
-            // Operator roots are not pruned with the machine roster. A direct-call
-            // classification, including a token machine's, follows its machine.
-            (matches!(
-                requirement.kind,
-                checked_trees::CheckedProviderRequirementKind::Operator { .. }
-            ) || retained.contains(&requirement.symbol))
-            .then(|| requirement.clone())
-        },
-    ));
+    requirements.insert_many(
+        facts
+            .operators
+            .provider_requirements
+            .iter()
+            .filter(|&(_, requirement)| {
+                // Operator roots are not pruned with the machine roster. A direct-call
+                // classification, including a token machine's, follows its machine.
+                matches!(
+                    requirement.kind,
+                    checked_trees::CheckedProviderRequirementKind::Operator { .. }
+                ) || retained.contains(&requirement.symbol)
+            })
+            .map(|(_, requirement)| requirement.clone()),
+    );
     facts.operators.provider_requirements = requirements;
     facts
         .nominal_machine_uses

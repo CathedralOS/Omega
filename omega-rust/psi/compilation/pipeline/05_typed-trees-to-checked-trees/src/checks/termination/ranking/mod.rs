@@ -179,10 +179,9 @@ pub(super) fn machine_decrease_outcome_with(
         RankingOrder::NatDescending | RankingOrder::BoundedDistance | RankingOrder::IncreasingTo(_)
     ) && let Some(arrival) =
         current_values::admit_root_cycle(program, machine, &order, measure, call_frames)
+        && accept(&arrival)
     {
-        if accept(&arrival) {
-            return DecreaseOutcome::Proven(Some(arrival));
-        }
+        return DecreaseOutcome::Proven(Some(arrival));
     }
 
     // Logical recursive calls belong to the complete invocation component.

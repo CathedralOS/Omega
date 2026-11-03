@@ -381,9 +381,7 @@ impl StructuralJudge<'_> {
                     // owner, after the whole load frontier and current cut are
                     // independently authenticated. A retired Entry snapshot is
                     // never a substitute for changed current storage.
-                    if self.storage_graph().is_none() {
-                        return None;
-                    }
+                    self.storage_graph()?;
                     let at = at?;
                     self.stored_values.values_at(&coordinate).find_map(|stored| {
                         (stored.current.is_none()

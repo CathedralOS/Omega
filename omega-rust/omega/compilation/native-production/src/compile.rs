@@ -100,7 +100,7 @@ fn produce(
             })?;
         let prepared = phase_profile::scope("omega.native.prepare_native_providers", || {
             proposal.prepare_native_providers(
-                &artifact,
+                artifact,
                 RetainedNativeProviderInputs {
                     execution: &execution,
                     optimization_selections: request.optimization_selections,

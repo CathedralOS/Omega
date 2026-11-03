@@ -19,10 +19,10 @@ use super::unique_row;
 /// State parameters retain their own block/place correspondence, never an entry
 /// parameter's position. The observing operation checks access, custody and its
 /// projection; being a native address join is not a semantic identity condition.
-pub(super) fn parameter<'a>(
-    machine: &'a TerminalMachine,
+pub(super) fn parameter(
+    machine: &TerminalMachine,
     place: PlaceId,
-) -> Option<&'a terminal_psi::StructuralParameterDeclaration> {
+) -> Option<&terminal_psi::StructuralParameterDeclaration> {
     if let Some(parameter) = machine
         .structural_parameters
         .iter()
