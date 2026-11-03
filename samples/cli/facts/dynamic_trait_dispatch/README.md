@@ -51,8 +51,10 @@ The `other_state` path retains the nested-machine place.
 Each ordinary reject twin changes only the transported right operand and its
 bounds from 40 to 39. The public `WeightedCombine` requirement still demands
 40, so rejection must identify its unproved call precondition. Each additional
-uninitialized-selector control removes one establishing assignment; it must
-reject at the ordinary validity check before an unestablished choice can be
+uninitialized-selector control removes selector establishment. The match control
+keeps both arms and reads an uninitialized `vacant` value in each. The field
+control initializes both scalar neighbors while leaving only its selector unset.
+These controls must reject at the ordinary validity check before an unestablished choice can be
 used. Neither control substitutes a different caller guard.
 
 The [input-arithmetic production](input_arithmetic/README.md) keeps all nine
