@@ -56,10 +56,11 @@ checks its own tag before dispatching. Selecting the other implementation
 therefore traps. No source machine declaration carries a target prefix.
 
 The requirement permits that tag-check crash, declares no service use, and
-retains the same dynamic call followed by `88 - result`. The entry's service
-ceiling names `SelectedCompute`. Ordinary named implementations and Build rows
+retains the same dynamic call followed by `88 - result`. The helper and both target entries declare empty service reach with bare
+`reaches`, and name the synchronous call separately with `invokes SelectedCompute`. Ordinary named implementations and Build rows
 follow [provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
 and [multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation).
+This follows [service reach and direct invocation](../../../../wiki/spec/language/effects.md).
 The caller's selector remains independent of Build's target choice, under
 [dynamic dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md).
 

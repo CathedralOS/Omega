@@ -46,3 +46,8 @@ Matching fixture pairs remain under
 `tests/omega/{pass,fail}/facts/dyn_dispatch_payload_alias_through_*`.
 Broader operational contracts, product parity, Windows x86-64 execution and
 Linux ARM64 execution remain separate parent acceptance.
+
+The target helper and both entries keep an explicit empty service ceiling and
+record their direct selected call with `invokes SelectedCompute`, following
+[service reach and direct invocation](../../../../../wiki/spec/language/effects.md).
+This does not alter the named result bound, selector inputs or target tags.
