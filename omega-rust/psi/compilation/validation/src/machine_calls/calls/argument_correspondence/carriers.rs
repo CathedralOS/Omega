@@ -13,11 +13,13 @@ use typed_trees::types::TypeReferenceHandle;
 
 struct Frame<'program> {
     declaration: SymbolHandle,
+    application: StaticMachineApplicationHandle,
     arguments: Vec<(SymbolHandle, IndexIdentityArgument<'program>)>,
 }
 
 pub(super) struct CarrierCorrespondence<'program> {
     frames: Vec<Frame<'program>>,
+    pub(super) supplier: SymbolHandle,
 }
 
 impl<'program> CarrierCorrespondence<'program> {
@@ -117,7 +119,53 @@ impl<'program> CarrierCorrespondence<'program> {
         if lineage.is_empty() {
             return Err("selected carrier has no executable lineage");
         }
-        Ok(Self { frames })
+        Ok(Self { frames, supplier })
+    }
+
+    /// A returned borrow must keep the regions supplied to this call. Read
+    /// them from the same checked applications used for argument matching;
+    /// ordinary carrier comparisons need no additional queries.
+    pub(super) fn result_lifetimes(
+        &self,
+        program: &dyn crate::CheckingInput,
+    ) -> Result<Vec<Vec<(String, String)>>, &'static str> {
+        self.frames
+            .iter()
+            .map(|frame| {
+                program
+                    .static_application_lifetimes_for_declaration(
+                        frame.application,
+                        frame.declaration,
+                    )
+                    .map(|bindings| {
+                        bindings
+                            .iter()
+                            .map(|binding| {
+                                (
+                                    binding.parameter.as_str().to_owned(),
+                                    binding.argument.as_str().to_owned(),
+                                )
+                            })
+                            .collect()
+                    })
+            })
+            .collect()
+    }
+
+    pub(super) fn result_scopes<'scope>(
+        &'scope self,
+        lifetimes: &'scope [Vec<(String, String)>],
+    ) -> Vec<AppliedTypeIdentityScope<'scope>> {
+        assert_eq!(self.frames.len(), lifetimes.len());
+        self.frames
+            .iter()
+            .zip(lifetimes)
+            .map(|(frame, lifetimes)| AppliedTypeIdentityScope {
+                declaration: frame.declaration,
+                arguments: &frame.arguments,
+                lifetimes,
+            })
+            .collect()
     }
 
     pub(super) fn identities(
@@ -183,6 +231,7 @@ impl<'program> Frame<'program> {
             .collect();
         Ok(Self {
             declaration: declaration.symbol,
+            application: application.callable_application,
             arguments,
         })
     }
@@ -200,6 +249,7 @@ impl<'program> Frame<'program> {
         );
         Ok(Self {
             declaration: application.binding_declaration,
+            application: handle,
             arguments,
         })
     }

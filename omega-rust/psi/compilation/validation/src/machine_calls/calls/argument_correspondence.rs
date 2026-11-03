@@ -19,6 +19,8 @@ use typed_trees::types::TypeReferenceHandle;
 use super::{CallSite, call_site_argument_expressions, requirement_contract_signature};
 
 mod carriers;
+mod result_domains;
+pub use result_domains::selected_call_result_domain_matches;
 mod requirement_realizations;
 use carriers::CarrierCorrespondence;
 pub(crate) use requirement_realizations::requirement_realization_arguments;
