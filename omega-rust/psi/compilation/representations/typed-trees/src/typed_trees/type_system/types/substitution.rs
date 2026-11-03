@@ -104,23 +104,33 @@ impl TypeReferenceTable {
             .type_alias_applications(replacement)
             .cloned()
             .collect::<Vec<_>>();
-        if complete_applied_view {
-            let previous = self
-                .type_alias_applications
+        // A complete applied view replaces the occurrence's whole roster.
+        // Overwrite its existing rows in slot order instead of freeing and
+        // reinserting them: the arena reuses freed slots last-in-first-out,
+        // which would reverse the replacement's obligation order.
+        let mut previous = if complete_applied_view {
+            self.type_alias_applications
                 .iter()
                 .filter_map(|(handle, application)| {
                     (application.instance == occurrence).then_some(handle)
                 })
-                .collect::<Vec<_>>();
-            for handle in previous {
-                self.type_alias_applications.free(handle);
-            }
+                .collect::<Vec<_>>()
+        } else {
+            Vec::new()
         }
+        .into_iter();
         for application in applications {
-            self.retain_type_alias_application(crate::type_aliases::TypeAliasApplication {
+            let application = crate::type_aliases::TypeAliasApplication {
                 instance: occurrence,
                 ..application
-            });
+            };
+            match previous.next() {
+                Some(handle) => *self.type_alias_applications.get_mut(handle) = application,
+                None => self.retain_type_alias_application(application),
+            }
+        }
+        for handle in previous {
+            self.type_alias_applications.free(handle);
         }
         Ok(())
     }

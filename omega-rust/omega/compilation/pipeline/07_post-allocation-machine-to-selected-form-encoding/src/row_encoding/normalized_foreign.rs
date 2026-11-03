@@ -195,10 +195,10 @@ pub(super) fn encode(
                     ),
                     CallbackAddressDestination::RecordField {
                         root_register,
-                        byte_offset,
+                        placements,
                     } => Ok(X86_64CallbackMaterializationDestination::RecordField {
                         root_register: *root_register,
-                        byte_offset: *byte_offset,
+                        placements: placements.clone(),
                     }),
                     CallbackAddressDestination::OutgoingStack { byte_offset } => {
                         Ok(X86_64CallbackMaterializationDestination::OutgoingStack {
@@ -234,16 +234,16 @@ pub(super) fn encode(
                 .callbacks
                 .iter()
                 .map(|callback| SelectedFormCallbackMaterialization {
-                    destination: match callback.destination {
+                    destination: match callback.destination.clone() {
                         X86_64CallbackMaterializationDestination::Register(register) => {
                             CallbackAddressDestination::Register(register)
                         }
                         X86_64CallbackMaterializationDestination::RecordField {
                             root_register,
-                            byte_offset,
+                            placements,
                         } => CallbackAddressDestination::RecordField {
                             root_register,
-                            byte_offset,
+                            placements,
                         },
                         X86_64CallbackMaterializationDestination::OutgoingStack { byte_offset } => {
                             CallbackAddressDestination::OutgoingStack { byte_offset }
@@ -267,10 +267,10 @@ pub(super) fn encode(
                     ),
                     CallbackAddressDestination::RecordField {
                         root_register,
-                        byte_offset,
+                        placements,
                     } => Ok(Aarch64CallbackMaterializationDestination::RecordField {
                         root_register: *root_register,
-                        byte_offset: *byte_offset,
+                        placements: placements.clone(),
                     }),
                     CallbackAddressDestination::OutgoingStack { .. } => {
                         Err(Error::ArtifactMismatch)
@@ -304,16 +304,16 @@ pub(super) fn encode(
                 .callbacks
                 .iter()
                 .map(|callback| SelectedFormCallbackMaterialization {
-                    destination: match callback.destination {
+                    destination: match callback.destination.clone() {
                         Aarch64CallbackMaterializationDestination::Register(register) => {
                             CallbackAddressDestination::Register(register)
                         }
                         Aarch64CallbackMaterializationDestination::RecordField {
                             root_register,
-                            byte_offset,
+                            placements,
                         } => CallbackAddressDestination::RecordField {
                             root_register,
-                            byte_offset,
+                            placements,
                         },
                     },
                     code_row_offset: callback.materialization_byte_offset,
@@ -366,12 +366,13 @@ fn callback_destinations(
                     byte_offset: *stack_byte_offset,
                 }),
                 (NativePlace::Field { .. }, [ValueLocation::Register { register, .. }]) => {
-                    let byte_offset =
-                        u32::try_from(callback.field_byte_offset.ok_or(Error::ArtifactMismatch)?)
-                            .map_err(|_| Error::ArtifactMismatch)?;
+                    let placements = callback
+                        .field_placements
+                        .clone()
+                        .ok_or(Error::ArtifactMismatch)?;
                     Ok(CallbackAddressDestination::RecordField {
                         root_register: *register,
-                        byte_offset,
+                        placements,
                     })
                 }
                 _ => Err(Error::ArtifactMismatch),

@@ -189,7 +189,7 @@ impl CompletedReturnSource {
                     supplying_loans: Vec::new(),
                     lineage: BorrowLoanLineage::UnretainedDerived,
                     kind,
-                    call_result: true,
+                    formation: super::BorrowFormation::ReturnedDescriptor,
                 }])
             }
             Self::DescriptorCandidate { field, projection } => capture(field, projection),
@@ -805,8 +805,14 @@ pub(super) fn relative_result_loans(
             {
                 retained.formation_expression = expression;
             }
-            loan.call_result = true;
-            if loan.place.root.is_valid() && loan.lineage != BorrowLoanLineage::LifetimeDependency {
+            let projected = loan.formation == super::BorrowFormation::ReturnedProjection;
+            if !projected {
+                loan.formation = super::BorrowFormation::ReturnedDescriptor;
+            }
+            if !projected
+                && loan.place.root.is_valid()
+                && loan.lineage != BorrowLoanLineage::LifetimeDependency
+            {
                 loan.lineage = if loan.source_owner_symbol.is_valid() {
                     BorrowLoanLineage::UnretainedDerived
                 } else {

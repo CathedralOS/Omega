@@ -157,21 +157,21 @@ pub(super) fn validate(policy: &PackagePolicyCallingPlan) -> Result<(), &'static
         if terminal_owner.policy.is_none() {
             return Err("calling terminal callback slot has no selected layout policy");
         }
-        if !contained(
-            layout.terminal_offset,
+        layout_plans::validate_private_callback_placements(
+            &layout.terminal_placements,
             layout.terminal_byte_size,
             layout.terminal_alignment,
             terminal_owner.byte_size,
-        ) || base.checked_add(layout.terminal_offset) != Some(layout.composed_offset)
-            || !contained(
-                layout.composed_offset,
-                layout.terminal_byte_size,
-                layout.terminal_alignment,
-                layout.root_layout.byte_size,
-            )
-        {
+            terminal_owner.alignment,
+        )
+        .map_err(|_| "calling terminal callback slot has invalid geometry")?;
+        let composed =
+            layout_plans::compose_private_callback_placements(&layout.terminal_placements, base)
+                .map_err(|_| "calling terminal callback path overflows")?;
+        if composed != layout.composed_placements {
             return Err("calling terminal callback field has inconsistent composed geometry");
         }
+        callback_ranges(layout)?;
     }
     validate_disjoint_layouts(&callbacks.layouts)?;
     Ok(())
@@ -181,19 +181,17 @@ pub(super) fn validate_disjoint_layouts(
     layouts: &[crate::record::PackagePolicyCallbackLayout],
 ) -> Result<(), &'static str> {
     for (index, layout) in layouts.iter().enumerate() {
-        let end = layout
-            .composed_offset
-            .checked_add(layout.terminal_byte_size)
-            .ok_or("calling callback interval overflows")?;
+        let ranges = callback_ranges(layout)?;
         for prior in &layouts[..index] {
-            let prior_end = prior
-                .composed_offset
-                .checked_add(prior.terminal_byte_size)
-                .ok_or("calling callback interval overflows")?;
-            if prior.native_ordinal == layout.native_ordinal
-                && prior.composed_offset < end
-                && layout.composed_offset < prior_end
-            {
+            if prior.native_ordinal != layout.native_ordinal {
+                continue;
+            }
+            let prior_ranges = callback_ranges(prior)?;
+            if ranges.iter().any(|(start, end)| {
+                prior_ranges
+                    .iter()
+                    .any(|(prior_start, prior_end)| prior_start < end && start < prior_end)
+            }) {
                 return Err("calling callback destinations overlap within one native parameter");
             }
         }
@@ -205,4 +203,17 @@ fn contained(offset: u64, extent: u64, alignment: u64, parent: u64) -> bool {
     alignment.is_power_of_two()
         && offset.is_multiple_of(alignment)
         && offset.checked_add(extent).is_some_and(|end| end <= parent)
+}
+
+fn callback_ranges(
+    layout: &crate::record::PackagePolicyCallbackLayout,
+) -> Result<Vec<(u64, u64)>, &'static str> {
+    layout_plans::validate_private_callback_placements(
+        &layout.composed_placements,
+        layout.terminal_byte_size,
+        layout.terminal_alignment,
+        layout.root_layout.byte_size,
+        layout.root_layout.alignment,
+    )
+    .map_err(|_| "calling callback destination has invalid composed geometry")
 }

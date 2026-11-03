@@ -400,9 +400,9 @@ pub(crate) struct PrimitiveLoan {
 /// A resolved byte endpoint is storage, not a newly formed loan. Loan formation
 /// supplies its declared primitive type; ordinary observations consume only the
 /// endpoint and its existing descriptor/window authority.
-struct ByteElementStorage {
-    storage: PrimitiveStorage,
-    referent: TerminalStructuralValue,
+pub(crate) struct ByteElementStorage {
+    pub(crate) storage: PrimitiveStorage,
+    pub(crate) referent: TerminalStructuralValue,
 }
 
 fn local_type(machine: &TerminalMachine, place: PlaceId) -> Option<StructuralTypeId> {
@@ -792,7 +792,7 @@ impl TerminalExecution<'_> {
 
     /// Current and suspended activations resolve their own descriptor binding,
     /// then share the same live-window and original-backing judgment.
-    fn bound_byte_element_storage(
+    pub(crate) fn bound_byte_element_storage(
         &self,
         descriptor: &TerminalStructuralValue,
         binding: &crate::storage::byte_sequences::binding::ByteSequenceBinding,

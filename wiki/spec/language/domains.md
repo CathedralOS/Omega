@@ -662,6 +662,16 @@ Commutativity is not a condition for forming an indexed family, only evidence
 for a rewrite that reorders operands. Exact operation and law identities survive
 generic substitution and interface publication.
 
+A canonical integer index may have a qualified carrier such as `u8 in Wrapping`
+or `u8 in Saturating`. The qualification constrains operation matching; only
+the explicit conformance supplies the selected operation and its laws. A
+predicate-only qualification grants no arithmetic law. The complete applied
+conformance includes inherited requirements and their substitutions.
+[Literal-linked index identities](../proofs/contracts.md#literal-linked-index-identities)
+combine a checked identity law with its connection to an exact typed literal,
+and affect canonical identity in every application position. Qualification and
+the authored operations' formation obligations remain intact.
+
 Units, coordinate frames, currencies, tensor shapes, scales, and encodings are
 library customers, not compiler cases. Metadata erasure removes no scaling,
 range-check, or rounding work from the chosen library operation. Runtime

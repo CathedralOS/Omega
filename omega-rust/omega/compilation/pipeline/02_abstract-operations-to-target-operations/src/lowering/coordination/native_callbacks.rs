@@ -70,7 +70,7 @@ pub(crate) fn bind_native_callback_arguments(
                 placement_index: admitted.placement_index,
                 callback_function: admitted.callback_function,
                 destination: admitted.destination.clone(),
-                field_byte_offset: admitted.field_byte_offset,
+                field_placements: admitted.field_placements.clone(),
                 application: admitted.application.clone(),
                 registrar_boundary_entry_plan: admitted.registrar_boundary_entry_plan.clone(),
                 registrar_context: admitted.registrar_context.clone(),
@@ -167,13 +167,13 @@ fn native_callback_application_is_exact(
     }
     match &admitted.destination {
         NativePlace::Parameter(parameter) => {
-            admitted.field_byte_offset.is_none() && *parameter == application.parameter
+            admitted.field_placements.is_none() && *parameter == application.parameter
         }
         NativePlace::Field { parameter, .. } => {
             // A field destination's application is its root record
             // parameter's — the write flows through that parameter's
-            // placement to the slot `field_byte_offset` names.
-            admitted.field_byte_offset.is_some() && *parameter == application.parameter
+            // placement to the slot `field_placements` names.
+            admitted.field_placements.is_some() && *parameter == application.parameter
         }
     }
 }

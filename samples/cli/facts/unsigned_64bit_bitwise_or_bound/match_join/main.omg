@@ -19,14 +19,16 @@ requires combined >= 40 && combined <= 63
     headroom + margin
 }
 
-machine bitwise_or_join() -> u64 {
-    let base: u64 = choose_base(true);
+// The flag arrives as a formal parameter, so the operand is bounded by what
+// holds for every flag; a constant actual would expose the helper's exact result.
+machine bitwise_or_join(flag: bool) -> u64 {
+    let base: u64 = choose_base(flag);
     let combined: u64 = base | 32u64;
     verify_combined(combined)
 }
 
 machine probe() -> u64 {
-    bitwise_or_join()
+    bitwise_or_join(true)
 }
 
 machine main() crashes Trap {

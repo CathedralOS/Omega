@@ -41,7 +41,7 @@ linux_x86_64 boundary machine DescriptorImports::write(descriptor: i32, words: &
     satisfies DescriptorIo::write via linux_x86_64_write_binding();
 
 machine receive(words: &mut [u16; 3]) -> i64 reaches DescriptorIo blocks {
-    transition { _ -> read(words) }
+    transition { _ -> block read(words) }
     machine read(words: &mut [u16; 3]) -> i64 {
         block DescriptorIo::read(0, words, 6)
     }

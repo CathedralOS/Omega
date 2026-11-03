@@ -21,8 +21,11 @@ machine evaluate(mode: Mode) -> u64 {
     }
 }
 
-machine main() crashes Trap {
-    let joined: u64 = evaluate(MODE);
+// The mode arrives as a formal parameter, so only Mode's data `requires`
+// bounds `joined`; a constant actual would let the checker read the helper's
+// exact result instead.
+machine run(mode: Mode) crashes Trap {
+    let joined: u64 = evaluate(mode);
     let diff1: u64 = UPPER - joined;
     let diff2: u64 = joined - LOWER;
     transition diff1 == 20 && diff2 == 20 {
@@ -31,4 +34,8 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    run(MODE);
 }
