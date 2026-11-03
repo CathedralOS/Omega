@@ -6,6 +6,7 @@ machine build(builder: &mut Build) {
     configure_time_host(builder);
     configure_windows_filesystem(builder);
     configure_posix_canonical(builder);
+    configure_posix_filesystem(builder);
     // Bind the complete ObjectiveC family once. String extents stay static.
     Build::bind<ObjectiveC::get_class>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
@@ -356,6 +357,117 @@ machine configure_posix_canonical(builder: &mut Build) {
         ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
             install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcpy"
         } });
+}
+
+// The Linux POSIX filesystem requirements reach the kernel directly; each
+// target binds its own system call numbers. Byte-view requirements carry the
+// per-target calling convention in their boundary trait, so the same member
+// names bind different traits on x86_64 and arm64.
+machine configure_posix_filesystem(builder: &mut Build) {
+    Build::bind<PosixFilesystemLinux::openat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 257 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::read>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 0 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::write>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 1 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::pread64>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 17 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::pwrite64>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 18 });
+    Build::bind<PosixFilesystemLinux::close>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 3 });
+    Build::bind<PosixFilesystemLinux::lseek>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 8 });
+    Build::bind<PosixFilesystemLinux::mkdirat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 258 });
+    Build::bind<PosixFilesystemLinux::unlinkat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 263 });
+    Build::bind<PosixFilesystemLinux::fchmodat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 268 });
+    Build::bind<PosixFilesystemLinux::fchmod>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 91 });
+    Build::bind<PosixFilesystemLinux::renameat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 264 });
+    Build::bind<PosixFilesystemLinux::linkat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 265 });
+    Build::bind<PosixFilesystemLinux::symlinkat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 266 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::readlinkat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 267 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::getdents64>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 217 });
+    Build::bind<PosixFilesystemLinux::newfstatat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 262 });
+    Build::bind<PosixFilesystemLinux::fstat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 5 });
+    Build::bind<PosixFilesystemLinux::ftruncate>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 77 });
+    Build::bind<PosixFilesystemLinux::utimensat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 280 });
+    Build::bind<PosixFilesystemLinux::fsync>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 74 });
+    Build::bind<PosixFilesystemLinux::fdatasync>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 75 });
+    Build::bind<PosixFilesystemLinux::dup>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 32 });
+    Build::bind<PosixFilesystemLinux::flock>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 73 });
+    Build::bind<PosixFilesystemLinux::fchownat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 260 });
+    Build::bind<PosixFilesystemLinux::fchown>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 93 });
+    Build::bind<PosixFilesystemLinux::openat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 56 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::read>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 63 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::write>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 64 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::pread64>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 67 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::pwrite64>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 68 });
+    Build::bind<PosixFilesystemLinux::close>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 57 });
+    Build::bind<PosixFilesystemLinux::lseek>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 62 });
+    Build::bind<PosixFilesystemLinux::mkdirat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 34 });
+    Build::bind<PosixFilesystemLinux::unlinkat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 35 });
+    Build::bind<PosixFilesystemLinux::fchmodat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 53 });
+    Build::bind<PosixFilesystemLinux::fchmod>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 52 });
+    Build::bind<PosixFilesystemLinux::renameat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 38 });
+    Build::bind<PosixFilesystemLinux::linkat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 37 });
+    Build::bind<PosixFilesystemLinux::symlinkat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 36 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::readlinkat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 78 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::getdents64>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 61 });
+    Build::bind<PosixFilesystemLinux::newfstatat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 79 });
+    Build::bind<PosixFilesystemLinux::fstat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 80 });
+    Build::bind<PosixFilesystemLinux::ftruncate>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 46 });
+    Build::bind<PosixFilesystemLinux::utimensat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 88 });
+    Build::bind<PosixFilesystemLinux::fsync>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 82 });
+    Build::bind<PosixFilesystemLinux::fdatasync>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 83 });
+    Build::bind<PosixFilesystemLinux::dup>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 23 });
+    Build::bind<PosixFilesystemLinux::flock>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 32 });
+    Build::bind<PosixFilesystemLinux::fchownat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 54 });
+    Build::bind<PosixFilesystemLinux::fchown>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 55 });
 }
 
 // Native object storage belongs to the image module; the original Build value
