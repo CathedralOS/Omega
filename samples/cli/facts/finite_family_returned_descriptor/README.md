@@ -56,8 +56,11 @@ ordinary `SelectedTarget::target_only` requirement from a selected family member
 Its public lifetime explicitly relates the returned view to its input. Four
 Build rows select the same identity implementation because the original four
 bodies all returned their input unchanged. The [missing-provider control](target_qualification/invalid/main.omg)
-has identical source and supplies only the Linux ARM64 row. Realizing another
-target must reject missing supply, even though only width 16 is called.
+has identical source and supplies only the Linux ARM64 row. Its source is valid;
+Linux ARM64 must execute with exit 0, and the other three hosted targets must
+refuse missing supply during native publication. Its build-only pin is
+`pass/facts/finite_family_returned_descriptor/target_qualification_missing_supply`.
+Target-specific refusal and exit files state those separate outcomes.
 
 The main `target_body` place also selects one ordinary forwarding implementation
 through explicit Build rows. Its requirement has empty service reach; the entry
@@ -99,10 +102,19 @@ The replacement example remains incomplete in both legs: lowering reports
 `reference result has no complete captured origin paths`. Public sample
 execution was not reached. This is an open compiler failure, not a passing row.
 
-That baseline retains its actual producer identity. The next candidate uses the
-integrated compiler at `0d2886a26e6b17ede96f1accbb6501a2a85fbd30`; a focused
-replacement comparison is pending before any compiler repair. The changed
-programs and their missing-provider control are not yet qualified. Evidence is
+The integrated baseline at `0d2886a26e6b17ede96f1accbb6501a2a85fbd30`
+([run](https://github.com/CathedralOS/Omega/actions/runs/41575232529)) reproduces
+the replacement refusal and its twin's lifetime rejection. The first repair at
+`fa4d6c3bdb9cf67799754a1fd3e542e3a875aa1a`
+([run](https://github.com/CathedralOS/Omega/actions/runs/41576191506)) preserves
+eleven fact engine agreements but does not fix that refusal. A separate
+write-only forwarding probe refuses identically on the unchanged integrated
+base; it is not claimed as a passing check or attributed to this repair.
+
+The missing-supply control was previously judged only by source checking, which
+cannot prove its native refusal. It now uses the ordinary publication oracle
+and remains unqualified until the actual product result is observed. The changed
+programs, complete row and parent requirements remain unfinished. Evidence is
 retained under `build/finite-descriptor-selected-20261103/`.
 
 <details>

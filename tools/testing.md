@@ -972,6 +972,20 @@ executed program. Wrong diagnostics, another status or execution facts make
 `--record` refuse the row. Use this only for an authored publication refusal,
 not for missing implementation in a program intended to run.
 
+`expected_native_rejection.<target>.txt` overrides the portable refusal file.
+Source rows use their actual `check-target`, while native rows use the target
+being realized. A control may therefore require refusal on three hosted targets
+and an ordinary exit on the fourth. The pilot keeps that control on the same
+product path and validates the refusal without counting an engine execution.
+
+For an ordinary sample whose source is valid, declare its normal `program` role
+in `sample.json` when a control-folder name would infer `intended-invalid`.
+The native sample gate completes normal package review, checks the source, then
+compiles without launching and requires exit 1 plus every target refusal fragment.
+A source error, unrelated refusal, panic or successful build cannot satisfy it.
+The result records `native-rejection:match` separately from executions. Existing
+source-invalid controls keep their checking-only path.
+
 `expected_native_exit.txt` holds one decimal process exit code or `trap`.
 The latter requires SIGTRAP for ARM64, SIGILL for Unix x86-64, or
 STATUS_ILLEGAL_INSTRUCTION for Windows x86-64. Missing execution, timeout,

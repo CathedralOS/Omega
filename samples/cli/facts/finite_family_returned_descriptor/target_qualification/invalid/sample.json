@@ -1,0 +1,4 @@
+{
+  "role": "program",
+  "notes": "Source is valid. Native publication must refuse on targets without a selected provider; Linux ARM64 has supply and must execute with exit 0."
+}
