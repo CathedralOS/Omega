@@ -190,6 +190,11 @@ pub(super) struct FlowBuildContext<'plans> {
     /// possible incoming selectors. Only a completed value can select a row.
     pub(super) dynamic_conformances: Option<std::sync::Arc<checked_trees::DynamicConformanceFacts>>,
     pub(super) state_value_inputs: Vec<super::state_values::StateValues>,
+    /// Symbol to `state_value_inputs` position. Rows are only appended or
+    /// wholesale replaced, never removed or reordered, so the map stays exact
+    /// between sweeps and turns per-call reachability and join lookups from
+    /// roster scans into single probes.
+    reached_state_positions: HashMap<SymbolHandle, usize>,
     pub(super) dirty_state_value_inputs: Vec<SymbolHandle>,
     pub(super) new_state_field_input_height: usize,
     pub(super) state_mutation_summary_cache: &'plans StateMutationSummaryCache,
@@ -356,6 +361,7 @@ impl<'plans> FlowBuildContext<'plans> {
             shared_tables,
             dynamic_conformances,
             state_value_inputs: Vec::new(),
+            reached_state_positions: HashMap::default(),
             dirty_state_value_inputs: Vec::new(),
             new_state_field_input_height: 0,
             call_sites: HashMap::default(),
@@ -440,6 +446,36 @@ impl<'plans> FlowBuildContext<'plans> {
     ) -> Option<usize> {
         let (machine, state) = self.state_location(program, state_symbol)?;
         (program.machines()[machine].symbol == machine_symbol).then_some(state)
+    }
+
+    /// `state_value_inputs` position of a reached state, if it has a row.
+    pub(super) fn reached_state_index(&self, state: SymbolHandle) -> Option<usize> {
+        self.reached_state_positions.get(&state).copied()
+    }
+
+    /// Append one reached-state input row and index it.
+    pub(super) fn push_state_value_input(
+        &mut self,
+        input: super::state_values::StateValues,
+    ) -> usize {
+        self.reached_state_positions
+            .insert(input.state, self.state_value_inputs.len());
+        self.state_value_inputs.push(input);
+        self.state_value_inputs.len() - 1
+    }
+
+    /// Wholesale replacement for the nonconvergent fallback: rebuild the
+    /// position index for the fresh roster.
+    pub(super) fn replace_state_value_inputs(
+        &mut self,
+        inputs: Vec<super::state_values::StateValues>,
+    ) {
+        self.reached_state_positions = inputs
+            .iter()
+            .enumerate()
+            .map(|(index, input)| (input.state, index))
+            .collect();
+        self.state_value_inputs = inputs;
     }
 
     /// `(machines index, in-machine state index)` of a state symbol anywhere
@@ -879,6 +915,7 @@ impl<'plans> FlowBuildContext<'plans> {
         );
         self.discard_output();
         self.state_value_inputs.clear();
+        self.reached_state_positions.clear();
         self.dirty_state_value_inputs.clear();
         flow
     }
