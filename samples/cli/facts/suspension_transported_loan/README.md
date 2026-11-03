@@ -81,6 +81,7 @@ The parameter place already runs (native 0, interpreter 0) because an
 incoming descriptor carries its own entry permission.
 
 Open: Terminal suspension loan rows still label an accepted transfer's
-resource `Unresolved` beside its exact supplier edges. Execution on
-`linux_arm64`, `macos_arm64` and `windows_x86_64` is not yet qualified. The scheduler completes inline; this does not demonstrate actual
+resource `Unresolved` beside its exact supplier edges. Execution of the original row on
+`linux_arm64`, `macos_arm64` and `windows_x86_64` is not yet qualified; see each
+production's evidence for its own host observations. The scheduler completes inline; this does not demonstrate actual
 parking.
