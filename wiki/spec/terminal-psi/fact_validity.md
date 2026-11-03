@@ -27,8 +27,9 @@ logical ordering alone does not establish availability.
   prove the operation that creates it.
 - A primitive read may introduce an equality between its copied SSA result and
   an exact reaching stored SSA value. Every actual predecessor must supply that
-  same value; potentially aliasing writes, unknown call effects, missing stores,
-  and unproved cyclic arrivals prevent introduction. The store/read types and
+  same value; potentially aliasing writes, unknown call effects, missing
+  reaching-value evidence, and unproved cyclic arrivals prevent introduction.
+  The store/read types and
   dominance must check independently. Subsequent writes cannot change either
   captured SSA value. This does not introduce symbolic store summaries or a
   floating-point equality rule.
@@ -45,6 +46,27 @@ clause. Instantiation independently checks arity, binder kinds/types,
 capture-free positional substitution, pre/post versions, moves and reborrows,
 outcome guards, crash routes, and evidence lifetime. Missing a clause and
 substituting the wrong caller term are distinct failures.
+
+## Restored scalar values
+
+Under `restored-scalar-value-facts`, a valid initialized ordinary storage place
+at entry may supply its exact reaching value version; it need not have a store
+inside the current body. A body read can be related to that entry version only
+when the place and absence of intervening mutation are established. Missing
+reaching-value evidence does not authorize inventing an entry value or zero.
+
+For integer copies `copied` and `saved` of that same version, their equality
+survives later writes to the original storage. A restoring store of `saved`
+introduces an equality for the new storage version at its captured destination.
+A guard on `copied` can then prove bounds on a later read of that version.
+The proof retains both equalities and checks normal dominance, actual selectors,
+write effects and all predecessor obligations. It does not equate entry and
+current storage merely because their source paths have the same spelling.
+
+Unknown interference or an unproved place/value correspondence prevents the
+affected equality from being used. Bounded analysis may require a fresh proof;
+it must not assume restoration when tracking is exhausted. Existing floating-point
+observation and equality rules are unchanged.
 
 ## Entry facts and crash coverage
 

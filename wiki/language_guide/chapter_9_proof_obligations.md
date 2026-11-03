@@ -59,6 +59,27 @@ postcondition would not establish it. Stronger theorems can be supplied by
 checked machines when automatic reasoning is insufficient; their exact premises
 still need to hold at each use.
 
+## Saved Values And Restored Storage
+
+Overwriting a slot does not change a scalar you already copied from it. Restoring
+that saved scalar gives the slot a newly established relationship to the copy:
+
+```text
+saved = items[index]
+items[index] = 0
+items[index] = saved
+
+if saved >= 48:
+    use_at_least_48(items[index])
+```
+
+This illustrative sequence is valid when checking proves the restoration targets
+the same slot and no later effect breaks the equality. The guard establishes a
+fact about `saved`, and the restored equality transfers it to the current slot.
+Changing the index or writing another unproved value cannot borrow that argument.
+The checker need not retain unlimited history: if it loses the relationship,
+the use needs fresh evidence. See [restored scalar facts](../spec/language/state_contracts.md#restoring-a-saved-scalar-value).
+
 ## Termination Claims
 
 Termination is separate from a postcondition. `ensures` describes a reached

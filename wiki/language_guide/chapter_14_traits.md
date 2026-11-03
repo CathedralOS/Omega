@@ -660,6 +660,15 @@ accounts for requirements called directly or through helpers. Storing a dynamic
 value instead requires the storage type's declared bound. This polymorphism is
 contract checking, not a runtime dictionary or required code duplication.
 
+For example, a known memory-reader implementation can have empty reach even
+though `Reader` permits filesystem access. A join with a disk reader must allow
+both alternatives. An unknown `dyn Reader` input needs the governing ceiling;
+a reusable body cannot assume that today's caller always supplies the memory
+reader. A narrower requirement or retained checked dependency makes narrowing
+available across a call boundary. Published callable ceilings remain contracts:
+private-body knowledge or a later Build provider choice does not rewrite them.
+See [known dynamic selections](../spec/language/effects.md#known-dynamic-selections).
+
 ### Transparent trait refinements
 
 A transparent refinement gives a reusable name to a narrower trait contract:

@@ -181,11 +181,40 @@ body/callee/provider may_block   implies corresponding ceiling permits blocking
 Reach derivation computes conservative fixed points over recursive checked-call
 components. Known private helpers are included transitively. Imported checked
 machines supply their published summaries, without requiring access to private
-source. Dynamic and boundary calls retain pinned requirement ceilings, not a
-narrower provider body eventually selected for them. Static generic calls follow
-the dependency rule below. Service union and suspension/blocking booleans remain
-separate; their operational acknowledgements still use the requirement envelope.
+source. Boundary calls and dynamic calls without retained narrower evidence use
+their pinned requirement ceilings, not a narrower provider body eventually
+selected by Build or at run time. A check-time dynamic coercion instead retains
+the selected implementation's available checked contract as described below.
+Static generic calls follow the dependency rule below. Service union and
+suspension/blocking booleans remain separate; operational acknowledgements use
+the applicable retained call envelope.
 Every known checked helper on the path propagates the corresponding obligations.
+
+### Known dynamic selections
+
+Named decision: `known-dynamic-contract-narrowing`, ratified 2026-11-02.
+
+When checking establishes which implementation a `dyn` value selects, its calls
+use that implementation's retained checked operational contract rather than the
+trait's potentially wider bound. A known in-memory reader can therefore contribute
+no filesystem reach and no suspension even when the trait permits both. Coercion,
+forwarding and storage do not by themselves discard that established evidence.
+Joins retain all possible demands and only guarantees justified for every possible
+selection; an unknown alternative contributes the requirement ceiling.
+
+Narrowing uses an available checked contract, not private-source inspection or
+an optimization's prediction. Public and explicitly annotated callable ceilings
+remain published contracts; a smaller implementation body does not silently
+rewrite one. A reusable body accepting an unknown `dyn Reader` must remain valid
+for every fitting selection. It may publish checked dependencies on the input's
+envelope, but cannot assume the harmless selection used by one current caller.
+A narrower authored requirement or retained checked specialization/dependency
+justifies a narrower application, not the observed set of callers.
+
+This follows [dynamic operational envelopes](../terminal-psi/dynamic_dispatch.md#source-eligibility-and-operational-envelopes).
+It changes neither boundary requirements selected by Build nor their admission,
+and it creates no runtime authority. Missing selection evidence falls back to
+the governing requirement contract, not to a guessed implementation.
 
 ### Selected-product exclusions
 
