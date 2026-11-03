@@ -174,7 +174,7 @@ fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch reject
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/domains/routed_qualification_cast_computed_operand rejected 10634ms expected @0754243baf42+wt
+fail/domains/routed_qualification_cast_computed_operand rejected 9135ms expected @47a2311bffbe
 	`as ... in i32::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove scalar result domain for return from counterfeit at statement 0: i32::Issued
 fail/drops/retired_attached_drop rejected 2739ms expected @ee4dbb4b2d56
@@ -19582,7 +19582,7 @@ fail/domains/completed_membership_before_later_guarantee rejected 1962ms expecte
 	construction of `Selection` field `amount` is not proven in domain `Amount::Positive` in selected state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/completed_routed_record_join_unissued_arm rejected 1640ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from select_ticket: selected in Ticket::Issued in state `entry`
-fail/domains/computed_qualification_requires_operand_facts rejected 4554ms expected @0754243baf42+wt
+fail/domains/computed_qualification_requires_operand_facts rejected 4806ms expected @47a2311bffbe
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
@@ -19947,7 +19947,7 @@ fail/domains/routed_domain_bare_argument rejected 2091ms expected @ccdb99ca2214
 	cannot prove requires contract for call spend from relay: x in u64::Issued in state `entry`
 fail/domains/routed_primitive_receiver_requires_issuer rejected 11221ms unexpected @ccdb99ca2214
 	cannot prove the value assigned to `row` in replace is in domain `u64::IssuedIndex`; a place declared `in u64::IssuedIndex` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-fail/domains/routed_qualification_cast_after_erasure rejected 7587ms expected regressed-from:checked @0754243baf42+wt
+fail/domains/routed_qualification_cast_after_erasure rejected 7187ms expected regressed-from:checked @47a2311bffbe
 	`as ... in Ticket::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove initializer of `forged` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
 fail/domains/routed_qualification_cast_constant rejected 64ms unexpected @ccdb99ca2214
@@ -34818,7 +34818,7 @@ fail/providers/direct_foreign_rejected_calling rejected 11514ms expected @ccdb99
 	calling policy rejected the boundary: direct foreign policy refuses
 fail/providers/direct_foreign_wrong_table rejected 7086ms expected @e2e21da6e1d9
 	cannot realize table field `invoke` for `query`: no runtime field `invoke` in the dispatch table
-fail/providers/erased_routed_result_not_recovered rejected 7534ms expected regressed-from:checked @0754243baf42+wt
+fail/providers/erased_routed_result_not_recovered rejected 5819ms expected regressed-from:checked @47a2311bffbe
 	cannot prove requires contract for call consume from main: erased in Token::Issued in state `entry`
 fail/providers/explicit_unavailable_target_provider rejected 9055ms expected @ccdb99ca2214
 	build selects provider `FirmwareValue` for slot `Value`, but no candidate exists in the loaded dependency closure

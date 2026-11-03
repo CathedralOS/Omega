@@ -16,8 +16,8 @@ pass/calls/selected_crash_argument_snapshot_exit built 10692ms exit:0 interprete
 pass/calls/selected_crash_distinct_limits_exit built 10688ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_match_record_exit built 13834ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_private_forwarding_exit built 10143ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
-pass/domains/erasing_cast_keeps_predicates_and_named_domains_exit built 8310ms exit:0 interpreter-exit:0 interpreter:agrees @f3c3d4bbfcc4
-pass/domains/linear_routed_erasure_keeps_storage_exit built 8490ms exit:0 interpreter-exit:0 interpreter:agrees @a1f835d16c42
+pass/domains/erasing_cast_keeps_predicates_and_named_domains_exit built 9735ms exit:0 interpreter-exit:0 interpreter:agrees @47a2311bffbe
+pass/domains/linear_routed_erasure_keeps_storage_exit built 9820ms exit:0 interpreter-exit:0 interpreter:agrees @47a2311bffbe
 pass/facts/build_activation_borrow_entry_return_exit built 11951ms exit:0 interpreter-exit:0 interpreter:agrees @b208ceef9bc2
 pass/facts/domain_selected_cleanup_enclosing_generic_telescope_exit built 14212ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
 pass/facts/domain_selected_cleanup_erased_interface_exit built 13801ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
