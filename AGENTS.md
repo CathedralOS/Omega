@@ -598,6 +598,11 @@ profiles bound to the actual binary digests. See
   bootstrap gates, test selection, slow builds — lives in
   [tools/testing.md](tools/testing.md). Read it before running more than the
   affected crate's check.
+- Before each build or test, name the decision, smallest meaningful check,
+  applicable reusable evidence, and expected time and resources. If it
+  overruns, inspect progress and record a reasoned decision rather than blindly
+  waiting or restarting. Reviewers need not repeat expensive checks without a
+  material evidence gap; required CI and release gates still apply.
 - Reuse valid completed evidence when its inputs and affected consumers still
   apply; retain its revision, command and outcome. A broader run needs a concrete
   change-specific obligation that focused affected-path tests and relevant
