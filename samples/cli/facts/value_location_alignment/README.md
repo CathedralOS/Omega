@@ -70,8 +70,8 @@ authored rows, unexecuted here.
   storage type's validated layout; no caller guard precedes the subtraction,
   and the runtime checks follow it.
 - Identity: the subject is the exact place the operand names, through
-  references to the referent. A value leaf, a constant or a slice is
-  rejected rather than given a fabricated location.
+  references to the referent. A value leaf, a constant, a slice or a
+  query in a contract position is rejected rather than given a fabricated location.
 - Composition: the result is an ordinary `u64` whose layout-observation fact
   survives copies, fields, call returns, joins and machine arguments, through
   the existing layout-observation route.
@@ -80,6 +80,10 @@ authored rows, unexecuted here.
 
 - Nonempty slices: the first-element form needs a proved nonempty view; it
   currently rejects.
+- Contract positions: a query inside `requires` (such as
+  `requires align_of(value) >= 8u64`) has no resolved state for its place and
+  currently rejects with a source diagnostic; only executable statements are
+  answered.
 - Stronger-than-type alignment from placement or allocator contracts, and
   runtime computation of a location's alignment, are not implemented; the
   result is always the type minimum.

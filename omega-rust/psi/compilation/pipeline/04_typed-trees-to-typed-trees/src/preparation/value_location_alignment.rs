@@ -63,6 +63,31 @@ pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             call.arguments = HandleSpan::empty();
         }
     }
+    // A query outside an executable statement (a `requires` contract, for
+    // example) has no state in which its place was resolved. Reject it with
+    // its source rather than let an unsettled request reach lowering.
+    let roots: Vec<_> = expressions_of(program)
+        .iter_expressions()
+        .map(|(root, _)| root)
+        .collect();
+    let mut unsettled = Vec::new();
+    for root in roots {
+        let mut handles = Vec::new();
+        validation::expression_traversal::collect_expression_tree(program, root, &mut handles);
+        unsettled.extend(
+            handles
+                .into_iter()
+                .filter(|query| value_query_operand(program, *query).is_some()),
+        );
+    }
+    unsettled.sort_by_key(|query| (query.arena_index(), query.generation()));
+    unsettled.dedup();
+    diagnostics.extend(unsettled.into_iter().map(|query| {
+        Diagnostic::error(
+            "`align_of(value)` is answered only in executable statements; a contract or other non-statement position is not yet supported",
+        )
+        .with_source_span(expressions_of(program).source_span(query))
+    }));
     if diagnostics.is_empty() {
         Ok(())
     } else {

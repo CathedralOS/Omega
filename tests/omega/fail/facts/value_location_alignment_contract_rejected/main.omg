@@ -1,0 +1,8 @@
+machine observe(value: &u8) -> u64 requires align_of(value) >= 8u64 { 7u64 }
+machine main() crashes Trap {
+    let tag: u8 = 3u8;
+    let a: u64 = observe(&tag);
+    transition a == 7u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
