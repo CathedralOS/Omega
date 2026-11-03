@@ -310,16 +310,21 @@ code it never calls, once per target.
 
 The product requirement is compile latency of ordinary std-dependent programs.
 `tests/omega/pass/host/console_exit_process_exit` is recorded as
-`checked 11753ms` in `tests/omega/corpus_outcomes.txt` (`@ccdb99ca2214`). On main
-`de9648a198` plus #1653 (`a151ce613a`), one `omega --check` of it took 148.5 s on
-a linux_x86_64 cloud container (the author's measurement). Three smoke fixtures
+`checked 11753ms` in `tests/omega/corpus_outcomes.txt` (`@ccdb99ca2214`, check
+target macos_arm64, host unrecorded). On main `de9648a198` plus #1653
+(`a151ce613a`), one `omega --check` of it took 148.5 s on a linux_x86_64 cloud
+container (the author's measurement), and 95.6 s on main `91b6625545` after
+#1656. Three smoke fixtures
 (`control_flow/borrowed_state_argument`,
 `control_flow/runtime_owned_state_parallel_swap_exit`,
 `write_only/state_forwarded_scalar_store_exit`) exceed the 120 s corpus cap. For
 the first of them, PR #1656 reports 33.9 s per check in fixed-layout evaluation
 across 85 layout applications in 6 target scopes at `5209eac451`. After its
 repair of the proof judge's quadratic scans, about 79 s of extra checking
-remains with no single hot frame.
+remains with no single hot frame. On `91b6625545` the console check spends 52 s
+in stage-05 checking of the newly demanded std code and only a few seconds in
+layout formation. Option A below would remove the layout share only; both
+options still resolve, type and check that code, so neither recovers the rest.
 
 A Build row's target cannot scope the code: a source declaration acquires no
 target tag, and the row demands only a body-less boundary requirement, not its
