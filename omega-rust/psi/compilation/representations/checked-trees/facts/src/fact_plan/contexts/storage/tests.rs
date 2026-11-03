@@ -7,6 +7,7 @@ fn context(point: ProgramPoint, fact_ordinal: u32) -> FactContext {
     FactContext {
         point,
         facts: HandleSpan::from_parts(Handle::from_arena_index(fact_ordinal), 1),
+        assignments: HandleSpan::empty(),
     }
 }
 

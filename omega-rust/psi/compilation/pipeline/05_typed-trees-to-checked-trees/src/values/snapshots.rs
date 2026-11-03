@@ -296,33 +296,24 @@ fn payloads_at_place<'a>(
     if let Some(payload) = literal_assignment_payload(program, subject) {
         return vec![payload];
     }
+    // Agreement needs the same root, so only the context's assignments to
+    // that root are candidates.
     contexts
         .into_iter()
         .flat_map(|context| {
-            semantic.context_view(context).facts().filter_map(|fact| {
-                if !matches!(
-                    fact.payload,
-                    FactPayload::AssignedValue { .. }
-                        | FactPayload::AssignedScalarValue { .. }
-                        | FactPayload::AssignedIntegerBounds { .. }
-                ) {
-                    return None;
-                }
-                let place = semantic.places.get(fact.place.as_place()?);
-                // Agreement needs the same root; most facts of a long context
-                // name other storage, and converting each would allocate.
-                if place.root != subject.root {
-                    return None;
-                }
-                let candidate = canonical_place_from_semantic_place(program, semantic, place)?;
-                if !crate::flow::canonical_places_agree(program, &candidate, subject) {
-                    return None;
-                }
-                if has_completed_call_snapshot(program, semantic, context, fact) {
-                    return None;
-                }
-                Some(fact.payload)
-            })
+            semantic
+                .assignments_with_root(context, subject.root)
+                .filter_map(|fact| {
+                    let place = semantic.places.get(fact.place.as_place()?);
+                    let candidate = canonical_place_from_semantic_place(program, semantic, place)?;
+                    if !crate::flow::canonical_places_agree(program, &candidate, subject) {
+                        return None;
+                    }
+                    if has_completed_call_snapshot(program, semantic, context, fact) {
+                        return None;
+                    }
+                    Some(fact.payload)
+                })
         })
         .collect()
 }
@@ -338,25 +329,32 @@ fn has_completed_call_snapshot(
     let FactPayload::AssignedValue { value } = fact.payload else {
         return false;
     };
+    // A snapshot is itself an assignment to the same place, so it shares the
+    // fact's root.
+    let Some(place) = fact.place.as_place() else {
+        return false;
+    };
     matches!(
         program.expression_table.expression(value),
         ExpressionNode::Call(_)
-    ) && semantic.context_view(context).facts().any(|snapshot| {
-        snapshot.place == fact.place
-            && snapshot.point == fact.point
-            && snapshot.origin == fact.origin
-            && match snapshot.payload {
-                FactPayload::AssignedScalarValue { value } => {
-                    !matches!(semantic.scalar_values.get(value), ScalarValue::Unknown)
+    ) && semantic
+        .assignments_with_root(context, semantic.places.get(place).root)
+        .any(|snapshot| {
+            snapshot.place == fact.place
+                && snapshot.point == fact.point
+                && snapshot.origin == fact.origin
+                && match snapshot.payload {
+                    FactPayload::AssignedScalarValue { value } => {
+                        !matches!(semantic.scalar_values.get(value), ScalarValue::Unknown)
+                    }
+                    // Bounds are a completed observation too, without asserting
+                    // that the call has one exact value.
+                    FactPayload::AssignedIntegerBounds { bounds } => {
+                        semantic.integer_ranges.is_valid(bounds)
+                    }
+                    _ => false,
                 }
-                // Bounds are a completed observation too, without asserting
-                // that the call has one exact value.
-                FactPayload::AssignedIntegerBounds { bounds } => {
-                    semantic.integer_ranges.is_valid(bounds)
-                }
-                _ => false,
-            }
-    })
+        })
 }
 
 /// Literal payloads are immutable authored values, including the exact landed

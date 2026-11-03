@@ -1313,18 +1313,15 @@ fn entry_scalar_parameter(
         visited.push(subject);
         subject = atomic.value;
     }
-    if let Some(_) = expression_table(program).member_node(subject) {
+    if expression_table(program).member_node(subject).is_some() {
         // The projected leaf's declared type is the subject's carrier; every
         // step is an exact declared field of a non-self, non-const entry
         // formal's record.
         let reference = fields::projected_type(program, state, subject)?;
         return integer_parameter(program, reference).map(|_| ());
     }
-    let Some(symbol) =
-        crate::queries::expression_traversal::single_segment_name_symbol(program, subject)
-    else {
-        return None;
-    };
+    let symbol =
+        crate::queries::expression_traversal::single_segment_name_symbol(program, subject)?;
     let parameter = program.state_parameter_by_symbol(state, symbol)?;
     if parameter.is_const || integer_parameter(program, parameter.type_reference).is_none() {
         return None;

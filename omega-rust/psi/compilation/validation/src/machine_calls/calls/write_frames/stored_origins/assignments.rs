@@ -112,14 +112,12 @@ pub(in crate::machine_calls::calls::write_frames) fn assignment_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
-    replaces_alias: bool,
+    replaces_local_binding: bool,
 ) -> Option<Option<AssignmentOrigins>> {
-    let replaces_stored = (!replaces_alias
-        && (super::assignment_replaces_case_binding(program, assignment, stored, aliases)
-            || (include_shared
-                && super::assignment_replaces_reference_ancestor(
-                    program, assignment, stored, aliases,
-                ))))
+    let replaces_stored = replaces_local_binding
+        || super::assignment_replaces_case_binding(program, assignment, stored, aliases)
+        || (include_shared
+            && super::assignment_replaces_reference_ancestor(program, assignment, stored, aliases))
         || super::super::alias_bindings::assignment_replaces_untracked_reference(
             program, machine, state, assignment, aliases,
         );
@@ -137,6 +135,7 @@ pub(in crate::machine_calls::calls::write_frames) fn assignment_origins(
         symbols,
         inference,
         include_shared,
+        replaces_local_binding,
     )
     .map(Some)
 }
@@ -156,8 +155,16 @@ fn assigned_stored_origins(
     symbols: &TopLevelSymbols<'_>,
     inference: &mut FrameInference,
     include_shared: bool,
+    replaces_local_binding: bool,
 ) -> Option<AssignmentOrigins> {
-    let mut source = binding_source(program, assignment.target, aliases)?;
+    // Replacing a local pointer writes its own slot. Following its old alias
+    // would instead overwrite the previous referent, and a first store has no
+    // previous referent to follow. Interior destinations still load ancestors.
+    let mut source = if replaces_local_binding {
+        super::super::FrameSourcePlace::from_expression(program, assignment.target)
+    } else {
+        binding_source(program, assignment.target, aliases)?
+    };
     if !source.root.is_valid() || !source.builtin_coordinates {
         return None;
     }
@@ -170,9 +177,11 @@ fn assigned_stored_origins(
     }
     let target_type =
         reference_subjects::assignment_stored_value_type(program, machine, state, assignment)?;
-    // Bare descriptor replacement belongs to alias transport. A value-shaped
-    // assignment through a reference replaces the referent's stored subtree.
-    if super::super::type_reference_is_reference(program, target_type) && source.segments.is_empty()
+    // A bare reference slot requires the typed local-replacement decision.
+    // A value-shaped assignment through a reference still replaces its referent.
+    if !replaces_local_binding
+        && super::super::type_reference_is_reference(program, target_type)
+        && source.segments.is_empty()
     {
         return None;
     }
@@ -274,11 +283,11 @@ fn assigned_stored_origins(
             reference: &|expression, reference, _implicit_borrow, inference| {
             super::super::path_instantiation::aggregate_arguments::symbolic_sources(
                 if include_shared {
-                    reference_subjects::backing_origin(
+                    reference_subjects::backing_origins(
                         program, machine, expression, symbols, inference, aliases, stored,
                     )
-                    .or_else(|| reference_subjects::unknown_readonly_origin(program, reference, ""))
-                    .map(|origin| vec![origin])
+                    .or_else(|| reference_subjects::unknown_readonly_origin(program, reference, "")
+                        .map(|origin| vec![origin]))
                 } else {
                     exclusive_reference_origins(program, machine, expression, symbols, inference)
                 },

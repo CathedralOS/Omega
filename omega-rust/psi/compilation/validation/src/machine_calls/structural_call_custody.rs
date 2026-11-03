@@ -193,14 +193,10 @@ pub fn structural_state_contract_predicates(
             match fact {
                 typed_trees::domain::ProofFact::Membership(membership) => {
                     let path = expression_table(program).name_path_node(membership.value)?;
-                    let Some(symbol) =
-                        crate::queries::expression_traversal::single_segment_name_symbol(
-                            program,
-                            membership.value,
-                        )
-                    else {
-                        return None;
-                    };
+                    let symbol = crate::queries::expression_traversal::single_segment_name_symbol(
+                        program,
+                        membership.value,
+                    )?;
                     program.domain_definition(membership.domain_symbol)?;
                     // A scalar parameter's predicate membership is carried as its
                     // complete declaration; a scalar tag is carried by the qualified

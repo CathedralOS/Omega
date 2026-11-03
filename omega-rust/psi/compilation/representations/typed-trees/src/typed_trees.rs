@@ -353,7 +353,7 @@ pub struct TypedTrees {
     /// The hash-consed structural type keys minted on demand by the type
     /// identity queries. A handle minted here compares by integer; its text
     /// stays inside the table for diagnostics and artifact encoding.
-    pub type_identities: OwnedInterner<crate::type_identity::TypeIdentityTable>,
+    pub type_identities: crate::type_identity::TypeIdentityTable,
 }
 
 /// A package-scoped declaration whose consumer role supplies its completion
@@ -649,7 +649,7 @@ impl TypedTrees {
             constant_recipe_closure: constant_recipes::ConstantRecipeClosure::default(),
             callable_identities: OwnedInterner::default(),
             callable_identity_memo: OwnedIndex::default(),
-            type_identities: OwnedInterner::default(),
+            type_identities: Default::default(),
         }
     }
 

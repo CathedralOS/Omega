@@ -456,20 +456,19 @@ fn propagate_state_mutation_summaries(
                                                 false
                                             }
                                             Some(root) if root == caller_machine => true,
-                                            Some(root) => {
+                                            Some(root)
                                                 if program
                                                     .state_parameters(caller_state)
                                                     .iter()
-                                                    .any(|parameter| parameter.symbol == root)
-                                                {
-                                                    !declared
-                                                        || caller_exposed_params.contains(&root)
-                                                } else {
-                                                    if !declared {
-                                                        return None;
-                                                    }
-                                                    false
+                                                    .any(|parameter| parameter.symbol == root) =>
+                                            {
+                                                !declared || caller_exposed_params.contains(&root)
+                                            }
+                                            Some(_) => {
+                                                if !declared {
+                                                    return None;
                                                 }
+                                                false
                                             }
                                         }
                                     };

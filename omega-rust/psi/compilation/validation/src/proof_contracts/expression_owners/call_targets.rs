@@ -253,7 +253,6 @@ pub(super) fn executable_site_call_candidate(
 
 /// The environment one statement position establishes: the machine's own
 /// environment extended by the `LocalData` bindings preceding the statement.
-
 pub(super) fn call_target_in_environment(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,

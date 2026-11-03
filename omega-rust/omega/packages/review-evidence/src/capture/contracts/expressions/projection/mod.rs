@@ -138,7 +138,7 @@ pub(crate) fn project_contract_expression_with_substitutions(
         ExpressionNode::StructLiteral(literal) => {
             project_contract_constructor_expression(compilation, context, literal, &child)
         }
-        ExpressionNode::Atomic(atomic) => project_contract_atomic_load(context, atomic, &child),
+        ExpressionNode::Atomic(atomic) => project_contract_atomic_load(context, atomic, child),
         ExpressionNode::Range(range) => (|| {
             Ok(PackageReviewContractExpression::Range {
                 start: range

@@ -262,15 +262,12 @@ fn parameter_subjects(contracts: &[PackageReviewCallableContract]) -> Vec<u32> {
         PackageReviewContractKind as Kind,
     };
     fn visit(expression: &Expression, found: &mut Vec<u32>) {
-        match expression {
-            Expression::Binary { left, right, .. } => {
-                if let Expression::Parameter(index) = left.as_ref() {
-                    found.push(*index);
-                }
-                visit(left, found);
-                visit(right, found);
+        if let Expression::Binary { left, right, .. } = expression {
+            if let Expression::Parameter(index) = left.as_ref() {
+                found.push(*index);
             }
-            _ => {}
+            visit(left, found);
+            visit(right, found);
         }
     }
     let mut found = Vec::new();

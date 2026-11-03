@@ -226,9 +226,7 @@ fn admit_complete(
         _ => return None,
     };
     let states = program.machine_states(machine);
-    let Some(root) = states.first() else {
-        return None;
-    };
+    let root = states.first()?;
     // The entry obligation is independent of every edge's guards. In
     // particular, an acyclic body cannot pass vacuously through an empty SCC.
     let entry_proof =
@@ -240,10 +238,7 @@ fn admit_complete(
     }
     // The judgment reads only these entry formals' arrival values; every
     // prefix below is checked against the paths that carry them.
-    let Some(premise_inputs) = ranking_range_premise_symbols(program, machine, range, measure)
-    else {
-        return None;
-    };
+    let premise_inputs = ranking_range_premise_symbols(program, machine, range, measure)?;
     let mut owned_frames = None;
     let frames = crate::flow::shared_call_frames_or(call_frames, program, &mut owned_frames);
     // A whole graph uses one inductive premise set. A failed edge cannot borrow
@@ -369,9 +364,7 @@ fn prove_edges<'program>(
     failure: &mut RankArrivalFailure,
 ) -> Option<state_edges::SelectedCorrespondence> {
     let states = program.machine_states(machine);
-    let Some(root) = states.first() else {
-        return None;
-    };
+    let root = states.first()?;
     let edges = patterns::edges_to_state(program, root, root.symbol);
     if edges.is_empty() && states.len() == 1 && graph::machine_has_cycle(program, machine) {
         return None;
@@ -383,22 +376,20 @@ fn prove_edges<'program>(
         .map(|application| (root.symbol, application))
         .collect::<Vec<_>>();
     for edge in edges {
-        let Some(evaluated_prefix) = preserved_entry_prefix(
+        let evaluated_prefix = preserved_entry_prefix(
             program,
             machine,
             root,
             frames,
             edge.statement_ordinal,
             &protected,
-        ) else {
-            return None;
-        };
+        )?;
         let guards = edge
             .guards
             .iter()
             .map(|guard| (guard.expression, guard.holds))
             .collect::<Vec<_>>();
-        let Some(proof) = prove_ranking_range_edge(
+        let proof = prove_ranking_range_edge(
             program,
             machine,
             root,
@@ -408,9 +399,7 @@ fn prove_edges<'program>(
             &guards,
             &evaluated_prefix,
             edge.arguments,
-        ) else {
-            return None;
-        };
+        )?;
         if !proof.membership_and_pinning {
             return None;
         }

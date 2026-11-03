@@ -37,7 +37,6 @@ reruns it and recompiles `compiler` and the crates above it (85 s measured).
 """
 
 import argparse
-import concurrent.futures
 import contextlib
 import datetime
 import hashlib
@@ -146,13 +145,20 @@ def pack(worktree, output):
     try:
         # POSIX (pax) headers keep nanosecond file times; GNU tar's default
         # format rounds them to whole seconds.
+        # The tar stream's length is the space the build takes once unpacked;
+        # a session checks it has that much room before it starts.
+        counted = output / ".tar-bytes"
         command = (f"tar -C {worktree} --format=posix --exclude-from={exclusions.name} -cf - target"
-                   f" | zstd -T0 -3 -q | split -b {PART_BYTES} -d -a 2 - {prefix}")
+                   f" | tee >(wc -c > {counted}) | zstd -T0 -3 -q"
+                   f" | split -b {PART_BYTES} -d -a 2 - {prefix}")
         subprocess.run(["bash", "-o", "pipefail", "-c", command], check=True)
+        unpacked_bytes = int(counted.read_text().strip())
+        counted.unlink()
     finally:
         os.unlink(exclusions.name)
     parts = sorted(output.glob(prefix.name + "*"))
     manifest = dict(schema=SCHEMA, commit=commit, path=str(worktree), **toolchain(worktree),
+                    unpacked_bytes=unpacked_bytes,
                     created=datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
                     parts=[dict(name=part.name, bytes=part.stat().st_size, sha256=sha256(part))
                            for part in parts])
@@ -188,6 +194,61 @@ def fetch(source, name, destination):
         run("curl", "-fsSL", "--retry", "3", "-o", str(destination), f"{source}/{name}")
     else:
         shutil.copyfile(Path(source, name), destination)
+
+
+@contextlib.contextmanager
+def opened_part(source, name):
+    """A readable byte stream of one published part, downloaded as it is read."""
+    if "://" not in source:
+        with open(Path(source, name), "rb") as stream:
+            yield stream
+        return
+    download = subprocess.Popen(["curl", "-fsSL", "--retry", "3", f"{source}/{name}"],
+                                stdout=subprocess.PIPE)
+    try:
+        yield download.stdout
+    finally:
+        download.stdout.close()
+        if download.wait():
+            raise WarmBuildError(f"downloading {name} failed (curl exit {download.returncode})")
+
+
+def unpack(source, manifest, worktree):
+    """Stream every part through its digest check into zstd and tar.
+
+    The parts are never stored: a cloud session has about 18 GB free after the
+    image and clone, and keeping 3-5 GB of parts beside the unpacked build is
+    what made its first restore fail with tar exit status 2.
+    """
+    pipeline = subprocess.Popen(
+        ["bash", "-o", "pipefail", "-c", f"zstd -d -q -T0 | tar -C {worktree} -xf -"],
+        stdin=subprocess.PIPE)
+    try:
+        for part in manifest["parts"]:
+            digest = hashlib.sha256()
+            with opened_part(source, part["name"]) as stream:
+                for block in iter(lambda: stream.read(1 << 20), b""):
+                    digest.update(block)
+                    pipeline.stdin.write(block)
+            if digest.hexdigest() != part["sha256"]:
+                raise WarmBuildError(f"{part['name']} does not match its published digest")
+        pipeline.stdin.close()
+        if pipeline.wait():
+            raise WarmBuildError(f"unpacking failed (exit {pipeline.returncode}); "
+                                 "check free disk space in the worktree's filesystem")
+    finally:
+        if pipeline.poll() is None:
+            pipeline.kill()
+            pipeline.wait()
+
+
+def require_space(manifest, directory):
+    """Refuse up front, with numbers, when the unpacked build cannot fit."""
+    needed = manifest.get("unpacked_bytes", 0) + (1 << 30)
+    free = shutil.disk_usage(directory).free
+    if free < needed:
+        raise WarmBuildError(f"the build needs {needed / 1e9:.1f} GB free to unpack and "
+                             f"{directory} has {free / 1e9:.1f} GB")
 
 
 def has_commit(cwd, revision):
@@ -231,16 +292,9 @@ def restore(root, worktree=None, source=SOURCE, revision=None):
             raise WarmBuildError("this toolchain differs from the published build's:\n"
                                  f"{local['rustc']}\nagainst\n{manifest['rustc']}")
         age_tracked_files(worktree)
-        with concurrent.futures.ThreadPoolExecutor(4) as pool:
-            list(pool.map(lambda part: fetch(source, part["name"], scratch / part["name"]),
-                          manifest["parts"]))
-        for part in manifest["parts"]:
-            if sha256(scratch / part["name"]) != part["sha256"]:
-                raise WarmBuildError(f"{part['name']} does not match its published digest")
         shutil.rmtree(worktree / "target", ignore_errors=True)
-        names = " ".join(str(scratch / part["name"]) for part in manifest["parts"])
-        subprocess.run(["bash", "-o", "pipefail", "-c",
-                        f"cat {names} | zstd -d -q -T0 | tar -C {worktree} -xf -"], check=True)
+        require_space(manifest, worktree.parent)
+        unpack(source, manifest, worktree)
         (worktree / "target" / MARKER).write_text(json.dumps(manifest, indent=1) + "\n",
                                                    encoding="utf-8")
         if revision:

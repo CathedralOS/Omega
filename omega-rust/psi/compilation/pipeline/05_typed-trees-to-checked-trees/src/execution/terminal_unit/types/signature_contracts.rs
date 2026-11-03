@@ -2,6 +2,7 @@
 //! or result carries, and the domain requirements boundary machines publish.
 
 use super::*;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::calls::projected_argument_path;
 use crate::flow::canonical_place_from_semantic_place;
 use crate::published::places::place_at;
@@ -520,12 +521,10 @@ pub(in crate::execution::terminal_unit) fn fold_parameter_entry_domains(
             if !routed && !vacuous {
                 continue;
             }
-            let Some(domain) = crate::published::facts::qualification_evidence::domain_definition(
+            let domain = crate::published::facts::qualification_evidence::domain_definition(
                 program,
                 membership.domain_symbol,
-            ) else {
-                return None;
-            };
+            )?;
             if !membership.semantic_domain.is_valid() {
                 return None;
             }
@@ -634,9 +633,12 @@ pub(in crate::execution::terminal_unit) fn retain_parameter_arrival_domains(
             else {
                 continue;
             };
-            let (carrier, path) =
-                projected_argument_path(program, state.symbol, 0, &place, None, None)
-                    .ok_or("state graph: arrival domains: unsupported exact subject path")?;
+            let ProjectedArgumentPath {
+                storage_type: carrier,
+                path,
+                ..
+            } = projected_argument_path(program, state.symbol, 0, &place, None, None)
+                .ok_or("state graph: arrival domains: unsupported exact subject path")?;
             // Scalar qualifications have their own checked computation channel.
             if program.primitive_type_reference(carrier).is_some() {
                 continue;

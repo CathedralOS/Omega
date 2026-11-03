@@ -177,15 +177,11 @@ fn reference_origin_refines<'types>(
                     _ => {}
                 }
             }
-            if actual.extent == WithinRegion
+            !(actual.extent == WithinRegion
                 && actual.path.len() > allowed.path.len()
                 && captured_reference_origin_type(types.clone(), root, &actual.path)
                     .and_then(|endpoint| crate::structural_declaration(types.clone(), endpoint))
-                    .is_some_and(|row| descriptor_region(&row.shape))
-            {
-                return false;
-            }
-            true
+                    .is_some_and(|row| descriptor_region(&row.shape)))
         }
     }
 }

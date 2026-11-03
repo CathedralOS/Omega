@@ -6,8 +6,9 @@
 //! and must neither suspend nor block, every checked body in its concrete call
 //! closure must carry the ordinary termination guarantee, and no reachable
 //! checked body may declare an unadmitted linear runtime carrier. Authority,
-//! finer resource admission, and failure remain independent axes and are added
-//! here as their checked plans become available. Authored entry preconditions
+//! finer resource admission, and failure remain independent axes. Execution
+//! additionally requires a complete empty failure judgment at its actual
+//! supplied arguments before entering the interpreter. Authored entry preconditions
 //! need a checked invocation proof; internal premises behind an unconditional
 //! entry use the source judgment. Post-check callers borrow that same checked
 //! program rather than replaying checking. Escaping mutation is excluded by
@@ -29,6 +30,7 @@ use crate::syntax_probes::PreparedEvaluationInputs;
 
 mod closure_validation;
 mod concrete_invocation;
+mod failures;
 mod supplied_values;
 
 pub(crate) use concrete_invocation::{
@@ -36,7 +38,6 @@ pub(crate) use concrete_invocation::{
     require_complete_invocation_conditions as require_complete_checked_conditions,
     snapshot_arguments_discharge,
 };
-pub(crate) use supplied_values::require_established_arguments;
 pub(crate) mod const_evaluable;
 mod selection_authority;
 
@@ -920,7 +921,8 @@ impl BuildTimeAdmissionPlan {
         let machine = program
             .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
-        self.require_floor(input, machine, None, false)?;
+        let mut arguments = arguments;
+        self.require_supplied_invocation(input, machine, &mut arguments, None)?;
         self.accounting
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(program),
@@ -949,7 +951,8 @@ impl BuildTimeAdmissionPlan {
                 "no machine with exact symbol {machine_symbol:?} exists in the evaluated program"
             )
         })?;
-        self.require_floor(input, machine, Some(custody), false)?;
+        let mut arguments = arguments;
+        self.require_supplied_invocation(input, machine, &mut arguments, Some(custody))?;
         self.accounting
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(program),
@@ -1046,6 +1049,7 @@ impl BuildTimeAdmissionPlan {
         let machine = program
             .realized_machine_named(machine_name)
             .ok_or_else(|| format!("no machine named `{machine_name}` exists"))?;
+        let mut arguments = arguments;
         let discharge =
             self.zero_argument_invocation_discharge(program, machine, &arguments, custody);
         self.require_floor(
@@ -1053,6 +1057,12 @@ impl BuildTimeAdmissionPlan {
             machine,
             custody,
             discharge,
+        )?;
+        self.require_invocation_failures(
+            BuildTimeProgram::Typed(program),
+            machine,
+            &mut arguments,
+            custody,
         )?;
         let value = self
             .accounting
@@ -1169,6 +1179,7 @@ impl BuildTimeAdmissionPlan {
                 let [machine] = matching.as_slice() else {
                     return Err("build-time invocation has no unique exact machine".into());
                 };
+                let mut arguments = arguments;
                 let discharge_authored_requires = self.zero_argument_invocation_discharge(
                     program,
                     machine,
@@ -1185,6 +1196,7 @@ impl BuildTimeAdmissionPlan {
                     Some(custody),
                     discharge_authored_requires,
                 )?;
+                self.require_invocation_failures(input, machine, &mut arguments, Some(custody))?;
                 let measured = self
                     .accounting
                     .evaluate(
@@ -1217,6 +1229,7 @@ impl BuildTimeAdmissionPlan {
         let [machine] = matching.as_slice() else {
             return Err("build-time invocation has no unique exact machine".into());
         };
+        let mut arguments = arguments;
         let discharge_authored_requires = discharge_authored_requires
             || self.zero_argument_invocation_discharge(program, machine, &arguments, Some(custody));
         let pair = self.checked_closure_admission(program, machine_symbol)?;
@@ -1230,6 +1243,12 @@ impl BuildTimeAdmissionPlan {
             machine,
             Some(custody),
             discharge_authored_requires,
+        )?;
+        admission.require_invocation_failures(
+            BuildTimeProgram::Checked(checked),
+            machine,
+            &mut arguments,
+            Some(custody),
         )?;
         let measured = self
             .accounting
@@ -1263,6 +1282,13 @@ impl BuildTimeAdmissionPlan {
         } else {
             self.require_common_floor_for_invocation(program, machine, custody)?;
         }
+        let mut snapshots = arguments.to_vec();
+        self.require_invocation_failures(
+            BuildTimeProgram::Typed(program),
+            machine,
+            &mut snapshots,
+            Some(custody),
+        )?;
         Ok(())
     }
 

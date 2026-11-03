@@ -163,10 +163,10 @@ pub fn descriptor_parameter_access<'types>(
 /// the place is. The place, owner and dense roster position must name exactly
 /// one declaration. Malformed duplicates and entry-block formals fail closed;
 /// operation results are not arrival storage.
-pub fn arrival_parameter<'machine>(
-    machine: &'machine TerminalMachine,
+pub fn arrival_parameter(
+    machine: &TerminalMachine,
     place: PlaceId,
-) -> Option<&'machine StructuralParameterDeclaration> {
+) -> Option<&StructuralParameterDeclaration> {
     let place_declaration = exactly_one(machine.structural_places.iter(), |declaration| {
         declaration.id == place
     })?;

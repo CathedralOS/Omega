@@ -101,11 +101,50 @@ impl PlaceRoot {
         }
     }
 
+    /// A sort key every equal root shares, so rows grouped by root can be
+    /// found by binary search. Distinct roots may share a key; readers still
+    /// compare the whole root.
+    pub fn group_key(&self) -> (u8, u32, u32) {
+        match self {
+            Self::Unknown => (0, 0, 0),
+            Self::Symbol(symbol) => (1, symbol.arena_index(), symbol.generation()),
+            Self::InvocationReferent { parameter, .. } => {
+                (2, parameter.arena_index(), parameter.generation())
+            }
+            Self::InvocationOutput(output) => {
+                let parameter = output.parameter_symbol;
+                (3, parameter.arena_index(), parameter.generation())
+            }
+            Self::Expression(expression) => (4, expression.arena_index(), expression.generation()),
+            Self::TypeReference(reference) => (5, reference.arena_index(), reference.generation()),
+        }
+    }
+
     place_root_handle_accessors!(
         Symbol => as_symbol -> SymbolHandle,
         Expression => as_expression -> ExpressionHandle,
         TypeReference => as_type_reference -> TypeReferenceHandle,
     );
+}
+
+impl PlaceSegment {
+    /// An integer identity: two segments have equal keys exactly when they are
+    /// equal, so segment paths can be sorted and searched without hashing.
+    pub fn order_key(&self) -> (u8, u64, u64) {
+        let handle = |index: u32, generation: u32| (u64::from(index) << 32) | u64::from(generation);
+        match self {
+            Self::Field { symbol } => (0, handle(symbol.arena_index(), symbol.generation()), 0),
+            Self::Case { variant } => (1, handle(variant.arena_index(), variant.generation()), 0),
+            Self::FixedIndex { index } => (2, *index as u64, 0),
+            Self::FixedRange { start, end } => (3, *start as u64, *end as u64),
+            Self::OpaqueRange => (4, 0, 0),
+            Self::Index { expression } => (
+                5,
+                handle(expression.arena_index(), expression.generation()),
+                0,
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]

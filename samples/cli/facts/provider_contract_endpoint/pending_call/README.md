@@ -63,8 +63,9 @@ The applicable requirements are:
   branches, and selected implementations.
 - **Soundness:** a call must establish its precondition before using the
   conclusions it promises. A successful later return cannot establish an earlier
-  premise. This row exercises that ordering; crash-capable helper admission
-  remains a separate open requirement.
+  premise. This row exercises that ordering. The
+  [guarded-call examples](../guarded_crash/README.md) separately check that a
+  helper cannot crash before it is evaluated as a bound.
 - **Source to Terminal:** retained call requirements must survive into the
   canonical evaluation job. After admission, the checked calls and transported
   result must execute with the same meaning in Terminal Psi.
@@ -107,6 +108,6 @@ The original circular control also rejects with both expected diagnostic
 fragments. Raw results and the exact compiler inputs are retained in the claim
 evidence under `pending-admission-r13-integrated-qualification-*`.
 
-This closes circular call admission for this fact. Crash-capable helper
-admission and the broader scalar-range migration remain open under the same
-parent task. Execution on the other hosted targets is unverified.
+This closes circular call admission for this fact. The guarded-crash row covers
+crash-capable helpers. The broader scalar-range migration remains open. Execution
+on the other hosted targets is unverified.

@@ -93,7 +93,11 @@ pub(crate) fn build_flow_facts(
     // changes with the incoming value inputs. Keep first-demand construction
     // lazy; the check pass owns the table so later consumers reuse it rather
     // than rebuilding identical rows.
-    let shared_tables = std::sync::Arc::new(SharedFlowTables::new(program, scalar_expressions));
+    let shared_tables = std::sync::Arc::new(SharedFlowTables::new(
+        program,
+        scalar_expressions,
+        call_frames,
+    ));
     let new_build = || {
         FlowBuildContext::with_shared_tables(
             program,

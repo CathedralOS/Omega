@@ -255,6 +255,12 @@ pub(crate) fn check_checked_facts_recording(
                 diagnostics.append(&mut crash_diagnostics);
             }
 
+            if let Err(mut entry_diagnostics) =
+                crashes::check_constant_expression_entries_cannot_crash(program, facts)
+            {
+                diagnostics.append(&mut entry_diagnostics);
+            }
+
             if let Err(mut content_diagnostics) =
                 content::check_retained_content_custody(program, facts)
             {

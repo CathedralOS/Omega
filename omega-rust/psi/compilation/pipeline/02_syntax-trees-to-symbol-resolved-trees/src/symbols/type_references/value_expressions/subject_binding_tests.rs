@@ -89,8 +89,10 @@ fn alias_subjects_use_exact_headers_roles_and_lexical_frontiers() {
             ));
         }
         let symbols = builder.finish();
-        let mut program = SymbolResolvedTrees::default();
-        program.symbols = symbols.clone();
+        let mut program = SymbolResolvedTrees {
+            symbols: symbols.clone(),
+            ..Default::default()
+        };
         let carrier = named(u64_symbol, "u64");
         let mut spans = Vec::new();
         for symbols in header_symbols {

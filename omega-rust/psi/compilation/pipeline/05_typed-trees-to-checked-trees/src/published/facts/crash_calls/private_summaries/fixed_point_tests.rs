@@ -115,16 +115,16 @@ fn dirty_equations_match_original_sweeps_for_exact_dependency_graphs() {
             let mut equations: Vec<_> = machines.into_iter().map(equation).collect();
             equations[0].direct = vec![guarded(CrashCause::Trap, 0, Some(true))];
             equations[1].published_dependencies = vec![guarded(CrashCause::Abort, 1, None)];
-            for source in 0..3 {
+            for (source, equation) in equations.iter_mut().enumerate() {
                 for (target, &machine) in machines.iter().enumerate() {
                     if edges & (1 << (source * 3 + target)) != 0 {
                         let recursive = source == target || (source + target) % 2 == 0;
                         let parameter = (source != target).then_some(source as u32 + 2);
-                        equations[source]
+                        equation
                             .private_dependencies
                             .push(dependency(machine, recursive, parameter));
-                        if equations[source].private_dependencies.len() == 1 {
-                            equations[source]
+                        if equation.private_dependencies.len() == 1 {
+                            equation
                                 .private_dependencies
                                 .push(dependency(machine, recursive, parameter));
                         }

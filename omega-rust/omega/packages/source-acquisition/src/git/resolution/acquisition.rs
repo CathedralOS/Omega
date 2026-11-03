@@ -127,7 +127,7 @@ pub(super) fn with_git_repository_from_retained_cache<Evidence, Output, PlannerE
         primary_git,
         execution_transport,
         limits,
-        &package_controlled_roots,
+        package_controlled_roots,
     )?;
     let mut inspect = Some(inspect);
     let result = (|| {

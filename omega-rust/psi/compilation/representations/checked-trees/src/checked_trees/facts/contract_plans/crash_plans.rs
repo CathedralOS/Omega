@@ -52,6 +52,44 @@ impl CrashRouteBucket {
     }
 }
 
+/// Crashes a checked body may raise when its entry contract holds. An empty
+/// bucket list proves no surviving route for those inputs; it does not prove
+/// that a caller's values satisfy the contract. Published ceilings stay separate.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedBodyCrashSummary {
+    machine: SymbolHandle,
+    body: arena::HandleSpan<typed_trees::state::State>,
+    buckets: Vec<CrashRouteBucket>,
+}
+
+impl CheckedBodyCrashSummary {
+    pub fn new(
+        machine: SymbolHandle,
+        body: arena::HandleSpan<typed_trees::state::State>,
+        mut buckets: Vec<CrashRouteBucket>,
+    ) -> Self {
+        buckets.sort();
+        buckets.dedup();
+        Self {
+            machine,
+            body,
+            buckets,
+        }
+    }
+
+    pub const fn machine(&self) -> SymbolHandle {
+        self.machine
+    }
+
+    pub const fn body(&self) -> arena::HandleSpan<typed_trees::state::State> {
+        self.body
+    }
+
+    pub fn buckets(&self) -> &[CrashRouteBucket] {
+        &self.buckets
+    }
+}
+
 /// Source correspondence for one membership in the invocation requirement roster.
 /// Predicate projection may duplicate or omit a subject occurrence, so replay
 /// retains its checked value explicitly instead of recovering it from a formula.
@@ -88,6 +126,8 @@ impl CheckedTrappingSite {
 pub struct CrashPlan {
     pub(crate) interface: CrashInterface,
     pub(crate) published: Vec<CrashRouteBucket>,
+    /// Missing or mismatched body evidence is unknown, not crash-free.
+    checked_body_summary: Option<CheckedBodyCrashSummary>,
     /// Complete source-independent lowering of the machine and entry-state
     /// `requires` package into the bounded structural scalar vocabulary.
     /// `None` means at least one authored requirement is outside that
@@ -116,6 +156,7 @@ impl CrashPlan {
         Self {
             interface: CrashInterface::PublishedCeiling,
             published,
+            checked_body_summary: None,
             structural_runtime_requirements: None,
             runtime_membership_subjects: Vec::new(),
             structural_runtime_guarantees: None,
@@ -135,6 +176,22 @@ impl CrashPlan {
         self.interface = CrashInterface::PublishedCeiling;
         self.published = published;
         self
+    }
+
+    pub fn with_checked_body_summary(mut self, summary: Option<CheckedBodyCrashSummary>) -> Self {
+        self.checked_body_summary = summary;
+        self
+    }
+
+    /// Only the exact body that supplied the completed judgment may use it.
+    pub fn checked_body_summary(
+        &self,
+        machine: SymbolHandle,
+        body: arena::HandleSpan<typed_trees::state::State>,
+    ) -> Option<&CheckedBodyCrashSummary> {
+        self.checked_body_summary
+            .as_ref()
+            .filter(|summary| summary.machine == machine && summary.body == body)
     }
 
     /// Attach the canonical (state, statement) roster of Trapping sites.

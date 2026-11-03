@@ -349,7 +349,6 @@ pub(in crate::sections::semantic_module::module_foundation_validation) fn valida
 /// open beneath a mutable-borrowed parameter or a completed owned home; a
 /// whole-root window needs actual mutable backing custody. A reference
 /// crossing without a following child selector still names a whole referent.
-
 fn window_root_type(
     module: &TerminalModule,
     machine: &TerminalMachine,
@@ -475,13 +474,11 @@ fn window_memberships(
     let Some((whole, projected)) = declared_memberships(machine, place) else {
         return malformed("structural window has no membership declaration");
     };
-    StructuralPathQualification::select_restorable(whole, projected, &projection.path).ok_or_else(
-        || {
-            CodecError::MalformedStructuralFoundation(
-                "structural window cannot restore an ancestor's qualification",
-            )
-        },
-    )
+    StructuralPathQualification::select_restorable(whole, projected, &projection.path).ok_or({
+        CodecError::MalformedStructuralFoundation(
+            "structural window cannot restore an ancestor's qualification",
+        )
+    })
 }
 
 pub(super) fn declared_memberships(

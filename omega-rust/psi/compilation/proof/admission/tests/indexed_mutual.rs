@@ -63,12 +63,12 @@ fn elem(arena: &mut TermArena) -> TermHandle {
     constant(arena, ELEM, Vec::new())
 }
 
-/// `λ(_ : Two). Type 0` — the constant motive every `caseTwo` selecting
-/// *types* here shares.
+// `λ(_ : Two). Type 0` — the constant motive every `caseTwo` selecting
+// *types* here shares.
 
-/// `Id Two zero one` — the dead child position: no closed inhabitant.
+// `Id Two zero one` — the dead child position: no closed inhabitant.
 
-/// `Id Two zero zero` — the single live child position.
+// `Id Two zero zero` — the single live child position.
 
 /// The uniform payload `Σ(e : Elem). Two` — element plus constructor
 /// sub-tag. Written non-dependently because the `B`/`next` selections
@@ -282,9 +282,9 @@ fn motive_type(arena: &mut TermArena, family: &IndexedFamily) -> TermHandle {
     pi(arena, domain, inner)
 }
 
-/// `Π(a : A). Π(g : Π(b : B a). IW (next a b)). Π(_ : Π(b : B a). Q
-/// (next a b) (g b)). Q (out a) (isup a g)` — the `iindW` step type,
-/// written under the one-binding prefix `[Q]`.
+// `Π(a : A). Π(g : Π(b : B a). IW (next a b)). Π(_ : Π(b : B a). Q
+// (next a b) (g b)). Q (out a) (isup a g)` — the `iindW` step type,
+// written under the one-binding prefix `[Q]`.
 
 /// The constructor-side context `e : Elem, t : Tree, f : Forest` —
 /// indices f = 0, t = 1, e = 2.

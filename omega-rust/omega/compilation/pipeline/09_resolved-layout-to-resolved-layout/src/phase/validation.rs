@@ -26,7 +26,7 @@ pub fn validate_resolved_layout_optimization(
         }
         (true, Some(relaxation)) => {
             validate_optimized_x86_branch_relaxation(physical, baseline, relaxation)
-            .map_err(ResolvedLayoutOptimizationError::Relaxation)?;
+                .map_err(ResolvedLayoutOptimizationError::Relaxation)?;
             if artifact.budget != relaxation.budget() || artifact.layout() != relaxation.layout() {
                 return Err(ResolvedLayoutOptimizationError::CurrentProgramMismatch);
             }

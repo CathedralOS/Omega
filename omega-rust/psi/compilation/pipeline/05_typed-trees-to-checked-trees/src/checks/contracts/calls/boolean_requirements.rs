@@ -77,7 +77,7 @@ fn explicit_subject_call_requirement_proven(
         site,
         call_flow.target_symbol,
         callee_parameters,
-        &arguments,
+        arguments,
         expression,
     )
 }

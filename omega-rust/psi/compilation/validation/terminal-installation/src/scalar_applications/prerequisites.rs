@@ -231,6 +231,18 @@ impl<'artifact> ScalarEntryPrerequisites<'artifact> {
         {
             return Err("scalar prerequisites name a different artifact, invocation, target or provider selection".into());
         }
+        let scope = &observations
+            .artifact()
+            .module()
+            .scalar_applications
+            .proof_scope;
+        let root = scope
+            .callable_declaration(TargetMachineCallable::Machine(self.entry))
+            .ok_or("scalar prerequisite entry has no checked declaration")?;
+        crate::compiler_evaluation::require_root_failure_admission(
+            observations.artifact().module(),
+            root,
+        )?;
         let mut checks = ScalarEntryChecks::default();
         for &row in &self.rows {
             let mut inputs = Vec::new();

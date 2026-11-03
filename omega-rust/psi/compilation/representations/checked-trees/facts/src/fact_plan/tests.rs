@@ -258,6 +258,50 @@ fn proves_domain_membership_for_structurally_equal_places() {
 }
 
 #[test]
+fn context_assignments_select_one_root_in_context_order() {
+    let mut facts = FactPlan::default();
+    let wanted = SymbolHandle::from_arena_index(50);
+    let other = SymbolHandle::from_arena_index(3);
+    let assignment = |facts: &mut FactPlan, symbol, value| {
+        let place = facts.append_symbol_place(symbol);
+        facts.append_fact(Fact {
+            place: FactPlace::Place(place),
+            payload: FactPayload::AssignedValue {
+                value: typed_trees::expression::ExpressionHandle::from_arena_index(value),
+            },
+            ..Default::default()
+        })
+    };
+    let first = assignment(&mut facts, wanted, 1);
+    let unrelated = assignment(&mut facts, other, 2);
+    let membership_place = facts.append_symbol_place(wanted);
+    let membership = facts.append_fact(Fact {
+        place: FactPlace::Place(membership_place),
+        payload: FactPayload::DomainMembership {
+            value: typed_trees::expression::ExpressionHandle::invalid(),
+            domain: HandleSpan::empty(),
+            domain_symbol: SymbolHandle::from_arena_index(9),
+            semantic_domain: Default::default(),
+        },
+        ..Default::default()
+    });
+    let second = assignment(&mut facts, wanted, 4);
+    let mut refs = HandleSpan::empty();
+    for fact in [first, unrelated, membership, second] {
+        facts.append_ref(&mut refs, fact);
+    }
+    let context = facts.append_context(ProgramPoint::Global, refs);
+    let selected = facts
+        .assignments_with_root(facts.contexts.get(context), PlaceRoot::Symbol(wanted))
+        .map(|fact| fact.payload)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        selected,
+        [first, second].map(|fact| facts.facts.get(fact).payload),
+    );
+}
+
+#[test]
 fn expression_places_resolve_attached_data_members() {
     use symbols::{SymbolKind, SymbolNameRef, SymbolTableBuilder};
     // Place typing walks each symbol's retained parent, so the fixture's

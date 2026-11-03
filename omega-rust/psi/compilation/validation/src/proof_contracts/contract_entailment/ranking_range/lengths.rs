@@ -223,9 +223,7 @@ fn evaluate_length(
         expression,
     ) || contracted_extent
     {
-        let Some(indexed) = expression_table(program).indexed_node(expression) else {
-            return None;
-        };
+        let indexed = expression_table(program).indexed_node(expression)?;
         let range = expression_table(program).range_node(indexed.index)?;
         // Constant-extent queries also enter here without the call owner's
         // meaning pass. Never interpret an authored operator as arithmetic
@@ -294,11 +292,9 @@ fn evaluate_length(
     }
     let length = match expression_table(program).expression(expression) {
         ExpressionNode::Name(_) => {
-            let Some(symbol) = crate::queries::expression_traversal::single_segment_name_symbol(
+            let symbol = crate::queries::expression_traversal::single_segment_name_symbol(
                 program, expression,
-            ) else {
-                return None;
-            };
+            )?;
             return saved_length(program, machine, state, symbol, engine, depth);
         }
         // Quoted bytes form an immutable image-backed view. Its live extent
@@ -595,9 +591,7 @@ impl<'program> Coordinate<'program> {
             // An owned actual into a borrowed formal has no reference boundary
             // to read through; only a `&` spelling reaches the record the
             // destination denotes.
-            let Some(borrow) = expression_table(program).borrow_expression(current) else {
-                return None;
-            };
+            let borrow = expression_table(program).borrow_expression(current)?;
             current = borrow.target;
         }
         if let Some((carrier, prefix)) = rooted_carrier(program, state, current) {

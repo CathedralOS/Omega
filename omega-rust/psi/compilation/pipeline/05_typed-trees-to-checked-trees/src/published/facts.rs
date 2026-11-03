@@ -249,6 +249,15 @@ pub(crate) fn build_check_facts(
         "psi.05.build_check_facts.prewarm_mutation_summaries",
     );
     let flow_loop_guard = phase_profile::guard("psi.05.build_check_facts.flow_fixed_point");
+    // Most passes after the first are scheduled because permission
+    // preparation learned which claim each call returns. Flow construction
+    // does not read that correspondence, so when every input it does read is
+    // unchanged, building again reproduces the previous flow exactly; in a
+    // std program that rebuild was about 7.5 s of a 50 s compile. Reuse the
+    // previous construction only on an exact input match. Any change to the
+    // seeded semantic plan or the borrow, proof, domain, scalar-expression or
+    // operator facts still rebuilds from source.
+    let mut previous_construction: Option<FlowConstruction> = None;
     loop {
         phase_profile::count(
             "psi.05.build_check_facts.flow_fixed_point.outer_iterations",
@@ -260,29 +269,47 @@ pub(crate) fn build_check_facts(
             &mut prepared.semantic,
             &prepared.contextual_cleanup.entry_requirements,
         )?;
-        prepared.flow = phase_profile::scope(
-            "psi.05.build_check_facts.flow_fixed_point.build_flow_facts",
-            || {
-                build_flow_facts(
-                    program,
-                    &prepared.borrow,
-                    &prepared.proof,
-                    &mut prepared.semantic,
-                    &prepared.domains,
-                    &operational,
-                    &service_reach_inference,
-                    &prepared.values.scalar_expressions,
-                    &prepared.operators,
-                    mutation_summaries,
-                    call_frames.as_ref(),
-                )
-            },
-        );
-        phase_profile::checkpoint(
-            "after flow construction",
-            "psi.05.build_check_facts.flow_fixed_point.build_flow_facts",
-        );
-        prepared.flow.control.seal_indexes();
+        let reusable = previous_construction
+            .as_ref()
+            .filter(|construction| construction.read_the_same_inputs(&prepared));
+        if let Some(construction) = reusable {
+            phase_profile::count(
+                "psi.05.build_check_facts.flow_fixed_point.reused_construction",
+                1,
+            );
+            prepared.semantic.clone_from(&construction.semantic_after);
+            prepared.flow.clone_from(&construction.flow);
+        } else {
+            let inputs = FlowConstructionInputs::capture(&prepared);
+            prepared.flow = phase_profile::scope(
+                "psi.05.build_check_facts.flow_fixed_point.build_flow_facts",
+                || {
+                    build_flow_facts(
+                        program,
+                        &prepared.borrow,
+                        &prepared.proof,
+                        &mut prepared.semantic,
+                        &prepared.domains,
+                        &operational,
+                        &service_reach_inference,
+                        &prepared.values.scalar_expressions,
+                        &prepared.operators,
+                        mutation_summaries,
+                        call_frames.as_ref(),
+                    )
+                },
+            );
+            phase_profile::checkpoint(
+                "after flow construction",
+                "psi.05.build_check_facts.flow_fixed_point.build_flow_facts",
+            );
+            prepared.flow.control.seal_indexes();
+            previous_construction = Some(FlowConstruction {
+                inputs,
+                semantic_after: prepared.semantic.clone(),
+                flow: prepared.flow.clone(),
+            });
+        }
         phase_profile::scope(
             "psi.05.build_check_facts.flow_fixed_point.bind_call_spans",
             || {
@@ -704,3 +731,47 @@ pub(crate) fn refresh_realized_contract_envelopes(facts: &mut CheckFacts) {
 }
 
 pub(crate) use qualification_facts::build_content_facts;
+
+/// The facts one flow construction read, captured before it ran. Flow
+/// construction is a function of these plus declaration data that does not
+/// change inside the fixed point.
+struct FlowConstructionInputs {
+    semantic: facts::FactPlan,
+    borrow: checked_trees::BorrowFacts,
+    proof: checked_trees::ProofFacts,
+    domains: checked_trees::DomainFacts,
+    scalar_expressions: checked_trees::CheckedScalarExpressionPlans,
+    operators: checked_trees::CheckedOperatorFacts,
+}
+
+impl FlowConstructionInputs {
+    fn capture(prepared: &CheckFacts) -> Self {
+        Self {
+            semantic: prepared.semantic.clone(),
+            borrow: prepared.borrow.clone(),
+            proof: prepared.proof.clone(),
+            domains: prepared.domains.clone(),
+            scalar_expressions: prepared.values.scalar_expressions.clone(),
+            operators: prepared.operators.clone(),
+        }
+    }
+}
+
+/// One completed flow construction and the inputs it read.
+struct FlowConstruction {
+    inputs: FlowConstructionInputs,
+    semantic_after: facts::FactPlan,
+    flow: checked_trees::FlowFacts,
+}
+
+impl FlowConstruction {
+    fn read_the_same_inputs(&self, prepared: &CheckFacts) -> bool {
+        let inputs = &self.inputs;
+        inputs.semantic == prepared.semantic
+            && inputs.borrow == prepared.borrow
+            && inputs.proof == prepared.proof
+            && inputs.domains == prepared.domains
+            && inputs.scalar_expressions == prepared.values.scalar_expressions
+            && inputs.operators == prepared.operators
+    }
+}

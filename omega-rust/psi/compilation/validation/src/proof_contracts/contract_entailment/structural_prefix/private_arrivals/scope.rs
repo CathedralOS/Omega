@@ -303,12 +303,11 @@ pub(super) fn closed_arrivals(
     root: &Machine,
     callee: &Machine,
 ) -> Result<std::sync::Arc<ClosedArrivals>, &'static str> {
-    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
-        if let Ok(guard) = memos.private_closed_arrivals.lock()
-            && let Some(cached) = guard.get(&(root.symbol, callee.symbol))
-        {
-            return cached.clone();
-        }
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+        && let Ok(guard) = memos.private_closed_arrivals.lock()
+        && let Some(cached) = guard.get(&(root.symbol, callee.symbol))
+    {
+        return cached.clone();
     }
     // This summary depends only on the frozen call/use graph. It contains
     // neither a runtime observation nor a predicate's proof judgment.

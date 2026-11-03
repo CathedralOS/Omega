@@ -64,7 +64,7 @@ pub(super) struct MachineEntryConditions<'a> {
 
 impl MachineEntryConditions<'_> {
     pub(super) fn at_call(&self, call: &checked_trees::FlowCallFact) -> RouteGuard {
-        self.from_contexts(call.entry_semantic_contexts)
+        self.under_contexts(call.entry_semantic_contexts)
     }
 
     pub(super) fn at_site(&self, location: checked_trees::CrashSiteLocation) -> RouteGuard {
@@ -84,11 +84,11 @@ impl MachineEntryConditions<'_> {
                     })
             })
             .map_or(RouteGuard::Truth, |statement| {
-                self.from_contexts(statement.entry_semantic_contexts)
+                self.under_contexts(statement.entry_semantic_contexts)
             })
     }
 
-    fn from_contexts(
+    fn under_contexts(
         &self,
         contexts: arena::HandleSpan<checked_trees::FlowSemanticContextRef>,
     ) -> RouteGuard {

@@ -64,6 +64,7 @@ beside code; completed work belongs in Git, not current reference material.
   [storage](spec/resources/storage.md),
   [external-entry stacks](spec/resources/entry_stacks.md),
   [content custody](spec/resources/content_custody.md),
+  [dense owned runs](spec/resources/typed_runs.md),
   [authority and qualification](spec/resources/authority.md),
   [extents and mappings](spec/resources/extents.md),
   [access policies](spec/resources/access.md),

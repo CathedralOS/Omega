@@ -67,12 +67,12 @@ pub(super) fn call_site_proves_boolean_contract_expression(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn call_site_boolean_contract_expression_value<'program, 'call>(
+pub(crate) fn call_site_boolean_contract_expression_value<'program>(
     program: &'program dyn ::validation::CheckingInput,
     operators: Option<&'program checked_trees::CheckedOperatorFacts>,
     state_flow: &FlowStateFact,
     call_flow: &FlowCallFact,
-    call_site: &'call validation::CallSite<'program>,
+    call_site: &validation::CallSite<'program>,
     target_symbol: symbols::SymbolHandle,
     target_parameters: &'program [StateParameter],
     expression: ExpressionHandle,

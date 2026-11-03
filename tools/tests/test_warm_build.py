@@ -69,6 +69,20 @@ class WarmBuildTests(unittest.TestCase):
         # Cargo must see the edited file as newer than the restored build.
         self.assertGreater(os.stat(warm / "source.rs").st_mtime, warm_build.OLD_TIME)
 
+    def test_the_manifest_records_the_unpacked_size(self):
+        manifest = json.loads((self.packed() / warm_build.MANIFEST).read_text())
+        self.assertGreater(manifest["unpacked_bytes"], len(b"compiled"))
+
+    def test_too_little_disk_is_refused_before_unpacking(self):
+        # A session's first restore failed with a bare tar exit status 2 when
+        # the disk filled; the shortfall must be named before anything unpacks.
+        source = self.packed()
+        full = mock.Mock(free=1024)
+        with mock.patch.object(warm_build.shutil, "disk_usage", return_value=full), \
+                self.assertRaisesRegex(warm_build.WarmBuildError, "GB free to unpack"):
+            warm_build.restore(self.root, source=str(source))
+        self.assertFalse((warm_build.warm_worktree(self.root) / "target").exists())
+
     def test_a_dirty_worktree_is_refused_before_anything_changes(self):
         source = self.packed()
         warm = warm_build.warm_worktree(self.root)

@@ -478,14 +478,24 @@ pub fn declared_result_field_domain_contracts(
             })
             .collect::<Vec<_>>()
     };
-    for row in declared_owned_field_obligations(program, reference).domains {
-        if !rows
+    let owned = declared_owned_field_obligations(program, reference).domains;
+    // Large returned records can carry thousands of field requirements. Index
+    // their identities once instead of scanning all earlier fields for each
+    // owned requirement. Keep every readable row and the first owned addition,
+    // including its declared arguments, in the original traversal order.
+    let keep_owned = {
+        let mut seen: std::collections::HashSet<_> = rows.iter().map(|row| &row.identity).collect();
+        owned
             .iter()
-            .any(|existing| existing.identity == row.identity)
-        {
-            rows.push(row);
-        }
-    }
+            .map(|row| seen.insert(&row.identity))
+            .collect::<Vec<_>>()
+    };
+    rows.extend(
+        owned
+            .into_iter()
+            .zip(keep_owned)
+            .filter_map(|(row, keep)| keep.then_some(row)),
+    );
     rows
 }
 

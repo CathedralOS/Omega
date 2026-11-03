@@ -171,9 +171,9 @@ fn parameter_edges<'program>(
                 let captured =
                     frames.and_then(|frames| frames.transition_write_origins(machine, target));
                 let mut storage = Vec::new();
-                let mut nonself_index = 0;
                 let mut mapped = Vec::new();
-                for parameter in program.state_parameters(state) {
+                for (nonself_index, parameter) in program.state_parameters(state).iter().enumerate()
+                {
                     if tracked_parameter(program, parameter) {
                         let sources = {
                             captured
@@ -186,7 +186,6 @@ fn parameter_edges<'program>(
                     }
                     let source_parameter = {
                         let argument = arguments.get(nonself_index).copied();
-                        nonself_index += 1;
                         argument.and_then(|argument| {
                             tracked_source_parameter(program, source, &locals, argument, parameter)
                         })
@@ -540,10 +539,7 @@ pub(super) fn rebase_contexts(
             })
             .collect()
     } else {
-        build
-            .entry_origin_chain_at(program, machine, state)
-            .as_ref()
-            .clone()
+        build.entry_origin_chain_at(program, machine, state)
     };
     let mut rebased = HandleSpan::empty();
     let mut parameter_origins = HandleSpan::empty();

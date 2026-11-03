@@ -99,6 +99,13 @@ loans do not divide an authority into fractions. Ordinary non-content-bearing
 claims still retain complete identity, custody, and cleanup accounting; content
 adds decomposition rather than replacing linearity.
 
+[Typed runs](typed_runs.md) add a compiler-understood ordered-cell custody
+summary for dense runtime-count storage. They retain actual element obligations
+opaquely rather than projecting a sum of their contents. Neither a counted
+quantity nor byte interval conservation substitutes for their checked cell-to-
+backing correspondence. Split, merge and extraction transfer that retained
+custody; they do not reconstruct authority from a type and count.
+
 ## Source conservation contracts
 
 `old(place)` denotes the callable-entry revision of an ordinary parameter or

@@ -712,10 +712,11 @@ impl TerminalExecution<'_> {
             if let Some(retired) = self.structural_values.remove(&place) {
                 let origin = self
                     .reference_referents
-                    .get(&crate::boundary::values::StructuralRuntimePlace::from(&retired))
+                    .get(&crate::boundary::values::StructuralRuntimePlace::from(
+                        &retired,
+                    ))
                     .cloned();
-                self.retired_structural_homes
-                    .push((place, retired, origin));
+                self.retired_structural_homes.push((place, retired, origin));
             }
             self.byte_sequence_values.remove(&place);
             self.element_view_values.remove(&place);

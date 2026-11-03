@@ -243,12 +243,27 @@ fn merge_rosters(
     qualifications: &[semantic_vocabulary::StructuralDomainId],
     projected_qualifications: &[terminal_psi::StructuralPathQualification],
 ) {
-    parameter.qualifications.extend_from_slice(qualifications);
-    parameter.qualifications.sort();
-    parameter.qualifications.dedup();
-    parameter
-        .projected_qualifications
-        .extend_from_slice(projected_qualifications);
-    parameter.projected_qualifications.sort();
-    parameter.projected_qualifications.dedup();
+    merge_sorted(&mut parameter.qualifications, qualifications);
+    merge_sorted(
+        &mut parameter.projected_qualifications,
+        projected_qualifications,
+    );
+}
+
+/// Every call publishes its completions into the same declarations, so the
+/// roster is usually already sorted and duplicate-free and already holds most
+/// additions. Insert only the missing rows rather than re-sorting the whole
+/// roster; an unsorted roster still takes the complete sort.
+fn merge_sorted<Row: Ord + Clone>(roster: &mut Vec<Row>, additions: &[Row]) {
+    if !roster.is_sorted_by(|left, right| left < right) {
+        roster.extend_from_slice(additions);
+        roster.sort();
+        roster.dedup();
+        return;
+    }
+    for addition in additions {
+        if let Err(position) = roster.binary_search(addition) {
+            roster.insert(position, addition.clone());
+        }
+    }
 }

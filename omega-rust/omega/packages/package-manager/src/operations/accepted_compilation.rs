@@ -396,7 +396,6 @@ fn prepare_accepted_products(
             },
             options: compiler::PackageProductOptions {
                 optimization_rollback: request.product.optimization_rollback(),
-                ..Default::default()
             },
         }));
     }

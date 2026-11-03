@@ -186,7 +186,7 @@ pub(super) fn retain_result(
         scalar_type: result.scalar_type,
         shape: shape(result)?,
     };
-    insert_scalar_home(&mut live.integers, &mut live.scalar_homes, home.clone())?;
+    insert_scalar_home(&mut live.integers, &mut live.scalar_homes, home)?;
     Ok(home)
 }
 

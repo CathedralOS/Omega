@@ -199,7 +199,7 @@ fn main() {
                 .result
                 .unwrap_or_else(|error| panic!("{:?}", error.into_diagnostics()));
         let produced = psi_compiler::TerminalProductionRequest::new(
-            checked.execution().provider_source.program(),
+            checked.source_inspection().program(),
             psi_compiler::TerminalMachineSelection::Name("main"),
             checked.sources().exact_toolchain_sources(),
         )

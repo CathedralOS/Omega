@@ -328,11 +328,11 @@ mod tests {
                 );
                 reject_every_bit_flip(encoded.bytes(), "hosted read byte", |changed| {
                     assert_ne!(
-                        decode_aarch64_selected_hosted_read_byte(target, &changed),
+                        decode_aarch64_selected_hosted_read_byte(target, changed),
                         Some(displacement),
                         "decoder bit"
                     );
-                    validate(target, displacement, &changed).is_err()
+                    validate(target, displacement, changed).is_err()
                 });
                 for invalid_offset in [1, 3, u32::MAX - 3, u32::MAX] {
                     assert!(encode(target, kind, alternative, &[], invalid_offset).is_err());

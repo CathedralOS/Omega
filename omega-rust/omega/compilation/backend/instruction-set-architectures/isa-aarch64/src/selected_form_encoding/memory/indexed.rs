@@ -123,7 +123,7 @@ mod tests {
             }
         );
         reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupt| {
-            check_memory(&physical, kind, alternative, &operands, 0, &corrupt).is_err()
+            check_memory(&physical, kind, alternative, &operands, 0, corrupt).is_err()
         });
         for role in 0..3 {
             let mut corrupt = operands;

@@ -414,12 +414,12 @@ pub fn transported_span_end(
 /// durable-home area: every scalar-producing call row is one producer, its
 /// The unique `(block, instruction)` site a roster row's instruction id
 /// names, or `None` when it resolves to zero or several sites.
-pub fn unique_block_instruction<'a>(
-    function: &'a selected_instructions::SelectedFunction,
+pub fn unique_block_instruction(
+    function: &selected_instructions::SelectedFunction,
     instruction: selected_instructions::SelectedInstructionId,
 ) -> Option<(
-    &'a selected_instructions::SelectedBlock,
-    &'a selected_instructions::SelectedInstruction,
+    &selected_instructions::SelectedBlock,
+    &selected_instructions::SelectedInstruction,
 )> {
     let mut instructions = function.blocks.iter().flat_map(|block| {
         block

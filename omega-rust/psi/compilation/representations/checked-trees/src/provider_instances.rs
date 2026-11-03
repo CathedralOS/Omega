@@ -55,7 +55,13 @@ pub fn inherited_instances(
             }
             Ok(ClosedProviderInstance { requirement, realization })
         }).collect();
-        ProviderInstanceApplication { candidates }
+        ProviderInstanceApplication {
+            receiving_application: typed
+                .type_identity_text(application.portable_trait_application_identity)
+                .filter(|text| !text.is_empty())
+                .ok_or_else(|| "provider receiving application has no portable identity".into()),
+            candidates,
+        }
     }).collect()
 }
 

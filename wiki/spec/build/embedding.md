@@ -77,6 +77,27 @@ cannot replace an existing binding. The component's whole callable closure is
 admitted before it executes. This is explicit scheduling, never speculation
 that an unbound branch will not run.
 
+## Standalone execution selection
+
+Named decision: `explicit-execution-engine`, ratified 2026-11-02.
+
+The CLI exposes one execution axis: `omega run --engine native|terminal`.
+Omission selects `native`; `terminal` executes Terminal Psi without emitting or
+launching a native program image. `--both` remains a comparison request, not an
+engine name, and is mutually exclusive with an explicit `--engine` selection.
+It compares independent native and Terminal executions under the same selected
+program/provider configuration.
+
+Engine selection does not select an OS target. A Terminal run still retains its
+explicit or default target environment, exact provider closure and corresponding
+host adapters. It uses the shared Terminal program/instance lifecycle, not a
+second interpreter or source evaluator. Normal package, Build and trust admission
+remain required. Missing provider or execution support reports unavailability
+before guest effects; no native fallback or replacement provider is inferred.
+
+JIT selection and automatic hot-code compilation are deferred. Neither follows
+from `--engine terminal`, and no JIT implementation is required by this decision.
+
 ## Imports, exports, and provider slots
 
 An exact boundary-trait application is a static import/provider slot under

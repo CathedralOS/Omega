@@ -49,7 +49,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
             || !place
                 .segments
                 .iter()
-                .all(|segment| crate::flow::fixed_selection_segment(segment))
+                .all(crate::flow::fixed_selection_segment)
         {
             return None;
         }
@@ -191,7 +191,7 @@ pub(super) fn capture_call<Value: CapturedValue>(
                 && place
                     .segments
                     .iter()
-                    .all(|segment| crate::flow::fixed_selection_segment(segment))
+                    .all(crate::flow::fixed_selection_segment)
                 && let Some(value) = Value::at_place(&place, &live)
             {
                 return Some(value);

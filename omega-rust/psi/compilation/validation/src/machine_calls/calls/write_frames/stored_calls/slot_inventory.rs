@@ -221,9 +221,7 @@ pub(super) fn parameter_destination_inventory(
                         template_dependent = true;
                         continue;
                     }
-                    if leaf.lifetime_dependencies.is_none() {
-                        return None;
-                    }
+                    leaf.lifetime_dependencies.as_ref()?;
                     let (definition, _) = frames::type_instantiation::DeclarationScopes::default()
                         .definition(program, leaf_type, 0)?;
                     if definition.supply_mode != language_semantics::DataSupplyMode::BoundaryOpaque

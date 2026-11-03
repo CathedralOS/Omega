@@ -5,6 +5,9 @@ machine build(builder: &mut Build) {
     configure_macos_image(builder);
     configure_time_host(builder);
     configure_windows_filesystem(builder);
+    configure_posix_canonical(builder);
+    configure_posix_filesystem(builder);
+    configure_posix_filesystem_darwin(builder);
     // Bind the complete ObjectiveC family once. String extents stay static.
     Build::bind<ObjectiveC::get_class>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
@@ -313,6 +316,311 @@ machine configure_windows_filesystem(builder: &mut Build) {
     Build::bind<WindowsFilesystemIo::c_set_last_error>(builder, windows_x86_64,
         ForeignBinding::DllImport { import: DllImport::PeByName {
             library: "kernel32.dll", export: "SetLastError"
+        } });
+}
+
+// The raw POSIX canonicalize requirements are backed here; the boundary trait
+// carries every contract, so no forwarding declaration restates one.
+machine configure_posix_canonical(builder: &mut Build) {
+    Build::bind<PosixCanonicalLibc::resolve>(builder, linux_x86_64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "realpath", version: "GLIBC_2.3"
+        } });
+    Build::bind<PosixCanonicalLibc::error_location>(builder, linux_x86_64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.2.5"
+        } });
+    Build::bind<PosixCanonicalLibc::copy_error>(builder, linux_x86_64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.2.5"
+        } });
+    Build::bind<PosixCanonicalLibc::resolve>(builder, linux_arm64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "realpath", version: "GLIBC_2.17"
+        } });
+    Build::bind<PosixCanonicalLibc::error_location>(builder, linux_arm64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "__errno_location", version: "GLIBC_2.17"
+        } });
+    Build::bind<PosixCanonicalLibc::copy_error>(builder, linux_arm64,
+        ForeignBinding::DllImport { import: DllImport::ElfVersioned {
+            object: "libc.so.6", symbol: "memcpy", version: "GLIBC_2.17"
+        } });
+    Build::bind<PosixCanonicalLibc::resolve>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_realpath"
+        } });
+    Build::bind<PosixCanonicalLibc::error_location>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "___error"
+        } });
+    Build::bind<PosixCanonicalLibc::copy_error>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcpy"
+        } });
+}
+
+// The Linux POSIX filesystem requirements reach the kernel directly; each
+// target binds its own system call numbers. Byte-view requirements carry the
+// per-target calling convention in their boundary trait, so the same member
+// names bind different traits on x86_64 and arm64.
+machine configure_posix_filesystem(builder: &mut Build) {
+    Build::bind<PosixFilesystemLinux::openat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 257 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::read>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 0 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::write>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 1 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::pread64>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 17 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::pwrite64>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 18 });
+    Build::bind<PosixFilesystemLinux::close>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 3 });
+    Build::bind<PosixFilesystemLinux::lseek>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 8 });
+    Build::bind<PosixFilesystemLinux::mkdirat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 258 });
+    Build::bind<PosixFilesystemLinux::unlinkat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 263 });
+    Build::bind<PosixFilesystemLinux::fchmodat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 268 });
+    Build::bind<PosixFilesystemLinux::fchmod>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 91 });
+    Build::bind<PosixFilesystemLinux::renameat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 264 });
+    Build::bind<PosixFilesystemLinux::linkat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 265 });
+    Build::bind<PosixFilesystemLinux::symlinkat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 266 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::readlinkat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 267 });
+    Build::bind<PosixFilesystemLinuxX86ByteViews::getdents64>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 217 });
+    Build::bind<PosixFilesystemLinux::newfstatat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 262 });
+    Build::bind<PosixFilesystemLinux::fstat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 5 });
+    Build::bind<PosixFilesystemLinux::ftruncate>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 77 });
+    Build::bind<PosixFilesystemLinux::utimensat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 280 });
+    Build::bind<PosixFilesystemLinux::fsync>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 74 });
+    Build::bind<PosixFilesystemLinux::fdatasync>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 75 });
+    Build::bind<PosixFilesystemLinux::dup>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 32 });
+    Build::bind<PosixFilesystemLinux::flock>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 73 });
+    Build::bind<PosixFilesystemLinux::fchownat>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 260 });
+    Build::bind<PosixFilesystemLinux::fchown>(builder, linux_x86_64,
+        ForeignBinding::Syscall { number: 93 });
+    Build::bind<PosixFilesystemLinux::openat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 56 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::read>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 63 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::write>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 64 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::pread64>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 67 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::pwrite64>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 68 });
+    Build::bind<PosixFilesystemLinux::close>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 57 });
+    Build::bind<PosixFilesystemLinux::lseek>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 62 });
+    Build::bind<PosixFilesystemLinux::mkdirat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 34 });
+    Build::bind<PosixFilesystemLinux::unlinkat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 35 });
+    Build::bind<PosixFilesystemLinux::fchmodat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 53 });
+    Build::bind<PosixFilesystemLinux::fchmod>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 52 });
+    Build::bind<PosixFilesystemLinux::renameat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 38 });
+    Build::bind<PosixFilesystemLinux::linkat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 37 });
+    Build::bind<PosixFilesystemLinux::symlinkat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 36 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::readlinkat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 78 });
+    Build::bind<PosixFilesystemLinuxArm64ByteViews::getdents64>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 61 });
+    Build::bind<PosixFilesystemLinux::newfstatat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 79 });
+    Build::bind<PosixFilesystemLinux::fstat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 80 });
+    Build::bind<PosixFilesystemLinux::ftruncate>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 46 });
+    Build::bind<PosixFilesystemLinux::utimensat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 88 });
+    Build::bind<PosixFilesystemLinux::fsync>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 82 });
+    Build::bind<PosixFilesystemLinux::fdatasync>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 83 });
+    Build::bind<PosixFilesystemLinux::dup>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 23 });
+    Build::bind<PosixFilesystemLinux::flock>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 32 });
+    Build::bind<PosixFilesystemLinux::fchownat>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 54 });
+    Build::bind<PosixFilesystemLinux::fchown>(builder, linux_arm64,
+        ForeignBinding::Syscall { number: 55 });
+}
+
+// The Darwin POSIX filesystem requirements resolve against libSystem; every
+// member shares one install name and keeps its authored Mach-O symbol.
+machine configure_posix_filesystem_darwin(builder: &mut Build) {
+    Build::bind<PosixFilesystemDarwin::c_open>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_open"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_open_create>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "___open"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_create>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_creat"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_read>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_write>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_read_at>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_pread"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_write_at>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_pwrite"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_close>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_close"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_remove>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_unlink"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_seek>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_lseek"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_create_dir>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_mkdir"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_remove_dir>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_rmdir"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_create_dir_name>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_mkdir"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_open_at>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_openat"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_unlink_at>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_unlinkat"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_set_permissions>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_chmod"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_set_file_permissions>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fchmod"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_rename>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_rename"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_hard_link>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_link"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_symlink>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_symlink"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_read_link>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_readlink"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_read_dir>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "___getdirentries64"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_remove_name>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_unlink"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_remove_dir_name>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_rmdir"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_read_file_metadata>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fstat"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_read_metadata_at>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fstatat"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_set_len>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_ftruncate"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_set_file_times>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_futimens"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_sync>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fsync"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_sync_data>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fdatasync"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_duplicate>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_dup"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_lock_file>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_flock"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_change_owner>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_chown"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_change_owner_no_follow>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_lchown"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_change_file_owner>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fchown"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_error_location>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "___error"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_copy_from_address>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcpy"
         } });
 }
 

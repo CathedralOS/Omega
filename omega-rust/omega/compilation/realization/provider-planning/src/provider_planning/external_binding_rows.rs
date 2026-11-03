@@ -160,7 +160,8 @@ impl ExternalBindingContext<'_> {
                         row.method
                     ))]
                 })?;
-                let binding = match row.binding {
+
+                match row.binding {
                     ProviderBinding::VtableField { .. } => ExternalBindingKind::VtableField {
                         field: field.clone(),
                         byte_offset,
@@ -169,8 +170,7 @@ impl ExternalBindingContext<'_> {
                         field: field.clone(),
                         byte_offset,
                     },
-                };
-                binding
+                }
             }
             ProviderBinding::CompilerIntrinsic { .. }
             | ProviderBinding::VtableSlot { .. }
@@ -183,11 +183,16 @@ impl ExternalBindingContext<'_> {
             }
             _ => Some(CallingPolicy::native_for_target(native_target)),
         };
-        if calling_applications.is_empty() {
-            if let Some(policy) = compatibility_policy {
-                calling_applications.extend(crate::calling_policy_plans::evaluate_default_calling_applications(
+        if calling_applications.is_empty()
+            && let Some(policy) = compatibility_policy
+        {
+            calling_applications.extend(
+                crate::calling_policy_plans::evaluate_default_calling_applications(
                     calling_program,
-                    selected.default_abis.as_ref().map_err(|error| vec![error.clone()])?,
+                    selected
+                        .default_abis
+                        .as_ref()
+                        .map_err(|error| vec![error.clone()])?,
                     target_profile,
                     policy,
                     usize::from(matches!(binding, ExternalBindingKind::TableFunction { .. })),
@@ -198,8 +203,8 @@ impl ExternalBindingContext<'_> {
                         trait_name_text(&plan.schema),
                         row.method
                     ))]
-                })?);
-            }
+                })?,
+            );
         }
         Ok(Some(ExternalBindingRow {
             target_name: if plan.target.is_empty() {

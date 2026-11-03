@@ -167,11 +167,24 @@ retired-syntax deletions to completion.
     owned copies from borrowed outer input homes, runtime-selected stored-reference
     call operands (captured-loan access), other remaining declared body forms,
     nonscalar orders beyond fixed-integer
-    lexicographic products, or dependent distances with computed endpoints
-    without ambient parent entry facts).
-  - Update Terminal production, codecs/checking, both interpreters, native
-    lowering, and WCSU together so runtime cycles remain constant-stack with all
-    live backing accounted for.
+    lexicographic products, or an unranked helper whose computed rank endpoint,
+    such as `items.len - 1`, reads a formal the helper supplies through a field
+    projection or computed argument rather than a whole parameter; the
+    whole-parameter case [runs in the parameter place](samples/cli/facts/nested_machine_invocation/joint_rank/parameter/bounded_distance/computed_length/README.md)
+    and its other eight places are unwritten).
+  - Bring the composed state-graph planner
+    (`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph`)
+    to parity with the ordinary call plan, starting with temporary cleanup
+    actions, so every statically known terminal call can lower as a transfer
+    in the caller's activation rather than only recursive components and
+    calls that move activation claims. Witness: fusing all terminal targets
+    refuses `LinuxArm64::plan` with "has no executable body: this compiler does
+    not lower a state of it yet (temporary cleanup actions)".
+  - Lower completion-carrier retirement order for nested machines that join
+    activation-claim attempts (`bounded_activation` `through_match_join`,
+    `claim_split_through_match_join`, `named_attempt`: "`main` has no
+    executable body ... (statement sequence: completion carrier retirement
+    order)").
   - Complete the corresponding declaration-model migration in linked
     application repositories.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
@@ -200,8 +213,6 @@ retired-syntax deletions to completion.
     [mutable recasts](omega-rust/psi/compilation/validation/recasts.md), and
     returns, preserving the audited inventories in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
-  - Reject crash-capable bound helpers at admission rather than stopping at an
-    unrelated missing-body lowering error.
   - Qualify the applicable migrated filesystem customers' native/Terminal
     oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: spec/guide/compiler docs, bundled libraries, samples, `source/psi`,
@@ -237,18 +248,10 @@ retired-syntax deletions to completion.
     `Build::select_provider`, `Build::exclude_service`,
     `Build::select_representation`, `Build::accept_boundary`,
     `Build::require_wire_compatibility`, `Build::assume_binding_contract`).
-  - Delete the provider-backed field machinery that checking now leaves
-    unreachable: `provider_backed_field` and
-    `CheckedUnitStructuralFieldType::ProviderBacked`,
-    `checked_provider_attachment_requirements`, stage 06
-    `attached_unit/provider_attachments.rs`, and
-    `fused_service_field_matches`/`fused_service_field_carrier`.
   - Retire remaining attachment helpers in checking/lowering without
     restoring hidden argument insertion.
   - Complete checked per-value loan carry evidence for suspension production
     without restoring hidden argument insertion: joins still refuse
-    derived descriptors whose source permissions have been copied, projected or
-    joined, projected call referents,
     supplied-output and lifetime-dependency descriptors, and backings with no
     enclosing owner; Terminal loan rows label accepted transfers `Unresolved`.
   - Retire `machine Data::operation` spellings across compiler/toolchain
@@ -281,7 +284,10 @@ retired-syntax deletions to completion.
   - **Psi checking, contracts, and package review
     (DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION):**
     - Complete remaining operational envelope refinement for dynamic
-      requirements beyond suspension, blocking, and service reach.
+      requirements beyond suspension, blocking, and service reach under
+      [known-selection narrowing](wiki/spec/language/effects.md#known-dynamic-selections),
+      preserving unknown-input ceilings, all join alternatives and published
+      callable contracts rather than inferring from private or later-bound bodies.
   - **Omega realization and cross-host native execution:**
     - Preserve complete 8-byte tables, zero trap slots, exact private callable
       identities, and patched image targets across all supported hosts, including
@@ -395,8 +401,6 @@ retired-syntax deletions to completion.
     on windows_x86_64. Native runs exit 70 as authored; the Terminal leg stops
     at the private native sponsor for `WindowsGuiImports::create_window`
     (**TERMINAL-RUNTIME-DRIVERS**).
-  - Add a fail control for ambiguous whole-trait provider supply of a migrated
-    raw trait.
   Acceptance: migrated customers execute through `omega run --both` under
   boundary-trait selection on their matching hosts; unselected, ambiguous, or
   reach-exceeding providers reject.
@@ -410,7 +414,7 @@ retired-syntax deletions to completion.
     (`omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/values/expression/index_authority.rs`),
     normalize `N + 0` and `N * 1` under it, and carry it through
     `monomorphization::finalize_domain_instance_identities`. The law shape
-    waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 4; question 5
+    waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 1; question 2
     asks whether the landed distributivity expansion advances the normalizer
     version.
   - Migrate top-level library/corpus/embedded declarations off the `operator`
@@ -493,6 +497,12 @@ narrows realization only.
     progress, intrinsic review and deferred array/const-generic recipes)
     from typed/checked records to canonical Terminal Psi
     plus target Build rows.
+  - Resolve a Build provider plan's schema text to the Terminal catalog's
+    schema identity handle once at the stage-00 join (provider-selection
+    boundary_review `requirement_binds`), so
+    `CheckedProviderRequirement::schema_identity` (checked-trees
+    `operators.rs`) becomes a handle and the checked-trees identity guard
+    reaches zero.
   - Move opaque selection and source-qualified review onto canonical Terminal
     Psi, so target planning drops its source-side signature preparation and
     passes source-discard/reload.
@@ -687,12 +697,17 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     placed/aggregate/atomic host loans, case replacement, clock/descriptor
     imports, explicit standalone `process_exit` delegation, and architectural
     trap presentation across Windows, macOS, and Linux.
+  - Expose [explicit engine selection](wiki/spec/build/embedding.md#standalone-execution-selection)
+    as `omega run --engine native|terminal` (default native), with `--both`
+    remaining a mutually exclusive comparison request. Terminal-only execution
+    uses the shared runtime without native image emission or fallback, retains
+    target/provider admission and rejects missing support before guest effects.
   - Audit retired crate consumers, verify `source/psi/` and `source/omega/`
     against the same job/value/effect contract, and promote all
     migration-designated canaries in `tests/omega/interpreter_migration.json`.
   Acceptance: source/dependency audits find one dispatcher/call/store/resource
   implementation and no `checked-interpreter` or executable tree visitor;
-  public `omega run --both`, source-free Terminal artifact execution, and
+  public `omega run --both`, explicit native/Terminal execution, source-free Terminal artifact execution, and
   corpus/sample controls pass on Windows, macOS, and Linux with independent
   stdout/stderr/exit/trap oracles and pre-effect import rejection.
 
@@ -734,10 +749,7 @@ helper that passes does not close an item.
   - Delete `ClauseKind::Where`, `RetiredWhereMachineRequirement` and the dead
     case-fact readers in `source/psi` (checking, resolution, typing), and move the
     multi-line data `where` literals in the `tests/psi` resolver, checking and
-    typing harnesses to `requires`. Verifying it needs the product gates, which
-    stop because `source/psi` fails checking with 5 errors on 2da2c5b57f1
-    (`lex/lexer.omg:781`, `parse/data.omg:275,281,515`, `parse/machine.omg:714`;
-    tracked under OMEGA-PRODUCT-COMPILER-SOURCE).
+    typing harnesses to `requires`. The `tests/psi` product gates verify it.
   Acceptance: both producers accept the new data, generic, callable and assembly
   forms; all affected authored sources migrate without changing their result or
   refusal obligation. Existing applicable fact rows and their sensitive reject
@@ -934,6 +946,13 @@ helper that passes does not close an item.
     single-evaluation pattern destructuring. Coordinate early exact-arithmetic
     formation with `ONE-INTEGER-BOUNDS-ENGINE`; a saved nonconstant bound must
     justify the operation before it is formed.
+  - Reclassify `fail/contracts/scalar_copy_guard_after_source_restore` as a
+    positive beside `pass/proofs/scalar_copy_guard_disjoint_write` under
+    [restored scalar facts](wiki/spec/language/state_contracts.md#restoring-a-saved-scalar-value),
+    re-record its actual outcome, and retain `source_write`/`selector_write`
+    rejection controls. Preserve exact value/place evidence without requiring
+    unbounded write-history tracking; do not weaken checking to retain a stale
+    negative oracle.
   Acceptance: a composed caller tolerates renamed/reordered states and inserted
   computations; operands execute left-to-right once, skipped calls never run,
   and saved values, reference locals, and terminal transition calls agree
@@ -1291,10 +1310,12 @@ defines the complete product bar.
     relationships through pointer lanes, copies, offsets and joins, including
     hidden result destinations and slice bounds/loans. Carry ordinary generic
     machine satisfaction through assembly callbacks.
-  - Implement value-location `align_of(value)` for addressable storage,
-    references and nonempty slices, with static/runtime observation, exact
-    location validity and admitted interpreted geometry; preserve the separate
-    type-layout meaning of `align_of<T>()`.
+  - Complete value-location `align_of(value)` for stronger-than-type alignment from
+    placement/allocator contracts with runtime observation, exact location
+    validity across view replacement, offsets and moved backing, and admitted
+    interpreted geometry for such locations; `ensures` clauses, trait
+    requirement contracts, and contract queries over a field path or a slice
+    (all currently rejected).
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
     every normal exit (assembly body contracts and label `ensures` are proof goals, never
@@ -1724,6 +1745,19 @@ defines the complete product bar.
   assumption closure, and a refreshed
   [metatheory evidence ledger](wiki/spec/proofs/kernel_metatheory.md#evidence-ledger).
 
+- **UNREACHABLE-BRANCH-DIAGNOSTICS.** Report source branches that contradict
+  their machine's entry contract or established facts, under
+  [unreachable branches](wiki/spec/language/state_contracts.md#unreachable-branches).
+  - Emit an advisory warning identifying the branch and conflicting premises,
+    retaining available source locations and exact subjects/storage versions.
+  - Keep routine generic-specialization and compile-time selection quiet without
+    suppressing contradictions already present in the generic's own contract.
+    Proof-internal impossible cases do not each produce a source warning.
+  Acceptance: focused examples pin warnings for source contradictions and no
+  warning for ordinary specialization; warning emission and code pruning do not
+  change proof acceptance. Missing, stale or out-of-scope contradiction evidence
+  cannot justify a reachable obligation, and malformed source remains rejected.
+
 ## Build-level behavior exclusions
 
 - **BUILD-SEMANTIC-EXCLUSIONS.** (Also covers **`BUILD-EXCLUSION-REALIZATION`**.)
@@ -1922,6 +1956,48 @@ defines the complete product bar.
   hung-worker recovery via `omega run --both`, while foreign/stale tickets,
   dropped custody, early reclaim, and unbacked suspension borrows reject.
 
+- **CHECKED-REPRESENTATION-REUSE.** Checking a short program that uses `std`
+  takes about a minute and a half, because every compilation checks all of
+  `std` again. `omega --check tests/omega/pass/host/console_exit_process_exit`
+  checks about 3,184 supplied `std` machines and has a median of 96.7 s on a
+  4-core `linux_x86_64` host at `91b6625545`. On the hosted runner,
+  `tests/omega/pass/control_flow/borrowed_state_argument`,
+  `tests/omega/pass/control_flow/runtime_owned_state_parallel_swap_exit` and
+  `tests/omega/pass/write_only/state_forwarded_scalar_store_exit` still exceed
+  the 120 s per-fixture cap. That is Post-merge smoke run 41618901953 at
+  `39d196dd9`, after #1656. Local
+  optimization cannot close the gap. A sampled profile shows no frame above
+  7% of busy time and allocation at about 25% of leaf time, and the best
+  measured local repair (2%) was inside run-to-run noise. The remaining cost
+  is the checking each compilation repeats for unchanged dependencies, so it
+  needs reuse rather than tuning. The specification already allows reusing an
+  admitted dependency's checked representation once its applicability is
+  proved ([execution contexts and reuse](wiki/spec/build/scoped_execution.md#execution-contexts-and-reuse),
+  [products and reuse](wiki/spec/build/testing.md#products-reuse-and-native-harnesses)).
+  Today the compiler reuses checks only within one live session
+  ([orchestration](omega-rust/omega/build-system/orchestration/README.md)).
+  Reuse is never admission: a cached analysis is not an admission certificate
+  ([acceptance](wiki/spec/packages/acceptance.md)), and package review's
+  [review cache](omega-rust/omega/packages/package-manager/src/review/candidate/review_cache.rs)
+  is a different artifact. Layouts used only inside unselected library code
+  are a separate share of the cost, tracked by owner question 6 in
+  [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md).
+  - Persist an admitted dependency's checked representation under its exact
+    identity. Bind it to an applicability proof over the premises the
+    specification lists: the target, the provider closure, root-sensitive
+    facts, the optimization premise and the accepted policy.
+  - Make the CLI `--check` and `run` routes consume a stored representation
+    whose applicability holds.
+  - Re-check instead of reusing when any premise changes.
+  - Keep admission and review independent of reuse, so a stored
+    representation never stands in for either.
+  Acceptance: with a warm store, `console_exit_process_exit` checks in under
+  half its cold time on the same host; cold, it checks with unchanged
+  semantics. The three smoke
+  fixtures pass under the 120 s cap on the hosted runner. Changing a premise
+  (another target or provider closure) re-checks instead of reusing, and
+  fixtures pin both reuse and re-checking.
+
 ## Connected scientific library
 
 - **W100-CONNECTED.** (new-scope) Complete the connected rank-two scientific
@@ -1977,10 +2053,24 @@ defines the complete product bar.
   access views end to end (`Psi 05–08` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
-  - Extend `alloc::Vec` beyond copy-scalar elements: retain initialized-element
-    custody across growth and discharge non-copy element cleanup before returning
-    vacant backing to the allocator. Its runtime-sized ownership carrier awaits
-    [the resident-sequence decision](OWNER_QUESTIONS.md#7-what-represents-a-runtime-sized-collection-of-owned-non-copy-elements).
+  - Implement [typed-run custody](wiki/spec/resources/typed_runs.md) end to end
+    through core `Run<P, T>` / protected `Live`, typed-cell transformations,
+    Terminal evidence and both engines; carry it across the nine places in
+    `samples/cli/facts/typed_run` with fact-sensitive reject twins. Retain actual
+    element custody, zero-footprint logical positions, contained loans and carry
+    anchors without per-element runtime tags, ledgers or occupancy bitmaps.
+  - Build generic `alloc::Vec` over live runs and adjacent vacant spare backing:
+    push/pop, remove/swap/replace, fallible growth and consuming release. Prove
+    checked singleton conversions preserve Resident field-view and excess-backing
+    semantics before folding implementations; no allocator or Vec-name carve-out.
+  - Pin dense qualified-float slice reads and domain-preserving mutable writes;
+    non-copy relocation with exactly-once observable cleanup and none during move;
+    distinct same-typed resource claims, zero-sized obligations, contained borrows,
+    split/rejoin, failed initialization and restored indexed removal. Reject twins
+    cover forged count/custody, swapped child geometry, non-adjacent merge, duplicate
+    extraction, conflicting carry anchors, relocation while borrowed, predicate
+    violation and backing return with live cells. Inspect emitted/interpreted run
+    operations for the no-per-element-bookkeeping contract, not just exit codes.
   - Execute the library growth/release/reset witnesses on Linux and macOS hosts.
   Acceptance: `tests/omega/pass/memory/bump_allocator_canary` and `Vec` growth
   witnesses execute via `omega run --both` with real backing, coexisting
@@ -2055,17 +2145,18 @@ defines the complete product bar.
 ## Rust compiler release closure
 
 - **RC-RELEASE-RECORD-AND-CLOSURE.** (Also covers **`RC-REPOSITORY-CLOSURE`**,
-  **`IND19-SPECTRUM-VALIDATION-RED`**, **`RC-NATIVE-MATRIX-LINUX-X86-64`**,
+  **`RC-NATIVE-MATRIX-LINUX-X86-64`**,
   **`RC-NATIVE-MATRIX-LINUX-ARM64`**, **`RC-NATIVE-MATRIX-MACOS-ARM64`**, and
   **`RC-NATIVE-MATRIX-WINDOWS-X64`**.) Produce the same-commit release record
   across all four required hosts (`linux_x86_64`, `linux_arm64`, `macos_arm64`,
   `windows_x86_64`) via `tools/release/release_record.py` under the
   [completion contract](wiki/drafts/reference/rust_compiler_completion.md):
-  - Repair the `ind19-spectrum-validation` API drift
-    (`TerminalRuntimeRequest.x86_flags`, `CheckedCompilation::into_program`) and
-    pass `python tools/fmt.py --check`, workspace all-target Clippy, workspace
+  - Pass `python tools/fmt.py --check`, workspace all-target Clippy, workspace
     all-target check, and `mbx nextest run --workspace --lib --no-fail-fast` at
-    one clean commit.
+    one clean commit on each required host. Frontier on linux_x86_64: format,
+    Clippy and check pass; 65 library tests fail (48 already failing at
+    `61d32e24eb90`, 16 more at `b6579dc23f59`, and one const-width rejection
+    test that compiles again; listed in #1646).
   - Pass `RC-NATIVE-MATRIX` and `RC-REPRESENTATIVE-PROGRAMS`
     (`tools/sample_native_gate.py`) with direct native execution on Linux
     x86-64, Linux ARM64, macOS ARM64, and Windows x86-64 (including Windows

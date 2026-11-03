@@ -270,7 +270,7 @@ impl StructuralJudge<'_> {
             StructuralTerm::Constructor { data, case, fields }
                 if data == "bool" && fields.is_empty() =>
             {
-                match language_semantics::const_value::boolean_literal_spelling(&case) {
+                match language_semantics::const_value::boolean_literal_spelling(case) {
                     Some(true) => Some(StructuralJudgment::Proven),
                     Some(false) => Some(StructuralJudgment::Refuted),
                     None => None,

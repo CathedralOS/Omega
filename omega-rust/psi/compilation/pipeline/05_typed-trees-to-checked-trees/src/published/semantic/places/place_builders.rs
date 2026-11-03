@@ -39,16 +39,15 @@ pub(crate) fn resolve_place_member_symbol(
 
     if let Some(machine) = program.machine_by_symbol(base_symbol)
         && let Some(data) = program.attached_data_definition(machine)
+        && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
     {
-        if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
-            return Some(symbol);
-        }
+        return Some(symbol);
     }
 
-    if let Some(data) = program.data_definition_by_symbol(base_symbol) {
-        if let Some(symbol) = data_member_symbol_by_name(program, data, member_name) {
-            return Some(symbol);
-        }
+    if let Some(data) = program.data_definition_by_symbol(base_symbol)
+        && let Some(symbol) = data_member_symbol_by_name(program, data, member_name)
+    {
+        return Some(symbol);
     }
 
     None

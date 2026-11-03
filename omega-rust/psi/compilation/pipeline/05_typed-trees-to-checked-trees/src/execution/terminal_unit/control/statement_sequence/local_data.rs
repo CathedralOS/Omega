@@ -35,6 +35,7 @@ use super::{
     scalar_computation_local_at, structural_operands,
 };
 use crate::execution::terminal_unit::borrowed_windows::OpenWindows;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::calls::byte_sequence_literal_argument;
 use crate::execution::terminal_unit::calls::projected_evaluated_path;
 use crate::execution::terminal_unit::calls::value_index_segment;
@@ -872,7 +873,11 @@ fn place_loan(
         }),
     );
     let path = match projected {
-        Some((storage, path)) => {
+        Some(ProjectedArgumentPath {
+            storage_type: storage,
+            path,
+            ..
+        }) => {
             if !recast_source.is_valid()
                 && program.normalized_type_identity(storage)
                     != program.normalized_type_identity(referee)
@@ -944,8 +949,11 @@ fn establish_declared_home(
     let result = CheckedUnitStructuralResultBindingPlan {
         statement_index,
         binding_ordinal: u32::try_from(*structural_count).ok()?,
-        type_identity: shapes.add_type(local.type_reference, binders, &[])?,
-        multiplicity: validation::reference_result_custody::binding_multiplicity(
+        // The home stores the same carrier a later initializer or assignment
+        // supplies. Borrowed argument presentation would erase this pointer
+        // into its referent and give its binding the wrong custody.
+        type_identity: shapes.add_stored_type(local.type_reference, binders, &[])?,
+        multiplicity: validation::reference_result_custody::result_multiplicity(
             program,
             local.type_reference,
         ),

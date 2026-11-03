@@ -260,25 +260,29 @@ crashes Trap
         }
     }
 
+    // The caller's capacity guard holds for these counts on entry; the
+    // `record_erased` call may write anywhere in `parser`, so the guarded
+    // counts are kept as values and advanced from them.
     machine field_stored(parser: &mut Parser, input: &TokenStream, type_reference: u64 in Trapping) {
         let field: u64 in Trapping = parser.output.field_count as u64 in Trapping;
+        let member: u64 in Trapping = parser.output.data_member_count as u64 in Trapping;
         let span: SourceSpan = Parser::source_span(parser, parser.member_start, parser.token_end);
         let field_end: u64 in Trapping = parser.token_end;
         Parser::record_erased(parser, ErasedBindingKind::Field, field, field_end);
-        parser.output.fields[parser.output.field_count] = DataField {
+        parser.output.fields[field] = DataField {
             name: Parser::identifier_span(parser, parser.member_name_start, parser.member_name_end),
             has_identity: parser.member_has_identity,
             identity: Parser::source_span(parser, parser.member_identity_start, parser.member_identity_end),
             type_reference: type_reference,
             source_span: span
         };
-        parser.output.field_count = parser.output.field_count + 1;
-        parser.output.data_members[parser.output.data_member_count] = DataMember {
+        parser.output.field_count = (field + 1) as u64;
+        parser.output.data_members[member] = DataMember {
             kind: DataMemberKind::Field,
             item_index: field,
             source_span: span
         };
-        parser.output.data_member_count = parser.output.data_member_count + 1;
+        parser.output.data_member_count = (member + 1) as u64;
         transition { _ -> member(parser, input) }
     }
 
@@ -503,16 +507,17 @@ crashes Trap
         field_end: u64 in Trapping,
         more: bool
     ) {
+        // `payload` keeps the caller's guarded count across `record_erased`.
         let payload: u64 in Trapping = parser.output.payload_field_count as u64 in Trapping;
         Parser::record_erased(parser, ErasedBindingKind::PayloadField, payload, field_end);
-        parser.output.payload_fields[parser.output.payload_field_count] = DataField {
+        parser.output.payload_fields[payload] = DataField {
             name: Parser::identifier_span(parser, start, end),
             has_identity: parser.identity_present,
             identity: Parser::source_span(parser, parser.identity_start, parser.identity_end),
             type_reference: type_reference,
             source_span: Parser::source_span(parser, parser.payload_field_start, field_end)
         };
-        parser.output.payload_field_count = parser.output.payload_field_count + 1;
+        parser.output.payload_field_count = (payload + 1) as u64;
         transition more {
             true -> payload_field(parser, input)
             _ -> payload_close(parser, input)
@@ -594,8 +599,11 @@ crashes Trap
         }
     }
 
+    // The caller guards both counts in one condition; storing `data_count`
+    // ends that fact, so the guarded root count is kept as a value.
     machine retain(parser: &mut Parser) {
         let data_index: u64 in Trapping = parser.output.data_count as u64 in Trapping;
+        let root: u64 in Trapping = parser.output.root_count as u64 in Trapping;
         let span: SourceSpan = Parser::source_span(parser, parser.data_item_start, parser.token_end);
         parser.output.data_items[parser.output.data_count] = DataItem {
             name: Parser::identifier_span(parser, parser.data_name_start, parser.data_name_end),
@@ -615,12 +623,12 @@ crashes Trap
             source_span: span
         };
         parser.output.data_count = parser.output.data_count + 1;
-        parser.output.roots[parser.output.root_count] = RootItem {
+        parser.output.roots[root] = RootItem {
             kind: RootItemKind::Data,
             item_index: data_index,
             source_span: span
         };
-        parser.output.root_count = parser.output.root_count + 1;
+        parser.output.root_count = (root + 1) as u64;
     }
 
     machine reject(parser: &mut Parser, input: &TokenStream, code: ParseDiagnosticCode) {

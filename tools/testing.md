@@ -50,6 +50,19 @@ must be resolved before landing. Do not repeat broad suites to attribute one tes
 
 ### Merge validation budget
 
+For each proposed build or test, name the decision it answers, the affected
+behavior, and why applicable existing evidence is insufficient. Estimate time
+and resources, including compilation. Reuse evidence only when its revision,
+toolchain, configuration, relevant dependencies and consumers still apply;
+distinguish cold and warm observations. Retain command, inputs and outcome.
+
+If a run exceeds its budget, inspect progress, CPU activity, logs and blockers
+before deciding whether to continue, narrow or revise it. Record the decision
+and reason; do not blindly wait, restart or expand the suite. A justified slow
+run may continue. A budget is not an automatic timeout or a passing result.
+Reviewers rerun checks to resolve material evidence gaps, not every expensive
+build by default. Required CI and release gates remain mandatory.
+
 Before starting a build, record a short plan in the PR or claim: the behavior
 changed, the smallest checks that establish it, reusable observations, and the
 expected build plus execution time. Choose by affected behavior, not by a
@@ -1535,7 +1548,7 @@ speedup.
 
 [release_record.py](release/release_record.py) runs the
 [release matrix](../wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
-the eight `RC-*` gates with their exact contract invocations on one host, and
+the six `RC-*` gates with their exact contract invocations on one host, and
 writes that lane's release record (`commit`, toolchain, host, commands,
 results, elapsed time, expected skips, direct-execution observation). `close`
 joins the four lanes' same-commit records into the release closure. It does

@@ -68,11 +68,11 @@ fn trait_parameter_slots(
         .map(|trait_definition| {
             (
                 trait_definition.symbol,
-                resolved_declarations(&program)
+                resolved_declarations(program)
                     .data_type_parameters
                     .span_or_empty(trait_definition.type_parameters)
                     .iter()
-                    .map(|parameter| predicate(parameter))
+                    .map(&predicate)
                     .collect::<Vec<_>>(),
             )
         })

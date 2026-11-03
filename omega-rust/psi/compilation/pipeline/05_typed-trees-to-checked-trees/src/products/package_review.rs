@@ -83,7 +83,7 @@ pub fn infer_checked_machine_crash_causes(
     facts::infer_checked_machine_crash_causes(program, facts, machine)
 }
 
-/// Query all closed local crash cause summaries with one shared analysis.
+/// Read all complete local crash summaries from ordinary checking.
 /// Missing machine keys mean unknown, not complete empty summaries. Each row
 /// retains only its exact machine key and conservative canonical cause set.
 pub fn infer_checked_crash_causes(

@@ -119,7 +119,7 @@ pub(crate) fn layout_family_is_complete(
 /// Guards needed by the exact participating types, including nested records.
 /// Unrelated family applications elsewhere in the package impose no guard.
 /// A caller already checking one alternative retains it through nested queries.
-pub fn layout_checking_targets(
+pub(crate) fn layout_checking_targets(
     program: &dyn CheckingInput,
     roots: impl IntoIterator<Item = TypeReferenceHandle>,
 ) -> Result<Vec<Option<&str>>, ()> {

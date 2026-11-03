@@ -60,23 +60,23 @@ impl SelectedOperand {
     }
 }
 
-/// Peel value casts around a non-call operand. The operand must resolve to a
-/// caller place or a literal — a nested computation or a call stays with the
-/// selected plan/`selected_call` routes that own it. The operand's own
-/// carrier starts the conversion fold, mirroring the callee return type in
-/// `selected_call`.
+// Peel value casts around a non-call operand. The operand must resolve to a
+// caller place or a literal — a nested computation or a call stays with the
+// selected plan/`selected_call` routes that own it. The operand's own
+// carrier starts the conversion fold, mirroring the callee return type in
+// `selected_call`.
 
 /// Peel the transparent-cast prefix of `source`: non-recast, non-domain casts
 /// accumulate until the first non-cast expression, which is returned with the
 /// accumulated chain.
-fn peel_transparent_casts<'a>(
-    program: &'a dyn ::validation::CheckingInput,
+fn peel_transparent_casts(
+    program: &dyn ::validation::CheckingInput,
     source: ExpressionHandle,
 ) -> Option<(
     ExpressionHandle,
     Vec<(
         ExpressionHandle,
-        &'a typed_trees::expression::TableCastExpression,
+        &typed_trees::expression::TableCastExpression,
     )>,
 )> {
     let mut casts = Vec::new();

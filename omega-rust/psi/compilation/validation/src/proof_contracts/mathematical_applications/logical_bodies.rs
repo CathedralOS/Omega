@@ -134,7 +134,8 @@ fn logical_body(
         return false;
     }
     program.machine_states(machine).iter().all(|state| {
-        let admitted = program.state_contracts(state).iter().all(|contract| {
+
+        program.state_contracts(state).iter().all(|contract| {
                 matches!(
                     contract.kind,
                     SignatureContractKind::Requires | SignatureContractKind::Ensures
@@ -149,7 +150,8 @@ fn logical_body(
                 .statement_table
                 .statements(state.statement_nodes)
                 .iter()
-                .all(|statement| { let admitted = match statement {
+                .all(|statement| {
+                match statement {
                     StatementNode::Assignment(_)
                     | StatementNode::Assembly(_) => false,
                     StatementNode::AssemblyFact(_) => true,
@@ -227,10 +229,8 @@ fn logical_body(
                                 }
                             })
                     }
-                };
-                admitted
-                });
-        admitted
+                }
+                })
     })
 }
 

@@ -142,6 +142,6 @@ rule; they do not change which crashes an interface permits.
 [explicit evidence selection](../../../../wiki/spec/language/conformances.md#declaration-and-selection),
 and [boundary crash contracts](../../../../wiki/spec/terminal-psi/boundary_calls.md#boundary-crash-contracts)
 govern the preserved selection and call obligations. The existing
-[owner question 6](../../../../OWNER_QUESTIONS.md#6-may-a-boundary-requirements-own-signature-bind-a-generic-evidence-parameter)
+[owner question 3](../../../../OWNER_QUESTIONS.md#3-may-a-boundary-requirements-own-signature-bind-a-generic-evidence-parameter)
 remains unchanged; this migration does not answer or close it. Other target-prefix
 migration and the remaining CRASH-CONTRACT acceptance remain open.

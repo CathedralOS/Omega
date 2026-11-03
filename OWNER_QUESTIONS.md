@@ -67,127 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. How should users select interpreted execution and a possible future JIT?
-
-AOT remains the established native execution path. How should users explicitly
-trigger standalone Terminal Psi interpretation? If we add a JIT later, should
-it be another explicitly selected execution mode, or should an opted-in runtime
-automatically compile hot code? Keep `--both` as a separate native/interpreter
-comparison choice rather than conflating comparison with engine selection.
-
-The concrete customer is running an ordinary Omega program through the chosen
-engine, including running it without first generating a native executable.
-The current CLI exposes native `omega run` and comparison through `--both`, but
-no interpreter-only option. This asks for the user-facing selection policy, not
-an implementation change or a decision that JIT must be built.
-
-Contracts checked: [embedding's engine/target separation](wiki/spec/build/embedding.md#target-environments-and-execution-engines)
-already treats interpreted and native execution independently from OS targets;
-[separate Terminal consumption](wiki/spec/terminal-psi/product.md#publication-and-separate-consumption)
-allows compilation to stop at Terminal Psi for later interpretation or native
-lowering. The embedding execution contract says no JIT is required, and its
-[implementation ownership](wiki/spec/build/embedding.md#authority-evidence-and-ownership-of-implementation)
-treats the CLI as a library client. These establish independent interpretation
-but do not settle a standalone CLI selection surface or a future JIT trigger
-policy. Any future automatic JIT policy would be an explicit new design choice,
-not an implicit requirement of the existing interpreter contract.
-
-### 2. Must a guard on a copy of an array element be rejected after the element is overwritten and restored?
-
-`tests/omega/fail/contracts/scalar_copy_guard_after_source_restore` is a reject
-twin that main now accepts. Its `inspect` machine reads `main.items[selector]`
-twice (`copied`, then `saved`), writes `0` to the element, writes `saved` back,
-and only then tests `copied >= 48 && copied <= 49` before transitioning to
-`bounded`, which `requires main.items[selector] >= 48` and `<= 49`. The twin
-expects `cannot prove requires contract`. On base `60f7e3cd4ee` a focused corpus
-run of the fixture reports `checked`, not `rejected`. The investigation traced
-this to #985 (`0020604823c`, 2026-10-31): the checker proves both requirements
-because `copied`, `saved` and `main.items[selector]` all denote the stored
-contents at state entry, and the restore writes back exactly that value. The program meets `bounded`'s
-requirements on every execution. Must it still be rejected? Is the twin's oracle
-a language rule, or a limit of the earlier analysis that the stronger one
-legitimately lifted?
-
-Option A, the twin is stale: accepting is correct. The fixture moves out of
-`fail/contracts/` (to `pass/` or deleted) and its golden rows are re-recorded.
-The language then admits a guard on a scalar copy across a write that restores
-the source, when the written value is provably the copied one. Sibling controls
-that change the stored value (`scalar_copy_guard_after_source_write`,
-`scalar_copy_guard_after_selector_write`) keep rejecting; four soundness probes
-still reject too (aliasing write through another index, restore of a different
-value, re-read after a write, store of a late read into `main.saved`).
-
-Option B, the twin states a rule: the program must be rejected. The analysis
-must stop relating `copied` to the element once any write to the element
-intervenes, even a value-equal restore. That requires deliberately weakening
-the stored-value tracking in the scalar copy guard route
-(`current_values::proves_call`, `guard_observations.rs`) for restored values,
-rejecting a program that provably satisfies its contracts, and a written rule
-to cite.
-
-Evidence, from the investigation on base `661760196df`: the call-site proof is
-`captured_boolean::judgment` -> `captured_contract_proven` ->
-`current_values::proves_call`, where the three values share one atom,
-`completed-scalar:IndexedValue{main.items, selector}`. #985 switched
-`numeric_observations` from `declared_integer_field_read` (declared fields only)
-to `integer_storage_read` (any fixed-integer storage read, array elements
-included). The golden row (`rejected`, `@ccdb99ca2214`) was recorded by #889
-(`c64728d90e8`) before #985 merged. The twin's shape comes from `10aeeb04a5b`,
-whose `guard_observations.rs` header says "a write followed by restoration
-still breaks the relation". That sentence is implementation commentary on
-the guard copy-relation route, not a language rule.
-
-Contracts checked:
-[primitive reads](wiki/spec/terminal-psi/fact_validity.md) (line 28) allow
-an equality between a copied result and an exact reaching stored value and
-say later writes cannot change either captured value, but name "missing
-stores" as preventing introduction; `copied` and `saved` have no reaching
-store, only state-entry contents. [Entry hypotheses](wiki/spec/terminal-psi/fact_validity.md)
-(line 67) bind "structural entry paths" and say current body values are not
-entry snapshots; whether a body read of an unchanged entry path may be
-identified with that path is not stated. [Mutation and subject
-identity](wiki/spec/language/state_contracts.md#mutation-and-subject-identity)
-(lines 175-198) says copies "transport facts about the captured value" and
-that overlapping destination facts are invalidated at a write, then the new
-value is established; it does not say a value-equal restore must lose facts
-about the copy. [Lifetimes](wiki/spec/language/lifetimes.md) (line 101) says
-integer snapshots are not live storage. No passage names scalar copy guards or
-requires a restore to break a relation. These establish that facts follow
-captured values and storage footprints but leave the restore case open.
-
-### 3. Does a coerced `dyn` selector narrow its call to the selected conformance's envelope, or keep the requirement ceiling?
-
-Two accepted passages disagree. [Dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md)
-(lines 81-93) lists service reach, suspension, blocking, failure, termination
-and crash routes as per-requirement envelope axes and says "Coercion retains
-the selected conformance's exact envelope"; `suspend` and `block`
-acknowledgements "use the retained envelope, not the wider base declaration".
-[Effects](wiki/spec/language/effects.md) (lines 184-187) says dynamic and
-boundary calls "retain pinned requirement ceilings, not a narrower provider
-body eventually selected for them", and that their operational
-acknowledgements "still use the requirement envelope".
-
-Option A, the selector narrows: a selection known at check time, such as
-`QuietSource as dyn Source` carried through locals, fields, constants, private
-calls, joins and nested machines, contributes the selected conformance's
-published rows. An unknown selector (an unannotated public `dyn` parameter)
-keeps the requirement ceiling, and "eventually selected" in effects.md reads
-as a selection made by Build or at run time. `samples/cli/facts/dynamic_suspension`
-(suspension and blocking) and `samples/cli/facts/dynamic_selected_reach`
-(service reach) implement this reading. The `dynamic/` places of
-`samples/cli/facts/unannotated_direct_boundary_call` now reach `Mark` from the
-selected body, because their silent selection no longer carried the
-requirement's `Mark` row.
-
-Option B, the ceiling stays: every `dyn` call contributes its requirement's
-whole envelope, whatever the coercion selected. dynamic_dispatch.md's
-"retained envelope" then means the requirement's envelope, and both fact rows
-above, with their pinned fixtures, are reverted.
-
-In both options public and annotated ceilings, Build-selected providers and
-unknown selectors keep the requirement row; only check-time coercions differ.
-
-### 4. What evidence lets open index normalization drop an identity element (`N + 0`, `N * 1`)?
+### 1. What evidence lets open index normalization drop an identity element (`N + 0`, `N * 1`)?
 
 [Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
 lists zero/one identities among the normalizations a selected conformance
@@ -238,7 +118,7 @@ operator punctuation. None says how a literal leaf acquires an identity law.
 `samples/cli/facts/open_index_distributivity` records the distributivity
 evidence this question leaves out.
 
-### 5. Is the expanded sum of products the canonical form of an open index under a declared distributivity law?
+### 2. Is the expanded sum of products the canonical form of an open index under a declared distributivity law?
 
 [Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
 says distributivity requires its law, that changing the canonical form is an
@@ -277,7 +157,7 @@ publication, without defining the expression's form.
 `samples/cli/facts/open_index_distributivity` pins the expansion with its reject
 twins.
 
-### 6. May a boundary requirement's own signature bind a generic evidence parameter?
+### 3. May a boundary requirement's own signature bind a generic evidence parameter?
 
 A target-prefixed family member may be generic over an implementation map, for
 example `forward<Implementation satisfies Reader<Zero>>(value: i32) -> i32` in
@@ -323,47 +203,200 @@ lets static callable requirements bind fresh per-invocation lifetimes, and the
 [static machine binder categories](wiki/spec/language/generics.md#static-machine-binder-categories)
 cover machine binders; neither covers evidence binders on a requirement.
 
-### 7. What represents a runtime-sized collection of owned, non-copy elements?
+### 4. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
 
-The customer is an ordinary allocator-backed `Vec<T>` for parsed game objects,
-Squalr records and Cathedral resources. Its capacity is chosen at runtime; each
-live element may owe cleanup or contain linear authority. Growth must move those
-elements, not duplicate their bytes or forget their obligations. Release must
-account for every element before returning vacant backing.
+[Epsilon's grammar](bootstrap/4_epsilon/LANGUAGE.md) (lines 128-139) lets an
+arm's continuation be `"return" expression?`, and lets the next arm's pattern
+start with an integer literal, `true`, `false`, or `IDENT "::" IDENT`
+(lines 131-134), which are also valid expression starts (lines 163-164).
+Nothing in the grammar or in section 8 (machines, states, and transitions)
+says whether `-> return` followed by `3 -> ...` returns `3` or returns nothing
+and begins a new arm. The evaluator resolves it with a lookahead probe
+(`bootstrap/4_epsilon/implementation_notes.md`, lines 30-31): a `return` is
+bare when the next token is `}` or end of source, or when the tokens ahead
+form a `pattern ->` prefix. The independent refinement model reproduces that
+probe instead of deriving the read from the contract
+(`tests/epsilon/refinement/README.md`, lines 24-27; `model.py`,
+`return_is_bare`).
 
-The current library has runtime-sized `u32` storage, and the
-[generic resident-move witness](samples/cli/facts/resident_backing/generic_move/README.md)
-now exercises moving and cleaning up one non-copy element. The missing contract
-is how an ordinary library collects a runtime number of those ownership claims
-into one buffer, then takes them apart through checked operations.
+The customer is the conformance obligation in LANGUAGE.md (lines 818-826,
+item 5): direct checked evaluator refinement with mutations needs a model
+derived from the written language. While the disambiguation is unwritten the
+model and the evaluator share one unverified decision, and a parse that depends
+on the following arm cannot be checked against the contract. The admitted
+Epsilon sources, including D under `bootstrap/5_omega/`, are parsed under the
+current probe; a rule that changes how any admitted source parses changes that
+identity chain.
 
-Contracts checked:
+Option A, write the probe as the rule: a `return` continuation carries an
+expression unless the following tokens form a complete `pattern ->` prefix or
+the arm list ends. This ratifies the current evaluator, keeps every admitted
+source unchanged, and makes the model's probe contract-derived. The probe then
+has to be specified exactly: which token sequences count as `pattern ->`, and
+what happens when an expression itself could start with such a sequence.
 
-- [Allocation](wiki/spec/resources/allocation.md) places strategies in ordinary
-  checked packages over caller-supplied backing, not compiler-owned allocators.
-- [Resident custody](wiki/spec/resources/access.md) gives `Resident<P, T>` one
-  complete live `T`, forbids weakening it to `Vacant`, and explicitly rejects
-  ordinary resident split/merge or an inferred multi-object algebra.
-- [Runtime-index storage](wiki/spec/language/generics.md#runtime-index-identity-and-storage)
-  permits runtime-capacity owners with backing, but keeps inline array extents
-  static. A borrowed slice lends established elements; it does not own them.
-- [Content conservation](wiki/spec/resources/content_custody.md) supplies interval
-  and quantity algebras. Neither accounts for arbitrary element values and their
-  individual cleanup obligations; new authority-bearing algebras need compiler
-  support. `AccessCustody` instead matches the declared fields of one value.
-- [Deferred recast establishment](wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
-  permits initialization inside an exclusive loan, but does not let an unfinished
-  target escape or turn a borrowed window into an owned collection.
+Option B, an explicit delimiter: terminate a `return` continuation (for
+example `return expression ;` and `return ;`) or forbid an expression after
+`return` in a non-final arm, so no lookahead past the arm is needed. This is a
+grammar change that migrates every Epsilon source including D and re-admits
+their identities; the former translator-era corpus is not authoritative.
 
-Proposal: add a general resident-sequence storage contract over existing backing,
-with explicit initialized extent/count. Element insertion transfers owned `T`
-into it; removal transfers `T` out; remaining elements stay owned; vacancy requires
-complete removal or cleanup. Vec growth policy, allocation and iteration remain
-ordinary library machines. The exact source carrier and lifecycle operations need
-settlement; no new spelling or primitive is approved by this question.
+Contracts checked: the grammar (lines 119-139, 160-166) and section 8 of
+LANGUAGE.md state no rule; `EVALUATOR_ENTRY.md` and `EVALUATOR_PROFILE.md`
+define observations and resources, not parsing;
+[edge contracts](bootstrap/CONTRACT.md) require refinement independence but do
+not fix Epsilon's grammar; `implementation_notes.md` describes the probe as
+implementation, not as a language rule.
 
-Alternative: require this to be built entirely from existing checked library
-mechanisms. That needs an identified runtime-sized ownership carrier and its
-composition/decomposition rule, not just a byte count or a result annotation.
-A fixed-capacity ladder, trusted byte-copy adapter, or assumption that `len == 0`
-alone proves vacancy would not meet the customer or the existing custody rules.
+### 5. Is a layout used only inside unselected library code a Psi obligation under every target?
+
+A fixed-representation use (`LayoutStorage`, `CLayout`) inside a body that no
+Build row selects and no entry reaches is laid out today by Psi's build-time
+admission under every selected target that carries representation facts. Since
+std moved its POSIX native bindings to Build rows (#1617, #1622, #1625), portable
+std code such as `posix_canonicalize` and `FilesystemPosixProvider`, and the
+Darwin C-layout stat and timespec records their closures use, is no longer
+reached through any target's provider defaults. It is therefore unscoped, and it
+is laid out under every target with facts (#1653 stopped also demanding it from
+targets without facts). A console-only program pays for laying out filesystem
+code it never calls, once per target.
+
+The product requirement is compile latency of ordinary std-dependent programs.
+`tests/omega/pass/host/console_exit_process_exit` is recorded as
+`checked 11753ms` in `tests/omega/corpus_outcomes.txt` (`@ccdb99ca2214`, check
+target macos_arm64, host unrecorded). On main `de9648a198` plus #1653
+(`a151ce613a`), one `omega --check` of it took 148.5 s on a linux_x86_64 cloud
+container (the author's measurement), and 95.6 s on main `91b6625545` after
+#1656. Three smoke fixtures
+(`control_flow/borrowed_state_argument`,
+`control_flow/runtime_owned_state_parallel_swap_exit`,
+`write_only/state_forwarded_scalar_store_exit`) exceed the 120 s corpus cap. For
+the first of them, PR #1656 reports 33.9 s per check in fixed-layout evaluation
+across 85 layout applications in 6 target scopes at `5209eac451`. After its
+repair of the proof judge's quadratic scans, about 79 s of extra checking
+remains with no single hot frame. On `91b6625545` the console check spends 52 s
+in stage-05 checking of the newly demanded std code and only a few seconds in
+layout formation. Option A below would remove the layout share only; both
+options still resolve, type and check that code, so neither recovers the rest.
+
+A Build row's target cannot scope the code: a source declaration acquires no
+target tag, and the row demands only a body-less boundary requirement, not its
+portable callers.
+
+Option A, demand-limited layout: Psi lays out a fixed-representation
+application only under each target whose Build rows select, or whose entry
+reaches, a closure containing it. That includes rows for targets outside the
+requested output, so
+`tests/omega/fail/layouts/unselected_target_{helper,callback}_layout_underflow`
+and `unselected_target_layout_contract` keep rejecting. A use reached by no row
+and no entry is resolved, typed and checked, but not laid out under target facts.
+Its layout applicability is left to Omega's validation of whichever closure a
+later row selects. "Every supplied implementation is checked" then excludes
+target-fact layout formation for code no row or entry reaches.
+
+Option B, mandatory layout of all supplied code: every supplied
+fixed-representation application is laid out under every target with facts,
+whether or not anything reaches it. Layout formation is part of the ordinary
+source check of every supplied implementation, and the cost scales with a
+library's target-specific code times the number of targets, for every program
+that depends on it.
+
+Contracts checked, and why they do not decide it:
+- [Layout plans](wiki/spec/layouts/plans.md#compile-time-journey-and-build)
+  (lines 301-305) say "the using representation application selects the exact
+  implementation" and the compiler "supplies its authorized schema and target
+  facts"; lines 313-314 say "merely importing a package does not instantiate its
+  layouts". Neither says whether a use inside a checked but unselected body is a
+  using application or a mere import.
+- [Terminal Psi product](wiki/spec/terminal-psi/product.md) (lines 28-30) calls
+  "target-selected layout" a later realization fact; lines 216-219 say "selected
+  ... layout ... applicability is a realization obligation". These place
+  *selected* layout in Omega but say nothing of unselected uses.
+- [Multi-target compilation](wiki/spec/build/configuration.md#multi-target-compilation)
+  (lines 166-173), [scoped execution](wiki/spec/build/scoped_execution.md)
+  (lines 164-167, "including unselected target implementations") and
+  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
+  (line 106) require ordinary source checks of every supplied implementation.
+  They do not say whether target-fact layout formation is one.
+- [Behavior exclusions](wiki/spec/build/behavior_exclusions.md) (lines 126-131)
+  already draw the same line for another obligation: "An unused unselected
+  implementation ... need not satisfy a product exclusion, but remains subject to
+  ordinary source checks."
+- [Machines](wiki/spec/language/machines.md) (lines 186-190),
+  [provider selection](wiki/spec/build/provider_selection.md#build-owned-target-selection)
+  (lines 91-93, 107) and [Build-owned native binding](wiki/spec/build/foreign_bindings.md#build-owned-native-binding)
+  (lines 36-39) keep target keys on Build rows, which is why a row cannot scope
+  the code.
+- The layout implementation note (`omega-rust/psi/compilation/build-time-evaluation/layouts.md`,
+  not a contract) leans both ways. Lines 43-45 say Build supplies "selected
+  providers" and that a scope with no application needs no facts. Lines 96-98 and
+  110-113 follow provider bodies "under each applicable target" and reject a bad
+  target-family member "even when deployment requests another target".
+
+### 7. Must a domain membership's candidate have the domain's carrier?
+
+A `u8` value is accepted as a member of a `u16`-carrier domain in every form
+tried. With `domain u16::Small requires self <= 10;`, each of these checks:
+
+- `machine guarded() -> u16 requires 7u8 in Small { 3 }`, where `u8` appears
+  nowhere else in the program;
+- the same program with an unrelated `machine unrelated(value: u8) -> u8`, so
+  the `u8` carrier is otherwise present;
+- `machine guarded(value: u8) -> u16 requires value in Small { 3 }`, with no
+  literal at all.
+
+Observed on hosted compiler-pilot runs 41656219861 and 41657251758 (checking
+only, branch `work/wave3-membership-probe` over main `f2c75870eb`). The probes
+were written to test a compiler degrade path (a suffixed literal whose width
+row is missing); the outcome is the same with and without that row, so the
+acceptance comes from the membership rule itself.
+
+Option A, carrier-exact membership: `candidate in D` requires the candidate's
+carrier to equal the carrier named by `D`'s `Carrier::` prefix, and a
+cross-carrier `in` rejects; an explicit exact conversion is needed first. A
+heuristic scan of the 68,463 `.omg` files found no `requires` membership whose
+parameter's declared integer type differs from its domain's carrier (91
+integer-carrier domains), and none among qualified parameters (`x: uN in D`)
+whose type differs from the domain's carrier, so the known migration cost is
+small; the scan did not cover memberships on locals, fields or literal
+candidates.
+
+Option B, membership by exact value: `candidate in D` substitutes the
+candidate's exact mathematical value for `self`, across widths, as fixed-integer
+comparison already does. This is today's behavior.
+
+Contracts checked, and why they do not decide it:
+- [Domains, declaration and membership](wiki/spec/language/domains.md#declaration-and-membership):
+  "`Player::` determines the domain's carrier", and membership "substitutes that
+  exact candidate for `self`". It does not say whether the candidate must have
+  that carrier.
+- [Domains, refinement and executable membership](wiki/spec/language/domains.md#refinement-and-executable-membership):
+  "Domains classify values within the carrier's ordinary validity", and
+  "Establishing membership requires all carrier, predicate, and provenance
+  obligations". Whether a "carrier obligation" means the candidate has the
+  carrier's type, or only that its value is valid in that carrier, is the open
+  point.
+- [Domains, exact coercion and erasure](wiki/spec/language/domains.md#exact-coercion-and-erasure):
+  "Exact widening and proved representable narrowing are carrier coercions",
+  and a predicate-free qualification needs "carrier compatibility". This is the
+  explicit conversion Option A would require before a cross-carrier `in`; it
+  does not say a bare `in` needs one.
+- [Terminal Psi calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md):
+  a qualification change "strictly adds same-carrier membership". This governs
+  qualification-change edges, not a bare `in` proposition, though it leans
+  toward Option A.
+- [Numeric values, literal landing](wiki/spec/language/numeric_values.md#literal-landing-and-destinations):
+  "A suffixed integer or float literal retains its chosen carrier ... An
+  incompatible destination rejects". It does not say whether a membership
+  candidate is a destination.
+- [Numeric values, integer equality and order](wiki/spec/language/numeric_values.md#integer-equality-and-order):
+  "Builtin fixed-integer comparisons use exact mathematical integer values"
+  across width and signedness (`mixed-integer-comparison`), which supports
+  reading `self <= 10` across carriers. The same section says this "adds
+  neither implicit arithmetic widening nor conversion at assignments,
+  arguments, or returns"; a membership candidate is none of those positions.
+- Qualification `value: T in D` "requires the exact named domain `D`"
+  (domains.md, declaration and membership), which constrains the qualified
+  type, not a bare `in` proposition.
+- No clause in `state_contracts.md`, `generics.md` or elsewhere in
+  `wiki/spec` states a carrier rule for `in` propositions.

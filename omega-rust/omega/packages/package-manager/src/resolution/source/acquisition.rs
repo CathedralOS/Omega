@@ -538,12 +538,10 @@ impl AcquiredBuildSource {
                 return Err("a workspace declaration does not name a Product source owner".into());
             }
         };
-        if let super::PackageSourceSelectionEvidence::GitWorkspace(evidence) = &self.selection {
-            if name != evidence.plan().selected_member().package_name() {
-                return Err(
-                    "returned Build name differs from its executed workspace selection".into(),
-                );
-            }
+        if let super::PackageSourceSelectionEvidence::GitWorkspace(evidence) = &self.selection
+            && name != evidence.plan().selected_member().package_name()
+        {
+            return Err("returned Build name differs from its executed workspace selection".into());
         }
         let requests = DependencyProjections::from_executed_requests(
             returned.requests().iter().map(|issued| issued.request()),

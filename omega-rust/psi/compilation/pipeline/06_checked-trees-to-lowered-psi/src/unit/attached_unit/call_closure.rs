@@ -61,7 +61,7 @@ pub(crate) fn checked_unit_call_closure_including(
         next += 1;
         let name = checked_terminal_machine_name(checked, machine_symbol)?;
         let machine = UnitBody::find(plans, machine_symbol).map_err(
-            crate::shared::lowering_error::unit_machine_plan_error(checked, &name, machine_symbol),
+            crate::shared::lowering_error::unit_machine_plan_error(checked, name, machine_symbol),
         )?;
         for target in machine
             .operations()

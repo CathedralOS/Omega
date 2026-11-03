@@ -885,9 +885,7 @@ impl Execution<'_, '_, '_> {
         let mut roots = Vec::new();
         for mut place in places {
             place.segments.extend_from_slice(&path);
-            let Some(retention) = self.stored_retention_at_place(&place) else {
-                return None;
-            };
+            let retention = self.stored_retention_at_place(&place)?;
             let Some(retained) = self.context.control.retained_roots(retention) else {
                 return Some(Handle::invalid());
             };

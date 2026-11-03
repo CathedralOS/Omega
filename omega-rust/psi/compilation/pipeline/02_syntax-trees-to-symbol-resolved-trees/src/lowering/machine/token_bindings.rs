@@ -926,7 +926,7 @@ impl<'program> ShapeNormalizer<'program> {
             }
             TypeReference::ConstExpression(expression) => format!(
                 "const({})",
-                body_expressions(&self.program).display_name(expression.expression)
+                body_expressions(self.program).display_name(expression.expression)
             ),
             TypeReference::DynamicTrait {
                 symbol,

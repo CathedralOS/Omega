@@ -807,14 +807,13 @@ impl<'a> Elaborator<'a> {
         if let Some(position) = self.address {
             retain(position, PreparedConstantMeaning::AddressCarrier);
         }
-        if let Some(position) = self.address_bound {
-            if let Some(symbol) = self
+        if let Some(position) = self.address_bound
+            && let Some(symbol) = self
                 .program
                 .symbols
                 .builtin_type_member_symbol(symbols::BuiltinTypeMember::AddressBound)
-            {
-                retain(position, PreparedConstantMeaning::AddressBound(symbol));
-            }
+        {
+            retain(position, PreparedConstantMeaning::AddressBound(symbol));
         }
         if let Some(position) = self.integer_add {
             retain(

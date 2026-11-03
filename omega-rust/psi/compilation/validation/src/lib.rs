@@ -479,9 +479,8 @@ pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::arithmetic_domains::{OccurrenceIntegerBounds, occurrence_integer_bounds};
 pub use proof_contracts::arithmetic_domains::{
-    StoredIntegerReach, standing_integer_bounds, stored_integer_bounds,
-    stored_integer_source_projection, stored_integer_source_projections,
-    stored_integer_source_reach,
+    StoredIntegerReach, UnestablishedStoredEncoding, standing_integer_bounds,
+    stored_integer_bounds, stored_integer_source_projections, stored_integer_source_reach,
 };
 pub use proof_contracts::arithmetic_domains::{
     occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
@@ -573,9 +572,8 @@ pub(crate) use optimization::digest_encoder;
 pub use queries::expression_traversal;
 mod frozen_program;
 mod queries;
-pub use queries::layout_checking::{
-    LayoutCheckingContext, layout_checking_targets, pending_layout_geometry,
-};
+pub(crate) use queries::layout_checking::layout_checking_targets;
+pub use queries::layout_checking::{LayoutCheckingContext, pending_layout_geometry};
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;
@@ -595,8 +593,9 @@ pub use program_validation::{
     FrozenDependencyBody, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
     ProvenContractExpressions, admit_prepared_program_effects, checking_thread_pool,
     dependency_body_read_totals, dependency_entailment_totals, judge_contract_entailment,
-    prepare_specialized_program, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment, validate_program,
+    prepare_specialized_program, statement_source_span,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
+    validate_program,
 };
 pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
 
@@ -671,6 +670,7 @@ pub use value_custody::activation_storage::{
     ActivationStorageContract, ActivationStorageOperation,
     activation_accessor_has_empty_write_frame, activation_claim_byte_carrier,
     activation_storage_bound, exact_toolchain_activation_storage_contract,
+    type_carries_activation_claim,
 };
 pub use value_custody::atomic_fences::{
     AtomicFenceContract, exact_toolchain_atomic_fence_contract,

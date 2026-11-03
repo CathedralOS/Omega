@@ -171,7 +171,7 @@ fn source_checked_obligation_facts(
                             let location = event.location()?;
                             let root = optimization_unit::field_evidence(function, location.root)?.root_type?;
                             let declaration = terminal_semantics::projected_field_declaration(unit.structural_types.iter(), root, &location.path, location.field)?;
-                            let value = event.replacement().or_else(|| match event {
+                            let value = event.replacement().or(match event {
                                 abstract_operations::AbstractAtomicEvent::ReadModifyWrite { operand, .. } => Some(*operand),
                                 _ => None,
                             })?;
@@ -198,17 +198,21 @@ fn source_checked_obligation_facts(
         // Retain every already-checked path occurrence under that exact owner;
         // sharing an obligation number never borrows another edge's judgment.
         for node in function.block_nodes() {
-            let paths =
-                node.successors
-                    .iter()
-                    .flat_map(|edge| {
-                        edge.structural_bindings
-                            .iter()
-                            .map(move |binding| (edge.psi_edge, binding.argument.path.as_slice()))
-                    })
-                    .chain(node.operation.cleanup_rosters().into_iter().flat_map(
-                        |(edge, actions)| actions.iter().map(move |action| (edge, action.path())),
-                    ));
+            let paths = node
+                .successors
+                .iter()
+                .flat_map(|edge| {
+                    edge.structural_bindings
+                        .iter()
+                        .map(move |binding| (edge.psi_edge, binding.argument.path.as_slice()))
+                })
+                .chain(
+                    node.operation
+                        .cleanup_rosters()
+                        .flat_map(|(edge, actions)| {
+                            actions.iter().map(move |action| (edge, action.path()))
+                        }),
+                );
             for (edge, path) in paths {
                 for (_, obligation) in path
                     .iter()

@@ -268,14 +268,14 @@ fn admit_coordinates(
                         |operator, left: &ScopedArithmeticValue, right: &ScopedArithmeticValue| {
                             values.proves_values_relation(program, machine, operator, left, right)
                         };
-                    if let Some(closed) = &destination.closed {
-                        if !proves(
+                    if let Some(closed) = &destination.closed
+                        && !proves(
                             BinaryOperator::Equal,
                             &next,
                             &ScopedArithmeticValue::Integer(closed.clone()),
-                        ) {
-                            return Err("recursive static operand does not equal the selected closed ranking coordinate".into());
-                        }
+                        )
+                    {
+                        return Err("recursive static operand does not equal the selected closed ranking coordinate".into());
                     }
                     if !proves(BinaryOperator::GreaterOrEqual, &current, &zero)
                         || !proves(BinaryOperator::GreaterOrEqual, &next, &zero)

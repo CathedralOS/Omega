@@ -169,7 +169,7 @@ fn buffered_original_digest(function: &FunctionLiveness) -> [u8; 32] {
     );
     bytes.extend_from_slice(b"omega.terminal-register-liveness-function.v2\0");
     buffered_function(&mut bytes, function);
-    crate::digest_encoder::content_identity(&bytes).into()
+    crate::digest_encoder::content_identity(&bytes)
 }
 
 fn buffered_function(bytes: &mut Vec<u8>, function: &FunctionLiveness) {

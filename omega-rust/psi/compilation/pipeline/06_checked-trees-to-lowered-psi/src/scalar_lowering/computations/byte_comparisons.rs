@@ -275,7 +275,7 @@ impl Expansion<'_> {
         let Some(expression) = super::call_views::expression(subject) else {
             return Ok(entry);
         };
-        let root = value_facts(&self.checked)
+        let root = value_facts(self.checked)
             .structural_values
             .root_for_expression(site.state, site.statement, expression)
             .ok_or(LoweringError::Unsupported(

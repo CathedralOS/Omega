@@ -15,7 +15,7 @@ pub(super) type ConstructorPeers =
     HashMap<(ValueTypeOwner, ExpressionHandle), Vec<ExpressionHandle>>;
 
 pub(super) fn append(
-    program: &TypedTrees,
+    program: &dyn validation::CheckingInput,
     owner: ValueTypeOwner,
     fact: &ProofFact,
     peers: &mut ConstructorPeers,

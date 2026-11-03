@@ -610,7 +610,6 @@ fn execute_saturating(bytes: &[u8], registers: [u64; 16]) -> [u64; 16] {
 /// on an instruction boundary inside the form or exactly at its end; a UD2
 /// ends execution as a trap, and a divide the form failed to guard panics
 /// instead of faulting.
-
 fn saturating_reference(
     operation: SaturatingOperation,
     carrier: SaturatingCarrier,

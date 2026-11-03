@@ -347,6 +347,13 @@ Cathedral application's deployment manifest separately bounds its permission.
 The same reach rule applies to directly named boundary calls; provider
 selection is not creation of a global mutable Console object.
 
+A dynamic call with an established implementation selection propagates its
+retained checked contract, which may be narrower than the trait's bound. Unknown
+selections use the requirement ceiling; joins account for every possible choice.
+This does not let a provider chosen later by Build erase boundary reach or let
+private-body analysis shrink an explicitly published ceiling. See
+[dynamic envelopes](chapter_14_traits.md#operational-envelopes).
+
 The same propagation works through a named static callback:
 
 ```omega

@@ -297,7 +297,7 @@ impl ContractHasher {
     pub(super) fn complete(self) -> MachineContractIdentity {
         MachineContractIdentity {
             report_fingerprint: self.report.finish(),
-            commitment: MachineContractCommitment::from_digest(self.commitment.finish().into()),
+            commitment: MachineContractCommitment::from_digest(self.commitment.finish()),
         }
     }
 }
@@ -339,7 +339,7 @@ mod binding_projection_tests {
 
     #[test]
     fn membership_clause_hash_uses_content_order_after_minting() {
-        let clauses = |table: &mut TypeIdentityTable, keys: &[&str]| {
+        let clauses = |table: &TypeIdentityTable, keys: &[&str]| {
             keys.iter()
                 .map(|key| DeclaredContractClause {
                     kind: DeclaredContractKind::Requires,
@@ -351,11 +351,11 @@ mod binding_projection_tests {
                 })
                 .collect::<Vec<_>>()
         };
-        let mut first = TypeIdentityTable::default();
-        let mut left = clauses(&mut first, &["Alpha", "Beta"]);
+        let first = TypeIdentityTable::default();
+        let mut left = clauses(&first, &["Alpha", "Beta"]);
         left.sort();
-        let mut reordered = TypeIdentityTable::default();
-        let mut right = clauses(&mut reordered, &["Beta", "Alpha"]);
+        let reordered = TypeIdentityTable::default();
+        let mut right = clauses(&reordered, &["Beta", "Alpha"]);
         right.sort();
         assert_ne!(
             first.text(
@@ -392,12 +392,12 @@ mod binding_projection_tests {
 
     #[test]
     fn declared_crash_fact_hash_uses_owned_type_content() {
-        let mut first = TypeIdentityTable::default();
+        let first = TypeIdentityTable::default();
         let alpha = first.intern("Alpha");
-        let mut reordered = TypeIdentityTable::default();
+        let reordered = TypeIdentityTable::default();
         reordered.intern("Beta");
         let same = reordered.intern("Alpha");
-        let mut different = TypeIdentityTable::default();
+        let different = TypeIdentityTable::default();
         let beta = different.intern("Beta");
         assert_ne!(alpha, same);
         assert_eq!(alpha, beta);

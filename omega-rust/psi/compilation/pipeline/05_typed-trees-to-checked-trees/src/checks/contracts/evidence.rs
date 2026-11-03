@@ -493,16 +493,17 @@ pub(super) fn bind_call_evidence_arguments(
             .contract_calls
             .get_mut(call_handle)
             .evidence_arguments = span;
-        if !is_state_transfer && runtime_arguments.len() == authored.len() {
-            if let Err(message) = runtime_calls::retain(
+        if !is_state_transfer
+            && runtime_arguments.len() == authored.len()
+            && let Err(message) = runtime_calls::retain(
                 program,
                 &mut facts.proof,
                 &call,
                 &call_site,
                 runtime_arguments,
-            ) {
-                diagnostics.push(Diagnostic::error(message));
-            }
+            )
+        {
+            diagnostics.push(Diagnostic::error(message));
         }
     }
 

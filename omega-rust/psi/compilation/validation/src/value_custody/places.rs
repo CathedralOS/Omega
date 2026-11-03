@@ -247,9 +247,7 @@ pub(crate) fn direct_self_field_member(
             if member.case_variant.is_some() {
                 return None;
             }
-            let Some(path) = expression_table(program).name_path_node(member.receiver) else {
-                return None;
-            };
+            let path = expression_table(program).name_path_node(member.receiver)?;
             let receiver = expression_table(program).name_path_members(path.members);
             (receiver.len() == 1 && receiver[0].is_self_receiver()).then(|| member.member.as_str())
         }

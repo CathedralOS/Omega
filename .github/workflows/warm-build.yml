@@ -14,6 +14,10 @@ on:
 permissions:
   contents: write
 
+# Every run builds cold. Building on top of the previous warm build kept every
+# superseded artifact, and the published build grew from 3.1 GB to 5.2 GB in a
+# few hours, more than a cloud session's disk could unpack.
+#
 # One build runs at a time; GitHub keeps only the newest waiting push, so a
 # busy main still publishes instead of cancelling every build before it ends.
 concurrency:
@@ -50,13 +54,6 @@ jobs:
         run: |
           channel=$(python3 -c "import tomllib; print(tomllib.load(open('rust-toolchain.toml', 'rb'))['toolchain']['channel'])")
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y -q --profile minimal --default-toolchain "$channel" -c clippy -c rustfmt
-      - name: Start from the previous warm build
-        working-directory: /home/user/Omega/.agents/worktree/warm
-        run: |
-          . "$HOME/.cargo/env"
-          python3 tools/warm_build.py restore --worktree "$WARM" --to "${{ github.sha }}" || echo "No usable previous warm build; building cold."
-          # A failed restore can leave the worktree on the previous commit.
-          git checkout -q --detach "${{ github.sha }}"
       - name: Build the compiler and the corpus runner
         working-directory: /home/user/Omega/.agents/worktree/warm
         run: |

@@ -25,7 +25,7 @@ use super::{
     CheckedUnitScalarResultBindingPlan, CheckedUnitStructuralArgumentSourcePlan,
     CheckedUnitStructuralParameterPlan, CheckedUnitStructuralResultBindingPlan as BindingPlan,
     Construction, Multiplicity, StatementNode, StatementSequence, SymbolHandle,
-    append_exit_reference_releases, append_reference_releases, structural_operands,
+    append_reference_releases, structural_operands,
 };
 use crate::flow::expressions;
 use crate::published::places::place_at;
@@ -100,6 +100,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             structural_local_symbols,
             structural_results,
             next_scalar_binding: scalar_count,
+            owner_candidates,
         });
     }
     let statements = typed_trees::statement::reachable_state_statements(
@@ -228,6 +229,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
                     structural_local_symbols,
                     structural_results,
                     next_scalar_binding: scalar_count,
+                    owner_candidates,
                 });
             }
             // Completion owns the same stored result carrier as an ordinary
@@ -468,34 +470,6 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             returned_scalar_call = Some(result);
         }
     }
-    prepared_calls.prepare_before(
-        program,
-        facts,
-        shapes,
-        machine,
-        state,
-        structural_parameters,
-        trivial_affine_locals,
-        entry_claims,
-        &operations,
-        crate::flow::state_statements(program, state.statement_nodes).len(),
-    );
-    trace.phase("statement sequence: completion descriptor retirement");
-    append_exit_reference_releases(
-        &owner_candidates,
-        program,
-        facts,
-        prepared_calls,
-        shapes,
-        structural_parameters,
-        machine.symbol,
-        state.symbol,
-        structural_result.as_ref(),
-        scalar_control.as_ref(),
-        &structural_results,
-        &mut operations,
-        trace,
-    )?;
     trace.phase("statement sequence: call count agreement");
     (call_count == calls.len()).then_some(StatementSequence {
         scalar_result: returned_scalar_call,
@@ -507,6 +481,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         structural_local_symbols,
         structural_results,
         next_scalar_binding: scalar_count,
+        owner_candidates,
     })
 }
 
@@ -580,7 +555,7 @@ fn forwarded_parameter(
                 expression: root.expression,
                 evaluation: checked_trees::FlowPermissionEvaluation::Statement,
             },
-            type_identity: parameter.type_identity.clone(),
+            type_identity: parameter.type_identity,
             multiplicity: validation::reference_result_custody::binding_multiplicity(
                 program,
                 state.return_type,
@@ -623,7 +598,7 @@ fn forwarded_parameter(
             expression: root.expression,
             evaluation: checked_trees::FlowPermissionEvaluation::Statement,
         },
-        type_identity: parameter.type_identity.clone(),
+        type_identity: parameter.type_identity,
         multiplicity: parameter.multiplicity,
         reference_sources: if validation::reference_result_custody::is_reference_record(
             program,

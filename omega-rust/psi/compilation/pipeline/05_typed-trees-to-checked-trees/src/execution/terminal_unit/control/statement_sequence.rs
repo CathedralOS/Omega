@@ -82,6 +82,65 @@ pub(in super::super) struct StatementSequence {
     /// result the sequence retained. A guarded arm's terminal call result
     /// numbers here, in the namespace its arm inherits.
     pub(in super::super) next_scalar_binding: usize,
+    owner_candidates: reference_retirement::OwnerCandidates,
+}
+
+impl StatementSequence {
+    /// Retire descriptors only after the consumer has produced this state's
+    /// final value. A graph terminator can still move a stored reference after
+    /// the ordinary statement prefix; disposing that old home beforehand would
+    /// schedule a second release after its return move.
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::execution::terminal_unit) fn finish_reference_retirement(
+        &mut self,
+        program: &dyn validation::CheckingInput,
+        facts: &CheckFacts,
+        prepared_calls: &mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
+        shapes: &mut ShapeCollector<'_>,
+        parameters: &[CheckedUnitStructuralParameterPlan],
+        trivial_locals: &[(CheckedTrivialAffineStructuralLocalPlan, SymbolHandle)],
+        entry_claims: &[CheckedUnitEntryClaimPlan],
+        machine: &typed_trees::machine::Machine,
+        state: &typed_trees::state::State,
+        returned: Option<&CheckedUnitStructuralReturnPlan>,
+        trace: &LocalConstructionTrace,
+    ) -> Option<()> {
+        if self
+            .operations
+            .iter()
+            .any(|operation| !operation.has_normal_continuation())
+        {
+            return Some(());
+        }
+        prepared_calls.prepare_before(
+            program,
+            facts,
+            shapes,
+            machine,
+            state,
+            parameters,
+            trivial_locals,
+            entry_claims,
+            &self.operations,
+            crate::flow::state_statements(program, state.statement_nodes).len(),
+        );
+        trace.phase("statement sequence: completion descriptor retirement");
+        append_exit_reference_releases(
+            &self.owner_candidates,
+            program,
+            facts,
+            prepared_calls,
+            shapes,
+            parameters,
+            machine.symbol,
+            state.symbol,
+            returned,
+            self.scalar_control.as_ref(),
+            &self.structural_results,
+            &mut self.operations,
+            trace,
+        )
+    }
 }
 
 /// The construction context every statement producer reads and extends: the

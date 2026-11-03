@@ -19,6 +19,8 @@ mod terminator_wire;
 
 #[cfg(test)]
 mod owned_value_tests;
+#[cfg(test)]
+mod unknown_tag_tests;
 
 use terminal_psi::{Block, Operation, OperationKind, OperationResult};
 

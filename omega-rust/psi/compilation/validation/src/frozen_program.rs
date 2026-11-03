@@ -641,21 +641,11 @@ pub struct CheckingMemos {
         flow_effects::ServiceReachInferencePlan,
     )>,
     pub(crate) call_frames: Arc<CallFrameCaches>,
-    /// One normal-value traversal supplies scalar reads and operation-entry
-    /// orderings for this exact immutable state prefix. No runtime occurrence
-    /// is transported into another invocation by these scoped observations.
-    pub(crate) completed_numeric_observations: Mutex<
-        symbols::SymbolKeyMap<
-            (
-                symbols::SymbolHandle,
-                symbols::SymbolHandle,
-                usize,
-                bool,
-                crate::NumericObservationDemand,
-            ),
-            crate::CapturedNumericObservations,
-        >,
-    >,
+    /// Every observed statement position of a state, by demand, from one
+    /// normal-value traversal per state. No runtime occurrence is transported
+    /// into another invocation by these scoped observations.
+    pub(crate) numeric_observations:
+        crate::proof_contracts::contract_entailment::numeric_observations::NumericObservationTable,
     /// One exact-operation operand-fit verdict per (machine, expression),
     /// published by a single per-machine population instead of a fresh
     /// prefix walk per occurrence. `None` retains "processed, no

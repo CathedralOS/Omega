@@ -161,17 +161,15 @@ impl Geometry {
             extent: size,
             alignment: align,
         }) = referent
-        {
-            if extent != 8
+            && (extent != 8
                 || alignment != 8
                 || size > MAXIMUM_PACKET_BYTES
                 || !align.is_power_of_two()
-                || align > MAXIMUM_PACKET_BYTES
-            {
-                return Err(invalid(
-                    "worker borrow geometry is outside the native pointer/home budget",
-                ));
-            }
+                || align > MAXIMUM_PACKET_BYTES)
+        {
+            return Err(invalid(
+                "worker borrow geometry is outside the native pointer/home budget",
+            ));
         }
         if matches!(referent, Some(BorrowGeometry::ByteView)) && (extent != 16 || alignment != 8) {
             return Err(invalid(
