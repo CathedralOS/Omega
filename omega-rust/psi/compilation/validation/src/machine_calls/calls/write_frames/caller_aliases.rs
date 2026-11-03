@@ -427,41 +427,41 @@ pub(super) fn assignment_write_paths(
         .collect::<Option<Vec<_>>>()?;
     // A store through one reference changes what every current binding to the
     // same storage reads. Those bindings keep their own names, so the frame
-    // names their read paths too; a disjoint referent stays outside it.
+    // names their read paths too. Only a known, overlapping referent is added:
+    // the frame also feeds loan checking, where naming a binding is a write.
+    let written = paths.clone();
     for origin in origins.references.iter().flatten() {
-        if !origin.local_segments.is_empty() {
+        let Some(referent) = origin
+            .source
+            .as_ref()
+            .filter(|_| origin.local_segments.is_empty())
+        else {
             continue;
-        }
+        };
         let binding = program.symbols.name(origin.local_symbol);
-        for (destination, written) in origins.destinations.iter().zip(&paths.clone()) {
-            if let Some(path) =
-                binding_read_path(binding, origin.source.as_ref(), destination, written)
-                && !paths.contains(&path)
+        for (destination, path) in origins.destinations.iter().zip(&written) {
+            if let Some(read) = binding_read_path(binding, referent, destination, path)
+                && !paths.contains(&read)
             {
-                paths.push(path);
+                paths.push(read);
             }
         }
     }
     Some(paths)
 }
 
-/// The path through `binding` that observes the written storage, if any. An
-/// unknown or recast referent may be any storage, so the whole binding counts.
+/// The path through `binding` that observes the written storage, if any.
+/// Recast views keep their own coordinates and are not projected here.
 fn binding_read_path(
     binding: &str,
-    referent: Option<&LocalWriteSource>,
+    referent: &LocalWriteSource,
     destination: &LocalWriteSource,
     written: &str,
 ) -> Option<String> {
-    let Some(referent) = referent.filter(|referent| {
-        referent.recasts.is_empty()
-            && referent.representation.is_none()
-            && destination.recasts.is_empty()
-            && destination.representation.is_none()
-    }) else {
-        return Some(binding.to_owned());
+    let plain = |source: &LocalWriteSource| {
+        source.recasts.is_empty() && source.representation.is_none() && source.root.is_valid()
     };
-    if referent.root != destination.root || !referent.root.is_valid() {
+    if !plain(referent) || !plain(destination) || referent.root != destination.root {
         return None;
     }
     let within = |outer: &str, inner: &str| {
