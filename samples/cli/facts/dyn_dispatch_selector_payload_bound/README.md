@@ -56,9 +56,11 @@ checks its own tag before dispatching. Selecting the other implementation
 therefore traps. No source machine declaration carries a target prefix.
 
 The requirement permits that tag-check crash, declares no service use, and
-retains the same dynamic call followed by `88 - result`. The helper and both target entries declare empty service reach with bare
-`reaches`, and name the synchronous call separately with `invokes SelectedCompute`. Ordinary named implementations and Build rows
-follow [provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
+retains the same dynamic call followed by `88 - result`. The helper and both
+target entries declare empty service reach with bare `reaches`, and name the
+synchronous call separately with `invokes SelectedCompute`.
+
+Ordinary named implementations and Build rows follow [provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
 and [multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation).
 This follows [service reach and direct invocation](../../../../wiki/spec/language/effects.md).
 The caller's selector remains independent of Build's target choice, under
@@ -131,10 +133,29 @@ sample Main/Build pair is copied to its corresponding fixture under
 `tests/omega/{pass,fail}/facts/dyn_dispatch_selector_payload_bound_through_*`
 or `dyn_dispatch_payload_alias_through_*`. Reject diagnostics and raw execution
 records retain their actual producer revision and host in the claim evidence.
-Both producers use verified optimization level 1. Owned Source and combined
+Both producers use verified optimization level 1. The earlier Source and combined
 execution records name the measured repair revision; later documentation,
 explanatory comments and record updates do not claim a new execution.
 Windows x86-64 and Linux ARM64 execution remain unverified.
+
+The later correction to service declarations is measured separately at
+`811f0cc440abdab14a264b198d85a8f012f830d0` on
+[Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41571522743) and
+[macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/41571525529).
+On each host, both valid target programs check and exit 0 in native and Terminal
+execution; both bound-89 controls report the intended subtraction error in
+both provider bodies. All four affected ordinary projects meet their oracles.
+The verified producers use optimization level 1. All bounds, bodies, inputs, target tags,
+Build rows and expected results remain unchanged by this correction.
+
+This follow-up measures only the four affected target projects. Other places
+retain the earlier observations above. Four owned checking records and two owned
+combined-execution records per host now name the measured correction source;
+every unrelated record remains unchanged. The
+[published source archive](https://github.com/CathedralOS/Omega/pull/1613#issuecomment-6594622141)
+retains that exact source. Later documentation and record updates do not claim
+another execution. The former wider service ceiling was a valid upper bound,
+so this source correction is not presented as a compiler defect.
 
 This migration does not close either parent task. Remaining source families,
 provider admission and layout/callback requirements stay on the target-selection

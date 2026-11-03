@@ -34,8 +34,7 @@ Earlier baseline `e06334c63dc4a811b0bcf9f530cbc91b14b23eac`, using optimized
 producer `b3a895c26149208c72bfa1f186e0c26bee9486ca59746de925d0f7fb5f8f5520`,
 refused the local subtraction after losing the public predicate. The earlier
 repair's Linux observations and existing fixture goldens remain historical;
-they do not validate these changed programs. The current focused run covers all
-nineteen projects in this production alongside the nineteen parent projects.
+they do not validate these changed programs.
 Repair revision `dbde2a0eb0ce5a77198bc4ee3f26d5253cf4a56c` passes all nineteen
 projects here on Linux x86-64 and macOS ARM64: ten positives execute successfully
 and nine controls reject at exact arithmetic. All nine pinned positive places
@@ -51,3 +50,11 @@ The target helper and both entries keep an explicit empty service ceiling and
 record their direct selected call with `invokes SelectedCompute`, following
 [service reach and direct invocation](../../../../../wiki/spec/language/effects.md).
 This does not alter the named result bound, selector inputs or target tags.
+
+The later focused check at
+`811f0cc440abdab14a264b198d85a8f012f830d0` executes this production's target
+positive with native and Terminal exit 0 on Linux x86-64 and macOS ARM64.
+Its bound-89 twin still reports the intended subtraction error in both
+provider bodies.
+The [parent validation record](../README.md#validation-and-remaining-scope)
+links those focused runs and distinguishes them from the earlier full row.
