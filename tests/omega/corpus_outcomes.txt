@@ -630,32 +630,32 @@ fail/facts/data_where_standing_borrowed_field_unbounded_match_arm_rejected rejec
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_borrowed_field_wrong_field_rejected rejected 1121ms expected @e96e52e3f616
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_call_result rejected 5319ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_call_result rejected 2100ms expected @d3679195288a
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_const_name rejected 8054ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_const_name rejected 1975ms expected @d3679195288a
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_descriptor_identity rejected 8942ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_descriptor_identity rejected 5990ms expected @d3679195288a
 	cannot prove requires contract for call require_same from compute: value == read(selected.value) (needs fact `left == right` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/data_where_standing_nested_borrowed_field_field rejected 6396ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_field rejected 1772ms expected @d3679195288a
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_intermediate_write_only rejected 4933ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_intermediate_write_only rejected 1930ms expected @d3679195288a
 	machine `compute` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_local rejected 4935ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_local rejected 1911ms expected @d3679195288a
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_match_join rejected 5364ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_match_join rejected 2625ms expected @d3679195288a
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_other_machine rejected 5568ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_other_machine rejected 1903ms expected @d3679195288a
 	exact arithmetic in machine `add` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_other_state rejected 4006ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_other_state rejected 2279ms expected @d3679195288a
 	exact arithmetic in machine `next` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_parameter rejected 4239ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_parameter rejected 2246ms expected @d3679195288a
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot rejected 5974ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot rejected 5637ms expected @d3679195288a
 	state `read` receives `holder.counter.value` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 creates local borrow `entry` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
 	statement 1 reads `holder.counter.value` while local borrow `held` is still active (borrowed at statement 0; its last use is at statement 2)
-fail/facts/data_where_standing_nested_borrowed_field_target_body rejected 4620ms expected @96f561907a23
+fail/facts/data_where_standing_nested_borrowed_field_target_body rejected 2143ms expected @d3679195288a
 	exact arithmetic in machine `X86Compute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmCompute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_write_only_call_result rejected 2244ms expected @bfee8ea078a6
@@ -7481,17 +7481,17 @@ pass/facts/data_where_standing_mutable_recast_through_other_machine_exit checked
 pass/facts/data_where_standing_mutable_recast_through_other_state_exit checked 5029ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_mutable_recast_through_parameter_exit checked 4880ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_mutable_recast_through_target_body_exit checked 4214ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_nested_borrowed_field_call_result checked 11899ms check-target:macos_arm64 @96f561907a23
-pass/facts/data_where_standing_nested_borrowed_field_const_name checked 11903ms check-target:macos_arm64 @96f561907a23
-pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot checked 11902ms check-target:macos_arm64 @96f561907a23
-pass/facts/data_where_standing_nested_borrowed_field_field checked 12831ms check-target:macos_arm64 @96f561907a23
-pass/facts/data_where_standing_nested_borrowed_field_known_saved_descriptor checked 11749ms check-target:macos_arm64 @96f561907a23
-pass/facts/data_where_standing_nested_borrowed_field_local checked 11841ms check-target:macos_arm64 @96f561907a23
-pass/facts/data_where_standing_nested_borrowed_field_match_join checked 11518ms check-target:macos_arm64 @96f561907a23
-pass/facts/data_where_standing_nested_borrowed_field_other_machine checked 10001ms check-target:macos_arm64 @96f561907a23
-pass/facts/data_where_standing_nested_borrowed_field_other_state checked 12668ms check-target:macos_arm64 @96f561907a23
-pass/facts/data_where_standing_nested_borrowed_field_parameter checked 11754ms check-target:macos_arm64 @96f561907a23
-pass/facts/data_where_standing_nested_borrowed_field_target_body checked 11679ms check-target:macos_arm64 @96f561907a23
+pass/facts/data_where_standing_nested_borrowed_field_call_result checked 10646ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_const_name checked 10606ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot checked 8757ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_field checked 10168ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_known_saved_descriptor checked 9338ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_local checked 9219ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_match_join checked 8711ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_other_machine checked 8692ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_other_state checked 8758ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_parameter checked 8852ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_target_body checked 8922ms check-target:macos_arm64 @d3679195288a
 pass/facts/data_where_standing_predicate_helper_alias_exit checked 5396ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_literal_exit checked 5347ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_through_call_result_exit checked 5256ms check-target:macos_arm64 @911f6617ba9e
