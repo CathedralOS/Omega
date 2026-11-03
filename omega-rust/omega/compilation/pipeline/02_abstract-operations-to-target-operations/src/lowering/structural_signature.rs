@@ -8,13 +8,13 @@
 //! evaluated from shapes the classifier did not derive. Scalar-only signatures
 //! stay ordinary `CallSignature`s.
 
-use std::collections::{BTreeMap, BTreeSet};
+use calling_conventions::terminal_layout::StructuralLayouts;
 use std::ops::Deref;
 
 use calling_conventions::{CallPlan, CallSignature, CallingPolicy, ValueShape, evaluate_call_plan};
 use semantic_vocabulary::StructuralTypeId;
 use target::NativeTarget;
-use terminal_psi::{StructuralAccess, StructuralTypeDeclaration};
+use terminal_psi::StructuralAccess;
 
 use super::structural_layout::{scalar_storage_type, structural_shape};
 use crate::LoweringError;
@@ -58,7 +58,7 @@ impl StructuralCallSignature {
         structural_type: StructuralTypeId,
         referent: ValueShape,
         access: StructuralAccess,
-        declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        declarations: &StructuralLayouts<'_>,
     ) -> ValueShape {
         match access {
             StructuralAccess::Owned => referent,
@@ -80,13 +80,11 @@ impl StructuralCallSignature {
         scalar_shapes: &[ValueShape],
         formals: impl IntoIterator<Item = (StructuralTypeId, StructuralAccess)>,
         result: Option<ValueShape>,
-        declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-        cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-        active: &mut BTreeSet<StructuralTypeId>,
+        declarations: &StructuralLayouts<'_>,
     ) -> Result<Self, LoweringError> {
         let mut shapes = scalar_shapes.to_vec();
         for (structural_type, access) in formals {
-            let referent = structural_shape(structural_type, declarations, cache, active)?;
+            let referent = structural_shape(structural_type, declarations)?;
             shapes.push(Self::parameter_shape(
                 ParameterLane::Internal,
                 structural_type,

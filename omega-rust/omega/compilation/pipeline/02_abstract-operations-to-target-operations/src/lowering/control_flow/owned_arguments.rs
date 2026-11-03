@@ -7,14 +7,13 @@
 use super::LiveDefinitions;
 use crate::LoweringError;
 use crate::lowering::structural_layout::runtime_projection;
-use semantic_vocabulary::StructuralTypeId;
-use std::collections::{BTreeMap, BTreeSet};
+use calling_conventions::terminal_layout::StructuralLayouts;
 use target_operations::{TargetStructuralArgument, TargetStructuralParameter};
-use terminal_psi::{StructuralAccess, StructuralMultiplicity, StructuralTypeDeclaration};
+use terminal_psi::{StructuralAccess, StructuralMultiplicity};
 
 pub(super) fn is_owned_parameter(
     parameter: &terminal_psi::StructuralParameterDeclaration,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralLayouts<'_>,
 ) -> bool {
     parameter.access == StructuralAccess::Owned
         && super::aggregate_results::value_home_layout(parameter.structural_type, types).is_ok()
@@ -27,7 +26,7 @@ pub(super) fn argument(
     function: &abstract_operations::AbstractFunction,
     prepared: &crate::lowering::function_signature::PreparedFunctionSignature,
     live: &LiveDefinitions,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralLayouts<'_>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
     let invalid = |reason| LoweringError::InvalidOwnedStructuralArgument {
         source: argument.place,
@@ -72,13 +71,8 @@ pub(super) fn argument(
                 }
                 (0, Vec::new())
             } else {
-                let (selected, shape, offset, indices) = runtime_projection(
-                    home.structural_type(),
-                    &argument.path,
-                    types,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
-                )?;
+                let (selected, shape, offset, indices) =
+                    runtime_projection(home.structural_type(), &argument.path, types)?;
                 if selected != declaration.structural_type || shape != expected_shape {
                     return Err(invalid(
                         "source home projection type or layout differs from its formal",
@@ -131,13 +125,8 @@ pub(super) fn argument(
                 }
                 (0, Vec::new())
             } else {
-                let (selected, shape, offset, indices) = runtime_projection(
-                    parameter.structural_type,
-                    &argument.path,
-                    types,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
-                )?;
+                let (selected, shape, offset, indices) =
+                    runtime_projection(parameter.structural_type, &argument.path, types)?;
                 if selected != declaration.structural_type || shape != expected_shape {
                     return Err(invalid(
                         "source parameter projection type or layout differs from its formal",
