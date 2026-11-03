@@ -33,18 +33,18 @@ pub use admissibility::{
 };
 pub use borrow::{
     BorrowAccessKind, BorrowArgumentAccessFact, BorrowCallFact, BorrowCallReferenceSlotEffect,
-    BorrowFacts, BorrowLoanFact, BorrowLoanLineage, BorrowLoanOwnerSegment, BorrowRetainedOperand,
-    BorrowReturnedLoanFact, BorrowRootKind, BorrowWritableRootFact, CapturedPlace,
-    CapturedPlaceCompatibility, CapturedPlaceContainment, CheckedBorrowResourceDispositionTarget,
-    CheckedBorrowResourceLifecyclePhase, CheckedBorrowResourceRetention,
-    CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource, CheckedDirectBorrowLoanResource,
-    CheckedDirectBorrowParentLifetime, CheckedDirectBorrowRestorationObligation,
-    CheckedParentBorrowResource, CheckedReborrowAccessEffect, CheckedReborrowLoanResource,
-    CheckedReborrowParentEndStatus, CheckedReborrowParentSuspensionBoundary,
-    CheckedReborrowResourceDisposition, CheckedReborrowResourceDispositionEvent,
-    CheckedReborrowRestorationObligation, CheckedRetiredParentResourceDispositionStep,
-    IncomingReferenceIdentity, IncomingReferenceOrigin, ParentLexicalStatusAtChildEnd,
-    StateBorrowFact,
+    BorrowFacts, BorrowLoanFact, BorrowLoanFormation, BorrowLoanLineage, BorrowLoanOwnerSegment,
+    BorrowRetainedOperand, BorrowReturnedLoanFact, BorrowRootKind, BorrowWritableRootFact,
+    CapturedPlace, CapturedPlaceCompatibility, CapturedPlaceContainment,
+    CheckedBorrowResourceDispositionTarget, CheckedBorrowResourceLifecyclePhase,
+    CheckedBorrowResourceRetention, CheckedCallBorrowLoanResource, CheckedCallBorrowLoanSource,
+    CheckedDirectBorrowLoanResource, CheckedDirectBorrowParentLifetime,
+    CheckedDirectBorrowRestorationObligation, CheckedParentBorrowResource,
+    CheckedReborrowAccessEffect, CheckedReborrowLoanResource, CheckedReborrowParentEndStatus,
+    CheckedReborrowParentSuspensionBoundary, CheckedReborrowResourceDisposition,
+    CheckedReborrowResourceDispositionEvent, CheckedReborrowRestorationObligation,
+    CheckedRetiredParentResourceDispositionStep, IncomingReferenceIdentity,
+    IncomingReferenceOrigin, ParentLexicalStatusAtChildEnd, StateBorrowFact,
 };
 pub use facts::CheckedValueQualification;
 pub use facts::{

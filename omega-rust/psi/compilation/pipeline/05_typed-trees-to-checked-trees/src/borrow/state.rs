@@ -359,6 +359,7 @@ pub(super) fn append_carrier_loans(
         let handle = arenas.loans.append_to_span(
             loans_span,
             BorrowLoanFact {
+                formation: pending.formation,
                 incoming_reference: pending.place.incoming_reference,
                 incoming_owner_path: arenas
                     .access_segments
@@ -388,7 +389,7 @@ pub(super) fn append_carrier_loans(
             pending.lineage,
             checked_trees::BorrowLoanLineage::DirectRoot
                 | checked_trees::BorrowLoanLineage::Reborrow { .. }
-        ) && !pending.call_result
+        ) && pending.formation != super::loans::BorrowFormation::ReturnedDescriptor
         {
             permission_sources.push(super::tracker::RetainedBorrowSource {
                 loan: handle,
@@ -403,7 +404,7 @@ pub(super) fn append_carrier_loans(
             owner_name: pending.owner_name,
             kind: pending.kind,
             lineage: pending.lineage,
-            call_result: pending.call_result,
+            formation: pending.formation,
             owner_path: pending.owner_path,
             place: pending.place,
             representation_address: pending.representation_address,
@@ -484,7 +485,7 @@ fn grouped_carrier_loans(mut loans: Vec<StatementBorrowLoan>) -> Vec<StatementBo
                     && previous.retained_operand == loan.retained_operand
                     && previous.kind == loan.kind
                     && previous.lineage == loan.lineage
-                    && previous.call_result == loan.call_result
+                    && previous.formation == loan.formation
             });
         if let Some(previous) = duplicate {
             // Equal current alternatives share their immediate predecessor
@@ -578,7 +579,7 @@ fn append_incoming_reference_trackers(
                     kind: BorrowAccessKind::Read,
                     lineage: BorrowLoanLineage::LifetimeDependency,
                     representation_address: None,
-                    call_result: false,
+                    formation: super::loans::BorrowFormation::Ordinary,
                     permission_sources: Vec::new(),
                     owner_path,
                     retained_operand: None,
@@ -650,7 +651,7 @@ fn append_incoming_reference_trackers(
                 owner_name: parameter.name.clone(),
                 kind,
                 lineage: BorrowLoanLineage::UnretainedDerived,
-                call_result: false,
+                formation: super::loans::BorrowFormation::Ordinary,
                 permission_sources: Vec::new(),
                 owner_path,
                 retained_operand: None,

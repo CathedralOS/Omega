@@ -3,6 +3,8 @@
 //! Every selected supplier must retain its established borrowing parent and
 //! presented access; neither the old slot nor equal backing authorizes a view.
 
+mod returned_projections;
+
 use arena::Handle;
 use checked_trees::{BorrowLoanFact, BorrowLoanLineage, CheckFacts, FlowOperandFact};
 use diagnostics::Diagnostic;
@@ -20,6 +22,10 @@ pub(super) fn validate(
             continue;
         };
         for (loan, row) in facts.borrow.state_loans(state) {
+            if row.formation == checked_trees::BorrowLoanFormation::ReturnedProjection {
+                returned_projections::validate(program, facts, state, flow_state, loan, row)?;
+                continue;
+            }
             let BorrowLoanLineage::Reborrow { parent_loan } = row.lineage else {
                 continue;
             };
