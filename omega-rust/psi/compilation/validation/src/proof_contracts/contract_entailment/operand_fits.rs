@@ -200,7 +200,7 @@ pub(crate) fn exact_float_integer_cast_fits_at_occurrence(
 /// cast at `occurrence`. Like the other operand fits, this is first observed
 /// on the machine's own prefix and then on every closed private arrival.
 /// Indexed domains and provenance-routed domains are not judged here.
-pub fn domain_predicates_hold_at_occurrence(
+pub(crate) fn domain_predicates_hold_at_occurrence(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,

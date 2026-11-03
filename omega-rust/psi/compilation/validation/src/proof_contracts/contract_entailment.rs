@@ -126,7 +126,7 @@ mod structural_case_arms;
 pub(crate) mod structural_judgment;
 pub(crate) mod structural_prefix;
 mod type_consequences;
-pub use operand_fits::domain_predicates_hold_at_occurrence;
+pub(crate) use operand_fits::domain_predicates_hold_at_occurrence;
 pub(crate) use operand_fits::{
     CompletedIntegerFormation, OperandFitOutcome, anonymous_comparison_operand_fits_at_occurrence,
     anonymous_value_fit_at_occurrence, exact_binary_formation_at_occurrence,
