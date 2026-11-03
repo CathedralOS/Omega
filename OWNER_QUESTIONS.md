@@ -333,7 +333,7 @@ Contracts checked, and why they do not decide it:
   110-113 follow provider bodies "under each applicable target" and reject a bad
   target-family member "even when deployment requests another target".
 
-### 8. Must a domain membership's candidate have the domain's carrier?
+### 7. Must a domain membership's candidate have the domain's carrier?
 
 A `u8` value is accepted as a member of a `u16`-carrier domain in every form
 tried. With `domain u16::Small requires self <= 10;`, each of these checks:
