@@ -51,3 +51,16 @@ Parent outcome: **R5** (`TASKS.md`). This folder establishes nested-machine may-
 6. **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`).** Each positive binds `ProgramEntry` on all four hosted targets. The two `u64` inputs and the fixed byte array use ordinary value and reference lanes.
 7. **Instruction selection, register homes, and activation frame realization (`Omega 03–06`).** Native execution stores `9` through the chosen referent and reloads the other input as the index.
 8. **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission).** `omega run --both` agrees on exit `0` for every positive place.
+
+## Target-selection migration baseline
+
+`BUILD-OWNED-TARGET-SELECTION` owns the remaining target-body migration.
+The four identical bodies will become one ordinary named implementation selected
+by explicit target-keyed Build rows. Nested-machine arguments, returned-reference
+selection, store `9`, untouched index `1 < 4`, indexed byte `7`, marker `1` and
+exit `0` stay fixed. Each twin continues to change only `relay`’s choice.
+
+The complete source/oracle row is frozen against published base `75119cb23a6452b1889847b02a79015f2df2d5ea`.
+A focused optimized baseline is pending before feature or compiler edits. Earlier
+records above keep their original producer identities; no new compiler defect or
+current execution success is claimed yet.
