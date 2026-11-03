@@ -282,6 +282,68 @@ fn review_retains_exact_same_geometry_phantom_local_applications() {
     assert_eq!(applications, recovered_method.calling());
 }
 
+/// Component publication derives export applications from its selected
+/// providers after Terminal production and merges them into the settled
+/// calling catalog for the native request. For providers whose every row has
+/// a calling attachment, those exports are applications the settlement already
+/// holds, so publishing them leaves the catalog unchanged: no duplicate entry
+/// and no reordering. Selected providers without such attachments (here the
+/// standard filesystem service) cannot yet materialize an export application.
+#[test]
+fn component_exports_equal_the_settled_calling_catalog() {
+    let target = "macos_arm64";
+    let fixture = fixture_package_inputs::repo_root()
+        .join("tests/omega/pass/providers/phantom_local_calling_applications/main.omg");
+    let mut prepared =
+        fixture_package_inputs::reviewed_repository_fixture_package_inputs(&fixture, Some(target))
+            .expect("phantom application fixture inputs");
+    let checked = fixture_package_inputs::check_fixture(&mut prepared, target, Default::default())
+        .expect("checked phantom applications");
+    let execution = checked.execution();
+    let providers = execution
+        .selected_provider_provenance
+        .iter()
+        .map(|provider| &provider.plan)
+        .filter(|plan| {
+            plan.rows.iter().all(|row| {
+                plan.schema.declaration.methods.iter().any(|method| {
+                    plan.schema.identity_text(method.requirement_identity)
+                        == plan.identities.text(row.requirement_identity)
+                        && !plan
+                            .schema
+                            .calling_for_requirement(method.requirement_identity)
+                            .is_empty()
+                })
+            })
+        })
+        .collect::<Vec<_>>();
+    let exported = provider_planning::calling_policy_plans::component_calling_applications(
+        execution
+            .selected_target_profile
+            .expect("exact selected target"),
+        &checked.providers().calling_program,
+        &providers,
+        &checked.providers().boundary_calling_plan_realizations,
+    )
+    .expect("export applications from the settled providers");
+    assert!(
+        !exported.is_empty(),
+        "the witness must export a checked adapter application"
+    );
+    let settled = checked
+        .providers()
+        .calling_applications(&[])
+        .expect("settled catalog");
+    let published = checked
+        .providers()
+        .calling_applications(&exported)
+        .expect("published catalog");
+    assert_eq!(
+        published, settled,
+        "publishing a component's exports adds nothing the settlement lacks"
+    );
+}
+
 #[test]
 fn review_retains_installation_reach_across_staggered_dependency_resolution() {
     let target = "macos_arm64";

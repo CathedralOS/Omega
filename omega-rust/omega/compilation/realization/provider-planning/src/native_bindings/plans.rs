@@ -24,6 +24,9 @@ use effects::provider_plan::{
 use semantic_vocabulary::NativeBindingLocator;
 use std::sync::Arc;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct NativeBuildRowOrigin {
     pub requirement: symbols::SymbolHandle,
