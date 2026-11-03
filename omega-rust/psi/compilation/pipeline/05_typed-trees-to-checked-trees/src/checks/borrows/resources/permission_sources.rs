@@ -38,7 +38,8 @@ pub(super) fn lending_sources(
     let mut lending = source;
     let mut lending_path = projection.to_vec();
     let mut actual_projection = Vec::new();
-    let mut argument_grant = projection.is_empty() && has_captured_incoming_contents(facts, source);
+    let mut argument_grant =
+        projection.is_empty() && has_captured_entry_reference(program, facts, state, source);
     if projection.is_empty()
         && let Some(formation) = validation::reference_formation_source(program, capture.expression)
     {
@@ -61,7 +62,7 @@ pub(super) fn lending_sources(
                     lending = receiver;
                     lending_path.clear();
                     actual_projection = projection;
-                    argument_grant = has_captured_incoming_contents(facts, receiver);
+                    argument_grant = has_captured_entry_reference(program, facts, state, receiver);
                 }
             }
             AddressReceiver::InlineValue => argument_grant = true,
@@ -91,46 +92,6 @@ pub(super) fn lending_sources(
         &mut parents,
     );
     if !complete || suppliers.is_empty() {
-        let value = facts.flow.control.operands.get(lending);
-        let frozen =
-            match frozen_reference_leaf(program, &facts.flow.control, lending, lending_path) {
-                FrozenReferenceSelection::Unavailable => "Unavailable",
-                FrozenReferenceSelection::NotFrozen => "NotFrozen",
-                FrozenReferenceSelection::ThroughReference => "ThroughReference",
-                FrozenReferenceSelection::Endpoint { .. } => "Endpoint",
-            };
-        let actuals = facts
-            .flow
-            .control
-            .calls
-            .get(call)
-            .argument_operands()
-            .handles()
-            .filter_map(|handle| {
-                let actual = facts.flow.control.operands.get(handle);
-                (actual.expression == capture.expression).then_some((
-                    handle,
-                    *actual == *capture,
-                    actual.state_symbol,
-                    actual.statement_index,
-                    actual.type_reference,
-                    actual.completion,
-                ))
-            })
-            .collect::<Vec<_>>();
-        eprintln!(
-            "lending diagnostic: source {:?} -> {:?}; source state {:?} statement {} expression {:?} type {:?} completion {:?} frozen {}; incoming {}; actuals {:?}",
-            source,
-            lending,
-            value.state_symbol,
-            value.statement_index,
-            value.expression,
-            value.type_reference,
-            value.completion,
-            frozen,
-            has_captured_incoming_contents(facts, lending),
-            actuals
-        );
         return None;
     }
     if !argument_grant {
@@ -145,18 +106,69 @@ pub(super) fn lending_sources(
     Some((suppliers, parents))
 }
 
-fn has_captured_incoming_contents(facts: &CheckFacts, source: Handle<FlowOperandFact>) -> bool {
-    let mut source = source;
-    let mut visited = Vec::new();
-    while facts.flow.control.operands.is_valid(source) && !visited.contains(&source) {
-        visited.push(source);
-        let capture = facts.flow.control.operands.get(source);
-        if let checked_trees::FlowOperandCompletion::IncomingContents { .. } = capture.completion {
-            return true;
-        }
-        source = capture.value_source;
+/// An unchanged entry descriptor has a borrowing owner at its captured cut.
+/// The storage query excludes overwritten slots; the incoming identity excludes
+/// type-only parameter guesses and lifetime debts of reference-bearing contents.
+fn has_captured_entry_reference(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    source: Handle<FlowOperandFact>,
+) -> bool {
+    let capture = facts.flow.control.operands.get(source);
+    if capture.state_symbol != state.state_symbol
+        || validation::reference_shell(program, capture.type_reference).is_none()
+    {
+        return false;
     }
-    false
+    let Some(place) = place_at(
+        program,
+        capture.state_symbol,
+        capture.statement_index,
+        capture.expression,
+    ) else {
+        return false;
+    };
+    if validation::completed_storage::at_snapshot(
+        program,
+        &facts.flow.control,
+        capture.storage_snapshot,
+        &place,
+        validation::completed_storage::StoredObservation::Binding,
+    )
+    .is_some()
+    {
+        return false;
+    }
+    super::super::aliases::resolve_descriptor_places(
+        program,
+        facts,
+        state,
+        capture.constraints,
+        checked_trees::CapturedPlace {
+            root: place.root,
+            segments: place.segments,
+            ..Default::default()
+        },
+    )
+    .is_some_and(|sources| {
+        !sources.is_empty()
+            && sources.iter().all(|source| {
+                !source.local_loan.is_valid()
+                    && facts
+                        .borrow
+                        .incoming_references
+                        .is_valid(source.place.incoming_reference)
+                    && matches!(
+                        facts
+                            .borrow
+                            .incoming_references
+                            .get(source.place.incoming_reference)
+                            .origin,
+                        checked_trees::IncomingReferenceOrigin::ParameterReferent { .. }
+                    )
+            })
+    })
 }
 
 pub(super) fn collect(
@@ -461,16 +473,8 @@ fn collect_completed_formations(
         Some((state.state_symbol, state.statements)),
     );
     let Some(selected) = selected.filter(|selected| !selected.is_empty()) else {
-        eprintln!(
-            "lending diagnostic: no binding predecessor for {:?} at path {:?}",
-            source, projection
-        );
         return false;
     };
-    eprintln!(
-        "lending diagnostic: binding predecessors for {:?}: {:?}",
-        source, selected
-    );
     let before = output.len();
     for (selected, projection) in selected {
         if !facts.flow.control.operands.is_valid(selected)
@@ -592,23 +596,26 @@ fn collect_formed_projection(
     {
         return false;
     }
-    let Some(declared) = validation::expression_type_reference_in_state(
-        program,
-        capture.state_symbol,
-        capture.statement_index,
-        capture.expression,
-    ) else {
-        eprintln!(
-            "lending diagnostic: formation {:?} has no declared expression type at state {:?} statement {} expression {:?}",
-            source, capture.state_symbol, capture.statement_index, capture.expression
-        );
+    // The capture already contains the checked contextual type. Re-inferring
+    // its syntax separately loses contextual substitutions and selected joins.
+    let Some(selected) =
+        validation::owned_projection_type_reference(program, capture.type_reference, projection)
+            .and_then(|selected| validation::reference_shell(program, selected))
+    else {
         return false;
     };
-    if !validation::storage_origin_types_match(program, declared, capture.type_reference) {
-        eprintln!(
-            "lending diagnostic: formation {:?} declared type {:?} disagrees with captured {:?}",
-            source, declared, capture.type_reference
-        );
+    if !matches!(
+        (selected.access, output_access),
+        (language_semantics::ReferenceAccess::Mutable, _)
+            | (
+                language_semantics::ReferenceAccess::Shared,
+                checked_trees::BorrowAccessKind::Read
+            )
+            | (
+                language_semantics::ReferenceAccess::WriteOnly,
+                checked_trees::BorrowAccessKind::WriteOnly
+            )
+    ) {
         return false;
     }
     let Some((_, borrow_state)) = facts
@@ -660,36 +667,6 @@ fn collect_formed_projection(
                 segments: facts.borrow.loan_segments(row).to_vec(),
             },
         });
-    }
-    if output.len() == before {
-        eprintln!(
-            "lending diagnostic: formation {:?} sources {:?}; loans {:?}",
-            source,
-            sources
-                .iter()
-                .map(|source| {
-                    let row = facts.flow.control.operands.get(source.capture);
-                    (
-                        source.capture,
-                        row.expression,
-                        row.statement_index,
-                        source.projection.clone(),
-                    )
-                })
-                .collect::<Vec<_>>(),
-            facts
-                .borrow
-                .state_loans(borrow_state)
-                .map(|(loan, row)| (
-                    loan,
-                    row.formation_expression,
-                    row.statement_index,
-                    row.formation_owner_path.map(|path| owner_place_segments(
-                        facts.borrow.owner_segments.span_or_empty(path)
-                    ))
-                ))
-                .collect::<Vec<_>>()
-        );
     }
     output.len() > before
 }

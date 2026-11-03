@@ -27,11 +27,12 @@ impl Execution<'_, '_, '_> {
     /// load descriptors, and each such load uses the same pre-call snapshot.
     pub(super) fn project_call_place(
         &mut self,
-        actual: &FlowOperandFact,
+        actual: Handle<FlowOperandFact>,
         path: &[PlaceSegment],
         at: Handle<FlowStorageSnapshot>,
     ) -> Option<CallPlaceProjection> {
-        let captured_actual = self.context.control.operands.insert(*actual);
+        let captured_actual = actual;
+        let actual = *self.context.control.operands.get(actual);
         let mut sources = StoredOperand::Value {
             capture: captured_actual,
             reference: actual.type_reference,
@@ -111,15 +112,16 @@ impl Execution<'_, '_, '_> {
 
     pub(super) fn call_backing_values(
         &mut self,
-        actual: &FlowOperandFact,
+        actual: Handle<FlowOperandFact>,
         source: &LocalWriteSource,
         destination: TypeReferenceHandle,
         at: Handle<FlowStorageSnapshot>,
-    ) -> Option<Vec<(FlowOperandFact, Vec<PlaceSegment>)>> {
+    ) -> Option<Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
+        let actual_value = *self.context.control.operands.get(actual);
         let desired = reference_shell(self.program, destination)?;
         if source.recasts.is_empty() && source.representation.is_none() {
             if source.segments.is_empty()
-                && reference_shell(self.program, actual.type_reference).is_some()
+                && reference_shell(self.program, actual_value.type_reference).is_some()
             {
                 return self.call_slot_values(actual, &[], at);
             }
@@ -180,7 +182,7 @@ impl Execution<'_, '_, '_> {
                     .reborrow_sources = reborrow_sources;
             }
             return Some(vec![(
-                FlowOperandFact {
+                self.context.control.operands.insert(FlowOperandFact {
                     type_reference: destination,
                     state_symbol: self.state.symbol,
                     statement_index: self.statement_index,
@@ -188,7 +190,7 @@ impl Execution<'_, '_, '_> {
                     referents,
                     retention,
                     ..Default::default()
-                },
+                }),
                 Vec::new(),
             )]);
         }
@@ -198,13 +200,13 @@ impl Execution<'_, '_, '_> {
         let roots = super::super::operand_values::captured_lifetime_roots(
             self.program,
             &self.context.control,
-            actual,
+            &actual_value,
         )?;
         let retention = self.append_retention(&roots);
         let places = Vec::new();
         let referents = self.append_referent_places(&places);
         Some(vec![(
-            FlowOperandFact {
+            self.context.control.operands.insert(FlowOperandFact {
                 type_reference: destination,
                 state_symbol: self.state.symbol,
                 statement_index: self.statement_index,
@@ -212,21 +214,21 @@ impl Execution<'_, '_, '_> {
                 referents,
                 retention,
                 ..Default::default()
-            },
+            }),
             Vec::new(),
         )])
     }
 
     pub(super) fn call_slot_values(
         &mut self,
-        actual: &FlowOperandFact,
+        actual: Handle<FlowOperandFact>,
         path: &[PlaceSegment],
         at: Handle<FlowStorageSnapshot>,
-    ) -> Option<Vec<(FlowOperandFact, Vec<PlaceSegment>)>> {
-        if project_type_reference_from_segments(self.program, actual.type_reference, path)
+    ) -> Option<Vec<(Handle<FlowOperandFact>, Vec<PlaceSegment>)>> {
+        let actual_value = *self.context.control.operands.get(actual);
+        if project_type_reference_from_segments(self.program, actual_value.type_reference, path)
             .is_some_and(|reference| reference_shell(self.program, reference).is_some())
         {
-            let actual = self.context.control.operands.insert(*actual);
             if let Some(stored) =
                 reference_captures_at_path(self.program, &self.context.control, actual, path, at)
             {
@@ -235,41 +237,38 @@ impl Execution<'_, '_, '_> {
                         .captures()?
                         .into_iter()
                         .map(|selected| {
-                            let mut value = *self.context.control.operands.get(selected.capture);
-                            if !selected.projection.is_empty() {
-                                // An opaque descriptor subtree has lifetime debt but
-                                // no captured pointer. Its containing home's address
-                                // cannot stand in for the selected descriptor value.
-                                value.referents = Default::default();
-                            }
-                            (value, selected.projection)
+                            (
+                                self.withhold_projected_pointer(
+                                    selected.capture,
+                                    &selected.projection,
+                                ),
+                                selected.projection,
+                            )
                         })
                         .collect(),
                 );
             }
-            // An unchanged input descriptor can have an opaque pointer while
-            // still denoting this exact completed actual and inline path.
-            // Preserve that association without borrowing its containing home
-            // or manufacturing a newly evaluated child.
-            let mut value = *self.context.control.operands.get(actual);
-            if !path.is_empty() {
-                value.referents = Default::default();
-            }
-            return Some(vec![(value, path.to_vec())]);
+            // An unchanged input descriptor may retain an opaque pointer. Its
+            // enclosing home's address cannot replace that selected pointer.
+            return Some(vec![(
+                self.withhold_projected_pointer(actual, path),
+                path.to_vec(),
+            )]);
         }
         if path.is_empty() {
-            return Some(vec![(*actual, Vec::new())]);
+            return Some(vec![(actual, Vec::new())]);
         }
-        if reference_shell(self.program, actual.type_reference).is_none()
-            && let Some((selected, _)) = super::super::operand_values::captured_operand_at_path(
+        if reference_shell(self.program, actual_value.type_reference).is_none()
+            && let Some(selected) = super::super::operand_values::captured_operand_handle_at_path(
                 self.program,
                 &self.context.control,
                 actual,
-                actual.type_reference,
+                actual_value.type_reference,
                 path,
             )
         {
-            return Some(vec![(*selected, Vec::new())]);
+            // This owned child is an existing evaluated occurrence.
+            return Some(vec![(selected, Vec::new())]);
         }
         let projected = self.project_call_place(actual, path, at)?;
         let mut values = Vec::new();
@@ -283,12 +282,26 @@ impl Execution<'_, '_, '_> {
             )?
             .captures()?;
             for selected in stored {
-                values.push((
-                    *self.context.control.operands.get(selected.capture),
-                    selected.projection,
-                ));
+                values.push((selected.capture, selected.projection));
             }
         }
         (!values.is_empty()).then_some(values)
+    }
+
+    fn withhold_projected_pointer(
+        &mut self,
+        source: Handle<FlowOperandFact>,
+        projection: &[PlaceSegment],
+    ) -> Handle<FlowOperandFact> {
+        if projection.is_empty() {
+            return source;
+        }
+        // This opaque subtree has lifetime debt but no captured pointer.
+        // Keep its exact source association without exposing the container's
+        // address as the reference stored inside it.
+        let mut value = *self.context.control.operands.get(source);
+        value.referents = Default::default();
+        value.value_source = source;
+        self.context.control.operands.insert(value)
     }
 }

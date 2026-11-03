@@ -98,12 +98,11 @@ struct CompletedValue {
     reference_leaves: Option<HandleSpan<checked_trees::FlowCapturedReferenceLeaf>>,
 }
 
-/// The evaluator retains the full ordered roster and its explicit argument
-/// suffix separately. A namespace/receiver observation is not a state formal;
+/// The evaluator retains the full ordered roster. The call's receiver identity
+/// separates its explicit argument suffix from a namespace/receiver observation;
 /// statement calls and transitions already supply arguments only.
 struct InvocationInputs<'evaluated> {
     operands: &'evaluated [checked_trees::FlowOperandFact],
-    arguments: &'evaluated [checked_trees::FlowOperandFact],
 }
 
 #[derive(Default)]
@@ -331,7 +330,6 @@ pub(super) fn append_statement_calls<'plans>(
                 InvocationSite::Statement,
                 InvocationInputs {
                     operands: &captured,
-                    arguments: &captured,
                 },
                 contexts,
                 constraints,
@@ -580,7 +578,27 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 ExpressionHandle::invalid()
             }
         };
+        call.authored_receiver = match site {
+            InvocationSite::Expression(expression) => {
+                match self.program.expression_table.expression(expression) {
+                    Some(ExpressionNode::Call(call)) => call.receiver,
+                    _ => ExpressionHandle::invalid(),
+                }
+            }
+            InvocationSite::Statement | InvocationSite::Transition(_) => {
+                ExpressionHandle::invalid()
+            }
+        };
         call.invocation_storage = self.storage_snapshot;
+        // Installed and returned descriptors share these exact evaluated
+        // occurrences. Publish them before capturing any normal-return stores.
+        call.operands = self
+            .context
+            .control
+            .operands
+            .insert_many(captured_operands.iter().copied());
+        let argument_operands = call.argument_operands();
+
         let binding_writes = writes
             .as_deref()
             .and_then(|writes| writes.descriptor_stores());
@@ -590,7 +608,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 self.capture_call_stores(
                     site,
                     borrowed_call,
-                    inputs.arguments,
+                    argument_operands,
                     binding_writes.as_deref(),
                 )
             },
@@ -638,11 +656,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
             bindings: binding_writes,
             observations,
         });
-        call.operands = self
-            .context
-            .control
-            .operands
-            .insert_many(captured_operands.iter().copied());
         // Call publication filters only guarantees substituted through stale
         // operand places. Live caller facts describe the storage after the
         // evaluated operands and must survive independently of their snapshots.
@@ -1857,7 +1870,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                     InvocationSite::Expression(expression),
                     InvocationInputs {
                         operands: &operands,
-                        arguments: &operands[usize::from(call.receiver.is_valid())..],
                     },
                     contexts,
                     constraints,

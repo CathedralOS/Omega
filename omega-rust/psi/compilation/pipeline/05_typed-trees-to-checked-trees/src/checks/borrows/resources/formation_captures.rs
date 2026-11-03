@@ -1,5 +1,6 @@
-//! Follow the evaluated address receiver of a reference formation. This
-//! identifies captured descriptors and typed suffixes, never permission.
+//! A new view must use the reference actually read, even if its source variable
+//! later changes. Follow saved inputs and selected fields to that captured value;
+//! its access permission is checked separately.
 use arena::Handle;
 use checked_trees::{CheckFacts, FlowOperandFact};
 
