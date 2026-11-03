@@ -120,6 +120,27 @@ pub(crate) fn infer_checked_recursive_machine_terminations(
         Some(&topology),
         Some(component),
     );
+    if std::env::var_os("OMEGA_TRACE_RECURSIVE_ADMISSION").is_some() {
+        eprintln!(
+            "recursive admission: requested={} call_frames={} members={}",
+            machine.name,
+            call_frames.is_some(),
+            component.len()
+        );
+        for position in component {
+            let member = &program.machines()[*position];
+            match admitted.judgment_for_body(member.symbol, member.states) {
+                Some(judgment) => eprintln!(
+                    "  body {}: local_terminates={} diagnostic={}",
+                    member.name, judgment.local_terminates, judgment.diagnostic
+                ),
+                None => eprintln!("  body {}: no judgment", member.name),
+            }
+        }
+        for (_, judgment) in admitted.runtime_components.iter() {
+            eprintln!("  component diagnostic={}", judgment.diagnostic);
+        }
+    }
     component
         .iter()
         .map(|position| {
