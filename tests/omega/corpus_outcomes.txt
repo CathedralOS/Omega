@@ -3803,6 +3803,7 @@ pass/borrows/reference_aggregate_disjoint_mutable_leaves_exit checked 79303ms ch
 pass/borrows/reference_cycle_projection_root_partition checked 2282ms @ccdb99ca2214
 pass/borrows/reference_parameter_field_store_exit checked 3380ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/region_stored_reference_occurrences_exit checked 3627ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/resident_view_borrowed_helper_exit checked 12583ms check-target:macos_arm64 @74d6d6b03c6b
 pass/borrows/retained_envelope_refs checked 3036ms @ccdb99ca2214
 pass/borrows/returned_owned_byte_field_snapshot_exit checked 67800ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/returned_primitive_reference_assignment_capture_exit checked 3539ms check-target:macos_arm64 @ccdb99ca2214
