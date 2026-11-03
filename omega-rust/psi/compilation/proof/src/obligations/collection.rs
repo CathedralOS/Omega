@@ -639,18 +639,7 @@ fn collect_bounded_transition_argument_obligations(
     }) else {
         return;
     };
-    let mut refuted_exit_guards = Vec::new();
-    for statement in &statements[..statement_index] {
-        let Some(prior) = statement.as_transition() else {
-            continue;
-        };
-        if let TransitionGuardNode::When(guard) = prior.guard
-            && prior.target.is_valid()
-            && !prior.continuation.is_valid()
-        {
-            refuted_exit_guards.push(guard);
-        }
-    }
+    let refuted_exit_guards = prior_exit_guards(&statements[..statement_index]);
     let Some((target_state, arguments)) =
         table_transition_target_state_and_arguments(program, state, table_transition.target)
     else {
@@ -1167,6 +1156,28 @@ fn collect_array_element_obligations(
     }
 }
 
+/// Guards of the exits among `prior` statements: control reaching the next
+/// statement refutes each one (guarded, valid target, no fall-through arm).
+fn prior_exit_guards(prior: &[StatementNode]) -> Vec<ExpressionHandle> {
+    prior
+        .iter()
+        .filter_map(StatementNode::as_transition)
+        .filter_map(|transition| match transition.guard {
+            TransitionGuardNode::When(guard)
+                if transition.target.is_valid() && !transition.continuation.is_valid() =>
+            {
+                Some(guard)
+            }
+            _ => None,
+        })
+        .collect()
+}
+
+/// Every value that completes the state owes its return type's constraints:
+/// a tail expression, and each value target of any transition arm. A
+/// multi-arm `transition` block lowers to one transition statement per arm,
+/// so each arm is judged at its own statement with its own guard and the
+/// refuted guards of the exits before it.
 fn collect_bounded_state_return_obligation(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,
@@ -1174,17 +1185,79 @@ fn collect_bounded_state_return_obligation(
     return_type: TypeReferenceHandle,
     proof_plan: &mut ProofPlan<'_>,
 ) {
-    let Some(statement::StatementNode::Expression(value)) = statement_table(program)
-        .statements(state.statement_nodes)
-        .last()
-    else {
-        return;
-    };
-    let value = *value;
-    let statement_index = statement_table(program)
-        .statements(state.statement_nodes)
-        .len()
-        - 1;
+    let statements = statement_table(program).statements(state.statement_nodes);
+    for (statement_index, statement) in statements.iter().enumerate() {
+        match statement {
+            StatementNode::Expression(value) if statement_index + 1 == statements.len() => {
+                push_bounded_state_return_obligation(
+                    program,
+                    machine,
+                    state,
+                    statement_index,
+                    *value,
+                    TransitionGuardNode::Always,
+                    Vec::new(),
+                    return_type,
+                    proof_plan,
+                );
+            }
+            StatementNode::Transition(transition) => {
+                let refuted = prior_exit_guards(&statements[..statement_index]);
+                for (target, guard) in [
+                    (transition.target, transition.guard),
+                    // A fall-through arm runs when the guard failed; that
+                    // refutation is not recorded, so it carries no guard.
+                    (transition.continuation, TransitionGuardNode::Always),
+                ] {
+                    if !target.is_valid() {
+                        continue;
+                    }
+                    let statement::TransitionTargetNode::Value(value) =
+                        statement_table(program).transition_target(target)
+                    else {
+                        continue;
+                    };
+                    // Same stability rule as transition arguments: a call in
+                    // the value may rewrite a guarded place before it is read.
+                    let call_free = !expression_contains_call_node(program, *value);
+                    push_bounded_state_return_obligation(
+                        program,
+                        machine,
+                        state,
+                        statement_index,
+                        *value,
+                        if call_free {
+                            guard
+                        } else {
+                            TransitionGuardNode::Always
+                        },
+                        if call_free {
+                            refuted.clone()
+                        } else {
+                            Vec::new()
+                        },
+                        return_type,
+                        proof_plan,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn push_bounded_state_return_obligation(
+    program: &dyn ::validation::CheckingInput,
+    machine: &Machine,
+    state: &State,
+    statement_index: usize,
+    value: ExpressionHandle,
+    guard: TransitionGuardNode,
+    refuted_exit_guards: Vec<ExpressionHandle>,
+    return_type: TypeReferenceHandle,
+    proof_plan: &mut ProofPlan<'_>,
+) {
     collect_array_element_obligations(
         program,
         machine,
@@ -1213,6 +1286,8 @@ fn collect_bounded_state_return_obligation(
             base_type,
             constraints,
             binary_operands: binary_value_operands(program, machine, state, value),
+            guard,
+            refuted_exit_guards,
         },
     ));
 }

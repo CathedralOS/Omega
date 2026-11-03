@@ -16,7 +16,9 @@ use super::{
     scalar_abi_cases, stack_pointer_view, validate_effects, validated_effects,
 };
 use register_model::RegisterViewId;
-use selected_instructions::MachineEffectCatalogValidationError::InvalidEncodedEffects;
+use selected_instructions::MachineEffectCatalogValidationError::{
+    BarrierMismatch, InvalidEncodedEffects,
+};
 use selected_instructions::validate_machine_effect_catalog;
 use selected_instructions::{
     MachineCleanupEffect, MachineEncodedControlEffect, MachineEncodedMemoryEffect,
@@ -46,13 +48,32 @@ fn lifecycle_owner(
         return None;
     }
     match semantic {
+        // A nonreturning invocation still enters the callee through the
+        // ordinary call, pushing the return address it never returns to.
         MachineSemanticKind::CallScalar
         | MachineSemanticKind::CallUnit
         | MachineSemanticKind::CallAggregate
+        | MachineSemanticKind::InvokeNoNormal
         | MachineSemanticKind::NormalizedForeignCall => Some(LifecycleOwner::Call),
         MachineSemanticKind::ReturnScalar
         | MachineSemanticKind::ReturnUnit
         | MachineSemanticKind::ReturnAggregate => Some(LifecycleOwner::Return),
+        _ => None,
+    }
+}
+
+/// The private stack extent an x86-64 rule pushes and pops within its own
+/// form: the directed-rounding float forms save and restore the rounding
+/// control, and the RFLAGS snapshot and restore move the flags through
+/// `pushfq`/`popfq`. None of them owns an activation-stack lifecycle.
+fn temporary_stack_bytes(architecture: Architecture, key: RegisterConstraintKey) -> Option<u16> {
+    if architecture != Architecture::X86_64 {
+        return None;
+    }
+    match key {
+        isa_x86_64::X86_64_IEEE_FLOAT_DIRECTED_BINARY
+        | isa_x86_64::X86_64_IEEE_FLOAT_DIRECTED_UNARY => Some(16),
+        isa_x86_64::X86_64_FLAGS_SNAPSHOT | isa_x86_64::X86_64_FLAGS_RESTORE => Some(8),
         _ => None,
     }
 }
@@ -174,13 +195,14 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                             "{key:?}"
                         );
                     }
-                    None if key == isa_x86_64::X86_64_IEEE_FLOAT_DIRECTED_BINARY => {
-                        assert_eq!(case.target.architecture, Architecture::X86_64);
+                    None if temporary_stack_bytes(case.target.architecture, key).is_some() => {
+                        let byte_count =
+                            temporary_stack_bytes(case.target.architecture, key).unwrap();
                         assert_eq!(
                             encoded.stack,
                             MachineEncodedStackEffect::TemporaryBytesV1 {
                                 stack_pointer: stack_pointer.id,
-                                byte_count: 16,
+                                byte_count,
                             },
                             "{key:?}"
                         );
@@ -188,7 +210,7 @@ fn every_selected_rule_binds_its_activation_stack_lifecycle() {
                             encoded.memory,
                             MachineEncodedMemoryEffect::TemporaryStackStorageV1 {
                                 stack_pointer: stack_pointer.id,
-                                byte_count: 16,
+                                byte_count,
                             },
                             "{key:?}"
                         );
@@ -330,13 +352,23 @@ fn every_selected_rule_rejects_activation_stack_lifecycle_forgery() {
             // Every forgery above fails structural admission: the
             // (memory, stack, trap) triple no arm owns rejects before the
             // ISA's canonical replay ever runs, so the raw validator is
-            // enough.
+            // enough. A fence's whole encoded surface is its fixed barrier
+            // shape, so admission reports any drift there as a barrier
+            // mismatch before it reaches the encoded-effect arms.
+            let expected_rejection = if matches!(
+                semantic,
+                MachineSemanticKind::MemoryFence | MachineSemanticKind::AtomicFence
+            ) {
+                BarrierMismatch(semantic)
+            } else {
+                InvalidEncodedEffects(semantic)
+            };
             for (label, stack) in forgeries {
                 let mut corrupted = catalog.clone();
                 encoded_mut(&mut corrupted, key, semantic, 0).stack = stack;
                 assert_eq!(
                     validate_machine_effect_catalog(environment.constraints(), corrupted),
-                    Err(InvalidEncodedEffects(semantic)),
+                    Err(expected_rejection),
                     "{key:?} {label} must reject"
                 );
             }

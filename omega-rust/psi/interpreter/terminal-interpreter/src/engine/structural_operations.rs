@@ -1791,7 +1791,9 @@ impl TerminalExecution<'_> {
             && result.multiplicity != StructuralMultiplicity::Unrestricted
             && !shared_descriptor
         {
-            return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
+            return Err(TerminalInterpretError::AffineProjectionNotRepresentable {
+                context: "an affine case payload requires its owned frontier".into(),
+            });
         }
         if (result.multiplicity != StructuralMultiplicity::Unrestricted
             && !(result.multiplicity == StructuralMultiplicity::Affine && shared_descriptor))
