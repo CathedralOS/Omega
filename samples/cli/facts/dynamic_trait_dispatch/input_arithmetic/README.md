@@ -69,5 +69,13 @@ is retained in the author's Library, version 1 (access required), with both
 source bundles, each original observation revision, commands and raw records.
 SHA-256: `570d55dcdf4075b6d1473e9b39fabf61b81e6760aaef826e46444edd0fa4966e`.
 This supplements the 48 IEEE/control Source observations and 21 native/Terminal
-executions without relabeling them as new runs. Other-host and Product compiler
-execution remain unmeasured.
+executions without relabeling them as new runs. Those historical runs measured
+Linux x86-64; they did not measure other hosts or the product compiler.
+
+
+The unchanged eighteen projects here also pass the full-source migration runs at
+`0a53590a2991a39c810225fade12860d577192df` on Linux x86-64 and macOS ARM64:
+nine positives check and exit 0 in both engines, and nine weakened-input controls
+reject their public call requirement. The [parent validation record](../README.md#validation-and-remaining-scope)
+links those runs and explains the retained observations. Windows x86-64,
+Linux ARM64 and product-compiler execution remain unmeasured.

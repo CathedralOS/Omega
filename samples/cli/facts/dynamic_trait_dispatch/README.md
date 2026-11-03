@@ -115,17 +115,55 @@ All implementations are checked independently of the host selected for execution
 
 ## Validation and remaining scope
 
+The current complete scope passes on Linux x86-64 and macOS ARM64: eighteen
+programs pass source checking, twenty-seven controls reach their intended
+rejections, and all eighteen positive fixtures exit 0 in native and Terminal
+execution. All forty-six sample projects meet their oracles: nineteen executions
+and twenty-seven intended rejections.
+
+The observations retain the source actually measured:
+
+- Source `0a53590a2991a39c810225fade12860d577192df` supplies forty unchanged
+  fixture checks, seventeen positive fixture executions and forty-one unchanged
+  sample results, from the full [Linux](https://github.com/CathedralOS/Omega/actions/runs/41550121602)
+  and [macOS](https://github.com/CathedralOS/Omega/actions/runs/41550126485) runs.
+- Source `b9b495ed6d3d109a2620cf35dbfbf5deafbce91d` supplies the current target
+  positive, operand twin and uninitialized-selector control: three checks, one
+  positive fixture execution and three sample results on
+  [Linux](https://github.com/CathedralOS/Omega/actions/runs/41552534492) and
+  [macOS](https://github.com/CathedralOS/Omega/actions/runs/41552537806).
+- Source `a34a0eae56fa35097331cb4368d1b85cd9362e0f` supplies the restored match
+  control and the field control with initialized scalar neighbors, each checked
+  as a fixture and an ordinary intended-invalid project on
+  [Linux](https://github.com/CathedralOS/Omega/actions/runs/41559598582) and
+  [macOS](https://github.com/CathedralOS/Omega/actions/runs/41559602325).
+
+Both hosts use verified optimization level 1. Within each host, all three runs
+use the same compiler binary digest. Unchanged projects have their own Build
+files and import none of the changed projects; compiler code, library inputs,
+policies and gate tools are unchanged. Independent review covers that reuse.
+Records name their actual observation source; later documentation and measured
+record updates do not claim another execution.
+
+Every operand control names its unproved public call requirement. The field
+control refuses when reading `dispatcher.selector` after both scalar stores;
+the match control reports both vacant-arm reads. Consolidating four target
+bodies removes duplicate diagnostics, and the nested step's result contract
+removes a secondary outer-ensures error. The current primary refusal remains
+recorded in each case; unrelated golden blocks are unchanged.
+
 The unchanged [Linux baseline](https://github.com/CathedralOS/Omega/actions/runs/41547276197)
-checks eighteen positives and rejects twenty-seven intended controls. All eighteen
-fixture executions exit 0 in both engines; all forty-six sample projects meet
-their oracles (nineteen executions and twenty-seven intended rejections).
-The producer uses verified optimization level 1. Migration observations remain
-pending. The fixed warm-chain
-integration is `15dfb9e3dff868befb2ddec587b0ed51d5accbf8`, whose tree matches the
-published predecessor `4f3360c7e2e3869002c325fc1157780209e9a599`. Documentation-only
-checkpoint `1cc1fb70bc837a91b4adbf4061d4869695460d4d` retains all original compiler,
-library and authored program inputs. Existing accepted platform prefixes are
+at documentation-only checkpoint `1cc1fb70bc837a91b4adbf4061d4869695460d4d`
+also covers all original forty-five fixtures and forty-six sample projects.
+Its compiler, library and authored program inputs match warm-chain integration
+`15dfb9e3dff868befb2ddec587b0ed51d5accbf8`, whose tree matches published predecessor
+`4f3360c7e2e3869002c325fc1157780209e9a599`. Accepted platform prefixes were
 migration inputs, rather than a newly demonstrated compiler defect.
+
+Source archives are published with the PR evidence; raw reports, profiles and
+input hashes remain under `build/dynamic-trait-selected-20261102/` and in the
+linked hosted artifacts. Windows x86-64 and Linux ARM64 execution remain
+unverified. No compiler repair was required for this migration.
 
 Earlier documentation reports macOS ARM64 observations at `2d783d092d9d` and
 fixture-name/record updates at `114906953e1`, with runner SHA-256
