@@ -43,16 +43,16 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [latest completed check](https://github.com/CathedralOS/Omega/actions/runs/41585411293)
-at `ae886e15eabdd5d0616929cad41be5fb8aa0474b` proves the inner encoder and its
-first forwarding function. The local and constant programs each retain 13 proof
-refusals, beginning with `Writer::encode_sufficient`'s byte and length guarantee.
-The field program also cannot prove that its returned field is the incoming
-Result. Both independent returned-reference controls execute with native/Terminal
-exit zero. All four stale-storage controls, the wrong-value control and both
-invalid-construction controls reject correctly. The decoder twins include their
-intended rejection but still have unrelated writer failures, so they do not yet
-establish this row's acceptance.
+The [latest completed check](https://github.com/CathedralOS/Omega/actions/runs/41591572063)
+at `b2f1d4262534dc81fb1447a4894c957cca660d2d` proves the writer's complete byte
+and length guarantee. The field-forwarding promise also proves. The local and
+constant programs each retain nine proof refusals, beginning with the call that
+restores the encoded frame. The field program also loses two facts needed by its
+consumer. The original capacity example and both returned-reference controls
+execute with native/Terminal exit zero. All four stale-storage controls, the
+wrong-value control and both invalid-construction controls reject correctly.
+The decoder twins include their intended rejection but still have unrelated
+restoration failures, so they do not yet establish this row's acceptance.
 
 The [constant-call checks](https://github.com/CathedralOS/Omega/actions/runs/41573401092)
 execute four independent method, binder, application and lifetime programs with
