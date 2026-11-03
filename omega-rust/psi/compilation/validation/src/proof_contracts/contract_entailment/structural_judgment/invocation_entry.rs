@@ -128,7 +128,6 @@ impl<'program> StructuralJudge<'program> {
         let returned_nominal_values = self.returned_nominal_values(returned, caller);
         self.returned_value_source = caller.returned_value_source.clone();
         self.leave_storage_scope(caller, state, subjects, writes)?;
-        self.advance_storage_version(completion_version);
         self.body_invocations = std::sync::Arc::clone(&caller.body_invocations);
         self.declaration_state = caller.declaration_state;
         self.body_type_parameters = caller.body_type_parameters;
@@ -140,6 +139,7 @@ impl<'program> StructuralJudge<'program> {
             std::sync::Arc::make_mut(&mut self.completed_nominal_values)
                 .extend(returned_nominal_values);
         }
+        self.advance_storage_version(completion_version);
         Some(self)
     }
 }
