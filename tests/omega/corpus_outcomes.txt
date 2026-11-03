@@ -3788,6 +3788,8 @@ pass/asm/checked_asm_saved_nested_field_exit checked 6596ms check-target:macos_a
 pass/asm/checked_asm_saved_nested_match_exit checked 6567ms check-target:macos_arm64 @0af7c594a1c0
 pass/asm/checked_asm_saved_scalar_match_exit checked 8194ms check-target:macos_arm64 @0af7c594a1c0
 pass/asm/checked_countdown_literal_exit checked 3975ms check-target:linux_x86_64 @ccdb99ca2214
+pass/asm/checked_fence_aarch64_in_x86_body checked 9084ms check-target:macos_arm64 @501f6a3e9422
+pass/asm/checked_fence_x86_in_aarch64_body checked 9523ms check-target:macos_arm64 @501f6a3e9422
 pass/asm/checked_label_borrow_last_use_exit checked 3405ms check-target:macos_arm64 @ccdb99ca2214
 pass/asm/checked_label_call_result_exit checked 3455ms check-target:macos_arm64 @ccdb99ca2214
 pass/asm/checked_label_edges_exit checked 4130ms check-target:macos_arm64 @ccdb99ca2214
@@ -6887,26 +6889,16 @@ pass/facts/checked_asm_countdown_through_other_machine_exit checked 8357ms check
 pass/facts/checked_asm_countdown_through_other_state_exit checked 7994ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @0af7c594a1c0
 pass/facts/checked_asm_countdown_through_parameter_exit checked 7916ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @0af7c594a1c0
 pass/facts/checked_asm_countdown_through_target_body_exit checked 13578ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @0af7c594a1c0
-pass/facts/checked_asm_fence_contracts_through_call_result_exit incomplete 5315ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.windows_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target-artifact:unchanged+terminal-targets:match+terminal-fences.linux_x86_64:lfence,sfence,mfence+terminal-fences.windows_x86_64:lfence,sfence,mfence+terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fence-artifact:unchanged+terminal-fences:match @0af7c594a1c0
-	`X86Ordered::ordered` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `X86Ordered::ordered::ordered`
-pass/facts/checked_asm_fence_contracts_through_const_name_exit incomplete 5330ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.windows_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target-artifact:unchanged+terminal-targets:match+terminal-fences.linux_x86_64:lfence,sfence,mfence+terminal-fences.windows_x86_64:lfence,sfence,mfence+terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fence-artifact:unchanged+terminal-fences:match @0af7c594a1c0
-	`X86Ordered::ordered` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `X86Ordered::ordered::ordered`
-pass/facts/checked_asm_fence_contracts_through_field_exit incomplete 6380ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.windows_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target-artifact:unchanged+terminal-targets:match+terminal-fences.linux_x86_64:lfence,sfence,mfence+terminal-fences.windows_x86_64:lfence,sfence,mfence+terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fence-artifact:unchanged+terminal-fences:match @0af7c594a1c0
-	`X86Ordered::ordered` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `X86Ordered::ordered::ordered`
-pass/facts/checked_asm_fence_contracts_through_local_exit incomplete 5041ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.windows_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target-artifact:unchanged+terminal-targets:match+terminal-fences.linux_x86_64:lfence,sfence,mfence+terminal-fences.windows_x86_64:lfence,sfence,mfence+terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fence-artifact:unchanged+terminal-fences:match @0af7c594a1c0
-	`X86Ordered::ordered` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `X86Ordered::ordered::ordered`
-pass/facts/checked_asm_fence_contracts_through_match_join_exit incomplete 4933ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.windows_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target-artifact:unchanged+terminal-targets:match+terminal-fences.linux_x86_64:lfence,sfence,mfence,lfence,sfence,mfence+terminal-fences.windows_x86_64:lfence,sfence,mfence,lfence,sfence,mfence+terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy,dmb_ld,dmb_st,dmb_sy+terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy,dmb_ld,dmb_st,dmb_sy+terminal-fence-artifact:unchanged+terminal-fences:match @0af7c594a1c0
-	`X86Ordered::ordered` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `X86Ordered::ordered::ordered`
-pass/facts/checked_asm_fence_contracts_through_other_machine_exit incomplete 8066ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.windows_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target-artifact:unchanged+terminal-targets:match+terminal-fences.linux_x86_64:lfence,sfence,mfence+terminal-fences.windows_x86_64:lfence,sfence,mfence+terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fence-artifact:unchanged+terminal-fences:match @0af7c594a1c0
-	`X86Ordered::ordered` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `X86Ordered::ordered::ordered`
-pass/facts/checked_asm_fence_contracts_through_other_state_exit incomplete 7582ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.windows_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target-artifact:unchanged+terminal-targets:match+terminal-fences.linux_x86_64:lfence,sfence,mfence+terminal-fences.windows_x86_64:lfence,sfence,mfence+terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fence-artifact:unchanged+terminal-fences:match @0af7c594a1c0
-	`X86Ordered::ordered` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `X86Ordered::ordered::ordered`
-pass/facts/checked_asm_fence_contracts_through_parameter_exit incomplete 7165ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.windows_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target-artifact:unchanged+terminal-targets:match+terminal-fences.linux_x86_64:lfence,sfence,mfence+terminal-fences.windows_x86_64:lfence,sfence,mfence+terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fence-artifact:unchanged+terminal-fences:match @0af7c594a1c0
-	`X86Ordered::ordered` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `X86Ordered::ordered::ordered`
-pass/facts/checked_asm_fence_contracts_through_root_exit incomplete 6383ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.windows_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target-artifact:unchanged+terminal-targets:match+terminal-fences.linux_x86_64:lfence,sfence,mfence+terminal-fences.windows_x86_64:lfence,sfence,mfence+terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fence-artifact:unchanged+terminal-fences:match @0af7c594a1c0
-	`X86Ordered::ordered` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `X86Ordered::ordered::ordered`
-pass/facts/checked_asm_fence_contracts_through_target_body_exit incomplete 6202ms terminal-targets:unchecked regressed-from:checked+check-target:macos_arm64+terminal-target.linux_x86_64:0+terminal-target.windows_x86_64:0+terminal-target.linux_arm64:0+terminal-target.macos_arm64:0+terminal-target-artifact:unchanged+terminal-targets:match+terminal-fences.linux_x86_64:lfence,sfence,mfence+terminal-fences.windows_x86_64:lfence,sfence,mfence+terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy+terminal-fence-artifact:unchanged+terminal-fences:match @0af7c594a1c0
-	`ordered::linux_arm64` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `ordered::linux_arm64::entry`
+pass/facts/checked_asm_fence_contracts_through_call_result_exit checked 10434ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @8721004523b8
+pass/facts/checked_asm_fence_contracts_through_const_name_exit checked 10418ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @8721004523b8
+pass/facts/checked_asm_fence_contracts_through_field_exit checked 9837ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @8721004523b8
+pass/facts/checked_asm_fence_contracts_through_local_exit checked 9829ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @8721004523b8
+pass/facts/checked_asm_fence_contracts_through_match_join_exit checked 10019ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence,lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence,lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy,dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy,dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @8721004523b8
+pass/facts/checked_asm_fence_contracts_through_other_machine_exit checked 10009ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @8721004523b8
+pass/facts/checked_asm_fence_contracts_through_other_state_exit checked 10156ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @8721004523b8
+pass/facts/checked_asm_fence_contracts_through_parameter_exit checked 10153ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @8721004523b8
+pass/facts/checked_asm_fence_contracts_through_root_exit checked 9768ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @8721004523b8
+pass/facts/checked_asm_fence_contracts_through_target_body_exit checked 9765ms check-target:macos_arm64 terminal-target.linux_x86_64:0 terminal-target.windows_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target-artifact:unchanged terminal-targets:match terminal-fences.linux_x86_64:lfence,sfence,mfence terminal-fences.windows_x86_64:lfence,sfence,mfence terminal-fences.linux_arm64:dmb_ld,dmb_st,dmb_sy terminal-fences.macos_arm64:dmb_ld,dmb_st,dmb_sy terminal-fence-artifact:unchanged terminal-fences:match @8721004523b8
 pass/facts/checked_asm_flag_restore_through_call_result_exit incomplete 6864ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @0af7c594a1c0
 	`main` calls `capture`; `capture` has no executable body: this compiler does not lower a state of it yet (state graph: structural return value: retained expression root); in state `capture::entry`
 pass/facts/checked_asm_flag_restore_through_const_name_exit checked 8617ms check-target:linux_x86_64 @0af7c594a1c0
@@ -15929,31 +15921,25 @@ fail/asm/checked_asm_saved_nested_field_wrong rejected 2618ms expected @0af7c594
 	cannot prove ensures contract for exit from compare$assembly$windows_x86_64$5$entry at statement 1: match output { Envelope { inner } => match <saved subject #13:1>.inner { Holder { value } => <saved subject #14:1>.value == 38 } }
 	cannot prove ensures contract for exit from compare$assembly$linux_arm64$5$entry at statement 1: match output { Envelope { inner } => match <saved subject #17:1>.inner { Holder { value } => <saved subject #18:1>.value == 38 } }
 	cannot prove ensures contract for exit from compare$assembly$macos_arm64$5$entry at statement 1: match output { Envelope { inner } => match <saved subject #21:1>.inner { Holder { value } => <saved subject #22:1>.value == 38 } }
-fail/asm/checked_fence_aarch64_in_x86_body rejected 786ms expected @0af7c594a1c0
-	assembly catalog target requirement conflicts with the authored target body
-fail/asm/checked_fence_arm_invented_clobber rejected 377ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\asm\\checked_fence_arm_invented_clobber\\main.omg:31:5: asm `clobbers` must exactly match the realized instruction contract: not clobbered `x0`
-fail/asm/checked_fence_dmb_extra_operand rejected 1183ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\asm\\checked_fence_dmb_extra_operand\\main.omg:27:15: multiple asm instructions must be separated by `;`
-fail/asm/checked_fence_dmb_missing_option rejected 290ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\asm\\checked_fence_dmb_missing_option\\main.omg:27:12: expected identifier, found punctuation `;`
-fail/asm/checked_fence_dmb_numeric_option rejected 865ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\asm\\checked_fence_dmb_numeric_option\\main.omg:27:13: expected identifier, found numeric literal `15`
-fail/asm/checked_fence_dmb_register_operand rejected 821ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\asm\\checked_fence_dmb_register_operand\\main.omg:27:13: dmb requires an explicit supported full-system option: ld, st, or sy
-fail/asm/checked_fence_dmb_scope rejected 818ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\asm\\checked_fence_dmb_scope\\main.omg:27:13: dmb requires an explicit supported full-system option: ld, st, or sy
-fail/asm/checked_fence_false_ensures rejected 2523ms expected @0af7c594a1c0
-	cannot prove asm `ensures` fact at block exit in ordered state `entry` (statement 6): input == 38
-	cannot prove asm `ensures` fact at block exit in ordered state `entry` (statement 6): input == 38
-	cannot prove asm `ensures` fact at block exit in ordered state `entry` (statement 6): input == 38
-	cannot prove asm `ensures` fact at block exit in ordered state `entry` (statement 6): input == 38
-fail/asm/checked_fence_fence_operand rejected 404ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\asm\\checked_fence_fence_operand\\main.omg:7:16: multiple asm instructions must be separated by `;`
-fail/asm/checked_fence_wrong_target rejected 317ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\asm\\checked_fence_wrong_target\\main.omg:8:9: assembly body mixes incompatible catalog targets
-fail/asm/checked_fence_x86_in_aarch64_body rejected 848ms expected @0af7c594a1c0
-	assembly catalog target requirement conflicts with the authored target body
+fail/asm/checked_fence_arm_invented_clobber rejected 350ms expected @8721004523b8
+	tests/omega/fail/asm/checked_fence_arm_invented_clobber/main.omg:53:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `x0`
+fail/asm/checked_fence_dmb_extra_operand rejected 349ms expected @8721004523b8
+	tests/omega/fail/asm/checked_fence_dmb_extra_operand/main.omg:40:19: multiple asm instructions must be separated by `;`
+fail/asm/checked_fence_dmb_missing_option rejected 349ms expected @8721004523b8
+	tests/omega/fail/asm/checked_fence_dmb_missing_option/main.omg:40:16: expected identifier, found punctuation `;`
+fail/asm/checked_fence_dmb_numeric_option rejected 391ms expected @8721004523b8
+	tests/omega/fail/asm/checked_fence_dmb_numeric_option/main.omg:40:17: expected identifier, found numeric literal `15`
+fail/asm/checked_fence_dmb_register_operand rejected 395ms expected @8721004523b8
+	tests/omega/fail/asm/checked_fence_dmb_register_operand/main.omg:40:17: dmb requires an explicit supported full-system option: ld, st, or sy
+fail/asm/checked_fence_dmb_scope rejected 353ms expected @8721004523b8
+	tests/omega/fail/asm/checked_fence_dmb_scope/main.omg:40:17: dmb requires an explicit supported full-system option: ld, st, or sy
+fail/asm/checked_fence_false_ensures rejected 4501ms expected @8721004523b8
+	cannot prove asm `ensures` fact at block exit in X86Ordered::ordered state `ordered` (statement 7): input == 38
+	cannot prove asm `ensures` fact at block exit in ArmOrdered::ordered state `ordered` (statement 7): input == 38
+fail/asm/checked_fence_fence_operand rejected 421ms expected @8721004523b8
+	tests/omega/fail/asm/checked_fence_fence_operand/main.omg:40:20: multiple asm instructions must be separated by `;`
+fail/asm/checked_fence_wrong_target rejected 306ms expected @8721004523b8
+	tests/omega/fail/asm/checked_fence_wrong_target/main.omg:41:13: assembly body mixes incompatible catalog targets
 fail/asm/cyclic_label rejected 385ms expected @ccdb99ca2214
 	cyclic assembly label control in `Main::main` state `main` requires checked loop invariants; this control domain is not yet implemented
 fail/asm/duplicate_label rejected 26ms expected @ccdb99ca2214
@@ -22146,26 +22132,26 @@ fail/facts/checked_asm_countdown_through_target_body_rejected rejected 3511ms ex
 	cannot prove ensures contract for exit from X86Countdown::run$assembly$portable$4$run at statement 2: output == 0
 	cannot prove requires contract for call done from ArmCountdown::run$assembly$portable$5$run: asm#scratch#48#w1$version$1 == 1 (needs fact `asm#scratch#48#w0 == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `loop`
 	cannot prove ensures contract for exit from ArmCountdown::run$assembly$portable$5$run at statement 2: output == 0
-fail/facts/checked_asm_fence_contracts_through_call_result_rejected rejected 993ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\facts\\checked_asm_fence_contracts_through_call_result_rejected\\main.omg:40:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
-fail/facts/checked_asm_fence_contracts_through_const_name_rejected rejected 1062ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\facts\\checked_asm_fence_contracts_through_const_name_rejected\\main.omg:40:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
-fail/facts/checked_asm_fence_contracts_through_field_rejected rejected 1095ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\facts\\checked_asm_fence_contracts_through_field_rejected\\main.omg:40:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
-fail/facts/checked_asm_fence_contracts_through_local_rejected rejected 996ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\facts\\checked_asm_fence_contracts_through_local_rejected\\main.omg:40:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
-fail/facts/checked_asm_fence_contracts_through_match_join_rejected rejected 351ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\facts\\checked_asm_fence_contracts_through_match_join_rejected\\main.omg:40:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
-fail/facts/checked_asm_fence_contracts_through_other_machine_rejected rejected 331ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\facts\\checked_asm_fence_contracts_through_other_machine_rejected\\main.omg:40:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
-fail/facts/checked_asm_fence_contracts_through_other_state_rejected rejected 321ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\facts\\checked_asm_fence_contracts_through_other_state_rejected\\main.omg:40:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
-fail/facts/checked_asm_fence_contracts_through_parameter_rejected rejected 324ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\facts\\checked_asm_fence_contracts_through_parameter_rejected\\main.omg:40:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
-fail/facts/checked_asm_fence_contracts_through_root_rejected rejected 454ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\facts\\checked_asm_fence_contracts_through_root_rejected\\main.omg:40:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
-fail/facts/checked_asm_fence_contracts_through_target_body_rejected rejected 322ms expected @0af7c594a1c0
-	\\\\?\\tests\\omega\\fail\\facts\\checked_asm_fence_contracts_through_target_body_rejected\\main.omg:11:5: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_call_result_rejected rejected 479ms expected @8721004523b8
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_call_result_rejected/main.omg:39:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_const_name_rejected rejected 428ms expected @8721004523b8
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_const_name_rejected/main.omg:39:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_field_rejected rejected 509ms expected @8721004523b8
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_field_rejected/main.omg:39:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_local_rejected rejected 301ms expected @8721004523b8
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_local_rejected/main.omg:39:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_match_join_rejected rejected 307ms expected @8721004523b8
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_match_join_rejected/main.omg:39:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_other_machine_rejected rejected 339ms expected @8721004523b8
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_other_machine_rejected/main.omg:39:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_other_state_rejected rejected 319ms expected @8721004523b8
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_other_state_rejected/main.omg:39:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_parameter_rejected rejected 312ms expected @8721004523b8
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_parameter_rejected/main.omg:39:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_root_rejected rejected 309ms expected @8721004523b8
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_root_rejected/main.omg:39:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
+fail/facts/checked_asm_fence_contracts_through_target_body_rejected rejected 327ms expected @8721004523b8
+	tests/omega/fail/facts/checked_asm_fence_contracts_through_target_body_rejected/main.omg:18:9: asm `clobbers` must exactly match the realized instruction contract: not clobbered `rax`
 fail/facts/checked_asm_flag_restore_through_call_result_rejected rejected 1353ms expected @0af7c594a1c0
 	asm instruction `popfq` operand `saved flags` requires target register `rflags` constraint `u64`; integer literal `0` is outside that operand class
 fail/facts/checked_asm_flag_restore_through_const_name_rejected rejected 1312ms expected @0af7c594a1c0

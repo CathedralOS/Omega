@@ -1,6 +1,6 @@
 # Checked fence contracts
 
-Owning task: **CHECKED-ASM-LABEL-CONTRACTS**, catalog and transitive plans.
+Owning tasks: **BUILD-OWNED-TARGET-SELECTION** for explicit target selection, and **CHECKED-ASM-LABEL-CONTRACTS** for checked fence contracts and execution.
 
 Checked fence sequences retain their catalog target, ordering and exact empty clobber set while carrying input 37 to a result requiring 37.
 
@@ -47,36 +47,27 @@ Pins are `tests/omega/{pass,fail}/facts/checked_asm_fence_contracts_through_*`.
   unchanged stack, empty clobbers and external-effect barrier. Tests must reject
   missing, doubled, truncated, substituted and wrong-target fence bytes.
 
-Baseline f5d7c12b93bbd27d09cfa4ba8d129a7bbbc63ad2 accepted the known x86 source
-but refused `omega run --both` with no executable body at the fence call. That
-source/oracle and optimized producer are retained in the claim qualification.
-Optimized producer `3020fc62f3be` executes the root and nine pins with native
-exit 0 and Terminal exit 0 on Linux x86_64. Each pin also interprets all four
-hosted target installations with the exact three-event stream (six events for
-the two match-join calls), explicit missing/wrong-model refusal, and unchanged
-progress across fuel pauses. The qualification retains these observations and
-their exact producer identities. Foreign native execution remains unobserved.
+The older producer `3020fc62f3be` recorded Linux x86-64 execution and additional
+Terminal target/fence checks. Those results are historical. They do not qualify
+the current source or show native execution on another host.
 
 The parent remains open for the other catalog families, hardware-effect linear
 retirement, consumer-owned PortIo settlement, supplied device/interrupt/idle
-models, external entry and customer canaries. Hosted execution observes Linux
-x86_64; foreign target interpretation and emitted images do not establish foreign
+models, external entry and customer canaries. Each host must be measured separately; foreign target interpretation and emitted images do not establish foreign
 native execution, hardware timing, device completion or multi-core ordering.
 
-The supplied model applies to the ordinary hosted runtime's constructed private
-entry RAM and invocation-owned storage. Unsupported placed ingress and host
-realizations refuse; native record adapters refuse reference/atomic/device
-carriers, reference outputs, callbacks and additional service reach. Their
-serialized private sponsor still relies on the existing admitted native-provider
-contract. This is simulated ordering under those premises, not evidence about
-concurrent native providers or external memory. The governing instruction and
-environment rules are [checked assembly](../../../../wiki/spec/language/assembly.md).
+The runtime model covers private entry memory constructed by the hosted runtime
+and storage owned by this invocation. Unsupported placed-memory inputs and host
+implementations refuse. Native helper execution still depends on its existing
+admitted provider contract; adapters do not accept reference, atomic or device
+values, reference results, callbacks or additional service access. Passing these
+examples does not establish concurrent-provider behavior or ordering for external
+memory. The governing instruction and environment rules are
+[checked assembly](../../../../wiki/spec/language/assembly.md).
 
 Additional local controls pin false exit goals, an invented clobber in an
 unselected ARM body, mixed and wrong-body ISA demands, unsupported DMB scopes,
-missing/numeric/extra DMB operands, and an operand on LFENCE. These are source
-formation or contract refusals; malformed operands do not prove a hardware
-ordering or ownership obligation.
+missing/numeric/extra DMB operands, and an operand on LFENCE. Malformed operands and false contracts refuse during source checking. Two source-valid controls instead select an instruction on an incompatible target and must refuse native publication. Neither kind of refusal proves hardware ordering or ownership.
 
 ## Current target-body migration
 
@@ -86,6 +77,52 @@ The match example calls both branches and checks independently initialized path 
 
 Two controls now distinguish source validity from target compatibility. An ordinary instruction body is valid source even when one Build row selects it for the wrong architecture. Those controls use target-specific native-publication refusal files and exit-zero promises only for their successful profiles. They are program-role samples and build-only pass pins; the other 19 controls remain source-invalid. No dummy memory input or attempted execution supplies a publication refusal.
 
-The exact baseline at `da4770bf800fd60355e7f815dd151b02f6f3d0ca`, based on published `7fc524eaec1a56fcd1b4e3809355f047b7d2d664`, failed [run 41679589443](https://github.com/CathedralOS/Omega/actions/runs/41679589443). All ten positives stopped during lowering with `state graph: structural return value: retained expression root`; neither engine executed, and public projects were not reached. All 21 controls matched their intended diagnostics. The audit verifies 227 frozen runtime input hashes, eight downloaded file hashes, the exact producer tree and both optimized profiles.
+The original baseline at `da4770bf800fd60355e7f815dd151b02f6f3d0ca`, based on
+published `7fc524eaec1a56fcd1b4e3809355f047b7d2d664`, failed
+[run 41679589443](https://github.com/CathedralOS/Omega/actions/runs/41679589443)
+before either engine executed. The direct-contract migration at
+`0f7b5a2f97908e0ef15a15009466d4e82ca67244` reproduced the same return-lowering
+failure on both Linux architectures. This second measurement establishes that
+the valid migrated program still needed a compiler repair.
 
-Fresh observations of the direct-contract port are pending on Linux x86-64 and Linux ARM64. This source-only checkpoint changes no compiler or library bytes. The older results above retain their original producer identities and do not qualify this source. Full BUILD-OWNED-TARGET-SELECTION and CHECKED-ASM-LABEL-CONTRACTS acceptance remains open.
+The compiler stopped looking for the return when it met an assembly marker.
+It now uses the same completion boundary for graph planning and scalar return
+discovery, keeping the existing value, result type and exit checks.
+
+The independent fence observer also needed the same provider choices and actual
+per-target entry as ordinary execution. The portable artifact has one default
+entry; it cannot stand in for distinct Build-selected entries on every target.
+The pins request the existing compiled-application cohort, which retains one
+shared artifact and each target's checked entry. All missing/wrong-model,
+exact-event, fuel-pause and unchanged-artifact checks remain in force.
+
+The qualified observations use two source checkpoints. The complete row at
+`8721004523b87c02c24a41bae489b1d4db424f8e` passes source checking, both engines
+and all four-target entry/fence checks on
+[Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41696336361) and
+[Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41696342140).
+Those full jobs still report failure: one compatible ISA control lacked an
+ordinary execution header and was unscored in each public sample leg. The
+reports retain ten public engine agreements, nineteen source refusals and one
+source-checked publication refusal per host; the unscored case is not an
+execution result.
+
+Checkpoint `501f6a3e942297e3712add3925e6113e4f59eb46` adds only the missing
+execution headers to the two controls and their pins. Their bodies, Build rows
+and target-specific refusal/exit files are unchanged. Focused
+[x86-64](https://github.com/CathedralOS/Omega/actions/runs/41700473396) and
+[ARM64](https://github.com/CathedralOS/Omega/actions/runs/41700784597) replays each
+check both programs, execute the compatible one with native/Terminal exit zero,
+and independently source-check the incompatible one before its intended
+publication refusal. The unchanged row observations keep their original source
+identities.
+
+Together, each host has twelve accepted source-valid programs, nineteen intended
+source rejections, eleven actual native/Terminal agreements and one target
+publication refusal. All 31 ordinary projects meet their runtime or rejection
+oracle. The ten standard positives retain the exact fence streams on all four
+Terminal target installations, missing/wrong-model refusals, fuel-pause progress
+and unchanged artifact identity. These are Linux native observations and
+four-target Terminal observations; Windows and macOS native execution, and the
+broader parent acceptance, remain open. Source archives and the exact evidence
+identities are preserved with [PR #1725](https://github.com/CathedralOS/Omega/pull/1725).
