@@ -187,9 +187,8 @@ pub(in crate::flow) fn append_owned_qualification_transfer(
 }
 
 /// Whether an erasing cast in the source's cast chain drops this membership
-/// before the value reaches its new place. The single rule lives with
-/// validation's place lookup, which uses it to stop such a cast from naming
-/// the operand's storage.
+/// before the value reaches its new place. Validation owns the rule for one
+/// cast; this walks the chain the copied value passed through.
 pub(super) fn explicitly_erased(
     program: &dyn ::validation::CheckingInput,
     mut source_expression: typed_trees::expression::ExpressionHandle,

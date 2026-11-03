@@ -685,36 +685,7 @@ pub fn canonical_place_from_expression(
     }
 }
 
-/// Whether `value as T` denotes its operand's facts. A cast that erases a
-/// meaning the operand's type carries yields a new value even though its
-/// bytes stay in the operand's storage: naming that storage would hand the
-/// meaning back to every reader of the result, such as a call argument.
-/// Storage questions use [`cast_shares_storage`] instead.
 pub(super) fn cast_preserves_place(
-    program: &dyn CheckingInput,
-    cast: &checked_trees::expression::TableCastExpression,
-) -> bool {
-    cast_shares_storage(program, cast)
-        && (cast.form.is_recast()
-            || !super::member_resolution::expression_type_position(program, cast.value)
-                .is_some_and(|position| {
-                    let super::member_resolution::MemberPosition::Reference(operand) = position
-                    else {
-                        return false;
-                    };
-                    crate::field_domains::domain_constraint_identities(program, operand)
-                        .into_iter()
-                        .any(|(symbol, identity)| {
-                            crate::field_domains::cast_erases_membership(
-                                program, cast, symbol, identity,
-                            )
-                        })
-                }))
-}
-
-/// Whether `value as T` leaves the value in its operand's storage: a recast,
-/// or a cast between the same carrier whatever domains it keeps or erases.
-fn cast_shares_storage(
     program: &dyn CheckingInput,
     cast: &checked_trees::expression::TableCastExpression,
 ) -> bool {
@@ -850,24 +821,6 @@ pub(super) fn name_materializes_value(
                 if path.symbol.is_valid()
                     && program.symbols.get(path.symbol).kind == SymbolKind::Const
         )
-}
-
-/// The storage `expression` lives in at this statement. Unlike the canonical
-/// place, it looks through every cast that keeps the value in its operand's
-/// storage, including one that erases a domain meaning: lowering asks where
-/// the bytes are, not which facts the value carries.
-pub fn storage_place_from_expression_in_state(
-    program: &dyn CheckingInput,
-    state_symbol: SymbolHandle,
-    statement_index: usize,
-    mut expression: ExpressionHandle,
-) -> Option<CanonicalPlace> {
-    while let Some(cast) = expression_table(program).cast_node(expression)
-        && cast_shares_storage(program, cast)
-    {
-        expression = cast.value;
-    }
-    canonical_place_from_expression_in_state(program, state_symbol, statement_index, expression)
 }
 
 pub fn canonical_place_from_expression_in_state(
