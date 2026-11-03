@@ -307,42 +307,72 @@ Contracts checked, and why they do not decide it:
 ### 5. Which input accepts an independent component's assumptions, and how is an accepted assumption spelled?
 
 A verified component description can bind assumptions about its environment,
-such as an immediate port-space write, by digest. Verification must then be told
-which assumptions the consuming build accepts. The repository has a Build call
-for that, `Build::accept_component_assumption(builder, digest)`
-(`omega-rust/omega/packages/build-declarations/src/prelude.rs:306-315`). Its
-comment promises one exact digest per call, written as the 64-character
-lowercase hex that verification diagnostics report. Today the call does
-nothing:
+such as an immediate port-space write, by digest. The specification requires
+the consuming side to tell verification which of those assumptions it accepts
+(cited below), so that a component is not admitted on its producer's word. That
+requirement, not the fixtures, motivates this question. No customer outside
+fixtures and samples uses the current surface, but retiring it under the
+surface-retirement rule would leave the requirement with no input at all, which
+is why the question is not settled as Option B by default.
+
+The repository has a Build call for this, `Build::accept_component_assumption(builder, digest)`.
+Its prelude comment (`omega-rust/omega/packages/build-declarations/src/prelude.rs:306-315`)
+says the build "accepts one exact digest per call, authored as the same
+lowercase hex spelling verification diagnostics report" and that the
+declaration "is harvested statically". The last sentence is stale. Today the
+call does nothing:
 - the checked Build evaluator evaluates the digest and discards it;
 - `EvaluatedBuild.accepted_component_assumptions` has no producer;
 - provider settlement still passes that always-empty set to component
   verification, so any description that binds an assumption is refused as
   unaccepted whatever the build declares;
-- a malformed or short digest is accepted silently.
+- any spelling, including a malformed or short one, is accepted silently.
 
-The static harvester was removed as unused by #1156.
-`tests/omega/fail/build/component_assumption_{malformed,short}` therefore
-compile, and the seven `tests/omega/pass/build/component_assumption_*` fixtures
-and `samples/cli/independent/component_assumption_recording` check without
-their acceptance meaning anything.
+#1156 removed the static harvester and its digest decoder as unused. That decoder
+required 64 hex characters and accepted either case.
+
+The programs that depend on the answer:
+- `tests/omega/fail/build/component_assumption_{malformed,short}` expect a
+  spelling refusal ("64 hexadecimal characters") but compile.
+- `tests/omega/pass/build/component_assumption_{acceptance,policy_accepted,policy_changed,reborrow}`
+  make the Build call. `component_assumption_reborrow` spells its digest in
+  uppercase. `component_assumption_policy_missing` omits the call;
+  `component_assumption_mechanism` is the dependency that publishes the port
+  assumption. Together the three `policy_*` fixtures are meant to distinguish a
+  missing, a changed and a correct acceptance, which nothing distinguishes today.
+  `component_assumption_user_declaration` calls an unrelated
+  `Policy::accept_component_assumption`.
+- `samples/cli/independent/component_assumption_recording` and
+  `samples/cli/probes/build_component_assumptions` (with its
+  `controls/invalid_assumption_one_arg`) make the call. The probe's README says
+  the call "records the exact assumption in the selected build", which is
+  currently false.
 
 Option A, the Build call is the acceptance input: Build evaluation records each
-digest, with its machine and span, into the evaluated Build result. It refuses a
-spelling that is not 64 lowercase hex characters. The verifier receives exactly
-that set. The two fail fixtures become real reject twins, and the pass fixtures
-and sample keep their spelling. No source re-reading is reintroduced.
+digest, with its machine and span, into the evaluated Build result, and the
+verifier receives exactly that set. It refuses a spelling that is not 64 hex
+characters. The owner also fixes whether case is significant: with
+case-insensitive digests `component_assumption_reborrow` keeps its spelling;
+with lowercase only, it migrates. The two fail fixtures become real reject
+twins, and the `policy_*` fixtures regain their distinction. No source
+re-reading is reintroduced.
 
 Option B, acceptance belongs to package acceptance policy: assumptions are
-accepted through the compact lock and acceptance comparison, like other
-trust-bearing decisions, keyed by assumption meaning rather than a spelling.
-`Build::accept_component_assumption` is retired, together with the two fail
-fixtures, the pass fixtures' calls and the sample's call. The verifier receives
-the set the lock accepted.
+accepted through the lock and acceptance comparison, like other trust-bearing
+decisions, keyed by assumption meaning rather than a spelling. The Build call is
+retired. So are the two fail fixtures, the probe control and the Build calls in
+the four pass fixtures and two samples. The `policy_*` distinction moves to
+lock-acceptance fixtures. The verifier receives the set the lock accepted.
 
-Option C, both: the Build call states the build's intent and the lock records
-the reviewed acceptance. Verification requires the digest in both, so the
-spelling rule of Option A applies to the call.
+Option C, both: the Build call states the build's intent, and the lock records
+the reviewed acceptance as a risk-bearing row, as it does for assumed binding
+relationships. Verification requires the digest in both, so the spelling rule
+of Option A applies to the call.
+
+A `TopologyRequest` (topology.md, owner intent) also lists accepted assumptions,
+but it is a package-defined plan input for instance graphs, not a compiler
+input for single-component verification, so it is not offered as a separate
+option.
 
 Contracts checked, and why they do not decide it:
 - [Verified component descriptions](wiki/spec/build/component_publication.md#verified-component-descriptions)
@@ -351,16 +381,22 @@ Contracts checked, and why they do not decide it:
   caller policy", "unaccepted assumptions" is a distinct failure, and
   assumptions "are inseparable from claim consumption". This requires accepted
   assumptions to reach verification but names no input that carries them.
-- [Topology, verified-description consumer](wiki/spec/packages/topology.md)
-  (line 228) and owner intent (line 382): the consumer uses "independently
+- [Topology](wiki/spec/packages/topology.md), verified-description consumer
+  (line 228) and owner intent (lines 376-382): the consumer uses "independently
   selected subject, verification profile, and accepted assumptions", and a
-  `TopologyRequest` lists accepted assumptions. This places them in an
-  independently committed input without saying whether Build or the lock
-  supplies it.
+  `TopologyRequest` lists accepted assumptions. Neither says whether Build or
+  the lock supplies them to compilation.
 - [Package acceptance](wiki/spec/packages/acceptance.md) (line 96): "explicit
   trust-bearing assumptions require acceptance". Line 249: "Acceptance binds
   permission and assumption meaning, not diagnostic wording". This leans
   toward Option B, and against keying acceptance on a diagnostic-reported
   spelling, but does not mention component assumptions or the Build call.
+- [Locks](wiki/spec/packages/locks.md) (lines 36-43) and
+  [assumed binding contracts](wiki/spec/build/assumed_binding_contracts.md):
+  assumed binding relationships are risk-bearing rows the lock retains. This is a
+  precedent for Option C's shape, but it is stated for binding relationships only.
+- [Compiler request](wiki/spec/build/compiler_request.md) (line 52): "External
+  admissions cover the assumptions and authority required by the requested
+  compilation". This bears on Option B without naming component assumptions.
 - No clause in `wiki/spec/build` defines `Build::accept_component_assumption`
-  or a digest spelling rule; the rule exists only in the prelude comment.
+  or a digest spelling rule.
