@@ -4,12 +4,13 @@
 //! carry that supplier. Neither equal geometry nor lifetime roots create this
 //! association. Every alternative must resolve, and cycles withhold coverage.
 
-use super::call_operands::{FrozenReferenceSelection, frozen_reference_leaf, retained_places};
+use super::retained_backing::retained_places;
 use crate::borrow::{owner_path_from_place_segments, owner_place_segments};
 use crate::published::places::place_at;
 use arena::{Arena, Handle};
 use checked_trees::CheckedCallBorrowLoanSource;
 use checked_trees::{BorrowLoanFact, CheckFacts, FlowCallFact, FlowOperandFact, FlowStateFact};
+use validation::completed_storage::{FrozenReferenceSelection, frozen_reference_leaf};
 
 /// Permission selected by an exact completed descriptor. Its consumer owns
 /// destination paths and invocation coordinates separately.
@@ -311,28 +312,27 @@ fn collect_completed_formations(
     access: &checked_trees::BorrowAccessKind,
     output: &mut Vec<PermissionSupplier>,
 ) -> bool {
-    let capture = facts.flow.control.operands.get(source);
-    let selected = validation::completed_storage::reference_captures_at_path(
+    let selected = validation::completed_storage::predecessors_in_control(
         program,
         &facts.flow.control,
         source,
         projection,
-        capture.storage_snapshot,
-    )
-    .and_then(|selection| selection.captures());
+        validation::completed_storage::StoredObservation::Binding,
+        Some((state.state_symbol, state.statements)),
+    );
     let Some(selected) = selected.filter(|selected| !selected.is_empty()) else {
         return false;
     };
     let before = output.len();
-    for selected in selected {
-        if !facts.flow.control.operands.is_valid(selected.capture)
+    for (selected, projection) in selected {
+        if !facts.flow.control.operands.is_valid(selected)
             || !collect_formed_projection(
                 program,
                 facts,
                 state,
-                selected.capture,
-                facts.flow.control.operands.get(selected.capture),
-                &selected.projection,
+                selected,
+                facts.flow.control.operands.get(selected),
+                &projection,
                 access,
                 output,
             )
