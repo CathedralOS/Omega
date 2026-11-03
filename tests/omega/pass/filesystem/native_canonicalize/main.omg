@@ -15,7 +15,7 @@ data Main {
 
 machine same_canonical_path(left: &[u8; 1024], right: &[u8; 1024]) -> bool {
     transition left[0] == 47 && right[0] == 47 {
-        true -> block compare(left, right, 0)
+        true -> compare(left, right, 0)
         false -> (false)
     }
     machine compare(left: &[u8; 1024], right: &[u8; 1024], position: u64) -> bool {
@@ -28,7 +28,7 @@ machine same_canonical_path(left: &[u8; 1024], right: &[u8; 1024]) -> bool {
     requires position < 1024
     {
         transition left[position] == right[position] {
-            true -> block compare(left, right, position + 1)
+            true -> compare(left, right, position + 1)
             false -> (false)
         }
     }
