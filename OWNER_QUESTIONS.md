@@ -379,3 +379,58 @@ Contracts checked, and why they do not decide it:
   providers" and that a scope with no application needs no facts. Lines 96-98 and
   110-113 follow provider bodies "under each applicable target" and reject a bad
   target-family member "even when deployment requests another target".
+
+### 7. Must a lent local's domain qualification hold again when the borrow returns?
+
+A local binding can carry a domain qualification, for example
+`let mut bytes: [u8; 2] in Ascii = "ab";`. When it is lent through
+`&mut` to a callee whose formal carries the same qualification, the contracts
+do not say whether the local's qualification is a stored invariant, which the
+callee must restore before returning, or an input qualification, which may
+expire.
+
+`tests/omega/fail/collections/fixed_array_write_rejects_element_domain` assumes
+it is a stored invariant. Its `corrupt(bytes: &mut [u8; 2] in Ascii, index: u64)`
+stores 255 into the lent array and is expected to reject with
+`cannot prove default-domain field requirement`. It compiles today. That fixture
+is left unchanged pending this decision.
+
+The product requirement is soundness of encoding domains on byte storage. If
+the local's qualification may expire, the caller's binding still has type
+`[u8; 2] in Ascii`, yet it may hold a non-ASCII byte after the call. Callers
+that later rely on the declared type would then rely on a fact that no longer
+holds, unless the qualification expires at the lend as well.
+
+Option A, stored invariant: a local's own domain qualification is owed at every
+consumption point, like a declared field domain. A callee that receives it
+through `&mut` must re-establish it before returning. A formal's additional
+input qualification still expires as it does today. Only the lent storage's own
+declaration is owed at return.
+
+Option B, input qualification: lending a qualified local makes its
+qualification an input to the callee, which may retire it as it may retire any
+additional input domain. The caller's fact about the local ends at the lend and
+must be re-established before the next use that requires it. The fixture
+migrates: it should expect acceptance, or move the rejection to a later use of
+`bytes` that needs `Ascii`.
+
+Contracts checked, and why they do not decide it:
+- [Mutable arguments and declared field domains](wiki/spec/language/dependent_values.md#mutable-receivers-and-declared-field-domains)
+  (lines 143-146) say an ordinary `&mut T` argument carries "the declared
+  field/default-domain obligations of `T`", which the callee restores at return.
+  Lines 149-151 say "An additional input domain need not survive a call unless
+  the ordinary contract guarantees it." Neither says which of the two a local's
+  own qualification is.
+- [Byte containers and encoding domains](wiki/spec/language/domains.md#byte-containers-and-encoding-domains)
+  (line 684) says "Mutation must preserve or re-establish the facts on affected
+  places." Read alone, this favors Option A. Read together with the lines above,
+  it can mean only the facts a place still owes, which favors Option B.
+- The ratified witnesses cover the two neighbors but not this case:
+  - `tests/omega/pass/domains/qualified_mutable_scalar_input_domain_expires`
+    ("An additional input qualification is not an implicit postcondition")
+    breaks a formal's `&mut [u16; 4] in Terminated` and is accepted.
+  - The fact row `samples/cli/facts/additional_input_domain_mutation` writes 73
+    through `&write Cell in Before` into an unqualified local and is accepted.
+  - `tests/omega/fail/domains/write_only_declared_field_domain_requires_restoration`
+    protects a stored field `Holder.cell: Cell in Before`, which must be
+    restored at return.
