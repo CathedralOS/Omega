@@ -488,6 +488,12 @@ narrows realization only.
     progress, intrinsic review and deferred array/const-generic recipes)
     from typed/checked records to canonical Terminal Psi
     plus target Build rows.
+  - Resolve a Build provider plan's schema text to the Terminal catalog's
+    schema identity handle once at the stage-00 join (provider-selection
+    boundary_review `requirement_binds`), so
+    `CheckedProviderRequirement::schema_identity` (checked-trees
+    `operators.rs`) becomes a handle and the checked-trees identity guard
+    reaches zero.
   - Move opaque selection and source-qualified review onto canonical Terminal
     Psi, so target planning drops its source-side signature preparation and
     passes source-discard/reload.
