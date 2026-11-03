@@ -1,0 +1,1 @@
+constant evaluation requires proof that no crash route can occur before execution

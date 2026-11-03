@@ -5,16 +5,12 @@ subtraction as the nine-place row. They challenge the prerequisites introduced
 by this repair rather than adding transport matrices.
 
 - `circular_endpoint_formation` rejects a helper that uses its own pending
-  result to admit a call: `limit()` calls `need(7)`, whose `requires 7 < limit()`
-  would otherwise be admitted by the value `limit()` is still computing. The
-  evaluator keeps requirements that must hold before a call separate from
-  promises about completed results (#1568).
-- `crashing_endpoint` rejects a helper that can crash (`limit()` ends in
-  `crash Trap`) at checking, naming the cause, instead of stopping at the
-  unlowerable `@constant-expression` body. Before the repair it exited 1 with
-  `@constant-expression-1 has no executable body ... call count agreement`.
-  Both fail fixtures are under `tests/omega/fail/facts/`; the nine positive
-  places still run natively and in Terminal Psi with exit 0.
+  result to admit a call. The [pending-call examples](../pending_call/README.md)
+  exercise the same requirement across all nine places.
+- `crashing_endpoint` must reject a helper before constant evaluation because
+  it can crash. An incomplete lowering error or an interpreted trap does not
+  prove admission. The [guarded-crash examples](../guarded_crash/README.md) add
+  safe calls and zero-divisor twins; fresh qualification is still required.
 - `false_result_guarantee` and `mutated_scalar_return` reject an actual returned
   value outside the selected endpoint. The source-model test
   `identical_runtime_calls_do_not_identify_distinct_static_denotations` also

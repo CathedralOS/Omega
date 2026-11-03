@@ -2588,6 +2588,7 @@ dependencies = [
  "compiler-storage",
  "layout-plans",
  "numerics",
+ "proof-admission",
  "semantic-vocabulary",
  "terminal-codec",
  "terminal-psi",

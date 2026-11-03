@@ -157,7 +157,7 @@ pub(crate) fn require_established_arguments(
 }
 
 /// Encode values, not new evidence. Ordinary checking owns all obligations.
-fn literal(
+pub(super) fn literal(
     program: &mut TypedTrees,
     destination: TypeReferenceHandle,
     value: &mut BuildTimeValue,

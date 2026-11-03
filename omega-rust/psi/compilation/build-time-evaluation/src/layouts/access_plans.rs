@@ -23,11 +23,19 @@ fn evaluate_selected_policy(
     accounting: &crate::evaluation_accounting::EvaluationAccounting,
 ) -> Result<BuildTimeValue, String> {
     let policy_machine = machine.name.as_str();
-    BuildTimeAdmissionPlan::infer(typed, None).require_common_floor(typed, machine)?;
+    let admission = BuildTimeAdmissionPlan::infer(typed, None);
+    admission.require_common_floor(typed, machine)?;
+    let mut request = super::policy_arguments::policy_request(typed, machine, arguments)?;
+    admission.require_invocation_failures(
+        crate::BuildTimeProgram::Typed(typed),
+        machine,
+        &mut request.arguments,
+        None,
+    )?;
     accounting
         .evaluate(
             checked_interpreter::BuildMachineProgram::Typed(typed),
-            super::policy_arguments::policy_request(typed, machine, arguments)?,
+            request,
         )
         .map(BuildTimeOperationEvaluation::into_value)
         .map_err(|reason| {

@@ -77,10 +77,17 @@ pub(super) fn compute_native_layout_plan_with_schema(
         None => admission.require_common_floor(typed, machine)?,
     }
 
+    let mut request = super::policy_arguments::policy_request(typed, machine, vec![schema_value])?;
+    admission.require_invocation_failures(
+        crate::BuildTimeProgram::Typed(typed),
+        machine,
+        &mut request.arguments,
+        custody,
+    )?;
     let evaluation = accounting
         .evaluate(
             checked_interpreter::BuildMachineProgram::Typed(typed),
-            super::policy_arguments::policy_request(typed, machine, vec![schema_value])?,
+            request,
         )
         .map_err(|reason| {
             format!("build-time evaluation of `{policy_machine}` failed: {reason}")

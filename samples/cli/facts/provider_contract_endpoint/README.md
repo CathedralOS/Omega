@@ -17,6 +17,11 @@ the helper first makes a call with its own requirement. Its twins require that
 same pending helper result to admit the call. All nine positives run with
 native/Terminal agreement, and every circular twin rejects during checking.
 
+The [guarded-crash production](guarded_crash/README.md) keeps the same bound
+when its helper has a guarded crash contract. It requires the compiler to prove
+the invocation safe before running the helper; changing only the divisor to zero
+must reject during admission.
+
 The frozen [local positive](local/main.omg) is the discovery program. Its public
 acceptance command is:
 
