@@ -3128,6 +3128,32 @@ fail/facts/unsigned_byte_to_signed_case_domain_through_parameter_rejected reject
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/facts/unsigned_byte_to_signed_case_domain_through_target_body_rejected rejected 6915ms expected @46cdd6b85b82+wt
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/facts/value_location_alignment_constant_rejected rejected 777ms expected @031d6d38a30e+wt
+	`align_of(value)` observes an addressable storage place; this operand is a value with no storage location
+fail/facts/value_location_alignment_contract_rejected rejected 789ms expected @031d6d38a30e+wt
+	`align_of(value)` is answered only in executable statements; a contract or other non-statement position is not yet supported
+fail/facts/value_location_alignment_slice_rejected rejected 860ms expected @031d6d38a30e+wt
+	`align_of(value)` on a slice observes its first element and requires a proved nonempty view, which is not yet checked
+fail/facts/value_location_alignment_through_call_result_rejected rejected 7989ms expected @031d6d38a30e+wt
+	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/value_location_alignment_through_const_name_rejected rejected 7525ms expected @031d6d38a30e+wt
+	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/value_location_alignment_through_field_rejected rejected 7848ms expected @031d6d38a30e+wt
+	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/value_location_alignment_through_local_rejected rejected 7842ms expected @031d6d38a30e+wt
+	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/value_location_alignment_through_match_join_rejected rejected 7518ms expected @031d6d38a30e+wt
+	constant checking: scalar range condition 1: bounds [-4, 8] lie outside [0, 18446744073709551615]
+fail/facts/value_location_alignment_through_other_machine_rejected rejected 7070ms expected @031d6d38a30e+wt
+	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/value_location_alignment_through_other_state_rejected rejected 7460ms expected @031d6d38a30e+wt
+	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/value_location_alignment_through_parameter_rejected rejected 7309ms expected @031d6d38a30e+wt
+	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/value_location_alignment_through_target_body_rejected rejected 7698ms expected @031d6d38a30e+wt
+	constant checking: scalar range condition 0: bounds [-4, -4] lie outside [0, 18446744073709551615]
+fail/facts/value_location_alignment_value_leaf_rejected rejected 723ms expected @031d6d38a30e+wt
+	`align_of(value)` observes an addressable storage place; this operand is a value with no storage location
 fail/facts/write_only_match_join_through_call_result_rejected rejected 2267ms expected @c79bb8268163+wt
 	machine `store` state `entry` reads write-only parameter `selected`; `&write` permits replacement or exact `&write` forwarding, never observation
 fail/facts/write_only_match_join_through_const_name_rejected rejected 10893ms expected @c79bb8268163+wt
@@ -11932,6 +11958,15 @@ pass/facts/unsigned_shift_right_bound_through_other_machine_exit checked 3617ms 
 pass/facts/unsigned_shift_right_bound_through_other_state_exit checked 3442ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unsigned_shift_right_bound_through_parameter_exit checked 3730ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/unsigned_shift_right_bound_through_target_body_exit checked 3188ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/value_location_alignment_through_call_result_exit checked 10203ms check-target:macos_arm64 @031d6d38a30e+wt
+pass/facts/value_location_alignment_through_const_name_exit checked 10006ms check-target:macos_arm64 @031d6d38a30e+wt
+pass/facts/value_location_alignment_through_field_exit checked 9415ms check-target:macos_arm64 @031d6d38a30e+wt
+pass/facts/value_location_alignment_through_local_exit checked 9217ms check-target:macos_arm64 @031d6d38a30e+wt
+pass/facts/value_location_alignment_through_match_join_exit checked 9443ms check-target:macos_arm64 @031d6d38a30e+wt
+pass/facts/value_location_alignment_through_other_machine_exit checked 9549ms check-target:macos_arm64 @031d6d38a30e+wt
+pass/facts/value_location_alignment_through_other_state_exit checked 9363ms check-target:macos_arm64 @031d6d38a30e+wt
+pass/facts/value_location_alignment_through_parameter_exit checked 9626ms check-target:macos_arm64 @031d6d38a30e+wt
+pass/facts/value_location_alignment_through_target_body_exit checked 8492ms check-target:macos_arm64 @031d6d38a30e+wt
 pass/facts/view_extent_after_write_through_call_result_exit checked 3918ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/view_extent_after_write_through_const_name_exit checked 4011ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/view_extent_after_write_through_field_exit rejected 2983ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214

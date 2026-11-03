@@ -1,0 +1,7 @@
+machine first_alignment(items: &[u64]) -> u64 { align_of(items) }
+machine main() crashes Trap {
+    let items: [u64; 2] = [1u64, 2u64];
+    transition first_alignment(&items[..]) == 8u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() { crash Trap; }
+}

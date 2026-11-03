@@ -1293,10 +1293,12 @@ defines the complete product bar.
     relationships through pointer lanes, copies, offsets and joins, including
     hidden result destinations and slice bounds/loans. Carry ordinary generic
     machine satisfaction through assembly callbacks.
-  - Implement value-location `align_of(value)` for addressable storage,
-    references and nonempty slices, with static/runtime observation, exact
-    location validity and admitted interpreted geometry; preserve the separate
-    type-layout meaning of `align_of<T>()`.
+  - Complete value-location `align_of(value)` for nonempty slices (a proved
+    nonempty view; slices currently reject), contract positions such as
+    `requires align_of(value) >= 16` (currently rejected), stronger-than-type alignment from
+    placement/allocator contracts with runtime observation, exact location
+    validity across view replacement, offsets and moved backing, and admitted
+    interpreted geometry for such locations.
   - Complete remaining flag-producing instructions, remaining AArch64 register
     views, and checked hardware-effect retirement of exact linear obligations on
     every normal exit (assembly body contracts and label `ensures` are proof goals, never
