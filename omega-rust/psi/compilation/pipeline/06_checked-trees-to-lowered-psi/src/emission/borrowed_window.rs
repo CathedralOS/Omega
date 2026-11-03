@@ -305,6 +305,7 @@ impl BorrowedWindowLedger {
             evaluation.evaluation,
             operations,
             structural_types,
+            environment.type_ids,
         )?;
         let indexes = runtime_elements::evaluate_selectors(
             identities,
@@ -1252,6 +1253,7 @@ fn resolve_window_place(
         evaluation,
         operations,
         structural_types,
+        type_ids,
     )?;
     let checked_leaf_type = lookup_type_id(type_ids, &plan.type_identity)?;
     let hole_type = if let Some(field) = &place.field {
@@ -1329,6 +1331,7 @@ fn resolve_storage_address(
     evaluation: &crate::unit::attached_unit::argument_evaluation::Evaluation,
     operations: &OperationBuffer,
     structural_types: &[StructuralTypeDeclaration],
+    type_ids: &[(typed_trees::type_identity::TypeIdentityId, StructuralTypeId)],
 ) -> Result<ResolvedStorageAddress, LoweringError> {
     let spelling = spell_place(plan);
     let (
@@ -1428,15 +1431,22 @@ fn resolve_storage_address(
             "the place is not taken as an owned value",
         ));
     }
+    // A whole owned slot can itself store a reference. When the checked
+    // receiving type names that complete slot, stop before its pointer:
+    // initializing the descriptor must not write its referent.
+    let whole_owned_home = root_access == StructuralAccess::Owned
+        && alias_prefix.is_empty()
+        && lookup_type_id(type_ids, &plan.type_identity)? == root_type;
     // A whole-root route replaces the referent of an exclusive parameter
     // loan: the hole is the loan's whole referent, of the parameter's own
     // declared type. An owned local's whole value moves by ordinary
     // transfer, never through a window.
     if plan.path.is_empty()
-        && matches!(
-            plan.source,
-            CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
-        )
+        && (whole_owned_home
+            || matches!(
+                plan.source,
+                CheckedUnitStructuralArgumentSourcePlan::Parameter { .. }
+            ))
     {
         return Ok(ResolvedStorageAddress {
             source,
