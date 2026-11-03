@@ -1,9 +1,9 @@
 // A call inside an abstract signature is the premise. The signature
 // records that call's result, and the caller reads the record.
-// Place: target_body.
+// Place: other_target.
 // Expected exit: 0
 machine premise(kept: bool) -> bool {
-    true
+    false
 }
 
 machine hold(direct: bool) -> bool

@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    Build::application(builder, "abstract_signature_call_target_body_invalid");
+    Build::application(builder, "abstract_signature_call_other_target");
     Build::bind(builder, linux_x86_64::ProgramEntry, x86_entry);
     Build::bind(builder, linux_arm64::ProgramEntry, arm_entry);
     Build::bind(builder, macos_arm64::ProgramEntry, arm_entry);
