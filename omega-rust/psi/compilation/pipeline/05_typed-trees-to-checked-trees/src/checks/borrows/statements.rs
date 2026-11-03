@@ -271,6 +271,13 @@ pub(super) fn check_statement_borrows<'p>(
                 ) {
                     continue;
                 }
+                trace_loan_conflict(
+                    facts,
+                    state_flow,
+                    statement.statement_index,
+                    Some(loan_handle),
+                    active_loan_handle,
+                );
                 diagnostics.push(Diagnostic::error(format!(
                     "statement {} creates local borrow `{}` while local borrow `{}` is still active ({})",
                     statement.statement_index,
@@ -612,6 +619,13 @@ pub(super) fn check_statement_borrows<'p>(
                 continue;
             }
             let loan = facts.borrow.loans.get(loan_handle);
+            trace_loan_conflict(
+                facts,
+                state_flow,
+                statement.statement_index,
+                None,
+                loan_handle,
+            );
             diagnostics.push(Diagnostic::error(format!(
                 "statement {} mutates `{}` while local borrow `{}` is still active ({})",
                 statement.statement_index,
@@ -1120,4 +1134,53 @@ pub(super) fn local_loan_ends_before_successor(
                     _ => false,
                 }
         })
+}
+
+// A moved carrier can retain the same resource through several suppliers.
+// Report that exact chain on a conflict without inferring access from geometry.
+fn trace_loan_conflict(
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    statement: usize,
+    forming: Option<arena::Handle<checked_trees::BorrowLoanFact>>,
+    active: arena::Handle<checked_trees::BorrowLoanFact>,
+) {
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_none() {
+        return;
+    }
+    eprintln!(
+        "BORROW loan-conflict machine={:?} state={:?} statement={statement} forming={forming:?} active={active:?}",
+        state.machine_symbol, state.state_symbol,
+    );
+    let mut pending = forming
+        .into_iter()
+        .chain(Some(active))
+        .collect::<std::collections::VecDeque<_>>();
+    let mut visited = Vec::new();
+    while let Some(handle) = pending.pop_front() {
+        if visited.len() >= 12 {
+            break;
+        }
+        if visited.contains(&handle) || !facts.borrow.loans.is_valid(handle) {
+            continue;
+        }
+        visited.push(handle);
+        let loan = facts.borrow.loans.get(handle);
+        let suppliers = facts
+            .borrow
+            .loan_suppliers
+            .span_or_empty(loan.supplying_loans);
+        eprintln!(
+            "BORROW loan-conflict-row loan={handle:?} owner={:?} source_owner={:?} kind={:?} lineage={:?} formed={} last_use={} suppliers={} retained={:?}",
+            loan.owner_symbol,
+            loan.source_owner_symbol,
+            loan.kind,
+            loan.lineage,
+            loan.statement_index,
+            loan.last_use_statement_index,
+            suppliers.len(),
+            &suppliers[..suppliers.len().min(8)],
+        );
+        pending.extend(suppliers.iter().take(8).copied());
+    }
 }
