@@ -333,6 +333,24 @@ def program_stderr(stderr):
     return "\n".join(line for line in lines if not WRAPPER_LINE.match(line))
 
 
+def both_execution_observation(stderr):
+    """A wrapper success alone does not establish either engine's outcome."""
+    lines = stderr.replace("\r\n", "\n").splitlines()
+    native = [line for line in lines if re.fullmatch(r"native (exit -?\d+|signal \d+)", line)]
+    terminal = [line for line in lines if line.startswith("interp")]
+    if len(native) != 1 or len(terminal) != 1:
+        return None
+    exit_code = re.fullmatch(r"native exit (-?\d+)", native[0])
+    if exit_code and terminal == [f"interp exit: {exit_code[1]}"]:
+        return {"native_exit": int(exit_code[1]), "interpreter_exit": int(exit_code[1])}
+    # The CLI reports checked crash/host-presentation agreement separately.
+    # A normal native exit cannot satisfy that observation.
+    if native != ["native exit 0"] and re.fullmatch(
+            r"interp crash: .+ \(host presentation agrees\)", terminal[0]):
+        return {"native_status": native[0], "interpreter_crash": terminal[0]}
+    return None
+
+
 def accept_review(cli, sample, target, timeout):
     """Complete the per-checkout package review.
 
@@ -628,6 +646,9 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
             message, prefix = review_output, "does not check: "
         return failure(sample, "no-native-build", message, prefix)
     mismatches = []
+    execution = both_execution_observation(completed.stderr) if both_engines else None
+    if both_engines and execution is None:
+        mismatches.append("missing explicit native/Terminal execution agreement")
     if fixture and authored["exit"] is not None:
         expectation = normalized(authored["exit"]).strip()
         if expectation == "trap":
@@ -659,7 +680,10 @@ def measure(cli, sample, target, timeout, build_unscored=False, accepted_inputs_
     if mismatches:
         return {"sample": sample, "state": "oracle-failed", "detail": "; ".join(mismatches),
                 "diagnostic": combined}
-    return {"sample": sample, "state": "pass", "detail": ""}
+    result = {"sample": sample, "state": "pass", "detail": ""}
+    if execution is not None:
+        result["execution"] = execution
+    return result
 
 
 def shared_runs_directory():

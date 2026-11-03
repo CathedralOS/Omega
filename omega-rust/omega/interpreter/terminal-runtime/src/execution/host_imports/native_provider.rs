@@ -68,6 +68,10 @@ enum ResultCodec {
     Unit,
     Scalar(ScalarType),
     Record(StorageCodec),
+    Reference {
+        referent: semantic_vocabulary::StructuralTypeId,
+        access: StructuralAccess,
+    },
 }
 
 pub(super) struct NativeImport<'host> {
@@ -224,6 +228,44 @@ impl<'host> NativeImport<'host> {
                 validate_scalar_shape(*shape, scalar.scalar_type)
                     .map_err(|error| missing(error.reason))?;
                 ResultCodec::Scalar(scalar.scalar_type)
+            }
+            BoundaryMachineResult::Structural(result)
+                if matches!(
+                    program
+                        .structural_type(result.structural_type)
+                        .map(|row| &row.shape),
+                    Some(terminal_psi::StructuralTypeShape::Reference { .. })
+                ) =>
+            {
+                let terminal_psi::StructuralTypeShape::Reference { referent, access } = program
+                    .structural_type(result.structural_type)
+                    .unwrap()
+                    .shape
+                else {
+                    unreachable!()
+                };
+                let shape = application
+                    .signature
+                    .result
+                    .and_then(|root| application.signature.shapes.get(root as usize))
+                    .ok_or_else(|| missing("native reference result has no public shape".into()))?;
+                if !result.qualifications.is_empty() || !result.projected_qualifications.is_empty()
+                    || !matches!(access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)
+                    || shape.class != BoundaryValueClass::Reference || shape.byte_size != 8 || shape.alignment != 8
+                    || application.plan.plan().call.result.as_ref().map(|p| p.shape)
+                        != Some(calling_conventions::ValueShape::integer(8, 8))
+                    || declaration.result_reference_regions.is_empty()
+                    || declaration.result_reference_regions.iter().any(|region| {
+                        !region.path.is_empty() || region.access != access
+                            || !matches!(region.origin, terminal_psi::TerminalDynamicReferenceOrigin::Parameter { argument_index }
+                                if declaration.structural_parameters.get(argument_index as usize).is_some_and(|p|
+                                    matches!(p.access, StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow)))
+                    }) {
+                    return Err(missing("native reference result lacks exact captured-input pointer custody".into()));
+                }
+                StorageCodec::admit(program, layouts, referent)
+                    .map_err(|error| missing(error.reason))?;
+                ResultCodec::Reference { referent, access }
             }
             BoundaryMachineResult::Structural(result) => {
                 let codec = StorageCodec::admit(program, layouts, result.structural_type)
@@ -437,6 +479,10 @@ fn admit_parameters(
 }
 
 impl TerminalEffectHandler for NativeImport<'_> {
+    fn accepts_reference_results(&self, boundary: BoundaryMachineId) -> bool {
+        boundary == self.boundary && matches!(self.result, ResultCodec::Reference { .. })
+    }
+
     fn storage_requirements(
         &self,
         boundary: BoundaryMachineId,
@@ -736,6 +782,15 @@ impl TerminalEffectHandler for NativeImport<'_> {
             ResultCodec::Record(codec) => Ok(TerminalEffectResult::ScalarAggregate(
                 codec.aggregate(&returned)?,
             )),
+            ResultCodec::Reference { referent, access } => Ok(
+                TerminalEffectResult::CapturedReference(self.references.returned_reference(
+                    &self.native,
+                    buffers,
+                    &returned,
+                    *referent,
+                    *access,
+                )?),
+            ),
         }
     }
 }

@@ -880,8 +880,37 @@ class FactsSelectionTests(unittest.TestCase):
                     patch.object(gate, "run", return_value=completed) as runner:
                 result = gate.measure("omega", "samples/cli/facts/length/local", "windows_x86_64", 10)
             self.assertEqual(result["state"], "pass")
+            self.assertEqual(result["execution"], {"native_exit": 0, "interpreter_exit": 0})
             self.assertEqual(runner.call_args.args[0], ["omega", "run", "--both", str(project.entry)])
             self.assertEqual(gate.program_stderr("native exit 0\ninterp exit: 0\n"), "")
+
+    def test_fact_wrapper_success_cannot_hide_declined_or_missing_execution(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "samples" / "cli" / "facts" / "length" / "local"
+            root.mkdir(parents=True)
+            (root / "main.omg").write_text("// Expected exit: 0\nmachine main() {}\n", encoding="utf-8")
+            project = sample_projects.Project(directory=root, entry=root / "main.omg", role="program")
+            for stderr in [
+                    "native exit 0\ninterp: DECLINED (unsupported reference result)\n",
+                    "native exit 0\n",
+                    "interp exit: 0\n",
+                    "native exit 0\ninterp exit: 1\n",
+                    "native exit 0\ninterp exit: 0\ninterp exit: 0\n"]:
+                with self.subTest(stderr=stderr), \
+                        patch.object(gate, "project_at", return_value=project), \
+                        patch.object(gate, "accept_review", return_value=(None, "")), \
+                        patch.object(gate, "run", return_value=subprocess.CompletedProcess([], 0, "", stderr)):
+                    result = gate.measure("omega", "samples/cli/facts/length/local", "linux_x86_64", 10)
+                self.assertEqual(result["state"], "oracle-failed")
+                self.assertIn("execution agreement", result["detail"])
+
+    def test_both_execution_retains_numeric_and_crash_observations(self):
+        self.assertEqual(gate.both_execution_observation("native exit 7\ninterp exit: 7\n"),
+                         {"native_exit": 7, "interpreter_exit": 7})
+        crash = "native signal 4\ninterp crash: Trap (host presentation agrees)\n"
+        self.assertEqual(gate.both_execution_observation(crash),
+                         {"native_status": "native signal 4", "interpreter_crash": "interp crash: Trap (host presentation agrees)"})
+        self.assertIsNone(gate.both_execution_observation(crash.replace("signal 4", "exit 0")))
 
 
 class RunHistoryTests(unittest.TestCase):

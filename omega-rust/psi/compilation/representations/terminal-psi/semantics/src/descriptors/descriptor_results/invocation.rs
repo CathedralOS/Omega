@@ -10,20 +10,21 @@ pub fn public_invocation(
     operation: semantic_vocabulary::OperationId,
     types: &[StructuralTypeDeclaration],
     slot_kind: DescriptorSlotKind,
-    slot: &terminal_psi::TerminalDynamicSlot,
+    slot: &impl terminal_psi::ReferenceResultShape,
     realizations: Vec<MachineId>,
     actuals: &[terminal_psi::StructuralArgument],
     result: Option<&terminal_psi::StructuralOperationResult>,
     place_types: &BTreeMap<PlaceId, StructuralTypeId>,
 ) -> Option<DescriptorInvocation> {
-    if actuals.len() != slot.structural_parameters.len() {
+    if actuals.len() != slot.structural_parameter_count() {
         return None;
     }
     let mut arguments = Vec::with_capacity(actuals.len());
     let mut argument_contents = Vec::with_capacity(actuals.len());
     let mut invalidates_contents = false;
-    for (actual, formal) in actuals.iter().zip(&slot.structural_parameters) {
-        if actual.access != formal.access {
+    for (index, actual) in actuals.iter().enumerate() {
+        let (_, access) = slot.structural_parameter(index)?;
+        if actual.access != access {
             return None;
         }
         let root = *place_types.get(&actual.place)?;
@@ -45,7 +46,7 @@ pub fn public_invocation(
     }
     let mut results = Vec::new();
     if let Some(result) = result {
-        let BoundaryMachineResult::Structural(expected) = &slot.result else {
+        let BoundaryMachineResult::Structural(expected) = slot.result() else {
             return None;
         };
         if result.structural_type != expected.structural_type
@@ -56,7 +57,7 @@ pub fn public_invocation(
             return None;
         }
         results = public_result_slots(types, slot_kind, slot, result.place)?;
-    } else if matches!(slot.result, BoundaryMachineResult::Structural(_)) {
+    } else if matches!(slot.result(), BoundaryMachineResult::Structural(_)) {
         return None;
     }
     Some(DescriptorInvocation {
@@ -82,10 +83,10 @@ pub fn public_invocation(
 pub fn public_result_slots(
     types: &[StructuralTypeDeclaration],
     slot_kind: DescriptorSlotKind,
-    slot: &terminal_psi::TerminalDynamicSlot,
+    slot: &impl terminal_psi::ReferenceResultShape,
     place: PlaceId,
 ) -> Option<Vec<DescriptorResultSlot>> {
-    let BoundaryMachineResult::Structural(result) = &slot.result else {
+    let BoundaryMachineResult::Structural(result) = slot.result() else {
         return Some(Vec::new());
     };
     let mut results = Vec::new();
@@ -96,7 +97,7 @@ pub fn public_result_slots(
         types.iter(),
         result.structural_type,
         result.multiplicity,
-        slot.result_reference_regions.len(),
+        slot.reference_regions().len(),
     )
     .ok()?;
     for leaf in leaves {
@@ -117,7 +118,7 @@ pub fn public_result_slots(
         }
         let leaf = descriptor_location(types, place, result.structural_type, &leaf.path, None)?;
         let mut origins = Vec::new();
-        for region in &slot.result_reference_regions {
+        for region in slot.reference_regions() {
             let destination =
                 descriptor_location(types, place, result.structural_type, &region.path, None)?;
             if destination.path != leaf.path {
@@ -136,7 +137,7 @@ pub fn public_result_slots(
                 }
             };
             let parameter = usize::try_from(index).ok()?;
-            let formal = slot.structural_parameters.get(parameter)?;
+            let (formal, _) = slot.structural_parameter(parameter)?;
             origins.push(public_input_origin(
                 types,
                 formal,
@@ -161,23 +162,21 @@ pub fn public_result_slots(
 /// captures its actual incoming contents before any call can overwrite them.
 fn public_input_origin(
     types: &[StructuralTypeDeclaration],
-    formal: &terminal_psi::TerminalDynamicStructuralFormal,
+    formal: StructuralTypeId,
     parameter: usize,
     scratch_place: PlaceId,
     source_path: &[StructuralPathSegment],
 ) -> Option<DescriptorStoredOrigin> {
-    let path =
-        crate::reference_source_storage_path(types.iter(), formal.structural_type, source_path);
+    let path = crate::reference_source_storage_path(types.iter(), formal, source_path);
     let mut supplying = None;
     for position in 0..=path.len() {
         let prefix = &path[..position];
-        let shape =
-            crate::runtime_structural_path_tip(types.iter(), formal.structural_type, prefix);
+        let shape = crate::runtime_structural_path_tip(types.iter(), formal, prefix);
         let stored_view = !prefix.is_empty()
             && (shape
                 .as_ref()
                 .is_some_and(|row| is_descriptor(types.iter(), row.id))
-                || crate::runtime_structural_field(types.iter(), formal.structural_type, prefix)
+                || crate::runtime_structural_field(types.iter(), formal, prefix)
                     .and_then(|field| field.field_type.byte_sequence_carrier())
                     .is_some_and(|carrier| carrier.is_borrowed()));
         let pointer_crossing = shape
@@ -193,13 +192,8 @@ fn public_input_origin(
     projection.forget_address();
     match supplying {
         Some((prefix, _)) => {
-            let selected = descriptor_location(
-                types,
-                scratch_place,
-                formal.structural_type,
-                &path[..prefix],
-                None,
-            )?;
+            let selected =
+                descriptor_location(types, scratch_place, formal, &path[..prefix], None)?;
             Some(DescriptorStoredOrigin::IncomingContents {
                 position: parameter,
                 steps: selected
