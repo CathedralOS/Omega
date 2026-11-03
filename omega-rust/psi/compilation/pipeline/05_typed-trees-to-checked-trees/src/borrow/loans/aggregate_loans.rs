@@ -152,7 +152,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                         &rebased,
                     ),
                     kind: retained_access.clone(),
-                    call_result: false,
+                    formation: super::BorrowFormation::Ordinary,
                 })
                 .collect()
         }
@@ -300,7 +300,7 @@ pub(super) fn aggregate_expression_borrow_loans(
                     } else {
                         checked_trees::BorrowAccessKind::Read
                     },
-                    call_result: false,
+                    formation: super::BorrowFormation::Ordinary,
                 })
                 .collect()
         }
@@ -506,8 +506,16 @@ pub(super) fn result_source_loans(
                         place.segments.extend_from_slice(&projection);
                     }
                 }
+                let projected = field.source == ViewReturnInputSource::Referent
+                    && !field.lifetime_only
+                    && !projection.is_empty();
                 let rebased =
                     rebase_borrow_places_through_local_loans(program, place, loan_trackers);
+                let rebased = if projected {
+                    retain_formation_parents(rebased, loan_trackers)
+                } else {
+                    rebased
+                };
                 Ok(rebased
                     .iter()
                     .map(|source| {
@@ -538,7 +546,9 @@ pub(super) fn result_source_loans(
                             // prove spatial containment later. A projected referent
                             // creates a child instead; backing coincidence cannot
                             // turn that child into a descriptor transfer.
-                            supplying_loans: if source.parent_loan.is_valid()
+                            supplying_loans: if projected && source.source_loan.is_valid() {
+                                vec![source.source_loan]
+                            } else if source.parent_loan.is_valid()
                                 && (field.source == ViewReturnInputSource::Stored
                                     || projection.is_empty())
                             {
@@ -548,6 +558,10 @@ pub(super) fn result_source_loans(
                             },
                             lineage: if field.lifetime_only {
                                 checked_trees::BorrowLoanLineage::LifetimeDependency
+                            } else if projected && source.parent_lineage_is_retained {
+                                checked_trees::BorrowLoanLineage::Reborrow {
+                                    parent_loan: source.parent_loan,
+                                }
                             } else {
                                 retained_reference_lineage(program, argument, source, &rebased)
                             },
@@ -559,7 +573,11 @@ pub(super) fn result_source_loans(
                             } else {
                                 field.kind.clone()
                             },
-                            call_result: false,
+                            formation: if projected {
+                                super::BorrowFormation::ReturnedProjection
+                            } else {
+                                super::BorrowFormation::Ordinary
+                            },
                         }
                     })
                     .collect::<Vec<_>>())
@@ -620,7 +638,7 @@ fn transferred_aggregate_loans<'loan>(
                     .collect(),
                 lineage: loan.lineage.derived(),
                 kind: loan.kind.clone(),
-                call_result: false,
+                formation: super::BorrowFormation::Ordinary,
             })
         })
         .collect()

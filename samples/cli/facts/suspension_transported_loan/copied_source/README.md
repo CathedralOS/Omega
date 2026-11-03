@@ -141,7 +141,9 @@ baseline test execution.
 
 Matching-host execution on Windows and both Linux hosts remains unqualified.
 The scheduler completes inline, so these runs establish the possible-suspension
-contract, not actual parking, resumption, or cancellation. Projected call
-referents, supplied-output/lifetime-dependency descriptors, backings without
+contract, not actual parking, resumption, or cancellation. The
+[helper-returned projection production](../projected_call_source/README.md)
+extends this fact to projected call referents. Supplied-output/lifetime-dependency
+descriptors, backings without
 an enclosing owner, Terminal `Unresolved` labels on accepted transfers, and
 the rest of the parent migration remain open on `TASKS.md`.

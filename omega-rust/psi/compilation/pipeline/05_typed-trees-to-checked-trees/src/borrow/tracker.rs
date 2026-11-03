@@ -24,7 +24,7 @@ pub(super) struct StateLoanTracker {
     pub(super) lineage: checked_trees::BorrowLoanLineage,
     /// A result root supplies no borrowing ancestry on its own. An exact
     /// descriptor transfer may still carry an earlier borrowing occurrence.
-    pub(super) call_result: bool,
+    pub(super) formation: super::loans::BorrowFormation,
     pub(super) permission_sources: Vec<RetainedBorrowSource>,
     /// Projection within a borrow-carrying owner that holds this loan. Fixed
     /// array literal positions retain their ordinal; a dynamic later index

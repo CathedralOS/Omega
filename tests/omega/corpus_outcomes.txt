@@ -19,6 +19,20 @@ fail/borrows/inline_carried_reference_holds_backing rejected 9683ms expected @6b
 	state `observe` receives `bytes` as both mutable and read-only
 fail/borrows/match_effectful_subject_fresh_overlap_rejected rejected 16803ms expected @ee4dbb4b2d56
 	statement 2 creates local borrow `slot` while local borrow `held` is still active (borrowed at statement 2; its last use is at statement 3 and it is released at state exit)
+fail/borrows/suspension_projected_call_view_earlier_argument_original_forbidden_rejected rejected 1892ms expected @f339c83f6359
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/borrows/suspension_projected_call_view_forbidden_alternative_rejected rejected 1785ms expected @f339c83f6359
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/borrows/suspension_projected_call_view_returned_forbidden_rejected rejected 1754ms expected @f339c83f6359
+	call to `park` may suspend while `backing` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/borrows/suspension_projected_call_view_shared_cohort_early_write_rejected rejected 1753ms expected @f339c83f6359
+	statement 8 mutates `source.right` while local borrow `saved` is still active (borrowed at statement 2; its last use is at statement 9)
+	statement 8 mutates `source.right` while local borrow `sibling` is still active (borrowed at statement 3; its last use is at statement 9)
+fail/borrows/suspension_projected_call_view_shared_result_cannot_write_rejected rejected 493ms expected @f339c83f6359
+	machine `main` state `entry` local `reference` requires mutable source access; shared or immutable storage cannot supply it
+fail/borrows/suspension_projected_call_view_whole_input_early_write_rejected rejected 2178ms expected @f339c83f6359
+	statement 5 mutates `source.right` while local borrow `reference` is still active (borrowed at statement 3; its last use is at statement 7)
+	statement 5 mutates `source.right` while local borrow `message` is still active (borrowed at statement 4; its last use is at statement 7)
 fail/borrows/suspension_saved_reference_view_earlier_operand_original_forbidden_rejected rejected 2533ms expected @24e82dfa56fd
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/borrows/suspension_saved_reference_view_forbidden_alternative_rejected rejected 2654ms expected @24e82dfa56fd
@@ -174,6 +188,9 @@ fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch reject
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/domains/inherited_requirement_issuer_wrong_owner rejected 2295ms expected @f2c75870ebaf+wt
+	construction value is not proven in domain `Ticket::Issued` in make state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from make, state entry, at statement 0: Ticket requires Ticket::Issued
 fail/drops/retired_attached_drop rejected 2739ms expected @ee4dbb4b2d56
 	`machine Token::drop` attaches cleanup to data `Token`, which is retired: data owns no cleanup machines; declare an independent static machine taking `&mut Token` and select it with `data Token dropped by <machine>`
 fail/effects/opaque_leaf_inherited_reach_exceeds_ceiling rejected 1453ms @409a3e82132d+wt
@@ -464,6 +481,18 @@ fail/facts/component_scalar_lending_through_target_body_rejected rejected 8139ms
 	argument `value` for state `write` is declared `&mut` (`&mut Word`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
 fail/facts/compound_index_guard_wrong_call_actual rejected 4670ms expected @68a9db4f4b07
 	cannot prove index `main.b * 20 + a` is within length 200 in put::entry
+fail/facts/computed_subslice_extent_exclusive_predicate_input_rejected rejected 6361ms expected @93ac4da811fe
+	specification call `accepts` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+fail/facts/computed_subslice_extent_exclusive_public_predicate_input_rejected rejected 5399ms expected @93ac4da811fe
+	specification call `accepts` has no observation-free, reach-free, crash-free value denotation
+	specification call `accepts` carries forbidden denotational content
+fail/facts/computed_subslice_extent_linear_elements_rejected rejected 5631ms expected @93ac4da811fe
+	specification call `accepts` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+fail/facts/computed_subslice_extent_nested_reference_elements_rejected rejected 5607ms expected @93ac4da811fe
+	specification call `accepts` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
+fail/facts/computed_subslice_extent_reference_result_rejected rejected 5443ms expected @93ac4da811fe
+	fact-position projection from call `identity` is not denotational: runtime arguments contain borrowed, opaque, linear or routed custody
+	specification call `identity` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/facts/contract_excluded_case_through_branch_world_rejected rejected 5621ms expected @f8ae8d815e07
 	match does not cover its subject; cover every admitted case, both Boolean alternatives, or add a wildcard arm
 fail/facts/contract_excluded_case_through_call_result_rejected rejected 2949ms expected @f8ae8d815e07
@@ -3058,6 +3087,33 @@ fail/facts/stored_shared_byte_view_element_lend_through_parameter_rejected rejec
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/stored_shared_byte_view_element_lend_through_target_body_rejected rejected 1937ms expected @0fb500fb9d4b
 	cannot prove requires contract for call observe from main: windows[0].len == 1 && windows[1].len == 1 (needs fact `windows[0].len == 1 && windows[1].len == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/suspension_projected_call_view_through_call_result_rejected rejected 1823ms expected @f339c83f6359
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_projected_call_view_through_const_name_rejected rejected 2255ms expected @f339c83f6359
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_projected_call_view_through_field_rejected rejected 1782ms expected @f339c83f6359
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_projected_call_view_through_local_rejected rejected 1784ms expected @f339c83f6359
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_projected_call_view_through_match_join_rejected rejected 1843ms expected @f339c83f6359
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_projected_call_view_through_other_machine_rejected rejected 1793ms expected @f339c83f6359
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_projected_call_view_through_other_state_rejected rejected 1811ms expected @f339c83f6359
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_projected_call_view_through_parameter_rejected rejected 1821ms expected @f339c83f6359
+	call to `entry` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `entry` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+fail/facts/suspension_projected_call_view_through_target_body_rejected rejected 1753ms expected @f339c83f6359
+	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
+	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 fail/facts/suspension_saved_reference_view_through_call_result_rejected rejected 3124ms expected @24e82dfa56fd
 	call to `park` may suspend while `first` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
 	call to `park` may suspend while `second` remains live, but its effective policy is `carry(suspension: forbidden, cpu: any, thread: any, address: movable)`; consume the value before the call or use a suspension-safe carrier
@@ -3287,6 +3343,9 @@ fail/float/constructor_case_invalid_narrow_widen_rejected rejected 3180ms expect
 	Exact integer cast in machine `make` state `entry` from `u16` to `u8` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/float/constructor_case_invalid_wide_rejected rejected 3115ms expected @5de76022ee98
 	data `Choice` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/float/finite_return_arm_guard_misses_bound rejected 4813ms expected @66107356a089
+	cannot prove return value `narrowed` satisfies `finite` for bounded return type in `early.entry`
+	cannot prove return value `narrowed` satisfies `finite` for bounded return type in `late.entry`
 fail/float/specification_index_reference_selector_unbounded rejected 4743ms expected @e8827ad1dd64+wt
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
 	cannot form specification index in machine `probe` requires contract: independent collection bounds are not established by preceding formed facts
@@ -3407,6 +3466,10 @@ fail/proofs/normal_call_replaced_nested_record rejected 4354ms expected @b7a1f6a
 	cannot prove requires contract for call need from main: value == 2 (needs fact `value == 2` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/outcome_selector_on_record_result rejected 1217ms expected @c6a756120d23+wt
 	outcome proof selectors require an exact guarded result-case arm
+fail/proofs/quotient_case_arm_rejected rejected 1324ms expected @e3f7e6ae3d69
+	destructure arm in machine `expose_pattern` state `entry` cannot pattern-match quotient `EquivalenceClass`: retained representatives are opaque and pattern matching requires a named lifted operation
+fail/proofs/quotient_match_expression_rejected rejected 1537ms expected @e3f7e6ae3d69
+	destructure arm in machine `expose_pattern` state `entry` cannot pattern-match quotient `EquivalenceClass`: retained representatives are opaque and pattern matching requires a named lifted operation
 fail/proofs/refined_conversion_does_not_strengthen_base_view rejected 4347ms expected @e97ed21415d9
 	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
 	specification call `try_from` is not denotational: the selected machine is not unconditionally terminating
@@ -3452,6 +3515,10 @@ fail/recast/pending_layout_view_mutable_escape_preserves_source_padding rejected
 	construction of `Decoded` field `value`: mutable recast target escape has no complete source-storage handback; target padding is not initialized field storage
 fail/recast/u64_open_upper_bound_is_not_signed_ceiling rejected 559ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Narrow` are not representation-compatible
+fail/references/rebound_local_reference_drops_referent_bound rejected 3383ms expected @292918dbcd2d
+	exact arithmetic in machine `observe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/references/rebound_parameter_reference_drops_referent_bound rejected 3546ms expected @292918dbcd2d
+	exact arithmetic in machine `observe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/reflection/schema_borrowed_facade_const rejected 2810ms expected @63af67b94f91
 	constant initializer: build-time result of machine `@const-argument-0` is not ConstEvaluable: result.storage contains Text; borrowed or dynamically sized text cannot cross the semantic const boundary
 fail/reflection/schema_runtime_operand rejected 1193ms expected @6b1e6a51ea70
@@ -3479,6 +3546,10 @@ fail/termination/private_rank_endpoint_effectful_rejected rejected 20140ms expec
 	specification call `endpoint` has no observation-free, reach-free, crash-free value denotation: the application carries forbidden denotational content
 fail/termination/private_rank_endpoint_missing_call_premise_rejected rejected 17486ms expected @4449c9d8ccc0
 	machine call cycle: `count`, `forward` -- a rank upper expression lacks independent formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/unselected_implementation_nontail_reentry_rejected rejected 7018ms expected @d23ce4c17141
+	machine call cycle: `ArmSelection::selected`, `again` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/termination/unselected_implementation_reentry_rejected rejected 6640ms expected @c807f05bace3
+	machine call cycle: `ArmSelection::selected`, `walk`, `done` -- a bounded cursor rank lacks independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/traits/declaration_identity_forwarded_as_callable rejected 2062ms expected @a03fad3bb4a0
 	machine parameter `Requirement` forwarded into `apply`: declaration identity and callable requirement are different parameter roles
 fail/traits/dyn_selected_reach_callee_rebind_rejected rejected 50577ms expected @863cdf432f5d+wt
@@ -3505,6 +3576,19 @@ fail/traits/dyn_suspending_borrowed_parameter_precondition rejected 1636ms expec
 	cannot prove requires contract for call dyn Read::current from main: cell.value == 100 (needs fact `cell.value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/dyn_suspending_unit_call_precondition rejected 14418ms expected @cb2bb7751cae+wt
 	cannot prove requires contract for call dyn DeferredUnit::check from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/inherited_nominal_requirement_conflicting_parents rejected 178ms expected @f2c75870ebaf+wt
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "inherited nominal requirement has no unique declaring trait application", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/traits/inherited_nominal_requirement_overload rejected 629ms expected @f2c75870ebaf+wt
+	declaring trait `Base` overloads requirement `value`; this is a source-compatibility break for signature-free requirement references
+	nominal machine parameter `Handler` requirement `Derived::value` does not resolve to one exact trait requirement; signature-free references reject overloads
+fail/traits/inherited_nominal_requirement_refinement_missing rejected 1711ms expected @f2c75870ebaf+wt
+	machine `forward` publishes service reach `<none>` but its checked body reaches undeclared service `External`
+fail/traits/inherited_nominal_requirement_wrong_application rejected 471ms expected @f2c75870ebaf+wt
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
+fail/traits/inherited_nominal_requirement_wrong_owner rejected 479ms expected @f2c75870ebaf+wt
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [], provider [], caller [], contextual demand true, operand mismatch unresolved source correspondence
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [], provider [], caller [], contextual demand true, operand mismatch unresolved source correspondence
 fail/traits/public_method_callback_prefix_missing rejected 930ms expected @b852a38544d0
 	static method application requires its complete invocation telescope for `NeedsMachine::choose` (found 0, expected 2)
 fail/traits/public_method_callback_prefix_wrong_contract rejected 886ms expected @b852a38544d0
@@ -4239,6 +4323,18 @@ pass/borrows/stored_reference_address_field_exit checked 3969ms check-target:mac
 pass/borrows/stored_reference_projection_exit checked 15667ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_view_return_consumers checked 2281ms @ccdb99ca2214
 pass/borrows/structural_operand_view_catalog_exit checked 3710ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/suspension_projected_call_view_all_suppliers_only_view_exit checked 2899ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_earlier_argument_exit checked 2899ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_entry_source_exit checked 2724ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_independent_image_exit checked 2629ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_inline_source_exit checked 2807ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_reborrow_selected_exit checked 2743ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_returned_alternatives_exit checked 2731ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_returned_direct_read_exit checked 2700ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_returned_exit checked 2710ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_shared_cohort_restore_exit checked 2710ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_source_replaced_exit checked 2743ms check-target:macos_arm64 @f339c83f6359
+pass/borrows/suspension_projected_call_view_whole_input_restore_exit checked 2742ms check-target:macos_arm64 @f339c83f6359
 pass/borrows/suspension_saved_reference_view_all_suppliers_exit checked 4817ms check-target:macos_arm64 @24e82dfa56fd
 pass/borrows/suspension_saved_reference_view_earlier_operand_capture_exit checked 4617ms check-target:macos_arm64 @24e82dfa56fd
 pass/borrows/suspension_saved_reference_view_inherited_backing_exit checked 3960ms check-target:macos_arm64 @24e82dfa56fd
@@ -5668,6 +5764,7 @@ pass/domains/inactive_impossible_payload_exit rejected 1343ms check-target:macos
 pass/domains/indexed_domain_fact checked 2396ms @ad7c6890a897+wt
 pass/domains/indexed_domain_known_disjoint_call_exit checked 1764ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values checked 3035ms check-target:macos_arm64 @ccdb99ca2214
+pass/domains/inherited_requirement_issuer_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/domains/intersected_qualifiers checked 3265ms @ccdb99ca2214
 pass/domains/issued_indexed_subject_predicate checked 2311ms @ccdb99ca2214
 pass/domains/linear_qualification_nested_move checked 15239ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -6451,76 +6548,44 @@ pass/facts/boundary_zero_origin_through_other_machine_exit checked 4323ms check-
 pass/facts/boundary_zero_origin_through_other_state_exit checked 3952ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/boundary_zero_origin_through_parameter_exit checked 3871ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/boundary_zero_origin_through_target_body_exit checked 38605ms check-target:macos_arm64 @b9580c0cab21+wt
-pass/facts/bounded_activation_claim_split_through_call_result_exit rejected 3802ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_claim_split_through_const_name_exit rejected 3400ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main::established", reason: "completed arrival has no established block", gap: None })
-pass/facts/bounded_activation_claim_split_through_field_exit rejected 7305ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation(\\"an owned activation claim cannot transfer to another activation or provider\\")))", exceeded_provision: None, source_span: None, resolved_location: None }]
-pass/facts/bounded_activation_claim_split_through_local_exit rejected 6715ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main::established", reason: "completed arrival has no established block", gap: None })
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \\"main::established\\", reason: \\"completed arrival has no established block\\", gap: None })", exceeded_provision: None, source_span: None, resolved_location: None }]
-pass/facts/bounded_activation_claim_split_through_match_join_exit incomplete 2809ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/facts/bounded_activation_claim_split_through_call_result_exit checked 24392ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_const_name_exit checked 24309ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_field_exit checked 26720ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_local_exit checked 28894ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_match_join_exit incomplete 9553ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e86e80cdccf0
 	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion carrier retirement order); in state `main::entry`
-pass/facts/bounded_activation_claim_split_through_other_machine_exit rejected 4235ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main::established", reason: "completed arrival has no established block", gap: None })
-pass/facts/bounded_activation_claim_split_through_other_state_exit rejected 4888ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main::established", reason: "completed arrival has no established block", gap: None })
-pass/facts/bounded_activation_claim_split_through_parameter_exit rejected 4087ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "exercise::established", reason: "completed arrival has no established block", gap: None })
-pass/facts/bounded_activation_claim_split_through_target_body_exit rejected 3795ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_cleanup_crossing_exit rejected 9791ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_cleanup_pure_exit rejected 12834ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_computed_bound_exit rejected 3510ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_extent_composition_exit rejected 3703ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_field_transport_exit rejected 3329ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_generic_bound_exit rejected 4527ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_main_exit rejected 3391ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_multiple_bounds_exit rejected 8246ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation(\\"an owned activation claim cannot transfer to another activation or provider\\")))", exceeded_provision: None, source_span: None, resolved_location: None }]
-pass/facts/bounded_activation_named_attempt_exit incomplete 3618ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/facts/bounded_activation_claim_split_through_other_machine_exit checked 11786ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_other_state_exit checked 12067ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_parameter_exit checked 11770ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_target_body_exit checked 12827ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_cleanup_crossing_exit checked 12793ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_cleanup_pure_exit checked 21176ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_computed_bound_exit checked 20695ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_extent_composition_exit checked 12955ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_field_transport_exit checked 12981ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_generic_bound_exit checked 14107ms check-target:macos_arm64 @19e0e024c628
+pass/facts/bounded_activation_generic_holder_transfer_exit checked 15040ms check-target:macos_arm64 @19e0e024c628
+pass/facts/bounded_activation_generic_nested_holder_transfer_exit checked 11763ms check-target:macos_arm64 @19e0e024c628
+pass/facts/bounded_activation_main_exit checked 11790ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_multiple_bounds_exit checked 25395ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @e86e80cdccf0
+pass/facts/bounded_activation_named_attempt_exit incomplete 9250ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e86e80cdccf0
 	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion carrier retirement order); in state `main::entry`
-pass/facts/bounded_activation_named_bound_exit rejected 4118ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_nested_lifo_exit rejected 4275ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_page_bound_exit rejected 3664ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_parameter_committed_exit rejected 4842ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_call_result_exit rejected 3502ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_const_name_exit rejected 2985ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_field_exit rejected 3590ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_local_exit rejected 3705ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_match_join_exit incomplete 3087ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/facts/bounded_activation_named_bound_exit checked 13109ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_nested_lifo_exit checked 13555ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_page_bound_exit checked 13960ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_parameter_committed_exit checked 14511ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_call_result_exit checked 14067ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_const_name_exit checked 12690ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_field_exit checked 12800ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_local_exit checked 13376ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_match_join_exit incomplete 10508ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e86e80cdccf0
 	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion carrier retirement order); in state `main::entry`
-pass/facts/bounded_activation_through_other_machine_exit rejected 3871ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_other_state_exit rejected 4097ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_parameter_exit rejected 3593ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_target_body_exit rejected 3468ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_unsigned_max_request_exit rejected 3387ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_zero_bound_exit rejected 7536ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation(\\"an owned activation claim cannot transfer to another activation or provider\\")))", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/facts/bounded_activation_through_other_machine_exit checked 12723ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_other_state_exit checked 12517ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_parameter_exit checked 12534ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_target_body_exit checked 12625ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_unsigned_max_request_exit checked 11309ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_zero_bound_exit checked 24494ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @e86e80cdccf0
 pass/facts/bounded_products_through_call_result_exit checked 3372ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/bounded_products_through_const_name_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/bounded_products_through_field_exit checked 6772ms check-target:macos_arm64 @911f6617ba9e
@@ -7138,15 +7203,16 @@ pass/facts/computed_record_window_through_other_machine_exit checked 8438ms chec
 pass/facts/computed_record_window_through_other_state_exit checked 6860ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/computed_record_window_through_parameter_exit checked 7958ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/computed_record_window_through_target_body_exit checked 25498ms check-target:macos_arm64 @25f8bb78090b
-pass/facts/computed_subslice_extent_through_call_result_exit checked 4130ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_const_name_exit checked 4207ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_field_exit checked 4040ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_local_exit checked 4054ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_match_join_exit checked 3686ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_other_machine_exit checked 3974ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_other_state_exit checked 3727ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_parameter_exit checked 4672ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/computed_subslice_extent_through_target_body_exit checked 3904ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/computed_subslice_extent_shared_predicate_inputs_exit checked 9569ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_call_result_exit checked 7809ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_const_name_exit checked 9775ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_field_exit checked 11253ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_local_exit checked 8207ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_match_join_exit checked 8053ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_other_machine_exit checked 8062ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_other_state_exit checked 8238ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_parameter_exit checked 7977ms check-target:macos_arm64 @93ac4da811fe
+pass/facts/computed_subslice_extent_through_target_body_exit checked 8137ms check-target:macos_arm64 @93ac4da811fe
 pass/facts/content_interval_adjacency_through_call_result_exit checked 14304ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/content_interval_adjacency_through_const_name_exit checked 11269ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/content_interval_adjacency_through_field_exit checked 19721ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -11495,6 +11561,15 @@ pass/facts/structural_issuer_forwarding_other_state checked 3373ms check-target:
 pass/facts/structural_issuer_forwarding_parameter checked 3334ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/structural_issuer_forwarding_target_body checked 3943ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/subslice_state_extent_after_write_exit checked 3696ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/suspension_projected_call_view_through_call_result_exit checked 2828ms check-target:macos_arm64 @f339c83f6359
+pass/facts/suspension_projected_call_view_through_const_name_exit checked 2827ms check-target:macos_arm64 @f339c83f6359
+pass/facts/suspension_projected_call_view_through_field_exit checked 2759ms check-target:macos_arm64 @f339c83f6359
+pass/facts/suspension_projected_call_view_through_local_exit checked 2754ms check-target:macos_arm64 @f339c83f6359
+pass/facts/suspension_projected_call_view_through_match_join_exit checked 2773ms check-target:macos_arm64 @f339c83f6359
+pass/facts/suspension_projected_call_view_through_other_machine_exit checked 2766ms check-target:macos_arm64 @f339c83f6359
+pass/facts/suspension_projected_call_view_through_other_state_exit checked 2763ms check-target:macos_arm64 @f339c83f6359
+pass/facts/suspension_projected_call_view_through_parameter_exit checked 2762ms check-target:macos_arm64 @f339c83f6359
+pass/facts/suspension_projected_call_view_through_target_body_exit checked 2829ms check-target:macos_arm64 @f339c83f6359
 pass/facts/suspension_saved_reference_view_through_call_result_exit checked 3576ms check-target:macos_arm64 @24e82dfa56fd
 pass/facts/suspension_saved_reference_view_through_const_name_exit checked 3489ms check-target:macos_arm64 @24e82dfa56fd
 pass/facts/suspension_saved_reference_view_through_field_exit checked 3677ms check-target:macos_arm64 @24e82dfa56fd
@@ -12514,6 +12589,7 @@ pass/float/float_to_int_trapping_nan_traps rejected 9930ms check-target:macos_ar
 pass/float/float_trapping_overflow_traps checked 15775ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/float_trapping_propagated_nan_traps checked 15483ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/foreign_control_state_restore checked 15048ms check-target:macos_arm64 @ccdb99ca2214
+pass/float/format_conversion_proved_finite_return_exit checked 163693ms check-target:macos_arm64 @66107356a089
 pass/float/fused_multiply_add_single_rounding_exit checked 7164ms check-target:macos_arm64 @ccdb99ca2214
 pass/float/guarded_exact_float_conversion rejected 2200ms regressed-from:checked @ccdb99ca2214
 	machine `bounded` state `entry` cannot prove Exact float-to-`i32` cast operand `guarded.value` preserves its denotation; prove an integral representable value for an integer target, or exact format representability; use a named conversion to round or truncate
@@ -13514,8 +13590,8 @@ pass/operators/runtime_generic_reference_selector_snapshot_exit checked 6639ms c
 pass/operators/runtime_named_unit_statement_effects_exit checked 4455ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/runtime_selected_operator_requires_after_effects_exit checked 3267ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/runtime_xorshift_prng_exit checked 13755ms check-target:macos_arm64 @ccdb99ca2214
-pass/operators/slice_index_bounds_from_operator_contract checked 2563ms @ccdb99ca2214
-pass/operators/slice_range_bounds_from_operator_contract checked 2838ms @ccdb99ca2214
+pass/operators/slice_index_bounds_from_operator_contract checked 8246ms @93ac4da811fe
+pass/operators/slice_range_bounds_from_operator_contract checked 9186ms @93ac4da811fe
 pass/operators/unary_negation_exit checked 12215ms check-target:macos_arm64 @ccdb99ca2214
 pass/operators/unqualified_boundary_transition checked 2317ms @ccdb99ca2214
 pass/optimizer/address_offset_selection_exit checked 6642ms check-target:macos_arm64 @911f6617ba9e
@@ -13843,7 +13919,7 @@ pass/proofs/erased_mathematical_initializers checked 2617ms @ccdb99ca2214
 pass/proofs/exact_widening_keeps_source_carrier checked 3588ms @b80d7416b671+wt
 pass/proofs/fact_only_proof_value_citation_exit checked 2906ms check-target:macos_arm64 @ccdb99ca2214
 pass/proofs/family_carrier_relation_laws checked 2732ms @ccdb99ca2214
-pass/proofs/field_view_index_contract checked 5485ms @ccdb99ca2214
+pass/proofs/field_view_index_contract checked 10931ms @93ac4da811fe
 pass/proofs/float_guarded_negated_result_contract checked 5232ms @ccdb99ca2214
 pass/proofs/float_named_contract_literal_landing checked 5145ms @ccdb99ca2214
 pass/proofs/guarded_dynamic_field_arrival checked 12441ms check-target:macos_arm64 @ccdb99ca2214
@@ -13920,6 +13996,7 @@ pass/proofs/proposition_const_operand_application checked 2494ms @ccdb99ca2214
 pass/proofs/proposition_reference_operand_application checked 2647ms @ccdb99ca2214
 pass/proofs/proposition_relation_hierarchy_compile checked 2530ms @ccdb99ca2214
 pass/proofs/qualified_scalar_operand_exit checked 4118ms check-target:macos_arm64 @ccdb99ca2214
+pass/proofs/quotient_condition_arm_compile checked 6551ms @e3f7e6ae3d69
 pass/proofs/quotient_define_managed_compile rejected 456ms check-target:linux_x86_64 regressed-from:checked+check-target:linux_x86_64 @41e5eea428cb+wt
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_define_managed_compile`; found Package
 pass/proofs/quotient_equivalence_compile checked 14678ms @41e5eea428cb+wt
@@ -14338,6 +14415,7 @@ pass/recast/write_footprint/inline checked 3690ms check-target:macos_arm64 @ccdb
 pass/recast/write_footprint/local checked 3384ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/write_footprint/state checked 3336ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/mutable_loan_member_read_initializes_local_exit checked 13571ms check-target:macos_arm64 @ccdb99ca2214
+pass/references/rebound_local_reference_follows_new_referent_exit checked 10745ms check-target:macos_arm64 @292918dbcd2d
 pass/references/runtime_shared_ref_param_guard_exit checked 19666ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/selected_record_loan_disjoint_fields_exit checked 12565ms check-target:macos_arm64 @ccdb99ca2214
 pass/reflection/schema_query_scalar_const checked 32268ms check-target:macos_arm64 @63af67b94f91
@@ -14472,7 +14550,7 @@ pass/slices/runtime_guarded_view_copy_cycle_exit checked 11102ms check-target:ma
 pass/slices/runtime_helper_stored_view_return_exit rejected 3031ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	statement 3 creates local borrow `windows` while local borrow `returned` is still active (borrowed at statement 3; its last use is at statement 4)
 pass/slices/runtime_imported_range_views_exit checked 3789ms check-target:macos_arm64 @ccdb99ca2214
-pass/slices/runtime_imported_slice_provider_composition_exit checked 3940ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/runtime_imported_slice_provider_composition_exit checked 8229ms check-target:macos_arm64 @93ac4da811fe
 pass/slices/runtime_inclusive_call_endpoint_order_exit rejected 12556ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(ConflictingStructuralValueHome { root: Expression(Handle { arena_index: 18197, generation: 1 }), established: StructuralArgument { place: PlaceId(101), path: [], access: Owned }, established_type: StructuralTypeId(30), requested: StructuralArgument { place: PlaceId(106), path: [], access: Owned }, requested_type: StructuralTypeId(30), producer_file: "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/unit/attached_unit/argument_evaluation.rs", producer_line: 1864 })
 pass/slices/runtime_inclusive_call_endpoint_view_exit checked 12614ms check-target:macos_arm64 @ccdb99ca2214
@@ -14955,6 +15033,7 @@ pass/termination/slice_tail_rank rejected 1230ms regressed-from:checked @ccdb99c
 	terminal call `walk` does not select a declared machine entry or callable requirement
 pass/termination/state_cycle_record checked 7398ms @ccdb99ca2214
 pass/termination/stored_reference_endpoint_arrivals checked 5287ms @911f6617ba9e
+pass/termination/supplied_implementations_terminate_exit checked 11008ms check-target:macos_arm64 @c807f05bace3
 pass/termination/symbolic_quotient_endpoints checked 2384ms @ccdb99ca2214
 pass/termination/target_family_published_progress checked 2466ms @ccdb99ca2214
 pass/termination/unsigned_identity_measure_rank_range checked 2293ms @ccdb99ca2214
@@ -15115,6 +15194,10 @@ pass/traits/implementation_argument_category_collision checked 11458ms check-tar
 pass/traits/implementation_argument_mixed_telescope checked 2274ms @ccdb99ca2214
 pass/traits/implementation_argument_region_mapping checked 2453ms @ccdb99ca2214
 pass/traits/implementation_value_mapped_region_identity checked 5981ms check-target:macos_arm64 @68b6f6ba6c2f
+pass/traits/inherited_nominal_requirement_application_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_diamond_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_exit checked 3248ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_refinement_exit checked 3251ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_region_application_identity_exit checked 12686ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/named_contract_arithmetic_refinement checked 3221ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/nominal_generic_reference_forwarding_exit checked 13096ms check-target:macos_arm64 @ccdb99ca2214
@@ -16673,7 +16756,7 @@ fail/borrows/guard_subject_alias_held_through_call rejected 1839ms expected @ccd
 	statement 6 mutates `frames[__hoist_1]` while local borrow `saved` is still active (borrowed at statement 0)
 fail/borrows/guarded_structural_producer_shared_argument_cannot_mutate rejected 726ms expected @ccdb99ca2214
 	mutable argument `envelope` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/borrows/imported_range_retains_backing_loan rejected 1924ms expected @ccdb99ca2214
+fail/borrows/imported_range_retains_backing_loan rejected 5791ms expected @93ac4da811fe
 	statement 1 mutates `main.bytes` while local borrow `view` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/incoming_carrier_duplicate_exclusive_leaf rejected 2033ms expected @ccdb99ca2214
 	machine `duplicate` returns `carrier` as mutable more than once
@@ -21363,81 +21446,74 @@ fail/facts/boundary_zero_origin_through_parameter_changed rejected 2654ms expect
 	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/boundary_zero_origin_through_target_body_changed rejected 32168ms expected @b9580c0cab21+wt
 	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/bounded_activation_claim_split_through_call_result_rejected rejected 3801ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_const_name_rejected rejected 3475ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_field_rejected rejected 3528ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_local_rejected rejected 3108ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_match_join_rejected incomplete 2975ms unexpected @ccdb99ca2214
+fail/facts/bounded_activation_claim_split_through_call_result_rejected rejected 10118ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_const_name_rejected rejected 10603ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_field_rejected rejected 10181ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_local_rejected rejected 10165ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_match_join_rejected incomplete 9543ms unexpected @e86e80cdccf0
 	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion carrier retirement order); in state `main::entry`
-fail/facts/bounded_activation_claim_split_through_other_machine_rejected rejected 3940ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main::established", reason: "completed arrival has no established block", gap: None })
-fail/facts/bounded_activation_claim_split_through_other_state_rejected rejected 3799ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_parameter_rejected rejected 3970ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_target_body_rejected rejected 3962ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_escape_rejected rejected 3057ms expected @ccdb99ca2214
-	activation claim cannot escape its owning activation through return from escape state escape::entry at statement 2
-	linear state-call result claim in main::entry at statement 0 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `main` state `entry` statement 0 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 3 TransitionTarget: outgoing edge has no completed value capture
-fail/facts/bounded_activation_extent_composition_rejected rejected 3642ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_release_order_rejected rejected 3998ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_stale_loan_rejected rejected 3321ms expected @ccdb99ca2214
+fail/facts/bounded_activation_claim_split_through_other_machine_rejected rejected 11462ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_other_state_rejected rejected 9884ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_parameter_rejected rejected 10520ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_target_body_rejected rejected 11291ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_escape_rejected rejected 8722ms expected @e86e80cdccf0
+	activation claim cannot escape its owning activation through return from escape state escape::entry at statement 1
+fail/facts/bounded_activation_extent_composition_rejected rejected 10863ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation co-live bound leaves closed stack demand open")))
+fail/facts/bounded_activation_release_order_rejected rejected 11501ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claims must release in reverse establishment order in their owning activation")))
+fail/facts/bounded_activation_stale_loan_rejected rejected 9010ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
 	state `release` receives `owner` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 reads `owner` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/bounded_activation_through_call_result_rejected rejected 2851ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_call_result_rejected rejected 8389ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_const_name_rejected rejected 2819ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_const_name_rejected rejected 8321ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_field_rejected rejected 2500ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_field_rejected rejected 8719ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `holder.claim` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `holder.claim` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_local_rejected rejected 3655ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_local_rejected rejected 8902ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_match_join_rejected rejected 2780ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_match_join_rejected rejected 8278ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_other_machine_rejected rejected 3732ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_other_machine_rejected rejected 9769ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_other_state_rejected rejected 2653ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_other_state_rejected rejected 8612ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_parameter_rejected rejected 2474ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_parameter_rejected rejected 8731ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_target_body_rejected rejected 3190ms expected @ccdb99ca2214
-	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/facts/bounded_activation_through_target_body_rejected rejected 10513ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_wrong_activation_rejected rejected 4237ms expected @ccdb99ca2214
+fail/facts/bounded_activation_wrong_activation_rejected rejected 9882ms expected @e86e80cdccf0
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
 fail/facts/bounded_products_through_call_result_rejected rejected 1505ms expected @ccdb99ca2214
 	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `supply(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
@@ -22968,34 +23044,31 @@ fail/facts/computed_record_window_through_parameter_rejected rejected 4148ms exp
 fail/facts/computed_record_window_through_target_body_rejected rejected 20522ms expected @25f8bb78090b
 	cannot prove ensures contract for exit from X86Window::window at statement 1: result.len == 2
 	cannot prove ensures contract for exit from ArmWindow::window at statement 1: result.len == 2
-fail/facts/computed_subslice_extent_effectful_actual rejected 1708ms expected @ccdb99ca2214
-	exact arithmetic in machine `read` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/computed_subslice_extent_saved_predicate rejected 2570ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: cursor.low + 0 <= cursor.low + 2 && cursor.low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_stale_field rejected 3020ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_call_result_rejected rejected 3855ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from window: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_const_name_rejected rejected 3612ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_field_rejected rejected 3366ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_local_rejected rejected 3198ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_match_join_rejected rejected 2877ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_other_machine_rejected rejected 2718ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_other_state_rejected rejected 3460ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_parameter_rejected rejected 3486ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from exercise: low + 0 <= low + 2 && low + 2 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/computed_subslice_extent_through_target_body_rejected rejected 3018ms expected @ccdb99ca2214
-	cannot prove requires contract for call range from read: __hoist_2 <= __hoist_3 && __hoist_3 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: __hoist_4 <= __hoist_5 && __hoist_5 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: __hoist_6 <= __hoist_7 && __hoist_7 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call range from read: __hoist_8 <= __hoist_9 && __hoist_9 <= items.len (needs fact `start <= end && end <= items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/computed_subslice_extent_effectful_actual rejected 3008ms expected @93ac4da811fe
+	exact arithmetic in machine `read` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/computed_subslice_extent_saved_predicate rejected 5825ms expected @93ac4da811fe
+	cannot prove subslice range end bound `cursor.low + 0..cursor.low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_stale_field rejected 6070ms expected @93ac4da811fe
+	cannot prove subslice range end bound `cursor.low + 0..cursor.low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_call_result_rejected rejected 5605ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in window::entry
+fail/facts/computed_subslice_extent_through_const_name_rejected rejected 6118ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_field_rejected rejected 6059ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_local_rejected rejected 6081ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_match_join_rejected rejected 6081ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in marked_window::entry
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_other_machine_rejected rejected 6142ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_other_state_rejected rejected 6141ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in read::entry
+fail/facts/computed_subslice_extent_through_parameter_rejected rejected 6026ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in exercise::entry
+fail/facts/computed_subslice_extent_through_target_body_rejected rejected 6026ms expected @93ac4da811fe
+	cannot prove subslice range end bound `low + 0..low + 2` is within unknown slice length of `items` in ComputedWindowRead::read::read
 fail/facts/content_interval_adjacency_through_call_result_rejected rejected 10961ms expected @ee4dbb4b2d56
 	cannot prove ensures contract for exit from carry at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
 	cannot prove ensures contract for exit from forward at statement 0: separate(Held.content(old(&left)), Held.content(old(&right))) == separate(Held.content(&result.left), Held.content(&result.right))
@@ -31941,7 +32014,7 @@ fail/float/format_conversion_exclusive_upper rejected 5315ms expected @ccdb99ca2
 	cannot prove ensures contract for exit from exclusive at statement 0: result >= 0.0 && result < 1.0
 fail/float/format_conversion_lookalike rejected 5131ms unexpected @ccdb99ca2214
 	cannot prove ensures contract for exit from lookalike at statement 0: result >= 0.10000000149011612 && result <= 0.10000000149011612
-fail/float/format_conversion_requires_result_proof rejected 1870ms expected @ccdb99ca2214
+fail/float/format_conversion_requires_result_proof rejected 3177ms expected @66107356a089
 	cannot prove initializer `F32.from_f64(huge())` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
 	cannot prove call argument `F32.from_f64(huge())` satisfies `finite` for bounded parameter `value` for `consume` in `overflow.entry`
 	cannot prove return value `F32.from_f64(value)` satisfies `finite` for bounded return type in `unknown.entry`
@@ -34406,7 +34479,8 @@ fail/proofs/quotient_linear_property rejected 17ms expected @e97ed21415d9
 	tests/omega/fail/proofs/quotient_linear_property/main.omg:1:34: a quotient data declaration cannot declare linear or carry properties; the initial quotient surface excludes custody
 fail/proofs/quotient_missing_symmetry rejected 8210ms expected @41e5eea428cb+wt
 	quotient data `EquivalenceClass` conformance `RepresentativeEquivalence` row `Symmetric::symmetric` strengthens or changes the sealed equivalence law premises; quotient formation requires the exact inherited contract
-fail/proofs/quotient_pattern_rejected checked 12831ms @41e5eea428cb+wt
+fail/proofs/quotient_pattern_rejected rejected 1354ms expected regressed-from:checked @e3f7e6ae3d69
+	destructure arm in machine `expose_pattern` state `entry` cannot pattern-match quotient `EquivalenceClass`: retained representatives are opaque and pattern matching requires a named lifted operation
 fail/proofs/quotient_private_crash_rejected rejected 408ms unexpected @41e5eea428cb+wt
 	fixture linux_x86_64 admission: reviewed native production requires application root `quotient_private_crash_rejected`; found Package
 fail/proofs/quotient_representative_admitted_closure_rejected rejected 8409ms expected @41e5eea428cb+wt
@@ -35292,8 +35366,8 @@ fail/slices/inclusive_negative_endpoint rejected 2033ms expected @ccdb99ca2214
 	cannot prove subslice range end bound `0..end` is within unknown slice length of `values` in prefix::entry
 fail/slices/independent_returned_field_lengths rejected 1732ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand_same from main: short.values.len == long.values.len (needs fact `left.len == right.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/slices/index_operator_contract_unproven rejected 2601ms unexpected @ccdb99ca2214
-	cannot prove requires contract for call index from Main::main: 3 < main.values.len (needs fact `index < items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
+fail/slices/index_operator_contract_unproven rejected 5789ms expected @93ac4da811fe
+	cannot prove index `3` is within length 3
 fail/slices/inline_mutable_call_windows_overlap rejected 1357ms expected @ccdb99ca2214
 	state `inspect` receives `values[0..2]` as mutable more than once
 fail/slices/inline_shared_window_mutable_call rejected 1301ms expected @ccdb99ca2214
@@ -35511,8 +35585,8 @@ fail/slices/stored_write_only_view_mutable_call rejected 809ms expected @ccdb99c
 fail/slices/stored_write_only_view_shared_call rejected 625ms expected @ccdb99ca2214
 	machine `misuse` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	argument `values` for state `entry` supplies `&write` to a parameter that may read; write-only authority cannot widen to shared or mutable access
-fail/slices/subslice_range_operator_contract_unproven rejected 1006ms expected @ccdb99ca2214
-	machine `Main::main` state `main` value call to `Slice::range` violates required fact `start <= end && end <= items.len`: the instantiated fact is structurally false (`9 <= 4 && 4 <= view.len`)
+fail/slices/subslice_range_operator_contract_unproven rejected 6859ms expected @93ac4da811fe
+	cannot prove subslice range start bound `9..4` is within slice length 4
 fail/slices/termination_slice_length_order_unimplemented rejected 982ms unexpected @ccdb99ca2214
 	terminal call `walk` does not select a declared machine entry or callable requirement
 fail/slices/unbounded_length_increment_requires_fit rejected 969ms expected @ccdb99ca2214
@@ -35655,7 +35729,8 @@ fail/termination/bounded_distance_suffix_needs_callee_progress rejected 1914ms e
 	cannot prove published termination for machine `walk`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/bounded_distance_suffix_nested_reentry rejected 2273ms expected @ccdb99ca2214
 	machine call cycle: `reenter`, `walk`, `done` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
-fail/termination/bounded_distance_suffix_nonhost_reentry checked 3999ms @ccdb99ca2214
+fail/termination/bounded_distance_suffix_nonhost_reentry rejected 7567ms expected regressed-from:checked @c807f05bace3
+	machine call cycle: `LinuxSelection::selected`, `walk`, `done` -- a bounded cursor rank lacks independent entry formation; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/computed_distance_moving_bound rejected 2317ms expected @ccdb99ca2214
 	cannot prove the `terminates by` ranking for machine walk
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -35869,7 +35944,8 @@ fail/termination/rankless_boundary_progress_unpromised rejected 1631ms expected 
 	cannot prove published termination for machine `console_write_bytes`: its checked body reaches an operation without a usable termination guarantee
 fail/termination/rankless_callback_suffix rejected 2572ms expected @792437fa610e
 	cannot prove published termination for machine `console_write_bytes`: its checked body reaches an operation without a usable termination guarantee
-fail/termination/rankless_family_member_reentry checked 2793ms @ccdb99ca2214
+fail/termination/rankless_family_member_reentry rejected 7593ms expected regressed-from:checked @c807f05bace3
+	machine call cycle: `LinuxSelection::selected`, `count`, `finish` -- a private member has no compatible natural rank input; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/remainder_natural_descent rejected 2781ms expected @ccdb99ca2214
 	terminating machine greatest_common_divisor: cannot prove strict rank decrease on a recurrent arrival: the transition from `greatest_common_divisor` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `greatest_common_divisor` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -35956,7 +36032,8 @@ fail/text/borrowed_bounded_byte_invariant_write rejected 12137ms unexpected @ccd
 	cannot prove requires contract for call write from write: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii) in state `entry`
 fail/text/borrowed_byte_snapshot_missing_predicate rejected 5081ms expected @911f6617ba9e
 	cannot prove requires contract for call snapshot from copy: text in [u8]::SnapshotUtf8 in state `entry`
-fail/text/borrowed_byte_snapshot_reseated_descriptor checked 5116ms @911f6617ba9e
+fail/text/borrowed_byte_snapshot_reseated_descriptor rejected 7358ms expected regressed-from:checked @eacf2cdc1c30
+	cannot prove requires contract for call snapshot from copy: other.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `observed.len <= 16`
 fail/text/borrowed_byte_snapshot_unbounded rejected 3887ms expected @911f6617ba9e
 	cannot prove requires contract for call snapshot from copy: text.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/text/bounded_carrier_growth_overflow_rejected rejected 32263ms expected @911f6617ba9e
@@ -36234,8 +36311,8 @@ fail/traits/dyn_selector_reentry_unranked rejected 1712ms expected @ccdb99ca2214
 	machine call cycle: `Loop::walk`, `rewalk` -- an internal call occurrence lacks a classified tail edge; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/traits/dyn_selector_requirement_precondition_unproven rejected 1874ms expected @ccdb99ca2214
 	cannot prove requires contract for call dyn Shrink<1 argument>::shrink from probe: 200 >= 3 && 200 <= 100 (needs fact `value >= 3 && value <= 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/traits/dyn_selector_self_reentry_unranked rejected 761ms expected @ccdb99ca2214
-	machine call cycle: `Loop::walk` can re-enter itself through a selector call; termination across runtime implementation selection is not yet ranked
+fail/traits/dyn_selector_self_reentry_unranked rejected 2963ms expected @d23ce4c17141
+	machine call cycle: `Loop::walk` can re-enter itself through a selector call or boundary requirement call; termination across implementation selection is not yet ranked
 fail/traits/dyn_selector_wrong_application rejected 1413ms expected @ccdb99ca2214
 	`Primary` implements `Shape<Item>`, not `dyn Shape<Other>`; a selector names exactly the trait application its implementation satisfies
 fail/traits/dyn_structural_result_contract_mismatch rejected 1988ms expected @ccdb99ca2214

@@ -172,9 +172,19 @@ retired-syntax deletions to completion.
     projection or computed argument rather than a whole parameter; the
     whole-parameter case [runs in the parameter place](samples/cli/facts/nested_machine_invocation/joint_rank/parameter/bounded_distance/computed_length/README.md)
     and its other eight places are unwritten).
-  - Update Terminal production, codecs/checking, both interpreters, native
-    lowering, and WCSU together so runtime cycles remain constant-stack with all
-    live backing accounted for.
+  - Bring the composed state-graph planner
+    (`omega-rust/psi/compilation/pipeline/05_typed-trees-to-checked-trees/src/execution/terminal_unit/state_graph`)
+    to parity with the ordinary call plan, starting with temporary cleanup
+    actions, so every statically known terminal call can lower as a transfer
+    in the caller's activation rather than only recursive components and
+    calls that move activation claims. Witness: fusing all terminal targets
+    refuses `LinuxArm64::plan` with "has no executable body: this compiler does
+    not lower a state of it yet (temporary cleanup actions)".
+  - Lower completion-carrier retirement order for nested machines that join
+    activation-claim attempts (`bounded_activation` `through_match_join`,
+    `claim_split_through_match_join`, `named_attempt`: "`main` has no
+    executable body ... (statement sequence: completion carrier retirement
+    order)").
   - Complete the corresponding declaration-model migration in linked
     application repositories.
   Acceptance: source-to-Terminal/native execution agreement (`omega run --both`)
@@ -242,7 +252,6 @@ retired-syntax deletions to completion.
     restoring hidden argument insertion.
   - Complete checked per-value loan carry evidence for suspension production
     without restoring hidden argument insertion: joins still refuse
-    projected call referents,
     supplied-output and lifetime-dependency descriptors, and backings with no
     enclosing owner; Terminal loan rows label accepted transfers `Unresolved`.
   - Retire `machine Data::operation` spellings across compiler/toolchain
@@ -1729,6 +1738,19 @@ defines the complete product bar.
   pass `omega run --both` with false-twin rejections, exact transitive
   assumption closure, and a refreshed
   [metatheory evidence ledger](wiki/spec/proofs/kernel_metatheory.md#evidence-ledger).
+
+- **UNREACHABLE-BRANCH-DIAGNOSTICS.** Report source branches that contradict
+  their machine's entry contract or established facts, under
+  [unreachable branches](wiki/spec/language/state_contracts.md#unreachable-branches).
+  - Emit an advisory warning identifying the branch and conflicting premises,
+    retaining available source locations and exact subjects/storage versions.
+  - Keep routine generic-specialization and compile-time selection quiet without
+    suppressing contradictions already present in the generic's own contract.
+    Proof-internal impossible cases do not each produce a source warning.
+  Acceptance: focused examples pin warnings for source contradictions and no
+  warning for ordinary specialization; warning emission and code pruning do not
+  change proof acceptance. Missing, stale or out-of-scope contradiction evidence
+  cannot justify a reachable obligation, and malformed source remains rejected.
 
 ## Build-level behavior exclusions
 

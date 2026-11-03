@@ -9,7 +9,7 @@ use super::super::stored_values::append_preserved_binding;
 use super::super::stored_values::append_store;
 use super::super::stored_values::join;
 use super::{Execution, InvocationSite};
-use arena::Handle;
+use arena::{Handle, HandleSpan};
 use checked_trees::{BorrowCallFact, FlowOperandFact, FlowStorageSnapshot};
 use validation::CanonicalPlace;
 
@@ -30,7 +30,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         site: InvocationSite,
         call: &BorrowCallFact,
-        inputs: &[FlowOperandFact],
+        inputs: HandleSpan<FlowOperandFact>,
         binding_writes: Option<&[CanonicalPlace]>,
     ) -> Vec<CallStore> {
         // State jumps have an arrival owner. This inventory describes normal
@@ -86,8 +86,12 @@ impl Execution<'_, '_, '_> {
                 {
                     return Vec::new();
                 }
-                let Some(indices) = self.captured_argument_indices(parameters, inputs.iter())
-                else {
+                let Some(indices) = self.captured_argument_indices(
+                    parameters,
+                    inputs
+                        .handles()
+                        .map(|handle| self.context.control.operands.get(handle)),
+                ) else {
                     return Vec::new();
                 };
                 let Some(effects) = self
