@@ -152,21 +152,19 @@ pub fn validate_asm_discharge(
     crate::program_validation::finish_diagnostics(diagnostics)
 }
 
-/// Direct assembly emission declares its canonical service at the instruction
-/// owner. Ordinary checked callers propagate that reach through the shared
-/// fixed point; propagation does not discharge instruction authority.
+/// Assembly adds its instruction's canonical service to the inferred reach.
+/// Check that the service exists and inference retained it; the ordinary
+/// ceiling check rejects an explicitly narrower `reaches` clause. Privileged
+/// instruction authority is checked separately.
 pub(super) fn validate_asm_intrinsic_declarations(
     program: &dyn crate::CheckingInput,
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     for machine in program.machines() {
-        let declared_services = program
-            .service_reach_rows
-            .services(machine.service_reach_row);
         let mut direct_asm_services = Vec::new();
 
-        // Direct emission sites retain their authored service obligation.
+        // Every service-bearing instruction needs its canonical service identity.
         for state in program.machine_states(machine) {
             for statement in program.statement_table.statements(state.statement_nodes) {
                 let Some((instruction, service_name, _)) =
@@ -180,20 +178,11 @@ pub(super) fn validate_asm_intrinsic_declarations(
                 if !direct_asm_services.contains(&service_name) {
                     direct_asm_services.push(service_name);
                 }
-                let Some(service) = program.service_reaches.id_for_name(service_name) else {
+                if program.service_reaches.id_for_name(service_name).is_none() {
                     diagnostics.push(Diagnostic::error(format!(
                         "machine `{}` uses asm instruction `{}`, which reaches canonical \
                          service `{service_name}`, but that service identity is unavailable: \
                          add `use omega::language::core::assembly;`",
-                        machine.name, instruction
-                    )));
-                    continue;
-                };
-                if !declared_services.contains(&service) {
-                    diagnostics.push(Diagnostic::error(format!(
-                        "machine `{}` uses asm instruction `{}` but does not declare its \
-                         service contract: add `reaches {service_name}` (every asm \
-                         instruction's service reach must be declared where it is emitted)",
                         machine.name, instruction
                     )));
                 }

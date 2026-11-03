@@ -15,8 +15,7 @@ use calling_conventions::{
     CallSignature, CallingPolicy, ValueLocation, ValuePlacement, ValueShape, evaluate_call_plan,
 };
 use semantic_vocabulary::{
-    BoundaryMachineId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType,
-    StructuralTypeId, ValueId,
+    BoundaryMachineId, IntegerSign, IntegerType, OperationId, PlaceId, ScalarType, ValueId,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use target::{Architecture, NativeTarget, ObjectFormat};
@@ -47,8 +46,7 @@ pub(in crate::lowering) fn lower_boundary_call(
     local_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     address_joins: &BTreeSet<PlaceId>,
     block_views: &BTreeSet<PlaceId>,
-    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+
     established_byte_sequences: &BTreeMap<
         PlaceId,
         (OperationId, StructuralTypeDeclaration, Vec<u8>),
@@ -111,8 +109,6 @@ pub(in crate::lowering) fn lower_boundary_call(
                         foreign,
                         structural_types,
                         parameters_by_place,
-                        shape_cache,
-                        active,
                         native_callbacks_slice,
                         local_homes,
                         address_joins,
@@ -176,7 +172,9 @@ pub(in crate::lowering) fn lower_boundary_call(
                     &scalar_arguments,
                     &structural_arguments,
                     &target_result,
-                    |buffer| crate::lowering::borrowed_storage::capture_type(buffer, catalog),
+                    |buffer| {
+                        crate::lowering::borrowed_storage::capture_type(buffer, structural_types)
+                    },
                 )
                 .map_err(|reason| LoweringError::DescriptorInputGuard {
                     machine: function.machine,
@@ -224,12 +222,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     }
-                    let layout = structural_sum_layout(
-                        result.structural_type,
-                        structural_types,
-                        shape_cache,
-                        active,
-                    )?;
+                    let layout = structural_sum_layout(result.structural_type, structural_types)?;
                     target_operations::TargetBoundaryResult::Structural(
                         target_operations::TargetStructuralHomeRequirement {
                             origin:
@@ -391,7 +384,7 @@ pub(in crate::lowering) fn lower_boundary_call(
                     else {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     };
-                    let Some(result_declaration) = structural_types.get(&home.structural_type())
+                    let Some(result_declaration) = structural_types.get(home.structural_type())
                     else {
                         return Err(LoweringError::BoundaryRealizationMismatch(*boundary));
                     };

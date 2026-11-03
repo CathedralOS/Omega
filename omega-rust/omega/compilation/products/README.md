@@ -86,7 +86,7 @@ Platform custody owns file staging; native artifacts own executable/package
 receipts; package compilation owns completed-output installation.
 
 The package depends on those evidence/product owners, not `compiler`,
-`build-evaluation`, the CLI or the package-manager application. Putting this
+`build-settings`, the CLI or the package-manager application. Putting this
 cross-product lifecycle in a backend artifact owner would conflate native
 mechanics with package and portable products; generic file utilities must stay
 free of these semantic dependencies.

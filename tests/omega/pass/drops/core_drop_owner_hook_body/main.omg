@@ -2,7 +2,7 @@
 // edge's action: it may read and write its subject, call helpers with arguments,
 // repeat calls, and reach nested helpers. `inspect-terminal` shows the
 // `drop<Guard>` specialization's `ReturnUnitNominalAffine` edge invoking
-// `Guard::drop`, whose own terminal body carries the receiver parameter, the
+// `drop_guard`, whose own terminal body carries the receiver parameter, the
 // field load, the argumented call, the repeated call, and the field store.
 
 use omega::language::core::drop;
@@ -20,11 +20,11 @@ machine Ledger::trace() {
     sweep();
 }
 
-data Guard {
+data Guard dropped by drop_guard {
     handle: i32;
 }
 
-machine Guard::drop(guard: &mut Guard) {
+machine drop_guard(guard: &mut Guard) {
     Ledger::note(guard.handle);
     Ledger::trace();
     Ledger::trace();

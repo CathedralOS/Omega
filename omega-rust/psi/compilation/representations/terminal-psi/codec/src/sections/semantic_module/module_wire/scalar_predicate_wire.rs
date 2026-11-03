@@ -5,8 +5,8 @@ use super::super::{
     wire::{Reader, Writer},
 };
 use super::scalar_condition_wire::{
-    decode_integer, decode_observation, decode_subject, encode_integer, encode_observation,
-    encode_subject,
+    decode_integer, decode_observation, decode_role, decode_subject, encode_integer,
+    encode_observation, encode_role, encode_subject,
 };
 use arena::{Arena, Handle};
 use numerics::scalar_predicates::{PredicateNode, PredicateOperator, ScalarValue};
@@ -38,6 +38,7 @@ pub(super) fn encode(writer: &mut Writer, conditions: &ScalarConditions) -> Resu
     writer.len("scalar predicates", conditions.predicates().len())?;
     for condition in conditions.predicates() {
         encode_subject(writer, condition.subject);
+        encode_role(writer, condition.role);
         writer.string("scalar predicate description", &condition.description)?;
         writer.len("scalar predicate nodes", condition.nodes().len())?;
         let mut references = Vec::new();
@@ -102,6 +103,7 @@ pub(super) fn decode(
     let count = reader.count()?;
     for _ in 0..count {
         let subject = decode_subject(reader)?;
+        let role = decode_role(reader)?;
         let description = reader.string("scalar predicate description")?;
         let count = reader.count()?;
         let mut nodes = Arena::new();
@@ -137,7 +139,7 @@ pub(super) fn decode(
         }
         let root = reference(reader, &references)?;
         conditions
-            .retain_predicate(subject, description, nodes, root)
+            .retain_predicate(subject, role, description, nodes, root)
             .map_err(CodecError::MalformedStructuralFoundation)?;
     }
     Ok(())
@@ -147,7 +149,7 @@ pub(super) fn decode(
 mod tests {
     use super::*;
     use numerics::bignum::BigInt;
-    use semantic_vocabulary::ScalarApplicationId;
+    use semantic_vocabulary::{ScalarApplicationId, ScalarConditionRole};
     use terminal_psi::{ScalarConditionSubject, ScalarRangeObservation};
 
     #[test]
@@ -170,6 +172,7 @@ mod tests {
         conditions
             .retain_predicate(
                 ScalarConditionSubject::Module,
+                ScalarConditionRole::Result,
                 "both recipes agree".into(),
                 nodes,
                 equality,
@@ -198,6 +201,7 @@ mod tests {
         conditions
             .retain_predicate(
                 ScalarConditionSubject::Module,
+                ScalarConditionRole::Prerequisite,
                 "selected disjunction".into(),
                 nodes,
                 root,
@@ -211,6 +215,11 @@ mod tests {
         let mut reader = Reader::new(&bytes);
         decode(&mut reader, &mut decoded).unwrap();
         assert_eq!(reader.remaining(), 0);
+        assert_eq!(decoded.predicates()[0].role, ScalarConditionRole::Result);
+        assert_eq!(
+            decoded.predicates()[1].role,
+            ScalarConditionRole::Prerequisite
+        );
         assert_eq!(decoded.observations().count(), 3);
         for (second_value, expected) in [
             (Some(24), Some(true)),
@@ -248,6 +257,10 @@ mod tests {
             let mut writer = Writer::default();
             writer.u32(1);
             encode_subject(&mut writer, ScalarConditionSubject::Module);
+            encode_role(
+                &mut writer,
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
+            );
             writer.string("description", "malformed graph").unwrap();
             writer.u32(1);
             if forward {
@@ -275,6 +288,10 @@ mod tests {
         let mut writer = Writer::default();
         writer.u32(1);
         encode_subject(&mut writer, ScalarConditionSubject::Module);
+        encode_role(
+            &mut writer,
+            semantic_vocabulary::ScalarConditionRole::Prerequisite,
+        );
         writer
             .string("description", "true or integer is not formed")
             .unwrap();

@@ -94,8 +94,17 @@ fn complete_scopes(
             &selected.providers,
             selected.carrier_layout,
         )?;
-        let conditions =
-            evaluate_scope(&mut observations, primary, demand, |job, observations| {
+        let conditions = evaluate_scope(
+            &mut observations,
+            primary,
+            demand,
+            selected
+                .address_model
+                .as_ref()
+                .ok()
+                .and_then(Option::as_ref),
+            |job, admission| {
+                let observations = admission.observations();
                 let ceiling = crate::evaluation_accounting::PURE_TERMINAL_FUEL_CEILING;
                 let mut meter = match sponsor {
                     Some(account) => {
@@ -105,7 +114,7 @@ fn complete_scopes(
                     None => TerminalFuelMeter::with_allowance(ceiling),
                 };
                 let values = observations.values().observed().collect();
-                let result = execute_entry(job, observations, &mut meter);
+                let result = execute_entry(job, admission, &mut meter);
                 let outcome = match &result {
                     Ok(observed) => crate::PureTerminalEvaluationOutcome::Returned {
                         value: TerminalExecutionResult::Scalar(observed.value),
@@ -123,7 +132,8 @@ fn complete_scopes(
                     meter.into_usage(),
                 ));
                 result
-            })?;
+            },
+        )?;
         closure.close_scope(observations, conditions, selected.address_model)?;
     }
     closure.finish()
@@ -135,18 +145,39 @@ pub fn evaluate_scalar_applications<'artifact>(
     requested: &[ScalarApplicationId],
     meter: &mut TerminalFuelMeter,
 ) -> Result<ScalarConditionSelection<'artifact>, String> {
-    evaluate_scope(observations, value_scope, requested, |job, observations| {
-        execute_entry(job, observations, meter)
-    })
+    evaluate_scope(
+        observations,
+        value_scope,
+        requested,
+        None,
+        |job, admission| execute_entry(job, admission, meter),
+    )
+}
+
+pub fn evaluate_scalar_applications_with_address_model<'artifact>(
+    observations: &mut ScalarApplicationObservations<'artifact>,
+    value_scope: &str,
+    requested: &[ScalarApplicationId],
+    address_model: Option<&terminal_installation::ScalarAddressModel>,
+    meter: &mut TerminalFuelMeter,
+) -> Result<ScalarConditionSelection<'artifact>, String> {
+    evaluate_scope(
+        observations,
+        value_scope,
+        requested,
+        address_model,
+        |job, admission| execute_entry(job, admission, meter),
+    )
 }
 
 fn evaluate_scope<'artifact>(
     observations: &mut ScalarApplicationObservations<'artifact>,
     value_scope: &str,
     requested: &[ScalarApplicationId],
+    address_model: Option<&terminal_installation::ScalarAddressModel>,
     mut execute: impl FnMut(
-        &demand::Job,
-        &ScalarApplicationObservations<'_>,
+        &demand::Job<'artifact>,
+        &terminal_installation::AdmittedScalarEntry<'_, 'artifact>,
     ) -> Result<EntryObservation, String>,
 ) -> Result<ScalarConditionSelection<'artifact>, String> {
     let program = TerminalProgram::borrow(observations.artifact());
@@ -167,8 +198,13 @@ fn evaluate_scope<'artifact>(
                     .observe_layout(job.application)
                     .map_err(|error| error.to_string())?;
             }
-            demand::Execution::Entry { machine, .. } => {
-                let observed = execute(job, observations)?;
+            demand::Execution::Entry {
+                machine,
+                prerequisites,
+                ..
+            } => {
+                let admission = prerequisites.admit(observations, address_model)?;
+                let observed = execute(job, &admission)?;
                 for (result, captured) in observed.captured {
                     observations.record_entry_result(
                         job.application,
@@ -192,16 +228,18 @@ struct EntryObservation {
 
 fn execute_entry(
     job: &demand::Job,
-    observations: &ScalarApplicationObservations<'_>,
+    admission: &terminal_installation::AdmittedScalarEntry<'_, '_>,
     meter: &mut TerminalFuelMeter,
 ) -> Result<EntryObservation, String> {
     let demand::Execution::Entry {
         machine,
         installation,
+        ..
     } = &job.execution
     else {
         return Err("scalar entry execution requires an actual entry job".into());
     };
+    let observations = admission.observations();
     let account = meter.invocation_account().cloned();
     let program = TerminalProgram::borrow(observations.artifact());
     let mut instance = program
@@ -212,10 +250,7 @@ fn execute_entry(
                 machine: *machine,
                 results: &job.results,
             }),
-            scalar_application: Some(TerminalScalarApplicationRequest {
-                application: job.application,
-                observations,
-            }),
+            scalar_application: Some(TerminalScalarApplicationRequest { admission }),
             ..TerminalInstantiation::default()
         })
         .map_err(|error| format!("scalar evaluation entry: {error:?}"))?;

@@ -5,6 +5,7 @@ data Main {
     value: u8;
 }
 
-machine Main::main(main: &mut Main) {
+// An explicitly empty reach ceiling excludes the port write.
+machine Main::main(main: &mut Main) reaches {
     asm { out main.port, main.value }
 }

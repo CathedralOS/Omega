@@ -46,7 +46,7 @@ Each place has `main.omg`, `build.omg`, and an `invalid/` twin. Exact copies are
 the twin's automatic-cleanup fragment in `expected.txt`). The root
 plus nine positives bind all four hosted ProgramEntry catalogs and author native
 and Terminal exit 0. Binding targets is not execution on those hosts. Rejects
-retain the automatic-cleanup and Receipt::drop diagnostic fragments. Qualification
+retain the automatic-cleanup and drop_receipt diagnostic fragments. Qualification
 records the actual compiler, host, source hashes and engine observations.
 
 ## Pinned Fixtures

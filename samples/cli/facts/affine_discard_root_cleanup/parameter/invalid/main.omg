@@ -5,13 +5,13 @@ data Counter {
     value: u64;
 }
 
-data Resource {
+data Resource dropped by drop_resource {
     dropped: &mut Counter;
     valid: u64;
     value: u64;
 }
 
-machine Resource::drop(resource: &mut Resource)
+machine drop_resource(resource: &mut Resource)
 requires resource.valid == 1u64
 {
     resource.dropped.value = resource.valid;

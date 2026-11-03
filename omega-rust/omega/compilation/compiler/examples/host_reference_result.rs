@@ -195,7 +195,7 @@ fn main() {
         let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
         request.package_inputs = prepared.package_inputs;
         let checked =
-            omega_build::check_source(&mut compiler::CompilationSession::default(), request)
+            orchestration::check_source(&mut compiler::CompilationSession::default(), request)
                 .result
                 .unwrap_or_else(|error| panic!("{:?}", error.into_diagnostics()));
         let produced = psi_compiler::TerminalProductionRequest::new(

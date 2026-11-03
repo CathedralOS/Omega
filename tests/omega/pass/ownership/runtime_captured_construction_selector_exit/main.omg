@@ -1,6 +1,6 @@
-data Token { value: u64; }
+data Token dropped by drop_token { value: u64; }
 
-machine Token::drop(token: &mut Token) { token.value = 0; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 
 machine replacement_value(index: &mut u64) -> u64 {
     index = 3;

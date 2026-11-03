@@ -120,7 +120,7 @@ fn descriptor_projection_access(
                 };
                 (place.id == source.place
                     && structural_type.shape.is_borrowed_byte_view()
-                    && structural_types.get(&structural_type.id).copied() == Some(structural_type)
+                    && structural_types.get(structural_type.id).copied() == Some(structural_type)
                     && matches!(
                         place.kind,
                         semantic_vocabulary::StructuralPlaceKind::ByteSequenceLiteral {
@@ -286,7 +286,7 @@ pub(in crate::lowering) fn storage_backs_view_parameter(
     {
         return false;
     }
-    let Some(declaration) = structural_types.get(&parameter.structural_type).copied() else {
+    let Some(declaration) = structural_types.get(parameter.structural_type).copied() else {
         return false;
     };
     let view_element = match &declaration.shape {
@@ -322,7 +322,7 @@ pub(in crate::lowering) fn storage_backs_view_parameter(
         Some(backing.extent),
         terminal_psi::ElementViewRegion::WholeCollection,
         path,
-        structural_types.get(&element).copied(),
+        structural_types.get(element).copied(),
     )
     .is_some()
 }

@@ -200,10 +200,8 @@ retired-syntax deletions to completion.
     [mutable recasts](omega-rust/psi/compilation/validation/recasts.md), and
     returns, preserving the audited inventories in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
-  - Reject a bound helper whose call admission depends on that same pending
-    helper result (`provider_contract_endpoint/controls/circular_endpoint_formation`),
-    and reject crash-capable bound helpers at admission rather than stopping at
-    an unrelated missing-body lowering error.
+  - Reject crash-capable bound helpers at admission rather than stopping at an
+    unrelated missing-body lowering error.
   - Qualify the applicable migrated filesystem customers' native/Terminal
     oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: spec/guide/compiler docs, bundled libraries, samples, `source/psi`,
@@ -253,9 +251,8 @@ retired-syntax deletions to completion.
     joined, projected call referents,
     supplied-output and lifetime-dependency descriptors, and backings with no
     enclosing owner; Terminal loan rows label accepted transfers `Unresolved`.
-  - Retire `machine Data::operation` and reserved `T::drop` spellings across
-    compiler/toolchain helper namespaces, operator/proof declarations, and
-    fixtures.
+  - Retire `machine Data::operation` spellings across compiler/toolchain
+    helper namespaces, operator/proof declarations, and fixtures.
   - Carry `dropped by` on named domains and data default domains through
     `source/psi/` product-producer parity, and qualify
     `samples/cli/facts/domain_selected_cleanup` execution across remaining
@@ -639,7 +636,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   staging once in the Terminal interpreter under
   [scoped build execution](wiki/spec/build/scoped_execution.md) and
   [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance).
-  Owners: `omega-rust/omega/build-system/build-evaluation/src/`,
+  Owners: `omega-rust/omega/build-system/build-settings/src/`,
   `omega-rust/omega/packages/{build-declarations,package-compilation,source-acquisition,build-output,package-manager}/`,
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
@@ -1760,7 +1757,7 @@ defines the complete product bar.
     (`omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs`),
     with package-local satisfaction discovery, separate runner roots, and
     Terminal Psi + native execution in `omega-rust/omega/compilation/compiler/`.
-  - Extend `omega-rust/omega/build-system/build-evaluation/src/admission/program.rs`
+  - Extend `omega-rust/omega/build-system/build-settings/src/admission/program.rs`
     and `omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`
     to carry group-scoped providers, ordinary fixture storage, fresh mock state,
     and lock-reviewed test authority without automatic mutable context
@@ -1980,8 +1977,10 @@ defines the complete product bar.
   access views end to end (`Psi 05–08` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
-  - Connect `Vec` growth/reallocation/drop to the real backing allocator so
-    dynamic `Vec` growth executes natively across hosts.
+  - Extend `alloc::Vec` beyond copy-scalar elements: retain initialized-element
+    custody across growth and discharge non-copy element cleanup before returning
+    vacant backing to the allocator.
+  - Execute the library growth/release/reset witnesses on Linux and macOS hosts.
   Acceptance: `tests/omega/pass/memory/bump_allocator_canary` and `Vec` growth
   witnesses execute via `omega run --both` with real backing, coexisting
   allocations, preserved prefix elements on growth, and full reset after

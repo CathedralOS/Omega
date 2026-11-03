@@ -129,6 +129,7 @@ fn fixture(
             .conditions
             .retain_predicate(
                 terminal_psi::ScalarConditionSubject::Declaration(declaration),
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
                 "actual ABI extent helper debt".into(),
                 nodes,
                 root,

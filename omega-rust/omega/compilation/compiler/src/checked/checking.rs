@@ -121,7 +121,7 @@ impl PreparedPackageInvocation {
     }
     pub(super) fn settle_catalog(
         self,
-        returned: build_evaluation::ReturnedBuild,
+        returned: build_settings::ReturnedBuild,
     ) -> Result<super::package_compilation::SourceBuildDeclaration, CompileFailure> {
         let capture = self.capture.ok_or_else(|| {
             vec![Diagnostic::error(
@@ -153,7 +153,7 @@ impl PreparedPackageInvocation {
     }
     pub(super) fn observe_declaration(
         &self,
-        returned: &build_evaluation::ReturnedBuild,
+        returned: &build_settings::ReturnedBuild,
     ) -> Result<super::package_compilation::SourceBuildDeclaration, CompileFailure> {
         self.source.validate_return(returned)?;
         let capture = self.capture.as_ref().ok_or_else(|| {
@@ -194,13 +194,13 @@ impl PreparedPackageInvocation {
         Ok(())
     }
 
-    pub(super) fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+    pub(super) fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.source.execution()
     }
 
     pub(super) fn settle(
         self,
-        returned: Option<build_evaluation::ReturnedBuild>,
+        returned: Option<build_settings::ReturnedBuild>,
     ) -> Result<compilation_products::SettledPackageBuild, CompileFailure> {
         let inputs = self.inputs.ok_or_else(|| {
             vec![Diagnostic::error(
@@ -245,7 +245,7 @@ pub(super) fn begin_package_build_worker(
     request: CheckedCompileRequest,
     source: PreparedCheckedSource,
     reuse: SettledCheckReuse,
-    owner: &build_evaluation::PureBuildCompilation,
+    owner: &build_settings::PureBuildCompilation,
 ) -> Result<PreparedPackageInvocation, CompileFailure> {
     let selected_target =
         target::TargetProfile::from_omega_target_name(request.target_name.as_deref())
@@ -285,7 +285,7 @@ impl SourceCompilation {
     pub fn product_queries(&self) -> ProductQueries {
         self.source.product_queries()
     }
-    pub fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+    pub fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.source.execution()
     }
 
@@ -307,7 +307,7 @@ impl SourceCompilation {
 
     pub(super) fn select(
         self,
-        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
         selections: &mut psi_compiler::ProductSelections,
     ) -> Result<SelectedCompileOutcome, CompileFailure> {
         let prepared = self.source.complete(returned?, None, None)?;
@@ -323,7 +323,7 @@ impl SourceCompilation {
 
     pub(super) fn check(
         self,
-        returned: Result<Option<build_evaluation::ReturnedBuild>, CompileFailure>,
+        returned: Result<Option<build_settings::ReturnedBuild>, CompileFailure>,
         selections: &mut psi_compiler::ProductSelections,
     ) -> Result<compilation_products::CheckedProductSource, Vec<Diagnostic>> {
         let prepared = self
@@ -349,7 +349,7 @@ pub(super) fn prepare_source_compilation(
     root: &Path,
     source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
-    pure_build_compilation: &build_evaluation::PureBuildCompilation,
+    pure_build_compilation: &build_settings::PureBuildCompilation,
 ) -> Result<SourceCompilation, CompileFailure> {
     let target = child.selected_target_profile;
     let inputs = child.package_inputs.cloned();
@@ -371,7 +371,7 @@ fn prepare_build_source_invocation(
     root_path: &Path,
     mut source: PreparedCheckedSource,
     child: CheckedExecutionRequest<'_>,
-    pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
+    pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
 ) -> Result<build_continuation::BuildSourceInvocation, CompileFailure> {
     source.admit_root(root_path)?;
     child.admit_package_inputs()?;

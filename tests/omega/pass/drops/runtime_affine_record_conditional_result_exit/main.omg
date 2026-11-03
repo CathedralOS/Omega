@@ -4,7 +4,7 @@
 use omega_language_std::console;
 
 data Observation { value: i32; }
-data Receipt<'storage> { destination: &'storage mut i32; }
+data Receipt<'storage> dropped by drop_receipt<'storage> { destination: &'storage mut i32; }
 data Answer [copy] { value: i32; }
 data Envelope { observation: Observation; }
 data Main {}
@@ -13,7 +13,7 @@ machine observe(value: i32) -> i32 { value }
 machine record_cleanup(destination: &mut i32) {
     destination = ((destination as i32 in Wrapping) + 1) as i32;
 }
-machine Receipt::drop(receipt: &mut Receipt<'storage>) {
+machine drop_receipt<'storage>(receipt: &mut Receipt<'storage>) {
     record_cleanup(receipt.destination);
 }
 

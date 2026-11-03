@@ -1,13 +1,13 @@
 use omega::language::core::content;
 use omega::language::core::drop;
 data Slot { }
-data Capacity [linear] { }
+data Capacity [linear] dropped by drop_capacity { }
 domain Capacity::Held established by acquire;
 machine Held::content(capacity: &Capacity) -> CountedQuantity<Slot>
 satisfies Content<Capacity, CountedQuantity<Slot>>::project {
  CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
-machine Capacity::drop(capacity: &mut Capacity) { }
+machine drop_capacity(capacity: &mut Capacity) { }
 machine acquire() -> Capacity in Capacity::Held { Capacity { } }
 // No authorized origin for Held is in this parameter's contract. Unlike
 // weakening and requalifying an already-held claim, this would mint authority.

@@ -79,6 +79,7 @@ pub(crate) enum OperationFlow {
 /// semantic work or charging it twice.
 pub struct TerminalExecution<'artifact> {
     pub(crate) scalar_applications: Option<terminal_installation::ScalarApplicationValues>,
+    pub(crate) scalar_entry_checks: Option<terminal_installation::ScalarEntryChecks>,
     pub(crate) entry_results: Option<crate::boundary::entry_results::EntryResults>,
     pub(crate) account: Option<EvaluationInvocationAccount>,
     /// A host fault is not a resumable pause. Retain its exact site and custody
@@ -707,6 +708,7 @@ impl<'artifact> TerminalExecution<'artifact> {
             next_operation: 0,
             entry_results: None,
             scalar_applications: None,
+            scalar_entry_checks: None,
             call_stack: Vec::new(),
             awaiting_effect: None,
             result: None,

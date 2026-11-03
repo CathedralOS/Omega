@@ -1259,16 +1259,18 @@ for a historical 148-project tree; current selection comes from discovery, not
 that historical count.
 
 `tools/sample_native_gate.py` runs each sample's `omega update`, then builds
-and runs it. Without `--cli` it first builds an opt-level 1 CLI into
-`build/gate-cli/` (with `mbx`, or Cargo when `mbx` is absent) and measures
-that: package review of a std-using sample takes minutes with the
-unoptimized dev binary, and 31 projects took 66 s with the optimized CLI
-against 436 s with the dev build, with identical results. The build is
-incremental and leaves `target/debug/omega` alone. The shared
-`build/gate-cli/` caches that build across every gate in one checkout, but a
-run never executes the shared image: it copies the built binary aside under a
+and runs it. Without `--cli` it first builds the opt-level 1 CLI (with `mbx`,
+or Cargo when `mbx` is absent) in the checkout's own Cargo target directory
+(`target/`, or `CARGO_TARGET_DIR`) and measures that. Package review of a
+std-using sample takes minutes with an unoptimized binary: 31 projects took
+66 s with the optimized CLI against 436 s unoptimized, with identical results.
+The dev profile is opt-level 1, so the gate's build and a plain
+`cargo build -p omega` share every artifact, and a compiler the session already
+built costs the gate under a second. A separate gate directory used to compile
+the whole compiler a second time, 12 minutes cold on a 4-core cloud session.
+A run never executes the shared image: it copies the built binary aside under
 `build/gate-cli.lock` and runs the copy, so two gates can reuse and rebuild the
-shared directory at once without one holding an open image the other's build
+target directory at once without one holding an open image the other's build
 cannot replace (witnessed 2026-10-17: the second of two concurrent gates failed
 with `failed to remove file build/gate-cli/debug/omega.exe: Access is denied`).
 An explicit `--cli` older

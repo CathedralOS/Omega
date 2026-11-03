@@ -32,7 +32,7 @@ fn produce(
         reviewed_repository_fixture_package_inputs(&root, None).expect("sealed fixture inputs");
     let mut request = CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = omega_build::check_source(&mut CompilationSession::default(), request)
+    let checked = orchestration::check_source(&mut CompilationSession::default(), request)
         .result
         .unwrap_or_else(|error| panic!("{machine}: {error:?}"));
     let typed = &checked.source_inspection().program().typed;
@@ -515,7 +515,7 @@ fn completed_helpers_return_original_entry_storage_to_the_embedding() {
                 ));
             } else {
                 let (settings, report) =
-                    build_evaluation::settings::extract(&instance, admission, &initial).unwrap();
+                    build_settings::settings::extract(&instance, admission, &initial).unwrap();
                 let expected =
                     package_compilation::build_execution::build_value::EvaluatedBuildSettings {
                         application_identifier: Some(
@@ -645,10 +645,10 @@ fn bind_build_hosts(
     instance: &mut terminal_interpreter::TerminalInstance<'_, '_>,
     produced: &psi_compiler::ProducedTerminalProgram,
     original: &TerminalStructuralValue,
-    binding: &std::sync::Arc<build_evaluation::host::bindings::TerminalBuildBindingHost>,
+    binding: &std::sync::Arc<build_settings::host::bindings::TerminalBuildBindingHost>,
 ) {
     let artifact = produced.artifact().expect("portable inspection");
-    let project = build_evaluation::host::requests::TerminalBuildRequestHost::new(
+    let project = build_settings::host::requests::TerminalBuildRequestHost::new(
         artifact.view().into(),
         produced.build_requests(),
         original.clone(),
@@ -716,7 +716,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
                 program.entry().unwrap().structural_parameters[0].structural_type,
                 Vec::new(),
             )];
-            let host = build_evaluation::host::bindings::TerminalBuildBindingHost::new(
+            let host = build_settings::host::bindings::TerminalBuildBindingHost::new(
                 artifact.view().into(),
                 produced.build_bindings(),
                 arguments[0].clone(),
@@ -726,7 +726,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
             let mut instance = zeroed_instance(&program, &arguments);
             bind_build_hosts(&mut instance, &produced, &arguments[0], &host);
             assert!(
-                build_evaluation::settings::extract(&instance, admission, &initial)
+                build_settings::settings::extract(&instance, admission, &initial)
                     .unwrap_err()
                     .contains("NormalReturnRequired")
             );
@@ -735,7 +735,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
                 match instance.invoke(&mut fuel).unwrap() {
                     TerminalExecutionStatus::SponsorExhausted(_) => {
                         assert!(
-                            build_evaluation::settings::extract(&instance, admission, &initial)
+                            build_settings::settings::extract(&instance, admission, &initial)
                                 .unwrap_err()
                                 .contains("NormalReturnRequired")
                         );
@@ -746,7 +746,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
                 }
             }
             assert!(instance.result().is_some(), "{machine} did not complete");
-            let result = build_evaluation::settings::extract(&instance, admission, &initial);
+            let result = build_settings::settings::extract(&instance, admission, &initial);
             if let Some(rejection) = rejection {
                 let error = result.unwrap_err();
                 assert!(error.contains(rejection), "{machine}: {error}");
@@ -814,7 +814,7 @@ fn build_settings_use_the_existing_validator_after_terminal_execution() {
             }
             instance.close().unwrap();
             assert!(
-                build_evaluation::settings::extract(&instance, admission, &initial)
+                build_settings::settings::extract(&instance, admission, &initial)
                     .unwrap_err()
                     .contains("Closed")
             );
@@ -868,7 +868,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
             program.entry().unwrap().structural_parameters[0].structural_type,
             Vec::new(),
         );
-        let host = build_evaluation::host::bindings::TerminalBuildBindingHost::new(
+        let host = build_settings::host::bindings::TerminalBuildBindingHost::new(
             artifact.view().into(),
             produced.build_bindings(),
             original.clone(),
@@ -885,7 +885,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
             );
             let (settings, _) =
-                build_evaluation::settings::extract(&instance, admission, &initial).unwrap();
+                build_settings::settings::extract(&instance, admission, &initial).unwrap();
             assert_eq!(
                 settings.application_identifier,
                 Some(target::ApplicationIdentifier::new(b"com.example.omega").unwrap())
@@ -899,7 +899,7 @@ fn full_build_pays_its_shared_sponsor_before_each_semantic_site() {
             );
             assert!(instance.result().is_none());
             assert!(
-                build_evaluation::settings::extract(&instance, admission, &initial)
+                build_settings::settings::extract(&instance, admission, &initial)
                     .unwrap_err()
                     .contains("NormalReturnRequired")
             );
@@ -980,7 +980,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
             program.entry().unwrap().structural_parameters[0].structural_type,
             Vec::new(),
         );
-        let host = build_evaluation::host::bindings::TerminalBuildBindingHost::new(
+        let host = build_settings::host::bindings::TerminalBuildBindingHost::new(
             artifact.view().into(),
             produced.build_bindings(),
             original.clone(),
@@ -1017,7 +1017,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
             );
             assert!(instance.result().is_none());
             assert!(
-                build_evaluation::settings::extract(&instance, admission, &initial)
+                build_settings::settings::extract(&instance, admission, &initial)
                     .unwrap_err()
                     .contains("NormalReturnRequired")
             );
@@ -1038,7 +1038,7 @@ fn full_build_reserves_owned_storage_and_retains_storage_faults() {
                 TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
             );
             let (settings, _) =
-                build_evaluation::settings::extract(&instance, admission, &initial).unwrap();
+                build_settings::settings::extract(&instance, admission, &initial).unwrap();
             assert_eq!(
                 settings.application_identifier,
                 Some(target::ApplicationIdentifier::new(b"com.example.omega").unwrap())

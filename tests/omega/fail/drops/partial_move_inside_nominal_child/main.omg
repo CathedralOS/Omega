@@ -1,8 +1,8 @@
 data Leaf { value: i32; }
-data Token { child: Leaf; }
+data Token dropped by drop_token { child: Leaf; }
 data Container { token: Token; }
 
-machine Token::drop(token: &mut Token) {}
+machine drop_token(token: &mut Token) {}
 
 machine detached(container: Container) {
     let token: Token = container.token;
@@ -16,7 +16,7 @@ machine main() {
         token: Token { child: Leaf { value: 7 } }
     };
     // A plain parent may transfer token whole, but cannot split the receiver
-    // that Token::drop must receive intact on this edge.
+    // that drop_token must receive intact on this edge.
     transition { _ -> done(container.token.child) }
     machine done(selected: Leaf) {}
 }

@@ -1725,11 +1725,7 @@ fn reference_result_memberships_match(
     else {
         return true;
     };
-    let Some(callee) = callee.machine().and_then(|machine| {
-        unit.functions
-            .iter()
-            .find(|function| function.machine == machine)
-    }) else {
+    let Some(callee) = callee.machine().and_then(|machine| unit.function(machine)) else {
         return true;
     };
     let Some(signature) = callee.result.structural() else {

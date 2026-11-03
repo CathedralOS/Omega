@@ -1,2 +1,2 @@
 cannot prove automatic cleanup requires
-Owner.first does not establish Receipt::drop
+Owner.first does not establish drop_receipt

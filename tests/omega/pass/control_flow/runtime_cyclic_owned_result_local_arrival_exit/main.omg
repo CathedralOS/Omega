@@ -4,8 +4,8 @@ use omega::language::core::drop;
 
 data Worker { identifier: u32; last_round: u32; }
 data Workers { first: Worker; second: Worker; }
-public data Ticket [linear] { number: u32; }
-machine Ticket::drop(ticket: &mut Ticket) {}
+public data Ticket [linear] dropped by drop_ticket { number: u32; }
+machine drop_ticket(ticket: &mut Ticket) {}
 data Label { number: u32; }
 data Job { ticket: Ticket; label: Label; worker: &Worker; }
 

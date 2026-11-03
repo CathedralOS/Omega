@@ -19,7 +19,7 @@ pub(super) struct BuildSourceInvocation {
     execution_contract: package_compilation::build_execution::BuildExecutionContract,
     parsed: compilation_products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
-    evaluation: build_evaluation::PreparedBuildEvaluation,
+    evaluation: build_settings::PreparedBuildEvaluation,
     package_inputs: Option<PackageCompilationInputs>,
     selected_target_profile: Option<target::TargetProfile>,
     build_execution_profile: Option<target::TargetProfile>,
@@ -35,7 +35,7 @@ pub(super) fn prepare_build_invocation(
     parsed: compilation_products::PreparedCheckedSource,
     frontier: TypedCompilationFrontier,
     mut timings: CompileTimings,
-    pure_build_compilation: Option<&build_evaluation::PureBuildCompilation>,
+    pure_build_compilation: Option<&build_settings::PureBuildCompilation>,
 ) -> Result<BuildSourceInvocation, CompileFailure> {
     let started = std::time::Instant::now();
     let CheckedExecutionRequest {
@@ -58,8 +58,8 @@ pub(super) fn prepare_build_invocation(
         base_sources,
     } = frontier;
     let build_input = source.build_input();
-    let evaluation = build_evaluation::prepare_build_evaluation(
-        build_evaluation::BuildEvaluationRequest {
+    let evaluation = build_settings::prepare_build_evaluation(
+        build_settings::BuildEvaluationRequest {
             pure_build_compilation,
             root_path,
             typed: build_input.typed,
@@ -114,17 +114,17 @@ impl BuildSourceInvocation {
     }
     pub(super) fn validate_return(
         &self,
-        returned: &build_evaluation::ReturnedBuild,
+        returned: &build_settings::ReturnedBuild,
     ) -> Result<(), CompileFailure> {
         self.evaluation.validate_return(returned)
     }
-    pub(super) fn execution(&mut self) -> Option<&mut build_evaluation::PreparedBuildExecution> {
+    pub(super) fn execution(&mut self) -> Option<&mut build_settings::PreparedBuildExecution> {
         self.evaluation.execution()
     }
 
     pub(super) fn complete(
         self,
-        returned: Option<build_evaluation::ReturnedBuild>,
+        returned: Option<build_settings::ReturnedBuild>,
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
     ) -> Result<compilation_products::PreparedBuild, CompileFailure> {
@@ -135,7 +135,7 @@ impl BuildSourceInvocation {
 
     pub(super) fn settle(
         self,
-        mut returned: Option<build_evaluation::ReturnedBuild>,
+        mut returned: Option<build_settings::ReturnedBuild>,
         joined_inputs: Option<&PackageCompilationInputs>,
         product_target: Option<target::TargetProfile>,
     ) -> Result<compilation_products::SettledBuildSource, CompileFailure> {
@@ -285,7 +285,7 @@ pub(super) fn prepare_settled_product(
 
 fn complete_build_source(
     frontier: TypedCompilationFrontier,
-    evaluated: build_evaluation::EvaluatedBuild,
+    evaluated: build_settings::EvaluatedBuild,
     package_inputs: Option<&PackageCompilationInputs>,
     build_execution_profile: Option<target::TargetProfile>,
     timings: &mut CompileTimings,
@@ -300,7 +300,7 @@ fn complete_build_source(
         mut generated_source_custody,
         mut base_sources,
     } = frontier;
-    let build_evaluation::EvaluatedBuild {
+    let build_settings::EvaluatedBuild {
         configuration: mut computed_build_config,
         restricted_build_requests,
         base_source_consumption_commitment,
@@ -428,11 +428,7 @@ pub(super) fn lower_typed_frontier(
             execution.target_name(),
         ))]);
     }
-    build_evaluation::select_build_helpers(
-        &mut syntax.syntax_trees,
-        execution,
-        &build_scope_sources,
-    );
+    build_settings::select_build_helpers(&mut syntax.syntax_trees, execution, &build_scope_sources);
     let build_source = syntax.build_source;
     let request = psi_compiler::SourceCompilationRequest {
         source_items: syntax.source_items,

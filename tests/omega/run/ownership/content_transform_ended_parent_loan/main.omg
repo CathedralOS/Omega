@@ -4,8 +4,8 @@
 use omega::language::core::content;
 use omega::language::core::drop;
 
-data Region [linear] { start: u64; end: u64; }
-machine Region::drop(region: &mut Region) {}
+data Region [linear] dropped by drop_region { start: u64; end: u64; }
+machine drop_region(region: &mut Region) {}
 domain Region::Owned;
 machine Owned::content(region: &Region) -> IntervalSet<Nat>
 satisfies Content<Region, IntervalSet<Nat>>::project {

@@ -210,3 +210,20 @@ Thirteen callback corpus positives execute with both engines; the updated local
 and schema controls reject malformed retained data. A subsequent duplicate
 operation identity guard was checked using the rebuilt codec and the same saved
 source-produced artifacts; the earlier full CLI producer predates only that guard.
+
+## Build-owned target-body migration
+
+The `target_body` place carries no source target prefix. Its four prefixed
+`evaluate` bodies became the requirement `SelectedEvaluate::evaluate`,
+implemented by ordinary `X86Evaluate` and `ArmEvaluate` and selected by
+explicit target-keyed `Build::select_provider` rows (`BUILD-OWNED-TARGET-
+SELECTION`). The requirement publishes `reaches Console, SelectedBodyCheck`:
+each implementation and entry wrapper checks a target tag (17 for x86-64, 29
+for AArch64) through the second selected requirement, so a wrong Build row
+traps, and `main` names that service in its reach. The callback, its `Console`
+ceiling and the `37 - result` oracle are unchanged. Observed with the
+optimized producer at `11bdd2fe41f` on macOS x86-64: the positive exits 0
+under `omega run --both` (native and Terminal Psi agree), and the twin still
+rejects because `X86Evaluate::evaluate` and `ArmEvaluate::evaluate` publish `Console + SelectedBodyCheck`
+but reach `Extra`. No compiler change was needed. The other hosted
+targets were not executed here.

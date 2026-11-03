@@ -168,7 +168,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         retained_artifacts::retain(&report, &build_dir)?;
     }
     let (report, executable) =
-        omega_build::publication::publish_native_artifact(report, &build_dir)
+        orchestration::publication::publish_native_artifact(report, &build_dir)
             .map_err(RunError::Publication)?;
     let execution = match request.target_name {
         Some(target_name) => ExecutionOutcome::TargetOnly { target_name },
@@ -321,7 +321,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
         retained_artifacts::retain(&report, &build_dir)?;
     }
     let (report, executable) =
-        omega_build::publication::publish_native_artifact(report, &build_dir)
+        orchestration::publication::publish_native_artifact(report, &build_dir)
             .map_err(RunError::Publication)?;
     let mut interpretations = interpretations.into_iter();
     let mut cases = Vec::new();

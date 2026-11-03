@@ -2,8 +2,8 @@
 // A linear Token [linear] carries its exact payload across the place and retires through its explicit consuming machine on every normal exit.
 use omega::language::core::drop;
 
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) { token.value = 0; }
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 machine retire(token: Token) -> u64 {
     let value: u64 = token.value;
     drop(token);

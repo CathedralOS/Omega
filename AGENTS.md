@@ -273,7 +273,7 @@ capability.
    source/library/sample/fixture migration and retired-syntax deletion bullets
    to completion. Read its full acceptance
    and verify its remaining gap with an optimized exact-source producer
-   for the recorded fixed base. Reuse a warm `build/gate-cli` or retained
+   for the recorded fixed base. Reuse a warm `target/` or retained
    producer with verified inputs; build only when those inputs changed or no
    valid producer exists. Never use an unverified cached binary. Name
    the exact requirement the next witness will discharge. Never filter discovery
@@ -980,7 +980,7 @@ bootstrap implementation; those meanings stay distinct in subjects.
 | `omega` | The Terminal-Psi-consuming compiler stage: Omega representations, transforms, optimization, and realization semantics in `omega-rust/omega/compilation/{representations,pipeline,realization}/` or corresponding `source/omega/` implementation. Never a project-wide default. |
 | `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/compilation/backend/` and their product-source equivalents. Transform policy in `pipeline/` remains `omega`. |
 | `compiler` | Product compilation coordination and reports in `omega-rust/omega/compilation/compiler/`, the source-free native driver in `omega-rust/omega/compilation/native-production/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
-| `build` | The build system in `omega-rust/omega/build-system/`: project and package flows in `omega-build/` and Build activation in `build-evaluation/`, plus product build declarations such as `source/omega/build.omg`. Provider planning and trust admission under `realization/` use `omega`; CLI policy-file handling uses `cli`. Repository build commands and CI use `repo`. |
+| `build` | The build system in `omega-rust/omega/build-system/`: project and package flows in `orchestration/` and Build activation in `build-settings/`, plus product build declarations such as `source/omega/build.omg`. Provider planning and trust admission under `realization/` use `omega`; CLI policy-file handling uses `cli`. Repository build commands and CI use `repo`. |
 | `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/packages/`. Package command wiring accompanying those changes keeps `packages`. |
 | `cli` | Command parsing, flags, help, and command dispatch in `omega-rust/omega/application/cli/src/`, plus the corresponding product entrypoint. The command's underlying compiler or package behavior uses its owning lane. |
 | `tooling` | Shipped developer tools and shared host support in `omega-rust/omega/foundation/`, including artifact file writing and measurements. Semantic trust records and admission under `realization/trust-model/` use `omega`. |

@@ -974,6 +974,21 @@ pub(crate) fn finalize_type_domain_instance_identities(
     Ok(())
 }
 
+/// A promise about `Word` must stop naming the generic parameter it replaced.
+/// Substituted signatures carry copied domain IDs until their complete type and
+/// contract graphs are finalized. Visit only this producer's new signatures;
+/// unchanged declarations and already prepared applications are not rescanned.
+pub(crate) fn finalize_callable_signature_identities(
+    program: &mut TypedTrees,
+    signatures: impl IntoIterator<Item = typed_trees::signature::StateSignature>,
+) -> Result<(), Diagnostic> {
+    for signature in signatures {
+        let references = typed_trees::references::collect_signature_references(program, &signature);
+        finalize_referenced_domain_instance_identities(program, references)?;
+    }
+    Ok(())
+}
+
 /// Finalize one producer's complete declaration graphs. Applied field views
 /// use the same type operation without inventing declaration roots or replaying
 /// the unchanged authored graph.

@@ -1,7 +1,7 @@
 // A fixed element can be the element a runtime selector vacated. Without
 // disjointness evidence it cannot be observed before restoration.
-data Token { byte: i32; }
-machine Token::drop(token: &mut Token) { token.byte = 0; }
+data Token dropped by drop_token { byte: i32; }
+machine drop_token(token: &mut Token) { token.byte = 0; }
 
 machine observe(tokens: &mut [Token], at: u64) -> i32
 requires tokens.len >= 2, at < tokens.len

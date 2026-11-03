@@ -99,12 +99,12 @@ fn collect_type_domain_rows(
     if readable_type_reference(program, reference).is_none() {
         return;
     }
-    for (domain_symbol, semantic_domain) in super::domain_constraint_identities(program, reference)
-    {
+    for domain in super::declared_domain_constraint_records(program, reference) {
         rows.push(FieldDomainRow {
             path: path.clone(),
-            domain_symbol,
-            semantic_domain,
+            domain_symbol: domain.symbol,
+            semantic_domain: domain.semantic_id,
+            arguments: domain.arguments.clone(),
             transfer,
         });
     }
@@ -167,6 +167,7 @@ fn place_element_rows(
             path,
             domain_symbol: row.domain_symbol,
             semantic_domain: row.semantic_domain,
+            arguments: row.arguments.clone(),
             transfer: transfer.unwrap_or(row.transfer),
         });
     }
@@ -182,6 +183,7 @@ pub struct FieldDomainRow {
     pub path: Vec<PlaceSegment>,
     pub domain_symbol: SymbolHandle,
     pub semantic_domain: language_semantics::SemanticDomainId,
+    pub arguments: Vec<TypeReferenceHandle>,
     pub transfer: bool,
 }
 
@@ -274,6 +276,7 @@ mod tests {
             path: vec![field, WHOLE_ELEMENT_EXTENT, case, field],
             domain_symbol: SymbolHandle::invalid(),
             semantic_domain: language_semantics::SemanticDomainId::NULL,
+            arguments: Vec::new(),
             transfer: true,
         };
         let runtime_index = PlaceSegment::Index {

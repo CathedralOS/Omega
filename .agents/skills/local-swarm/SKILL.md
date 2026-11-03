@@ -198,7 +198,7 @@ helper actions before executing them.
   `other_state`, `other_machine`, `target_body` + nine `<place>/invalid/` reject
   twins + 18 `tests/omega/{pass,fail}/facts/<fact>_through_<place>_{exit,rejected}`
   corpus fixtures). Verify baseline failures with a warm optimized exact-source
-  producer for the fixed recorded base (`build/gate-cli`), building only for
+  producer for the fixed recorded base (the checkout's `target/`), building only for
   changed producer inputs or a missing valid producer, never an unverified binary
   (`omega-latest.exe`). Transporting a `TASKS.md` construct across all nine
   places surfaces the real `omega-rust/` checking, proof, and lowering bugs that

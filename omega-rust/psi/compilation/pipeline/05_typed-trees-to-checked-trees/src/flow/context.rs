@@ -159,7 +159,6 @@ pub(super) struct FlowBuildContext<'plans> {
     program: &'plans dyn ::validation::CheckingInput,
     pub(super) scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
     pub(super) operators: &'plans checked_trees::CheckedOperatorFacts,
-    pub(super) exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
     pub(super) call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
     shared_tables: std::sync::Arc<SharedFlowTables>,
     /// Immutable constructor/row receipts, never a closed-world roster of
@@ -188,13 +187,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// does not imply the same applied local index tuple.
     pub(super) call_result_identities: HashMap<
         (SymbolHandle, usize, typed_trees::types::TypeReferenceHandle),
-        Rc<
-            Vec<(
-                Vec<facts::PlaceSegment>,
-                SymbolHandle,
-                language_semantics::SemanticDomainId,
-            )>,
-        >,
+        Rc<Vec<validation::field_domains::FieldDomainContract>>,
     >,
     /// The type-driven half of `call_result_qualification_identities`:
     /// owned-field and constraint domain rows keyed by return type, shared
@@ -202,13 +195,7 @@ pub(super) struct FlowBuildContext<'plans> {
     /// pays the scan once rather than each distinct target.
     pub(super) result_identity_domain_rows: HashMap<
         typed_trees::types::TypeReferenceHandle,
-        Rc<
-            Vec<(
-                Vec<facts::PlaceSegment>,
-                SymbolHandle,
-                language_semantics::SemanticDomainId,
-            )>,
-        >,
+        Rc<Vec<validation::field_domains::FieldDomainContract>>,
     >,
     /// Out-parameter `ensures <parameter> in D` rows per invocation: the same
     /// program-pure contract collection as `call_result_identities`.
@@ -354,7 +341,6 @@ impl<'plans> FlowBuildContext<'plans> {
         semantic: &FactPlan,
         scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
         operators: &'plans checked_trees::CheckedOperatorFacts,
-        exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
         call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
         state_mutation_summary_cache: &'plans StateMutationSummaryCache,
     ) -> Self {
@@ -366,7 +352,6 @@ impl<'plans> FlowBuildContext<'plans> {
             semantic,
             scalar_expressions,
             operators,
-            exact_integer_casts,
             call_frames,
             state_mutation_summary_cache,
             shared_tables,
@@ -381,7 +366,6 @@ impl<'plans> FlowBuildContext<'plans> {
         _semantic: &FactPlan,
         scalar_expressions: &'plans checked_trees::CheckedScalarExpressionPlans,
         operators: &'plans checked_trees::CheckedOperatorFacts,
-        exact_integer_casts: &'plans [validation::ExactIntegerCastFact],
         call_frames: Option<&'plans validation::CallFrameResolver<'plans>>,
         state_mutation_summary_cache: &'plans StateMutationSummaryCache,
         shared_tables: std::sync::Arc<SharedFlowTables>,
@@ -394,7 +378,6 @@ impl<'plans> FlowBuildContext<'plans> {
             state_outgoing_start: Default::default(),
             scalar_expressions,
             operators,
-            exact_integer_casts,
             call_frames,
             shared_tables,
             dynamic_conformances,

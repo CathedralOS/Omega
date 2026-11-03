@@ -4,7 +4,7 @@
 // No checked-tree interpretation, artifact reconstruction or trust bypass.
 use std::{fs, path::{Path, PathBuf}, process::{Command, Stdio}};
 use package_manager::operations::{prepare_local_project, LocalProjectPreparationOptions};
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use orchestration::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use terminal_runtime::{TerminalRuntimeRequest, TerminalDomainExitDelegation, TerminalClockSnapshot};
 use terminal_interpreter::TerminalExecutionStatus;
 
@@ -53,7 +53,7 @@ fn run(root: PathBuf) -> Result<(), String> {
     }
     // Publication owns the actual executable; no alternate emitter or native
     // reconstruction is involved. Every process gets a fresh finite stdin file.
-    let (_,executable)=omega_build::publication::publish_native_artifact(report,&output.join("native"))?;
+    let (_,executable)=orchestration::publication::publish_native_artifact(report,&output.join("native"))?;
     fs::write(output.join("executable-path.txt"),format!("{}\n",executable.display())).map_err(|e|e.to_string())?;
     for fixture in &fixtures {
         let name=fixture.file_stem().unwrap().to_string_lossy();

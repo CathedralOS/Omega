@@ -40,9 +40,10 @@ pub use provider_installation::{
     admit_provider_installation_with_assumed_bindings_from_artifact,
 };
 pub use scalar_applications::{
-    AdmittedScalarApplications, CallingAbiStorageDemand, ScalarAddressModel,
+    AdmittedScalarApplications, AdmittedScalarEntry, CallingAbiStorageDemand, ScalarAddressModel,
     ScalarApplicationClosure, ScalarApplicationObservations, ScalarApplicationValues,
-    ScalarConditionSelection, ScalarLayoutObservationError, ScalarScopeInputs,
+    ScalarConditionSelection, ScalarEntryChecks, ScalarEntryPrerequisites,
+    ScalarLayoutObservationError, ScalarScopeInputs,
 };
 pub use target_families::{
     AdmittedTargetMachineSelections, TargetMachineSelection, TargetMachineSelectionError,

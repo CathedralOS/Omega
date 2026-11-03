@@ -337,6 +337,7 @@ pub(super) fn check_call_requires(
                         expression,
                         target_machine.symbol,
                         state_flow.machine_symbol,
+                        semantic_vocabulary::ScalarConditionRole::Prerequisite,
                         format!(
                             "requires contract for call {} from {}: {}",
                             call_target_label(program, call_flow.target_symbol),

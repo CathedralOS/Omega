@@ -20,20 +20,19 @@ use symbols::SymbolHandle;
 pub(super) fn type_domain_rows(
     program: &dyn ::validation::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
-) -> Vec<(
-    Vec<facts::PlaceSegment>,
-    SymbolHandle,
-    language_semantics::SemanticDomainId,
-)> {
+) -> Vec<validation::field_domains::FieldDomainContract> {
     let fields = validation::reference_shell(program, return_type)
         .filter(|shell| shell.access.is_readable())
         .map_or(return_type, |shell| shell.referee);
     let mut domains =
-        validation::field_domains::declared_result_field_domain_identities(program, fields);
+        validation::field_domains::declared_result_field_domain_contracts(program, fields);
     domains.extend(
-        validation::field_domains::domain_constraint_identities(program, return_type)
+        validation::field_domains::declared_domain_constraint_records(program, return_type)
             .into_iter()
-            .map(|(symbol, identity)| (Vec::new(), symbol, identity)),
+            .map(|domain| validation::field_domains::FieldDomainContract {
+                identity: (Vec::new(), domain.symbol, domain.semantic_id),
+                arguments: domain.arguments.clone(),
+            }),
     );
     domains
 }

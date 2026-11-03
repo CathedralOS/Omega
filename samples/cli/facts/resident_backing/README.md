@@ -76,7 +76,12 @@ retained handle and that unknown or out-of-bounds ranges supply no storage.
 The [package allocator customer](../../../../tests/omega/pass/memory/bump_allocator_canary/README.md)
 extends this lifecycle through the ordinary Bump package: exhausted allocation,
 release without cursor rewind, checked recomposition, full reset, and reuse.
-Vec growth/reallocation/drop remains the parent outcome's acceptance.
+Generic Vec element ownership and cleanup remain the parent outcome's acceptance.
+
+The [library-growth production](library_growth/README.md) runs that lifecycle
+through the alloc package's runtime-sized u32 vector. The application provides
+backing and its selected profile; the library preserves the initialized prefix
+and returns old storage for explicit release. Its twin omits vacancy issuance.
 
 The [runtime-cell production](runtime_cells/README.md) partitions at runtime,
 updates actual backing through a qualification-erasing view, and rejoins the

@@ -35,7 +35,7 @@ pub(super) struct AcceptedCompilationRequest<'request> {
     pub closure: ExactTargetPackageSourceClosure<'request>,
     pub accepted: Option<&'request PackageLockTarget>,
     pub entry: &'request Path,
-    pub snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
+    pub snapshot: Option<&'request build_settings::BuildSnapshotRequest>,
     pub verify: bool,
     pub timings: bool,
     pub product: CompilationProduct,
@@ -57,7 +57,7 @@ fn invalid_production_root(product: &CompilationProduct, role: BuildDeclarationK
 pub struct ProjectCompilationAdmissionRequest<'request> {
     pub prepared: super::PreparedLocalProject,
     pub target_profiles: &'request [target::TargetProfile],
-    pub snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
+    pub snapshot: Option<&'request build_settings::BuildSnapshotRequest>,
     pub verify: bool,
     pub timings: bool,
     pub product: CompilationProduct,
@@ -416,7 +416,7 @@ struct AdmittedOccurrence {
     context: PackageCheckedContext,
     inputs: package_compilation::PackageCompilationInputs,
     entry: std::path::PathBuf,
-    snapshot: build_evaluation::BuildSnapshotRequest,
+    snapshot: build_settings::BuildSnapshotRequest,
 }
 
 fn prepare_occurrences(
@@ -543,7 +543,7 @@ fn prepare_occurrence_contexts(
             } else {
                 None
             }
-            .unwrap_or_else(|| build_evaluation::BuildSnapshotRequest::new(empty::<Vec<u8>>()));
+            .unwrap_or_else(|| build_settings::BuildSnapshotRequest::new(empty::<Vec<u8>>()));
             let inputs = if !is_root && !request.verify {
                 match custody.compiled_review_cache_dir() {
                     Some(directory) => {

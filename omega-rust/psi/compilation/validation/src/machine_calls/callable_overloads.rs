@@ -35,7 +35,12 @@ fn validate_machine_overloads(program: &dyn CheckingInput, diagnostics: &mut Vec
                     .symbols
                     .source_scopes_separate(*previous_symbol, machine.symbol)
         }) {
-            diagnostics.push(duplicate_diagnostic(program, "machine", identity));
+            diagnostics.push(duplicate_diagnostic(
+                program,
+                "machine",
+                &lexical_machine_name(program, machine),
+                identity,
+            ));
         } else {
             seen.push((identity, machine.symbol));
         }
@@ -57,7 +62,12 @@ fn validate_trait_requirement_overloads(
                         .symbols
                         .source_scopes_separate(*previous_symbol, requirement.symbol)
             }) {
-                diagnostics.push(duplicate_diagnostic(program, "requirement", identity));
+                diagnostics.push(duplicate_diagnostic(
+                    program,
+                    "requirement",
+                    &format!("{}::{}", trait_definition.name, requirement.name),
+                    identity,
+                ));
             } else {
                 seen.push((identity, requirement.symbol));
             }
@@ -65,9 +75,28 @@ fn validate_trait_requirement_overloads(
     }
 }
 
+/// The authored name of one machine with its enclosing machines, such as
+/// `outer::helper`. The callable identity's path is a package-qualified
+/// encoding for comparison and export; a reader of the diagnostic needs the
+/// name as written. Duplicates share a scope, so no module prefix is needed.
+fn lexical_machine_name(
+    program: &dyn CheckingInput,
+    machine: &typed_trees::machine::Machine,
+) -> String {
+    let mut names = vec![machine.name.as_str()];
+    let mut parent = program.symbols.get(machine.symbol).parent;
+    while parent.is_valid() && program.symbols.get(parent).kind == symbols::SymbolKind::Machine {
+        names.push(program.symbols.name(parent));
+        parent = program.symbols.get(parent).parent;
+    }
+    names.reverse();
+    names.join("::")
+}
+
 fn duplicate_diagnostic(
     program: &dyn CheckingInput,
     kind: &str,
+    name: &str,
     identity: CallableIdentityId,
 ) -> Diagnostic {
     let result_dispatch = program.callable_identity_result_dispatch(identity);
@@ -77,8 +106,7 @@ fn duplicate_diagnostic(
         program.callable_result_dispatch_text(result_dispatch)
     };
     Diagnostic::error(format!(
-        "duplicate named {kind} overload `{}` with parameter signature `{}` and result dispatch set `{dispatch}`; predicate-only result refinements do not distinguish overloads",
-        program.callable_path_text(program.callable_identity_path(identity)),
+        "duplicate named {kind} overload `{name}` with parameter signature `{}` and result dispatch set `{dispatch}`; predicate-only result refinements do not distinguish overloads",
         program.callable_parameters_text(program.callable_identity_parameters(identity)),
     ))
 }

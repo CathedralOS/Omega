@@ -22,8 +22,8 @@ boundary trait WindowsConsoleIo {
     terminates;
 }
 
-data Room { count: u32 in Wrapping; }
-machine Room::drop(room: &mut Room)
+data Room dropped by drop_room { count: u32 in Wrapping; }
+machine drop_room(room: &mut Room)
 requires room.count == 10
 reaches Console
 {

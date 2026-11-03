@@ -2,9 +2,9 @@
 // Place: target_body.
 // Expected rejection: the arm moved `slot`, so reading it after the match is a use after transfer.
 data Counter { count: u64 in Wrapping; }
-data Token<'c> { counter: &'c mut Counter; mark: u64; }
+data Token<'c> dropped by drop_token<'c> { counter: &'c mut Counter; mark: u64; }
 
-machine Token::drop(token: &mut Token<'c>) {
+machine drop_token<'c>(token: &mut Token<'c>) {
     token.counter.count = token.counter.count + (token.mark as u64 in Wrapping);
 }
 

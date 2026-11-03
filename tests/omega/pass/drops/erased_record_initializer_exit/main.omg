@@ -1,7 +1,7 @@
 use omega_language_std::console;
 
-data Evidence { tag: i32; }
-machine Evidence::drop(evidence: &mut Evidence) {}
+data Evidence dropped by drop_evidence { tag: i32; }
+machine drop_evidence(evidence: &mut Evidence) {}
 data Carrier { before: i32; proof [erased]: Evidence; after: i32; }
 data Main { }
 

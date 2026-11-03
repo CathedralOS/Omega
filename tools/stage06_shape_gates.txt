@@ -70,7 +70,7 @@
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/saturating_shift.rs
 7 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/expression_preparation/structural_value_requirements.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/lib.rs
-11 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering.rs
+10 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering.rs
 4 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering/build_providers.rs
 2 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering/debug_map.rs
 1 omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi/src/machine_lowering/float_meanings.rs

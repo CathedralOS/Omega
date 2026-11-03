@@ -4,10 +4,10 @@
 // provider's `ensures result in Token::SuspensionSafe` grants it —
 // the claim is born strict, relaxing suspension without relaxing
 // CPU, thread, or address.
-public data Token [linear] {
+public data Token [linear] dropped by drop_token {
     id: u64;
 }
-machine Token::drop(token: &mut Token) { }
+machine drop_token(token: &mut Token) { }
 use omega::language::core::drop;
 public domain Token::SuspensionSafe = Carry::AcrossSuspend;
 boundary trait ClaimProvider {

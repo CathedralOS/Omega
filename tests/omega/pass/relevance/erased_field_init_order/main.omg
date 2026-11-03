@@ -2,8 +2,8 @@
 // member from its literal expression — `proof` sits between `after` and
 // `before` in the source while occupying no runtime position. The erased
 // member's own drop hook never becomes the record's obligation.
-data Evidence { tag: i32; }
-machine Evidence::drop(evidence: &mut Evidence) {}
+data Evidence dropped by drop_evidence { tag: i32; }
+machine drop_evidence(evidence: &mut Evidence) {}
 data Carrier { before: i32; proof [erased]: Evidence; after: i32; }
 
 machine inspect(carrier: &Carrier) -> bool {

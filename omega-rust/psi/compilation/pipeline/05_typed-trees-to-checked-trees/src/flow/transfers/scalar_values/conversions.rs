@@ -1,13 +1,11 @@
 //! A selected call result can still be a selected call when the statement
 //! wraps it in authored value conversions before landing it. Each conversion
-//! is classified once against the callee's declared carrier — mirroring
-//! `construct_integer_cast`'s admission order — so the captured result keeps
-//! the conversion's own bound instead of dissolving into the destination's
-//! carrier or vanishing entirely. A step that cannot describe a normal-return
-//! value fails the capture, never a widened guess.
+//! is classified once against the callee's declared carrier. A same-carrier
+//! retag or total inclusion keeps the captured result; a partial conversion
+//! is the arithmetic engine's decision, which flow does not read, so it fails
+//! the capture, never a widened guess.
 use super::captured::CapturedValue;
 use checked_trees::expression::{ExpressionHandle, ExpressionNode};
-use facts::IntegerRange;
 use typed_trees::types::PrimitiveType;
 
 /// A call nested under authored integer conversions: the call itself plus the
@@ -19,20 +17,11 @@ pub(super) struct SelectedCall<'a> {
     conversions: Vec<SelectedConversion>,
 }
 
-/// One classified conversion step over the running result carrier.
+/// One conversion step over the running result carrier: a same-carrier retag
+/// or a total carrier inclusion, matching `IntegerWiden`'s lowering selection.
 pub(super) struct SelectedConversion {
     pub source: PrimitiveType,
     pub target: PrimitiveType,
-    pub kind: ConversionKind,
-}
-
-pub(super) enum ConversionKind {
-    /// A same-carrier retag or a total carrier inclusion leaves the captured
-    /// result untouched, matching `IntegerWiden`'s lowering selection.
-    Widen,
-    /// A partial exact conversion keeps the meet of the operand interval and
-    /// the retained occurrence fact's proved spelling range.
-    Exact(IntegerRange),
 }
 
 impl SelectedCall<'_> {
@@ -117,13 +106,12 @@ fn classify_cast_chain(
         &typed_trees::expression::TableCastExpression,
     )],
     mut source_type: PrimitiveType,
-    exact_casts: &[validation::ExactIntegerCastFact],
 ) -> Option<Vec<SelectedConversion>> {
     validation::carrier_integer_range(source_type)?;
     let mut conversions = Vec::with_capacity(casts.len());
-    for (cast_expression, cast) in casts.iter().rev() {
+    for (_, cast) in casts.iter().rev() {
         let target_type = program.primitive_type_reference(cast.target_type)?;
-        let conversion = classify(*cast_expression, source_type, target_type, exact_casts)?;
+        let conversion = classify(source_type, target_type)?;
         source_type = conversion.target;
         conversions.push(conversion);
     }
@@ -132,7 +120,6 @@ fn classify_cast_chain(
 
 pub(super) fn selected_operand(
     program: &dyn ::validation::CheckingInput,
-    exact_casts: &[validation::ExactIntegerCastFact],
     state: symbols::SymbolHandle,
     statement_index: usize,
     source: ExpressionHandle,
@@ -157,7 +144,7 @@ pub(super) fn selected_operand(
             operand,
         )?)?,
     };
-    let conversions = classify_cast_chain(program, &casts, source_type, exact_casts)?;
+    let conversions = classify_cast_chain(program, &casts, source_type)?;
     Some(SelectedOperand {
         operand,
         conversions,
@@ -172,7 +159,6 @@ pub(super) fn selected_operand(
 /// extends it to occurrence-proved fixed-integer carrier conversions.
 pub(super) fn selected_call<'a>(
     program: &'a dyn ::validation::CheckingInput,
-    exact_casts: &[validation::ExactIntegerCastFact],
     source: ExpressionHandle,
 ) -> Option<SelectedCall<'a>> {
     let (expression, casts) = peel_transparent_casts(program, source)?;
@@ -189,7 +175,7 @@ pub(super) fn selected_call<'a>(
     }
     let callee = program.state_by_symbol(call.target_symbol)?;
     let source_type = program.primitive_type_reference(callee.return_type)?;
-    let conversions = classify_cast_chain(program, &casts, source_type, exact_casts)?;
+    let conversions = classify_cast_chain(program, &casts, source_type)?;
     Some(SelectedCall {
         call,
         expression,
@@ -198,34 +184,12 @@ pub(super) fn selected_call<'a>(
 }
 
 /// Classify one authored cast over the running result carrier, in
-/// `construct_integer_cast`'s order: a same-carrier or total inclusion is a
-/// widening and every partial conversion needs its retained occurrence fact.
-/// The destination policy changes future operations, never the captured value.
-fn classify(
-    expression: ExpressionHandle,
-    source: PrimitiveType,
-    target: PrimitiveType,
-    exact_casts: &[validation::ExactIntegerCastFact],
-) -> Option<SelectedConversion> {
+/// `construct_integer_cast`'s order: a same-carrier retag or a total inclusion
+/// is a widening. A partial conversion has no flow-side value.
+fn classify(source: PrimitiveType, target: PrimitiveType) -> Option<SelectedConversion> {
     // Fixed-width integer carriers only: Addr and the non-integer primitives
     // are distinct carriers that this slice does not convert.
     validation::carrier_integer_range(target)?;
-    let kind = if source == target || validation::integer_widen_is_total(source, target) {
-        ConversionKind::Widen
-    } else {
-        let fact = exact_casts.iter().find(|fact| {
-            fact.expression == expression
-                && fact.source_type == source
-                && fact.target_type == target
-        })?;
-        ConversionKind::Exact(IntegerRange {
-            minimum: fact.minimum.clone(),
-            maximum: fact.maximum.clone(),
-        })
-    };
-    Some(SelectedConversion {
-        source,
-        target,
-        kind,
-    })
+    (source == target || validation::integer_widen_is_total(source, target))
+        .then_some(SelectedConversion { source, target })
 }
