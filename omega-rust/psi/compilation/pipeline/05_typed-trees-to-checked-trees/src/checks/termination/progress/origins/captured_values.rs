@@ -200,8 +200,13 @@ fn resolve_captures(
                 handle,
                 &projection,
                 operands.last()?.storage_snapshot,
-            ) {
-                let selected = stored.captures()?;
+            )
+                // A snapshot that holds no completed capture for this value
+                // (an entry descriptor or an untracked slot) offers no
+                // shortcut; the value's own completed producers below still
+                // authenticate it, as they do for a non-reference capture.
+                && let Some(selected) = stored.captures()
+            {
                 if selected.is_empty() {
                     return None;
                 }
