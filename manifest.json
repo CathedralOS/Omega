@@ -1,0 +1,21 @@
+{
+  "source": "2273a67852265ff8215d373b029f3be7532f275a",
+  "source_bundle": {
+    "file": "2273a67852265ff8215d373b029f3be7532f275a.bundle",
+    "sha256": "87eff29d4036880de4945fed380c301928364005694a825df2e59d69a901e2ec",
+    "exported_ref": "refs/corpus-observations/2273a67852265ff8215d373b029f3be7532f275a",
+    "prerequisites": [
+      "e3c4ae4fb406f0a40e8988e2b79100ceeeaff5b3"
+    ]
+  },
+  "observations": {
+    "file": "observations.tar.gz",
+    "sha256": "25bebbfbf36e7625b832a53ded7425ce578a54888ebdfd67e0dfdeb900faeb54",
+    "bytes": 1531953,
+    "receipt_files": 841
+  },
+  "producer": "Both R20 compilers were built from the exact source revision below with empty compiler-input patches and verified opt-level 1. Their original receipts preserve the actual executable hashes.",
+  "source_boundary": "The source bundle retains code history. The archive includes the twelve-file oracle working-tree patch, exact fixture/oracle copies, lock replay inputs and original +wt stamps. Working-tree observations are not relabeled as clean source.",
+  "history": "Intermediate build and test failures, the deliberately canceled slow prototype, the corrected CLI exit 70 classification, and the initial stale-lock refusal remain explicit and uncredited. The final corpus qualification uses 29 completed observations and 3 fresh completion observations: 16 checks and 16 intended rejects.",
+  "scope": "Raw evidence only. This parentless evidence commit is outside the feature branch and main history."
+}
