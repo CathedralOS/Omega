@@ -22,11 +22,6 @@ accompanied by `<place>/invalid/` reject twins:
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | match join result evaluated and consumed inside intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | match join result evaluated across target-scoped machine bodies |
 
-Except the root, each place receives `Mode` as a parameter of `run` (or of
-the machine that hosts the operation), so its payload is known only through
-the type's requirement. A literal `Mode` value would let the checker prove the
-operation from the literal, and the reject twin would compile.
-
 ## Execution
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four
@@ -58,7 +53,12 @@ with the exact-arithmetic obligation
 (``exact arithmetic in machine `run` state `entry` local `diff1` may overflow
 `u64`: the operands are not provably in range (decision 17 -- exact arithmetic
 is a proof obligation)``, pinned as ``may overflow `u64` `` in each twin's
-`expected.txt`). Corrupting the observed
+`expected.txt`). Every place except the root receives the mode as a formal
+parameter, as `other_machine` always did: if `main` passed its constant
+`Mode::Mid { val: 40 }` straight into the helper, the checker would substitute
+that exact actual and read the result 40, so the twin's widened `High` gate
+would never be consulted.
+Corrupting the observed
 transition instead of the bound (`diff1 == 20 && diff2 == 20` to
 `diff1 == 21 && diff2 == 20`) routes to `bad()`, which executes `crash Trap;`;
 both engines abort non-zero (`native signal 5` with
@@ -101,7 +101,8 @@ measured with the generation pair built in this worktree at `93038434623`
 `bc33b4787586`) and anchored with the tree at the published base
 `4fba1ca3cd5a`, so each row stamps `@4fba1ca3cd5a+wt`. The other_state,
 local, field, parameter, call_result, match_join and const_name rows were
-re-recorded on Linux after those places moved into `run(mode: Mode)`; their macOS and
+re-recorded on Linux after those places moved into a `run` machine taking `Mode`
+as a parameter; their macOS and
 Windows rows still describe the earlier literal-value source and are
 unverified
 (`python3 tools/corpus_gate.py --record --runner <pair>/corpus_runner`, then
@@ -122,7 +123,8 @@ in `corpus_outcomes.txt`, +18 rows each in `corpus_native_macos_arm64.txt` and
 Direct runs with the same pair's CLI (opt_level 1, stdin closed, macOS arm64):
 the root and all nine places exit 0 through `omega run --both` (`native exit
 0`, `interp exit: 0`), and the nine twins exit 1 with the pinned ``may overflow
-`u64` `` fragment. Over both rows `tools/sample_gate.py --cli` reads 37/37
+`u64` `` fragment. (That historical run predates the formal-input migration;
+on current main the match-join and nested-machine twins compile.) Over both rows `tools/sample_gate.py --cli` reads 37/37
 checked with 18 intended rejection controls matched and
 `tools/sample_native_gate.py --facts --cli` reads 19/19 samples at their
 documented oracle on macos_arm64 with 18/18 intended-invalid controls. Earlier
@@ -145,7 +147,7 @@ Full 8-layer specification and lowering evidence:
   - `local`: match join result is bound to a local variable `local_joined` before subtracting.
   - `field`: match join result is stored in `JoinedCarrier.joined` record field and projected out.
   - `parameter`: match join result is passed to machine parameter `receive(val: u64)`.
-  - `call_result`: helper machine `produce_joined(mode)` returns the match join result across call boundaries.
+  - `call_result`: helper machine `produce_joined()` returns the match join result across call boundaries.
   - `match_join`: match join result converges across secondary match arms.
   - `const_name`: bounds `UPPER` and `LOWER` and constant `MODE` are defined by compile-time named constants.
   - `other_state`: match join result is passed across a transition edge into successor machine `step(val: u64)`.

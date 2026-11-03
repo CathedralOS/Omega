@@ -248,6 +248,14 @@ and constrained-call uses retain the same closed atom or const-binder identity.
 Open symbolic indices remain normalized artifact data; arbitrary machine
 evaluation does not participate in type equality.
 
+An integer index may retain checked domain qualifications, including its
+arithmetic policy, without changing its carrier's physical representation.
+Keep that theory in type/application identity and use the exact selected
+operation's contract. [Literal-linked identities](../proofs/contracts.md#literal-linked-index-identities)
+are established by published laws, not by executing a nullary slot inside an
+open index. Neither canonicalization nor a safe final result removes the
+authored expression's formation obligations.
+
 Eligible atoms are integers, Booleans, fixed arrays, records, and cases, with
 declaration order determining aggregate identity. Float/text values,
 references, slices, dynamic identities, and boundary-opaque values are not

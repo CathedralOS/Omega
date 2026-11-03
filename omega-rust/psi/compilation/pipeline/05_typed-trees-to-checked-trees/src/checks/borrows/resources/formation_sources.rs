@@ -3,8 +3,12 @@
 //! Every selected supplier must retain its established borrowing parent and
 //! presented access; neither the old slot nor equal backing authorizes a view.
 
+mod returned_projections;
+
+use super::formation_captures::{descriptor_capture, formation_capture};
+
 use arena::Handle;
-use checked_trees::{BorrowLoanFact, BorrowLoanLineage, CheckFacts, FlowOperandFact};
+use checked_trees::{BorrowLoanFact, BorrowLoanLineage, CheckFacts};
 use diagnostics::Diagnostic;
 
 pub(super) fn validate(
@@ -20,6 +24,10 @@ pub(super) fn validate(
             continue;
         };
         for (loan, row) in facts.borrow.state_loans(state) {
+            if row.formation == checked_trees::BorrowLoanFormation::ReturnedProjection {
+                returned_projections::validate(program, facts, state, flow_state, loan, row)?;
+                continue;
+            }
             let BorrowLoanLineage::Reborrow { parent_loan } = row.lineage else {
                 continue;
             };
@@ -126,51 +134,6 @@ pub(super) fn validate(
         }
     }
     Ok(())
-}
-
-fn descriptor_capture(
-    program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
-    source: Handle<FlowOperandFact>,
-) -> Option<Handle<FlowOperandFact>> {
-    let mut capture = source;
-    let mut visited = Vec::new();
-    while facts.flow.control.operands.is_valid(capture) && !visited.contains(&capture) {
-        visited.push(capture);
-        let row = facts.flow.control.operands.get(capture);
-        if validation::reference_shell(program, row.type_reference).is_some() {
-            return Some(capture);
-        }
-        row.address_projection?;
-        capture = row.backing;
-    }
-    None
-}
-
-fn formation_capture(
-    facts: &CheckFacts,
-    formation: Handle<FlowOperandFact>,
-    source: typed_trees::expression::ExpressionHandle,
-) -> Option<Handle<FlowOperandFact>> {
-    let mut pending = vec![formation];
-    let mut visited = Vec::new();
-    let mut selected = Handle::invalid();
-    while let Some(capture) = pending.pop() {
-        if visited.contains(&capture) || !facts.flow.control.operands.is_valid(capture) {
-            continue;
-        }
-        visited.push(capture);
-        let row = facts.flow.control.operands.get(capture);
-        if row.expression == source {
-            if selected.is_valid() {
-                return None;
-            }
-            selected = capture;
-        }
-        pending.extend(row.evaluated_inputs.handles());
-        pending.push(row.backing);
-    }
-    selected.is_valid().then_some(selected)
 }
 
 fn nearest_parents(

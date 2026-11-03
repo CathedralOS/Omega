@@ -17,10 +17,11 @@ machine evaluate(mode: Mode) -> u64 {
     }
 }
 
-// `run` receives `mode` as a parameter, so the payload is known only through
-// `Mode`'s requirement; the operation below must use the joined bound.
-machine run(mode: Mode) crashes Trap {
-    let joined: u64 = evaluate(mode);
+// The mode arrives as a formal parameter, so only Mode's data `requires`
+// bounds `joined`; a constant actual would let the checker read the helper's
+// exact result instead.
+machine run(m: Mode) crashes Trap {
+    let joined: u64 = evaluate(m);
     let local_joined: u64 = joined;
     let diff1: u64 = 60u64 - local_joined;
     let diff2: u64 = local_joined - 20u64;
