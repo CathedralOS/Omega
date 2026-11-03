@@ -3391,9 +3391,9 @@ impl<'program> StructuralJudge<'program> {
                     StructuralJudgment::Unknown => self
                         .declaration_expression_type(binary.left)
                         .map_or(StructuralJudgment::Unknown, |reference| {
-                            // Select the original scalar fields before a
-                            // parent case rewrite hides their saved subjects
-                            // behind a fresh payload binder.
+                            // A case rewrite can hide saved field values behind a
+                            // fresh payload binder. Select the original fields
+                            // before normalizing their enclosing value.
                             let original = self.judge_equation(
                                 self.record_fields_term(source_left, reference, &mut Vec::new()),
                                 self.record_fields_term(source_right, reference, &mut Vec::new()),

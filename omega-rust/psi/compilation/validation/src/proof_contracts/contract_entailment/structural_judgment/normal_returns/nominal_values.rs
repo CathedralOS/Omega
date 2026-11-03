@@ -101,10 +101,13 @@ impl StructuralJudge<'_> {
         let mut exported = Vec::new();
         while let Some(index) = pending.pop() {
             let mut receipt = receipts[index].clone();
-            // Resolve saved fields before their local bindings disappear.
-            // Follow any captured values still used by those fields, while
-            // preserving the returned capture's exact identity.
-            receipt.observed_value = self.resolve(receipt.observed_value);
+            // Callers need the returned field values after local names disappear.
+            // Select their original paths before rewriting the whole payload.
+            receipt.observed_value = self.detach_returned_nominal_value(
+                receipt.reference,
+                receipt.observed_value,
+                &mut Vec::new(),
+            );
             retain_captures(
                 &receipt.observed_value,
                 receipts,
@@ -116,6 +119,102 @@ impl StructuralJudge<'_> {
         }
         exported.sort_unstable_by_key(|(index, _)| *index);
         exported.into_iter().map(|(_, receipt)| receipt).collect()
+    }
+
+    fn detach_returned_nominal_value(
+        &self,
+        reference: TypeReferenceHandle,
+        value: StructuralTerm,
+        active: &mut Vec<TypeReferenceHandle>,
+    ) -> StructuralTerm {
+        let detached = (|| {
+            // Saving a field must not read through a reference. Reference fields
+            // keep their descriptors; scalar values keep their original paths.
+            if crate::reference_shell(self.program, reference).is_some()
+                || self.program.primitive_type_reference(reference).is_some()
+                || active.contains(&reference)
+                || active.len() >= 32
+            {
+                return None;
+            }
+            if let StructuralTerm::ObservedValue { .. } = &value {
+                let owned = super::super::super::structural_terms::owned_observation_type(
+                    self.program,
+                    &value,
+                )?;
+                if !crate::declared_carriers_match(self.program, reference, owned) {
+                    return None;
+                }
+            }
+            if matches!(value.semantic_value(), StructuralTerm::Opaque(_)) {
+                return None;
+            }
+            let definition =
+                crate::field_domains::readable_nominal_definition(self.program, reference)?;
+            let mut variants = self
+                .program
+                .data_members(definition)
+                .iter()
+                .filter_map(typed_trees::data::DataMember::as_variant)
+                .peekable();
+            let variant = if variants.peek().is_some() {
+                let mut selected = variants.filter(|variant| {
+                    matches!(
+                        self.judge_case(value.clone(), definition.symbol, variant.symbol),
+                        super::StructuralJudgment::Proven
+                    )
+                });
+                let selected_variant = selected.next()?;
+                if selected.next().is_some() {
+                    return None;
+                }
+                Some(selected_variant)
+            } else {
+                None
+            };
+            let observed = super::super::super::structural_terms::owned_projection_observation(
+                self.program,
+                reference,
+                value.clone(),
+            );
+            active.push(reference);
+            let constructed = super::super::super::structural_terms::captured_constructor_term(
+                self.program,
+                definition,
+                variant,
+                |field| {
+                    let mut path = Vec::new();
+                    crate::value_custody::places::push_field_place_segments(
+                        self.program,
+                        &mut path,
+                        field.symbol,
+                    );
+                    let projected = crate::project_type_reference_from_segments(
+                        self.program,
+                        reference,
+                        &path,
+                    )?;
+                    let field_value =
+                        super::super::super::observed_projections::project_observed_value_in_scope(
+                            self.program,
+                            self,
+                            reference,
+                            observed.clone(),
+                            &path,
+                        )?;
+                    Some(self.detach_returned_nominal_value(projected, field_value, active))
+                },
+            );
+            active.pop();
+            Some(
+                super::super::super::structural_terms::owned_projection_observation(
+                    self.program,
+                    reference,
+                    constructed?,
+                ),
+            )
+        })();
+        detached.unwrap_or_else(|| self.resolve(value))
     }
 
     /// Record the value established by this completed operation. Its unique

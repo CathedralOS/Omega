@@ -52,11 +52,14 @@ reject their intended diagnostics. No timeout or infrastructure failure occurred
 Local, field and constant each still have four contract proof errors, all in
 `FirstAgreement::round_trip` and its specialization at statements 2 and 3. The
 remaining obligation is equality of the complete returned and original Pairs.
-Before comparing their fields, the checker replaces the decoder projection with
-a fresh value introduced by the match. That obscures the original saved result.
-The pending repair must keep that typed source available while comparing the
-Pair's fields. The surrounding Request contains a mutable buffer reference;
-whole-value identity must not supply its current contents or access permission.
+[The local follow-up](https://github.com/CathedralOS/Omega/actions/runs/41728162861)
+at `eb40e219ab92c59818eba8a1c376213d78ec74ce` still reports those four errors.
+It selects the original field paths, but the compiler's saved description of the
+returned value has already replaced the decoder result with a local match name.
+Inside `restore`, the same fields still name the original decoder result. The
+pending repair must keep those field values when the helper returns. The
+surrounding Request contains a mutable buffer reference; saving its owned fields
+must not grant a read through that reference or extend its access permission.
 
 Earlier traces retain entry byte identities, all three caller byte facts through
 owned Frame arguments and both decoder field equations. The new result proves
