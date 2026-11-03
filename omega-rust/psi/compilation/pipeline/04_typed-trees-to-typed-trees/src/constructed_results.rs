@@ -145,8 +145,8 @@ fn occurrences(
     Vec<(ValueTypeOwner, ExpressionHandle)>,
     identity_context::ConstructorPeers,
 ) {
-    // Contract owner queries share one index while this scan only reads the trees.
-    // Drop it with this function before result-type preparation mutates them.
+    // Resolve each `result` expression without rescanning every function contract.
+    // This pass only reads the trees; drop its index before type preparation changes them.
     let contract_input = validation::CheckingContext::new(program);
     let mut occurrences = Vec::new();
     let mut peers = identity_context::ConstructorPeers::new();
