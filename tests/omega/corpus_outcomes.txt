@@ -17320,8 +17320,9 @@ fail/build/product_selection_repeated_helper rejected 432ms expected @ccdb99ca22
 	build selects opaque representation `Token` more than once
 fail/build/product_selection_unused_invalid_carrier rejected 487ms expected @ccdb99ca2214
 	opaque representation carrier graph at `TokenBytes` is affine; a copyable opaque datum requires every carrier declaration to be structurally `[copy]`; v1 carriers must be inert storage
-fail/build/program_entry_binding_outside_build rejected 115ms unexpected @ccdb99ca2214
-	Build selection requires its exact toolchain protocol
+fail/build/program_entry_binding_outside_build rejected 15846ms expected @f20f9c0b8384+wt
+	argument `builder` for state `prepare` expects `&Build`, got `named value`; expected carrier `ref(named(name(nominal\\(toolchain-owner\\,path\\(Build\\)\\))))`, declared place carrier `named(name(nominal\\(package-owner\\(32:787872d1d8981bd28a9b55962ada1d6d09dbb87a2a3ab944cefe773b82514a48\\)\\,path\\(Main\\)\\)))`
+	argument `builder` for state `prepare` expects the `Build` data type but got `Main` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
 fail/build/program_entry_receiver_not_zii rejected 2046ms expected @911f6617ba9e
 	machine `entry_start` state `entry` statement 1: reading `entry_storage.<whole value>` crosses an open default-domain invariant window before data `Application` is established: the zeroed representation is not yet a `Application` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/build/program_entry_returns_value rejected 3446ms expected @ccdb99ca2214
