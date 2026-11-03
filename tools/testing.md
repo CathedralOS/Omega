@@ -1534,7 +1534,7 @@ speedup.
 
 [release_record.py](release/release_record.py) runs the
 [release matrix](../wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
-the eight `RC-*` gates with their exact contract invocations on one host, and
+the six `RC-*` gates with their exact contract invocations on one host, and
 writes that lane's release record (`commit`, toolchain, host, commands,
 results, elapsed time, expected skips, direct-execution observation). `close`
 joins the four lanes' same-commit records into the release closure. It does
