@@ -11,13 +11,10 @@ slot also cannot redirect an earlier argument's saved reference. When the
 helper borrows an entire record, its returned field view keeps that complete
 input borrowed until the view finishes; another field cannot be written early.
 
-The compiler records the checked normal-return relation and the exact evaluated
-reference that lends the new view. Copies and selections follow every saved
-source to its real borrowing parent. Calls and ordinary view formation use the
-same source lookup. A projected child remains a new borrow; pointer forwarding,
-shared access, full input lifetime debt and slot replacement retain their own
-meaning. Installed outputs and returned references use the same evaluated input
-handles, including after dynamic selector and receiver separation.
+The saved reference stays connected to the original data and the permission to
+read it. Copying it or making another view preserves that connection. Replacing
+the source variable changes its next read; it does not redirect an earlier copy
+or release data that the copy still needs.
 
 Parent: [STATIC-MACHINE-MIGRATION](../../../../../TASKS.md). This production
 establishes checked carry for helper-returned projections of owned input backing,
@@ -76,6 +73,24 @@ The controls are pinned under
   a byte-selection helper. Its saved result reads byte 50 from the sliced
   window. The exact source window and primitive endpoint survive the return;
   retaining that source never takes an owned byte-value snapshot.
+
+The compiler records each argument when it finishes evaluating and reuses that
+record for returned and stored references. A later argument cannot replace an
+earlier argument's saved value. A reference reached through a pointer is read
+at call entry, after argument evaluation, and keeps that later storage version.
+
+A view of part of an input records which saved reference lends it access. The
+borrow checker follows every possible source to its real borrowing parent.
+Separate lifetime records retain the complete input required by the call, so
+selecting one field cannot release the rest of that input early. Slot replacement
+and shared copies retain their existing closure rules.
+
+References returned without borrowed input, such as literal-backed views, keep
+the checked call that supplied them even when its absolute address is unknown.
+An empty lifetime list alone supplies no permission or image-storage evidence.
+Terminal execution captures the original byte view and checks a returned byte
+against its window, access and original primitive storage before ordinary return
+and disposal checks. Retaining that source creates no owned byte observation.
 
 ## Requirements and evidence
 
