@@ -278,7 +278,7 @@ fn join_import_coverage_rows<'input>(
             .entry(*boundary)
             .or_insert_with(|| ImportCoverageRows {
                 boundary: *boundary,
-                requirement: *requirement,
+                requirement,
                 selected_count: 0,
                 selected_external: None,
                 external: None,
@@ -436,16 +436,21 @@ fn authenticate_callback_application(
         .map(|plan| plan.commitment)
         .ok_or("callback selected method has no admitted calling application")?
         .as_bytes();
-    let offset = application.authenticated_callback_offset(
+    let placements = application.authenticated_callback_placements(
         expected,
         callback.binder,
         &callback.destination,
         &callback.application,
         &callback.registrar_context,
     )?;
-    if offset != callback.field_byte_offset {
+    if placements.as_deref()
+        != callback
+            .field_placements
+            .as_ref()
+            .map(|placements| placements.as_slice())
+    {
         return Err(
-            "callback field offset differs from its authenticated catalog geometry".to_owned(),
+            "callback field placements differ from its authenticated catalog geometry".to_owned(),
         );
     }
     Ok(())

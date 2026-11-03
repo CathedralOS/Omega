@@ -1,5 +1,5 @@
-// Token and named calls retain selected checked supply across concrete
-// applications, nested calls, and descriptor copies after the source is rebound.
+// Builtin ranges and checked named helpers preserve their original backing
+// across generic calls, descriptor copies, empty windows and source rebinding.
 use omega::language::core::slice;
 
 machine middle<Element>(items: &[Element], start: u64, end: u64) -> &[Element]
@@ -8,13 +8,13 @@ ensures result.len == end - start {
     items[start..end]
 }
 data Main {}
-machine Main::main(main: &mut Main) crashes Trap {
+machine exercise(main: &mut Main) crashes Trap {
     let bytes: [u8; 4] = [10, 70, 42, 1];
     let values: [i32; 3] = [0, 123, 0];
     let mut whole: &[u8] = &bytes;
     let saved: &[u8] = middle(whole, 1, 3);
-    let nested: &[u8] = Slice::range<u8>(saved, 1, 2);
-    let empty: &[u8] = Slice::range<u8>(whole, 4, 4);
+    let nested: &[u8] = slice_range<u8>(saved, 1, 2);
+    let empty: &[u8] = slice_range<u8>(whole, 4, 4);
     let words: &[i32] = middle(&values, 1, 3);
     whole = &bytes[0..1];
     transition saved.len == 2 && saved[0] == 70 && nested.len == 1
@@ -26,8 +26,8 @@ machine Main::main(main: &mut Main) crashes Trap {
     machine bad() { crash Trap; }
 }
 
-// The entry owns ordinary local state; selection supplies no context.
+// The entry owns its local state and passes it explicitly to the helper.
 machine entry_start() crashes Trap {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    exercise(&mut entry_storage);
 }

@@ -113,9 +113,7 @@ pub(crate) fn lower_result(
     result_type: typed_trees::types::TypeReferenceHandle,
     expression: ExpressionHandle,
 ) -> Option<CheckedBooleanExpression> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     let result = validation::reserved_result_place(program, binary.left)?;
     if result.machine_symbol != owner
         || validation::reserved_result_owner(program, result.root)? != (owner, result_type)
@@ -172,9 +170,7 @@ fn case_identity(
             ) {
                 return None;
             }
-            let Some(case_symbol) = literal.case_symbol else {
-                return None;
-            };
+            let case_symbol = literal.case_symbol?;
             let owner = program.data_definitions().iter().find(|data| {
                 data.symbol == literal.type_symbol
                     && program.data_members(data).iter().any(|member| {

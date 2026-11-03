@@ -57,16 +57,14 @@ pub(crate) fn retire_fact_only_citations(
                                 .for_machine(machine)
                                 .map(|plan| plan.checked_summary.clone())
                         })
-                    }) {
-                        if validation::mathematical_applications::is_indexed_logical_machine(
-                            program, theorem,
-                        ) {
-                            let citation = checked_trees::CheckedIndexedCitation {
-                                caller: machine.symbol,
-                                theorem: theorem.symbol,
-                            };
-                            push_unique(&mut facts.proof.indexed_citations, citation);
-                        }
+                    }) && validation::mathematical_applications::is_indexed_logical_machine(
+                        program, theorem,
+                    ) {
+                        let citation = checked_trees::CheckedIndexedCitation {
+                            caller: machine.symbol,
+                            theorem: theorem.symbol,
+                        };
+                        push_unique(&mut facts.proof.indexed_citations, citation);
                     }
                     facts.flow.control.retire_calls(
                         machine.symbol,

@@ -212,7 +212,7 @@ fn translate_foreign_fixup(
             .iter()
             .map(|callback| {
                 Ok(machine_code::FunctionFragmentCallbackMaterialization {
-                    destination: callback.destination,
+                    destination: callback.destination.clone(),
                     code_function_offset: translate(callback.code_row_offset)?,
                     code_byte_count: u64::from(callback.code_byte_count),
                     encoding: match callback.encoding {

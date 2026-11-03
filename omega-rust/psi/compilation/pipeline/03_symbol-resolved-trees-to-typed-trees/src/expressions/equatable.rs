@@ -223,10 +223,10 @@ pub(crate) fn equality_selection<'program>(
 
 /// The data type compared by the synthesized `equals` row that `state`
 /// realizes. A call targeting that row expands structurally in the caller.
-pub(crate) fn synthesized_equality_row<'program>(
-    program: &'program SymbolResolvedTrees,
+pub(crate) fn synthesized_equality_row(
+    program: &SymbolResolvedTrees,
     state: symbols::SymbolHandle,
-) -> Option<&'program DataDefinition> {
+) -> Option<&DataDefinition> {
     program.conformances.iter().find_map(|conformance| {
         (is_equatable_implementation(program, conformance)
             && equals_row(conformance).is_some_and(|row| {

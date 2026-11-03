@@ -209,7 +209,7 @@ pub fn validate_final_text_relocation_envelope(
         encoded_text_digest,
         final_compiler_text_digest,
         relocation_envelope_digest: CompilerTextRelocationEnvelopeDigest::from_digest(
-            relocation_digest.finish().into(),
+            relocation_digest.finish(),
         ),
         derivation_digest: CompilerTextDerivationDigest::from_digest([0; 32]),
         encoded_text_report_fingerprint,

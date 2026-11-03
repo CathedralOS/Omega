@@ -324,9 +324,7 @@ fn admit_candidate(
     for index in survivor_operand.into_iter().chain(result_operand) {
         operand_roles = operand_roles.max(index + 1);
     }
-    let Some((grammar, tail)) = consumer.operands.split_at_checked(operand_roles) else {
-        return None;
-    };
+    let (grammar, tail) = consumer.operands.split_at_checked(operand_roles)?;
     if !shape.tail.admits(function, tail) {
         return None;
     }

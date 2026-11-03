@@ -65,7 +65,7 @@ pub(crate) fn lower_statement_node(
             // selections; their bodies execute in the build context.
             implementation_operand: if binding.implementation_operand.is_valid() {
                 if !matches!(
-                    syntax_expressions(&syntax_trees).expression(binding.implementation_operand),
+                    syntax_expressions(syntax_trees).expression(binding.implementation_operand),
                     syntax::expression::ExpressionNode::Name(_)
                 ) {
                     lower_statement_expression(
@@ -710,7 +710,7 @@ fn lower_transition_target_node(
                     operational_acknowledgement: Default::default(),
                     path: lower_statement_path_members(lowerer, syntax_trees, *path),
                     arguments,
-                    evidence_arguments: lower_names(syntax_trees, &evidence_arguments)
+                    evidence_arguments: lower_names(syntax_trees, evidence_arguments)
                         .into_boxed_slice(),
                     source_span: *source_span,
                     authored_call_selection: None,

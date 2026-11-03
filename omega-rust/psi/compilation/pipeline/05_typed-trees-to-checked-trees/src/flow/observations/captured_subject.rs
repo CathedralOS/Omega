@@ -523,8 +523,7 @@ fn trace_captured_subject_refusal(
             }
             if let Some(descriptor) =
                 place_at(program, state.symbol, statement_index, receiver.expression)
-            {
-                if let Some(StoredOperand::Value {
+                && let Some(StoredOperand::Value {
                     capture,
                     reference,
                     projection,
@@ -535,32 +534,32 @@ fn trace_captured_subject_refusal(
                     receiver.storage_snapshot,
                     &descriptor,
                     StoredObservation::Binding,
-                ) {
-                    eprintln!(
-                        "CHECKSITE captured-case-stored capture={:?} type={:?} projection={:?}",
-                        capture, reference, projection
-                    );
-                    if let Some(formed) = captured_operand_handle_at_path(
-                        program,
-                        control,
-                        capture,
-                        reference,
-                        &projection,
-                    ) && control.operands.is_valid(formed)
-                    {
-                        let formed = control.operands.get(formed);
-                        eprintln!("CHECKSITE captured-case-formed {:?}", formed);
-                        if control.operands.is_valid(formed.backing) {
-                            let source = control.operands.get(formed.backing);
-                            eprintln!(
-                                "CHECKSITE captured-case-source {:?} referents={:?} bindings={:?}",
-                                source,
-                                control.operand_referents.span_or_empty(source.referents),
-                                control
-                                    .operand_origin_writes
-                                    .span_or_empty(source.entry_binding_writes)
-                            );
-                        }
+                )
+            {
+                eprintln!(
+                    "CHECKSITE captured-case-stored capture={:?} type={:?} projection={:?}",
+                    capture, reference, projection
+                );
+                if let Some(formed) = captured_operand_handle_at_path(
+                    program,
+                    control,
+                    capture,
+                    reference,
+                    &projection,
+                ) && control.operands.is_valid(formed)
+                {
+                    let formed = control.operands.get(formed);
+                    eprintln!("CHECKSITE captured-case-formed {:?}", formed);
+                    if control.operands.is_valid(formed.backing) {
+                        let source = control.operands.get(formed.backing);
+                        eprintln!(
+                            "CHECKSITE captured-case-source {:?} referents={:?} bindings={:?}",
+                            source,
+                            control.operand_referents.span_or_empty(source.referents),
+                            control
+                                .operand_origin_writes
+                                .span_or_empty(source.entry_binding_writes)
+                        );
                     }
                 }
             }

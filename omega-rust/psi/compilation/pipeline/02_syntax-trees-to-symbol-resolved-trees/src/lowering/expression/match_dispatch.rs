@@ -22,7 +22,7 @@ pub(super) fn lower_match(
 ) -> Result<ExpressionHandle, Diagnostic> {
     let subject = lower_expression_into_table(lowerer, syntax_trees, dispatch.subject)?;
     let capture = if dispatch.capture.is_valid() {
-        if syntax_expressions(&syntax_trees)
+        if syntax_expressions(syntax_trees)
             .match_subject(dispatch.capture)
             .subject
             != dispatch.subject
@@ -206,7 +206,7 @@ pub(crate) fn lower_destructure_pattern(
         });
     let proof_selectors = expression_table(lowerer).insert_match_proof_selectors(selectors);
     lowerer.expression_match_captures.push(MatchArmCapture {
-        syntax_capture: syntax_capture,
+        syntax_capture,
         syntax_head: pattern.head,
         resolved_capture: capture,
         resolved_head: head,

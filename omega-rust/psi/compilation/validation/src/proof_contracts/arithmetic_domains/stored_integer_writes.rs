@@ -18,6 +18,18 @@ mod recast_history;
 mod source_geometry;
 pub use source_geometry::{StoredIntegerReach, stored_integer_source_reach};
 
+/// A stored destination's physical integer encoding could not be established:
+/// a root, stored-reference crossing, recast or layout target alternative is
+/// unknown. Consumers refuse the write rather than assume ordinary storage.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct UnestablishedStoredEncoding;
+
+impl From<()> for UnestablishedStoredEncoding {
+    fn from((): ()) -> Self {
+        Self
+    }
+}
+
 /// Discharge against the pre-store environment. The returned width belongs to
 /// this exact destination/value occurrence; it is not a changed semantic type.
 #[allow(clippy::too_many_arguments)]
@@ -157,7 +169,7 @@ pub fn stored_integer_source_projections(
     state: &State,
     source: &crate::LocalWriteSource,
     suffix: &[PlaceSegment],
-) -> Result<Vec<(SymbolHandle, IntegerType)>, ()> {
+) -> Result<Vec<(SymbolHandle, IntegerType)>, UnestablishedStoredEncoding> {
     let targets =
         crate::layout_checking_targets(program, source_layout_roots(program, state, source)?)?;
     let mut projections = Vec::new();
@@ -235,10 +247,9 @@ fn destination_projections(
             let source = origin.source.as_ref().ok_or(())?;
             if let Some(projection) =
                 stored_integer_source_projection(program, state, source, &segments[longest..])?
+                && !projections.contains(&projection)
             {
-                if !projections.contains(&projection) {
-                    projections.push(projection);
-                }
+                projections.push(projection);
             }
         }
         return Ok(projections);
@@ -262,7 +273,7 @@ fn destination_projections(
 /// withholds that conclusion when a root, stored-reference crossing or selector
 /// cannot be established. The source may name any alternative retained by the
 /// prefix owner; consumers must check every alternative.
-pub fn stored_integer_source_projection(
+pub(crate) fn stored_integer_source_projection(
     program: &dyn crate::CheckingInput,
     state: &State,
     source: &crate::LocalWriteSource,
@@ -506,7 +517,7 @@ fn fits_bounds(stored: IntegerType, low: i128, high: i128) -> bool {
     let bits = stored.bits();
     // IntegerAt currently admits whole-byte widths through 64 bits. Reject an
     // unsupported geometry instead of overflowing the bound calculation.
-    if bits == 0 || bits > 64 || bits % 8 != 0 {
+    if bits == 0 || bits > 64 || !bits.is_multiple_of(8) {
         return false;
     }
     let (minimum, maximum) = match stored.sign() {

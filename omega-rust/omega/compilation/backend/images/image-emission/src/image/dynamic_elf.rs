@@ -255,8 +255,8 @@ fn validated_output(
     Ok(output)
 }
 
-/// Join exact admitted dynamic ELF bytes to the production image-output
-/// surface without granting publication or execution authority.
+// Join exact admitted dynamic ELF bytes to the production image-output
+// surface without granting publication or execution authority.
 
 /// Independently replay one admitted dynamic ELF production-emission join.
 pub(crate) fn validate_dynamic_elf_image_emission(

@@ -705,7 +705,7 @@ impl OpenWindows {
         let result = BindingPlan {
             statement_index,
             binding_ordinal,
-            type_identity: type_identity.clone(),
+            type_identity,
             multiplicity,
             local: initialized_local(program, machine, state, local),
         };
@@ -770,7 +770,7 @@ impl OpenWindows {
         result: BindingPlan,
         expression: ExpressionHandle,
     ) -> Option<(OperationPlan, BindingPlan)> {
-        let type_identity = result.type_identity.clone();
+        let type_identity = result.type_identity;
         let binding_ordinal = result.binding_ordinal;
         if self
             .open
@@ -1159,13 +1159,13 @@ impl OpenWindows {
             projection_evaluations: Default::default(),
             source,
             path,
-            type_identity: produced.type_identity.clone(),
+            type_identity: produced.type_identity,
             access: StructuralAccess::Owned,
         };
         let old_value = if needs_displacement {
             ArgumentPlan::structural_result(
                 displaced_ordinal,
-                produced.type_identity.clone(),
+                produced.type_identity,
                 StructuralAccess::Owned,
             )
         } else {
@@ -1182,7 +1182,7 @@ impl OpenWindows {
             SourcePlan::StructuralLocal { symbol } => CheckedStoreRoot::Local { symbol },
             _ => return None,
         };
-        let type_identity = produced.type_identity.clone();
+        let type_identity = produced.type_identity;
         let leaf = if owned_rebind && place.path.is_empty() {
             CheckedStoreLeaf::OwnedRebind { type_identity }
         } else {
@@ -1207,7 +1207,7 @@ impl OpenWindows {
                 result: BindingPlan {
                     statement_index,
                     binding_ordinal: displaced_ordinal,
-                    type_identity: produced.type_identity.clone(),
+                    type_identity: produced.type_identity,
                     multiplicity: produced.multiplicity,
                     local: Default::default(),
                 },
@@ -1231,7 +1231,7 @@ impl OpenWindows {
                         CheckedUnitPartialAffineDiscardPlan {
                             source: old_value.source,
                             path: old_value.path,
-                            type_identity: produced.type_identity.clone(),
+                            type_identity: produced.type_identity,
                             case_conditions: Default::default(),
                         },
                     )],

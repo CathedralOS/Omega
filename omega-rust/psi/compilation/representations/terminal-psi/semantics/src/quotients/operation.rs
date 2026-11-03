@@ -123,8 +123,7 @@ pub(super) fn validate_operation(
         public_type,
         representative_type,
     } = &contract.result_relation
-    {
-        if public
+        && (public
             .declaration
             .as_ref()
             .and_then(|row| module.identities.text(row.result_type))
@@ -133,10 +132,9 @@ pub(super) fn validate_operation(
                 .declaration
                 .as_ref()
                 .and_then(|row| module.identities.text(row.result_type))
-                != Some(representative_type.as_str())
-        {
-            return Err("quotient result type identity drifted");
-        }
+                != Some(representative_type.as_str()))
+    {
+        return Err("quotient result type identity drifted");
     }
     let mut returns = 0;
     for block in &public.blocks {

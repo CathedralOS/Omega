@@ -328,7 +328,7 @@ fn lower_structural_indexed_place(
     let fixed = terminal_path
         .iter()
         .map(|step| match step {
-            ScalarReadProjection::Static(step) => Some(step.clone()),
+            ScalarReadProjection::Static(step) => Some(*step),
             _ => None,
         })
         .collect::<Option<Vec<_>>>();

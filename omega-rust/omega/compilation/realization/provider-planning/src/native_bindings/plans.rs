@@ -329,9 +329,12 @@ fn evaluate(
     materialization.raw(&binding_digest.as_bytes());
     let materialization =
         EvaluatedBindingMaterializationDigest::from_bytes(materialization.finish())?;
+    // The Build requirement shares the producer's identity table so readers
+    // resolve both through one evaluated via-binding namespace.
+    let requirement_identity = identities.intern(requirement);
     let receipt = EvaluatedBindingReceipt::from_evaluation(
         Some(selection.supplier_package),
-        &author_identity,
+        author_identity,
         identities,
         closure,
         fuel_schedule,
@@ -341,14 +344,17 @@ fn evaluate(
         materialization,
         binding_digest,
     )?
-    .with_build_origin(BuildNativeBindingOrigin {
-        requirement_identity: requirement.to_owned(),
-        source_occurrence_digest,
-        terminal_code: supply.evaluation.terminal_code,
-        fuel_schedule,
-        storage_schedule,
-        observation_digest: supply.evaluation.observation_digest,
-    })?;
+    .with_build_origin(
+        BuildNativeBindingOrigin {
+            requirement_identity,
+            source_occurrence_digest,
+            terminal_code: supply.evaluation.terminal_code,
+            fuel_schedule,
+            storage_schedule,
+            observation_digest: supply.evaluation.observation_digest,
+        },
+        identities.as_table(),
+    )?;
     Ok(match (locator, &selection.locator) {
         (Some(locator), _) => EvaluatedNativeBinding::Import(
             EvaluatedForeignImport::from_retained_evidence(locator, receipt)?,

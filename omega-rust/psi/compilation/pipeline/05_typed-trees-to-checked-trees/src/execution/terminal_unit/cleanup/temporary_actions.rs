@@ -250,7 +250,7 @@ fn sequence_actions(
     completion: Option<(&CheckedUnitEffectOperationPlan, OperationSequence<'_>)>,
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
 ) -> Option<OperationSelections> {
-    let selected = (|| {
+    (|| {
         let mut selected = OperationSelections::default();
         for operation_index in 0..sequence.len() {
             let operation = sequence.get(operation_index)?;
@@ -370,8 +370,7 @@ fn sequence_actions(
             }
         }
         Some(selected)
-    })();
-    selected
+    })()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -432,7 +431,7 @@ fn call_actions(
     cleanup_actions: &[CheckedNormalCleanupAction],
     release_owned: &[arena::Handle<checked_trees::ContextualCleanupDisposition>],
 ) -> Option<SelectedActions> {
-    let selected = (|| {
+    (|| {
         let coordinate = consumer.invocation_coordinate()?;
         let mut sources = Vec::new();
         let mut completed = Vec::new();
@@ -567,8 +566,7 @@ fn call_actions(
             actions: completed,
             selected_regions: Vec::new(),
         })
-    })();
-    selected
+    })()
 }
 
 enum OperationSequenceMut<'plans> {

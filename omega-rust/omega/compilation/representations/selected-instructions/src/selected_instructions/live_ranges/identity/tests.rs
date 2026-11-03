@@ -349,7 +349,7 @@ fn buffered_original_digest(function: &crate::FunctionLiveRanges) -> [u8; 32] {
         crate::codec_bytes::push_encoded(&mut bytes, pair.lower.0.to_le_bytes());
         crate::codec_bytes::push_encoded(&mut bytes, pair.higher.0.to_le_bytes());
     }
-    crate::digest_encoder::content_identity(&bytes).into()
+    crate::digest_encoder::content_identity(&bytes)
 }
 
 fn buffered_fragments(bytes: &mut Vec<u8>, fragments: &[crate::LiveRangeFragment]) {

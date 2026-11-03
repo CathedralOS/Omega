@@ -207,7 +207,7 @@ fn scan_conversion_equalities<'program, R>(
                 continue;
             };
             if let Some(verdict) = judge(&ConversionEqualityCandidate {
-                expression: expression,
+                expression,
                 result,
                 conversion,
                 selected,
@@ -269,9 +269,7 @@ pub fn float_integer_conversion_contract(
         {
             return None;
         }
-        let Some(selected) = candidate.selected else {
-            return None;
-        };
+        let selected = candidate.selected?;
         let semantic = candidate.semantic;
         let FloatSemanticValueKind::Integer(carrier) = semantic.result else {
             return None;

@@ -85,8 +85,8 @@ impl ExternalProviderConformance {
         {
             return Err("external provider lost its exact checked declaration");
         }
-        if let Some(specialization) = &declaration.specialization {
-            if ![
+        if let Some(specialization) = &declaration.specialization
+            && (![
                 specialization.template.identity(),
                 specialization.template_semantic_declaration,
                 specialization.template_callable,
@@ -98,10 +98,9 @@ impl ExternalProviderConformance {
                     !present(capture.template_identity)
                         || capture.template_commitment == [0; 32]
                         || capture.specialization_commitment == [0; 32]
-                })
-            {
-                return Err("external provider lost its checked specialization");
-            }
+                }))
+        {
+            return Err("external provider lost its checked specialization");
         }
         if self.provider.as_ref().is_some_and(|provider| {
             !present(provider.declaration.identity()) || !present(provider.identity)

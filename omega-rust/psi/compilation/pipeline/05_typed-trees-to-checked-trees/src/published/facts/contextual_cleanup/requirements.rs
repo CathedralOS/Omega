@@ -810,9 +810,7 @@ pub(crate) fn occurrence_contexts(
                 checked_trees::FlowClaimJoinExitKind::FinalExpression => Default::default(),
                 checked_trees::FlowClaimJoinExitKind::TransitionTarget
                 | checked_trees::FlowClaimJoinExitKind::TransitionContinuation => {
-                    let Some(typed_state) = program.state_by_symbol(state.state_symbol) else {
-                        return None;
-                    };
+                    let typed_state = program.state_by_symbol(state.state_symbol)?;
                     let Some(typed_trees::statement::StatementNode::Transition(transition)) =
                         program
                             .statement_table

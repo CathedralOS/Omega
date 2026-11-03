@@ -261,7 +261,7 @@ fn collect_closed_conformance_applications<'checked>(
                 };
                 let result = classify(realization_state.return_type)?;
                 let public_signature = if dispatch.contract_signature.is_valid() {
-                    &checked
+                    checked
                         .typed
                         .closed_requirement_application(dispatch.contract_signature)
                         .ok_or(LoweringError::Unsupported(

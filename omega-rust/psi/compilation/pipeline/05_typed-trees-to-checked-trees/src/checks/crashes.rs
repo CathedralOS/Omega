@@ -932,9 +932,8 @@ fn collect_integer_order_relations(
     );
 }
 
-#[allow(clippy::too_many_arguments)]
-
 /// Both operands' canonical crash identities as one pair.
+#[allow(clippy::too_many_arguments)]
 fn crash_operand_identities(
     program: &dyn ::validation::CheckingInput,
     left: ExpressionHandle,

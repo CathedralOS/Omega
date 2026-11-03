@@ -666,7 +666,7 @@ fn sum_geometry<'types>(
 }
 
 fn carrier_geometry(size: u64, alignment: u64) -> Result<(u64, u64), StorageGeometryError> {
-    if size == 0 || !alignment.is_power_of_two() || size % alignment != 0 {
+    if size == 0 || !alignment.is_power_of_two() || !size.is_multiple_of(alignment) {
         return Err(StorageGeometryError::InvalidCarrierLayout);
     }
     Ok((size, alignment))
@@ -1077,7 +1077,7 @@ mod tests {
             identity: TerminalIdentityIndex(value as u32),
             shape,
         };
-        let mut types = vec![
+        let mut types = [
             declaration(1, StructuralTypeShape::PrimitiveScalar(scalar(64))),
             declaration(
                 2,

@@ -235,7 +235,7 @@ impl Emission<'_, '_, '_> {
         match segment {
             PreparedStructuralPathSegment::ComputedIndex(computation)
             | PreparedStructuralPathSegment::EvaluatedFixedIndex { computation, .. } => {
-                let mut roles = value_facts(&self.checked)
+                let mut roles = value_facts(self.checked)
                     .scalar_computations
                     .roots_for_statement(self.state, self.statement)
                     .into_iter()

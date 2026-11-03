@@ -44,9 +44,7 @@ pub(crate) fn reference_result_candidates_before_statement(
     }) {
         return None;
     }
-    let Some(call) = program.expression_table.call_node(local.initial_value) else {
-        return None;
-    };
+    let call = program.expression_table.call_node(local.initial_value)?;
     call_result_candidates(
         program,
         state_symbol,
@@ -251,19 +249,18 @@ pub(in crate::flow) fn call_result_captured_sources(
     // the callee contract. A requirement call's receiver is the authored
     // trait path, which binds no storage lane, so the attached-receiver
     // topology check applies to stored callees only.
-    let (parameters, stored_attached_receiver) =
-        if let Some((callee, state)) = validation::find_state(program, entered_target) {
-            (
-                program.state_parameters(state),
-                Some(callee.attached_data.is_some()),
-            )
-        } else {
-            let (_, signature) =
-                validation::selected_requirement_signature(program, entered_target)?;
-            (program.state_signature_parameters(signature), None)
-        };
-    if stored_attached_receiver
-        .is_some_and(|attached| call.receiver.is_valid() != attached)
+    let (parameters, stored_attached_receiver) = if let Some((callee, state)) =
+        validation::find_state(program, entered_target)
+    {
+        (
+            program.state_parameters(state),
+            Some(callee.attached_data.is_some()),
+        )
+    } else {
+        let (_, signature) = validation::selected_requirement_signature(program, entered_target)?;
+        (program.state_signature_parameters(signature), None)
+    };
+    if stored_attached_receiver.is_some_and(|attached| call.receiver.is_valid() != attached)
         || !call.carries_only_positional_arguments()
         || !call.selects_only_nominal_route()
         || expressions(program)

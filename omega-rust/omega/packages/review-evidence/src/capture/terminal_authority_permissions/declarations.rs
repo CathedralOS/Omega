@@ -49,7 +49,7 @@ pub(super) fn resolve_services<'a>(
         // Preserve the existing UEFI semantic-only binding exception. The
         // normalized review below is context, never a replacement permission
         // digest or a second source of target-entry ABI authority.
-        let digest = package_compilation::accepted_service_schema_digest(accepted.role(), &schema);
+        let digest = package_compilation::accepted_service_schema_digest(accepted.role(), schema);
         if digest != accepted.normalized_schema_digest() {
             return Err(rejected(
                 "accepted binding changed its normalized service schema",

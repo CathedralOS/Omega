@@ -414,7 +414,7 @@ pub(super) fn disposition_actions(
             disposition: CheckedUnitPartialAffineDiscardPlan {
                 source: source.clone(),
                 path: Vec::new(),
-                type_identity: type_identity.clone(),
+                type_identity,
                 case_conditions: Default::default(),
             },
             conditions: Vec::new(),

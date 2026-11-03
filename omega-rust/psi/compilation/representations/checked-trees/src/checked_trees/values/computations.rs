@@ -228,12 +228,12 @@ impl CheckedScalarComputationPlans {
 
     /// Roots matching one statement's role filter, in arena order — the
     /// shared stem behind role-specific root lookups.
-    pub fn roots_for_statement_role<'plans>(
-        &'plans self,
+    pub fn roots_for_statement_role(
+        &self,
         state: SymbolHandle,
         statement_ordinal: u32,
         role: CheckedScalarExpressionRole,
-    ) -> impl Iterator<Item = &'plans CheckedScalarComputationRoot> {
+    ) -> impl Iterator<Item = &CheckedScalarComputationRoot> {
         let mut first_two = [None, None];
         let mut overflow = Vec::new();
         self.with_state_roots(state, |handles| {

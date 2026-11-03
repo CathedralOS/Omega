@@ -75,7 +75,7 @@ pub(crate) fn validate(
     if evaluation == checked_trees::FlowPermissionEvaluation::Unknown {
         return None;
     }
-    let producer_source = if let Some(_) = program.expression_table.call_node(expression) {
+    let producer_source = if program.expression_table.call_node(expression).is_some() {
         let state_flow = flow.control.state(machine, state)?;
         let mut producers = flow
             .control

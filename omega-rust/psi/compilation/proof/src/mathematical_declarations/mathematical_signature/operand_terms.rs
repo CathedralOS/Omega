@@ -360,10 +360,9 @@ impl<'a> Elaborator<'a> {
                     } else {
                         entry.symbol.is_none() && name.is_some_and(|name| *name == entry.name)
                     }
-                }) {
-                    if !dependencies.contains(&position) {
-                        dependencies.push(position);
-                    }
+                }) && !dependencies.contains(&position)
+                {
+                    dependencies.push(position);
                 }
             }
             children(self.program, node, |child| pending.push(child));

@@ -4,6 +4,9 @@
 //! validated `PostHandoffWriterPlan`. R10 receives the provider-private packed
 //! context pointer; no destination or symbolic address is embedded in code.
 
+mod fragment;
+pub(crate) use fragment::append_fragment;
+
 use calling_conventions::{MachineRegister, MachineState, MachineStateSet, RegisterSet};
 use diagnostics::Diagnostic;
 use layout_plans::ByteOrder;
@@ -15,7 +18,7 @@ use post_handoff_writer_plan::{
 
 /// Exact registers written by the generated helper. R10 holds the packed
 /// context, R11 the destination, RAX the source fragment, RCX the destination
-/// container, and RDX the masks.
+/// container, and RDX the extracted fragment.
 pub fn generated_post_handoff_writer_clobbers() -> RegisterSet {
     RegisterSet::new([
         MachineRegister::X86Rax,
@@ -60,45 +63,24 @@ pub fn encode_generated_post_handoff_writer_bytes(
             .ok_or_else(|| Diagnostic::error("generated writer source-slot offset overflows"))?;
         let source_displacement = i32::try_from(source_offset)
             .map_err(|_| Diagnostic::error("generated writer source offset exceeds disp32"))?;
-        let destination_displacement = i32::try_from(step.container_byte_offset)
-            .map_err(|_| Diagnostic::error("generated writer destination offset exceeds disp32"))?;
 
         bytes.extend([0x49, 0x8b, 0x82]); // mov rax, [r10+disp32]
         bytes.extend(source_displacement.to_le_bytes());
-        if step.source_lsb != 0 {
-            bytes.extend([0x48, 0xc1, 0xe8, step.source_lsb as u8]); // shr rax, imm8
-        }
-        let fragment_mask = low_mask(step.width);
-        bytes.extend([0x48, 0xba]); // mov rdx, imm64
-        bytes.extend(fragment_mask.to_le_bytes());
-        bytes.extend([0x48, 0x21, 0xd0]); // and rax, rdx
-        if step.destination_lsb != 0 {
-            bytes.extend([0x48, 0xc1, 0xe0, step.destination_lsb as u8]); // shl rax, imm8
-        }
-
-        match step.container_width_bits {
-            8 => bytes.extend([0x41, 0x0f, 0xb6, 0x8b]), // movzx ecx, byte [r11+disp32]
-            16 => bytes.extend([0x41, 0x0f, 0xb7, 0x8b]), // movzx ecx, word [r11+disp32]
-            32 => bytes.extend([0x41, 0x8b, 0x8b]),      // mov ecx, [r11+disp32]
-            64 => bytes.extend([0x49, 0x8b, 0x8b]),      // mov rcx, [r11+disp32]
-            _ => unreachable!("generated writer container width validated"),
-        }
-        bytes.extend(destination_displacement.to_le_bytes());
-
-        let destination_mask = fragment_mask << step.destination_lsb;
-        bytes.extend([0x48, 0xba]); // mov rdx, imm64
-        bytes.extend((!destination_mask).to_le_bytes());
-        bytes.extend([0x48, 0x21, 0xd1]); // and rcx, rdx
-        bytes.extend([0x48, 0x09, 0xc1]); // or rcx, rax
-
-        match step.container_width_bits {
-            8 => bytes.extend([0x41, 0x88, 0x8b]), // mov byte [r11+disp32], cl
-            16 => bytes.extend([0x66, 0x41, 0x89, 0x8b]), // mov word [r11+disp32], cx
-            32 => bytes.extend([0x41, 0x89, 0x8b]), // mov dword [r11+disp32], ecx
-            64 => bytes.extend([0x49, 0x89, 0x8b]), // mov qword [r11+disp32], rcx
-            _ => unreachable!("generated writer container width validated"),
-        }
-        bytes.extend(destination_displacement.to_le_bytes());
+        append_fragment(
+            &mut bytes,
+            MachineRegister::X86Rax,
+            MachineRegister::X86R11,
+            MachineRegister::X86Rdx,
+            MachineRegister::X86Rcx,
+            layout_plans::LayoutPlacementReport::Bits {
+                container: step.container_byte_offset,
+                container_width: u64::from(step.container_width_bits),
+                destination_lsb: u64::from(step.destination_lsb),
+                source_lsb: u64::from(step.source_lsb),
+                width: u64::from(step.width),
+            },
+        )
+        .ok_or_else(|| Diagnostic::error("generated writer fragment cannot be encoded"))?;
     }
     Ok(bytes)
 }
@@ -157,14 +139,6 @@ fn encode_private_pointer_to_r10(source: MachineRegister) -> Result<[u8; 3], Dia
         ))
     })?;
     Ok([0x4c | u8::from(code >= 8), 0x8b, 0xd0 | (code & 7)])
-}
-
-const fn low_mask(width: u16) -> u64 {
-    if width == 64 {
-        u64::MAX
-    } else {
-        (1_u64 << width) - 1
-    }
 }
 
 #[cfg(test)]

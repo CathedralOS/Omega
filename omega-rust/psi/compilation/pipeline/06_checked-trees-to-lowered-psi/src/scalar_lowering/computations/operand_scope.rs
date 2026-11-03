@@ -25,7 +25,7 @@ impl Expansion<'_> {
         site: &Site<'_>,
         active: &mut Vec<Computation>,
     ) -> Result<usize, LoweringError> {
-        let operands = value_facts(&self.checked)
+        let operands = value_facts(self.checked)
             .scalar_computations
             .evaluation_operands
             .span(operands)

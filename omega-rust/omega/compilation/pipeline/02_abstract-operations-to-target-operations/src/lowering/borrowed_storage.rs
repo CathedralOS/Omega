@@ -285,7 +285,7 @@ impl StorageRecipes<'_> {
                 } else {
                     structural_layout::resolve_structural_projection_path(
                         root,
-                        &[StructuralPathSegment::Field(member.identity.clone())],
+                        &[StructuralPathSegment::Field(member.identity)],
                         self.declarations,
                     )
                     .ok()?
@@ -304,7 +304,10 @@ impl StorageRecipes<'_> {
                     path,
                     repetitions,
                 )?;
-            } else if let Some(carrier) = member.field_type.byte_sequence_carrier() {
+            } else {
+                // No byte-bearing member may disappear from the retained
+                // geometry just because it has no portable scalar decoder.
+                let carrier = member.field_type.byte_sequence_carrier()?;
                 let (displacement, byte_size) =
                     self.inline_byte_geometry(root, member, position, case, carrier)?;
                 self.opaque_regions.push((
@@ -313,10 +316,6 @@ impl StorageRecipes<'_> {
                     offset.checked_add(displacement)?,
                     byte_size,
                 ));
-            } else {
-                // No byte-bearing member may disappear from the retained
-                // geometry just because it has no portable scalar decoder.
-                return None;
             }
             path.pop();
         }
@@ -348,7 +347,7 @@ impl StorageRecipes<'_> {
         // Record byte fields have no standalone structural identity. Reuse
         // their native field-address owner, including authored record offsets,
         // and the same field carrier shape used by native layout.
-        let member_path = [StructuralPathSegment::Field(member.identity.clone())];
+        let member_path = [StructuralPathSegment::Field(member.identity)];
         let displacement = match carrier {
             terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => {
                 structural_layout::bounded_byte_field_geometry(

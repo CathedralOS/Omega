@@ -53,14 +53,14 @@ use proof_admission::{
     argument_error_pair_pattern, check_signature, check_type, convertible, indexed_scheme,
 };
 
-/// The eliminator tests' ceiling: `iindW`'s typing and computation
-/// unfold the whole `IndexedAt`/`IW` encoding — the `J` transport, the
-/// repacked child functions, the pair-eta closures — and this family's
-/// `next` runs a third `caseTwo` to select the required judgment per
-/// child position. Measured spend is pinned per test below (~3.7 and
-/// ~25.1 thousand steps); this bound leaves an order of magnitude of
-/// headroom so the run stays budgeted rather than open-ended —
-/// `StepCeiling` is still the decidability witness.
+// The eliminator tests' ceiling: `iindW`'s typing and computation
+// unfold the whole `IndexedAt`/`IW` encoding — the `J` transport, the
+// repacked child functions, the pair-eta closures — and this family's
+// `next` runs a third `caseTwo` to select the required judgment per
+// child position. Measured spend is pinned per test below (~3.7 and
+// ~25.1 thousand steps); this bound leaves an order of magnitude of
+// headroom so the run stays budgeted rather than open-ended —
+// `StepCeiling` is still the decidability witness.
 
 /// One side of a nested pair projection, innermost step first:
 /// `project(arena, p, &[Side::Snd, Side::Fst])` is `fst (snd p)`.
@@ -159,12 +159,12 @@ fn carrier(arena: &mut TermArena) -> TermHandle {
     sigma(arena, tag, rest)
 }
 
-/// `λ(_ : Two). Type 0` — the constant motive every `caseTwo` selecting
-/// *types* here shares.
+// `λ(_ : Two). Type 0` — the constant motive every `caseTwo` selecting
+// *types* here shares.
 
-/// `Id Two zero one` — the dead child position: no closed inhabitant.
+// `Id Two zero one` — the dead child position: no closed inhabitant.
 
-/// `Id Two zero zero` — the single live child position.
+// `Id Two zero zero` — the single live child position.
 
 /// `⟨zero, ⟨zero, ⟨φ, ⟨φ, Γ⟩⟩⟩⟩` — an `assm` label: the head hypothesis
 /// `φ`, a dummy `ψ` slot (set to `φ`), and the ambient context `Γ`.
@@ -516,7 +516,7 @@ fn constructor_context(arena: &mut TermArena, family: &IndexedFamily) -> Context
             let phi = variable(arena, 6);
             let gamma = variable(arena, 4);
             let label = assm_label(arena, phi, gamma);
-            next_indexed_w(arena, &family, label)
+            next_indexed_w(arena, family, label)
         };
         pi(arena, domain, codomain)
     };
@@ -544,9 +544,9 @@ fn motive_type(arena: &mut TermArena, family: &IndexedFamily) -> TermHandle {
     pi(arena, index_type, inner)
 }
 
-/// `Π(a : A). Π(g : Π(b : B a). Deriv (next a b)). Π(_ : Π(b : B a).
-/// Q (next a b) (g b)). Q (out a) (isup a g)` — the `iindW` step type,
-/// written under the one-binding prefix `[Q]`.
+// `Π(a : A). Π(g : Π(b : B a). Deriv (next a b)). Π(_ : Π(b : B a).
+// Q (next a b) (g b)). Q (out a) (isup a g)` — the `iindW` step type,
+// written under the one-binding prefix `[Q]`.
 
 /// The eliminator context `Q : Π(j : I). Π(_ : Deriv j). Type 0`,
 /// `s : <iindW step>`, `φ : Frm`, `ψ : Frm`, `Γ : Ctx`,
@@ -572,7 +572,7 @@ fn eliminator_context(arena: &mut TermArena, family: &IndexedFamily) -> Context 
             let psi = variable(arena, 2);
             let gamma = variable(arena, 1);
             let label = impe_label(arena, phi, psi, gamma);
-            next_indexed_w(arena, &family, label)
+            next_indexed_w(arena, family, label)
         };
         pi(arena, domain, codomain)
     };

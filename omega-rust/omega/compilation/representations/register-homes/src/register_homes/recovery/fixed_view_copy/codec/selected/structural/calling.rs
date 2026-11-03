@@ -62,7 +62,7 @@ pub(super) fn decode_call_plan(
     let parameters = decode_list(cursor, decode_placement)?;
     let result = crate::cursor::optional(
         cursor,
-        |c| Ok(decode_placement(c)?),
+        decode_placement,
         FixedViewCopyDecodeError::UnknownOption,
     )?;
     let callback_materializations = decode_list(cursor, decode_callback)?;

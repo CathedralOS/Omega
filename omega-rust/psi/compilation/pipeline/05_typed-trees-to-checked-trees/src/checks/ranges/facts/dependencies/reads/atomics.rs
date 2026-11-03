@@ -132,7 +132,7 @@ impl ReadWalk<'_, '_, '_> {
                     root: facts::PlaceRoot::Symbol(symbol),
                     segments: Vec::new(),
                 };
-                crate::shared::collections::push_unique(&mut self.reads, place);
+                crate::shared::collections::push_unique(self.reads, place);
                 true
             })
     }
@@ -198,9 +198,7 @@ pub(super) fn atomic_fetch_operand(
     program: &dyn ::validation::CheckingInput,
     atomic: &typed_trees::expression::TableAtomicExpression,
 ) -> Option<ExpressionHandle> {
-    let Some(binary) = program.expression_table.binary_node(atomic.value) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(atomic.value)?;
     Some(binary.right)
 }
 
@@ -212,17 +210,9 @@ pub(super) fn atomic_compare_exchange_operands(
     program: &dyn ::validation::CheckingInput,
     atomic: &typed_trees::expression::TableAtomicExpression,
 ) -> Option<[ExpressionHandle; 2]> {
-    let Some(sum) = program.expression_table.binary_node(atomic.value) else {
-        return None;
-    };
-    let Some(product) = program.expression_table.binary_node(sum.right) else {
-        return None;
-    };
-    let Some(equal) = program.expression_table.binary_node(product.left) else {
-        return None;
-    };
-    let Some(difference) = program.expression_table.binary_node(product.right) else {
-        return None;
-    };
+    let sum = program.expression_table.binary_node(atomic.value)?;
+    let product = program.expression_table.binary_node(sum.right)?;
+    let equal = program.expression_table.binary_node(product.left)?;
+    let difference = program.expression_table.binary_node(product.right)?;
     Some([equal.right, difference.left])
 }

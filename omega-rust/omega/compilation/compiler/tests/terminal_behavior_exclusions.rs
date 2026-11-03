@@ -796,12 +796,12 @@ fn exclusion_tickets_reject_foreign_receivers_and_replay(checked: &compiler::Che
         .iter()
         .find(|call| call.action == Operation::Exclude && call.request != commit.request)
         .unwrap();
-    let error = invoke(other, vec![ticket.clone(), integer(1)], Vec::new()).unwrap_err();
+    let error = invoke(other, vec![ticket, integer(1)], Vec::new()).unwrap_err();
     assert!(format!("{error:?}").contains("consumed or belongs to another request"));
-    let error = invoke(commit, vec![ticket.clone(), integer(u128::MAX)], Vec::new()).unwrap_err();
+    let error = invoke(commit, vec![ticket, integer(u128::MAX)], Vec::new()).unwrap_err();
     assert!(format!("{error:?}").contains("outside its vocabulary"));
     assert_eq!(
-        invoke(commit, vec![ticket.clone(), integer(1)], Vec::new()).unwrap(),
+        invoke(commit, vec![ticket, integer(1)], Vec::new()).unwrap(),
         TerminalEffectResult::Unit
     );
     let error = invoke(commit, vec![ticket, integer(1)], Vec::new()).unwrap_err();

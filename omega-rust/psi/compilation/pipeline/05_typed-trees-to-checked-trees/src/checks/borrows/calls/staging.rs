@@ -44,15 +44,13 @@ impl InvocationBoundary {
         let node = program
             .statement_table
             .statement_at(state, call.statement_index)?;
-        let Some(site) = validation::find_call_site_in_state(
+        let site = validation::find_call_site_in_state(
             program,
             machine,
             state,
             call.statement_index,
             call.call_ordinal,
-        ) else {
-            return None;
-        };
+        )?;
         let target = validation::transition_call_target(
             program,
             machine,
@@ -89,9 +87,7 @@ impl InvocationBoundary {
             .iter()
             .enumerate()
             .filter(|(_, occurrence)| occurrence.invocation == Some(identity));
-        let Some((completion, _)) = completions.next() else {
-            return None;
-        };
+        let (completion, _) = completions.next()?;
         if completions.next().is_some() {
             return None;
         }

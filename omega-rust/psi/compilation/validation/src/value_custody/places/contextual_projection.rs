@@ -213,10 +213,8 @@ pub(super) fn resolve_member_symbol_from_place(
     ) {
         return Some(symbol);
     }
-    if case_variant.is_none() {
-        if retained.is_valid() {
-            return Some(retained);
-        }
+    if case_variant.is_none() && retained.is_valid() {
+        return Some(retained);
     }
     let current = member_resolution::position_leaf_symbol(program, position);
     match case_variant {

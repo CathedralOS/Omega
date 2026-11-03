@@ -68,7 +68,6 @@ impl Denotation {
     /// dependent identity elimination over `Int` with the family built
     /// under the two binders: `family` receives `y` as a `Variable(1)`
     /// handle and returns the body's type-level shape.
-
     pub(super) fn chain_sibling_congruence(
         &mut self,
         integer: TermHandle,

@@ -324,7 +324,7 @@ fn projected_source_access(
                 // Lending an inline collection uses its storage permission;
                 // selecting an existing descriptor uses its backing permission.
                 // The operation separately checks which carrier it requires.
-                StructuralTypeShape::ElementView { access, .. } => access.unwrap_or_else(|| {
+                StructuralTypeShape::ElementView { access, .. } => access.unwrap_or({
                     if source.path.len() == prefix_start {
                         authority
                     } else {

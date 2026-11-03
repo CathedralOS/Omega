@@ -283,7 +283,7 @@ impl ProviderSelectionSubject {
                     && identity
                         .application_identity
                         .as_deref()
-                        .map_or(true, |selected| Some(selected) == application)
+                        .is_none_or(|selected| Some(selected) == application)
             }
             Self::BoundaryOperatorFamily(family) => family.coordinates.iter().any(|coordinate| {
                 coordinate.symbol == schema_symbol

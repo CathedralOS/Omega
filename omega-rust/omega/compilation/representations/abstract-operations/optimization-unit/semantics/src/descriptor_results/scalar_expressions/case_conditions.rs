@@ -64,10 +64,10 @@ impl ScalarExpressions<'_> {
                         Some((test.predicate.clone(), truth))
                     })
                     .collect::<Option<Vec<_>>>();
-                if let Some(predicates) = predicates.filter(|predicates| predicates.len() == 2) {
-                    if let Ok(index) = u32::try_from(index) {
-                        conditions.push(((block.id, index), predicates));
-                    }
+                if let Some(predicates) = predicates.filter(|predicates| predicates.len() == 2)
+                    && let Ok(index) = u32::try_from(index)
+                {
+                    conditions.push(((block.id, index), predicates));
                 }
             }
         }

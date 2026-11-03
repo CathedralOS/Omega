@@ -29,9 +29,7 @@ pub(crate) fn closed_float_meaning_equality(
     machine_symbol: symbols::SymbolHandle,
     expression: ExpressionHandle,
 ) -> Option<bool> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     let spelling = match binary.operator {
         BinaryOperator::Equal => language_core::OperatorSpelling::Equal,
         BinaryOperator::NotEqual => language_core::OperatorSpelling::NotEqual,

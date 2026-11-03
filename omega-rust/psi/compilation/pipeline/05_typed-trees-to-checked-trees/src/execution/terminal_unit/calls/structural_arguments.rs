@@ -995,9 +995,7 @@ pub(crate) fn exact_structural_borrow_access(
         })
         .map(|access| &access.kind)
         .collect::<Vec<_>>();
-    let Some(first) = kinds.first() else {
-        return None;
-    };
+    let first = kinds.first()?;
     if kinds.iter().any(|candidate| *candidate != *first) {
         return None;
     }
@@ -1312,10 +1310,7 @@ fn claim_crossings_at_place(
             // claim frontier using captured place containment. Rejoin that
             // receipt to the emitted operand; do not infer numeric equality
             // from the runtime path or replay a later selector observation.
-            let Some(relative) = event_path.get(selected_path.len()..) else {
-                return None;
-            };
-            relative
+            event_path.get(selected_path.len()..)?
         } else {
             continue;
         };

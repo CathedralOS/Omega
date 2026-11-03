@@ -189,6 +189,14 @@ pub fn proof_obligation_key(
                 atom!("base" => program.package_qualified_type_identity_text(obligation.base_type)),
                 constraints_identity(proof_plan, obligation.constraints, "constraints"),
                 binary_operands_identity(program, &obligation.binary_operands),
+                guard_identity(program, &obligation.guard),
+                compound(
+                    "refuted",
+                    obligation
+                        .refuted_exit_guards
+                        .iter()
+                        .map(|guard| expression_identity(program, *guard)),
+                ),
             ],
         ),
         ProofObligation::BoundedValue(obligation) => compound(

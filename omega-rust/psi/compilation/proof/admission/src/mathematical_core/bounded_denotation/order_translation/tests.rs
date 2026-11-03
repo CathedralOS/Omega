@@ -52,7 +52,14 @@ fn mathematical_order_translation_derives_from_existing_core_law() {
     let addend = IntegerMathTerm::Subtract(Box::new(value(3)), Box::new(value(2)));
     let (premise, proof) = translated(value(1), value(2), addend);
     let context = context();
-    check_certificate(&context, &proof.conclusion, &[premise.clone()], &[], &proof).unwrap();
+    check_certificate(
+        &context,
+        &proof.conclusion,
+        std::slice::from_ref(&premise),
+        &[],
+        &proof,
+    )
+    .unwrap();
     let parameters = BTreeSet::new();
     let premises = [premise];
     let elaboration = elaborate_checked(
@@ -76,7 +83,14 @@ fn mathematical_order_translation_retains_closed_numeral_denotation() {
     let literal = |value| IntegerMathTerm::literal(IntegerValue::Signed(value));
     let (premise, proof) = translated(literal(-4), literal(2), literal(-3));
     let context = context();
-    check_certificate(&context, &proof.conclusion, &[premise.clone()], &[], &proof).unwrap();
+    check_certificate(
+        &context,
+        &proof.conclusion,
+        std::slice::from_ref(&premise),
+        &[],
+        &proof,
+    )
+    .unwrap();
     let parameters = BTreeSet::new();
     let premises = [premise];
     let elaboration = elaborate_checked(
@@ -100,7 +114,14 @@ fn mathematical_order_translation_rejects_strictness_addend_and_scope_drift() {
     };
     *addend = value(2);
     assert!(
-        check_certificate(&context, &stale.conclusion, &[premise.clone()], &[], &stale).is_err()
+        check_certificate(
+            &context,
+            &stale.conclusion,
+            std::slice::from_ref(&premise),
+            &[],
+            &stale
+        )
+        .is_err()
     );
 
     let strict = Proposition::IntegerMathLessThan(value(1), value(2));

@@ -578,7 +578,7 @@ pub(super) fn account<'calls>(
                         .flat_map(OperationPlan::with_value_calls)
                 }))
                 .flat_map(OperationPlan::structural_operands)
-                .any(|argument| moves_occurrence(argument));
+                .any(&moves_occurrence);
         // A whole owned argument ends an affine local's custody at the call,
         // just as it ends a linear result or an inline operand's custody.
         // Sequencing retires the producer's discard flag; count the exact

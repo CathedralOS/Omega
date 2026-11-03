@@ -76,7 +76,6 @@ use crate::type_reference::{
 };
 use diagnostics::Diagnostic;
 use symbol_resolved_trees::SymbolResolvedTrees;
-use symbol_resolved_trees::machine::Machine;
 use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 use typed_trees::signature::AuthoredServiceReachTarget as ReachTarget;

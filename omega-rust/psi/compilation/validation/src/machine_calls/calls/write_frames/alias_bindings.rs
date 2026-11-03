@@ -11,7 +11,7 @@ use language_core::is_self_receiver;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::{StatementNode, TableAssignment};
+use typed_trees::statement::TableAssignment;
 
 /// Whole-reference transport across a named edge requires the original input
 /// binding, not merely a source expression with the same parameter symbol.

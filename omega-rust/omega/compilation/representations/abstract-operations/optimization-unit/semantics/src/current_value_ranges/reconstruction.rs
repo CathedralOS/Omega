@@ -80,7 +80,7 @@ pub(super) fn reconstruct_value_range_fact(
             }
             let proposition = goal.kernel_proposition().ok()?;
             let canonical = terminal_codec::canonical_proposition_order_key(&proposition).ok()?;
-            let Some(accepted_fact) = unit
+            let accepted_fact = unit
                 .accepted_obligation_fact(
                     function.machine,
                     optimization_unit::PsiProvenance::Operation(operation),
@@ -88,10 +88,7 @@ pub(super) fn reconstruct_value_range_fact(
                 )
                 .filter(|candidate| {
                     candidate.identity == accepted && candidate.proposition == canonical
-                })
-            else {
-                return None;
-            };
+                })?;
             let proof_question = unit
                 .proof_questions
                 .iter()

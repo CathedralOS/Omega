@@ -52,7 +52,7 @@ pub(crate) fn retain_shapes(
     is_executable: impl Fn(u32) -> bool,
     shapes: &mut Vec<TypePlan>,
 ) -> Result<(), String> {
-    let retained = (|| {
+    (|| {
         macro_rules! retain_operand {
             ($type_reference:expr, $context:expr) => {{
                 let reference = $type_reference;
@@ -432,8 +432,7 @@ pub(crate) fn retain_shapes(
             }
         }
         Ok(())
-    })();
-    retained
+    })()
 }
 
 fn retain_declarations(

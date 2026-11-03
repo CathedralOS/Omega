@@ -1,8 +1,6 @@
 //! Closed storage reach of a fresh owned value, without nominal-name rules.
 use semantic_vocabulary::StructuralTypeId;
-use terminal_psi::{
-    StructuralFieldType, StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
-};
+use terminal_psi::{StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape};
 
 pub(super) fn contains_only_scalars<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
@@ -76,6 +74,7 @@ mod tests {
     use semantic_vocabulary::{
         OperationId, PlaceId, ScalarType, StructuralCaseId, StructuralFieldId, StructuralPlaceKind,
     };
+    use terminal_psi::StructuralPathSegment;
     use terminal_psi::{
         BindingRelevance, StructuralAccess, StructuralCaseDeclaration, StructuralFieldDeclaration,
         StructuralMultiplicity, StructuralParameterDeclaration, StructuralPlaceDeclaration,

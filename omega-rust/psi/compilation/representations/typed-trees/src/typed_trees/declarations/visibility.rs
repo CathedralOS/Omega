@@ -238,8 +238,10 @@ mod tests {
                     [(SymbolKind::State, SymbolNameRef::Static("entry"))],
                 )
                 .start();
-            let mut program = TypedTrees::default();
-            program.symbols = builder.finish();
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
             let declaration = Machine {
                 symbol: machine,
                 is_public,
@@ -261,8 +263,10 @@ mod tests {
         for is_public in [false, true] {
             let mut builder = SymbolTableBuilder::default();
             let symbol = builder.insert_root(SymbolKind::TypeAlias, SymbolNameRef::Static("Alias"));
-            let mut program = TypedTrees::default();
-            program.symbols = builder.finish();
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
             assert!(super::requires_declaration_visibility(
                 SymbolKind::TypeAlias
             ));

@@ -232,16 +232,15 @@ fn require_formed_integer_math(
     for operand in term.operands() {
         closed &= require_formed_integer_math(operand, integers)?;
     }
-    if let IntegerMathTerm::ShiftLeft { count, .. } = term {
-        if let Some(count) = integers
+    if let IntegerMathTerm::ShiftLeft { count, .. } = term
+        && let Some(count) = integers
             .evaluate_closed(count)
             .map_err(|reason| format!("the checked crash guard could not be formed: {reason}"))?
-            && count.is_negative()
-        {
-            return Err(
-                "the checked crash guard contains an undefined negative mathematical shift".into(),
-            );
-        }
+        && count.is_negative()
+    {
+        return Err(
+            "the checked crash guard contains an undefined negative mathematical shift".into(),
+        );
     }
     if closed
         && integers
