@@ -79,7 +79,7 @@ fn reload(fixture: &str) -> terminal_psi_to_abstract_operations::RetainedTermina
     if let Some(inputs) = prepared.package_inputs {
         request = request.with_package_inputs(inputs);
     }
-    let retained = omega_build::compile_sources(&mut session, request)
+    let retained = orchestration::compile_sources(&mut session, request)
         .and_then(compiler::CompileOutcomes::into_single_report)
         .expect("numeric Terminal production")
         .into_retained_terminal_artifact()

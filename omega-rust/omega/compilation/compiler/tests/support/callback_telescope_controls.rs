@@ -264,7 +264,7 @@ fn execute_policy(
     signature: &provider_planning::calling_policy_plans::CallingPolicySignature,
     application: &calling_conventions::BoundaryCallingApplication,
 ) -> Result<(), String> {
-    use build_evaluation::evaluate_terminal_calling_policy;
+    use build_settings::evaluate_terminal_calling_policy;
     use evaluation_accounting::{
         BuildEvaluationSponsor, BuildEvaluationSponsorLimits, EvaluationMeasurementIdentity,
         TerminalStorageScheduleIdentity,

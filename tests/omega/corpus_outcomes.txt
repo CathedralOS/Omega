@@ -13930,7 +13930,7 @@ pass/providers/inline_provider_owner_static_telescope_unapplied rejected 2999ms 
 pass/providers/kernel_import_result_chain_exit checked 18637ms check-target:linux_x86_64 @a562d4060f10+wt
 pass/providers/lifetime_boundary_requirement_dispatch_exit checked 11568ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/linear_structural_provider_pure_exit checked 74877ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/providers/linear_structural_provider_return_exit rejected 66307ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
+pass/providers/linear_structural_provider_return_exit rejected 81587ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @10b4c36f3bb2
 	terminal-artifact production failed: Lowering(MissingUnitDomainPlan { domain: SemanticDomainId(0), name: "" })
 pass/providers/local_record_foreign_borrow_exit checked 12380ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/module_named_operator_result_domain_satisfaction rejected 8247ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214

@@ -10,7 +10,7 @@ use package_manager::operations::{ProjectCompilationAdmissionRequest, ProjectCom
 pub(crate) struct ProjectCompilationRequest<'request> {
     pub prepared: package_manager::operations::PreparedLocalProject,
     pub target_profiles: &'request [target::TargetProfile],
-    pub snapshot: Option<&'request build_evaluation::BuildSnapshotRequest>,
+    pub snapshot: Option<&'request build_settings::BuildSnapshotRequest>,
     pub verify: bool,
     pub timings: bool,
     pub product: compiler::CompilationProduct,

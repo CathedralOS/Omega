@@ -1,4 +1,9 @@
-# Build evaluation
+# Build settings
+
+Runs a project's `build.omg` and returns the settings it sets: subsystem,
+program entry, provider choices and optimizations. It checks the program before
+running it, runs it in the Terminal interpreter, and hands the filled-in `Build`
+value back to [orchestration](../orchestration/README.md).
 
 [`build_evaluation.rs`](src/build_evaluation.rs) owns one complete Build activation:
 entry selection, pre-effect semantic admission, filesystem preparation, exact machine admission,

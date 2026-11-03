@@ -25,7 +25,7 @@ compilation-products = { path = "../products" }
 component-description = { path = "../backend/artifacts/component-description" }
 lowered-psi = { path = "../../../psi/compilation/representations/lowered-psi" }
 build-declarations = { path = "../../packages/build-declarations" }
-build-evaluation = { path = "../../build-system/build-evaluation" }
+build-settings = { path = "../../build-system/build-settings" }
 build-output = { path = "../../packages/build-output" }
 package-compilation = { path = "../../packages/package-compilation" }
 provider-planning = { path = "../realization/provider-planning" }
@@ -68,7 +68,7 @@ package-manager = { path = "../../packages/package-manager" }
 evaluation-accounting = { path = "../../../psi/foundation/evaluation-accounting" }
 bounded-process = { path = "../../foundation/bounded-process" }
 
-omega-build = { path = "../../build-system/omega-build" }
+orchestration = { path = "../../build-system/orchestration" }
 terminal-runtime = { path = "../../interpreter/terminal-runtime" }
 numerics = { path = "../../../psi/foundation/numerics" }
 terminal-semantics = { path = "../../../psi/compilation/representations/terminal-psi/semantics" }

@@ -13,7 +13,7 @@
 //! and 2 checks (Build + Product). Check-only defaults to zero Terminal work.
 
 use artifacts::compile_timings::counters;
-use omega_build::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct, build};
+use orchestration::{BuildRequest, BuildTargets, NativeDestination, ProjectProduct, build};
 
 #[derive(Debug, PartialEq, Eq)]
 struct WorkCounts {
@@ -227,7 +227,7 @@ fn build_targets(
     request: &Request,
     profiles: &[target::TargetProfile],
     suffix: &str,
-) -> Result<Vec<omega_build::TargetBuildOutcome>, Box<dyn std::error::Error>> {
+) -> Result<Vec<orchestration::TargetBuildOutcome>, Box<dyn std::error::Error>> {
     let directory = std::env::temp_dir().join(format!(
         "omega-package-batch-{}-{suffix}",
         std::process::id()

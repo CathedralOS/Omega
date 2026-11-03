@@ -7,7 +7,7 @@
 
 use compiler::{CompileOptions, CompileReport};
 use diagnostics::Diagnostic;
-use omega_build::{BuildError, BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
+use orchestration::{BuildError, BuildRequest, BuildTargets, NativeDestination, ProjectProduct};
 use terminal_runtime::{
     TerminalDomainExitDelegation, TerminalRuntimeError, TerminalRuntimeObservation,
     TerminalRuntimeRequest,
@@ -37,7 +37,7 @@ pub(super) fn compile(
         ),
         None => BuildTargets::Host,
     };
-    let outcomes = omega_build::build(BuildRequest {
+    let outcomes = orchestration::build(BuildRequest {
         root_path: options.root_path,
         build_directory: options.build_dir,
         targets,

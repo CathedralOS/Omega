@@ -30,7 +30,7 @@ pub fn execute_joined_product(
         .expect("joined Product batch");
     let (_, outcome) = outcomes.pop().expect("one Product outcome");
     let report = outcome
-        .and_then(omega_build::complete_product)
+        .and_then(orchestration::complete_product)
         .and_then(compiler::CompilationOutput::into_report)?;
     execution::execute_report(report, output);
     Ok(())

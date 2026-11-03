@@ -226,7 +226,7 @@ pub(crate) fn resolve_acquired_sources(
 
 fn normal_return(
     build: &ReturnedPackageBuild,
-) -> Result<&build_evaluation::ReturnedBuild, ProjectSourceResolutionError> {
+) -> Result<&build_settings::ReturnedBuild, ProjectSourceResolutionError> {
     build.returned.as_ref().ok_or_else(|| {
         ProjectSourceResolutionError::Source(
             "acquired source has no executed Build declaration".into(),

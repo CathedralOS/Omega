@@ -27,7 +27,7 @@ pub(crate) fn compiled_review_key(
     build_execution_profile: Option<target::TargetProfile>,
     entry: &Path,
     inputs: &PackageCompilationInputs,
-    snapshot: &build_evaluation::BuildSnapshotRequest,
+    snapshot: &build_settings::BuildSnapshotRequest,
 ) -> Option<[u8; 32]> {
     // A cache is optional. Failure to identify exact compiler and injected
     // library inputs is a miss, never a weaker release/developer-name key.
@@ -51,7 +51,7 @@ pub(crate) fn compiled_review_key_with_identity(
     build_execution_profile: Option<target::TargetProfile>,
     entry: &Path,
     inputs: &PackageCompilationInputs,
-    snapshot: &build_evaluation::BuildSnapshotRequest,
+    snapshot: &build_settings::BuildSnapshotRequest,
     compiler_identity: [u8; 32],
 ) -> [u8; 32] {
     let mut digest = crate::digest_encoder::DomainDigestEncoder::new(RECORD_KEY_DOMAIN);
@@ -128,7 +128,7 @@ mod tests {
             Vec::new(),
         )
         .unwrap();
-        let snapshot = build_evaluation::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
+        let snapshot = build_settings::BuildSnapshotRequest::new(std::iter::empty::<Vec<u8>>());
         let entry = Path::new("main.omg");
         let key_for = |compiler_identity| {
             compiled_review_key_with_identity(

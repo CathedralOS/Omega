@@ -88,7 +88,7 @@ fn complete_native(
         let mut prepared = native_production::prepare(&terminal, request)
             .map_err(|(_, diagnostics)| diagnostics)?;
         for completion in prepared.scalar_completions() {
-            let completed = build_evaluation::scalar_completion::complete(
+            let completed = build_settings::scalar_completion::complete(
                 completion.artifact(),
                 completion.target(),
                 completion.demand(),
