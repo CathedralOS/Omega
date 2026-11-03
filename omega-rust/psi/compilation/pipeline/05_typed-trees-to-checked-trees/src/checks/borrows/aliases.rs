@@ -407,6 +407,46 @@ pub(in crate::checks) fn transport_suppliers<'borrow>(
     exact.then_some(suppliers)
 }
 
+/// A moved input descriptor retains its entry identity without a local parent
+/// loan. Recognize only that admitted fixed leaf, not another descriptor with
+/// the same backing. Its lineage contains this occurrence alone; it supplies
+/// neither a new entry permission nor a local borrowing resource.
+fn retained_input_terminal(
+    borrow: &BorrowFacts,
+    state: &StateBorrowFact,
+    loan: &BorrowLoanFact,
+) -> bool {
+    if loan.lineage != BorrowLoanLineage::UnretainedDerived
+        || !borrow
+            .loan_suppliers
+            .span(loan.supplying_loans)
+            .is_some_and(<[_]>::is_empty)
+        || !borrow.state_owns_incoming_reference(state, loan.incoming_reference)
+        || !borrow
+            .access_segments
+            .span(loan.segments)
+            .is_some_and(<[_]>::is_empty)
+        || !borrow
+            .access_segments
+            .span(loan.incoming_owner_path)
+            .is_some_and(<[_]>::is_empty)
+    {
+        return false;
+    }
+    let incoming = borrow.incoming_references.get(loan.incoming_reference);
+    if !borrow
+        .owner_segments
+        .span(incoming.owner_path)
+        .is_some_and(|path| !path.contains(&BorrowLoanOwnerSegment::DynamicIndex))
+    {
+        return false;
+    }
+    matches!(incoming.origin, checked_trees::IncomingReferenceOrigin::Parameter { symbol }
+        if symbol.is_valid()
+            && loan.source_owner_symbol == symbol
+            && loan.root == incoming.place_root())
+}
+
 pub(in crate::checks::borrows) fn retained_lineage(
     borrow: &BorrowFacts,
     state: &StateBorrowFact,
@@ -527,8 +567,10 @@ pub(in crate::checks::borrows) fn retained_lineage(
                 }
             }
             BorrowLoanLineage::UnretainedDerived => {
-                for supplier in transport_suppliers(borrow, state, handle)? {
-                    pending.push((*supplier, false));
+                if !retained_input_terminal(borrow, state, loan) {
+                    for supplier in transport_suppliers(borrow, state, handle)? {
+                        pending.push((*supplier, false));
+                    }
                 }
             }
             BorrowLoanLineage::LifetimeDependency => return None,

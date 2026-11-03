@@ -61,6 +61,18 @@ impl CallFrameResolver<'_> {
         })
     }
 
+    /// Retain whole-value moves and reference leaves under the same invocation
+    /// context. Consumers select stored descriptors from the completed actual.
+    pub fn reference_result_transports_for_arguments(
+        &self,
+        symbol: SymbolHandle,
+        arguments: &[typed_trees::expression::ExpressionHandle],
+    ) -> Option<Vec<ReferenceResultTransport>> {
+        let inference = FrameInference::default();
+        let indices = inference.argument_indices(self.program, arguments);
+        self.reference_result_transports_for_indices(symbol, &indices)
+    }
+
     /// The flat projection still cannot select payloads of a moved value.
     /// Apply invocation context to the full relation first, then retain that
     /// refusal rather than letting a state-only flat query preempt context.
@@ -69,9 +81,7 @@ impl CallFrameResolver<'_> {
         symbol: SymbolHandle,
         arguments: &[typed_trees::expression::ExpressionHandle],
     ) -> Option<Vec<ReferenceResultLeafOrigin>> {
-        let inference = FrameInference::default();
-        let indices = inference.argument_indices(self.program, arguments);
-        self.reference_result_transports_for_indices(symbol, &indices)?
+        self.reference_result_transports_for_arguments(symbol, arguments)?
             .into_iter()
             .map(|transport| match transport {
                 ReferenceResultTransport::Reference(leaf) => Some(leaf),
