@@ -105,7 +105,7 @@ pub(super) fn re_home_bound_references(
                 || !destinations.insert(destination.clone())
                 || (copies
                     && !types
-                        .get(&descriptor.carrier_type)
+                        .get(descriptor.carrier_type)
                         .is_some_and(|declaration| {
                             matches!(
                                 declaration.shape,
@@ -181,7 +181,7 @@ pub(super) fn is_address_join(
     structural_types: &StructuralTypeLookup<'_>,
 ) -> bool {
     abstract_operations::control_flow::address_joins::is_address_join(parameter, |identity| {
-        structural_types.get(&identity).copied()
+        structural_types.get(identity).copied()
     })
 }
 
@@ -519,11 +519,11 @@ pub(super) fn validate_successors(
                     || (!binding.argument.path.is_empty()
                         && (!is_static_projection(&binding.argument.path)
                             || (parameter.access != terminal_psi::StructuralAccess::Owned
-                                && !structural_types
-                                    .get(&parameter.structural_type)
-                                    .is_some_and(|declaration| {
+                                && !structural_types.get(parameter.structural_type).is_some_and(
+                                    |declaration| {
                                         declaration.shape.is_bounded_owned_byte_sequence()
-                                    }))))
+                                    },
+                                ))))
                     || !matches!(
                         parameter.access,
                         terminal_psi::StructuralAccess::SharedBorrow

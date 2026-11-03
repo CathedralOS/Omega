@@ -13,9 +13,8 @@ use super::super::super::structural_layout::{
 };
 use super::{
     AbstractFunction, BTreeMap, BTreeSet, BoundaryMachineId, CallSignature, LoweringError,
-    NativeTarget, OperationId, PlaceId, StructuralTypeId, StructuralTypeLookup,
-    StructuralTypeShape, TargetStructuralParameter, TargetUnitScalarHomeRequirement, ValueId,
-    ValueShape,
+    NativeTarget, OperationId, PlaceId, StructuralTypeLookup, StructuralTypeShape,
+    TargetStructuralParameter, TargetUnitScalarHomeRequirement, ValueId, ValueShape,
 };
 use calling_conventions::ValueClass;
 use calling_conventions::{byte_size_at_offset_zero, validate_boundary_entry_plan};
@@ -59,8 +58,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
     binding: &target_operations::NormalizedForeignCallBinding,
     structural_types: &StructuralTypeLookup<'_>,
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
-    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+
     native_callbacks: &[target_operations::TargetNativeCallbackArgument],
     local_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     address_joins: &BTreeSet<PlaceId>,
@@ -118,8 +116,6 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 address_joins,
                 block_views,
                 structural_types,
-                shape_cache,
-                active,
             )?;
             let root = resolved.declaration;
             let source_structural_type = root.structural_type;
@@ -148,7 +144,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
             }
             let descriptor_formal = argument.access != StructuralAccess::Owned
                 && structural_types
-                    .get(&parameter.structural_type)
+                    .get(parameter.structural_type)
                     .is_some_and(|row| {
                         matches!(
                             row.shape,
@@ -162,13 +158,8 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 let destination = operands
                     .get(native_position)
                     .ok_or(LoweringError::BoundaryRealizationMismatch(boundary))?;
-                let carrier = structural_shape(
-                    parameter.structural_type,
-                    structural_types,
-                    shape_cache,
-                    active,
-                )
-                .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
+                let carrier = structural_shape(parameter.structural_type, structural_types)
+                    .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?;
                 let shape =
                     crate::lowering::structural_signature::StructuralCallSignature::parameter_shape(
                         crate::lowering::structural_signature::ParameterLane::Foreign,
@@ -182,7 +173,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 // a fixed view crosses the native ABI as one pointer.
                 let bounded = matches!(
                     structural_types
-                        .get(&parameter.structural_type)
+                        .get(parameter.structural_type)
                         .map(|row| &row.shape),
                     Some(StructuralTypeShape::ByteSequence(
                         terminal_psi::ByteSequenceCarrier::BoundedView { .. }
@@ -214,8 +205,6 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         source_shape.byte_size,
                         argument_source.clone(),
                         structural_types,
-                        shape_cache,
-                        active,
                     )
                     .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
                 {
@@ -247,8 +236,6 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                             root.structural_type,
                             &argument.path,
                             structural_types,
-                            shape_cache,
-                            active,
                         )
                         .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
                     };
@@ -293,13 +280,8 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                 if argument.path.is_empty() {
                     (
                         source_structural_type,
-                        structural_shape(
-                            source_structural_type,
-                            structural_types,
-                            shape_cache,
-                            active,
-                        )
-                        .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
+                        structural_shape(source_structural_type, structural_types)
+                            .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?,
                         0,
                     )
                 } else {
@@ -315,8 +297,6 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                         source_structural_type,
                         &argument.path,
                         structural_types,
-                        shape_cache,
-                        active,
                     )
                     .map_err(|_| LoweringError::BoundaryRealizationMismatch(boundary))?
                 }
@@ -352,7 +332,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
             let projects_view_backing = argument.access != StructuralAccess::Owned
                 && !argument.path.is_empty()
                 && structural_types
-                    .get(&source_structural_type)
+                    .get(source_structural_type)
                     .is_some_and(|row| {
                         row.shape.is_borrowed_byte_carrier()
                             || matches!(row.shape, StructuralTypeShape::ElementView { .. })
@@ -401,7 +381,7 @@ pub(super) fn lower_normalized_foreign_structural_arguments(
                     // joined on the descriptor's exact size and alignment.
                     let descriptor_formal = matches!(
                         structural_types
-                            .get(&parameter.structural_type)
+                            .get(parameter.structural_type)
                             .map(|declaration| &declaration.shape),
                         Some(StructuralTypeShape::ByteSequence(
                             terminal_psi::ByteSequenceCarrier::BorrowedView { .. }

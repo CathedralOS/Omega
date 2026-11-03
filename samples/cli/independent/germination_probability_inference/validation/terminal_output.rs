@@ -4,7 +4,7 @@
 //! interpretation, synthetic receiver, reconstructed artifact or trust bypass.
 use std::{fs, path::PathBuf};
 use package_manager::operations::{prepare_local_project, LocalProjectPreparationOptions};
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use orchestration::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use terminal_runtime::{TerminalRuntimeRequest, TerminalDomainExitDelegation};
 use terminal_interpreter::TerminalExecutionStatus;
 

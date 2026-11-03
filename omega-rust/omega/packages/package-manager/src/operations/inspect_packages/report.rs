@@ -216,7 +216,7 @@ fn checked_context(
 /// lists every entry; the summary carries their count).
 fn build_snapshot(
     output: &mut Output,
-    observation: Option<&build_evaluation::BuildObservationSummary>,
+    observation: Option<&build_settings::BuildObservationSummary>,
     verbose: bool,
 ) -> fmt::Result {
     let Some(observation) = observation else {
@@ -249,10 +249,10 @@ fn build_snapshot(
         for entry in entries {
             let path = String::from_utf8_lossy(entry.relative_path());
             match entry.kind() {
-                build_evaluation::BuildStagedOutputEntryKind::Directory => {
+                build_settings::BuildStagedOutputEntryKind::Directory => {
                     writeln!(output, "  sealed-output {path:?} directory")?;
                 }
-                build_evaluation::BuildStagedOutputEntryKind::File { bytes, executable } => {
+                build_settings::BuildStagedOutputEntryKind::File { bytes, executable } => {
                     writeln!(
                         output,
                         "  sealed-output {path:?} file {} bytes{}",
@@ -260,7 +260,7 @@ fn build_snapshot(
                         if executable { " executable" } else { "" }
                     )?;
                 }
-                build_evaluation::BuildStagedOutputEntryKind::Symlink { target } => {
+                build_settings::BuildStagedOutputEntryKind::Symlink { target } => {
                     writeln!(
                         output,
                         "  sealed-output {path:?} symlink {:?}",

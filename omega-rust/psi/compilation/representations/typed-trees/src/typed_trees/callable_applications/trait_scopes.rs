@@ -385,7 +385,11 @@ impl TypedTrees {
     /// Prepare reachable declaring scopes once, including every inherited path.
     /// An application owns logical contracts, not executable realizations;
     /// constructing this row confers no conformance or proof authority.
-    pub fn prepare_applied_callable_signatures(&mut self) -> Result<(), &'static str> {
+    /// Return only newly substituted signatures so their producer can finalize
+    /// derived domain identities before a caller reads the prepared contracts.
+    pub fn prepare_applied_callable_signatures(
+        &mut self,
+    ) -> Result<Vec<signature::StateSignature>, &'static str> {
         let roots = self.applied_trait_roots();
         let mut pending = Vec::new();
         for scope in roots {
@@ -438,6 +442,7 @@ impl TypedTrees {
                 }
             });
         }
+        let mut produced = Vec::new();
         for (trait_symbol, owner, identity, requirement, environment, clauses) in pending {
             if self
                 .applied_callable_signatures.iter().any(|(_, prepared)| {
@@ -469,6 +474,7 @@ impl TypedTrees {
                 applied
             };
             self.apply_callable_refinements(&mut applied, &clauses)?;
+            produced.push(applied.clone());
             self.applied_callable_signatures
                 .insert(AppliedCallableSignature {
                     owner: AppliedCallableOwner::Trait {
@@ -478,7 +484,7 @@ impl TypedTrees {
                     signature: applied,
                 });
         }
-        Ok(())
+        Ok(produced)
     }
 
     /// Materialize each simultaneous telescope in its outer scopes. This shared

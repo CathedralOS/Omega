@@ -538,7 +538,7 @@ fn historical_constant_closure_requires_exact_target_and_provider() {
         if let Some(inputs) = prepared.package_inputs {
             request = request.with_package_inputs(inputs);
         }
-        omega_build::compile_sources(&mut compiler::CompilationSession::default(), request)
+        orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
             .expect("request admission")
             .into_single_report()
             .expect("source reaches its requested product")

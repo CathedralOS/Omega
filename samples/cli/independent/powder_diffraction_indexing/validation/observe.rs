@@ -4,7 +4,7 @@
 //! interpretation, synthetic receiver, reconstructed artifact or trust bypass.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use orchestration::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::{fs, path::PathBuf};
 use terminal_interpreter::TerminalExecutionStatus;
 
@@ -109,7 +109,7 @@ fn run(
         );
     }
     let (_, executable) =
-        omega_build::publication::publish_native_artifact(report, &output.join("compiled"))
+        orchestration::publication::publish_native_artifact(report, &output.join("compiled"))
             .map_err(|error| error.to_string())?;
     for name in &names {
         let prepared = bounded_process::BoundedProcessPrepared::new(

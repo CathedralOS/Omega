@@ -150,12 +150,12 @@ fn execute_workspace_fixture() {
         std::fs::copy(authored.join(name), project.join(name)).unwrap();
     }
     let profile = target::TargetProfile::host_if_supported().unwrap();
-    let request = omega_build::BuildRequest {
+    let request = orchestration::BuildRequest {
         root_path: project.join("main.omg"),
         build_directory: Some(directory.join("output")),
-        targets: omega_build::BuildTargets::Single(profile),
-        product: omega_build::ProjectProduct::Native {
-            destination: omega_build::NativeDestination::Retained,
+        targets: orchestration::BuildTargets::Single(profile),
+        product: orchestration::ProjectProduct::Native {
+            destination: orchestration::NativeDestination::Retained,
             private_entry_ram: Vec::new(),
         },
         timings: false,
@@ -166,7 +166,7 @@ fn execute_workspace_fixture() {
         build_snapshot: None,
     };
     let before = artifacts::compile_timings::counters::build_execution_count();
-    let mut outcomes = omega_build::build(request.clone()).unwrap();
+    let mut outcomes = orchestration::build(request.clone()).unwrap();
     let outcome = outcomes.pop().unwrap();
     let report = outcome.result.unwrap().into_report().unwrap().report;
     joined_product_native::execute_report(report, &directory.join("native"));
@@ -181,7 +181,7 @@ fn execute_workspace_fixture() {
         source.replace("selected::answer()", "selected::private_answer()"),
     )
     .unwrap();
-    let mut outcomes = omega_build::build(request.clone()).unwrap();
+    let mut outcomes = orchestration::build(request.clone()).unwrap();
     let error = outcomes
         .pop()
         .unwrap()
@@ -201,7 +201,7 @@ fn execute_workspace_fixture() {
         declaration.replace("workspace_selected", "workspace_missing"),
     )
     .unwrap();
-    let error = omega_build::build(request.clone())
+    let error = orchestration::build(request.clone())
         .err()
         .expect("named selection must exist in the executed catalog");
     assert!(
@@ -242,7 +242,7 @@ fn execute_workspace_fixture() {
     let mut offline = request.clone();
     offline.offline = true;
     let before = artifacts::compile_timings::counters::build_execution_count();
-    let mut outcomes = omega_build::build(offline).unwrap();
+    let mut outcomes = orchestration::build(offline).unwrap();
     let report = outcomes
         .pop()
         .unwrap()
@@ -257,7 +257,7 @@ fn execute_workspace_fixture() {
         before + 6
     );
     let audit =
-        omega_build::inspect_packages(package_manager::operations::PackageInspectionOptions {
+        orchestration::inspect_packages(package_manager::operations::PackageInspectionOptions {
             project_root: project.clone(),
             targets: vec![profile],
             details: false,
@@ -280,8 +280,8 @@ fn execute_workspace_fixture() {
         locked,
         "compilation and audit do not rewrite acceptance"
     );
-    let mut session = omega_build::BuildSession::create(&project.join("build/refresh")).unwrap();
-    let error = omega_build::execute_package_command(
+    let mut session = orchestration::BuildSession::create(&project.join("build/refresh")).unwrap();
+    let error = orchestration::execute_package_command(
         package_manager::PackageCommand::Update {
             packages: Vec::new(),
             revision: None,
@@ -317,7 +317,7 @@ fn accept_workspace_project(project: &std::path::Path, profile: target::TargetPr
         PackageCommand, PackageCommandKind, PackageCommandOptions, PackageCommandStatus,
     };
     let mut session =
-        omega_build::BuildSession::create(&project.join("build/package-manager")).unwrap();
+        orchestration::BuildSession::create(&project.join("build/package-manager")).unwrap();
     let options = PackageCommandOptions {
         project_root: project.to_path_buf(),
         targets: vec![profile],
@@ -330,7 +330,7 @@ fn accept_workspace_project(project: &std::path::Path, profile: target::TargetPr
     };
     for _ in 0..4 {
         let outcome =
-            omega_build::execute_package_command(command, options.clone(), &mut session).unwrap();
+            orchestration::execute_package_command(command, options.clone(), &mut session).unwrap();
         if outcome.status == PackageCommandStatus::Published {
             session.close().unwrap();
             return;
@@ -372,10 +372,10 @@ fn execute_fixture() {
     }
     let log = directory.join("fetch.log");
     foreign_policy_control(&directory, &project, profile, &log);
-    let discover = |session: &mut omega_build::BuildSession, offline| {
-        omega_build::resolve_project_sources(
+    let discover = |session: &mut orchestration::BuildSession, offline| {
+        orchestration::resolve_project_sources(
             session,
-            omega_build::ProjectSourceRequest {
+            orchestration::ProjectSourceRequest {
                 preparation: package_manager::operations::begin_local_project_preparation(
                     &project.join("main.omg"),
                     &[profile],
@@ -402,7 +402,7 @@ fn execute_fixture() {
             )
             .unwrap();
         }
-        let mut session = omega_build::BuildSession::create(&directory.join(if private_call {
+        let mut session = orchestration::BuildSession::create(&directory.join(if private_call {
             "private"
         } else {
             "valid"
@@ -503,7 +503,7 @@ fn execute_fixture() {
         std::fs::copy(fixture.join(name), project.join(name)).unwrap();
     }
     let before = std::fs::read(&log).unwrap();
-    let mut session = omega_build::BuildSession::create(&directory.join("offline")).unwrap();
+    let mut session = orchestration::BuildSession::create(&directory.join("offline")).unwrap();
     let error = discover(&mut session, true)
         .err()
         .expect("unaccepted offline selector refuses even when source is cached");
@@ -537,7 +537,7 @@ fn foreign_policy_control(
     .unwrap()
     .unwrap();
     let acquired = preparation.acquire_root().unwrap();
-    let mut session = omega_build::BuildSession::create(&directory.join("foreign-policy")).unwrap();
+    let mut session = orchestration::BuildSession::create(&directory.join("foreign-policy")).unwrap();
     let request = session
         .resources()
         .source_build_request(

@@ -9,7 +9,9 @@
 //! Start at `identity.rs` for the ids every terminal artifact names (machines,
 //! blocks, edges, operations, values, places, claims, obligations, contracts,
 //! services, structural types, domains and fields) and `proposition/` for the
-//! scalar types, terms and propositions built over them. `structural_places.rs`
+//! scalar types, terms and propositions built over them. `id_table.rs` stores
+//! values and membership keyed by those dense identities as flat arrays.
+//! `structural_places.rs`
 //! owns machine-place root kinds and affine construction coordinates; `content.rs`
 //! owns content projections over those places. `bounded_integer_type.rs`
 //! restricts a fixed integer carrier to one interval. `scalar_refinement.rs`
@@ -26,7 +28,9 @@ pub(crate) use optimization::codec_bytes;
 
 mod behavior_policy;
 mod boundary;
+mod scalar_condition_role;
 mod scalars;
+pub use scalar_condition_role::ScalarConditionRole;
 mod storage;
 pub use behavior_policy::{CrashCause, TerminalAuthorityClass};
 pub use boundary::callback_identities::{
@@ -37,6 +41,7 @@ pub use boundary::callback_identities::{
 pub mod byte_predicates;
 pub mod compiler_evaluation;
 pub mod fnv1a;
+mod id_table;
 mod identity;
 pub mod proof_applications;
 mod proposition;
@@ -53,6 +58,7 @@ pub use storage::reference_origins::ReferenceOriginExtent;
 
 pub use byte_predicates::{ByteSequencePredicate, ByteSequencePredicateSet};
 pub use fnv1a::Fnv1a;
+pub use id_table::{IdSet, IdTable, NonDenseIdentities};
 pub use identity::{
     AdmissionSiteId, BlockId, BoundaryCompletion, BoundaryMachineId, BoundaryRequirementKind,
     CallingAbiIdentity, CallingDeclarationOwner, CallingGenericFormal, CallingOperandKind,

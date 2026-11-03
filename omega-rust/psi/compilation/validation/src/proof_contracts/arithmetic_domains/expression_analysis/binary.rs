@@ -1015,6 +1015,7 @@ impl Operation<'_, '_> {
                         checked_trees::IntegerRangeObligation::retain(
                             self.expression,
                             self.walk.lexical_owner,
+                            semantic_vocabulary::ScalarConditionRole::Prerequisite,
                             recipe.clone(),
                             BigInt::from_i64(minimum),
                             maximum,

@@ -7,23 +7,21 @@
 
 use super::structural_layout;
 use abstract_operations::AbstractOperationPlan;
+use calling_conventions::terminal_layout::StructuralLayouts;
 use runtime_abi::{NativeBorrowedStorageLayout, NativeStorageCaseTag, NativeStorageRepetition};
 use semantic_vocabulary::{
     CanonicalStructuralPathSegment as Path, ScalarType, StructuralCaseId, StructuralTypeId,
 };
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeSet;
 use structural_layout::{direct_scalar_field_geometry, structural_shape};
 use terminal_psi::{
-    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment,
-    StructuralTypeDeclaration, StructuralTypeShape,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralPathSegment, StructuralTypeShape,
 };
 
-pub(super) fn capture(plan: &AbstractOperationPlan) -> Vec<NativeBorrowedStorageLayout> {
-    let declarations: BTreeMap<_, _> = plan
-        .structural_types
-        .iter()
-        .map(|row| (row.id, row))
-        .collect();
+pub(super) fn capture(
+    plan: &AbstractOperationPlan,
+    declarations: &StructuralLayouts<'_>,
+) -> Vec<NativeBorrowedStorageLayout> {
     // Native value codecs need owned argument and result layouts even when no
     // unrelated boundary in this module borrows storage. Original allocation
     // geometry additionally needs the complete actual owned roots below.
@@ -80,29 +78,15 @@ pub(super) fn capture(plan: &AbstractOperationPlan) -> Vec<NativeBorrowedStorage
     }
     requested
         .into_iter()
-        .filter_map(|root| capture_declared_type(root, &declarations))
+        .filter_map(|root| capture_type(root, declarations))
         .collect()
 }
 
 pub(crate) fn capture_type(
     root: StructuralTypeId,
-    types: &[StructuralTypeDeclaration],
+    declarations: &StructuralLayouts<'_>,
 ) -> Option<NativeBorrowedStorageLayout> {
-    let declarations = types.iter().map(|row| (row.id, row)).collect();
-    capture_declared_type(root, &declarations)
-}
-
-fn capture_declared_type(
-    root: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-) -> Option<NativeBorrowedStorageLayout> {
-    let shape = structural_shape(
-        root,
-        declarations,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )
-    .ok()?;
+    let shape = structural_shape(root, declarations).ok()?;
     let mut recipes = StorageRecipes {
         declarations,
         fields: Vec::new(),
@@ -137,8 +121,7 @@ type Discriminator = (
 type OpaqueRegion = (Vec<Path>, Vec<NativeStorageRepetition>, u32, u32);
 
 struct StorageRecipes<'declarations> {
-    declarations:
-        &'declarations BTreeMap<StructuralTypeId, &'declarations StructuralTypeDeclaration>,
+    declarations: &'declarations StructuralLayouts<'declarations>,
     fields: Vec<Field>,
     discriminators: Vec<Discriminator>,
     opaque_regions: Vec<OpaqueRegion>,
@@ -153,7 +136,7 @@ impl StorageRecipes<'_> {
         path: &mut Vec<Path>,
         repetitions: &mut Vec<NativeStorageRepetition>,
     ) -> Option<()> {
-        let declaration = self.declarations.get(&root).copied()?;
+        let declaration = self.declarations.get(root).copied()?;
         match &declaration.shape {
             StructuralTypeShape::PrimitiveScalar(scalar) => {
                 self.fields
@@ -162,13 +145,7 @@ impl StorageRecipes<'_> {
             StructuralTypeShape::Reference { .. }
             | StructuralTypeShape::ByteSequence(_)
             | StructuralTypeShape::ElementView { .. } => {
-                let shape = structural_layout::structural_shape(
-                    root,
-                    self.declarations,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
-                )
-                .ok()?;
+                let shape = structural_layout::structural_shape(root, self.declarations).ok()?;
                 self.opaque_regions.push((
                     path.clone(),
                     repetitions.clone(),
@@ -194,13 +171,8 @@ impl StorageRecipes<'_> {
                 {
                     return None;
                 }
-                let layout = structural_layout::structural_sum_layout(
-                    root,
-                    self.declarations,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
-                )
-                .ok()?;
+                let layout =
+                    structural_layout::structural_sum_layout(root, self.declarations).ok()?;
                 let mappings = cases
                     .iter()
                     .enumerate()
@@ -234,13 +206,9 @@ impl StorageRecipes<'_> {
             }
             StructuralTypeShape::FixedArray { element, length } => {
                 let length = length.literal()?;
-                let (_, stride) = structural_layout::root_array_projection_metadata(
-                    root,
-                    self.declarations,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
-                )
-                .ok()?;
+                let (_, stride) =
+                    structural_layout::root_array_projection_metadata(root, self.declarations)
+                        .ok()?;
                 repetitions.push(NativeStorageRepetition {
                     path_position: path.len(),
                     length,
@@ -312,8 +280,6 @@ impl StorageRecipes<'_> {
                         root,
                         &[Path::Case(case), Path::Field(member.id)],
                         self.declarations,
-                        &mut BTreeMap::new(),
-                        &mut BTreeSet::new(),
                     )
                     .ok()?
                 } else {
@@ -321,8 +287,6 @@ impl StorageRecipes<'_> {
                         root,
                         &[StructuralPathSegment::Field(member.identity.clone())],
                         self.declarations,
-                        &mut BTreeMap::new(),
-                        &mut BTreeSet::new(),
                     )
                     .ok()?
                 };
@@ -367,17 +331,11 @@ impl StorageRecipes<'_> {
         case: Option<StructuralCaseId>,
         carrier: terminal_psi::ByteSequenceCarrier,
     ) -> Option<(u32, u32)> {
-        let declaration = self.declarations.get(&root)?;
+        let declaration = self.declarations.get(root)?;
         if let StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. } =
             &declaration.shape
         {
-            let layout = structural_layout::structural_sum_layout(
-                root,
-                self.declarations,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )
-            .ok()?;
+            let layout = structural_layout::structural_sum_layout(root, self.declarations).ok()?;
             let field = if let Some(case) = case {
                 let case_position = terminal_psi::structural_case_position(cases, case)?;
                 layout.cases.get(case_position)?.fields.get(position)?
@@ -397,22 +355,14 @@ impl StorageRecipes<'_> {
                     root,
                     &member_path,
                     self.declarations,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
                 )
                 .ok()??
                 .0
             }
             terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
             | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => {
-                structural_layout::borrowed_view_field_offset(
-                    root,
-                    &member_path,
-                    self.declarations,
-                    &mut BTreeMap::new(),
-                    &mut BTreeSet::new(),
-                )
-                .ok()??
+                structural_layout::borrowed_view_field_offset(root, &member_path, self.declarations)
+                    .ok()??
             }
         };
         let shape = structural_layout::byte_sequence_shape(carrier, root).ok()?;

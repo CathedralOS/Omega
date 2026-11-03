@@ -47,7 +47,7 @@ pub(super) fn establish(
     };
     let result_home = super::aggregate_results::home(*psi_operation, result, types)?;
     let shape = &types
-        .get(&result.structural_type)
+        .get(result.structural_type)
         .ok_or(LoweringError::unsupported_control_flow(function.machine))?
         .shape;
     // A mixed case binds its runtime common fields in declaration order, then
@@ -180,7 +180,7 @@ pub(super) fn establish(
                 let byte_carrier = match field_type {
                     StructuralFieldType::Structural(child) => {
                         types
-                            .get(child)
+                            .get(*child)
                             .and_then(|declaration| match declaration.shape {
                                 StructuralTypeShape::ByteSequence(carrier) => Some(carrier),
                                 _ => None,
@@ -199,7 +199,7 @@ pub(super) fn establish(
                 // that descriptor is copied or transferred once.
                 let descriptor_member = match field_type {
                     StructuralFieldType::Structural(child) => {
-                        types.get(child).is_some_and(|child| {
+                        types.get(*child).is_some_and(|child| {
                             matches!(child.shape, StructuralTypeShape::ElementView { .. })
                                 || child.shape.is_borrowed_byte_carrier()
                         })
@@ -214,7 +214,7 @@ pub(super) fn establish(
                         let nested = live
                             .structural_observation_type(function, argument.place)
                             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
-                        if !types.get(&nested).is_some_and(|declaration| {
+                        if !types.get(nested).is_some_and(|declaration| {
                             Some(&declaration.shape)
                                 == byte_carrier.map(StructuralTypeShape::ByteSequence).as_ref()
                         }) {
@@ -368,7 +368,7 @@ pub(super) fn establish_trivial_affine_local(
             construction: None,
             ..
         } if declared == structural_type.id
-    ) || types.get(&structural_type.id).copied() != Some(structural_type)
+    ) || types.get(structural_type.id).copied() != Some(structural_type)
         || !matches!(&structural_type.shape, StructuralTypeShape::Record { fields, .. } if fields.is_empty())
         || live.structural_homes.contains_key(&place.id)
         || live

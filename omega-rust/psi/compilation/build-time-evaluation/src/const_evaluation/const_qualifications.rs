@@ -284,6 +284,7 @@ mod tests {
             .push(IntegerRangeObligation::retain(
                 ExpressionHandle::invalid(),
                 unrelated,
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
                 IntegerRangeRecipe::bounds(BigInt::from_i64(0), BigInt::from_i64(1)),
                 BigInt::from_i64(0),
                 BigInt::from_i64(1),
@@ -298,6 +299,7 @@ mod tests {
             .push(IntegerRangeObligation::retain(
                 ExpressionHandle::invalid(),
                 probe,
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
                 IntegerRangeRecipe::bounds(BigInt::from_i64(0), BigInt::from_i64(1)),
                 BigInt::from_i64(0),
                 BigInt::from_i64(1),

@@ -504,12 +504,10 @@ fn require_accounted_subtree(
             .into_iter()
             .map(|(domain, instance)| (parent.clone(), domain, instance))
             .collect::<Vec<_>>();
-    obligations.extend(
-        census
-            .identities
-            .into_iter()
-            .map(|(path, domain, instance)| (subject_at(&path), domain, instance)),
-    );
+    obligations.extend(census.domains.into_iter().map(|row| {
+        let (path, domain, instance) = row.identity;
+        (subject_at(&path), domain, instance)
+    }));
     for context in contexts {
         for fact in facts
             .semantic

@@ -151,8 +151,6 @@ pub struct BuildTimeAdmissionPlan {
     selected_operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
     selected_provider_bodies: Vec<crate::SelectedBuildTimeProviderBody>,
     selected_execution: Option<TypedTrees>,
-    checked_selected_closures:
-        std::cell::RefCell<Vec<(SymbolHandle, Result<std::rc::Rc<CheckedTrees>, String>)>>,
     pub(crate) accounting: EvaluationAccounting,
     checked_closures: std::cell::RefCell<
         Vec<(
@@ -161,6 +159,24 @@ pub struct BuildTimeAdmissionPlan {
             Result<std::rc::Rc<(CheckedTrees, Self)>, String>,
         )>,
     >,
+}
+
+/// Keep the completed check used to prove recursive calls terminate. Borrow
+/// an unchanged checked program or retain the check of the selected bodies.
+enum RecursiveCheckingInput<'input> {
+    Borrowed(&'input CheckedTrees),
+    Demanded(std::rc::Rc<(CheckedTrees, BuildTimeAdmissionPlan)>),
+    Selected(Box<CheckedTrees>),
+}
+
+impl RecursiveCheckingInput<'_> {
+    fn checked(&self) -> &CheckedTrees {
+        match self {
+            Self::Borrowed(checked) => checked,
+            Self::Demanded(demanded) => &demanded.0,
+            Self::Selected(checked) => checked,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -256,7 +272,6 @@ impl BuildTimeAdmissionPlan {
             selected_operators: Vec::new(),
             selected_provider_bodies: Vec::new(),
             selected_execution: None,
-            checked_selected_closures: std::cell::RefCell::new(Vec::new()),
             accounting: Default::default(),
             checked_closures: Default::default(),
         }
@@ -403,7 +418,6 @@ impl BuildTimeAdmissionPlan {
         }
         self.selected_provider_bodies = bodies.to_vec();
         self.checked_closures.borrow_mut().clear();
-        self.checked_selected_closures.borrow_mut().clear();
         Ok(self)
     }
 
@@ -434,7 +448,6 @@ impl BuildTimeAdmissionPlan {
         self.selected_operators =
             super::selected_operators::retain_specialized_operators(program, operators)?;
         self.checked_closures.borrow_mut().clear();
-        self.checked_selected_closures.borrow_mut().clear();
         Ok(self)
     }
 
@@ -647,75 +660,40 @@ impl BuildTimeAdmissionPlan {
         Ok(pair)
     }
 
-    /// Check recursion with the storage history of the bodies that will run.
-    /// Early callers obtain ordinary checking only when the walk reaches a cycle.
-    fn checked_recursive_component(
+    /// Use ordinary checked storage and call facts throughout this invocation.
+    /// Selected bodies need their own check; unchanged checked input is borrowed.
+    fn prepare_recursive_checking_input<'input>(
         &self,
-        input: BuildTimeProgram<'_>,
+        input: BuildTimeProgram<'input>,
         root: SymbolHandle,
-    ) -> Result<Vec<SymbolHandle>, String> {
-        fn members(
-            checked: &CheckedTrees,
-            root: SymbolHandle,
-        ) -> Result<Vec<SymbolHandle>, String> {
-            concrete_invocation::require_complete_invocation_conditions(checked, root)?;
-            let machine = checked
-                .typed
-                .machine(root)
-                .ok_or("checked recursive execution lost its requested machine")?;
-            Ok(
-                typed_trees_to_checked_trees::infer_checked_recursive_machine_terminations(
-                    checked,
-                    root,
-                    machine.states,
-                )
-                .into_iter()
-                .filter_map(|member| {
-                    checked
-                        .typed
-                        .machine(member.machine)
-                        .filter(|machine| machine.states == member.body)
-                        .map(|machine| machine.symbol)
-                })
-                .collect(),
-            )
-        }
-        if let Some(execution) = self.selected_execution.as_ref() {
-            let cached = self
-                .checked_selected_closures
-                .borrow()
-                .iter()
-                .find(|(symbol, _)| *symbol == root)
-                .map(|(_, result)| result.clone());
-            let checked = match cached {
-                Some(result) => result?,
-                None => {
-                    // Rewritten calls need their own checking. Source flow facts
-                    // cannot describe the selected bodies' writes or calls.
-                    let admission = Self::infer(execution, self.selection_authority.clone());
-                    let domain = PreparedEvaluationInputs::domain_for_admission(
-                        execution,
-                        &admission,
-                        &[root],
-                        &[],
-                    );
-                    let result = concrete_invocation::checked_demanded_closure(&domain, execution)
-                        .map(std::rc::Rc::new);
-                    self.checked_selected_closures
-                        .borrow_mut()
-                        .push((root, result.clone()));
-                    result?
-                }
-            };
-            return members(&checked, root);
-        }
-        match input {
-            BuildTimeProgram::Checked(checked) => members(checked, root),
-            BuildTimeProgram::Typed(program) => {
-                let pair = self.checked_closure_admission(program, root)?;
-                members(&pair.0, root)
+    ) -> Result<RecursiveCheckingInput<'input>, String> {
+        let prepared = match &self.selected_execution {
+            Some(execution) => {
+                // Selection changed executable calls. Derive the demanded work
+                // from that exact graph before checking its storage history.
+                let admission = Self::infer(execution, self.selection_authority.clone());
+                let domain = PreparedEvaluationInputs::domain_for_admission(
+                    execution,
+                    &admission,
+                    &[root],
+                    &[],
+                );
+                let checked =
+                    phase_profile::scope("compile_time.admission.recursive_program_check", || {
+                        concrete_invocation::checked_demanded_closure(&domain, execution)
+                    })?;
+                RecursiveCheckingInput::Selected(Box::new(checked))
             }
-        }
+            None => match input {
+                BuildTimeProgram::Checked(checked) => RecursiveCheckingInput::Borrowed(checked),
+                BuildTimeProgram::Typed(program) => {
+                    RecursiveCheckingInput::Demanded(self.checked_closure_admission(program, root)?)
+                }
+            },
+        };
+        // Ranking does not discharge conditions still pending in this invocation.
+        concrete_invocation::require_complete_invocation_conditions(prepared.checked(), root)?;
+        Ok(prepared)
     }
 
     fn require_checked_invocation_floor(
@@ -891,11 +869,12 @@ impl BuildTimeAdmissionPlan {
             None => input.checking_input(),
         };
         let closure_violation = checked_closure_violation(
+            self,
+            input,
             &self.call_edges,
             execution_input,
             execution_machine,
             discharge_authored_requires,
-            &|symbol| self.checked_recursive_component(input, symbol),
         );
         let selection_violation = selection_authority_violation(
             &self.call_edges,

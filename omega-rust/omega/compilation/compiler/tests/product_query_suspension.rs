@@ -4,7 +4,7 @@ use compiler::{CheckedCompileRequest, CompilationSession};
 
 #[test]
 fn schema_and_named_provider_queries_resume_the_original_build() {
-    use build_evaluation::host::bindings::BuildProductDescription;
+    use build_settings::host::bindings::BuildProductDescription;
     use psi_compiler::TerminalBuildQueryOperation;
     let repository = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()

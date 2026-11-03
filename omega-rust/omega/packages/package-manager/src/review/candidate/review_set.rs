@@ -1,5 +1,5 @@
 use crate::declarations::PackageKey;
-use build_evaluation::{BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest};
+use build_settings::{BuildEvaluationUsage, BuildObservationSummary, RestrictedBuildRequest};
 use package_compilation::{
     AcceptedSemanticBinding, PackageBuildHandoff, PackageSourceConsumptionCommitment,
 };
