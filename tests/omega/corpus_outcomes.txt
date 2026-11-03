@@ -4670,7 +4670,7 @@ pass/comptime/selected_float_array_length_layout_query_exit rejected 19883ms che
 	constant checking: scalar evaluation needs an unavailable provider or external effect
 pass/concurrency/boundary_suspension_inline_completion_exit rejected 3067ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	call to `work` has operational envelope `suspend` but acknowledges neither suspension nor blocking; call acknowledgements must match exactly
-pass/concurrency/host_boundary_readiness_exit checked 3126ms check-target:macos_arm64 @ccdb99ca2214
+pass/concurrency/host_boundary_readiness_exit checked 11020ms check-target:macos_arm64 @11bdd2fe41ff+wt
 pass/concurrency/incoming_aggregate_loan_after_suspend checked 3127ms check-target:macos_arm64 @ccdb99ca2214
 pass/concurrency/incoming_loan_after_suspend checked 2925ms check-target:macos_arm64 @ccdb99ca2214
 pass/concurrency/ref_array_suspend checked 3628ms @ccdb99ca2214
