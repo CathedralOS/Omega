@@ -7607,15 +7607,15 @@ pass/facts/field_where_index_through_other_machine_exit checked 4130ms check-tar
 pass/facts/field_where_index_through_other_state_exit checked 4757ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/field_where_index_through_parameter_exit checked 4901ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/field_where_index_through_target_body_exit checked 5170ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/finite_family_const_roster/call_result checked 7478ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_const_roster/const_name checked 7527ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_const_roster/field checked 6363ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_const_roster/local checked 7419ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_const_roster/match_join checked 7299ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_const_roster/other_machine checked 8570ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_const_roster/other_state checked 6276ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_const_roster/parameter checked 7519ms check-target:macos_arm64 @05a6f6af37ec+wt
-pass/facts/finite_family_const_roster/target_body checked 7389ms check-target:macos_arm64 @05a6f6af37ec+wt
+pass/facts/finite_family_const_roster/call_result checked 11068ms check-target:macos_arm64 @74bbe3c7f0f1
+pass/facts/finite_family_const_roster/const_name checked 14092ms check-target:macos_arm64 @74bbe3c7f0f1
+pass/facts/finite_family_const_roster/field checked 10851ms check-target:macos_arm64 @74bbe3c7f0f1
+pass/facts/finite_family_const_roster/local checked 10297ms check-target:macos_arm64 @74bbe3c7f0f1
+pass/facts/finite_family_const_roster/match_join checked 10143ms check-target:macos_arm64 @74bbe3c7f0f1
+pass/facts/finite_family_const_roster/other_machine checked 10227ms check-target:macos_arm64 @74bbe3c7f0f1
+pass/facts/finite_family_const_roster/other_state checked 10239ms check-target:macos_arm64 @74bbe3c7f0f1
+pass/facts/finite_family_const_roster/parameter checked 10224ms check-target:macos_arm64 @74bbe3c7f0f1
+pass/facts/finite_family_const_roster/target_body checked 10805ms check-target:macos_arm64 @74bbe3c7f0f1
 pass/facts/finite_family_exclusive_result/call_result checked 7369ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/const_name checked 7497ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/field checked 6585ms check-target:macos_arm64 @05a6f6af37ec+wt
@@ -24030,25 +24030,25 @@ fail/facts/field_where_index_through_target_body_rejected rejected 3644ms expect
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
 	cannot prove index `main.k + 1` is within length 5 in read_target::entry
-fail/facts/finite_family_const_roster/call_result rejected 1643ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_const_roster/call_result rejected 1746ms expected @74bbe3c7f0f1
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/const_name rejected 2686ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_const_roster/const_name rejected 1999ms expected @74bbe3c7f0f1
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/field rejected 1647ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_const_roster/field rejected 1757ms expected @74bbe3c7f0f1
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/local rejected 1609ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_const_roster/local rejected 1784ms expected @74bbe3c7f0f1
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/match_join rejected 5950ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_const_roster/match_join rejected 1735ms expected @74bbe3c7f0f1
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/other_machine rejected 4839ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_const_roster/other_machine rejected 2637ms expected @74bbe3c7f0f1
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/other_state rejected 4838ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_const_roster/other_state rejected 1942ms expected @74bbe3c7f0f1
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/parameter rejected 1606ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_const_roster/parameter rejected 1839ms expected @74bbe3c7f0f1
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
-fail/facts/finite_family_const_roster/runtime_const rejected 1132ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_const_roster/runtime_const rejected 887ms expected @74bbe3c7f0f1
 	callable expression argument does not name a const or value declaration
-fail/facts/finite_family_const_roster/target_body rejected 1644ms expected @05a6f6af37ec+wt
+fail/facts/finite_family_const_roster/target_body rejected 2000ms expected @74bbe3c7f0f1
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
 fail/facts/finite_family_exclusive_result/call_result rejected 8489ms expected @05a6f6af37ec+wt
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
