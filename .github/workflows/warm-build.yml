@@ -29,6 +29,10 @@ jobs:
       options: --user root
     env:
       HOME: /root
+      # Cargo turns incremental compilation off when CI=true. Sessions build
+      # with it on, and the setting is part of each crate's identity, so a
+      # build made without it is never reused there.
+      CARGO_INCREMENTAL: "1"
       WARM: /home/user/Omega/.agents/worktree/warm
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
