@@ -953,7 +953,7 @@ fn readiness_parks_every_step_of_a_fused_suspending_cycle() {
         .expect("sealed fixture inputs");
     let mut request = compiler::CheckedCompileRequest::new(&prepared.root_path, None);
     request.package_inputs = prepared.package_inputs;
-    let checked = omega_build::check_source(&mut compiler::CompilationSession::default(), request)
+    let checked = orchestration::check_source(&mut compiler::CompilationSession::default(), request)
         .result
         .expect("checked suspending cycle");
     let produced = psi_compiler::TerminalProductionRequest::new(

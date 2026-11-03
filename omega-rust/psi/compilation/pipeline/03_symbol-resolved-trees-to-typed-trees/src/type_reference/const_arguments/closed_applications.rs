@@ -373,7 +373,7 @@ mod tests {
                         declared_type: carrier,
                         evaluated_value: Some(
                             language_core::constant_value::EvaluatedConstant::Encoded(
-                                language_semantics::const_value::CanonicalConstValue::integer(
+                                language_semantics::const_value::CanonicalConstIdentity::integer(
                                     "u64", 0,
                                 )
                                 .encoding,
