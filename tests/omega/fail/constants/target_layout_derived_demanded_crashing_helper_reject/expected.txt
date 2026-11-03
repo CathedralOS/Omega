@@ -1,2 +1,3 @@
-scalar evaluation did not return a normal scalar: Crashed
-cause: Trap
+a checked crash route remains possible (Trap)
+calls: [forbidden]
+constant evaluation requires proof that no crash route can occur before execution

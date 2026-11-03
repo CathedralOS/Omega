@@ -542,11 +542,27 @@ pub(super) fn attach_checked_crash_calls(
 
     for plan in plans {
         let checked_calls = calls_by_caller.remove(&plan.machine).unwrap_or_default();
+        // Publish the fixed point already used for call refinement. A body
+        // governed only by published routes has no inferred row here.
+        let body_summary = program.machine_by_symbol(plan.machine).and_then(|machine| {
+            summary_by_machine.get(&plan.machine).map(|buckets| {
+                checked_trees::CheckedBodyCrashSummary::new(
+                    machine.symbol,
+                    machine.states,
+                    buckets
+                        .iter()
+                        .cloned()
+                        .filter_map(SummaryCrashBucket::into_checked)
+                        .collect(),
+                )
+            })
+        });
         plan.crash = plan
             .crash
             .clone()
             .with_checked_calls(checked_calls)
-            .expect("one checked crash-call record occupies each invocation coordinate");
+            .expect("one checked crash-call record occupies each invocation coordinate")
+            .with_checked_body_summary(body_summary);
     }
     inferred_body_summaries
 }
@@ -556,71 +572,79 @@ pub(crate) fn infer_checked_machine_crash_causes(
     facts: &checked_trees::CheckFacts,
     machine: SymbolHandle,
 ) -> Option<Vec<checked_trees::CrashCause>> {
-    let mut matching = infer_checked_crash_causes(program, facts)
-        .into_iter()
-        .filter(|(candidate, _)| *candidate == machine);
-    let (_, causes) = matching.next()?;
-    matching.next().is_none().then_some(causes)
+    let mut machines = program
+        .machines()
+        .iter()
+        .filter(|candidate| candidate.symbol == machine);
+    let source = machines.next()?;
+    if machines.next().is_some() {
+        return None;
+    }
+    let mut plans = facts
+        .contract_plans
+        .machines
+        .iter()
+        .filter(|plan| plan.machine == machine);
+    let plan = plans.next()?;
+    if plans.next().is_some() {
+        return None;
+    }
+    let summary = plan.crash.checked_body_summary(machine, source.states)?;
+    Some(body_summary_causes(summary))
 }
 
 pub(crate) fn infer_checked_crash_causes(
     program: &dyn ::validation::CheckingInput,
     facts: &checked_trees::CheckFacts,
 ) -> Vec<(SymbolHandle, Vec<checked_trees::CrashCause>)> {
-    let content_conservation = validation::content_conservation_plans(program);
-    let Ok(summary_graph) = prepare_crash_summary_graph(
-        program,
-        &facts.proof,
-        &facts.operators,
-        &facts.flow,
-        &facts.contract_plans.crash_capsules,
-        &facts.contract_plans.machines,
-        &content_conservation,
-    ) else {
-        // An invalid retained contract proves no private crash summary.
-        return Vec::new();
-    };
-    // Validation-only exact-cast facts are not retained in CheckedTrees. They
-    // feed only CallArgumentSubstitution.scalar, never its identity. Guard
-    // retention, equality and fixed-point closure still use the identity
-    // alone; a scalar annotation decides only a retained guard whose
-    // substituted identity cannot fold, through a closed integer comparison.
-    // This query does not publish the guard annotations it consumes.
-    let summaries = infer_private_body_summaries(
-        program,
-        &facts.operators,
-        &[],
-        &facts.semantic,
-        &facts.flow,
-        &content_conservation,
-        &facts.contract_plans.crash_capsules,
-        &facts.contract_plans.machines,
-        &summary_graph,
-    );
-    let mut machine_counts = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
-    for candidate in program.machines() {
-        *machine_counts.entry(candidate.symbol).or_default() += 1;
-    }
-    let mut plan_counts = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
-    for candidate in &facts.contract_plans.machines {
-        *plan_counts.entry(candidate.machine).or_default() += 1;
-    }
-    summaries
-        .into_iter()
-        .filter(|(machine, _)| {
-            machine_counts.get(machine).copied() == Some(1)
-                && plan_counts.get(machine).copied() == Some(1)
-        })
-        .map(|(machine, buckets)| {
-            let mut causes = buckets
-                .into_iter()
-                .map(|bucket| bucket.cause)
-                .collect::<Vec<_>>();
-            causes.sort_unstable();
-            causes.dedup();
-            (machine, causes)
+    // Sort borrowed rows once so duplicate identities stay unknown without
+    // building another symbol map or rescanning every declaration per plan.
+    let key = |symbol: SymbolHandle| (symbol.arena_index(), symbol.generation());
+    let mut machines = program.machines().iter().collect::<Vec<_>>();
+    machines.sort_unstable_by_key(|machine| key(machine.symbol));
+    let mut plans = facts.contract_plans.machines.iter().collect::<Vec<_>>();
+    plans.sort_unstable_by_key(|plan| key(plan.machine));
+    plans
+        .iter()
+        .enumerate()
+        .filter_map(|(position, plan)| {
+            if position > 0 && plans[position - 1].machine == plan.machine
+                || plans
+                    .get(position + 1)
+                    .is_some_and(|next| next.machine == plan.machine)
+            {
+                return None;
+            }
+            let position = machines
+                .binary_search_by_key(&key(plan.machine), |machine| key(machine.symbol))
+                .ok()?;
+            let machine = machines[position];
+            if position > 0 && machines[position - 1].symbol == machine.symbol
+                || machines
+                    .get(position + 1)
+                    .is_some_and(|next| next.symbol == machine.symbol)
+            {
+                return None;
+            }
+            let summary = plan
+                .crash
+                .checked_body_summary(machine.symbol, machine.states)?;
+            Some((machine.symbol, body_summary_causes(summary)))
         })
         .collect()
+}
+
+fn body_summary_causes(
+    summary: &checked_trees::CheckedBodyCrashSummary,
+) -> Vec<checked_trees::CrashCause> {
+    let mut causes = summary
+        .buckets()
+        .iter()
+        .map(checked_trees::CrashRouteBucket::cause)
+        .collect::<Vec<_>>();
+    causes.sort_unstable();
+    causes.dedup();
+    causes
 }
 
 /// The member name a produced entry operand carries. A case payload field
