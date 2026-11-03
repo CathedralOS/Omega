@@ -180,9 +180,15 @@ fn solve_state_effects<'program>(
                             if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() { eprintln!("CHECKSITE slot-exit-solve-refusal state={} phase=finite-substitution", equation.state.name); }
                             None
                         })?;
-                        let mut stored = prefix.stored.clone();
-                        apply(program, &mut stored, &instantiated.effects);
-                        stored
+                        let mut completed = prefix.clone();
+                        apply_transfer(
+                            program,
+                            &mut completed.stored,
+                            &mut completed.aliases,
+                            &mut completed.divergent,
+                            &SlotRelationTransfer::complete(instantiated.effects),
+                        );
+                        completed.stored
                     }
                 };
                 returned.push(stored);
