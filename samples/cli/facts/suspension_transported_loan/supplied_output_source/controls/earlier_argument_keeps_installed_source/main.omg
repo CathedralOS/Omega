@@ -1,0 +1,43 @@
+// Expected exit: 0
+public boundary trait Scheduler { machine park() reaches suspends; }
+public Immediate satisfies Scheduler { machine park() {} }
+public data Cell { value: i32; }
+data First { cell: Cell; }
+data Second { cell: Cell; }
+public data Output<T> { body: T; }
+public boundary trait Installer {
+    machine install<'storage>(source: &'storage Cell, output: &mut Output<&'storage Cell>) reaches;
+}
+public CheckedInstaller satisfies Installer {
+    machine install<'storage>(source: &'storage Cell, output: &mut Output<&'storage Cell>) {
+        output = Output { body: source };
+    }
+}
+data Message { left: i32; body: &Cell; right: i32; }
+machine read(message: Message) -> i32 {
+    transition message.left == 5 && message.right == 9 { true -> message.body.value _ -> 0 }
+}
+machine replace_source<'storage, 'slot>(source: &mut &'storage Cell, replacement: &'storage Cell, output: &'slot mut Output<&'storage Cell>) -> &'slot mut Output<&'storage Cell> {
+    source = replacement;
+    output
+}
+machine exercise() -> i32 suspends reaches Scheduler + Installer {
+    let first: First = First { cell: Cell { value: 73 } };
+    let second: Second = Second { cell: Cell { value: 11 } };
+    let sentinel: Cell = Cell { value: 0 };
+    let mut source: &Cell = &first.cell;
+    let mut output: Output<&Cell> = Output { body: &sentinel };
+    Installer::install(source, replace_source(&mut source, &second.cell, &mut output));
+    let saved: &Cell = output.body;
+    let message: Message = Message { left: 5, body: saved, right: 9 };
+    suspend Scheduler::park();
+    let old: i32 = read(message);
+    let current: i32 = source.value;
+    transition current == 11 { true -> old _ -> 0 }
+}
+machine main() reaches Scheduler + Installer crashes Trap {
+    let observed: i32 = suspend exercise();
+    transition observed == 73 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}

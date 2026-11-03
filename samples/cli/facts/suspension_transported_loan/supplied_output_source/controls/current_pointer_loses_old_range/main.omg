@@ -1,0 +1,21 @@
+// Expected exit: 0
+machine replace<'storage>(destination: &mut &'storage u64, replacement: &'storage u64) {
+    destination = replacement;
+}
+machine exercise<'storage>(original: &'storage u64, replacement: &'storage u64) -> u64
+requires original >= 5u64 {
+    let mut current: &u64 = original;
+    let snapshot: u64 = current;
+    replace(&mut current, replacement);
+    let result: u64 = current - 5u64;
+    let observed: u64 = current;
+    transition observed == 0u64 { true -> result _ -> 0u64 }
+}
+machine main() crashes Trap {
+    let original: u64 = 7u64;
+    let replacement: u64 = 0u64;
+    let observed: u64 = exercise(&original, &replacement);
+    transition observed == 2u64 { true -> done() _ -> bad() }
+    machine done() {}
+    machine bad() crashes Trap { crash Trap; }
+}
