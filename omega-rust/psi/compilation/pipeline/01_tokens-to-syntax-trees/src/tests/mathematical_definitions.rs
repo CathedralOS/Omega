@@ -84,6 +84,13 @@ fn render_type_reference(parsed: &SyntaxTrees, handle: TypeReferenceHandle) -> S
             format!("{}<{arguments}>", base_name.as_str(parsed))
         }
         TypeReferenceNode::Unit => "()".to_owned(),
+        // A non-name static argument keeps its authored value expression.
+        TypeReferenceNode::ConstExpression(expression) => {
+            match parsed.expressions.expression(*expression) {
+                ExpressionNode::Integer(literal) => literal.to_string(),
+                other => panic!("unexpected static argument in test: {other:?}"),
+            }
+        }
         other => panic!("unexpected type reference in test: {other:?}"),
     }
 }

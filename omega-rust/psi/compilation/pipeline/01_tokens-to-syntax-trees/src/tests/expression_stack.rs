@@ -155,7 +155,7 @@ fn membership_remains_a_separate_operand_grammar() {
 
 #[test]
 fn iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements() {
-    let (parsed, root) = parse_expression("&write move -7");
+    let (parsed, root) = parse_expression("&write -7");
     let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(root) else {
         panic!("borrow");
     };
@@ -164,6 +164,14 @@ fn iterative_prefixes_preserve_borrows_literal_folding_and_call_acknowledgements
         panic!("negated integer literal");
     };
     assert_eq!(*literal, numerics::literals::IntegerLiteral::from_value(-7));
+    // `move` is a prefix only before a name; ownership transfer adds no node,
+    // so the borrow applies directly to the moved place.
+    let (parsed, root) = parse_expression("&write move value");
+    let ExpressionNode::Borrow(borrow) = parsed.expressions.expression(root) else {
+        panic!("borrow");
+    };
+    assert_eq!(borrow.access, language_core::ReferenceAccess::WriteOnly);
+    assert_eq!(parsed.display_expression_name(borrow.target), "value");
     let (parsed, root) = parse_expression("suspend block perform()");
     let ExpressionNode::Call(call) = parsed.expressions.expression(root) else {
         panic!("call");
