@@ -33,7 +33,8 @@ pub(super) fn borrow_carrying_data_loans(
     machine_symbol: SymbolHandle,
     local_data: &checked_trees::statement::TableLocalData,
     loan_trackers: &[StateLoanTracker],
-) -> Vec<StatementBorrowLoan> {
+    sources: &super::BorrowFormationSources<'_, '_>,
+) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let initializers = borrowed_initializers(
         program,
         local_data.type_reference,
@@ -42,20 +43,20 @@ pub(super) fn borrow_carrying_data_loans(
         &[],
     );
 
-    initializers
-        .into_iter()
-        .flat_map(|initializer| {
-            borrowed_initializer_loans(
-                program,
-                state.symbol,
-                statement_index,
-                machine_symbol,
-                local_data,
-                initializer,
-                loan_trackers,
-            )
-        })
-        .collect()
+    let mut loans = Vec::new();
+    for initializer in initializers {
+        loans.extend(borrowed_initializer_loans(
+            program,
+            state.symbol,
+            statement_index,
+            machine_symbol,
+            local_data,
+            initializer,
+            loan_trackers,
+            sources,
+        )?);
+    }
+    Ok(loans)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -67,8 +68,9 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
     local_data: &checked_trees::statement::TableLocalData,
     initializer: BorrowedInitializer,
     loan_trackers: &[StateLoanTracker],
-) -> Vec<StatementBorrowLoan> {
-    match initializer.kind {
+    sources: &super::BorrowFormationSources<'_, '_>,
+) -> Result<Vec<StatementBorrowLoan>, &'static str> {
+    Ok(match initializer.kind {
         BorrowedInitializerKind::Reference {
             access,
             type_reference,
@@ -83,9 +85,10 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                 initializer.expression,
                 &initializer.owner_path,
                 loan_trackers,
-            ) {
+                sources,
+            )? {
                 super::returned_carriers::attenuate(&mut loans, &kind);
-                return loans;
+                return Ok(loans);
             }
             if let Some(mut loans) = stored_reference_loans(
                 program,
@@ -98,7 +101,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                 loan_trackers,
             ) {
                 super::returned_carriers::attenuate(&mut loans, &kind);
-                return loans;
+                return Ok(loans);
             }
             // Aggregate leaves obey the same source-selection law as call
             // arguments. A leaf may itself be a view-producing helper call;
@@ -111,7 +114,7 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
                 machine_symbol,
                 initializer.expression,
             ) else {
-                return Vec::new();
+                return Ok(Vec::new());
             };
             let retained_access = geometry.retained_access(program, &kind);
             let rebased = rebase_reference_formation_geometry(
@@ -163,8 +166,9 @@ pub(in crate::borrow) fn borrowed_initializer_loans(
             initializer.expression,
             &initializer.owner_path,
             loan_trackers,
-        ),
-    }
+            sources,
+        )?,
+    })
 }
 
 /// Transporting a stored descriptor keeps its exact historical suppliers.
@@ -245,8 +249,9 @@ pub(super) fn aggregate_expression_borrow_loans(
     expression: ExpressionHandle,
     owner_path_prefix: &[BorrowOwnerSegment],
     loan_trackers: &[StateLoanTracker],
-) -> Vec<StatementBorrowLoan> {
-    match program.expression_table.expression(expression) {
+    sources: &super::BorrowFormationSources<'_, '_>,
+) -> Result<Vec<StatementBorrowLoan>, &'static str> {
+    Ok(match program.expression_table.expression(expression) {
         checked_trees::expression::ExpressionNode::Call(call) => {
             if let Some(field_loans) = super::returned_carriers::result_loans(
                 program,
@@ -257,8 +262,9 @@ pub(super) fn aggregate_expression_borrow_loans(
                 expression,
                 owner_path_prefix,
                 loan_trackers,
-            ) {
-                return field_loans;
+                sources,
+            )? {
+                return Ok(field_loans);
             }
 
             let Some(place) = helper_call_borrow_loan_place(
@@ -268,7 +274,7 @@ pub(super) fn aggregate_expression_borrow_loans(
                 machine_symbol,
                 call,
             ) else {
-                return Vec::new();
+                return Ok(Vec::new());
             };
             let rebased = rebase_borrow_places_through_local_loans(program, place, loan_trackers);
             rebased
@@ -310,8 +316,9 @@ pub(super) fn aggregate_expression_borrow_loans(
                 expression,
                 owner_path_prefix,
                 loan_trackers,
-            ) {
-                return loans;
+                sources,
+            )? {
+                return Ok(loans);
             }
             let Some(source) = borrow_access_place(
                 program,
@@ -320,7 +327,7 @@ pub(super) fn aggregate_expression_borrow_loans(
                 expression,
                 machine_symbol,
             ) else {
-                return Vec::new();
+                return Ok(Vec::new());
             };
             // Copy the selected aggregate's descriptor leaves, not the
             // containing pointer's whole-reference loan. Rebase every checked
@@ -358,23 +365,23 @@ pub(super) fn aggregate_expression_borrow_loans(
                 &[],
                 owner_path_prefix,
             );
-            nested
-                .into_iter()
-                .flat_map(|initializer| {
-                    borrowed_initializer_loans(
-                        program,
-                        state_symbol,
-                        statement_index,
-                        machine_symbol,
-                        local_data,
-                        initializer,
-                        loan_trackers,
-                    )
-                })
-                .collect()
+            let mut loans = Vec::new();
+            for initializer in nested {
+                loans.extend(borrowed_initializer_loans(
+                    program,
+                    state_symbol,
+                    statement_index,
+                    machine_symbol,
+                    local_data,
+                    initializer,
+                    loan_trackers,
+                    sources,
+                )?);
+            }
+            loans
         }
         _ => Vec::new(),
-    }
+    })
 }
 
 /// Expression calls and named normal completions transport the same declared
@@ -391,20 +398,35 @@ pub(super) fn result_source_loans(
     fields: Vec<ViewReturnFieldSource>,
     substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
     owner_path_prefix: &[BorrowOwnerSegment],
-    loan_trackers: &[StateLoanTracker],
-) -> Vec<StatementBorrowLoan> {
+    sources: &super::BorrowFormationSources<'_, '_>,
+) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let mut carried_arguments = Vec::new();
 
-    let sources = super::returned_carriers::completed_sources(program, target, fields, arguments);
-    sources
-        .into_iter()
-        .flat_map(|source| {
-            source.capture_loans(local_data, owner_path_prefix, |field, projection| {
+    let completed = super::returned_carriers::completed_sources(program, target, fields, arguments);
+    let argument_rosters = arguments
+        .iter()
+        .map(|argument| {
+            sources.at_argument(
+                program,
+                machine_symbol,
+                state_symbol,
+                statement_index,
+                *argument,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut loans = Vec::new();
+    for source in completed {
+        loans.extend(source.capture_loans(
+            local_data,
+            owner_path_prefix,
+            |field, projection| {
                 let mut owner_path = owner_path_prefix.to_vec();
                 owner_path.extend(field.owner_path.iter().copied());
                 let Some(argument) = arguments.get(field.parameter_index).copied() else {
-                    return Vec::new();
+                    return Ok(Vec::new());
                 };
+                let loan_trackers = argument_rosters[field.parameter_index].as_slice();
                 let source_type = CallViewReturnContract::carrier_reference(
                     program,
                     field.source_type,
@@ -423,6 +445,7 @@ pub(super) fn result_source_loans(
                         loan_trackers,
                         substitutions,
                         &mut carried_arguments,
+                        sources,
                     );
                 }
                 if field.source == ViewReturnInputSource::Referent
@@ -434,7 +457,8 @@ pub(super) fn result_source_loans(
                         local_data,
                         argument,
                         loan_trackers,
-                    )
+                        sources,
+                    )?
                 {
                     // A lifetime debt retains its supplier's access; only a
                     // physical reference result may attenuate observation.
@@ -459,7 +483,7 @@ pub(super) fn result_source_loans(
                         }
                         loan.place.segments.extend_from_slice(&projection);
                     }
-                    return loans;
+                    return Ok(loans);
                 }
                 let Some(mut place) = argument_borrow_loan_place(
                     program,
@@ -468,7 +492,7 @@ pub(super) fn result_source_loans(
                     machine_symbol,
                     argument,
                 ) else {
-                    return Vec::new();
+                    return Ok(Vec::new());
                 };
                 // A stored descriptor supplies its backing loan, not a new loan of
                 // its container home. Select it before rebasing through captured
@@ -484,7 +508,7 @@ pub(super) fn result_source_loans(
                 }
                 let rebased =
                     rebase_borrow_places_through_local_loans(program, place, loan_trackers);
-                rebased
+                Ok(rebased
                     .iter()
                     .map(|source| {
                         let mut place = source.place.clone();
@@ -538,10 +562,11 @@ pub(super) fn result_source_loans(
                             call_result: false,
                         }
                     })
-                    .collect::<Vec<_>>()
-            })
-        })
-        .collect()
+                    .collect::<Vec<_>>())
+            },
+        )?);
+    }
+    Ok(loans)
 }
 
 fn transferred_aggregate_loans<'loan>(

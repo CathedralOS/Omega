@@ -134,6 +134,53 @@ struct RebasedBorrowPlace {
     lifetime_access: Option<checked_trees::BorrowAccessKind>,
 }
 
+/// Every call input observes the ordered prefix ending at that input. Keep
+/// the statement-entry roster available: a later sibling can replace a slot
+/// after an earlier pointer was already evaluated.
+#[derive(Clone, Copy)]
+pub(super) struct BorrowFormationSources<'source, 'program> {
+    statement_entry: &'source [StateLoanTracker],
+    call_frames: Option<&'source validation::CallFrameResolver<'program>>,
+}
+
+impl BorrowFormationSources<'_, '_> {
+    fn at_argument(
+        &self,
+        program: &dyn validation::CheckingInput,
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        statement: usize,
+        argument: ExpressionHandle,
+    ) -> Result<Vec<StateLoanTracker>, &'static str> {
+        let frames = self
+            .call_frames
+            .ok_or("call input loan formation has no prepared call-frame context")?;
+        let machine = program
+            .machine(machine)
+            .ok_or("call input loan formation has no owning machine")?;
+        let state = program
+            .state_by_symbol(state)
+            .ok_or("call input loan formation has no owning state")?;
+        stored_calls::roster_at_expression(
+            program,
+            machine,
+            state,
+            statement,
+            argument,
+            frames,
+            self.statement_entry,
+        )
+        .map_err(|reason| match reason {
+            validation::StoredReferenceRelationRefusal::TemplateDependent => {
+                "call input reference slots depend on an unresolved template at this evaluation"
+            }
+            validation::StoredReferenceRelationRefusal::Unavailable => {
+                "call input has no complete reference-slot relation at its own evaluation"
+            }
+        })
+    }
+}
+
 /// A reference keeps its computed backing's stored descriptors live, but those
 /// descriptors are not fields of the reference variable. Capture them once
 /// under the backing's storage identity. Aliases retain that identity and the
@@ -146,7 +193,12 @@ pub(super) fn retain_backing_contents(
     statement: &StatementNode,
     pending: &mut Vec<StatementBorrowLoan>,
     current: &[StateLoanTracker],
-) {
+    call_frames: Option<&validation::CallFrameResolver<'_>>,
+) -> Result<(), &'static str> {
+    let sources = BorrowFormationSources {
+        statement_entry: current,
+        call_frames,
+    };
     let (owner, name) = statement
         .as_local_data()
         .map_or((state.symbol, &state.name), |local| {
@@ -208,12 +260,14 @@ pub(super) fn retain_backing_contents(
             machine_symbol,
             &backing,
             current,
-        );
+            &sources,
+        )?;
         pending.extend(contents.into_iter().map(|mut loan| {
             loan.storage_owner = facts::PlaceRoot::Expression(expression);
             loan
         }));
     }
+    Ok(())
 }
 
 /// The initializer expressions that supply the references structurally carried
@@ -250,6 +304,10 @@ pub(super) fn returned_value_loans(
     &'static str,
 > {
     use checked_trees::statement::{TransitionExit, TransitionTargetNode};
+    let sources = BorrowFormationSources {
+        statement_entry: loan_trackers,
+        call_frames,
+    };
 
     if !is_reference_type(program, state.return_type)
         && !is_borrow_carrying_data(program, state.return_type)
@@ -354,8 +412,8 @@ pub(super) fn returned_value_loans(
                     fields,
                     &[],
                     &[],
-                    loan_trackers,
-                )
+                    &sources,
+                )?
             }
             TransitionTargetNode::Terminal => Vec::new(),
         };
@@ -413,6 +471,10 @@ fn binding_borrow_loans(
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
+    let sources = BorrowFormationSources {
+        statement_entry: loan_trackers,
+        call_frames,
+    };
     // A selection's operands complete after its subject and patterns. Form
     // each selected value at its own cut, rather than borrowing the selection's
     // entry roster for every arm. This is shared by references and aggregates.
@@ -483,7 +545,8 @@ fn binding_borrow_loans(
                 local_data,
                 initializer,
                 &current,
-            ));
+                &sources,
+            )?);
         }
         return Ok(loans);
     }
@@ -513,14 +576,15 @@ fn binding_borrow_loans(
             return Err("operand has no complete completed call-slot relation");
         }
     };
-    Ok(reference_local_borrow_loans(
+    reference_local_borrow_loans(
         program,
         state,
         statement_index,
         machine_symbol,
         local_data,
         &current,
-    ))
+        &sources,
+    )
 }
 
 fn value_borrow_loans(

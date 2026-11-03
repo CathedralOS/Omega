@@ -91,7 +91,9 @@ pub(super) fn validate(
                 &mut selected,
                 &mut arena::Arena::new(),
             ) {
-                return refusal(&format!("view formation has incomplete captured permission suppliers; source completion {:?}, snapshot {:?}, retained profile {:?}, reference leaves {}", captured.completion, captured.storage_snapshot, captured.retention, captured.reference_leaves.count()));
+                return refusal(
+                    "view formation has incomplete permission suppliers at its captured source",
+                );
             }
             let mut parents = Vec::new();
             for source in selected {

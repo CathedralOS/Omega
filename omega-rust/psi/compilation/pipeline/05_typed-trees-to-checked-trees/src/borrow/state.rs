@@ -90,7 +90,14 @@ pub(super) fn append_state_borrow_facts(
             statement,
             &mut backing_loans,
             &current_loans,
-        );
+            call_frames,
+        )
+        .map_err(|reason| {
+            Diagnostic::error(format!(
+                "machine `{}` statement {statement_index}: {reason}",
+                machine.name
+            ))
+        })?;
         super::loans::prepare_descriptor_loads(
             program,
             machine,
