@@ -379,3 +379,50 @@ Contracts checked, and why they do not decide it:
   providers" and that a scope with no application needs no facts. Lines 96-98 and
   110-113 follow provider bodies "under each applicable target" and reject a bad
   target-family member "even when deployment requests another target".
+
+### 8. Must a domain membership's candidate have the domain's carrier?
+
+A `u8` value is accepted as a member of a `u16`-carrier domain in every form
+tried. With `domain u16::Small requires self <= 10;`, each of these checks:
+
+- `machine guarded() -> u16 requires 7u8 in Small { 3 }`, where `u8` appears
+  nowhere else in the program;
+- the same program with an unrelated `machine unrelated(value: u8) -> u8`, so
+  the `u8` carrier is otherwise present;
+- `machine guarded(value: u8) -> u16 requires value in Small { 3 }`, with no
+  literal at all.
+
+Observed on hosted compiler-pilot runs 41656219861 and 41657251758 (checking
+only, branch `work/wave3-membership-probe` over main `f2c75870eb`). The probes
+were written to test a compiler degrade path (a suffixed literal whose width
+row is missing); the outcome is the same with and without that row, so the
+acceptance comes from the membership rule itself.
+
+Option A, carrier-exact membership: `candidate in D` requires the candidate's
+carrier to equal the carrier named by `D`'s `Carrier::` prefix, and a
+cross-carrier `in` rejects; an explicit exact conversion is needed first. A
+heuristic scan of the 68,463 `.omg` files found no `requires` membership whose
+parameter's declared integer type differs from its domain's carrier (91
+integer-carrier domains), so the known migration cost is small; the scan did
+not cover memberships on locals, fields or literal candidates.
+
+Option B, membership by exact value: `candidate in D` substitutes the
+candidate's exact mathematical value for `self`, across widths, as fixed-integer
+comparison already does. This is today's behavior.
+
+Contracts checked, and why they do not decide it:
+- [Domains, declaration and membership](wiki/spec/language/domains.md#declaration-and-membership):
+  "`Player::` determines the domain's carrier", and membership "substitutes that
+  exact candidate for `self`". It does not say whether the candidate must have
+  that carrier.
+- [Numeric values, literal landing](wiki/spec/language/numeric_values.md#literal-landing-and-destinations):
+  "A suffixed integer or float literal retains its chosen carrier ... An
+  incompatible destination rejects", and "There is no implicit widening". It
+  does not say whether a membership candidate is a destination.
+- [Numeric values, integer equality and order](wiki/spec/language/numeric_values.md#integer-equality-and-order):
+  builtin fixed-integer equality and order compare exact `embed` projections
+  across widths and signedness, which supports reading `self <= 10` across
+  carriers.
+- Qualification `value: T in D` "requires the exact named domain `D`"
+  (domains.md, same section), which constrains the qualified type, not a bare
+  `in` proposition.
