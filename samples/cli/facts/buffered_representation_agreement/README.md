@@ -43,20 +43,22 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [current source check](https://github.com/CathedralOS/Omega/actions/runs/41691861901)
-at `ec9adf0e9379ec3cd1ebbf88a3f26fe749340d5c` proves the encoder's byte
+The [current source check](https://github.com/CathedralOS/Omega/actions/runs/41698139623)
+at `fd5a12981fc4fbf47edc4e5c0b2d571f482faccd` proves the encoder's byte
 promises and the buffer-capacity requirement at restoration entry. Local still
-has six restoration proof failures. Field forwarding also encounters ownership
-errors: the loan consumer merges the two case fields' distinct sources instead
-of preserving each moved descriptor.
+has six restoration proof failures. Field transport now preserves each case
+field's own source, but forming its retained lifetime obligations still reports
+loan conflicts. It also treats mutually exclusive cases of the same saved
+Result as simultaneous loans.
 
 The [stale-byte control](../../../../tests/omega/fail/contracts/forwarded_data_identity_does_not_preserve_mutated_contents/main.omg)
 reads a byte, replaces it, then asks to prove that the old and current bytes are
-equal. It currently rejects at an earlier ownership check. Its arithmetic trace
-still retains the stale equality, so that rejection does not establish the
-intended obligation. The repair must retain the saved scalar while invalidating
-its relation to the changed storage. Decoder twins also retain unrelated
-restoration failures; none establishes this row's acceptance yet.
+equal. It now rejects precisely that equality at `need_unchanged`, without the
+earlier unrelated ownership failure. Five independent storage positives check,
+and three overlapping-loan or stale-descriptor controls reject their intended
+obligations. These are source checks, not execution observations. Decoder twins
+still need their intended field-law failures after the common restoration
+failures are repaired.
 
 Eleven separate controls retain native/Terminal zero exits from
 [run 41672891758](https://github.com/CathedralOS/Omega/actions/runs/41672891758).

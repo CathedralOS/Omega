@@ -238,9 +238,9 @@ pub(super) fn check_statement_borrows<'p>(
                     || (active_loan.kind.is_exclusive()
                         && active_loan.kind.direct_reborrow_effect(&loan.kind).is_some()
                         && retained_lineage.as_ref().is_some_and(|lineage| {
-                            lineage.iter().any(|ancestor| super::aliases::same_descriptor(
-                                &facts.borrow, *ancestor, active_loan_handle,
-                            ))
+                            super::aliases::formation_preserves_loan(
+                                program, &facts.borrow, borrow_state, lineage, active_loan_handle,
+                            )
                         }))
                     || supplying_accesses.as_ref().is_some_and(|sources| {
                         // A source-derived selected result retains each exact
@@ -1170,9 +1170,13 @@ fn trace_loan_conflict(
             .borrow
             .loan_suppliers
             .span_or_empty(loan.supplying_loans);
+        let owner_path = facts.borrow.loan_owner_path(loan);
         eprintln!(
-            "BORROW loan-conflict-row loan={handle:?} owner={:?} source_owner={:?} kind={:?} lineage={:?} formed={} last_use={} suppliers={} retained={:?}",
+            "BORROW loan-conflict-row loan={handle:?} owner={:?} storage={:?} path={:?} occurrence={:?} source_owner={:?} kind={:?} lineage={:?} formed={} last_use={} suppliers={} retained={:?}",
             loan.owner_symbol,
+            loan.storage_owner,
+            &owner_path[..owner_path.len().min(8)],
+            loan.established_by_call,
             loan.source_owner_symbol,
             loan.kind,
             loan.lineage,
