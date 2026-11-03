@@ -193,6 +193,20 @@ impl Execution<'_, '_, '_> {
                 .get_mut(retention)
                 .immutable_image = image;
             if let Some((value, projection)) = supplier {
+                let reborrow_sources = if self
+                    .context
+                    .control
+                    .operand_retentions
+                    .is_valid(value.retention)
+                {
+                    self.context
+                        .control
+                        .operand_retentions
+                        .get(value.retention)
+                        .reborrow_sources
+                } else {
+                    Default::default()
+                };
                 let operand = self.context.control.operands.insert(value);
                 let projection = self
                     .context
@@ -211,6 +225,7 @@ impl Execution<'_, '_, '_> {
                 let profile = self.context.control.operand_retentions.get_mut(retention);
                 profile.suppliers = suppliers;
                 profile.descriptor_sources = suppliers;
+                profile.reborrow_sources = reborrow_sources;
             }
             let referents = self.append_captured_references(&places);
             alternatives.push(FlowOperandFact {

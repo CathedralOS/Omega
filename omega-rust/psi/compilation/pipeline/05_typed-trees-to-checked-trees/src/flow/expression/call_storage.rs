@@ -10,6 +10,7 @@ use typed_trees::types::TypeReferenceHandle;
 use validation::LocalWriteSource;
 use validation::collection_element_type_reference;
 use validation::completed_storage::reference_captures_at_path;
+use validation::completed_storage::{StoredOperand, reference_sources_at_path};
 use validation::project_type_reference_from_segments;
 use validation::reference_shell;
 use validation::storage_origin_types_match;
@@ -17,6 +18,8 @@ use validation::storage_origin_types_match;
 pub(super) struct CallPlaceProjection {
     pub(super) addresses: Vec<super::super::CapturedReferencePlace>,
     pub(super) type_reference: TypeReferenceHandle,
+    sources: StoredOperand,
+    projection: Vec<PlaceSegment>,
 }
 
 impl Execution<'_, '_, '_> {
@@ -28,7 +31,14 @@ impl Execution<'_, '_, '_> {
         path: &[PlaceSegment],
         at: Handle<FlowStorageSnapshot>,
     ) -> Option<CallPlaceProjection> {
-        let mut captured_actual = Handle::default();
+        let captured_actual = self.context.control.operands.insert(*actual);
+        let mut sources = StoredOperand::Value {
+            capture: captured_actual,
+            reference: actual.type_reference,
+            projection: Vec::new(),
+            slot: None,
+        };
+        let mut descriptor_end = 0;
         let mut reference = actual.type_reference;
         let mut places = if let Some(shell) = reference_shell(self.program, reference) {
             reference = shell.referee;
@@ -70,9 +80,14 @@ impl Execution<'_, '_, '_> {
                 // constructor temporary need not have an installed storage home.
                 // The shared selector preserves those operand epochs and switches
                 // to the current cut only after crossing an actual reference.
-                if !captured_actual.is_valid() {
-                    captured_actual = self.context.control.operands.insert(*actual);
-                }
+                sources = reference_sources_at_path(
+                    self.program,
+                    &self.context.control,
+                    captured_actual,
+                    &path[..=ordinal],
+                    at,
+                );
+                descriptor_end = ordinal + 1;
                 places = super::super::stored_views::reference_places_at_snapshot(
                     self.program,
                     &self.context.control,
@@ -89,6 +104,8 @@ impl Execution<'_, '_, '_> {
         Some(CallPlaceProjection {
             addresses: places,
             type_reference: reference,
+            sources,
+            projection: path[descriptor_end..].to_vec(),
         })
     }
 
@@ -129,6 +146,39 @@ impl Execution<'_, '_, '_> {
             }
             let referents = self.append_captured_references(&projected.addresses);
             let retention = self.retention_from_referents(referents);
+            // The last crossed descriptor lends this view. Earlier inline
+            // values retain their argument epoch; a descriptor reached through
+            // a pointer was selected at the invocation-entry storage cut.
+            // An unavailable alternative withholds the complete association.
+            let sources = projected.sources.captures().unwrap_or_default();
+            let reborrow_sources = sources
+                .into_iter()
+                .map(|source| checked_trees::FlowOperandReborrowSource {
+                    operand: source.capture,
+                    source_path: self
+                        .context
+                        .control
+                        .operand_retained_paths
+                        .insert_many(source.projection),
+                    projection: self
+                        .context
+                        .control
+                        .operand_retained_paths
+                        .insert_many(projected.projection.iter().copied()),
+                })
+                .collect::<Vec<_>>();
+            let reborrow_sources = self
+                .context
+                .control
+                .operand_reborrow_sources
+                .insert_many(reborrow_sources);
+            if self.context.control.operand_retentions.is_valid(retention) {
+                self.context
+                    .control
+                    .operand_retentions
+                    .get_mut(retention)
+                    .reborrow_sources = reborrow_sources;
+            }
             return Some(vec![(
                 FlowOperandFact {
                     type_reference: destination,
