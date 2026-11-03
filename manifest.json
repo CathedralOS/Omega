@@ -1,0 +1,24 @@
+{
+  "source": "c5cc3d8749224ed1a76fa7abad1707dfd9f5dd1d",
+  "baseline_source": "5209eac451caf43591135c2b453033e60b4df917",
+  "previous_evidence": "c03441063d2c5488948a77f61ef41660565288bb",
+  "source_bundle": {
+    "file": "c5cc3d8749224ed1a76fa7abad1707dfd9f5dd1d.bundle",
+    "sha256": "1581104ab5943df31682917f02af3edef05ca629a656b0021924bd71c643d16b",
+    "exported_ref": "refs/corpus-observations/c5cc3d8749224ed1a76fa7abad1707dfd9f5dd1d",
+    "prerequisites": [
+      "5209eac451caf43591135c2b453033e60b4df917"
+    ]
+  },
+  "observations": {
+    "file": "observations.tar.gz",
+    "sha256": "cd757436517c31b72fd752602bc8c997eea155e3d31f1b8393267e912cd74942",
+    "bytes": 4610533,
+    "receipt_files": 497
+  },
+  "result": "All nine safe programs run and nine twins reject before execution. Thirteen focused Rust tests pass together. Customer exits zero and 70, ordinary runtime Trap, recursion and unrelated-condition controls agree. CLI and runner Clippy pass.",
+  "corpus": "The integrated run observes 32 fixtures. Fifteen valid programs check and sixteen invalid controls reject. The remaining valid program fails artifact transport identically on exact main and candidate with the same input paths and byte hashes. Only the 31 successful scoped checks are recorded; the unrelated historical row stays unchanged from main.",
+  "provenance": "The CLI and candidate runner use source c5cc3d8749224ed1a76fa7abad1707dfd9f5dd1d with empty compiler-input patches. The baseline runner uses exact main 5209eac451caf43591135c2b453033e60b4df917. All profiles verify opt-level 1. Corpus working-tree stamps, oracle overlays, fixture inputs and locks are retained rather than relabeled.",
+  "preserved_failures": "Disk-full links, the ordinary pending package review and the saved-policy transport refusal remain explicit. Normal reviewed resume yields exit 70. Resource cleanup preserves source bytes and retained producers.",
+  "scope": "Native execution is measured on macOS ARM64. This parentless raw-evidence commit is separate from the feature and main histories."
+}
