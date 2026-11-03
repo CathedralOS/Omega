@@ -809,6 +809,7 @@ impl Inputs<'_, '_> {
                 self.program,
                 &carrier,
                 &captured.context.aliases,
+                &captured.context.divergent,
                 &captured.context.stored,
             )
             .into_iter()

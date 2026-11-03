@@ -138,16 +138,22 @@ pub(super) fn value_frontier(
             }
         })
         .collect::<Vec<_>>();
-    if !paths.iter().all(|path| {
-        matching.iter().any(|handle| {
-            let entry = frontier.get(*handle);
-            owner_path(borrow, entry) == path.as_slice()
+    // Prepared generic fields can have different handles for the same authored
+    // member. Rejoin each loan to this value's exact applied declaration before
+    // comparing coverage; field spelling or equal layout supplies no identity.
+    let matching_paths = matching
+        .iter()
+        .map(|handle| {
+            validation::corresponding_loan_owner_path(
+                program,
+                type_reference,
+                owner_path(borrow, frontier.get(*handle)),
+            )
         })
-    }) || matching.iter().any(|handle| {
-        let entry = frontier.get(*handle);
-        !paths
-            .iter()
-            .any(|path| owner_path(borrow, entry) == path.as_slice())
+        .collect::<Option<Vec<_>>>();
+    if matching_paths.as_ref().is_none_or(|matching| {
+        !paths.iter().all(|path| matching.contains(path))
+            || matching.iter().any(|path| !paths.contains(path))
     }) {
         if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
             eprintln!(

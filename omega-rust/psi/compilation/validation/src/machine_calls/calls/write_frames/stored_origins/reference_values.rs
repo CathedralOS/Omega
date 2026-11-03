@@ -24,6 +24,7 @@ pub(in crate::machine_calls::calls::write_frames) fn canonical_storage_origins(
     program: &dyn crate::CheckingInput,
     origin: &FramePlaceOrigin,
     aliases: &[(String, FramePlaceOrigin)],
+    divergent: &[(String, Vec<FramePlaceOrigin>)],
     stored: &[StoredLocalOrigins],
 ) -> Vec<Option<FramePlaceOrigin>> {
     // A bare pointer's final cell is its own descriptor home. Its alias names
@@ -34,6 +35,29 @@ pub(in crate::machine_calls::calls::write_frames) fn canonical_storage_origins(
     } else {
         aliases
     };
+    if !origin.source.segments.is_empty()
+        && origin.source.root.is_valid()
+        && let Some((name, alternatives)) = divergent
+            .iter()
+            .find(|(name, _)| name == program.symbols.name(origin.source.root))
+    {
+        if alternatives.is_empty() {
+            return vec![None];
+        }
+        let mut sources = Vec::new();
+        for alternative in alternatives {
+            let mut branch = aliases.to_vec();
+            branch.retain(|(prior, _)| prior != name);
+            branch.push((name.clone(), alternative.clone()));
+            sources.extend(spatial_origins(
+                resolve_steps(program, &Some(origin.clone()), &branch, stored, None, false)
+                    .into_iter()
+                    .map(|step| step.map(|step| step.source))
+                    .collect(),
+            ));
+        }
+        return sources;
+    }
     spatial_origins(
         resolve_steps(program, &Some(origin.clone()), aliases, stored, None, false)
             .into_iter()

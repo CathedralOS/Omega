@@ -560,6 +560,7 @@ pub(super) fn assignment_storage_origins(
             program,
             &source,
             &evidence.aliases,
+            &evidence.divergent,
             &evidence.stored,
         )
         .into_iter()
@@ -938,6 +939,7 @@ impl CallOriginContext<'_> {
                             program,
                             &source,
                             self.aliases,
+                            self.divergent,
                             self.stored,
                         )
                         .into_iter()
