@@ -22,35 +22,35 @@ data Main {
     empty_result: EmptyResult;
     present: bool;
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine Main::main(main: &mut Main) reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     _ = block Filesystem::create_dir_all(&mut main.fs, "omega_walk_a/b/c");
-    transition true { true -> ck_created(main) _ -> bad(main, 99) }
+    transition true { true -> block ck_created(main) _ -> bad(main, 99) }
     machine ck_created(main: &mut Main) {
         main.present = block Filesystem::exists(&mut main.fs, "omega_walk_a/b/c");
-        transition main.present { true -> seed(main) _ -> bad(main, 71) }
+        transition main.present { true -> block seed(main) _ -> bad(main, 71) }
     }
     machine seed(main: &mut Main) {
         main.unit_result = block Filesystem::write_all(&mut main.fs, "omega_walk_a/b/c/f1.txt", "x");
-        transition main.unit_result { UnitResult::Ok -> seed2(main) _ -> bad(main, 72) }
+        transition main.unit_result { UnitResult::Ok -> block seed2(main) _ -> bad(main, 72) }
     }
     machine seed2(main: &mut Main) {
         main.unit_result = block Filesystem::write_all(&mut main.fs, "omega_walk_a/b/c/f2.txt", "y");
-        transition main.unit_result { UnitResult::Ok -> count(main) _ -> bad(main, 72) }
+        transition main.unit_result { UnitResult::Ok -> block count(main) _ -> bad(main, 72) }
     }
     machine count(main: &mut Main) {
         main.io_result = block Filesystem::read_dir_count(&mut main.fs, "omega_walk_a/b/c");
-        transition main.io_result { IoResult::Ok { count } -> ckcount(main, count) _ -> bad(main, 73) }
+        transition main.io_result { IoResult::Ok { count } -> block ckcount(main, count) _ -> bad(main, 73) }
     }
     machine ckcount(main: &mut Main, count: u64) {
-        transition count == 2 { true -> ckempty(main) _ -> bad(main, 73) }
+        transition count == 2 { true -> block ckempty(main) _ -> bad(main, 73) }
     }
     machine ckempty(main: &mut Main) {
         main.empty_result = block Filesystem::read_dir_is_empty(&mut main.fs, "omega_walk_a/b/c");
-        transition main.empty_result { EmptyResult::NonEmpty -> teardown(main) _ -> bad(main, 74) }
+        transition main.empty_result { EmptyResult::NonEmpty -> block teardown(main) _ -> bad(main, 74) }
     }
     machine teardown(main: &mut Main) {
         _ = block Filesystem::remove_dir_all(&mut main.fs, "omega_walk_a");
-        transition true { true -> ck_gone(main) _ -> bad(main, 99) }
+        transition true { true -> block ck_gone(main) _ -> bad(main, 99) }
     }
     machine ck_gone(main: &mut Main) {
         main.present = block Filesystem::exists(&mut main.fs, "omega_walk_a");
@@ -61,7 +61,7 @@ machine Main::main(main: &mut Main) reaches Console {
 }
 
 // The entry owns ordinary local state; selection supplies no context.
-machine entry_start() reaches Console {
+machine entry_start() reaches Console + DirectoryEnumeration + FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemMetadataQuery + FilesystemNamespaceMutation {
     let mut entry_storage: Main;
     block Main::main(&mut entry_storage);
 }

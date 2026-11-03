@@ -548,6 +548,21 @@ class PublicationRefusalLegCoverage(unittest.TestCase):
                       diagnostics=["native entry requires physical adapter"],
                       facts=facts)
 
+    def test_source_publication_uses_its_realized_target_not_the_recording_host(self):
+        (self.fixture / "expected_native_rejection.txt").unlink()
+        (self.fixture / "expected_native_rejection.macos_arm64.txt").write_text("requires physical adapter\n")
+        (self.fixture / "expected_native_exit.linux_arm64.txt").write_text("0\n")
+        observed = self.refusal(**{"check-target": "macos_arm64"})
+        self.assertEqual(self.weigh(observed, native_leg=False), [])
+        self.assertTrue(corpus_records.native_rejection_satisfied(observed))
+
+    def test_interpreter_execution_cannot_satisfy_a_publication_refusal(self):
+        for facts in ({"interpreter-exit": "0"}, {"interpreter-signal": "5"}, {"interpreter": "agrees"}):
+            with self.subTest(facts=facts):
+                observed = self.refusal(**facts)
+                self.assertTrue(self.weigh(observed, native_leg=True))
+                self.assertFalse(corpus_records.native_rejection_satisfied(observed))
+
     def test_check_leg_weighs_the_oracle_where_it_realized_a_target(self):
         observed = self.refusal(**{"check-target": "uefi_x86_64"})
         self.assertEqual(self.weigh(observed, native_leg=False), [])

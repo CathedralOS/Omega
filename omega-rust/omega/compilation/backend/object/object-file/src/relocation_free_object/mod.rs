@@ -25,11 +25,11 @@ use target::{NativeTarget, TargetWireIdentityError};
 use target_operations::MachineRegister;
 use terminal_psi::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
-const PLAN_SCHEMA: &[u8] = b"omega.terminal.relocation-free-object-plan.v4\0";
+const PLAN_SCHEMA: &[u8] = b"omega.terminal.relocation-free-object-plan.v5\0";
 const CONTAINER_MAGIC: &[u8; 8] = b"OMGTRO\0\0";
 // Version 4 carries one tagged image-address roster for every referent.
 // Older split rosters are not inferred or migrated.
-const CONTAINER_VERSION: u32 = 4;
+const CONTAINER_VERSION: u32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ObjectLocalSymbolId(u64);
@@ -718,7 +718,7 @@ fn encode_placed_callback_materializations(
 ) {
     crate::codec_bytes::push_count_u64(output, materializations.len());
     for materialization in materializations {
-        match materialization.destination {
+        match materialization.destination.clone() {
             machine_code::CallbackAddressDestination::Register(register) => {
                 output.push(1);
                 encode_machine_register(output, register);
@@ -729,11 +729,11 @@ fn encode_placed_callback_materializations(
             }
             machine_code::CallbackAddressDestination::RecordField {
                 root_register,
-                byte_offset,
+                placements,
             } => {
                 output.push(3);
                 encode_machine_register(output, root_register);
-                crate::codec_bytes::push_encoded(output, byte_offset.to_le_bytes());
+                calling_conventions::encode_private_callback_placements(output, &placements);
             }
         }
         enc!(output => materialization.code_function_offset.to_le_bytes());
@@ -998,7 +998,7 @@ fn decode_placed_callback_materializations(
             },
             3 => machine_code::CallbackAddressDestination::RecordField {
                 root_register: decode_machine_register(cursor)?,
-                byte_offset: cursor.u32()?,
+                placements: decode_callback_placements(cursor)?,
             },
             tag => {
                 return Err(RelocationFreeObjectDecodeError::UnknownCallbackDestination(
@@ -1050,6 +1050,49 @@ fn encode_bytes(output: &mut Vec<u8>, value: &[u8]) -> Result<(), RelocationFree
 fn cursor_string(cursor: &mut Cursor) -> Result<String, RelocationFreeObjectDecodeError> {
     String::from_utf8(cursor.length_prefixed()?.to_vec())
         .map_err(|_| RelocationFreeObjectDecodeError::InvalidUtf8)
+}
+
+fn decode_callback_placements(
+    cursor: &mut Cursor<'_>,
+) -> Result<calling_conventions::PrivateCallbackPlacements, RelocationFreeObjectDecodeError> {
+    use layout_plans::{IntegerInterpretation, LayoutPlacementReport};
+    let count = cursor.length()?;
+    let mut placements = Vec::with_capacity(count);
+    for _ in 0..count {
+        placements.push(match cursor.byte()? {
+            0 => LayoutPlacementReport::At {
+                offset: cursor.u64()?,
+            },
+            1 => LayoutPlacementReport::IntegerAt {
+                offset: cursor.u64()?,
+                stored_width: cursor.u64()?,
+                interpretation: match cursor.byte()? {
+                    0 => IntegerInterpretation::Signed,
+                    1 => IntegerInterpretation::Unsigned,
+                    tag => {
+                        return Err(RelocationFreeObjectDecodeError::UnknownCallbackDestination(
+                            tag,
+                        ));
+                    }
+                },
+            },
+            2 => LayoutPlacementReport::Bits {
+                container: cursor.u64()?,
+                container_width: cursor.u64()?,
+                destination_lsb: cursor.u64()?,
+                source_lsb: cursor.u64()?,
+                width: cursor.u64()?,
+            },
+            tag => {
+                return Err(RelocationFreeObjectDecodeError::UnknownCallbackDestination(
+                    tag,
+                ));
+            }
+        });
+    }
+    Ok(calling_conventions::PrivateCallbackPlacements::new(
+        &placements,
+    ))
 }
 
 #[cfg(test)]
@@ -1394,12 +1437,116 @@ mod tests {
 
     #[test]
     fn image_address_roster_rejects_the_old_split_container_version() {
-        assert_eq!(CONTAINER_VERSION, 4);
-        let mut container = encode_relocation_free_object(&plan()).unwrap().bytes;
-        container[8..12].copy_from_slice(&3_u32.to_le_bytes());
+        assert_eq!(CONTAINER_VERSION, 5);
+        for version in [3_u32, 4] {
+            let mut container = encode_relocation_free_object(&plan()).unwrap().bytes;
+            container[8..12].copy_from_slice(&version.to_le_bytes());
+            assert_eq!(
+                decode_relocation_free_object(&container),
+                Err(RelocationFreeObjectDecodeError::UnsupportedVersion(version))
+            );
+        }
+    }
+
+    #[test]
+    fn saved_object_preserves_split_callback_placements_and_fixup_coordinates() {
+        use calling_conventions::{MachineRegister, PrivateCallbackPlacements};
+        use layout_plans::LayoutPlacementReport;
+        use machine_code::{
+            CallbackAddressDestination, PlacedCallbackAddressEncoding,
+            PlacedCallbackAddressMaterialization,
+        };
+
+        let placements = [(0, 16, 0, 0, 16), (6, 16, 0, 16, 16), (8, 32, 0, 32, 32)].map(
+            |(container, container_width, destination_lsb, source_lsb, width)| {
+                LayoutPlacementReport::Bits {
+                    container,
+                    container_width,
+                    destination_lsb,
+                    source_lsb,
+                    width,
+                }
+            },
+        );
+        let callback = PlacedCallbackAddressMaterialization {
+            destination: CallbackAddressDestination::RecordField {
+                root_register: MachineRegister::Aarch64X(0),
+                placements: PrivateCallbackPlacements::new(&placements),
+            },
+            code_function_offset: 4,
+            code_section_offset: 4,
+            code_byte_count: 32,
+            encoding: PlacedCallbackAddressEncoding::Aarch64PageAddress {
+                page_relocation_function_offset: 4,
+                page_relocation_section_offset: 4,
+                page_offset_relocation_function_offset: 8,
+                page_offset_relocation_section_offset: 8,
+            },
+        };
+        let mut object = plan();
+        // This test checks saved-object transport, not instruction execution.
+        object.text_section.bytes.resize(40, 0);
+        object.text_section.byte_count = 40;
+        object.symbols[0].byte_count = 40;
+        let boundary = BoundaryMachineId::new(3).unwrap();
+        let symbol = ObjectLocalSymbolId::new(2).unwrap();
+        object.normalized_imports = vec![RelocationFreeObjectNormalizedImport {
+            symbol,
+            boundary,
+            ordinal: 0,
+            name: canonical_normalized_foreign_import_symbol_name(boundary, 0),
+        }];
+        object.unresolved_normalized_foreign_calls = vec![RelocationFreeObjectUnresolvedForeignCall {
+            symbol,
+            resolution: PlacedNormalizedForeignCallResolution {
+                kind: NormalizedForeignCallResolutionKind::Aarch64BranchLinkImmediate26FromInstructionToNormalizedForeignImportV1,
+                state: NormalizedForeignCallResolutionState::UnresolvedImportFieldV1,
+                caller: object.semantic_entry,
+                block: SelectedBlockId(0),
+                instruction: SelectedInstructionId(1),
+                invocation_site: OperationId::new(11).unwrap().into(),
+                boundary, ordinal: 0,
+                call_function_offset: 4,
+                call_section_offset: 4,
+                call_byte_count: 36,
+                opcode_function_offset: 36,
+                opcode_section_offset: 36,
+                field_function_offset: 36,
+                field_section_offset: 36,
+                next_instruction_function_offset: 40,
+                next_instruction_section_offset: 40,
+                field_byte_width: 4,
+                addend: 0,
+                callback_materializations: vec![callback],
+            },
+        }];
+        object.relocation_record_count = 1;
+        object.relocation_requirements =
+            RelocationFreeObjectRelocationRequirements::UnresolvedNormalizedForeignImportFieldsV1;
+        object.identity = object.recomputed_identity().unwrap();
+        let mut container = encode_relocation_free_object(&object).unwrap().bytes;
+        assert_eq!(decode_relocation_free_object(&container), Ok(object));
+
+        // Find the complete first placement, including the three-placement
+        // count, then damage only its tag. Decoding must reject before the
+        // changed bytes can be reported merely as a stale object identity.
+        let mut first_placement = 3_u64.to_le_bytes().to_vec();
+        first_placement.push(2); // Bits
+        for value in [0_u64, 16, 0, 0, 16] {
+            first_placement.extend_from_slice(&value.to_le_bytes());
+        }
+        let positions = container
+            .windows(first_placement.len())
+            .enumerate()
+            .filter_map(|(index, bytes)| (bytes == first_placement.as_slice()).then_some(index))
+            .collect::<Vec<_>>();
+        assert_eq!(positions.len(), 1);
+        container[positions[0] + 8] = 255;
         assert_eq!(
             decode_relocation_free_object(&container),
-            Err(RelocationFreeObjectDecodeError::UnsupportedVersion(3))
+            Err(RelocationFreeObjectDecodeError::UnknownCallbackDestination(
+                255
+            ))
         );
     }
 

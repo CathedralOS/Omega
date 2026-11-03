@@ -51,6 +51,22 @@ argument or method receiver. `self` is confined to these predicate contexts;
 machines still use explicit ordinary parameters. Subject-free declarations such
 as `domain i32::Km;` need no special spelling.
 
+A domain classifies its declared data carrier. For example:
+
+```omega
+domain u16::Small
+    requires self <= 10;
+```
+
+`7u16 in Small` has the right carrier; `7u8 in Small` does not. Use an explicit
+exact conversion first, as in `(7u8 as u16) in Small`. An anonymous literal may
+land at the expected carrier, but membership cannot retype an already typed
+value merely because its number fits. Generic domain families apply this rule
+to their substituted carrier; sharing a family definition does not transfer
+membership between types. Numeric equality across widths remains valid and
+does not imply domain membership. See
+[carrier-exact membership](../spec/language/domains.md#carrier-exact-membership).
+
 A domain's `requires` clause states its
 predicate obligations. They do not create fields and they do not execute at
 runtime. Each row is a proof formula; naming an ordinary Boolean-returning

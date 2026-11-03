@@ -502,6 +502,23 @@ impl CallingPolicy {
         }
     }
 
+    /// Registers used while inserting fragments into a private record.
+    /// Every one must be free of incoming arguments until the call begins.
+    pub const fn callback_fragment_scratch(self) -> &'static [MachineRegister] {
+        match self.architecture() {
+            Architecture::X86_64 => &[
+                MachineRegister::X86R11,
+                MachineRegister::X86R10,
+                MachineRegister::X86Rax,
+            ],
+            Architecture::Aarch64 => &[
+                MachineRegister::Aarch64X(16),
+                MachineRegister::Aarch64X(15),
+                MachineRegister::Aarch64X(17),
+            ],
+        }
+    }
+
     pub const fn architecture(self) -> Architecture {
         match self {
             Self::MicrosoftX64 | Self::SystemVAMD64 | Self::LinuxSyscallX86_64 => {
