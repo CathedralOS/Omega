@@ -1,10 +1,10 @@
-# finite family const roster
+# Literal calls to a declared generic family
 
 Owning outcome: **FINITE-GENERIC-DISPATCH**.
 
 A literal selection of a const-only finite-family method keeps its declaring roster and returns the selected row's value.
 
-Canonical contracts: [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary), [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families), [returned views](../../../../wiki/spec/language/lifetimes.md#returned-views), and [target families](../../../../wiki/spec/language/machines.md#target-scoped-families).
+Canonical contracts: [finite specialization](../../../../wiki/spec/language/generics.md#finite-specialization-boundary), [dynamic method families](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md#finite-generic-method-families), [returned views](../../../../wiki/spec/language/lifetimes.md#returned-views), and [Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
 
 At `036605466510d2361fd579cf9fd97b722e070beb`, a literal const-family call wrongly refuses because its already-closed requirement has no remaining binders and its family equalities have folded to Boolean values. The declaring requirement still owns the complete roster.
 
