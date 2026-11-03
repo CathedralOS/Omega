@@ -575,6 +575,25 @@ fn walk_state_write_prefix_body(
         };
         let replaces_local_binding =
             super::reference_subjects::replaces_binding(program, machine, statement)?;
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+            && let Some(assignment) = statement.as_assignment()
+            && let Some(receiving) = reference_subjects::assignment_stored_value_type(
+                program, machine, state, assignment,
+            )
+            && crate::reference_shell(program, receiving).is_some()
+        {
+            eprintln!(
+                "STRUCT descriptor-store-summary callee={} state={:?} statement={statement_index} target={:?} receiving={} replaces_local_binding={replaces_local_binding} parameters={:?}",
+                machine.name,
+                state.symbol,
+                super::FrameSourcePlace::from_expression(program, assignment.target),
+                program.display_type_reference_with_constraints(receiving),
+                parameters
+                    .iter()
+                    .map(|parameter| (parameter.symbol, parameter.name.as_str()))
+                    .collect::<Vec<_>>()
+            );
+        }
         let declared_stored_origins = match statement {
             StatementNode::LocalData(local)
                 if ((type_may_carry_write(program, local.type_reference)
@@ -906,6 +925,14 @@ fn walk_state_write_prefix_body(
                     parameters,
                     &locals,
                 )?;
+                if std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                    && crate::reference_shell(program, receiving).is_some()
+                {
+                    eprintln!(
+                        "STRUCT descriptor-store-write-paths callee={} state={:?} statement={statement_index} paths={paths:?} written={written:?}",
+                        machine.name, state.symbol
+                    );
+                }
                 // The write target and returned origins are captured before
                 // RHS effects. Install the final store after those effects.
                 assignment_replacement = replacement;

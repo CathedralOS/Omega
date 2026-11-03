@@ -133,6 +133,21 @@ pub(super) fn plain_home_cleanup(
                     && !live.retired_reference_roots.contains(place)
                     && disposable_view_carrier(live, function, structural_types, *place).is_none()
                 {
+                    if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                        eprintln!(
+                            "CHECKSITE descriptor-home-retirement machine={:?} place={place:?} references={:?} home={:?} arrival={:?} view={:?} block_view={} retired={}",
+                            function.machine,
+                            live.references
+                                .keys()
+                                .filter(|(root, _)| root == place)
+                                .collect::<Vec<_>>(),
+                            live.structural_homes.get(place),
+                            function.arrival_parameter(*place),
+                            live.views.get(place),
+                            live.block_views.contains(place),
+                            live.retired_reference_roots.contains(place)
+                        );
+                    }
                     return Err(LoweringError::InvalidStructuralValueInput {
                         machine: function.machine,
                         place: *place,

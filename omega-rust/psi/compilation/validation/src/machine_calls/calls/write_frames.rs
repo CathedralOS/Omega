@@ -443,6 +443,12 @@ fn summarize_resolved_call(
             )
         });
     inference.active_states.pop();
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "STRUCT resolved-call-write-summary caller={} callee={} state={:?} relative={relative_paths:?} arguments={argument_origins:?}",
+            caller_machine.name, callee_machine.name, callee_state.symbol
+        );
+    }
     // Actual expressions run in the caller, not recursively inside this
     // callee body. A producer may call this same consumer in a finite tree;
     // only enclosing body guards belong to that actual's origin proof.
