@@ -148,9 +148,9 @@ pub fn structural_state_contract_predicates(
         {
             // An owned scalar's declared qualification is its caller's arrival
             // obligation whether or not the body may rebind it: `mut` lets the
-            // body write the binding, and checking proves every such write
-            // stays in the declared domain. The synthesized membership
-            // restatement therefore matches for both bindings.
+            // body write the binding, assignments must preserve the domain,
+            // and other writes invalidate the membership. The synthesized
+            // membership restatement therefore matches for both bindings.
             expected.extend(
                 crate::scalar_predicate_domains(program, parameter.type_reference)
                     .into_iter()
