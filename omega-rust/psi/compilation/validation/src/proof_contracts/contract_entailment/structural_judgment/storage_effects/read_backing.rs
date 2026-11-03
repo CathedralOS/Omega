@@ -53,15 +53,19 @@ impl StructuralJudge<'_> {
         pending: Vec<super::super::super::scoped_arithmetic::PendingScopedCallResultObservation>,
     ) -> Vec<super::super::normal_returns::PostCallStorage> {
         if !self.requires_value_preservation() {
+            self.trace_result_observation_stage(expression, None, 0, "value-preservation");
             return Vec::new();
         }
         let Some(reference) =
             crate::machine_calls::calls::call_result_type(self.program, expression)
         else {
+            self.trace_result_observation_stage(expression, None, 0, "result-type");
             return Vec::new();
         };
         let mut staged = Vec::new();
         for candidate in pending {
+            let source = Some(candidate.observation.expression);
+            let steps = candidate.observation.path.len();
             if !candidate.requires_backing
                 || !self.completed_result_coordinate_is_formed(reference, captured, &candidate)
             {
@@ -77,15 +81,18 @@ impl StructuralJudge<'_> {
                     Some(self.frame_resolver()?),
                 )
             })() else {
+                self.trace_result_observation_stage(expression, source, steps, "backing");
                 continue;
             };
             let Some(backing) = observation.backing else {
+                self.trace_result_observation_stage(expression, source, steps, "backing-metadata");
                 continue;
             };
             let Some(coordinate) = self.capture_storage_place(crate::CanonicalPlace {
                 root: facts::PlaceRoot::Expression(expression),
                 segments: observation.path.clone(),
             }) else {
+                self.trace_result_observation_stage(expression, source, steps, "coordinate");
                 continue;
             };
             let Some(geometry) = crate::structural_scalar_coordinate_in_type(
@@ -94,6 +101,7 @@ impl StructuralJudge<'_> {
                 reference,
                 &observation.path,
             ) else {
+                self.trace_result_observation_stage(expression, source, steps, "scalar-type");
                 continue;
             };
             let mut value = Some(captured.clone());
@@ -130,6 +138,7 @@ impl StructuralJudge<'_> {
                 current_type = projected;
             }
             let Some(value) = value else {
+                self.trace_result_observation_stage(expression, source, steps, "projection");
                 continue;
             };
             let value = super::super::super::structural_terms::owned_projection_observation(
@@ -156,8 +165,24 @@ impl StructuralJudge<'_> {
                     representation: None,
                 });
             }
+            self.trace_result_observation_stage(expression, source, steps, "installed");
         }
         staged
+    }
+
+    fn trace_result_observation_stage(
+        &self,
+        expression: ExpressionHandle,
+        source: Option<ExpressionHandle>,
+        steps: usize,
+        phase: &str,
+    ) {
+        if super::super::super::struct_trace() {
+            eprintln!(
+                "STRUCT result-observation-stage expression={expression:?} source={source:?} steps={steps} storage_version={:?} phase={phase}",
+                self.storage_version,
+            );
+        }
     }
 
     /// A coordinate becomes available only after the completed public promises

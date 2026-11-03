@@ -93,14 +93,90 @@ pub fn evaluated_call_requires_proven(
         };
         bindings.push((ordered_values::Operand::parameter(parameter), operand));
     }
-    super::live_integer_constraints::proves_condition(
+    let proven = super::live_integer_constraints::proves_condition(
         program,
         callee,
         callee_state,
         &evaluated,
         expression,
         &bindings,
-    )
+    );
+    if proven
+        && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+        && program
+            .expression_table
+            .binary_node(expression)
+            .is_some_and(|binary| binary.operator == typed_trees::expression::BinaryOperator::Equal)
+    {
+        eprintln!(
+            "STRUCT evaluated-call-requirement caller={:?} state={:?} statement={statement_index} target={callee_owner:?} predicate={expression:?} bindings={:?} relations={} retained={:?} intervals={}",
+            caller.symbol,
+            state.symbol,
+            bindings
+                .iter()
+                .take(4)
+                .map(|(formal, actual)| (TraceOperand(formal, 0), TraceOperand(actual, 0)))
+                .collect::<Vec<_>>(),
+            evaluated.ordered_values.len(),
+            evaluated
+                .ordered_values
+                .iter()
+                .take(12)
+                .map(|relation| (
+                    TraceOperand(&relation.left, 0),
+                    relation.constraint,
+                    TraceOperand(&relation.right, 0)
+                ))
+                .collect::<Vec<_>>(),
+            evaluated.intervals.len(),
+        );
+    }
+    proven
+}
+
+// A call or arithmetic tree can be large. This diagnostic keeps only a small
+// coordinate tree, declaration handles and integer values.
+struct TraceOperand<'a>(&'a ordered_values::Operand, usize);
+
+impl std::fmt::Debug for TraceOperand<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use ordered_values::Operand;
+        if self.1 >= 4 {
+            return f.write_str("...");
+        }
+        match self.0 {
+            Operand::Place { root, .. } => f.debug_tuple("place").field(root).finish(),
+            Operand::Field {
+                receiver, field, ..
+            } => f
+                .debug_tuple("field")
+                .field(&TraceOperand(receiver, self.1 + 1))
+                .field(field)
+                .finish(),
+            Operand::Integer(value, _) => {
+                f.debug_tuple("integer").field(&value.value_i64()).finish()
+            }
+            Operand::Call { target, .. } => f.debug_tuple("call").field(target).finish(),
+            Operand::CollectionLength(collection) => f
+                .debug_tuple("length")
+                .field(&TraceOperand(collection, self.1 + 1))
+                .finish(),
+            Operand::Indexed {
+                collection, index, ..
+            } => f
+                .debug_tuple("element")
+                .field(&TraceOperand(collection, self.1 + 1))
+                .field(&TraceOperand(index, self.1 + 1))
+                .finish(),
+            Operand::Binary { operator, .. } => f.debug_tuple("operation").field(operator).finish(),
+            #[cfg(test)]
+            Operand::CompletedCall { target, occurrence } => f
+                .debug_tuple("completed")
+                .field(target)
+                .field(occurrence)
+                .finish(),
+        }
+    }
 }
 
 /// The selected transition guard retains its existing effect-aware route when
