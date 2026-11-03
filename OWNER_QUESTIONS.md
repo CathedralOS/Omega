@@ -303,3 +303,64 @@ Contracts checked, and why they do not decide it:
   type, not a bare `in` proposition.
 - No clause in `state_contracts.md`, `generics.md` or elsewhere in
   `wiki/spec` states a carrier rule for `in` propositions.
+
+### 5. Which input accepts an independent component's assumptions, and how is an accepted assumption spelled?
+
+A verified component description can bind assumptions about its environment,
+such as an immediate port-space write, by digest. Verification must then be told
+which assumptions the consuming build accepts. The repository has a Build call
+for that, `Build::accept_component_assumption(builder, digest)`
+(`omega-rust/omega/packages/build-declarations/src/prelude.rs:306-315`). Its
+comment promises one exact digest per call, written as the 64-character
+lowercase hex that verification diagnostics report. Today the call does
+nothing:
+- the checked Build evaluator evaluates the digest and discards it;
+- `EvaluatedBuild.accepted_component_assumptions` has no producer;
+- provider settlement still passes that always-empty set to component
+  verification, so any description that binds an assumption is refused as
+  unaccepted whatever the build declares;
+- a malformed or short digest is accepted silently.
+
+The static harvester was removed as unused by #1156.
+`tests/omega/fail/build/component_assumption_{malformed,short}` therefore
+compile, and the seven `tests/omega/pass/build/component_assumption_*` fixtures
+and `samples/cli/independent/component_assumption_recording` check without
+their acceptance meaning anything.
+
+Option A, the Build call is the acceptance input: Build evaluation records each
+digest, with its machine and span, into the evaluated Build result. It refuses a
+spelling that is not 64 lowercase hex characters. The verifier receives exactly
+that set. The two fail fixtures become real reject twins, and the pass fixtures
+and sample keep their spelling. No source re-reading is reintroduced.
+
+Option B, acceptance belongs to package acceptance policy: assumptions are
+accepted through the compact lock and acceptance comparison, like other
+trust-bearing decisions, keyed by assumption meaning rather than a spelling.
+`Build::accept_component_assumption` is retired, together with the two fail
+fixtures, the pass fixtures' calls and the sample's call. The verifier receives
+the set the lock accepted.
+
+Option C, both: the Build call states the build's intent and the lock records
+the reviewed acceptance. Verification requires the digest in both, so the
+spelling rule of Option A applies to the call.
+
+Contracts checked, and why they do not decide it:
+- [Verified component descriptions](wiki/spec/build/component_publication.md#verified-component-descriptions)
+  (lines 91-96, 130-135): verification returns a `VerifiedComponent` "with
+  accepted assumptions", the expected subject and profile "come from independent
+  caller policy", "unaccepted assumptions" is a distinct failure, and
+  assumptions "are inseparable from claim consumption". This requires accepted
+  assumptions to reach verification but names no input that carries them.
+- [Topology, verified-description consumer](wiki/spec/packages/topology.md)
+  (line 228) and owner intent (line 382): the consumer uses "independently
+  selected subject, verification profile, and accepted assumptions", and a
+  `TopologyRequest` lists accepted assumptions. This places them in an
+  independently committed input without saying whether Build or the lock
+  supplies it.
+- [Package acceptance](wiki/spec/packages/acceptance.md) (line 96): "explicit
+  trust-bearing assumptions require acceptance". Line 249: "Acceptance binds
+  permission and assumption meaning, not diagnostic wording". This leans
+  toward Option B, and against keying acceptance on a diagnostic-reported
+  spelling, but does not mention component assumptions or the Build call.
+- No clause in `wiki/spec/build` defines `Build::accept_component_assumption`
+  or a digest spelling rule; the rule exists only in the prelude comment.
