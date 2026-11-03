@@ -29,6 +29,11 @@ carries its own entry permission and already ran on the base.
 | other machine | [source](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
 | target body | [source](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
+The [stored-reference recast production](recast/README.md) carries the same fact
+through all nine places after forming a compatible record view. It preserves
+the original backing's carry floor rather than acquiring the target type's
+default permissions.
+
 Twins change only the backing's declaration to
 `carry(suspension: forbidden, ...)`. No twin reads the backing after the call;
 it is live only because the transported descriptor retains it, so its

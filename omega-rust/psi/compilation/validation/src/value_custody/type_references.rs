@@ -924,6 +924,7 @@ fn validate_type_reference_node(
                                 parameter,
                                 contract,
                                 *argument,
+                                argument_handles,
                                 type_parameter_scope,
                                 diagnostics,
                             );

@@ -2,7 +2,7 @@
 
 use super::arguments::CompileArguments;
 use compiler::CompilerRequestOutcome;
-use omega_build::{
+use orchestration::{
     BuildError, BuildRequest, BuildTargets, NativeDestination, ProjectProduct, TargetBuildOutcome,
     build,
 };
@@ -55,7 +55,7 @@ pub(crate) fn compile_project_command(arguments: CompileArguments) {
     let result = build(request).and_then(|outcomes| match outcomes.into_iter().next() {
         Some(outcome) => outcome
             .result
-            .and_then(omega_build::BuildOutcome::into_report),
+            .and_then(orchestration::BuildOutcome::into_report),
         None => Err(BuildError::Diagnostics(vec![
             diagnostics::Diagnostic::error("build lost the requested target outcome"),
         ])),
@@ -103,7 +103,7 @@ fn compile_several_targets(
     for TargetBuildOutcome { target, result } in outcomes {
         let name = target.target_name();
         println!("target {name}:");
-        match result.and_then(omega_build::BuildOutcome::into_report) {
+        match result.and_then(orchestration::BuildOutcome::into_report) {
             Ok(outcome) => {
                 if started.is_some() {
                     print_timings(&outcome);
@@ -154,7 +154,7 @@ fn refusal_exit_status<'a>(refusals: impl IntoIterator<Item = &'a BuildError>) -
     }
 }
 
-fn print_timings(outcome: &omega_build::BuildReport) {
+fn print_timings(outcome: &orchestration::BuildReport) {
     for timing in outcome.timings.phases() {
         eprintln!(
             "{:>10.3} ms  {}",
@@ -181,7 +181,7 @@ fn print_elapsed(started: std::time::Instant) {
     }
 }
 
-fn print_outcome(outcome: &omega_build::BuildReport) {
+fn print_outcome(outcome: &orchestration::BuildReport) {
     if let Some(path) = &outcome.executable_path {
         if let Some(receipt) = outcome.report.optimization_rollback_receipt() {
             println!("optimizer rollback: {receipt}");
@@ -211,7 +211,7 @@ fn print_outcome(outcome: &omega_build::BuildReport) {
 /// Render the produced outcome as the plain-text observation `--report-file`
 /// requests: the requested product, the named target, the report summary,
 /// and every publication line the console reports.
-fn report_text(target_name: Option<&str>, outcome: &omega_build::BuildReport) -> String {
+fn report_text(target_name: Option<&str>, outcome: &orchestration::BuildReport) -> String {
     let mut contents = String::new();
     contents.push_str(match outcome.executable_path.is_some() {
         true => "product: native artifact\n",

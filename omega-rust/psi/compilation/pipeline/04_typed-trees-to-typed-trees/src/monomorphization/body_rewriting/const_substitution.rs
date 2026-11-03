@@ -8,6 +8,7 @@ use numerics::literals::{IntegerLiteral, IntegerRadix};
 use typed_trees::const_integer::{self, ConstIntegerExpression};
 use typed_trees::expression::StaticMachineArgument;
 use typed_trees::name::Identifier;
+use typed_trees::types::TypeReferenceHandle;
 use validation::parameter_expression_result_type_reference;
 
 pub(crate) fn fixed_array_const_replacements(
@@ -223,12 +224,12 @@ pub(crate) fn fold_closed_const_machine_arguments_in(
         if !has_machine_args {
             continue;
         }
-        let mut arguments = expressions_of(program)
+        let call = expressions_of(program)
             .call_node(handle)
-            .expect("call roster")
-            .machine_arguments
-            .clone();
-        if normalize_const_arguments(program, owner, &mut arguments)? {
+            .expect("call roster");
+        let mut arguments = call.machine_arguments.clone();
+        let carriers = callee_value_carriers(program, call.target_symbol, &call.machine_arguments);
+        if normalize_const_arguments_for(program, owner, &carriers, &mut arguments)? {
             let ExpressionNode::Call(call) = expressions_of_mut(program).expression_mut(handle)
             else {
                 continue;
@@ -266,14 +267,14 @@ pub(crate) fn fold_closed_const_machine_arguments_in(
         } else {
             SymbolHandle::invalid()
         };
-        let mut arguments = program
+        let call = program
             .statement_table
             .statement(handle)
             .as_call()
-            .expect("call roster")
-            .machine_arguments
-            .clone();
-        if normalize_const_arguments(program, owner, &mut arguments)? {
+            .expect("call roster");
+        let mut arguments = call.machine_arguments.clone();
+        let carriers = callee_value_carriers(program, call.target_symbol, &call.machine_arguments);
+        if normalize_const_arguments_for(program, owner, &carriers, &mut arguments)? {
             let StatementNode::Call(call) = program.statement_table.statement_mut(handle) else {
                 continue;
             };
@@ -283,12 +284,63 @@ pub(crate) fn fold_closed_const_machine_arguments_in(
     Ok(())
 }
 
+/// The selected machine's declared value carriers, aligned with the call's
+/// pack. A source call may name the declaration or its entry state. Machine
+/// evidence binders are conformance bounds rather than telescope entries, so
+/// their implementation actuals occupy no declared carrier position.
+fn callee_value_carriers(
+    program: &TypedTrees,
+    target: SymbolHandle,
+    arguments: &[StaticMachineArgument],
+) -> Vec<Option<TypeReferenceHandle>> {
+    if !target.is_valid() {
+        return Vec::new();
+    }
+    let Some(machine) = program
+        .machine_by_symbol(target)
+        .or_else(|| program.machine_holding_state(target))
+    else {
+        return Vec::new();
+    };
+    let mut declared =
+        declared_value_carriers(program.machine_type_parameters(machine)).into_iter();
+    let carriers = arguments
+        .iter()
+        .map(|argument| {
+            let evidence = !machine.conformance_bounds.is_empty()
+                && program.conformance_by_symbol(argument.symbol).is_some();
+            if evidence {
+                Some(None)
+            } else {
+                declared.next()
+            }
+        })
+        .collect::<Option<Vec<_>>>();
+    match carriers {
+        Some(carriers) if declared.next().is_none() => carriers,
+        _ => Vec::new(),
+    }
+}
+
 /// Normalize a derived operand list without replacing its authored application.
 /// Callers own the scratch list (or the live executable arguments); immutable
 /// checking still reads every original recipe and its formation obligations.
 pub(crate) fn normalize_const_arguments(
     program: &mut TypedTrees,
     owner: SymbolHandle,
+    arguments: &mut [StaticMachineArgument],
+) -> Result<bool, String> {
+    normalize_const_arguments_for(program, owner, &[], arguments)
+}
+
+/// `carriers` are the receiving telescope's declared value carriers, aligned
+/// with `arguments` (empty when the receiver is not known here). A recipe
+/// with no nominal carrier of its own, such as an array literal, lands only
+/// under that destination carrier.
+fn normalize_const_arguments_for(
+    program: &mut TypedTrees,
+    owner: SymbolHandle,
+    carriers: &[Option<TypeReferenceHandle>],
     arguments: &mut [StaticMachineArgument],
 ) -> Result<bool, String> {
     let mut changed = false;
@@ -300,7 +352,13 @@ pub(crate) fn normalize_const_arguments(
                 .expect("nested static application")
                 .arguments
                 .clone();
-            if normalize_const_arguments(program, owner, &mut nested)? {
+            let nested_carriers = program
+                .conformance_by_symbol(arguments[index].symbol)
+                .map(|declaration| {
+                    declared_value_carriers(program.conformance_type_parameters(declaration))
+                })
+                .unwrap_or_default();
+            if normalize_const_arguments_for(program, owner, &nested_carriers, &mut nested)? {
                 arguments[index]
                     .application
                     .as_mut()
@@ -310,7 +368,14 @@ pub(crate) fn normalize_const_arguments(
             }
         }
         let Some(value) = closed_const_argument(program, &arguments[index]) else {
-            if let Some(value) = closed_structural_argument(program, owner, &arguments[index])? {
+            let expected = carriers
+                .get(index)
+                .copied()
+                .flatten()
+                .filter(|_| carriers.len() == arguments.len());
+            if let Some(value) =
+                closed_structural_argument(program, owner, &arguments[index], expected)?
+            {
                 let atom = value.atom();
                 program
                     .type_reference_table
@@ -380,6 +445,7 @@ fn closed_structural_argument(
     program: &TypedTrees,
     owner: SymbolHandle,
     argument: &StaticMachineArgument,
+    expected: Option<TypeReferenceHandle>,
 ) -> Result<Option<language_semantics::const_value::CanonicalConstValue>, String> {
     if !argument.type_reference.is_valid() {
         return Ok(None);
@@ -399,10 +465,28 @@ fn closed_structural_argument(
                     .find_named_type_reference(literal.type_symbol)
             })
         }
+        // An array literal has no nominal type of its own; its elements
+        // land under the receiving binder's declared array carrier.
+        ExpressionNode::ArrayLiteral(_) => expected,
         _ => parameter_expression_result_type_reference(program, owner, &[], *expression),
     };
     let Some(carrier) = carrier else {
         return Ok(None);
     };
     validation::normalize_closed_const_expression(program, owner, *expression, carrier)
+}
+
+fn declared_value_carriers(
+    parameters: &[typed_trees::data::TypeParameter],
+) -> Vec<Option<TypeReferenceHandle>> {
+    parameters
+        .iter()
+        .map(|parameter| match parameter.kind {
+            typed_trees::data::TypeParameterKind::Const { type_reference }
+            | typed_trees::data::TypeParameterKind::Value { type_reference } => {
+                Some(type_reference)
+            }
+            _ => None,
+        })
+        .collect()
 }

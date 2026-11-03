@@ -6,6 +6,7 @@ use arena::Handle;
 use checked_trees::FlowOperandFact;
 mod query;
 pub use query::{at_snapshot, contents_preserved_from};
+pub mod versions;
 
 #[derive(Clone)]
 pub enum StoredOperand {
@@ -27,6 +28,10 @@ pub enum StoredOperand {
 #[derive(Clone, Copy)]
 pub enum StoredObservation {
     Binding,
+    /// Inline value cells, including descendant fields, but not separately
+    /// backed contents reached through the value. Unlike Binding, a child
+    /// assignment invalidates an observation of the enclosing whole value.
+    InlineContents,
     Contents,
 }
 
@@ -96,4 +101,6 @@ mod occurrences;
 pub use occurrences::consumer_captures;
 
 mod loan_homes;
-pub use loan_homes::{InstalledLoanHomes, descriptor_formation_sources};
+pub use loan_homes::{
+    InstalledLoanHomes, descriptor_formation_matches_loan, descriptor_formation_sources,
+};

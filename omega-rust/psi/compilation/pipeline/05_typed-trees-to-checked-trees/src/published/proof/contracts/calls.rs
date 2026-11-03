@@ -186,7 +186,14 @@ fn append_contract_call(
         )
     };
 
-    if requires.is_empty() && ensures.is_empty() && !has_call_obligations {
+    // A requirement may publish only crash conditions or an empty guarantee.
+    // Its selected signature still belongs to this exact call and must remain
+    // connected to the executable target even without requires/ensures facts.
+    if requires.is_empty()
+        && ensures.is_empty()
+        && !has_call_obligations
+        && !site.signature.is_valid()
+    {
         return;
     }
 

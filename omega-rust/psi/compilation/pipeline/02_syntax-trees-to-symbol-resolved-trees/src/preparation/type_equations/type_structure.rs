@@ -229,7 +229,7 @@ impl Solver<'_, '_> {
     }
 
     fn type_structure_error(&self, reason: &str, span: SourceSpan) -> Diagnostic {
-        self.reject(format!("where type equation {reason}"))
+        self.reject(format!("requires type equation {reason}"))
             .with_source_span(span)
     }
 

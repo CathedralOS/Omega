@@ -1,5 +1,5 @@
-data Owner { values: [u64; 2]; }
-machine Owner::drop(owner: &mut Owner)
+data Owner dropped by drop_owner { values: [u64; 2]; }
+machine drop_owner(owner: &mut Owner)
 requires owner.values[1] == 7
 {
     owner.values[1] = 0;

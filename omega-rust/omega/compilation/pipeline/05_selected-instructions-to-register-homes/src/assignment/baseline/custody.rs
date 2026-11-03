@@ -1,7 +1,7 @@
 use crate::RegisterHomeValidationReceipt;
 use optimization_core::PostAllocationOptimizationManifestIdentity;
 
-use selected_instructions_to_selected_instructions::StagedOptimizedAllocationLegalityCustodyReceipt;
+use selected_instruction_analyses::StagedOptimizedAllocationLegalityCustodyReceipt;
 
 use super::StagedOptimizedRegisterHomeCustodyReceipt;
 

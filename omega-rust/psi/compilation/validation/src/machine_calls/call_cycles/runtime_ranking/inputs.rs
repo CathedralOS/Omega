@@ -150,12 +150,17 @@ impl RuntimeRankOperand {
                                 machine: machine.symbol,
                                 machine_body: machine.states,
                                 state: *state,
-                                application: checked_trees::CheckedRankApplicationFacts {
-                                    owner: application.owner(),
-                                    definition_body: application.body(),
-                                    casts,
-                                    calls,
-                                },
+                                application:
+                                    checked_trees::CheckedRankApplicationFacts {
+                                        owner: application.owner(),
+                                        definition_body: application.body(),
+                                        casts,
+                                        calls,
+                                        dispatches:
+                                            plan.application_dispatches.insert_many(
+                                                application.dispatches().iter().copied(),
+                                            ),
+                                    },
                                 bindings,
                                 // An expression has no structural input home.
                                 // Its absence remains the record default when
@@ -219,6 +224,9 @@ impl RuntimeRankOperand {
                         row.application.definition_body,
                         plan.application_casts.span(row.application.casts)?.to_vec(),
                         plan.application_calls.span(row.application.calls)?.to_vec(),
+                        plan.application_dispatches
+                            .span(row.application.dispatches)?
+                            .to_vec(),
                     )?;
                     let bindings = plan
                         .bindings

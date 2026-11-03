@@ -995,6 +995,33 @@ fn parses_proof_quotient_data_declaration() {
 }
 
 #[test]
+fn parses_quotient_equivalence_selection_requirement() {
+    let source = r#"
+        data Carrier { case Value; }
+        data Quotient = Carrier % same
+        requires same satisfies Equivalence<Carrier, same> as Laws;
+    "#;
+    let parsed = super::parse_source(source, "quotient selection should parse");
+    let selection = parsed
+        .root_items()
+        .find_map(|item| match item {
+            Item::Data(data) if data.name.as_str(&parsed) == "Quotient" => {
+                data.quotient.as_ref()?.equivalence.as_ref()
+            }
+            _ => None,
+        })
+        .expect("quotient equivalence selection");
+    assert_eq!(selection.trait_name.as_str(&parsed), "Equivalence");
+    assert_eq!(selection.conformance_name.as_str(&parsed), "Laws");
+
+    let retired = super::parse_tokenized_error(
+        "data Carrier { case Value; }\ndata Quotient = Carrier % same\nwhere same satisfies Equivalence<Carrier, same> as Laws;",
+        "retired quotient `where` must reject",
+    );
+    super::expect_error(&retired, "found identifier `where`");
+}
+
+#[test]
 fn parses_static_machine_symbol_call_argument() {
     let source = r#"
         data Card {}
@@ -1214,6 +1241,54 @@ fn parse_domain_facts(source: &str) -> (syntax_trees::SyntaxTrees, Vec<ProofFact
         .expect("one domain");
     let facts = parsed.items.proof_facts(facts).to_vec();
     (parsed, facts)
+}
+
+#[test]
+fn compound_proof_membership_keeps_ordinary_boolean_precedence() {
+    use syntax_trees::expression::BinaryOperator;
+    for (source, membership_on_left) in [
+        (
+            "domain Value::D requires false || self in Value::Case",
+            false,
+        ),
+        (
+            "domain Value::D requires self in Value::Case || false",
+            true,
+        ),
+    ] {
+        let (parsed, facts) = parse_domain_facts(source);
+        let [ProofFact::Expression(root)] = facts.as_slice() else {
+            panic!("compound fact must retain its Boolean operation: {facts:?}");
+        };
+        let ExpressionNode::Binary(binary) = parsed.expressions.expression(*root) else {
+            panic!("expected Boolean operation");
+        };
+        assert_eq!(binary.operator, BinaryOperator::Or);
+        let (membership, boolean) = if membership_on_left {
+            (binary.left, binary.right)
+        } else {
+            (binary.right, binary.left)
+        };
+        assert!(matches!(
+            parsed.expressions.expression(boolean),
+            ExpressionNode::Boolean(false)
+        ));
+        let ExpressionNode::Membership(membership) = parsed.expressions.expression(membership)
+        else {
+            panic!("membership must apply to its operand, not the Boolean operation");
+        };
+        assert!(matches!(
+            parsed.expressions.expression(membership.value),
+            ExpressionNode::Name(_)
+        ));
+        let path = parsed
+            .expressions
+            .identifier_path_members(membership.domain)
+            .iter()
+            .map(|part| part.as_str(&parsed))
+            .collect::<Vec<_>>();
+        assert_eq!(path, ["Value", "Case"]);
+    }
 }
 
 #[test]

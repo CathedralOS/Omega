@@ -250,6 +250,22 @@ impl BoundaryArguments {
             .capture_reference_inputs(declaration, arguments, &self.values)
     }
 
+    pub(crate) fn prepare_reference_result(
+        &mut self,
+        execution: &TerminalExecution,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
+        result: &terminal_psi::StructuralOperationResult,
+        selection: &super::storage_inputs::TerminalBoundaryReferenceSelection,
+    ) -> Result<crate::storage::reference::PreparedReference, TerminalInterpretError> {
+        self.storage_inputs.prepare_reference_result(
+            execution,
+            declaration,
+            result,
+            selection,
+            &mut self.local_identity_cursor,
+        )
+    }
+
     /// A handler can reorder its slice, but cannot thereby retarget writeback.
     /// Check every binding before committing either fields or the result.
     pub(crate) fn validate_writeback(

@@ -99,7 +99,7 @@ accepted. The remaining root kinds share those grammars:
 `[public] boundary data Name [<generic parameters>] [properties];` leaves its
 representation to a crossing, with no members or facts;
 `[public] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
-{where proposition Name(parameters);} { ... }` holds machine requirements and
+{requires proposition Name(parameters);} { ... }` holds machine requirements and
 body parents `requires Parent;`, and a transparent refinement `trait Name =
 Base { machine (* | [Base::]requirement) clauses }` narrows its base's
 `reaches`, `suspends`, `blocks` and `terminates`, each clause ending at its
@@ -119,7 +119,7 @@ and a named mathematical definition `[public] let Name [<generic parameters>]
 [(parameters)]: Type = term;`, or an admitted assumption `boundary let ...:
 Type;` without a term ([`parse/definition.omg`](parse/definition.omg)).
 Generic parameter lists also take `proposition Name` binders, whose
-signatures come from `where proposition` contracts, and conformance evidence
+signatures come from `requires proposition` contracts, and conformance evidence
 binders `Name satisfies Trait<arguments>`. The current parser's legacy name-led
 target prefix path recognizes a machine when `machine` or `boundary` follows
 the name and a conformance when `satisfies` or `<` does; after a bodyless
@@ -784,7 +784,7 @@ owns bounded token selection and trivia traversal;
 | `tokens/` | Owns the sole typed lexical token stream the lexer fills and the parser borrows. | Absorb only into a successor representation that preserves the exact typed vocabulary and coordinates without parallel token truth. |
 | `syntax/` | Owns the bounded structural syntax retained by the current parser slice, including distinct direct-field and case-payload-field tables. | Absorb into a later Psi representation only with equivalent accepted/rejected observations. |
 | `lex/` | Owns the source-to-token implementation for the closed ASCII syntax profile and byte-preserving literal payloads. | Absorb only into a successor that preserves the exact V1 profile, diagnostics, coordinates, and payload bytes. |
-| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine (with its operator token and `requires machine` contracts), trait (with refinements and `where proposition` contracts), conformance, domain, constant, proposition and mathematical-definition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`, `definition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
+| `parse/` | Owns token-to-structural parsing over a token stream the lexer keeps and the parser borrows: whole-file roots (`parser.omg`), token traversal and grammar-step helpers (`input.omg`), the shared type, generic-parameter, clause and name-path grammars (`types.omg`, `generics.omg`, `clause.omg`, `path.omg`), data, machine (with its operator token and `requires machine` contracts), trait (with refinements and `requires proposition` contracts), conformance, domain, constant, proposition and mathematical-definition declarations (`data.omg`, `machine.omg`, `traits.omg`, `conformance.omg`, `domain.omg`, `constant.omg`, `proposition.omg`, `definition.omg`), body statements (`statement.omg`) and expressions (`expression.omg`). | Absorb the parser only into its canonical successor. |
 | `resolution/` | Owns the name bindings that annotate the syntax tables by handle, and resolution diagnostics. | Absorb into a later Psi representation only with equivalent bindings and diagnostics. |
 | `resolve/` | Owns name resolution from syntax and source bytes to the bindings, and the named rejection of machine forms it does not bind yet (`forms.omg`). | Absorb only into the canonical multi-source resolver. |
 | `types/` | Owns the interned type table and the typing annotations indexed by syntax handles, and typing diagnostics. | Absorb into a later Psi representation only with equivalent types, selections and diagnostics. |

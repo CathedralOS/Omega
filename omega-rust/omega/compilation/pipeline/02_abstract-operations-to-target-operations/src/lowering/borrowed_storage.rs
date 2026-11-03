@@ -84,7 +84,7 @@ pub(super) fn capture(plan: &AbstractOperationPlan) -> Vec<NativeBorrowedStorage
         .collect()
 }
 
-pub(super) fn capture_type(
+pub(crate) fn capture_type(
     root: StructuralTypeId,
     types: &[StructuralTypeDeclaration],
 ) -> Option<NativeBorrowedStorageLayout> {

@@ -159,6 +159,7 @@ mod tests {
                 structural_parameters: vec![],
                 result: BoundaryMachineResult::Unit,
                 normal_qualifications: vec![],
+                result_reference_regions: Vec::new(),
             },
             OutputKind::Byte,
             output.clone(),

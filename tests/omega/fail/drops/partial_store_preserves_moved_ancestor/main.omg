@@ -1,6 +1,6 @@
-data Token { value: u64; }
+data Token dropped by drop_token { value: u64; }
 data Pair { first: Token; second: Token; }
-machine Token::drop(token: &mut Token) {}
+machine drop_token(token: &mut Token) {}
 
 machine main() {
     let mut pair: Pair = Pair {

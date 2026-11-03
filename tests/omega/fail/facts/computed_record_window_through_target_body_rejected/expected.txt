@@ -1,2 +1,2 @@
-cannot prove ensures contract for exit from window
+cannot prove ensures contract for exit from X86Window::window
 result.len == 2

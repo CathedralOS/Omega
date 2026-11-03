@@ -9,14 +9,14 @@ use crate::plans::{
 };
 
 pub(crate) struct Fnv1a {
-    compact: crate::fnv1a::Fnv1a,
+    compact: semantic_vocabulary::Fnv1a,
     strong: Option<crate::digest_encoder::DomainDigestEncoder>,
 }
 
 impl Fnv1a {
     pub(crate) const fn new() -> Self {
         Self {
-            compact: crate::fnv1a::Fnv1a::new(),
+            compact: semantic_vocabulary::Fnv1a::new(),
             strong: None,
         }
     }
@@ -25,7 +25,7 @@ impl Fnv1a {
         let mut strong = crate::digest_encoder::DomainDigestEncoder::new(b"");
         strong.bytes(domain);
         Self {
-            compact: crate::fnv1a::Fnv1a::new(),
+            compact: semantic_vocabulary::Fnv1a::new(),
             strong: Some(strong),
         }
     }

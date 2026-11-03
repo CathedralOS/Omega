@@ -17,7 +17,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-SUPPORT = ROOT / "omega-rust/omega/compilation/driver/tests/support/sealed_fixture_staging.rs"
+SUPPORT = ROOT / "omega-rust/omega/compilation/compiler/tests/support/sealed_fixture_staging.rs"
 
 PROBE = r'''
 use std::{fs, path::{Path, PathBuf}};

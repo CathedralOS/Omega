@@ -102,7 +102,7 @@ mode, cleanup disposition, or target rule, complete the entire source-to-native
 path in the same change rather than splitting work by compiler stage.
 
 Read the whole item's acceptance and verify its remaining gap with an optimized
-exact-source producer for the fixed recorded base. Reuse warm `build/gate-cli`
+exact-source producer for the fixed recorded base. Reuse warm `target/`
 artifacts with verified inputs; build only for changed producer inputs or a
 missing valid producer. Never use an unverified cached binary. Record the parent
 task and the exact requirement the next fact will discharge. Do not attach a task ID to an unrelated program after
@@ -422,7 +422,7 @@ For an explicitly assigned discoverability/architecture change, apply
 [Discoverability architecture](../../../omega-rust/pipeline.md#discoverability-architecture):
 the outcome is a clearer route from crate entry to a named operation. Compare
 the route with [main.rs](../../../omega-rust/omega/application/cli/src/main.rs) and
-[compiler.rs](../../../omega-rust/omega/compilation/driver/src/compiler.rs), keep
+[target_batch.rs](../../../omega-rust/omega/compilation/compiler/src/target_batch.rs), keep
 orchestration visible at the crate entry and at subordinate multi-step owners,
 and verify affected test selectors and source readers. Stop when the named
 navigation problem is resolved.
@@ -569,6 +569,10 @@ and keep the work marked unfinished while continuing feasible engineering.
 Invoking advance authorizes committing and publishing the change through
 [the landing protocol](../../../tools/landing.md).
 
+Write the PR description and user-facing report using
+[Explain the change](../../../AGENTS.md#explain-the-change), checked against the
+final diff and witness. Keep the claim's investigation history out of the lead.
+
 Validate the submitted change, push HEAD directly to origin (`git push origin HEAD:refs/heads/work/<name>`), open or reuse a draft PR, and use
 the native merge queue under the linked protocol. When the work is finished, run `tools/landing.py land`, which marks it ready and lets the queue take it when `compiler-check` passes. Put actual agent/model
 provenance in the PR body when known. Do not invent unknown metadata. Release
@@ -635,8 +639,9 @@ decision, unavailable environment, budget limit or user stop may end this run;
 preserve the exact frontier for the same owner's continuation without marking
 the outcome complete.
 
-Report the program's behavior before and after, the parent requirement removed,
-remaining capability acceptance, commit/publication state, checks and dependencies.
+Lead the report with the program's changed behavior and why it matters. Then give
+the parent requirement removed, remaining acceptance, publication state and
+focused evidence.
 For development-health work report the
 workflow's before/after measurements and preserved validation. Stop after the
 owned outcome unless the user requested continuing work.

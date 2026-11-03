@@ -1,6 +1,6 @@
 data Leaf { value: u64; }
-data Envelope<Value> { case Held(value: Value); }
-machine Envelope::drop(envelope: &mut Envelope<Value>) {}
+data Envelope<Value> dropped by drop_envelope<Value> { case Held(value: Value); }
+machine drop_envelope<Value>(envelope: &mut Envelope<Value>) {}
 
 machine produce(value: Leaf) -> Envelope<Leaf> {
     Envelope::Held { value: value }

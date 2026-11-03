@@ -242,6 +242,9 @@ pub struct BoundaryMachineDeclaration {
     /// the scalar lane.
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
     pub result: BoundaryMachineResult,
+    /// Public returned-borrow regions share the requirement-slot model. The
+    /// provider's actual captured descriptor supplies its address and backing.
+    pub result_reference_regions: Vec<crate::TerminalDynamicReferenceRegion>,
     /// Strictly ordered qualification checks by `(argument_index, domain)`.
     /// Admission consumes qualifications already carried by the arguments;
     /// these rows are not proof propositions.

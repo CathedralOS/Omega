@@ -76,7 +76,12 @@ retained handle and that unknown or out-of-bounds ranges supply no storage.
 The [package allocator customer](../../../../tests/omega/pass/memory/bump_allocator_canary/README.md)
 extends this lifecycle through the ordinary Bump package: exhausted allocation,
 release without cursor rewind, checked recomposition, full reset, and reuse.
-Vec growth/reallocation/drop remains the parent outcome's acceptance.
+Generic Vec element ownership and cleanup remain the parent outcome's acceptance.
+
+The [library-growth production](library_growth/README.md) runs that lifecycle
+through the alloc package's runtime-sized u32 vector. The application provides
+backing and its selected profile; the library preserves the initialized prefix
+and returns old storage for explicit release. Its twin omits vacancy issuance.
 
 The [runtime-cell production](runtime_cells/README.md) partitions at runtime,
 updates actual backing through a qualification-erasing view, and rejoins the
@@ -84,3 +89,38 @@ original descriptor. Its bounds twin rejects a cell extending past the end.
 The accompanying ordinary-RAM control preserves an untouched neighbor but
 rejects a stale fact about the written field; content-only writes must not
 accidentally become the rule for every access view.
+
+The [runtime-loop production](runtime_loop/README.md) forwards two distinct
+allocation descriptors through a terminating loop before rejoining and using
+their backing. Its twin swaps the outputs and must reject the identity claims.
+
+The [nested helper-loop production](runtime_helper_loop/README.md) carries both
+backings through helper-call results on a backedge. It checks their distinct
+contents after zero and repeated iterations; its twin repeats a consumed input
+and must reject the duplicate transfer. The reconstruction production below
+also checks recursive descriptor guarantees; the Vec copy/reallocation lifecycle
+remains the parent outcome's acceptance.
+
+The [reconstruction-loop production](runtime_reconstruction_loop/README.md)
+rebuilds both descriptors through checked content-conserving helpers on the
+backedge. Its direct and recursive exits have different claim origins; each
+completed call must still return its complete owned result. Its twin changes
+the reconstructed length and must reject the unchanged conservation contract.
+
+The [runtime-growth customer](runtime_growth/README.md) uses the Bump package
+to copy live elements into larger backing and append another element. The
+recursive descriptor guarantees directly establish the grown vector's invariant;
+its twin swaps the recursive backing arguments and must reject. It then releases
+both allocations, resets from their recomposed backing, and reuses the whole
+48-byte allocation with readback before releasing and resetting again.
+
+The field place captures its qualified extent through an ordinary call both
+before reconstructing `Held` and while restoring a borrowed `Held`. Its default
+domain consumes the returned length guarantee and the saved entry count. The
+typed projection of an authenticated referent snapshot must agree with ordinary
+owned projection; neither a reference descriptor nor an equal constructor can
+supply missing Granted or Vacant membership. The
+[unrestored control](field/invalid_restoration/main.omg) replaces the saved count
+with zero and must reject at invariant-window closure. Together these exercise
+the owned-record transfer and borrowed restoration needed by the allocator and
+Vec, using the same real backing and neighbor-canary oracle as the field place.

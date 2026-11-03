@@ -9,7 +9,7 @@
 //! descriptor; re-reading that slot at return would select a different pointer.
 use super::Execution;
 use arena::Handle;
-use checked_trees::{FlowOperandFact, FlowOperandRetention};
+use checked_trees::{FlowOperandCompletion, FlowOperandFact, FlowOperandRetention};
 use facts::PlaceSegment;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::types::TypeReferenceHandle;
@@ -17,6 +17,7 @@ use typed_trees::types::TypeReferenceHandle;
 impl Execution<'_, '_, '_> {
     pub(super) fn capture_returned_descriptor(
         &mut self,
+        invocation: Handle<checked_trees::FlowCallFact>,
         call: &typed_trees::expression::TableCallExpression,
         inputs: &[(ExpressionHandle, FlowOperandFact)],
         returned: TypeReferenceHandle,
@@ -24,18 +25,39 @@ impl Execution<'_, '_, '_> {
         retention: Handle<FlowOperandRetention>,
         source_snapshot: Handle<checked_trees::FlowStorageSnapshot>,
     ) -> Handle<FlowOperandFact> {
-        self.returned_descriptor(call, inputs, returned, path, retention, source_snapshot)
-            .or_else(|| {
-                self.capture_returned_region_descriptor(
-                    call,
-                    inputs,
-                    returned,
-                    path,
-                    retention,
-                    source_snapshot,
-                )
-            })
-            .unwrap_or_default()
+        if !self.context.control.calls.is_valid(invocation) {
+            return Handle::invalid();
+        }
+        let completion = FlowOperandCompletion::InvocationResult {
+            invocation,
+            result_type: returned,
+            path: self
+                .context
+                .control
+                .operand_retained_paths
+                .insert_many(path.iter().copied()),
+        };
+        self.returned_descriptor(
+            call,
+            inputs,
+            returned,
+            path,
+            retention,
+            source_snapshot,
+            completion,
+        )
+        .or_else(|| {
+            self.capture_returned_region_descriptor(
+                call,
+                inputs,
+                returned,
+                path,
+                retention,
+                source_snapshot,
+                completion,
+            )
+        })
+        .unwrap_or_default()
     }
 
     fn returned_descriptor(
@@ -46,6 +68,7 @@ impl Execution<'_, '_, '_> {
         path: &[PlaceSegment],
         retention: Handle<FlowOperandRetention>,
         source_snapshot: Handle<checked_trees::FlowStorageSnapshot>,
+        completion: FlowOperandCompletion,
     ) -> Option<Handle<FlowOperandFact>> {
         let target = validation::call_target_symbol(self.program, call);
         let state = validation::call_target_state(self.program, target)?;
@@ -192,6 +215,7 @@ impl Execution<'_, '_, '_> {
             let referents = self.append_captured_references(&places);
             alternatives.push(FlowOperandFact {
                 type_reference: reference,
+                completion,
                 state_symbol: self.state.symbol,
                 statement_index: self.statement_index,
                 storage_snapshot: self.storage_snapshot,
@@ -233,6 +257,7 @@ impl Execution<'_, '_, '_> {
             .alternatives = alternatives;
         Some(self.context.control.operands.insert(FlowOperandFact {
             type_reference: reference,
+            completion,
             state_symbol: self.state.symbol,
             statement_index: self.statement_index,
             storage_snapshot: self.storage_snapshot,

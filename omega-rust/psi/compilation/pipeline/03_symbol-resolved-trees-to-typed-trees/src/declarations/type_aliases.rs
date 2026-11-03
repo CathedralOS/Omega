@@ -13,20 +13,8 @@ pub(crate) fn lower_type_alias_definition(
     alias: &resolved::type_aliases::TypeAliasDefinition,
 ) -> Result<typed::type_aliases::TypeAliasDefinition, Diagnostic> {
     let type_parameters = lower_type_parameters(lowerer, alias.type_parameters)?;
-    let mut conformance_bounds = Vec::new();
-    for bound in &alias.conformance_bounds {
-        let mut arguments = Vec::new();
-        for argument in lowerer.source_trees.child_type_references(bound.arguments) {
-            arguments.push(lower_type_reference_into_table(lowerer, argument)?);
-        }
-        conformance_bounds.push(typed::machine::GenericConformanceBound {
-            binder: bound.binder,
-            binder_name: lower_name(&bound.binder_name),
-            trait_symbol: bound.trait_symbol,
-            trait_name: lower_name(&bound.trait_name),
-            arguments,
-        });
-    }
+    let conformance_bounds =
+        crate::signatures::evidence::lower_conformance_bounds(lowerer, &alias.conformance_bounds)?;
     let expansion = lower_type_reference_into_table(lowerer, &alias.expansion)?;
     Ok(typed::type_aliases::TypeAliasDefinition {
         symbol: alias.symbol,

@@ -1,8 +1,6 @@
-//! Project the exact selected source associations for source-free binding.
-//!
-//! This is invocation scratch, not a second candidate registry. Derivation owns
-//! named/captured row correspondence; Psi owns declaration evidence. Missing
-//! custody is deferred until binding's original reach-admission phase.
+//! Check a selected implementation's calls and effects using declarations saved
+//! before Terminal publication. Selection keeps each result with its original
+//! candidate; argument placement can then change without reopening source.
 
 use checked_trees::provider_declarations::{
     ProviderApplicationView, ProviderDeclarationOrigin, ProviderDeclarationRequest,
@@ -12,31 +10,14 @@ use diagnostics::Diagnostic;
 use effects::provider_plan::{ProviderBinding, ProviderPlan};
 use provider_selection::SelectedPlanDeclarations;
 
-pub fn prepare_selected_plan_declarations<'plans>(
-    checked: &checked_trees::CheckedTrees,
-    selected: &effects::SelectedProviderPlanFacts,
-    provenance: &'plans [crate::SelectedProviderReviewProvenance],
-) -> Result<Vec<Result<SelectedPlanDeclarations<'plans>, Diagnostic>>, Diagnostic> {
-    if selected.plans().len() != provenance.len() {
-        return Err(Diagnostic::error(
-            "installation reach lost selected provider custody",
-        ));
-    }
-    let mut declarations = Vec::with_capacity(provenance.len());
-    for (plan, retained) in selected.plans().iter().zip(provenance) {
-        declarations.push(prepare_plan_declarations(checked, plan, retained));
-    }
-    Ok(declarations)
-}
-
-fn prepare_plan_declarations<'plans>(
+/// Save the requirements needed to check an implementation's calls and effects.
+/// Keep failures with the candidate until the build selects it.
+pub(crate) fn capture_plan_declarations(
     checked: &checked_trees::CheckedTrees,
     plan: &ProviderPlan,
-    retained: &'plans crate::SelectedProviderReviewProvenance,
-) -> Result<SelectedPlanDeclarations<'plans>, Diagnostic> {
-    let provider = &retained.provider;
-    if plan != &retained.plan
-        || plan.rows.len() != provider.row_requirements.len()
+    provider: &crate::ProviderPlanProvenance,
+) -> Result<language_semantics::provider_declarations::ProviderDeclarations, Diagnostic> {
+    if plan.rows.len() != provider.row_requirements.len()
         || plan.rows.len() != provider.row_realizations.len()
     {
         return Err(Diagnostic::error(
@@ -82,8 +63,41 @@ fn prepare_plan_declarations<'plans>(
                 | crate::ProviderSchemaDeclaration::SealedAccessor(_)
         ),
     });
-    Ok(SelectedPlanDeclarations {
-        plan: &retained.plan,
-        declarations,
-    })
+    Ok(declarations)
+}
+
+/// Attach saved declarations to the final plans, after argument placement is
+/// known. Errors remain deferred until binding checks the selected calls.
+pub fn prepare_selected_plan_declarations<'plans>(
+    captured: Vec<
+        Result<language_semantics::provider_declarations::ProviderDeclarations, Diagnostic>,
+    >,
+    selected: &effects::SelectedProviderPlanFacts,
+    provenance: &'plans [crate::SelectedProviderReviewProvenance],
+) -> Result<Vec<Result<SelectedPlanDeclarations<'plans>, Diagnostic>>, Diagnostic> {
+    if selected.plans().len() != provenance.len() || captured.len() != provenance.len() {
+        return Err(Diagnostic::error(
+            "installation reach lost selected provider custody",
+        ));
+    }
+    Ok(selected
+        .plans()
+        .iter()
+        .zip(provenance)
+        .zip(captured)
+        .map(|((plan, retained), declarations)| {
+            if plan != &retained.plan
+                || plan.rows.len() != retained.provider.row_requirements.len()
+                || plan.rows.len() != retained.provider.row_realizations.len()
+            {
+                return Err(Diagnostic::error(
+                    "installation reach lost exact selected row custody",
+                ));
+            }
+            Ok(SelectedPlanDeclarations {
+                plan: &retained.plan,
+                declarations: declarations?,
+            })
+        })
+        .collect())
 }

@@ -1,10 +1,10 @@
 // Expected exit: 0
 // A selected copied reference retires before its earlier anonymous nominal backing.
 data Code { value: u64; }
-data Receipt [linear] { code: u64; }
-machine Receipt::drop(receipt: &mut Receipt) {}
-data Pair { first: Receipt; second: Receipt; }
-machine Pair::drop(pair: &mut Pair) {}
+data Receipt [linear] dropped by drop_receipt { code: u64; }
+machine drop_receipt(receipt: &mut Receipt) {}
+data Pair dropped by drop_pair { first: Receipt; second: Receipt; }
+machine drop_pair(pair: &mut Pair) {}
 data View<'storage> [copy] { target: &'storage Receipt; }
 data Choice<'storage> { case Some(payload: View<'storage>); case Empty; }
 machine retain<'storage>(receipt: &'storage Receipt) -> &'storage Receipt { receipt }

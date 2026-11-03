@@ -52,7 +52,7 @@ pub(crate) fn refuse_open_windows(
         diagnostics.push(Diagnostic::error(format!(
             "data `{}`'s default domain is still FALSE at {consumption_point}: the \
              invariant window opened on `{}` must close first -- restore the \
-             `where` facts before this consumption point (ch11)",
+             `requires` facts before this consumption point (ch11)",
             place.definition.name.as_str(),
             place.spelling
         )));
@@ -65,7 +65,7 @@ pub(crate) fn refuse_open_windows(
         diagnostics.push(Diagnostic::error(format!(
             "data `{data_name}`'s default domain is still FALSE at {consumption_point}: \
              the invariant window opened on `{spelling}` in a predecessor state must \
-             close first -- restore the `where` facts before this consumption point \
+             close first -- restore the `requires` facts before this consumption point \
              (ch11 window transport)"
         )));
     }
@@ -208,7 +208,7 @@ pub(crate) fn handle_assignment<'program>(
 
     // An ELEMENT store: `<place>.field[index] = value`. Facts reading the
     // field's contents owe re-proof; nothing else changes.
-    if super::element_stores::handle_element_store(
+    let element_store = super::element_stores::handle_element_store(
         program,
         machine,
         state,
@@ -221,9 +221,7 @@ pub(crate) fn handle_assignment<'program>(
         poisoned_paths,
         born_zero,
         statement_index,
-    ) {
-        return;
-    }
+    );
 
     // Direct names, stored aliases and representation views all publish their
     // performed destinations through the frame owner. No source-shape path may
@@ -260,15 +258,14 @@ pub(crate) fn handle_assignment<'program>(
         };
         let destination = coordinate.place;
         let preserves_scalar_value = definite && coordinate.preserves_scalar_value;
-        let store = match field_store(
+        let stores = match field_stores(
             program,
             state,
             statement_index,
             destination,
             preserves_scalar_value,
         ) {
-            Ok(Some(store)) => store,
-            Ok(None) => continue, // A root scalar or element has no containing field predicate here.
+            Ok(stores) => stores,
             Err(reason) => {
                 diagnostics.push(Diagnostic::error(format!(
                     "cannot establish assignment invariants: {reason}"
@@ -276,78 +273,103 @@ pub(crate) fn handle_assignment<'program>(
                 continue;
             }
         };
-        handle_field_store(
-            program,
-            machine,
-            state,
-            store,
-            value,
-            tracked,
-            entry_valuations,
-            inherited_windows,
-            poisoned_all,
-            poisoned_paths,
-            born_zero,
-            statement_index,
-            data_binding,
-        );
+        // Innermost owners settle first. Every ancestor still owns its own
+        // predicates; a leaf value is never a replacement for its aggregate field.
+        for store in stores {
+            // The element ledger owns only the field it actually analyzed.
+            // A lexical alias/recast cannot suppress the lender's independent
+            // predicate merely because that lender is the nearest owner.
+            if element_store.as_ref() == Some(&store.field_place) {
+                continue;
+            }
+            handle_field_store(
+                program,
+                machine,
+                state,
+                store,
+                value,
+                tracked,
+                entry_valuations,
+                inherited_windows,
+                poisoned_all,
+                poisoned_paths,
+                born_zero,
+                statement_index,
+                data_binding,
+            );
+        }
     }
 }
 
 struct FieldStore<'program> {
     destination: crate::CanonicalPlace,
     receiver: crate::CanonicalPlace,
+    field_place: crate::CanonicalPlace,
     receiver_type: typed_trees::types::TypeReferenceHandle,
     definition: &'program typed_trees::data::DataDefinition,
     field: &'program typed_trees::data::DataField,
     preserves_scalar_value: bool,
 }
 
-fn field_store<'program>(
+/// The performed destination supplies the complete enclosing-owner roster.
+/// Each field along that coordinate may carry an independent parent predicate.
+fn field_stores<'program>(
     program: &'program dyn crate::CheckingInput,
     state: &State,
     statement_index: usize,
     destination: crate::CanonicalPlace,
     preserves_scalar_value: bool,
-) -> Result<Option<FieldStore<'program>>, &'static str> {
-    let mut receiver = destination.clone();
-    let Some(facts::PlaceSegment::Field { symbol }) = receiver.segments.pop() else {
-        return Ok(None);
-    };
-    if !symbol.is_valid() {
-        return Err("source field identity is unavailable");
+) -> Result<Vec<FieldStore<'program>>, &'static str> {
+    let mut stores = Vec::new();
+    for index in (0..destination.segments.len()).rev() {
+        let facts::PlaceSegment::Field { symbol } = destination.segments[index] else {
+            continue;
+        };
+        if !symbol.is_valid() {
+            return Err("source field identity is unavailable");
+        }
+        let mut receiver = destination.clone();
+        receiver.segments.truncate(index);
+        if matches!(
+            receiver.segments.last(),
+            Some(facts::PlaceSegment::Case { .. })
+        ) {
+            receiver.segments.pop();
+        }
+        let receiver_type = crate::value_custody::places::canonical_place_type_reference(
+            program,
+            state.symbol,
+            statement_index,
+            &receiver,
+        )
+        .ok_or("source parent type is unavailable")?;
+        let definition =
+            crate::value_custody::places::data_definition_for_type(program, receiver_type)
+                .ok_or("source parent declaration is unavailable")?;
+        let parent = program.symbols.get(symbol).parent;
+        let case_name = (program.symbols.get(parent).kind == symbols::SymbolKind::Variant)
+            .then(|| program.symbols.name(parent));
+        let field = crate::value_custody::places::exact_data_member_field(
+            program,
+            definition,
+            symbol,
+            program.symbols.name(symbol),
+            case_name,
+        )
+        .ok_or("source field does not belong to its parent declaration")?;
+        let mut field_place = destination.clone();
+        field_place.segments.truncate(index + 1);
+        stores.push(FieldStore {
+            destination: destination.clone(),
+            receiver,
+            receiver_type,
+            field_place,
+            definition,
+            field,
+            preserves_scalar_value,
+        });
     }
-    let field_name = program.symbols.name(symbol);
-    let parent = program.symbols.get(symbol).parent;
-    let case_name = (program.symbols.get(parent).kind == symbols::SymbolKind::Variant)
-        .then(|| program.symbols.name(parent));
-    if matches!(
-        receiver.segments.last(),
-        Some(facts::PlaceSegment::Case { .. })
-    ) {
-        receiver.segments.pop();
-    }
-    let receiver_type = crate::value_custody::places::canonical_place_type_reference(
-        program,
-        state.symbol,
-        statement_index,
-        &receiver,
-    )
-    .ok_or("source parent type is unavailable")?;
-    let definition = crate::value_custody::places::data_definition_for_type(program, receiver_type)
-        .ok_or("source parent declaration is unavailable")?;
-    let field = crate::value_custody::places::exact_data_member_field(
-        program, definition, symbol, field_name, case_name,
-    )
-    .ok_or("source field does not belong to its parent declaration")?;
-    Ok(Some(FieldStore {
-        destination,
-        receiver,
-        receiver_type,
-        definition,
-        field,
-        preserves_scalar_value,
-    }))
+    Ok(stores)
 }
 
 /// Labels adapt already resolved storage to the legacy valuation table. A
@@ -409,9 +431,9 @@ fn handle_field_store<'program>(
     {
         return;
     }
+    let whole_field = store.destination == store.field_place;
     let field_name = store.field.name.to_string();
-    let written = store
-        .preserves_scalar_value
+    let written = (store.preserves_scalar_value && whole_field)
         .then(|| literal_value(program, value))
         .flatten();
 
@@ -475,24 +497,21 @@ fn handle_field_store<'program>(
     place.fields.retain(|(name, _)| *name != field_name);
     place.fields.push((field_name.clone(), written));
     place.symbols.retain(|(name, _)| *name != field_name);
-    if let Some(symbol) = store
-        .preserves_scalar_value
+    if let Some(symbol) = (store.preserves_scalar_value && whole_field)
         .then(|| expression_symbolic_value(program, value))
         .flatten()
     {
         place.symbols.push((field_name.clone(), symbol));
     }
     place.measures.retain(|(name, _, _)| *name != field_name);
-    if let Some((length, capacity)) = store
-        .preserves_scalar_value
+    if let Some((length, capacity)) = (store.preserves_scalar_value && whole_field)
         .then(|| expression_sequence_measures(program, value))
         .flatten()
     {
         place.measures.push((field_name.clone(), length, capacity));
     }
     if !place.alternatives.is_empty() {
-        let written = store
-            .preserves_scalar_value
+        let written = (store.preserves_scalar_value && whole_field)
             .then(|| literal_value(program, value))
             .flatten();
         let definition = place.definition;
@@ -534,6 +553,7 @@ fn handle_field_store<'program>(
     });
     let field_type = selected_field.map(|field| field.type_reference);
     if let Some(field) = selected_field
+        && whole_field
         && !place.spelling.contains("[*]")
         && !place.established_fields.contains(&field.symbol)
     {
@@ -568,7 +588,8 @@ fn handle_field_store<'program>(
     let mut all_hold = region_was_established || range_gates_hold(program, place);
     // Interval-only facts each bound one field, and every store to that field
     // is range-checked against it, so they hold after any accepted store.
-    let store_checked = super::data_where_field_intervals(program, place.definition).is_some();
+    let store_checked =
+        whole_field && super::data_where_field_intervals(program, place.definition).is_some();
     // Const-only clauses settle at application. A tag-only clause is also
     // preserved by a scalar field store; whole-value replacement owns its
     // tag and complete default-domain construction obligation separately.
@@ -591,6 +612,16 @@ fn handle_field_store<'program>(
             return true;
         }
         if !super::place_queries::fact_names_field(program, definition, fact, &field_name) {
+            return false;
+        }
+        if store
+            .destination
+            .segments
+            .strip_prefix(store.receiver.segments.as_slice())
+            .is_some_and(|path| {
+                super::place_queries::fact_is_disjoint_from_store(program, definition, fact, path)
+            })
+        {
             return false;
         }
         let Some(expression) = fact.as_expression() else {
@@ -635,6 +666,7 @@ fn handle_field_store<'program>(
                             &store.receiver,
                             store.receiver_type,
                             store.preserves_scalar_value,
+                            &store.destination,
                             place,
                             written,
                             value,

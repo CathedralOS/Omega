@@ -123,7 +123,7 @@ pub(super) fn validate_once_resident(
             );
         if !proven {
             diagnostics.push(Diagnostic::error(format!(
-                "{owner} stores a value not provably within its data's `where` facts at replacement completion"
+                "{owner} stores a value not provably within its data's `requires` facts at replacement completion"
             )));
         }
         proven

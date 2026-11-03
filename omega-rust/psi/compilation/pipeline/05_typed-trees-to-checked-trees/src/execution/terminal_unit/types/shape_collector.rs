@@ -1649,8 +1649,11 @@ impl<'program> ShapeCollector<'program> {
                 !stores_reference_shape(self.program, field_type_reference, substitutions)
             })
         {
+            // A borrowed byte field stores a descriptor with its own access.
+            // Use that same stored type when the field is moved or discarded;
+            // the referent's byte type cannot identify the field's custody.
             byte_sequence_type_identity =
-                self.add_type(field_type_reference, binders, substitutions)?;
+                self.add_stored_type(field_type_reference, binders, substitutions)?;
             let declared = type_reference_domain_predicates(self.program, field_type_reference);
             let mut predicates = ByteSequencePredicateSet::EMPTY;
             for (_, predicate) in declared {

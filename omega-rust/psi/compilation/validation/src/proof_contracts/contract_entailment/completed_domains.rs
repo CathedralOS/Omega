@@ -175,8 +175,8 @@ fn completed_bound_domain_judgment(
                 type_reference: projected_reference,
                 ..Default::default()
             }];
-            let Some(value) = super::observed_projections::project_observed_value(
-                program, reference, value, projection,
+            let Some(value) = super::observed_projections::project_observed_value_in_scope(
+                program, judge, reference, value, projection,
             ) else {
                 judgment.proven = false;
                 return ControlFlow::Continue(());

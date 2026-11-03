@@ -174,15 +174,36 @@ impl ExitScalars<'_, '_> {
                     segments: projection.segments,
                 })
             });
-        if let Some(subject) = completed_subject
-            && let Some(result_bounds) = crate::values::integer_bounds_at_place(
+        // The interval engine bounds the returned operand itself at use;
+        // published bounds on the completed place add transported evidence.
+        let result_bounds = completed_subject.and_then(|subject| {
+            let published = crate::values::integer_bounds_at_place(
                 self.program,
                 &self.facts.semantic,
                 self.contexts
                     .iter()
                     .map(|context| self.facts.semantic.contexts.get(*context)),
                 &subject,
-            )
+            );
+            let enclosure = match subject.root {
+                facts::PlaceRoot::Expression(operand) if subject.segments.is_empty() => self
+                    .program
+                    .expression_interval(operand)
+                    .and_then(|interval| interval.carrier_range(primitive)),
+                _ => None,
+            };
+            match (published, enclosure) {
+                (Some(published), Some(enclosure)) => {
+                    let intersection = facts::IntegerRange {
+                        minimum: published.minimum.max(enclosure.minimum),
+                        maximum: published.maximum.min(enclosure.maximum),
+                    };
+                    (intersection.minimum <= intersection.maximum).then_some(intersection)
+                }
+                (published, enclosure) => published.or(enclosure),
+            }
+        });
+        if let Some(result_bounds) = result_bounds
             && let Some(value) = validation::closed_integer_range_bound(self.program, argument)
         {
             let argument_type = validation::expression_result_type_reference(

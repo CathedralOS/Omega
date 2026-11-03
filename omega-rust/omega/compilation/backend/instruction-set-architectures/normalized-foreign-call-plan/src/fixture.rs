@@ -232,6 +232,7 @@ pub fn record(
             scalar_arguments,
             structural_arguments: Vec::new(),
             structural_indices: Vec::new(),
+            descriptor_input: None,
             result: completion,
             callbacks: Vec::new(),
         },

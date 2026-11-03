@@ -9,10 +9,10 @@ use psi::syntax::syntax;
 use psi::tokens::tokens;
 
 // `[public] [boundary] trait Name [<generic parameters>] [: Parent {+ Parent}]
-// {where proposition Name(parameters);} { member* }`, entered at the `trait`
+// {requires proposition Name(parameters);} { member* }`, entered at the `trait`
 // word. A parent is a type application retained in
 // `SyntaxTrees::trait_parents`; each proposition binder takes its signature
-// from a `where proposition` contract. A member is a machine requirement
+// from a `requires proposition` contract. A member is a machine requirement
 // (machine.omg's grammar, contained by the trait) or a body parent
 // `requires Parent;`, which joins the header's parents. A transparent
 // refinement `trait Name [<generic parameters>] = Base { refinement* }`
@@ -156,9 +156,9 @@ crashes Trap
         }
     }
 
-    // `where proposition Name(parameters);`, one per proposition binder.
+    // `requires proposition Name(parameters);`, one per proposition binder.
     machine contracts(parser: &mut Parser, input: &TokenStream) {
-        let facts: bool = Parser::at_word(parser, input, "where");
+        let facts: bool = Parser::at_word(parser, input, "requires");
         let proposition: bool = Parser::next_is_word(parser, input, "proposition");
         transition facts && proposition {
             true -> contract(parser, input)

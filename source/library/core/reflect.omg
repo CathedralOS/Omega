@@ -1,5 +1,234 @@
 module core::reflect;
 
+// An explicitly retained, immutable graph in this program's own constant data.
+// Its bytes contain descriptive identities, never compiler pointers or access
+// authority. Copying the facade shares immutable program storage. Node views
+// borrow records inside that same graph; indices have no cross-graph meaning.
+public data TypeSchema [copy] { storage: &[u8]; }
+public data SchemaNode<'graph> [copy] { graph: &'graph [u8]; storage: &'graph [u8]; }
+public data SchemaMembers<'graph> [copy] { graph: &'graph [u8]; handles: &'graph [u8]; role: u64; }
+
+// Only this exact toolchain declaration is elaborated by Psi. The occurrence
+// retains its lexical author's visibility, including through generic helpers.
+public machine schema<T>() -> TypeSchema { TypeSchema { storage: "" } }
+
+// An ordinary size observation used when choosing owned image storage. It
+// returns no address and does not perform another structural query.
+public machine schema_image_length(graph: &TypeSchema) -> u64 reaches terminates {
+    graph.storage.len
+}
+
+// The image version and scalar encoding are a library representation of the
+// existing semantic graph. These ordinary readers cannot authorize a query,
+// project a value, establish a domain, or select a layout from supplied bytes.
+machine schema_word(bytes: &[u8], start: u64) -> u64 crashes Trap {
+    transition bytes.len >= 8u64 {
+        true -> extent(bytes, start)
+        false -> bad()
+    }
+    machine extent(bytes: &[u8], start: u64) -> u64 {
+        transition start <= bytes.len - 8u64 {
+            true -> read(bytes, start)
+            false -> bad()
+        }
+    }
+    machine read(bytes: &[u8], start: u64) -> u64 {
+        let i1: u64 = start + 1u64;
+        let i2: u64 = start + 2u64;
+        let i3: u64 = start + 3u64;
+        let i4: u64 = start + 4u64;
+        let i5: u64 = start + 5u64;
+        let i6: u64 = start + 6u64;
+        let i7: u64 = start + 7u64;
+        (bytes[start] as u64) | ((bytes[i1] as u64) << 8u64)
+            | ((bytes[i2] as u64) << 16u64) | ((bytes[i3] as u64) << 24u64)
+            | ((bytes[i4] as u64) << 32u64) | ((bytes[i5] as u64) << 40u64)
+            | ((bytes[i6] as u64) << 48u64) | ((bytes[i7] as u64) << 56u64)
+    }
+    machine bad() -> u64 { crash Trap; }
+}
+
+machine schema_span<'bytes>(bytes: &'bytes [u8], start: u64) -> &'bytes [u8] crashes Trap {
+    transition bytes.len >= 16u64 {
+        true -> extent(bytes, start)
+        false -> bad(bytes)
+    }
+    machine extent(bytes: &'bytes [u8], start: u64) -> &'bytes [u8] {
+        transition start <= bytes.len - 16u64 {
+            true -> descriptor(bytes, start)
+            false -> bad(bytes)
+        }
+    }
+    machine descriptor(bytes: &'bytes [u8], start: u64) -> &'bytes [u8] {
+        let next: u64 = start + 8u64;
+        let offset: u64 = schema_word(bytes, start);
+        let length: u64 = schema_word(bytes, next);
+        transition offset <= bytes.len {
+            true -> remaining(bytes, offset, length)
+            false -> bad(bytes)
+        }
+    }
+    machine remaining(bytes: &'bytes [u8], offset: u64, length: u64) -> &'bytes [u8] {
+        transition length <= bytes.len - offset {
+            true -> view(bytes, offset, length)
+            false -> bad(bytes)
+        }
+    }
+    machine view(bytes: &'bytes [u8], offset: u64, length: u64) -> &'bytes [u8] {
+        let end: u64 = offset + length;
+        &bytes[offset..end]
+    }
+    machine bad(bytes: &'bytes [u8]) -> &'bytes [u8] { crash Trap; }
+}
+
+public machine schema_node<'graph>(graph: &'graph TypeSchema, handle: u64) -> SchemaNode<'graph> crashes Trap {
+    graph_node(graph.storage, handle)
+}
+
+// Node views retain the graph's actual immutable bytes, rather than an
+// additional reference to its copyable facade. Every relationship indexes
+// this same borrowed graph and preserves the ordinary source lifetime.
+machine graph_node<'graph>(graph: &'graph [u8], handle: u64) -> SchemaNode<'graph> crashes Trap {
+    let version: u64 = schema_word(graph, 0u64);
+    let count: u64 = schema_word(graph, 8u64);
+    transition version == 1u64 && graph.len >= 64u64 {
+        true -> directory(graph, handle, count)
+        false -> bad(graph)
+    }
+    machine directory(graph: &'graph [u8], handle: u64, count: u64) -> SchemaNode<'graph> {
+        transition count > 0u64 && count <= (graph.len - 64u64) / 16u64 {
+            true -> select(graph, handle, count)
+            false -> bad(graph)
+        }
+    }
+    machine select(graph: &'graph [u8], handle: u64, count: u64) -> SchemaNode<'graph> {
+        transition handle < count {
+            true -> read(graph, handle)
+            false -> read(graph, 0u64)
+        }
+    }
+    machine read(graph: &'graph [u8], handle: u64) -> SchemaNode<'graph> {
+        let offset: u64 = 64u64 + handle * 16u64;
+        let storage: &'graph [u8] = schema_span(graph, offset);
+        SchemaNode { graph: graph, storage: storage }
+    }
+    machine bad(graph: &'graph [u8]) -> SchemaNode<'graph> { crash Trap; }
+}
+
+public machine schema_root<'graph>(graph: &'graph TypeSchema) -> SchemaNode<'graph> crashes Trap {
+    let root: u64 = schema_word(graph.storage, 16u64);
+    schema_node(graph, root)
+}
+public machine schema_revision<'graph>(graph: &'graph TypeSchema) -> u64 crashes Trap {
+    schema_word(graph.storage, 24u64)
+}
+public machine schema_requester<'graph>(graph: &'graph TypeSchema) -> &'graph [u8] crashes Trap {
+    schema_span(graph.storage, 40u64)
+}
+public machine node_role<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 0u64) }
+public machine node_declaration_position<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 8u64) }
+public machine node_has_stable_number<'graph>(node: &SchemaNode<'graph>) -> bool crashes Trap { schema_word(node.storage, 16u64) != 0u64 }
+public machine node_stable_number<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 24u64) }
+public machine node_is_erased<'graph>(node: &SchemaNode<'graph>) -> bool crashes Trap { schema_word(node.storage, 32u64) != 0u64 }
+public machine node_owner_case<'graph>(node: &SchemaNode<'graph>) -> SchemaNode<'graph> crashes Trap {
+    let handle: u64 = schema_word(node.storage, 40u64);
+    graph_node(node.graph, handle)
+}
+public machine node_shape<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap { schema_word(node.storage, 48u64) }
+public machine node_identity_is_hermetic<'graph>(node: &SchemaNode<'graph>) -> bool crashes Trap { schema_word(node.storage, 56u64) != 0u64 }
+public machine node_identity<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 64u64) }
+public machine node_name<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 80u64) }
+public machine node_qualified_type<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 96u64) }
+public machine node_owner_kind<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 112u64) }
+public machine node_application_identity<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 128u64) }
+public machine node_supply<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 144u64) }
+public machine node_multiplicity<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 160u64) }
+public machine node_carry<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 176u64) }
+public machine node_retired_numbers<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 208u64) }
+public machine node_retired_count<'graph>(node: &SchemaNode<'graph>) -> u64 crashes Trap {
+    let numbers: &'graph [u8] = node_retired_numbers(node);
+    numbers.len / 8u64
+}
+public machine node_retired_number<'graph>(node: &SchemaNode<'graph>, index: u64) -> u64 crashes Trap {
+    let numbers: &'graph [u8] = node_retired_numbers(node);
+    transition index < numbers.len / 8u64 {
+        true -> read(numbers, index)
+        false -> bad()
+    }
+    machine read(numbers: &'graph [u8], index: u64) -> u64 {
+        let offset: u64 = index * 8u64;
+        schema_word(numbers, offset)
+    }
+    machine bad() -> u64 { crash Trap; }
+}
+public machine node_type_parameters<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 240u64) }
+public machine node_lifetime_parameters<'graph>(node: &SchemaNode<'graph>) -> &'graph [u8] crashes Trap { schema_span(node.storage, 256u64) }
+
+public machine node_members<'graph>(node: &SchemaNode<'graph>) -> SchemaMembers<'graph> crashes Trap {
+    SchemaMembers { graph: node.graph, handles: schema_span(node.storage, 192u64), role: 0u64 }
+}
+public machine node_nominal_references<'graph>(node: &SchemaNode<'graph>) -> SchemaMembers<'graph> crashes Trap {
+    SchemaMembers { graph: node.graph, handles: schema_span(node.storage, 224u64), role: 0u64 }
+}
+public machine schema_fields<'graph>(graph: &'graph TypeSchema) -> SchemaMembers<'graph> crashes Trap {
+    let root: SchemaNode<'graph> = schema_root(graph);
+    SchemaMembers { graph: graph.storage, handles: schema_span(root.storage, 192u64), role: 2u64 }
+}
+public machine schema_cases<'graph>(graph: &'graph TypeSchema) -> SchemaMembers<'graph> crashes Trap {
+    let root: SchemaNode<'graph> = schema_root(graph);
+    SchemaMembers { graph: graph.storage, handles: schema_span(root.storage, 192u64), role: 3u64 }
+}
+
+// Filtering follows the root's authored member sequence. Stable numbers are
+// descriptive history, not array indexes or a request to reorder that sequence.
+public machine members_count<'graph>(members: &SchemaMembers<'graph>) -> u64 crashes Trap {
+    transition { _ -> scan(members.graph, members.handles, members.role, 0u64) }
+    machine scan(graph: &'graph [u8], handles: &'graph [u8], role: u64, count: u64) -> u64 {
+        transition handles.len >= 8u64 {
+            true -> item(graph, handles, role, count)
+            false -> count
+        }
+    }
+    machine item(graph: &'graph [u8], handles: &'graph [u8], role: u64, count: u64) -> u64 {
+        let handle: u64 = schema_word(handles, 0u64);
+        let node: SchemaNode<'graph> = graph_node(graph, handle);
+        let selected: u64 = node_role(&node);
+        let tail: &'graph [u8] = &handles[8u64..];
+        transition role == 0u64 || role == selected {
+            // Each increment consumes eight bytes from a finite slice. The
+            // total is bounded by its original byte length divided by eight;
+            // the defined arithmetic never reaches its wrap point.
+            true -> scan(graph, tail, role, ((count as u64 in Wrapping) + 1u64) as u64)
+            false -> scan(graph, tail, role, count)
+        }
+    }
+}
+public machine members_get<'graph>(members: &SchemaMembers<'graph>, index: u64) -> SchemaNode<'graph> crashes Trap {
+    transition { _ -> scan(members.graph, members.handles, members.role, index) }
+    machine scan(graph: &'graph [u8], handles: &'graph [u8], role: u64, index: u64) -> SchemaNode<'graph> {
+        transition handles.len >= 8u64 {
+            true -> item(graph, handles, role, index)
+            false -> graph_node(graph, 0u64)
+        }
+    }
+    machine item(graph: &'graph [u8], handles: &'graph [u8], role: u64, index: u64) -> SchemaNode<'graph> {
+        let handle: u64 = schema_word(handles, 0u64);
+        let node: SchemaNode<'graph> = graph_node(graph, handle);
+        let selected: u64 = node_role(&node);
+        let tail: &'graph [u8] = &handles[8u64..];
+        transition role == 0u64 || role == selected {
+            true -> matched(graph, tail, role, index, node)
+            false -> scan(graph, tail, role, index)
+        }
+    }
+    machine matched(graph: &'graph [u8], tail: &'graph [u8], role: u64, index: u64, node: SchemaNode<'graph>) -> SchemaNode<'graph> {
+        transition index == 0u64 {
+            true -> node
+            false -> scan(graph, tail, role, index - 1u64)
+        }
+    }
+}
+
 // Descriptive context for one typed field invocation. Text is immutable
 // literal storage; none of these descriptions grants access to a value.
 public data FieldInfo {

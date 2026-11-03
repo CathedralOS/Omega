@@ -236,6 +236,10 @@ pub struct FlowOperandFact {
     pub completion: FlowOperandCompletion,
     /// Actual receiver or source descriptor dependency, independently of value identity.
     pub backing: Handle<FlowOperandFact>,
+    /// Typed path below the completed address receiver. Present even when its
+    /// absolute address is unavailable; None withholds projection evidence,
+    /// while Some(empty) denotes the same complete receiver window.
+    pub address_projection: Option<HandleSpan<facts::PlaceSegment>>,
     /// Captured computation operands in evaluation order, including a selected
     /// short-circuit route. Presence alone does not guarantee execution on every
     /// completion. These are neither stored children nor extra backing loans.
@@ -277,6 +281,21 @@ pub struct FlowOperandFact {
 pub enum FlowOperandCompletion {
     #[default]
     Observation,
+    /// Contents of an admitted state input at the captured storage cut. This
+    /// names its incoming slot namespace, not an evaluated child or address.
+    /// Descriptor consumers must authenticate the selected incoming loan.
+    IncomingContents {
+        root: facts::PlaceRoot,
+        path: HandleSpan<facts::PlaceSegment>,
+    },
+    /// A descriptor leaf observed after this actual invocation completed.
+    /// This preserves its result coordinate, not a second evaluation, exact
+    /// pointer geometry, or permission inferred from its lifetime frontier.
+    InvocationResult {
+        invocation: Handle<super::FlowCallFact>,
+        result_type: typed_trees::types::TypeReferenceHandle,
+        path: HandleSpan<facts::PlaceSegment>,
+    },
     Constructed(HandleSpan<FlowOperandChild>),
     Selected(HandleSpan<FlowOperandAlternative>),
     /// A projection of one already completed owned copy. The value's contents
@@ -295,6 +314,8 @@ impl FlowOperandFact {
         match self.completion {
             FlowOperandCompletion::Constructed(children) => children,
             FlowOperandCompletion::Observation
+            | FlowOperandCompletion::IncomingContents { .. }
+            | FlowOperandCompletion::InvocationResult { .. }
             | FlowOperandCompletion::Selected(_)
             | FlowOperandCompletion::Copied { .. } => HandleSpan::empty(),
         }

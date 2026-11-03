@@ -21,6 +21,10 @@ pub struct TargetOperationPlan {
     /// callback has no semantic `ValueId`, so it lives on the plan itself
     /// rather than inside an argument roster.
     pub native_callback_arguments: Vec<TargetNativeCallbackArgument>,
+    /// Native storage geometry of the borrowed boundary inputs and owned
+    /// roots this plan's foreign calls reach, captured from the structural
+    /// catalog before lowering consumed it.
+    pub borrowed_storage_layouts: Vec<runtime_abi::NativeBorrowedStorageLayout>,
 }
 
 impl TargetOperationPlan {
@@ -47,8 +51,16 @@ pub use control_flow::{
     TargetStructuralCaseSource, TargetStructuralReturnSource,
 };
 pub mod provenance;
+mod reference_root;
+pub use reference_root::ReferenceRoot;
 pub use provenance::{CallSiteOwner, TerminalPsiProvenance};
 pub mod boundary;
+mod boundary_origins;
+mod descriptor_input;
+pub use descriptor_input::{
+    DescriptorInputGuard, descriptor_input_guard, descriptor_input_guard_for_call,
+};
+pub use boundary_origins::{BoundaryOriginFacts, ProgramEntryOrigin};
 pub use boundary::{
     AccessorScalarAccessRealization, BoundaryByteSequenceArgument, BoundaryExecutionBinding,
     BoundaryRealization, BoundaryScalarArgument, BoundarySettlementBinding,

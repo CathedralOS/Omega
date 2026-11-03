@@ -6,7 +6,7 @@ use bounded_process::{
 };
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{LocalProjectPreparationOptions};
-use omega_build::{PreparedLocalProjectNativeRequest};
+use orchestration::{PreparedLocalProjectNativeRequest};
 use std::{fs, path::PathBuf, process::Command, time::Duration};
 
 fn main() {
@@ -32,7 +32,7 @@ fn run() {
     )
     .unwrap()
     .unwrap();
-    let report = omega_build::compile_prepared_local_project_for_native(
+    let report = orchestration::compile_prepared_local_project_for_native(
         PreparedLocalProjectNativeRequest::new(prepared, directory.join("product"), profile),
     )
     .unwrap();
@@ -73,7 +73,7 @@ fn run() {
             observation.status
         );
     }
-    let (_, executable) = omega_build::publication::publish_native_artifact(
+    let (_, executable) = orchestration::publication::publish_native_artifact(
         report,
         &directory.join("product"),
     )

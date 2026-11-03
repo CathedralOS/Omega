@@ -3,7 +3,7 @@
 //! restrictions (for example a record-valued u32 versus a pointer word).
 
 use calling_conventions::{BoundarySignatureGeometry, BoundaryValueClass};
-use semantic_vocabulary::CanonicalStructuralPathSegment as Path;
+use semantic_vocabulary::{CanonicalStructuralPathSegment as Path, ScalarType};
 use terminal_psi::StructuralFieldType;
 
 pub(super) struct NativeWordEnvelope {
@@ -59,6 +59,66 @@ pub(super) fn native_word_envelope(
         }
     }
     Err("native word envelope graph is cyclic")
+}
+
+/// The single integer leaf an owned native-word record chain ends in, when
+/// the chain is admitted by the same rules `scalar_payload_path` enforces.
+/// Layout-encoded members carry no per-field storage marker here: the record
+/// storage already binds their plan, and the leaf keeps its logical scalar.
+pub(super) fn scalar_leaf_integer(
+    program: &terminal_interpreter::TerminalProgram,
+    root: semantic_vocabulary::StructuralTypeId,
+) -> Result<semantic_vocabulary::IntegerType, super::TerminalRuntimeError> {
+    let invalid = super::TerminalRuntimeError::InvalidProvision;
+    let mut visiting = vec![root];
+    let mut current = root;
+    loop {
+        let declaration = program
+            .structural_type(current)
+            .ok_or(invalid("native word payload type is absent"))?;
+        match &declaration.shape {
+            terminal_psi::StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer)) => {
+                return Ok(*integer);
+            }
+            terminal_psi::StructuralTypeShape::PrimitiveScalar(_) => {
+                return Err(invalid("free owned payload is not an integer leaf"));
+            }
+            terminal_psi::StructuralTypeShape::Record { fields, .. } => {
+                let relevant: Vec<_> = fields
+                    .iter()
+                    .filter(|field| !field.relevance.is_erased())
+                    .collect();
+                let [field] = relevant.as_slice() else {
+                    return Err(invalid(
+                        "native owned value must contain exactly one scalar payload",
+                    ));
+                };
+                if field.storage.is_some()
+                    || matches!(field.field_type, StructuralFieldType::Atomic(_))
+                {
+                    return Err(invalid(
+                        "native word payload cannot use atomic or encoded storage",
+                    ));
+                }
+                match field.field_type.as_structural() {
+                    Some(child) if !visiting.contains(&child) => {
+                        visiting.push(child);
+                        current = child;
+                    }
+                    Some(_) => {
+                        return Err(invalid("native word payload contains a recursive value"));
+                    }
+                    None => {
+                        return match field.field_type.scalar_type() {
+                            Some(ScalarType::Integer(integer)) => Ok(integer),
+                            _ => Err(invalid("free owned payload is not an integer leaf")),
+                        };
+                    }
+                }
+            }
+            _ => return Err(invalid("native owned value is not a public scalar payload")),
+        }
+    }
 }
 
 /// Exact semantic leaf below an owned native integer-word envelope. Geometry

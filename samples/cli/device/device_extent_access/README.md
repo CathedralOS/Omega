@@ -15,7 +15,7 @@ is inert (`Expected exit: 0`); the two DMA drivers are checked but unreachable.
   `lend_for_read`, `lend_for_write`, `notify`, `acquire`).
 - Making a driver reachable from `Main::main` needs native realization of the
   ten crossings. Omega's compiler-intrinsic inventory
-  (`omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/inventory.rs`)
+  (`omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/terminal_authority_policy/inventory.rs`)
   closes over hosted exit/write/read byte, builtin functions, float binary
   operations, integer comparisons and numeric conversions; it has no
   device-loan mechanism, so a reachable `reserve` call has no native boundary

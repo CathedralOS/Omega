@@ -506,7 +506,7 @@ pub(super) fn check_statement_borrows<'p>(
             continue;
         };
 
-        let Some(assignment) = statement_node.as_assignment() else {
+        let Some(_) = statement_node.as_assignment() else {
             continue;
         };
         let mut owned_frames = None;
@@ -514,34 +514,23 @@ pub(super) fn check_statement_borrows<'p>(
         let binding_replacement = frames.is_some_and(|frames| {
             frames.assignment_replaces_reference_binding(machine, statement_node) == Some(true)
         });
-        let destinations = if binding_replacement {
-            let Some(root) = mutated_place.root.as_symbol() else {
+        let destinations = super::access_sources::stored_address(
+            program,
+            facts,
+            state_flow,
+            statement.store_target,
+            binding_replacement,
+        );
+        let destinations = match destinations {
+            Ok(destinations) => destinations,
+            Err(reason) => {
+                diagnostics.push(Diagnostic::error(format!(
+                    "statement {} cannot resolve the complete borrowed destination of `{}`: {reason}",
+                    statement.statement_index,
+                    mutated_place.label(program),
+                )));
                 continue;
-            };
-            Some(vec![super::aliases::ResolvedAlias {
-                place: checked_trees::CapturedPlace {
-                    root: facts::PlaceRoot::Symbol(root),
-                    segments: mutated_place.segments.clone(),
-                    ..Default::default()
-                },
-                lineage: Vec::new(),
-            }])
-        } else {
-            super::access_sources::resolve_all(
-                program,
-                facts,
-                state_flow,
-                statement,
-                assignment.target,
-            )
-        };
-        let Some(destinations) = destinations else {
-            diagnostics.push(Diagnostic::error(format!(
-                "statement {} cannot resolve the complete borrowed destination of `{}`",
-                statement.statement_index,
-                mutated_place.label(program),
-            )));
-            continue;
+            }
         };
         // A borrowed formal denotes its ingress referent when read or lent.
         // Rebinding a mutable shared-reference formal instead writes the

@@ -3,7 +3,7 @@
 
 use super::nominal_identity;
 use crate::capture::EvidenceOption;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::expressions::names::portable_ordinal;
 use crate::record::{PackageReviewNominalIdentity, PackageReviewProgressSubject};
 use diagnostics::Diagnostic;
@@ -19,7 +19,7 @@ use typed_trees::signature::StateParameter;
 /// duplicated, or differently classified domain rejects before any producer
 /// records a row. `subject` names the declaring signature in the diagnostic.
 pub(crate) fn progress_profile<'a>(
-    compilation: &'a PackageReviewInput<'_>,
+    compilation: &'a SourceDeclarationInput<'_>,
     profile: SemanticDomainId,
     subject: &str,
 ) -> Result<&'a DomainDefinition, Vec<Diagnostic>> {
@@ -47,7 +47,7 @@ pub(crate) fn progress_profile<'a>(
 /// public declaration its root names. A private root carries no review
 /// coordinate and rejects rather than exporting a compiler-local handle.
 pub(crate) fn premise_subject(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     parameters: &[StateParameter],
     root: SymbolHandle,
     subject: &str,
@@ -77,7 +77,7 @@ pub(crate) fn premise_subject(
 
 /// The declaration identities a premise subject projects through.
 pub(crate) fn premise_projections(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     premise: &ProgressPremise,
 ) -> Result<Vec<PackageReviewNominalIdentity>, Vec<Diagnostic>> {
     premise

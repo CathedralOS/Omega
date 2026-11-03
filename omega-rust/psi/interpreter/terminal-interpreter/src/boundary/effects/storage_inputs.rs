@@ -12,6 +12,7 @@ mod borrowed_completion;
 mod byte_views;
 mod original_residence;
 mod reference_outputs;
+mod reference_result;
 mod structural_buffer;
 
 use crate::boundary::effects::scalar_loans::{BoundaryScalarLoans, TerminalBoundaryScalarBuffer};
@@ -307,7 +308,9 @@ impl BoundaryStorageInputs {
         arguments: &[StructuralArgument],
         values: &[TerminalStructuralValue],
     ) -> Result<(), TerminalInterpretError> {
-        if declaration.reference_outputs.is_empty() {
+        if declaration.reference_outputs.is_empty()
+            && declaration.result_reference_regions.is_empty()
+        {
             return Ok(());
         }
         if !self.reference_inputs.is_empty()

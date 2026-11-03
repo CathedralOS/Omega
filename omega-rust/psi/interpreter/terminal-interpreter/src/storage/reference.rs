@@ -128,6 +128,8 @@ pub(crate) struct ReferenceByteRegion {
 
 /// Disposition ends carrier custody, never the captured primitive backing.
 /// Ownership transfers deliberately keep using ordinary map removal instead.
+/// The discarded home and its carrier referent association remain reachable
+/// through `retired`: they still prove produced-home provenance at return.
 pub(crate) fn discard_structural_value(
     values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     referents: &mut RuntimeRows<StructuralRuntimePlace, ReferenceReferent>,
@@ -135,10 +137,15 @@ pub(crate) fn discard_structural_value(
         StructuralRuntimePlace,
         crate::storage::element_views::ElementView,
     >,
+    retired: &mut Vec<(PlaceId, TerminalStructuralValue, Option<ReferenceReferent>)>,
     place: PlaceId,
     machine: &terminal_psi::TerminalMachine,
 ) -> Option<TerminalStructuralValue> {
     let value = values.remove(&place)?;
+    let origin = referents
+        .get(&StructuralRuntimePlace::from(&value))
+        .cloned();
+    retired.push((place, value.clone(), origin));
     // A borrowed signature/block binding names the supplying descriptor's
     // physical cells. Ending this loan retires its binding, not those cells:
     // the owner can still observe or lend its stored descriptor afterward.
@@ -360,7 +367,7 @@ impl TerminalExecution<'_> {
         Ok(())
     }
 
-    fn reference_contract(
+    pub(crate) fn reference_contract(
         &self,
         reference_type: StructuralTypeId,
     ) -> Result<(StructuralTypeId, StructuralAccess), TerminalInterpretError> {
@@ -1086,10 +1093,13 @@ impl TerminalExecution<'_> {
                 access: StructuralAccess::Owned,
             },
         )?;
-        self.reference_referents.remove(&key);
+        let origin = self.reference_referents.remove(&key);
         self.live_affine_frontier = frontier;
-        if path.is_empty() {
-            self.structural_values.remove(&source);
+        if path.is_empty()
+            && let Some(retired) = self.structural_values.remove(&source)
+        {
+            self.retired_structural_homes
+                .push((source, retired, origin));
         }
         Ok(())
     }
@@ -1966,9 +1976,11 @@ impl TerminalExecution<'_> {
                 let mut backings = Vec::with_capacity(origin.sources.len());
                 for source in &origin.sources {
                     let terminal_psi::StructuralReferenceOrigin::Parameter(source) = source else {
-                        return Err(TerminalInterpretError::UnsupportedSemanticVariant(
-                            "interpreter invocation-owned reference return backing",
-                        ));
+                        // An invocation-owned backing is produced inside the
+                        // callee's own frame; nothing ingress-side exists to
+                        // capture. Completion authenticates the returned
+                        // referent's home against the declared carrier.
+                        continue;
                     };
                     let parameter = parameters
                         .iter()
@@ -2226,8 +2238,106 @@ impl TerminalExecution<'_> {
             {
                 return Err(malformed());
             }
+            let mut invocation_backings = Vec::new();
+            for source in &origin.sources {
+                let terminal_psi::StructuralReferenceOrigin::Invocation {
+                    carrier_type,
+                    path,
+                    extent,
+                    access: source_access,
+                } = source
+                else {
+                    continue;
+                };
+                // The declared origin names a carrier this invocation itself
+                // produced: the completing frame's own operation-result homes
+                // of that type are the only admissible backings. Completing
+                // the source's declared projection must reach the returned
+                // referent through the same resolution a captured ingress
+                // backing performs.
+                let endpoint = terminal_semantics::reference_origin_type(
+                    self.structural_types().values(),
+                    *carrier_type,
+                    path,
+                )
+                .ok_or_else(malformed)?;
+                if endpoint != referent_type {
+                    return Err(malformed());
+                }
+                if path
+                    .iter()
+                    .any(|projection| {
+                        !matches!(
+                            projection,
+                            terminal_psi::ReferenceOriginProjection::Exact(_)
+                        )
+                    })
+                {
+                    return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                        "invocation reference origin element window",
+                    ));
+                }
+                let machine = self.program.verified_machine(self.current_machine)?;
+                // Consumption ends a carrier's custody, not its production: a
+                // retired home remains admissible, and each candidate still
+                // proves exact referent view identity below. A retired
+                // carrier's captured referent row seeds the declared
+                // `Referent` crossing; the fields beneath it traverse live
+                // storage like any other projection.
+                let produced_entries = self
+                    .structural_values
+                    .iter()
+                    .map(|(place, value)| (place, value, None))
+                    .chain(self.retired_structural_homes.iter().map(
+                        |(place, value, origin)| (place, value, origin.as_ref()),
+                    ));
+                for (place, value, retired_origin) in produced_entries {
+                    if value.structural_type != *carrier_type
+                        || machine.producing_operation(*place).is_none()
+                    {
+                        continue;
+                    }
+                    // The declared projection always begins by crossing the
+                    // produced carrier's `Referent`. A live carrier resolves
+                    // that crossing through `reference_referents`; a retired
+                    // one resumes from the referent view it captured, with
+                    // that row's own backing companions.
+                    let (value, suffix, placed, aggregate_view, primitive_storage) =
+                        match retired_origin {
+                            Some(origin)
+                                if path.first()
+                                    == Some(&terminal_psi::ReferenceOriginProjection::Exact(
+                                        StructuralPathSegment::Referent,
+                                    )) =>
+                            {
+                                (
+                                    &origin.view,
+                                    &path[1..],
+                                    origin.placed.clone(),
+                                    origin.aggregate_view,
+                                    origin
+                                        .primitive_loan
+                                        .as_ref()
+                                        .map(|loan| loan.storage.clone()),
+                                )
+                            }
+                            _ => (value, &path[..], None, None, None),
+                        };
+                    invocation_backings.push(ReferenceBacking {
+                        array_loan: None,
+                        placed,
+                        value: value.clone(),
+                        aggregate_view,
+                        primitive_storage,
+                        suffix: suffix.to_vec(),
+                        extent: *extent,
+                        element_view: None,
+                        access: *source_access,
+                    });
+                }
+            }
             let mut matched = false;
-            for backing in expected {
+            for backing in expected.iter().chain(&invocation_backings) {
                 if let Some(mut projected) = self.resolve_return_origin(backing, actual)? {
                     self.retain_returned_access_interpretation(
                         &mut projected,

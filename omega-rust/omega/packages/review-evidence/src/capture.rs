@@ -22,7 +22,9 @@ pub use semantic_bindings::{
     SemanticBindingProjectionError, candidate_hosted_exit_bindings, candidate_service_bindings,
     candidate_target_entry_binding,
 };
+mod runtime_permissions;
 mod source;
+pub use runtime_permissions::PreparedRuntimePolicy;
 mod terminal_authority_permissions;
 
 /// The refusal constructor every projection module states in its own sentence:
@@ -56,6 +58,7 @@ impl<T> EvidenceOption<T> for Option<T> {
 
 pub(crate) use callables::project_checked_callable_policy;
 pub use input::PackageReviewInput;
+pub(crate) use input::SourceDeclarationInput;
 pub use package_policy::project_checked_package_policy;
 pub(crate) use providers::project_checked_selected_provider_policy;
 pub(crate) use representation::project_checked_representation_policy;

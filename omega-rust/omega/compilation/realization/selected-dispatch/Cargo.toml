@@ -13,10 +13,10 @@ provider-selection = { path = "../provider-selection" }
 backend-plan = { path = "../../backend/plans/backend-plan" }
 trust-model = { path = "../trust-model" }
 effects = { path = "../../backend/plans/effects" }
-package-compilation = { path = "../../../packages/compilation-inputs" }
+package-compilation = { path = "../../../packages/package-compilation" }
 program-entry-plan = { path = "../../backend/plans/program-entry-plan" }
 provider-planning = { path = "../provider-planning" }
-psi-terminal-production = { path = "../../../../psi/compilation/driver/terminal-production" }
+psi-terminal-production = { path = "../../../../psi/compilation/psi-compiler/terminal-production" }
 target = { path = "../../backend/target" }
 arena = { path = "../../../../psi/foundation/arena" }
 checked-trees = { path = "../../../../psi/compilation/representations/checked-trees" }

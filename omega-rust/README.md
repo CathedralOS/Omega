@@ -42,16 +42,16 @@ implies deletion.
   Terminal-to-native route, and placement rules for new work.
 - [Psi](psi/README.md) and its [frontend](psi/compilation/pipeline/README.md): source identity,
   syntax, typing, checking, and portable publication.
-- [Compiler coordination](omega/compilation/driver/README.md): product boundaries,
+- [Compiler coordination](omega/compilation/compiler/README.md): product boundaries,
   optional reports, and multi-target source reuse.
-- [Native realization](omega/compilation/driver/README.md#native-realization): source-free
+- [Native realization](omega/compilation/compiler/README.md#native-realization): source-free
   lowering with separately supplied authority.
 - [Native representations](omega/compilation/representations/README.md) and
   [optimization](optimization.md): current data, exact rewrites, and replay.
 - [Package management](omega/packages/package-manager/README.md): package operations,
   with independent source acquisition, resolver execution, and review evidence
   packages in `omega/packages/`.
-- [Build evaluation](omega/compilation/build-evaluation/README.md): Build
+- [Build evaluation](omega/build-system/build-settings/README.md): Build
   activation, declaration admission, restricted-request consent and execution,
   independent of compiler coordination.
 - [Psi interpreters](psi/interpreter): separate checked-tree and Terminal Psi

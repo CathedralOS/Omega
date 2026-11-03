@@ -8,7 +8,7 @@
 //! native roots select demand from the same namespace.
 
 use super::TerminalNativeRealizationProposal;
-use crate::provider_admission::{
+use crate::providers::provider_admission::{
     NativeCompilerBuiltinSettlement, NativeProviderSettlement, PreparedSourceEvaluatedBindings,
     ProviderAdmissionRequest, SourceEvaluatedImportSettlement, TerminalAuthorityPermissionPolicy,
     TerminalAuthorityPolicy, prepare_source_evaluated_bindings,
@@ -31,7 +31,7 @@ pub struct PreparedNativeExecution {
     selection: effects::SelectedProviderPlanFacts,
     external_bindings: Vec<calling_conventions::ExternalBindingRow>,
     demands: BTreeSet<String>,
-    compiler_builtins: Vec<crate::provider_admission::TerminalCompilerBuiltinProposal>,
+    compiler_builtins: Vec<crate::providers::provider_admission::TerminalCompilerBuiltinProposal>,
     local_adapters: Vec<crate::SelectedProviderAdapter>,
 }
 
@@ -444,12 +444,14 @@ impl TerminalNativeRealizationProposal {
                                 "native execution lost selected external declaration custody",
                             )]
                         })?;
-                    return Ok(crate::provider_admission::CompilerIntrinsicPlanProvenance {
-                        plan,
-                        semantic_schema: &plan.schema,
-                        row_executions,
-                        row_numeric_realizations,
-                    });
+                    return Ok(
+                        crate::providers::provider_admission::CompilerIntrinsicPlanProvenance {
+                            plan,
+                            semantic_schema: &plan.schema,
+                            row_executions,
+                            row_numeric_realizations,
+                        },
+                    );
                 }
                 let leaf = self
                     .providers()
@@ -470,16 +472,18 @@ impl TerminalNativeRealizationProposal {
                             &non_intrinsic_execution
                         }
                     };
-                Ok(crate::provider_admission::CompilerIntrinsicPlanProvenance {
-                    plan,
-                    semantic_schema: &leaf.satisfied_schema,
-                    row_executions,
-                    row_numeric_realizations: &non_authored_realization,
-                })
+                Ok(
+                    crate::providers::provider_admission::CompilerIntrinsicPlanProvenance {
+                        plan,
+                        semantic_schema: &leaf.satisfied_schema,
+                        row_executions,
+                        row_numeric_realizations: &non_authored_realization,
+                    },
+                )
             })
             .collect::<Result<Vec<_>, _>>()?;
         let compiler_builtins =
-            crate::provider_admission::derive_selected_intrinsic_settlement_proposals(
+            crate::providers::provider_admission::derive_selected_intrinsic_settlement_proposals(
                 &selection,
                 intrinsic_provenance.into_iter(),
                 &demands,
@@ -523,7 +527,7 @@ impl TerminalNativeRealizationProposal {
                 "receiving lowerer selections differ from the exact post-Terminal build proposal",
             ));
         }
-        crate::provider_admission::terminal_authority_permissions::validate_retained_package_terminal_authority_permissions(
+        crate::providers::provider_admission::terminal_authority_permissions::validate_retained_package_terminal_authority_permissions(
             self.package_terminal_authority_permissions(),
             self.package_terminal_authority_permission_identities(),
             inputs.accepted_package_permissions,
@@ -554,10 +558,11 @@ impl TerminalNativeRealizationProposal {
             inputs.execution.selection.identities(),
         )?;
 
-        let compiler_builtins = crate::provider_admission::prepare_retained_compiler_builtins(
-            inputs.execution.compiler_builtins.as_slice(),
-            inputs.execution.selection.plans(),
-        )?;
+        let compiler_builtins =
+            crate::providers::provider_admission::prepare_retained_compiler_builtins(
+                inputs.execution.compiler_builtins.as_slice(),
+                inputs.execution.selection.plans(),
+            )?;
 
         Ok(PreparedRetainedNativeProviders {
             execution: inputs.execution,

@@ -1,6 +1,6 @@
-data Token { ready: bool; }
+data Token dropped by drop_token { ready: bool; }
 
-machine Token::drop(token: &mut Token) requires token.ready {}
+machine drop_token(token: &mut Token) requires token.ready {}
 
 machine main() {
     let token: Token = Token { ready: false };

@@ -47,6 +47,7 @@ pub(super) fn post_store_predicate_holds(
     receiver: &crate::CanonicalPlace,
     receiver_type: typed_trees::types::TypeReferenceHandle,
     preserves_scalar_value: bool,
+    destination: &crate::CanonicalPlace,
     place: &TrackedPlace<'_>,
     written_field: SymbolHandle,
     written_value: ExpressionHandle,
@@ -109,7 +110,63 @@ pub(super) fn post_store_predicate_holds(
             statement_index,
             written_value,
         );
+    let written = ScopedArithmeticValue::Term(ScopedArithmeticExpression {
+        owner: machine.symbol,
+        expression: written_value,
+        bindings: arrivals.clone(),
+    });
+    let written = match written_bounds {
+        Some((minimum, maximum)) => ScopedArithmeticValue::BoundedInteger {
+            value: Box::new(ScopedArithmeticValue::Atom {
+                identity: format!(
+                    "\0stored-value:{:?}:{:?}:{statement_index}:{written_value:?}",
+                    machine.symbol, state.symbol
+                ),
+                unsigned: crate::expression_result_type_reference(
+                    program,
+                    machine,
+                    state,
+                    written_value,
+                )
+                .and_then(|reference| program.primitive_type_reference(reference))
+                .is_some_and(|primitive| !primitive.is_signed_integer()),
+            }),
+            interval: BigIntInterval {
+                low: Some(BigInt::from_i128(i128::from(minimum))),
+                high: Some(BigInt::from_i128(i128::from(maximum))),
+            },
+        },
+        None => written,
+    };
     let mut fields = Vec::new();
+    let relative = destination
+        .segments
+        .strip_prefix(receiver.segments.as_slice());
+    crate::queries::expression_traversal::visit_pre_order(
+        program,
+        vec![predicate],
+        |expression, _| {
+            if let Some(projection) = super::place_queries::predicate_projection(
+                program,
+                place.definition,
+                receiver_type,
+                expression,
+            ) && relative == Some(projection.as_slice())
+                && crate::project_type_reference_from_segments(program, receiver_type, &projection)
+                    .is_some_and(|reference| {
+                        program
+                            .primitive_type_reference(reference)
+                            .is_some_and(PrimitiveType::is_fixed_integer)
+                    })
+            {
+                fields.push(ScopedArithmeticBinding {
+                    binder: ScopedArithmeticBinder::Occurrence(expression),
+                    value: written.clone(),
+                });
+            }
+            false
+        },
+    );
     for member in program.data_members(place.definition) {
         let Some(field) = member.as_field() else {
             continue;
@@ -120,32 +177,9 @@ pub(super) fn post_store_predicate_holds(
         {
             continue;
         }
-        let value = if field.symbol == written_field {
-            let value = ScopedArithmeticValue::Term(ScopedArithmeticExpression {
-                owner: machine.symbol,
-                expression: written_value,
-                bindings: arrivals.clone(),
-            });
-            Some(match written_bounds {
-                Some((minimum, maximum)) => ScopedArithmeticValue::BoundedInteger {
-                    // This is the completed value at one pre-store
-                    // occurrence, not a request to replay a mutable read.
-                    value: Box::new(ScopedArithmeticValue::Atom {
-                        identity: format!(
-                            "\0stored-value:{:?}:{:?}:{statement_index}:{written_value:?}",
-                            machine.symbol, state.symbol,
-                        ),
-                        unsigned: program
-                            .primitive_type_reference(field.type_reference)
-                            .is_some_and(|primitive| !primitive.is_signed_integer()),
-                    }),
-                    interval: BigIntInterval {
-                        low: Some(BigInt::from_i128(i128::from(minimum))),
-                        high: Some(BigInt::from_i128(i128::from(maximum))),
-                    },
-                },
-                None => value,
-            })
+        let value = if field.symbol == written_field && relative.is_some_and(|path| path.len() == 1)
+        {
+            Some(written.clone())
         } else if let Some((_, Some(value))) = place
             .fields
             .iter()

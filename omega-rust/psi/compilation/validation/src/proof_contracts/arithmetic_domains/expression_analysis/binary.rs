@@ -1122,6 +1122,11 @@ impl Operation<'_, '_> {
             .machine
             .zip(self.walk.state)
             .map_or_else(Default::default, |(machine, state)| {
+                if let Some(prior_facts) = self.walk.specification_facts {
+                    return crate::proof_contracts::contract_entailment::exact_binary_formation_in_specification(
+                        self.walk.program, machine, state, prior_facts, self.expression,
+                    );
+                }
                 crate::proof_contracts::contract_entailment::exact_binary_formation_at_occurrence(
                     self.walk.program,
                     machine,

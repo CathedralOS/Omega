@@ -357,7 +357,9 @@ tool's supported target count. Read detailed results when a session completes,
 needs action, or returns a meaningful checkpoint. Do not send keep-alive nudges
 or re-derive a verdict a worker already posted.
 
-Workers report actual revision, host, program before/after, commands, exits,
+User-facing reports follow [Explain the change](../../../AGENTS.md#explain-the-change),
+leading with the program's changed behavior and remaining acceptance. Worker
+records retain the actual revision, host, program before/after, commands, exits,
 claim, commits, artifacts, outstanding processes and smallest residual. Collect
 confirmed artifacts or published lanes through the supported channel; a path on
 another machine is not accessible evidence. Verify artifact content and commit

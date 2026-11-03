@@ -204,7 +204,7 @@ digest. Keep compiler and library together when moving or upgrading them.
 
 For explicit deployment/embedding, set `OMEGA_LIBRARY_ROOT` to an absolute
 library directory before starting Omega, or call
-`build_evaluation::sources::toolchain_library::configure` before the first
+`build_settings::sources::toolchain_library::configure` before the first
 compiler lookup. This selects one immutable process-level root, not an import
 search path; release digest checks still apply. Invalid explicit roots reject
 without fallback. Ordinary Cargo development builds retain their checkout's

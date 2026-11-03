@@ -1,1 +1,1 @@
-machine argument `Resource::drop` for `accept` does not refine `Selected`
+machine argument `drop_resource` for `accept` does not refine `Selected`

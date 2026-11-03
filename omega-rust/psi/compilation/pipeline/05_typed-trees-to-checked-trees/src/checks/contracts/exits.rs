@@ -72,7 +72,9 @@ fn collection_premises_prove_exit(
 
 /// Whether one exit's live facts prove a scalar postcondition: the entry
 /// contexts prove the predicate, or the exit's exact return and current scalar
-/// or live place values evaluate it per atom (`scalars`). Ordinary exit checking and package exit
+/// or live place values evaluate it per atom (`scalars`). Structural normal
+/// completion also retains nonnumeric fields through the same exact origins.
+/// Ordinary exit checking and package exit
 /// evidence share these routes, alongside separately rechecked component
 /// induction. Callers must establish exact invocation origins before using this
 /// helper; it grants no assumption, entailment or invariant authority.
@@ -91,10 +93,15 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
         )>,
     >,
 ) -> bool {
-    matches!(
-        fact.payload,
-        facts::FactPayload::ContractBooleanExpression { .. }
-    ) && (semantic_contexts_prove_contract_fact(
+    let facts::FactPayload::ContractBooleanExpression {
+        fact: contract,
+        expression,
+        ..
+    } = fact.payload
+    else {
+        return false;
+    };
+    if semantic_contexts_prove_contract_fact(
         program,
         facts,
         facts::ProgramPoint::Statement {
@@ -112,7 +119,29 @@ pub(super) fn live_contexts_prove_scalar_postcondition<'program>(
         fact,
         call_frames,
         cached_exit_values,
-    ))
+    ) {
+        return true;
+    }
+    let Some((machine, state)) =
+        program.state_flow_site(exit_flow.machine_symbol, exit_flow.state_symbol)
+    else {
+        return false;
+    };
+    let origins = crate::flow::exit_parameter_origins(facts, exit_flow)
+        .iter()
+        .filter(|origin| origin.contract == contract)
+        .map(|origin| (origin.entry_parameter, origin.state_parameter))
+        .collect::<Vec<_>>();
+    validation::normal_exit_proves(
+        program,
+        machine,
+        state,
+        exit_flow.statement_index,
+        super::return_values::exit_return_expression(program, exit_flow),
+        expression,
+        &origins,
+        &facts.termination.rank_arrivals,
+    )
 }
 
 pub(super) fn check_exit_ensures(

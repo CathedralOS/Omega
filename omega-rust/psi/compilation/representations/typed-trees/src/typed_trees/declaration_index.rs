@@ -40,7 +40,6 @@ mod tests;
 /// order, and `Box<str>`/`usize`/tuple keys hash through the same mixing as
 /// `symbols::SymbolKeyMap`.
 type HashMap<K, V> = std::collections::HashMap<K, V, symbols::BuildSymbolHasher>;
-type HashSet<T> = std::collections::HashSet<T, symbols::BuildSymbolHasher>;
 
 /// Compact roster marker retained by the remaining revision-keyed indexes.
 /// It includes the start index and count, not the handle generation. The
@@ -127,13 +126,6 @@ struct DomainPositionIndex {
     by_symbol: HashMap<SymbolHandle, usize>,
 }
 
-/// Data symbols owning an attached `::drop` machine, computed once per
-/// machine-table revision.
-#[derive(Clone, Default)]
-struct AttachedDropIndex {
-    hooks: HashSet<SymbolHandle>,
-}
-
 /// Call-target lookup for service-reach inference: the machines, machine
 /// type parameters, traits, trait signatures, and parameter contracts the
 /// boundary walkers keep resolving by symbol. Moved into the program from
@@ -204,7 +196,6 @@ pub struct DeclarationIndexes {
     state_declarations: OwnedIndex<StateDeclarationIndex, StateDeclarationRevision>,
     data_members: OwnedIndex<DataMemberIndex>,
     domains: OwnedIndex<DomainPositionIndex, DomainDeclarationScope>,
-    attached_drops: OwnedIndex<AttachedDropIndex>,
     call_targets: OwnedIndex<CallTargetIndex>,
     requirement_applications: OwnedIndex<RequirementApplicationIndex>,
     domain_candidates: OwnedIndex<DomainCandidateIndex, DomainDeclarationScope>,
@@ -248,7 +239,6 @@ impl super::TypedTrees {
         self.with_data_definition_index(|_| ());
         self.data_type_parameter_by_symbol(any_symbol);
         self.domain_position_by_symbol(any_symbol);
-        self.attached_drop_machine_exists(any_symbol);
         self.with_call_target_index(|_| ());
         self.with_requirement_application_index(|_| ());
         self.with_operator_spelling_index(|_| ());
@@ -260,7 +250,6 @@ impl super::TypedTrees {
         self.tables.data_definitions.seal();
         self.tables.data_type_parameters.seal();
         indexes.domains.seal();
-        indexes.attached_drops.seal();
         indexes.call_targets.seal();
         indexes.requirement_applications.seal();
         indexes.operator_spellings.seal();
@@ -283,7 +272,6 @@ impl super::TypedTrees {
         self.tables.data_definitions.unseal();
         self.tables.data_type_parameters.unseal();
         indexes.domains.unseal();
-        indexes.attached_drops.unseal();
         indexes.call_targets.unseal();
         indexes.requirement_applications.unseal();
         indexes.operator_spellings.unseal();
@@ -624,35 +612,12 @@ impl super::TypedTrees {
         )
     }
 
-    /// Whether a data declaration owns an attached `::drop` machine.
-    pub fn attached_drop_machine_exists(&self, data_symbol: SymbolHandle) -> bool {
-        if !data_symbol.is_valid() {
-            return false;
-        }
-        if self
-            .unique_data_definition_by_symbol(data_symbol)
-            .is_some_and(|data| data.cleanup_selection.is_some())
-        {
-            return true;
-        }
-        self.declaration_indexes.attached_drops.with(
-            self.tables
-                .machines
-                .revision()
-                .wrapping_add(roster_marker(self.roots.machines)),
-            || {
-                let mut hooks = HashSet::default();
-                for machine in self.machines() {
-                    if machine.attached_data_symbol.is_valid()
-                        && machine.name.as_str().ends_with("::drop")
-                    {
-                        hooks.insert(machine.attached_data_symbol);
-                    }
-                }
-                AttachedDropIndex { hooks }
-            },
-            |index| index.hooks.contains(&data_symbol),
-        )
+    /// Whether a data declaration selects cleanup with `dropped by`.
+    pub fn data_selects_cleanup(&self, data_symbol: SymbolHandle) -> bool {
+        data_symbol.is_valid()
+            && self
+                .unique_data_definition_by_symbol(data_symbol)
+                .is_some_and(|data| data.cleanup_selection.is_some())
     }
 
     /// The declaration indexes for call-target resolution, shared by the

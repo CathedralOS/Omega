@@ -1,5 +1,5 @@
 //! Rejoin a selected native call to its original boundary occurrence.
-//! Selected authority is retained by ValidatedOptimizedTargetOperations with its
+//! Selected authority is retained by the target producer with its
 //! independently admitted installation. This raw-plan reader checks semantic
 //! and physical correspondence; catalog membership alone does not select a provider.
 use super::{
@@ -12,13 +12,13 @@ use target_operations::{NativeCallOrigin, TargetUnitOperation};
 
 /// Rejoin the selected native namespace to retained portable catalog data.
 /// This does not install a provider, establish claims, or replay a source body.
-/// The verified input is required: a boundary row whose source occurrence is
-/// not retained here cannot be rechecked, and a target plan with no such row
-/// passes without it.
+/// The admitted boundary facts are required: a boundary row whose source
+/// occurrence is not retained here cannot be rechecked, and a target plan
+/// with no such row passes without it.
 pub(in crate::legalization) fn validate_boundary_origins(
     native: &TargetOperationPlan,
     unit: &super::PsiOptimizationUnit,
-    input: &terminal_psi_to_abstract_operations::VerifiedPsiOptimizationInput,
+    input: target_operations::BoundaryOriginFacts<'_>,
 ) -> Result<(), LegalizationError> {
     for function in &native.functions {
         for operation in function.graph.operations() {
@@ -34,12 +34,10 @@ pub(in crate::legalization) fn validate_boundary_origins(
                 ..
             } = operation
             {
-                let binding = input
-                    .selected_program_entry_call()
-                    .ok_or_else(LegalizationError::custody)?;
-                if binding.boundary() != *boundary
-                    || binding.entry() != *entry
-                    || binding.source_signature() != *source_signature
+                let binding = input.program_entry.ok_or_else(LegalizationError::custody)?;
+                if binding.boundary != *boundary
+                    || binding.entry != *entry
+                    || binding.source_signature != *source_signature
                     || *target != target_operations::NativeCallTarget::Machine(*entry)
                 {
                     return Err(LegalizationError::custody());
@@ -57,7 +55,7 @@ pub(in crate::legalization) fn validate_boundary_origins(
                 // Relationships are artifact-global policy, independent of an
                 // occurrence's caller after legal inlining. Rejoin the complete
                 // sealed relationship, not just its final candidate IDs.
-                if !input.admitted_assumed_bindings().contains(assumption) {
+                if !input.assumed_bindings.contains(assumption) {
                     return Err(LegalizationError::custody());
                 }
             }
@@ -81,9 +79,9 @@ pub(in crate::legalization) fn validate_boundary_origins(
                 return Err(LegalizationError::custody());
             };
             let selections = input
-                .target_machine_selections()
+                .target_machine_selections
                 .ok_or_else(LegalizationError::custody)?;
-            let module = input.context().module();
+            let module = input.module;
             let head = terminal_psi::TargetMachineCallable::Boundary(*boundary);
             let callable = terminal_psi::TargetMachineCallable::Machine(*member);
             let selected = selections

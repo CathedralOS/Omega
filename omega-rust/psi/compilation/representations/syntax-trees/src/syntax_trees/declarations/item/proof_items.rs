@@ -243,5 +243,7 @@ pub struct SatisfiesClause {
 pub struct GenericConformanceBound {
     pub binder: Identifier,
     pub trait_name: Identifier,
+    /// Explicit trait region operands in declaration order, separate from static slots.
+    pub lifetime_arguments: Vec<Identifier>,
     pub arguments: HandleSpan<TypeReferenceHandle>,
 }

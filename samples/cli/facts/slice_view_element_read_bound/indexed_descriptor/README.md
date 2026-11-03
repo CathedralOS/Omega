@@ -45,3 +45,17 @@ The parent outcome is **CHECKER-CARRIES-OPERATION-DECISIONS** in [TASKS.md](../.
 6. **Settlement and layout:** Build selects the ordinary named entry implementation; record, array, descriptor and call layouts reach product construction on the measured Linux x86-64 target.
 7. **Instructions and activation:** the selected descriptor and element read execute through normal calls and branches; native and Terminal runs both observe the authored full/short results.
 8. **Encoding and image:** normal native artifact validation and emission produce the executed Linux image. The same source's Terminal execution agrees on exit 0 in every positive place.
+
+## Build-owned target-body migration
+
+The `target_body` place carries no source target prefix. Its four prefixed
+`check_pair` bodies became the requirement `SelectedCheckPair::check_pair`, implemented by
+ordinary `X86...` and `Arm...` implementations and selected by explicit
+target-keyed `Build::select_provider` rows (`BUILD-OWNED-TARGET-SELECTION`).
+The operation, inputs, contracts and exit oracle are unchanged. The entry
+wrapper and each implementation check a target tag through a second selected
+requirement (17 for x86-64, 29 for AArch64), so a wrong Build row traps.
+Observed with the optimized producer at `11bdd2fe41f` on macOS x86-64: the
+migrated positive exits 0 under `omega run --both` (native and Terminal Psi
+agree), and the twin still rejects for the unproved `read` precondition in `read_guarded`. No compiler change was needed. The other hosted
+targets were not executed here.

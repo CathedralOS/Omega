@@ -27,7 +27,7 @@ pub(crate) mod access_view_plan_wire;
 pub(crate) mod access_view_wire;
 mod closed_conformance_wire;
 pub(crate) mod declaration_wire;
-mod dynamic_dispatch_wire;
+pub(super) mod dynamic_dispatch_wire;
 mod evidence_wire;
 mod float_meaning_wire;
 mod folded_constant_wire;

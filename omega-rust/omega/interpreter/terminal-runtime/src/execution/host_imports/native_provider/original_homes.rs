@@ -314,9 +314,8 @@ impl NativeContext {
                 let [Path::FixedIndex(index)] = value.path() else {
                     return Err(rejection("original byte owner lost its exact byte index"));
                 };
-                let offset = usize::try_from(*index).map_err(|_| {
-                    rejection("original byte index exceeds the host address space")
-                })?;
+                let offset = usize::try_from(*index)
+                    .map_err(|_| rejection("original byte index exceeds the host address space"))?;
                 let logical = value.value().scalar_type();
                 if offset >= extent
                     || !matches!(logical, ScalarType::Integer(integer) if integer.sign() == semantic_vocabulary::IntegerSign::Unsigned && integer.bits() == 8)

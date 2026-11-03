@@ -75,7 +75,7 @@ pub use result_binding_plans::{
 };
 pub use scalar_state_plans::{
     CheckedGuardedExitPlans, CheckedScalarBranchDestination, CheckedScalarGuardedExit,
-    CheckedScalarGuardedTail, CheckedScalarStateTerminator,
+    CheckedScalarGuardedTail, CheckedScalarStateTerminator, ScalarReturnPath,
 };
 pub use structural_argument_plans::{
     CheckedCallScalarArgument, CheckedReferenceStorage, CheckedStructuralScalarParameterPlan,

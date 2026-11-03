@@ -217,19 +217,25 @@ pub(crate) fn emit<'source>(
             access: StructuralAccess::Owned,
         })
         .collect::<Vec<_>>();
-    // A referent alias observes storage through the selection's address join.
-    // A materialized descriptor instead transfers its own affine lifetime
-    // resource, even when the source binding has shared referent access.
-    // Statement construction records that carrier multiplicity before
-    // lowering; local access alone would lend the descriptor itself while
-    // every incoming arm transfers it owned. Keep those two custody domains
-    // distinct without choosing a route from the initializer's source shape.
+    let declaration = terminal_psi::find_structural_type(structural_types, structural_type);
+    let stored_descriptor_value = declaration.is_some_and(|declaration| {
+        terminal_semantics::stored_reference_access(&declaration.shape).is_some()
+    });
+    let stored_view_value = stored_descriptor_value
+        && declaration.is_some_and(|declaration| {
+            declaration.shape.is_borrowed_byte_carrier()
+                || matches!(declaration.shape, StructuralTypeShape::ElementView { .. })
+        });
+    // A stored view returns its pointer and length as a value. Equal source
+    // and destination types do not make that value a borrow of its old slot.
+    // An outer Reference can still name a slot; keep its existing alias rule.
     let borrowed_alias = match &structural_values(checked).nodes.get(*value).kind {
         CheckedStructuralValueKind::Reference {
             source,
             source_value,
             ..
-        } if !source_value.is_valid()
+        } if !stored_view_value
+            && !source_value.is_valid()
             && lookup_type_id(type_ids, &source.type_identity)? == structural_type =>
         {
             Some(terminal_access(source.access))
@@ -239,21 +245,8 @@ pub(crate) fn emit<'source>(
     // Canonical view occurrences retain their direct descriptor role. Stored
     // descriptor values instead own the arriving words, with their own copy or
     // affine lifetime. Their backing remains borrowed in either representation.
-    let view_loan = structural_types
-        .iter()
-        .find_map(|declaration| {
-            if declaration.id != structural_type {
-                return None;
-            }
-            Some(borrowed_view_join_access(
-                &declaration.shape,
-                production.multiplicity,
-            ))
-        })
-        .flatten();
-    let stored_descriptor_value = structural_types.iter().any(|declaration| {
-        declaration.id == structural_type
-            && terminal_semantics::stored_reference_access(&declaration.shape).is_some()
+    let view_loan = declaration.and_then(|declaration| {
+        borrowed_view_join_access(&declaration.shape, production.multiplicity)
     });
     let result_access = if let Some(access) = borrowed_alias {
         // Equal source/destination carriers transport the existing loan. They
@@ -1310,7 +1303,10 @@ impl Emission<'_, '_, '_> {
             .collect::<Vec<_>>();
         let schedule =
             argument_schedule::build_operations(self.checked, self.machine, self.state, &planned)?;
-        let mut staged_values = vec![Vec::new(); planned.len()];
+        let mut staged_values = vec![
+                super::super::argument_evaluation::ScalarArgumentCaptures::default();
+                planned.len()
+            ];
         let mut staged_selectors = vec![Vec::new(); planned.len()];
         let mut staged_structural_arguments = vec![Vec::new(); planned.len()];
         let mut staged_ranges = vec![Vec::new(); planned.len()];
@@ -1351,9 +1347,6 @@ impl Emission<'_, '_, '_> {
                     let count = source_count.ok_or(LoweringError::Unsupported(
                         "structural operand scalar has no source prefix",
                     ))?;
-                    if staged_values[operation].len() != ordinal {
-                        return unsupported("structural operand scalar ordinals are not dense");
-                    }
                     let value = self.evaluation.argument_at(
                         identities,
                         self.checked,
@@ -1370,7 +1363,7 @@ impl Emission<'_, '_, '_> {
                         self.calls,
                         self.environment,
                     )?;
-                    staged_values[operation].push(self.values.len());
+                    staged_values[operation].record(ordinal, self.values.len());
                     self.values.push(value);
                     continue;
                 }
@@ -1507,19 +1500,7 @@ impl Emission<'_, '_, '_> {
             let operation = &planned[index];
             let count = source_count.unwrap_or(self.values.len());
             let evaluated = if staged && operation.call().is_some() {
-                Some(
-                    staged_values[index]
-                        .iter()
-                        .map(|slot| {
-                            self.values
-                                .get(*slot)
-                                .copied()
-                                .ok_or(LoweringError::Unsupported(
-                                    "structural operand scalar lost its retained slot",
-                                ))
-                        })
-                        .collect::<Result<Vec<_>, _>>()?,
-                )
+                Some(staged_values[index].values(self.values))
             } else if operation.call().is_some() {
                 self.evaluation.arguments(
                     identities,

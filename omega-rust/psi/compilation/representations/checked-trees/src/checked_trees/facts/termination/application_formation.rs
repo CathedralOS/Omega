@@ -21,12 +21,21 @@ pub struct CheckedDeclarationCall {
     pub target_contract: Option<crate::MachineContractIdentity>,
 }
 
+/// One feasible authored arm under the containing application's exact input.
+/// Multiple records for a dispatch retain the union of its admitted paths.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedDeclarationDispatchArm {
+    pub expression: ExpressionHandle,
+    pub source_arm: Handle<typed_trees::expression::TableMatchArm>,
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedRankApplicationFacts {
     pub owner: SymbolHandle,
     pub definition_body: ExpressionHandle,
     pub casts: HandleSpan<crate::operators::ExactIntegerCastFact>,
     pub calls: HandleSpan<CheckedDeclarationCall>,
+    pub dispatches: HandleSpan<CheckedDeclarationDispatchArm>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]

@@ -64,6 +64,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             let value = self.run_selected_realization(
                 call.target_symbol,
                 expression_table(self.program).expression_handles(call.arguments),
+                Some(validation::CallSite::Expression {
+                    expression: handle,
+                    call,
+                }),
                 frame,
             )?;
             return Ok(self.guard_subject_value(handle, frame, value));
@@ -92,6 +96,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
             let value = self.run_boundary_adapter(
                 dispatch,
                 expression_table(self.program).expression_handles(call.arguments),
+                Some(validation::CallSite::Expression {
+                    expression: handle,
+                    call,
+                }),
                 frame,
             )?;
             return Ok(self.guard_subject_value(handle, frame, value));
@@ -531,6 +539,10 @@ impl<'program> crate::interpreter::evaluator::Evaluator<'program> {
         let arguments = self.eval_state_arguments(
             entry_state,
             expression_table(self.program).expression_handles(call.arguments),
+            Some(validation::CallSite::Expression {
+                expression: handle,
+                call,
+            }),
             frame,
         )?;
         // Suspend the guard flag while the callee RUNS: distinct same-shaped calls

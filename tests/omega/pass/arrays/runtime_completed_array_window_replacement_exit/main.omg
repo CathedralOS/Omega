@@ -41,12 +41,12 @@ boundary trait WindowsConsoleIo {
 }
 
 data Counter { value: u64; }
-data Token { value: u64; marker: i32; counter: &mut Counter; }
+data Token dropped by drop_token { value: u64; marker: i32; counter: &mut Counter; }
 data Main {
     old_first: Counter; old_middle: Counter; old_last: Counter;
     new_middle: Counter; new_last: Counter;
 }
-machine Token::drop(token: &mut Token) reaches Console {
+machine drop_token(token: &mut Token) reaches Console {
     token.counter.value = token.value;
     Console::write_byte(token.marker);
 }

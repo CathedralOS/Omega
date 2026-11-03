@@ -47,6 +47,51 @@ the time goes and remove the cause rather than waiting on it or working around i
   may invoke, stamp, compare, and report but never parse, lower, manufacture
   semantic evidence, or decide trust.
 
+## Explain the change
+
+Write for a programmer who has not read the diff or worked on this subsystem.
+Use an inverted pyramid in PR descriptions, commit bodies, progress/final
+reports, explanatory documentation and comments. The first one or two sentences
+explain the concrete problem and what changes, in ordinary language. A reader
+who stops there should understand why the change matters.
+
+Next, explain a small before/after example in words. Use code when it helps the
+reader see that behavior; unfamiliar syntax also needs an introduction. Explain
+why the change produces the result, then add implementation detail as the reader
+gains the context to follow it.
+A plain opening followed by a wall of internal terms still fails this reading
+order. Each paragraph should answer a question raised by the preceding one,
+rather than assume the reader already knows the implementation.
+
+For example, "Preserve post-call facts through returned scalar views" names a
+mechanism. "Keep value information after calls" is simpler but still explains
+little. Instead: "A caller can rely on a function's promise about the number it
+writes when doing later calculations. This fixes cases where the compiler
+forgot that promise and rejected safe subtraction." The next paragraph can show
+why a promise to write 9 makes subtracting 9 safe, while an earlier copy keeps
+its old value. Explain saved references and collection slots afterward. Test
+values illustrate the purpose; they do not supply it.
+
+Introduce a technical term with its meaning when it becomes useful, then use the
+canonical term consistently. Replacing "lineage" with "permission information"
+does not explain which data may be used or why. For an internal repair, state
+the real effect on a program or development workflow; do not invent a user
+benefit. Source comments start with the local purpose or failure they prevent,
+then explain the invariant. Match their detail to the surrounding code.
+
+Put validation and detailed provenance after the explanation, linking existing
+evidence or using a details section for long records. Keep any limitation that
+materially qualifies the result beside that result. Preserve exact evidence
+identities, failures and unverified cases. A small change may need only one
+paragraph; this is a reading order, not a form to fill with headings.
+
+Before publishing, read only the opening, then read through one paragraph at a
+time. Does each stopping point leave a useful, accurate understanding without
+requiring a definition from later in the text? Rewrite where it does not. Check
+the explanation against the final diff and observed behavior. If the purpose
+is unclear, inspect the code and witness before making a claim. Rewrite when
+the scope changes rather than appending the session's history.
+
 ## Law of completion
 
 Our superhuman advantage is carrying the entire difficult task end to end.
@@ -228,7 +273,7 @@ capability.
    source/library/sample/fixture migration and retired-syntax deletion bullets
    to completion. Read its full acceptance
    and verify its remaining gap with an optimized exact-source producer
-   for the recorded fixed base. Reuse a warm `build/gate-cli` or retained
+   for the recorded fixed base. Reuse a warm `target/` or retained
    producer with verified inputs; build only when those inputs changed or no
    valid producer exists. Never use an unverified cached binary. Name
    the exact requirement the next witness will discharge. Never filter discovery
@@ -530,6 +575,9 @@ profiles bound to the actual binary digests. See
     `--filter facts/saved_observation_snapshot` selects 105.
   - Unfiltered and whole-domain runs, the [full baseline](tools/testing.md#full-baseline),
     and any other whole-corpus or whole-workspace sweep are the user's to start.
+  - A base compare over 40 fixtures runs on hosted CI:
+    `corpus_gate.py --compare <base> --remote --filter ...`. Hosted runs are
+    free; this machine's build slots are not.
   - A comparison must reach the code it compares. Before trusting base and
     candidate agreeing, confirm a fixture got past parsing, admission and
     package review into the stage the change touched. Two builds failing the
@@ -671,14 +719,18 @@ The rules that touch every edit:
   use `Handle<T>`/`HandleSpan<T>`; `Vec` is construction scratch, not the
   durable shape. Arena/vector-backed symbol tables over local hash maps; a
   map keyed by compiler-owned objects is a review trigger for missing
-  representation structure. Symbols are handle-first — string names are
+  representation structure. Dense IDs (`semantic_id!` types, arena handles)
+  index flat tables (`IdTable`/`IdSet` once they land; until then a `Vec`
+  indexed by the ID), and derived data is computed once by its owner, not
+  cached; `tools/check_rules.py` fails a file whose count of ID-keyed maps or
+  cache-shaped bindings rises. Symbols are handle-first — string names are
   debug/export payload, not identity. Source text stays in loading,
   diagnostic, and debug payload roles.
 - Entrypoints stay prominent: `main.rs` owns startup and visible dispatch
   to real subsystems. Split at responsibility boundaries.
-- Comments explain non-obvious intent; `lib.rs` headers carry the reasoning
-  signatures cannot — mechanism, justification, honest boundaries,
-  provenance.
+- Comments explain non-obvious intent. A `lib.rs` header first says what the
+  module does for its caller, then explains the reasoning signatures cannot
+  carry. Follow [Explain the change](#explain-the-change).
 - Commit subjects are `lane: statement` — pick the lane by changed
   responsibility per [commit naming](#commit-naming) below.
 - `TASKS.md` supplies capability priorities and remaining acceptance; the
@@ -726,7 +778,6 @@ The rules that touch every edit:
   165 spelling-only asserts, and three PRs added 14 more within an hour of
   this rule. `tools/check_rules.py` now fails admission when a file's reads
   exceed its count in `tools/source_text_reads.txt`.
-- Write direct prose: state the idea in literal words.
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   the sample loop, `rust-systems-programmer` for Rust implementation and review,
   `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `devin-swarm`,
@@ -928,8 +979,8 @@ bootstrap implementation; those meanings stay distinct in subjects.
 | `psi` | Target-neutral source semantics through Terminal Psi: parsing, resolution, typing, checking, proof, interpretation, and Psi optimization in `omega-rust/psi/` or `source/psi/`. |
 | `omega` | The Terminal-Psi-consuming compiler stage: Omega representations, transforms, optimization, and realization semantics in `omega-rust/omega/compilation/{representations,pipeline,realization}/` or corresponding `source/omega/` implementation. Never a project-wide default. |
 | `backend` | Target, ISA, ABI, object/image encoding, layout, and execution primitives in `omega-rust/omega/compilation/backend/` and their product-source equivalents. Transform policy in `pipeline/` remains `omega`. |
-| `compiler` | Product compilation coordination and reports in `omega-rust/omega/compilation/driver/`, the source-free native driver in `omega-rust/omega/compilation/native-production/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
-| `build` | The product's Build activation in `omega-rust/omega/compilation/build-evaluation/`, plus product build declarations such as `source/omega/build.omg`. Provider planning and trust admission under `realization/` use `omega`; CLI policy-file handling uses `cli`. Repository build commands and CI use `repo`. |
+| `compiler` | Product compilation coordination and reports in `omega-rust/omega/compilation/compiler/`, the source-free native driver in `omega-rust/omega/compilation/native-production/`, or an inseparable compiler contract change spanning Psi and Omega. A coordinator call-site adjustment accompanying a stage fix keeps the stage's lane. |
+| `build` | The build system in `omega-rust/omega/build-system/`: project and package flows in `orchestration/` and Build activation in `build-settings/`, plus product build declarations such as `source/omega/build.omg`. Provider planning and trust admission under `realization/` use `omega`; CLI policy-file handling uses `cli`. Repository build commands and CI use `repo`. |
 | `packages` | Package acquisition, graphs, review, admission, installation, and update workflows in `omega-rust/omega/packages/`. Package command wiring accompanying those changes keeps `packages`. |
 | `cli` | Command parsing, flags, help, and command dispatch in `omega-rust/omega/application/cli/src/`, plus the corresponding product entrypoint. The command's underlying compiler or package behavior uses its owning lane. |
 | `tooling` | Shipped developer tools and shared host support in `omega-rust/omega/foundation/`, including artifact file writing and measurements. Semantic trust records and admission under `realization/trust-model/` use `omega`. |
@@ -973,12 +1024,11 @@ follow the same rule: they take the lane of the behavior they pin, or
 Oct 25 to Nov 1. A squash merge takes the pull request title as its subject,
 so `compiler-check` checks the title against this table.
 
-The body is prose paragraphs after a blank line, with numbers in place of
-adjectives. Cover what applies: what the previous behavior was and why it
-was wrong; which alternatives were rejected; which constraint shaped the
-diff; which gates ran, named with counts rather than the word `pass`; what
-is known red or deliberately left undone. Omit the body only when the
-subject carries the full reasoning (typo, rename, mechanical revert).
+The body follows [Explain the change](#explain-the-change), after a blank line.
+Include design constraints or rejected alternatives only when they help explain
+the final change. Describe validation by what it establishes, with measured
+results where relevant. Omit the body only when the subject carries the full
+reasoning (typo, rename, mechanical revert).
 
 Commit messages carry no tool attribution: no "Generated with ..." line, no
 `Co-Authored-By` trailer naming an agent or vendor.

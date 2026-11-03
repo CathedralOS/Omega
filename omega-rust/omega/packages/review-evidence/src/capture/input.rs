@@ -18,19 +18,63 @@ use validation::expression_owners::OwnerEnvironmentIndex;
 /// change compiler state, or authorize execution or package admission.
 #[derive(Clone, Copy)]
 pub struct PackageReviewInput<'a> {
-    pub(crate) program: &'a CheckedTrees,
+    pub(crate) source: SourceDeclarationInput<'a>,
     pub(crate) custody: &'a CheckedCompilation,
+    pub(crate) service_declarations: Option<&'a ServiceDeclarations>,
+    pub(crate) external_providers: Option<&'a ExternalProviderDeclarations>,
+}
+
+/// Read declarations and contracts before target code is produced. This view
+/// carries no target selection or executable authority. Independent review may
+/// compare a supplied program with the original checked program.
+#[derive(Clone, Copy)]
+pub struct SourceDeclarationInput<'a> {
+    pub(crate) program: &'a CheckedTrees,
     /// Read-only query state travels with the exact supplied semantic program.
     /// Aggregate projection lends its invocation context; standalone projections
     /// use the bare program without discovering another projection's memos.
     pub(crate) checking_input: &'a dyn validation::CheckingInput,
     /// Original checked trees have a separate immutable query namespace. A
     /// supplied candidate's memo must never stand in for compiler custody.
-    pub(crate) custody_checking_input: &'a dyn validation::CheckingInput,
+    pub(crate) original_checking_input: &'a dyn validation::CheckingInput,
     /// Scratch for one immutable callable-projection batch, never custody.
     pub(crate) contract_owner_queries: Option<&'a ContractOwnerQueries<'a>>,
-    pub(crate) service_declarations: Option<&'a ServiceDeclarations>,
-    pub(crate) external_providers: Option<&'a ExternalProviderDeclarations>,
+    pub(crate) mathematical_calls:
+        Option<&'a super::contracts::mathematical_calls::MathematicalCallQueries<'a>>,
+    pub(crate) original_mathematical_calls:
+        Option<&'a super::contracts::mathematical_calls::MathematicalCallQueries<'a>>,
+    pub(crate) original_program: &'a CheckedTrees,
+    pub(crate) package: Option<semantic_vocabulary::PackageKeyIdentity>,
+    pub(crate) exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
+}
+
+impl<'a> SourceDeclarationInput<'a> {
+    pub(crate) fn checked(
+        program: &'a CheckedTrees,
+        sources: &'a package_compilation::CheckedSourceCustody,
+    ) -> Self {
+        Self {
+            program,
+            original_program: program,
+            checking_input: program,
+            original_checking_input: program,
+            contract_owner_queries: None,
+            mathematical_calls: None,
+            original_mathematical_calls: None,
+            package: sources.package_identity(),
+            exact_toolchain_sources: sources.exact_toolchain_sources(),
+        }
+    }
+
+    pub(crate) fn original(self) -> Self {
+        Self {
+            program: self.original_program,
+            checking_input: self.original_checking_input,
+            contract_owner_queries: None,
+            mathematical_calls: self.original_mathematical_calls,
+            ..self
+        }
+    }
 }
 
 impl<'a> PackageReviewInput<'a> {
@@ -38,43 +82,21 @@ impl<'a> PackageReviewInput<'a> {
     /// Results are review data only, never checked compiler or execution authority.
     pub fn supplied(program: &'a CheckedTrees, custody: &'a CheckedCompilation) -> Self {
         Self {
-            program,
+            source: SourceDeclarationInput {
+                program,
+                original_program: custody,
+                checking_input: program,
+                original_checking_input: &**custody,
+                contract_owner_queries: None,
+                mathematical_calls: None,
+                original_mathematical_calls: None,
+                package: custody.sources().package_identity(),
+                exact_toolchain_sources: custody.sources().exact_toolchain_sources(),
+            },
             custody,
-            checking_input: program,
-            custody_checking_input: &**custody,
-            contract_owner_queries: None,
             external_providers: None,
             service_declarations: None,
         }
-    }
-
-    /// Ask the same checked target query with this batch's raw owner setup.
-    /// Standalone projections retain the original unindexed query path.
-    pub(crate) fn derive_checked_nominal_call_target(
-        &self,
-        expression: typed_trees::expression::ExpressionHandle,
-    ) -> Option<symbols::SymbolHandle> {
-        match self.contract_owner_queries {
-            Some(queries) => queries.derive_checked_nominal_call_target(expression),
-            None => typed_trees_to_checked_trees::derive_checked_nominal_call_target(
-                self.checking_input,
-                &self.facts,
-                expression,
-                None,
-            ),
-        }
-    }
-
-    /// The one checked machine a retained symbol names. Machine symbols form a
-    /// source-graph set, so a duplicate is not a choice: a caller that needs one
-    /// machine states its own refusal, both for absence and for ambiguity.
-    pub(crate) fn exact_machine(&self, symbol: symbols::SymbolHandle) -> Option<&Machine> {
-        let mut machines = self
-            .machines()
-            .iter()
-            .filter(|machine| machine.symbol == symbol);
-        let only = machines.next()?;
-        machines.next().is_none().then_some(only)
     }
 
     /// Prepare one independent candidate projection at review ingress. Custody
@@ -114,6 +136,37 @@ impl<'a> PackageReviewInput<'a> {
             &self.custody.providers().boundary_calling_plan_realizations,
         ))
     }
+}
+
+impl<'a> SourceDeclarationInput<'a> {
+    /// Ask the same checked target query with this batch's raw owner setup.
+    /// Standalone projections retain the original unindexed query path.
+    pub(crate) fn derive_checked_nominal_call_target(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<symbols::SymbolHandle> {
+        match self.contract_owner_queries {
+            Some(queries) => queries.derive_checked_nominal_call_target(expression),
+            None => typed_trees_to_checked_trees::derive_checked_nominal_call_target(
+                self.checking_input,
+                &self.facts,
+                expression,
+                None,
+            ),
+        }
+    }
+
+    /// The one checked machine a retained symbol names. Machine symbols form a
+    /// source-graph set, so a duplicate is not a choice: a caller that needs one
+    /// machine states its own refusal, both for absence and for ambiguity.
+    pub(crate) fn exact_machine(&self, symbol: symbols::SymbolHandle) -> Option<&Machine> {
+        let mut machines = self
+            .machines()
+            .iter()
+            .filter(|machine| machine.symbol == symbol);
+        let only = machines.next()?;
+        machines.next().is_none().then_some(only)
+    }
 
     /// Authored deployment scope must agree with immutable compiler custody.
     /// A selected member's cleared marker cannot establish portability, and
@@ -133,7 +186,7 @@ impl<'a> PackageReviewInput<'a> {
             .authored_machine_target(symbol)
             .map_err(rejected)?;
         let original = self
-            .custody
+            .original_program
             .typed
             .authored_machine_target(symbol)
             .map_err(rejected)?;
@@ -146,7 +199,7 @@ impl<'a> PackageReviewInput<'a> {
     }
 }
 
-impl<'a> PackageReviewInput<'a> {
+impl<'a> SourceDeclarationInput<'a> {
     /// Every retained authored selection row that settled one authored
     /// occurrence of `expression`, in occurrence order. An occurrence the
     /// checking ledger never settled contributes no row; callers keep their own
@@ -172,7 +225,15 @@ impl<'a> From<&PackageReviewInput<'a>> for PackageReviewInput<'a> {
     }
 }
 
-impl std::ops::Deref for PackageReviewInput<'_> {
+impl<'a> std::ops::Deref for PackageReviewInput<'a> {
+    type Target = SourceDeclarationInput<'a>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.source
+    }
+}
+
+impl std::ops::Deref for SourceDeclarationInput<'_> {
     type Target = CheckedTrees;
 
     fn deref(&self) -> &Self::Target {

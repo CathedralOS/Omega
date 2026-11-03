@@ -620,9 +620,12 @@ pub(super) fn retained_reference_lineage(
     }
     // The formation operation decides lineage, not whether the descriptor is
     // stored in a reference local, an aggregate leaf or a replacement slot.
-    let is_explicit_reborrow = super::reference_borrows::direct_reborrow_target(program, formation)
-        .is_some()
-        || super::reference_borrows::is_access_formation(program, formation);
+    // Changing the view of stored data must keep the original permission to
+    // use it. The checked formation records that relationship for both an
+    // explicit borrow and an already saved reference. Its source footprint
+    // and parent resource remain the authority for the resulting loan.
+    let is_reference_formation =
+        validation::reference_formation_source(program, formation).is_some();
     let declared_source = match program.expression_table.expression(formation) {
         checked_trees::expression::ExpressionNode::Call(call) => {
             call_declares_direct_view_source(program, call.target_symbol)
@@ -634,7 +637,7 @@ pub(super) fn retained_reference_lineage(
         checked_trees::expression::ExpressionNode::Cast(_)
             | checked_trees::expression::ExpressionNode::Call(_)
     ) && !declared_source
-        && !is_explicit_reborrow;
+        && !is_reference_formation;
     if force_unretained {
         return checked_trees::BorrowLoanLineage::UnretainedDerived;
     }
@@ -642,7 +645,7 @@ pub(super) fn retained_reference_lineage(
         return checked_trees::BorrowLoanLineage::DirectRoot;
     }
     let parent_is_unique = rebased.len() == 1;
-    if is_explicit_reborrow
+    if is_reference_formation
         && source.parent_loan.is_valid()
         && source.parent_lineage_is_retained
         && parent_is_unique

@@ -71,10 +71,7 @@ impl CarrierClosure<'_> {
                 "is affine; a copyable opaque datum requires every carrier declaration to be structurally `[copy]`",
             ));
         }
-        if self.program.machines().iter().any(|machine| {
-            machine.attached_data_symbol == definition.symbol
-                && machine.name.as_str().rsplit("::").next() == Some("drop")
-        }) {
+        if definition.cleanup_selection.is_some() {
             return Err(self.reject(path, "contains independently invoked nominal cleanup"));
         }
 

@@ -25,6 +25,7 @@ use terminal_psi::BoundaryMachineDeclaration;
 enum AllocationOperation {
     Allocate,
     Release,
+    Initialize,
 }
 
 struct Allocation {
@@ -183,6 +184,18 @@ impl AllocationImport {
             return Ok(None);
         };
         let signature = TerminalImportSignature::from(declaration);
+        // Exclusive captured storage uses the native adapter's authenticated
+        // endpoint result. It is not an owned virtual allocation address.
+        // Owned values remain in this model and owe its complete contract.
+        if matches!(operation, AllocationOperation::Initialize)
+            && declaration.parameter_order.first()
+                == Some(&terminal_psi::BoundaryParameterKind::Structural)
+            && signature.structural_parameters.first().is_some_and(|parameter| {
+                parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+            })
+        {
+            return Ok(None);
+        }
         let location = admission::validate(
             program,
             declaration,
@@ -341,6 +354,78 @@ impl TerminalEffectHandler for AllocationImport {
                 }
                 values.release(u64::try_from(address).map_err(|_| invalid())?)?;
                 Ok(TerminalEffectResult::Unit)
+            }
+            AllocationOperation::Initialize => {
+                let [
+                    TerminalScalarValue::Integer {
+                        scalar_type: fill_type,
+                        value: IntegerValue::Signed(fill),
+                    },
+                    TerminalScalarValue::Integer {
+                        scalar_type: length_type,
+                        value: IntegerValue::Unsigned(length),
+                    },
+                ] = call.arguments
+                else {
+                    return Err(invalid());
+                };
+                let signed =
+                    IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
+                let unsigned =
+                    IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
+                if *fill_type != signed || *length_type != unsigned {
+                    return Err(invalid());
+                }
+                let length = u64::try_from(*length).map_err(|_| invalid())?;
+                let admission::AddressLocation::OwnedArgument(path) = &self.location else {
+                    return Err(invalid());
+                };
+                let [TerminalBoundaryStorageBuffer::Structural(buffer)] = storage else {
+                    return Err(invalid());
+                };
+                let [argument] = call.structural_arguments else {
+                    return Err(invalid());
+                };
+                let [cell] = buffer.values() else {
+                    return Err(invalid());
+                };
+                if buffer.argument_index() != 0
+                    || buffer.access() != terminal_psi::StructuralAccess::Owned
+                    || buffer.structural_type() != argument.structural_type
+                    || cell.path != *path
+                {
+                    return Err(invalid());
+                }
+                let TerminalStorageContents::Scalar {
+                    value,
+                    stored_scalar,
+                } = cell.contents
+                else {
+                    return Err(invalid());
+                };
+                if stored_scalar != semantic_vocabulary::ScalarType::Integer(address_type) {
+                    return Err(invalid());
+                }
+                let TerminalScalarValue::Integer {
+                    scalar_type,
+                    value: IntegerValue::Unsigned(address),
+                } = value
+                else {
+                    return Err(invalid());
+                };
+                if scalar_type != address_type || *fill != 0 {
+                    return Err(invalid());
+                }
+                let address = u64::try_from(address).map_err(|_| invalid())?;
+                if values.backing_for_range(address, length).is_none() {
+                    return Err(invalid());
+                }
+                Ok(TerminalEffectResult::Reference(
+                    terminal_interpreter::TerminalReferenceResult {
+                        referent: terminal_interpreter::TerminalReferencePayload::Zeroed,
+                        references: Vec::new(),
+                    },
+                ))
             }
         }
     }

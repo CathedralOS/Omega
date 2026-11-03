@@ -1,2 +1,2 @@
 cannot prove automatic cleanup requires
-Token::drop clause `token.value == 42`
+drop_token clause `token.value == 42`

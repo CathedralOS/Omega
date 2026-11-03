@@ -211,7 +211,7 @@ public data ResolveDiagnosticCode [copy] {
     case UnsupportedDeclaration;
     // A form whose bindings resolution does not record yet rejects at that
     // form: an operator token outside an ordinary owned machine (or `==`,
-    // `!=`, `[]`, `[..]`), a `requires machine` or `where proposition`
+    // `!=`, `[]`, `[..]`), a `requires machine` or `requires proposition`
     // contract, a `satisfies` clause naming its trait through a module path,
     // or a proposition or evidence binder.
     case UnsupportedOperatorToken;

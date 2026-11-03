@@ -49,7 +49,9 @@ pub use normalized_identities::{
     NormalizedDomainTerm, NormalizedResultDispatchSet, NormalizedTypeIdentity, TypeIdentityId,
     TypeIdentityTable,
 };
-pub use static_operand_identity::StaticOperandIdentityRequest;
+pub use static_operand_identity::{
+    DeclaredStaticOperandIdentityRequest, StaticOperandIdentityRequest,
+};
 
 use crate::TypedTrees;
 use crate::data;
@@ -125,6 +127,7 @@ pub fn applied_type_identity(
         lexical_owner,
         scopes,
         TypeIdentityQualification::Ordinary,
+        &[],
     )
 }
 
@@ -144,6 +147,49 @@ pub fn applied_type_identity_in_scope(
         argument_owner,
         scopes,
         TypeIdentityQualification::Ordinary,
+        &[],
+    )
+}
+
+/// Normalize a type under an already established exact region frame. Source
+/// slots and supplying scopes resolve before this one-step correspondence;
+/// the rows are semantic identities, independent of payload spellings.
+pub fn applied_type_identity_in_region_scope(
+    program: &TypedTrees,
+    reference: TypeReferenceHandle,
+    receiving_owner: SymbolHandle,
+    argument_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_type_identity(
+        program,
+        reference,
+        receiving_owner,
+        argument_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+        resolved_lifetimes,
+    )
+}
+
+/// Normalize a value-role operand under the same exact region correspondence
+/// as a containing type argument. This does not establish the frame or admit
+/// an index; those remain the caller's obligations.
+pub fn applied_index_identity_in_region_scope(
+    program: &TypedTrees,
+    argument: IndexIdentityArgument<'_>,
+    argument_owner: SymbolHandle,
+    scopes: &[AppliedTypeIdentityScope<'_>],
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
+) -> Option<NormalizedTypeIdentity> {
+    qualified_applied_index_identity(
+        program,
+        argument,
+        argument_owner,
+        scopes,
+        TypeIdentityQualification::Ordinary,
+        resolved_lifetimes,
     )
 }
 
@@ -187,6 +233,7 @@ pub fn applied_index_identity(
         lexical_owner,
         scopes,
         TypeIdentityQualification::Ordinary,
+        &[],
     )
 }
 
@@ -205,6 +252,7 @@ pub fn portable_applied_index_identity(
         lexical_owner,
         scopes,
         TypeIdentityQualification::PackageQualified,
+        &[],
     )
 }
 
@@ -214,6 +262,7 @@ fn qualified_applied_index_identity(
     lexical_owner: SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
     qualification: TypeIdentityQualification,
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
 ) -> Option<NormalizedTypeIdentity> {
     let invalid = Cell::new(false);
     let identity = substitution::index_argument(
@@ -221,6 +270,7 @@ fn qualified_applied_index_identity(
         argument,
         &TypeIdentityContext {
             application_scopes: scopes,
+            resolved_lifetimes,
             application_owner: lexical_owner,
             qualification,
             invalid_application: Some(&invalid),
@@ -247,6 +297,7 @@ pub fn portable_applied_type_identity(
         lexical_owner,
         scopes,
         TypeIdentityQualification::PackageQualified,
+        &[],
     )
 }
 
@@ -257,6 +308,7 @@ fn qualified_applied_type_identity(
     argument_owner: SymbolHandle,
     scopes: &[AppliedTypeIdentityScope<'_>],
     qualification: TypeIdentityQualification,
+    resolved_lifetimes: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)],
 ) -> Option<NormalizedTypeIdentity> {
     let invalid = Cell::new(false);
     let identity = normalize_type_reference(
@@ -264,6 +316,7 @@ fn qualified_applied_type_identity(
         reference,
         &TypeIdentityContext {
             application_scopes: scopes,
+            resolved_lifetimes,
             application_owner: lexical_owner,
             application_argument_owner: argument_owner,
             qualification,
@@ -1122,6 +1175,22 @@ impl TypedTrees {
             .with(|table| table.text(identity).map(str::to_owned))
     }
 
+    /// A runtime carrier occupies its declared invocation ordinal, but is not
+    /// the closed Value at that ordinal. Publication retains this distinction.
+    pub fn requirement_argument_identity_text(
+        &self,
+        argument: crate::typed_trees::RequirementLocalArgument,
+        identity: NormalizedTypeIdentity,
+    ) -> Option<String> {
+        let text = self.type_identity_text(identity)?;
+        Some(match argument {
+            crate::typed_trees::RequirementLocalArgument::Static(_) => text,
+            crate::typed_trees::RequirementLocalArgument::RuntimeValue { .. } => {
+                atom(CoordinateTag::RuntimeValueCarrier, &text)
+            }
+        })
+    }
+
     /// Convenience render of the ordinary identity for boundary encoding
     /// and diagnostics: one query instead of a handle plus a lookup.
     pub fn normalized_type_identity_text(&self, type_reference: TypeReferenceHandle) -> String {
@@ -1665,7 +1734,11 @@ impl TypedTrees {
             let local = application
                 .portable_local_arguments
                 .iter()
-                .map(|identity| self.type_identity_text(*identity).unwrap_or_default())
+                .zip(application.local_arguments)
+                .map(|(identity, argument)| {
+                    self.requirement_argument_identity_text(*argument, *identity)
+                        .unwrap_or_default()
+                })
                 .collect::<Vec<_>>();
             identity.parameters = compound(
                 CoordinateTag::ClosedRequirement,

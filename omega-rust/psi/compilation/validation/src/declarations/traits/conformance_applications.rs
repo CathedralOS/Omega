@@ -23,8 +23,8 @@ use typed_trees::types::{FixedArrayLength, TypeReferenceHandle, TypeReferenceNod
 
 mod forwarding;
 pub(crate) use forwarding::{
-    applied_bound_argument_identities, applied_trait_argument_identities,
-    validate_forwarded_argument,
+    applied_bound_argument_identities, applied_bound_argument_identities_in_region_scope,
+    applied_scope_argument_identities, validate_forwarded_argument,
 };
 
 /// Validate the ordinary positional evidence telescope before a consumer erases

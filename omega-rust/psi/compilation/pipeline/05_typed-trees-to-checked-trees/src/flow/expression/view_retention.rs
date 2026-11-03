@@ -58,12 +58,26 @@ impl Execution<'_, '_, '_> {
                     return None;
                 }
                 let retention = self.incoming_value_retention(&source, capture.storage_snapshot)?;
+                let path = self
+                    .context
+                    .control
+                    .operand_retained_paths
+                    .insert_many(source.segments.iter().copied());
                 let contents = FlowOperandFact {
                     type_reference: carrier,
                     state_symbol: capture.state_symbol,
                     statement_index: capture.statement_index,
                     storage_snapshot: capture.storage_snapshot,
+                    constraints: capture.constraints,
+                    entry_origin_writes: capture.entry_origin_writes,
+                    entry_origin_unknown_write: capture.entry_origin_unknown_write,
+                    entry_binding_writes: capture.entry_binding_writes,
+                    entry_binding_unknown_write: capture.entry_binding_unknown_write,
                     retention,
+                    completion: FlowOperandCompletion::IncomingContents {
+                        root: source.root,
+                        path,
+                    },
                     ..Default::default()
                 };
                 let backing = self.context.control.operands.insert(*capture);
@@ -1064,6 +1078,7 @@ impl Execution<'_, '_, '_> {
 
     pub(super) fn capture_returned_retention(
         &mut self,
+        invocation: Handle<checked_trees::FlowCallFact>,
         expression: ExpressionHandle,
         destination: TypeReferenceHandle,
         call: &TableCallExpression,
@@ -1258,6 +1273,7 @@ impl Execution<'_, '_, '_> {
                 Handle::invalid()
             };
             let descriptor = self.capture_returned_descriptor(
+                invocation,
                 call,
                 inputs,
                 returned,

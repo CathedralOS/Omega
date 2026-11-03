@@ -176,6 +176,21 @@ pub(super) fn contract_expression_place(
         if contract.kind != ContractProofFactKind::Ensures || !owner_matches {
             return None;
         }
+        let origin = super::super::points::contract_fact_origin(contract)?;
+        for member in &result.members {
+            facts
+                .contract_member_projections
+                .insert(facts::ContractMemberProjection {
+                    origin,
+                    fact: contract.fact,
+                    expression: member.expression,
+                    receiver_type: member.receiver_type,
+                    authored_field: member.authored_field,
+                    applied_field: member.applied_field,
+                    applied_case: member.applied_case,
+                    authored_case: member.authored_case,
+                });
+        }
         // Reserved results have no source binder symbol. Keep their exact
         // occurrence root and declared field coordinates, rather than an opaque
         // expression with unresolved fields that review cannot reconstruct.

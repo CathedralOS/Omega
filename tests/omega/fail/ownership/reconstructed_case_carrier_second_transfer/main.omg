@@ -1,8 +1,8 @@
 // Retiring an absent payload never permits a second transfer of a live one.
 use omega::language::core::drop;
 
-data Token [linear] { value: u32; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u32; }
+machine drop_token(token: &mut Token) {}
 data Slot { case Empty; case Held(token: Token); }
 data Holder { slot: Slot; }
 

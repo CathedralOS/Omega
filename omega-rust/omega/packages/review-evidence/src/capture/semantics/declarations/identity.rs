@@ -1,17 +1,17 @@
 use super::ownership::nominal_owner_from_symbols;
-use crate::capture::PackageReviewInput;
+use crate::capture::{PackageReviewInput, SourceDeclarationInput};
 use crate::record::PackageReviewNominalIdentity;
 use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn nominal_identity(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     nominal_identity_from_symbols(
         &compilation.typed.symbols,
         symbol,
-        compilation.custody.sources().exact_toolchain_sources(),
+        compilation.exact_toolchain_sources,
     )
 }
 

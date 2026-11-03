@@ -124,7 +124,15 @@ impl BlockBindings {
             execution
                 .live_claims
                 .retain(|_, claim| claim.place != Some(*source));
-            execution.structural_values.remove(source);
+            if let Some(retired) = execution.structural_values.remove(source) {
+                let origin = execution
+                    .reference_referents
+                    .get(&crate::boundary::values::StructuralRuntimePlace::from(&retired))
+                    .cloned();
+                execution
+                    .retired_structural_homes
+                    .push((*source, retired, origin));
+            }
             execution.aggregate_argument_backings.remove(source);
             execution.byte_sequence_values.remove(source);
             execution.scalar_array_values.remove(source);
@@ -140,6 +148,13 @@ impl BlockBindings {
         execution.retire_reentered_results(target)?;
         for destination in self.structural.keys() {
             if let Some(previous) = execution.structural_values.remove(destination) {
+                let origin = execution
+                    .reference_referents
+                    .get(&crate::boundary::values::StructuralRuntimePlace::from(&previous))
+                    .cloned();
+                execution
+                    .retired_structural_homes
+                    .push((*destination, previous.clone(), origin));
                 execution.queue_retired_descriptor_home((&previous).into());
             }
             execution.aggregate_argument_backings.remove(destination);

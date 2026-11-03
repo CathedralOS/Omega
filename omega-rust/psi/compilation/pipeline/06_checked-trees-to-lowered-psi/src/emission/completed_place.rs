@@ -206,7 +206,8 @@ pub(crate) fn endpoint_use(
     )
 }
 
-fn descriptor_shape(
+/// Read a view's descriptor shape at the exact selected source path.
+pub(crate) fn descriptor_shape(
     types: &[StructuralTypeDeclaration],
     root: StructuralTypeId,
     path: &[StructuralPathSegment],

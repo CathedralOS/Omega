@@ -115,7 +115,19 @@ pub(super) fn form(
         vec![(path, Subject::Integer(value))]
     };
     let mut values = Vec::new();
-    for arm in expression_table(program).match_arms(dispatch.arms) {
+    for (ordinal, arm) in expression_table(program)
+        .match_arms(dispatch.arms)
+        .iter()
+        .enumerate()
+    {
+        let source_arm = arena::Handle::from_parts(
+            dispatch
+                .arms
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(ordinal).ok()?)?,
+            dispatch.arms.start().generation(),
+        );
         let mut selected = Vec::new();
         let mut failed = Vec::new();
         for (path, subject) in remaining {
@@ -202,6 +214,13 @@ pub(super) fn form(
                     }
                     None
                 })?;
+            let decision = checked_trees::CheckedDeclarationDispatchArm {
+                expression,
+                source_arm,
+            };
+            if !decisions.dispatches.contains(&decision) {
+                decisions.dispatches.push(decision);
+            }
             let value = path.engine.substituted(&value);
             engine.retain_operation_definitions(&path.engine)?;
             values.push(ConditionalValueArm {

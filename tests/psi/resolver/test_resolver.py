@@ -1428,9 +1428,9 @@ def main() -> None:
     rejected(
         program,
         "unsupported-trait-contract",
-        b"trait Ordered<C> where proposition R(left: C, right: C); { }",
+        b"trait Ordered<C> requires proposition R(left: C, right: C); { }",
         UNSUPPORTED_MACHINE_CONTRACT,
-        b"where proposition R(left: C, right: C);",
+        b"requires proposition R(left: C, right: C);",
     )
     # A trait telescope keeps an evidence binder in the position the author
     # wrote. The binder's trait application binds as a trait, not a type.

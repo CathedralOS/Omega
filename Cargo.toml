@@ -16,7 +16,7 @@ members = [
     "samples/cli/independent/travel_time_tomography/validation/terminal",
     "samples/cli/independent/spectrometer_attribution",
     "omega-rust/omega/application/cli",
-    "omega-rust/omega/compilation/build",
+    "omega-rust/omega/build-system/orchestration",
     "omega-rust/omega/interpreter/terminal-runtime",
     "omega-rust/omega/interpreter/native-provider-runtime",
     "samples/cli/independent/pareto_experiment_selection/validation",
@@ -58,8 +58,8 @@ members = [
     "omega-rust/psi/compilation/pipeline/06_checked-trees-to-lowered-psi",
     "omega-rust/psi/compilation/pipeline/07_lowered-psi-to-lowered-psi",
     "omega-rust/psi/compilation/pipeline/08_lowered-psi-to-terminal-psi",
-    "omega-rust/psi/compilation/driver",
-    "omega-rust/psi/compilation/driver/terminal-production",
+    "omega-rust/psi/compilation/psi-compiler",
+    "omega-rust/psi/compilation/psi-compiler/terminal-production",
     "omega-rust/psi/compilation/proof/admission",
     "omega-rust/psi/compilation/representations/terminal-psi/codec",
     "omega-rust/psi/compilation/representations/terminal-psi/fuel",
@@ -97,11 +97,13 @@ members = [
     "omega-rust/omega/compilation/representations/target-operations",
     "omega-rust/omega/compilation/representations/target-operations/legalized-operations",
     "omega-rust/omega/compilation/representations/selected-instructions",
+    "omega-rust/omega/compilation/representations/selected-instructions/analyses",
     "omega-rust/omega/compilation/representations/machine-code",
     "omega-rust/omega/compilation/backend/plans/backend-plan",
     "omega-rust/omega/compilation/backend/layout",
     "omega-rust/omega/compilation/backend/machine-emission",
     "omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations",
+    "omega-rust/omega/compilation/realization/provider-admission",
     "omega-rust/omega/compilation/pipeline/02_abstract-operations-to-target-operations",
     "omega-rust/omega/compilation/pipeline/03_target-operations-to-selected-instructions",
     "omega-rust/omega/compilation/backend/register-environment",
@@ -126,7 +128,7 @@ members = [
     "omega-rust/omega/compilation/backend/object/object-file",
     "omega-rust/omega/foundation/artifacts",
     "omega-rust/omega/packages/build-declarations",
-    "omega-rust/omega/compilation/build-evaluation",
+    "omega-rust/omega/build-system/build-settings",
     "omega-rust/omega/packages/build-output",
     "omega-rust/omega/compilation/realization/provider-planning",
     "omega-rust/omega/compilation/realization/provider-selection",
@@ -134,9 +136,9 @@ members = [
     "omega-rust/omega/compilation/realization/trust-model",
     "omega-rust/omega/compilation/products",
     "omega-rust/omega/compilation/native-production",
-    "omega-rust/omega/compilation/driver",
+    "omega-rust/omega/compilation/compiler",
     "omega-rust/omega/packages/review-evidence",
-    "omega-rust/omega/packages/compilation-inputs",
+    "omega-rust/omega/packages/package-compilation",
     "omega-rust/omega/packages/source-acquisition",
     "omega-rust/omega/packages/resolver-execution",
     "omega-rust/omega/packages/package-manager",
@@ -182,6 +184,9 @@ opt-level = 3
 opt-level = 3
 
 [profile.dev.package.selected-instructions-to-register-homes]
+opt-level = 3
+
+[profile.dev.package.selected-instruction-analyses]
 opt-level = 3
 
 # Typed programs, checked plans, live ranges, allocation legality and homes

@@ -6,7 +6,7 @@ and refuses the selected x86-only optimization with its existing target mismatch
 obligation. The refusal must not discard the successful Linux image or replay
 source, Build, Terminal publication, or a native stage.
 
-Run the optimized `omega-build` example with `OMEGA_PHASE_PROFILE=1`:
+Run the optimized `orchestration` example with `OMEGA_PHASE_PROFILE=1`:
 
 ```sh
 XDG_CACHE_HOME="$(mktemp -d)" OMEGA_PHASE_PROFILE=1 package_batch --native-evidence --compare-single-targets --run \

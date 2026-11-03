@@ -9,7 +9,7 @@ use crate::record::{
 pub(crate) mod values;
 use super::SignatureProjection;
 use super::parameters::identity_lifetime_substitutions;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::calling::application::signature::instantiate_static_parameters;
 use crate::capture::refusal;
 use crate::capture::semantics::signatures::parameters::project_policy_type_parameters_after;
@@ -24,7 +24,7 @@ use typed_trees::{
 /// associations from the original checked telescope, never a dummy type string.
 pub(crate) fn project_type_parameters(
     typed: &dyn ::validation::CheckingInput,
-    checked_source: &PackageReviewInput<'_>,
+    checked_source: &SourceDeclarationInput<'_>,
     parameters: &[TypeParameter],
     source_parameters: &[TypeParameter],
     declaration_path: &str,
@@ -182,7 +182,7 @@ pub(crate) fn parameters(
 }
 
 fn convert_parameters(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     source: &[TypeParameter],
     values: Vec<PackageReviewTypeParameter>,
     depth: usize,
@@ -238,7 +238,7 @@ fn convert_parameters(
 }
 
 fn machine(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     source: &MachineParameterContract,
     value: PackageReviewMachineParameterContract,
     depth: usize,
@@ -256,6 +256,7 @@ fn machine(
                     value.type_parameters,
                     depth,
                 )?,
+                conformance_bounds: value.conformance_bounds,
                 parameters: value.parameters,
                 return_type: source.return_type.is_valid().then_some(value.return_type),
                 contracts: value.contracts,

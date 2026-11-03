@@ -2,8 +2,8 @@
 // token remains readable and consumable after the constructed argument returns.
 use omega::language::core::drop;
 
-data Token [linear] { value: u32; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u32; }
+machine drop_token(token: &mut Token) {}
 data Slot { case Empty; case Held(token: Token); }
 data Holder { slot: Slot; }
 data Mixed { required: Token; slot: Slot; }

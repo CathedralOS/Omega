@@ -3,9 +3,9 @@
 #[test]
 fn every_retained_constructor_checks_the_recovery_selection_before_capture() {
     let source = include_str!("../retained.rs");
-    // One owner row spells the six default conversions — one per staged result
+    // One owner row spells the five default conversions — one per staged result
     // that carries no recorded recovery prefix — and runtime spill is the
-    // seventh constructor, spelled out because it binds the recorded prefix.
+    // sixth constructor, spelled out because it binds the recorded prefix.
     let rows = source
         .split("retained_allocation_from_staged!(")
         .nth(1)
@@ -13,7 +13,7 @@ fn every_retained_constructor_checks_the_recovery_selection_before_capture() {
         .split(");")
         .next()
         .expect("the row list body");
-    assert_eq!(rows.matches("StagedOptimized").count(), 6);
+    assert_eq!(rows.matches("StagedOptimized").count(), 5);
     let constructors = source.split("impl TryFrom<").skip(1).collect::<Vec<_>>();
     assert_eq!(constructors.len(), 2);
     for constructor in &constructors {

@@ -1,201 +1,141 @@
-# Dynamic dispatch selector payload bound
+# Dynamic selectors through selected target code
 
-Dispatching a trait method through a dynamic trait carrier (`dyn` / trait conformance) whose contract establishes `result <= 88u64` preserves the return bound across the selector and data lanes, discharging exact subtraction `88u64 - result`.
+A program must call the implementation its runtime selector names and keep the
+result bound that makes later arithmetic safe. These examples call two lawful
+implementations, check their distinct results, and use the same public
+`result <= 88u64` guarantee to prove `88u64 - result` safe.
 
-The original root reproduction is preserved in [main.omg](main.omg) and [build.omg](build.omg).
+Owning tasks: **BUILD-OWNED-TARGET-SELECTION**, replacing the remaining target
+prefixes with ordinary named implementations chosen in Build; and
+**RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**, preserving dynamic selection
+and the complete callable table through compilation and execution.
 
-## Places
+Fact: Dispatching a trait method through a dynamic trait carrier (dyn / trait conformance) whose contract establishes result <= 88u64 preserves the return bound across the selector and data lanes, discharging exact subtraction 88u64 - result.
 
-The nine places carry the dynamic trait selector and data arguments through each language construct,
-accompanied by `<place>/invalid/` reject twins:
+`ActualEvaluator` returns 38 for input 10 and 28 otherwise. `AlternateEvaluator`
+calls a helper returning 48 for input 10 and 58 otherwise. Every positive
+executes both selectors with inputs 10 and 20, expecting differences 50, 60,
+40 and 30. A wrong selector, dropped input, inverted branch or omitted helper
+cannot satisfy those checks. The field place also checks the surrounding
+17/23 fields. Runtime comparisons observe the computed results; they do not
+supply the bound used to form the subtraction.
 
-| Place | Positive Program | Invalid Reject Twin | Carrier / Transport |
-| --- | --- | --- | --- |
-| root | [main.omg](main.omg) | — | dyn selector dispatches method and discharges subtraction directly |
-| local | [local/main.omg](local/main.omg) | [local/invalid/main.omg](local/invalid/main.omg) | dyn selector bound to a local variable before dispatching |
-| field | [field/main.omg](field/main.omg) | [field/invalid/main.omg](field/invalid/main.omg) | dyn selector stored in and projected from record field |
-| parameter | [parameter/main.omg](parameter/main.omg) | [parameter/invalid/main.omg](parameter/invalid/main.omg) | dyn selector passed as an explicit machine parameter |
-| call result | [call_result/main.omg](call_result/main.omg) | [call_result/invalid/main.omg](call_result/invalid/main.omg) | dyn selector returned across call boundary |
-| match join | [match_join/main.omg](match_join/main.omg) | [match_join/invalid/main.omg](match_join/invalid/main.omg) | dyn selector preserved across match convergence join |
-| const name | [const_name/main.omg](const_name/main.omg) | [const_name/invalid/main.omg](const_name/invalid/main.omg) | dispatched result subtracted against named constant |
-| a nested machine | [other_state/main.omg](other_state/main.omg) | [other_state/invalid/main.omg](other_state/invalid/main.omg) | dyn selector and data operand passed across state transition |
-| another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | dyn selector and data operand forwarded through another machine |
-| another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | dyn selector and data operand consumed across target-scoped machine bodies |
+The [named-predicate production](alias_contract/README.md) expresses that same
+public bound as `within_payload_bound(result, 88u64)`. Both productions carry
+the same fact through all nine places:
 
-Run each place with `omega run <place>/main.omg`.
-
-## Optional cleanup retains dispatch callees
-
-The root, nine places, and pinned positive/reject fixtures explicitly select
-`ControlFlowCleanup`. This covers the callable-retention part of
-**RESTORE-DYNAMIC-DESCRIPTOR-AND-TABLE-CUSTODY**: every executable row of a
-published dynamic table retains its machine and that machine's transitive
-callees, even without a direct call edge from the entry. The tables survive
-cleanup, so their machine identities must remain usable by both Terminal Psi
-and native realization.
-
-The match-join place runs both selector paths with distinct results: the first
-implementation returns 38, and the second calls a helper returning 48. The
-caller checks `88 - result` as 50 and 40 respectively. The invalid twin weakens
-the public bound to 89 and still rejects at exact subtraction.
-
-The [ablation experiment](../../../../wiki/drafts/measurements/pass_ablation_2026_10_28/README.md)
-records the failing original producer, repair, local runtime observations and
-remaining performance uncertainty. This establishes only its recorded host
-observations; the parent task's broader contracts, product parity and other
-native hosts remain separate acceptance.
-
-## Pinned fixtures
-
-The sample folder and its fixture family do not share a name. Each place is
-pinned under `tests/omega/` as
-`dyn_dispatch_selector_payload_bound_through_<place>_{exit,rejected}`, following
-the sibling `named_conformance_dispatch_*` and `length_*` rows:
-
-| Place | Positive fixture | Reject twin fixture |
+| Place | Direct bound | Named predicate |
 | --- | --- | --- |
-| local | [pass/facts/dyn_dispatch_selector_payload_bound_through_local_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_local_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_local_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_local_rejected/main.omg) |
-| field | [pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_field_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_field_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_field_rejected/main.omg) |
-| parameter | [pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_parameter_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_parameter_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_parameter_rejected/main.omg) |
-| call result | [pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_call_result_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_call_result_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_call_result_rejected/main.omg) |
-| match join | [pass/facts/dyn_dispatch_selector_payload_bound_through_match_join_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_match_join_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_match_join_rejected/main.omg) |
-| const name | [pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_const_name_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_const_name_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_const_name_rejected/main.omg) |
-| a nested machine | [pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_other_state_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_other_state_rejected/main.omg) |
-| another machine | [pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_other_machine_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_other_machine_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_other_machine_rejected/main.omg) |
-| another target body | [pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit](../../../../tests/omega/pass/facts/dyn_dispatch_selector_payload_bound_through_target_body_exit/main.omg) | [fail/facts/dyn_dispatch_selector_payload_bound_through_target_body_rejected](../../../../tests/omega/fail/facts/dyn_dispatch_selector_payload_bound_through_target_body_rejected/main.omg) |
+| Local | [local](local/main.omg) / [reject](local/invalid/main.omg) | [program](alias_contract/local/main.omg) / [reject](alias_contract/local/invalid/main.omg) |
+| Field | [field](field/main.omg) / [reject](field/invalid/main.omg) | [program](alias_contract/field/main.omg) / [reject](alias_contract/field/invalid/main.omg) |
+| Parameter | [parameter](parameter/main.omg) / [reject](parameter/invalid/main.omg) | [program](alias_contract/parameter/main.omg) / [reject](alias_contract/parameter/invalid/main.omg) |
+| Call result | [call_result](call_result/main.omg) / [reject](call_result/invalid/main.omg) | [program](alias_contract/call_result/main.omg) / [reject](alias_contract/call_result/invalid/main.omg) |
+| Match join | [match_join](match_join/main.omg) / [reject](match_join/invalid/main.omg) | [program](alias_contract/match_join/main.omg) / [reject](alias_contract/match_join/invalid/main.omg) |
+| Const name | [const_name](const_name/main.omg) / [reject](const_name/invalid/main.omg) | [program](alias_contract/const_name/main.omg) / [reject](alias_contract/const_name/invalid/main.omg) |
+| Nested machine | [other_state](other_state/main.omg) / [reject](other_state/invalid/main.omg) | [program](alias_contract/other_state/main.omg) / [reject](alias_contract/other_state/invalid/main.omg) |
+| Other machine | [other_machine](other_machine/main.omg) / [reject](other_machine/invalid/main.omg) | [program](alias_contract/other_machine/main.omg) / [reject](alias_contract/other_machine/invalid/main.omg) |
+| Selected target implementation | [target_body](target_body/main.omg) / [reject](target_body/invalid/main.omg) | [program](alias_contract/target_body/main.omg) / [reject](alias_contract/target_body/invalid/main.omg) |
 
-Each pass fixture copies its place's `main.omg` byte for byte, declares
-`Expected exit: 0`, binds `ProgramEntry` for all four hosted targets, and
-carries its own `expected_native_exit.txt`. Each reject twin copies its
-place's `invalid/main.omg` and authors its expectation in `invalid/`-style
-fragments (`exact arithmetic`, `` may overflow `u64` ``), which the corpus
-runner weighs against the refusal it actually produced.
+The [root](main.omg) and [named-predicate root](alias_contract/main.omg) use the
+local form. Every positive binds all four hosted targets and expects exit 0
+in native and Terminal Psi execution.
 
-## Requirements and Evidence
+Each reject twin keeps the executable bodies, inputs, subtraction and runtime
+checks unchanged. It weakens only the published result bound from 88 to 89 on
+the requirement and both implementation members. A result permitted to be 89
+cannot justify `88 - result`; rejection must name that exact-arithmetic
+obligation. The harmless bodies do not make that weaker promise sufficient.
 
-- **Parent outcome:** `DYNAMIC-DISPATCH` / `NAMED-IMPLEMENTATION-CONFORMANCE-MIGRATION` ([TASKS.md](../../../../TASKS.md)).
-- **Requirement established:** End-to-end nine-place dynamic trait dispatch with explicit `dyn` selector and data lane separation, verifying that method invocation through `dyn PayloadEvaluator` statically preserves the return postcondition bound (`result <= 88u64`), discharging exact subtraction `88u64 - result` without receiver attachments.
+## Build selection
 
-Full 8-layer specification and lowering evidence:
+Both `target_body` projects call `SelectedCompute::compute`, passing the dynamic
+selector and its ordinary integer input separately. Explicit Build rows choose
+`X86Compute` for the two x86-64 targets and `ArmCompute` for the two ARM64 targets.
+The entry supplies tag 17 or 29 respectively; each selected implementation
+checks its own tag before dispatching. Selecting the other implementation
+therefore traps. No source machine declaration carries a target prefix.
 
-- **Establishment:** Trait `PayloadEvaluator` defines inline member `machine compute(base: u64) -> u64 ensures result <= 88u64;`. Implementation `ActualEvaluator satisfies PayloadEvaluator` establishes conformance satisfaction with its verified body returning `38u64`. Coercion `ActualEvaluator as dyn PayloadEvaluator` establishes a runtime dynamic trait selector value citing `ActualEvaluator`'s closed conformance table. Dynamic call `PayloadEvaluator::compute(selector, 10u64)` dispatches through the selector and data lanes, establishing postcondition guarantee `result <= 88u64` without requiring any post-hoc caller equality guard (`transition diff == 50u64` evaluates the runtime difference `88 - 38`, rather than manufacturing the proof premise).
-- **Identity and lifetime:** The dynamic selector `dyn PayloadEvaluator` carries package-scoped implementation selection identity without a data subject, `Self` carrier, receiver binding, or hidden heap allocation. The passed data argument `10u64` and returned scalar `38u64` are immutable values transported independently with distinct lifetimes. The postcondition bound `result <= 88u64` attaches strictly to the returned value across local variable binding, struct field storage and projection, explicit machine parameter passing, call returns, match joins, named constant bounds, state transitions, machine forwarding, and target-scoped bodies.
-- **Composition:** The dynamic trait call result composes across all 9 standard places to statically discharge exact subtraction `88u64 - result`:
-  - `local`: `dyn` selector is bound to a local variable `selector` before dispatching `compute` and subtracting.
-  - `field`: `dyn` selector is stored in `Carrier.selector` record field and projected out before dispatching.
-  - `parameter`: `dyn` selector is passed as an explicit machine parameter `evaluate(selector)`.
-  - `call_result`: `dyn` selector is obtained from helper machine `acquire()` before dispatching `compute`.
-  - `match_join`: `dyn` selectors converge across divergent match branches before dispatching `compute`.
-  - `const_name`: subtraction bound is defined by compile-time named constant `const LIMIT: u64 = 88u64`.
-  - `other_state`: `dyn` selector and data operand are passed as arguments to state `evaluate(sel, val)`.
-  - `other_machine`: `dyn` selector and data operand are forwarded through helper machine `forward(sel, val)`.
-  - `target_body`: dynamic dispatch and exact subtraction are executed across target-scoped bodies for all four hosted targets (`linux_x86_64`, `linux_arm64`, `windows_x86_64`, `macos_arm64`).
-  In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in weakening the trait postcondition to `ensures result <= 89u64` (and returning `89u64`), proving that exact subtraction `88u64 - result` strictly fails closed when the postcondition bound permits underflow.
-- **Soundness boundaries:** All nine reject twins under `<place>/invalid/` reject during compile-time verification (`omega --check`) with `error: exact arithmetic in machine ... may overflow `u64``, confirming that the arithmetic proof engine soundly detects that when `result` can be 89, `88u64 - result` may underflow `u64`.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source constructs lower into canonical `PSITERM\0` target-neutral representations. The lowering phase strictly separates explicit `dyn` selector lanes from data argument lanes (`dyn` selector vs. data lanes), erasing mathematical proof annotations while preserving the dynamic dispatch table reference. Both Terminal Psi interpretation and native execution agree (`omega run --both` reports exit 0).
-- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Target realization joins Build companion rows (`ProgramEntry`) across the four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`). Target layout plans validate `dyn` selector geometry (pointer-sized dispatch token) and 64-bit scalar data lanes, while `CallPlan`/`StatePlan` assign register and stack homes for dynamic dispatch call targets, selector operands, and scalar returns.
-- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for indirect call dispatch through the dynamic selector table, 64-bit subtraction (`sub`), and equality comparisons. Backend register allocation assigns register homes and disjoint stack activation frames, inserting entry prologues and restoration epilogues honoring the `StatePlan` frame ceiling.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic dispatch table references resolve into concrete read-only `dyn` dispatch-table relocations. Basic blocks and branch offsets relax with offset reflow, machine-state footprint evidence validates, and direct PE/ELF/Mach-O images execute natively with Terminal Psi agreement (`omega run --both` reports `native exit 0` and `interp exit: 0`) across host platforms.
+The requirement permits that tag-check crash, declares no service use, and
+retains the same dynamic call followed by `88 - result`. The entry's service
+ceiling names `SelectedCompute`. Ordinary named implementations and Build rows
+follow [provider selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
+and [multi-target compilation](../../../../wiki/spec/build/configuration.md#multi-target-compilation).
+The caller's selector remains independent of Build's target choice, under
+[dynamic dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md).
 
-Remaining open under DYNAMIC-DISPATCH: multi-trait composite dyn selectors, dynamically sized trait object payload projections, and cross-package generic conformance specialization tables.
+## Requirements checked by these programs
 
-## Run record
+- **Establishment:** checked implementation members prove the public result
+  bound. The named predicate reduces to the same integer comparison. No caller
+  equality check establishes a missing guarantee.
+- **Identity and lifetime:** the exact selector and explicit input remain
+  independent values across locals, fields, calls and nested machines. Selecting
+  code creates no hidden data receiver or borrowed instance.
+- **Composition:** every call uses its own selector, input and public result
+  promise. Both match branches execute and select different implementations.
+  The weaker-bound twins test the consuming subtraction directly.
+- **Soundness:** public contracts and ordinary conformance refinement govern
+  the call. Erased predicate reasoning grants no access, storage or ownership.
+- **Checked to Terminal Psi:** the portable program retains the selector,
+  integer argument, indirect call and result. The parent production keeps its
+  existing `ControlFlowCleanup` selection; AlternateEvaluator's separate helper
+  must survive with the dynamic table's callable dependencies.
+- **Providers, layout and calling convention:** Build records four explicit
+  target choices. The dynamic selector occupies its own pointer-sized value;
+  the integer arguments and result retain their ordinary calling convention.
+- **Instructions and stack storage:** indirect calls preserve selector and data
+  arguments, then perform the same integer subtraction. Field neighbors check
+  that the selector projection uses the intended slot.
+- **Encoding and execution:** the emitted executable must produce the authored
+  result and agree with Terminal Psi. Source checking or successful emission
+  alone does not establish this requirement.
 
-Producer: `omega` built from this candidate, `--build-profile` reporting
-`{"schema":"omega-compiler-build-profile-v1","opt_level":"1"}`. Host:
-macOS arm64. Command per place: `omega run --both <place>/main.omg`.
+## Validation and remaining scope
 
-| Place | Positive (`--both`) | Reject twin (`--check`) |
-| --- | --- | --- |
-| root | `native exit 0` / `interp exit: 0` | — |
-| local | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
-| field | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
-| parameter | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
-| call result | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
-| match join | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
-| const name | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `entry` local `diff` may overflow `u64` `` |
-| a nested machine | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `main` state `evaluate` local `diff` may overflow `u64` `` |
-| another machine | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `forward` state `entry` terminal expression may overflow `u64` `` |
-| another target body | `native exit 0` / `interp exit: 0` | rejected: ``exact arithmetic in machine `compute_target` state `entry` terminal expression may overflow `u64` `` |
+The fixed starting revision is `2da2c5b57f1966e0989001b12d805d6d477113e4`.
+The first hosted run uses documentation-only checkpoint `25686539ece3` with
+unchanged compiler, library and authored program inputs. Earlier passing target
+prefixes are migration inputs, not a newly discovered compiler defect.
+The unchanged baseline passes all 36 corpus fixtures and 38 sample projects on
+Linux x86-64. Migration checkpoint `8a297d8025c2` exposed a separate checking
+error: the two target places reject because the compiler mistakes their first
+ordinary dynamic-valued argument for the outer call's selector. The other
+sixteen corpus positives execute with native/Terminal exit 0, and all eighteen
+bound controls reject. Neither target place executes, and the sample leg does
+not run after that failure.
 
-This row established coverage, not a compiler repair: all ten positive
-projects already ran green on the base, and the gap was that no host-pinned
-golden row had been recorded. No compiler source changed.
+The shared call classifier now reads the requirement's declaring owner first.
+A boundary call forwards every authored argument; only the later local trait
+call consumes its separate selector. The [wrong-trait control](controls/wrong_trait/main.omg)
+keeps a genuine attempt to call an unrelated trait invalid. This fixes the
+existing call rules rather than changing the selector or public result bound.
 
-## Pinned golden records
+Repair revision `dbde2a0eb0ce5a77198bc4ee3f26d5253cf4a56c` passes the complete
+focused selection on [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41538946198)
+and [macOS ARM64](https://github.com/CathedralOS/Omega/actions/runs/41538950836).
+On each host, source checking accepts twenty programs and rejects all twenty-one
+controls for their intended reasons. All eighteen fact fixtures execute with
+native and Terminal exit 0. The two existing dynamic-call regression fixtures
+also agree between engines: one exits 0 and the other exits 70 as authored.
+All thirty-nine sample projects meet their oracles: twenty execute successfully
+and nineteen reject as intended. The eighteen weaker-bound twins reject at the
+exact-arithmetic obligation on the subtraction; the unrelated-trait control
+rejects because its selector does not inherit the called trait.
 
-The fact is pinned in both corpus goldens on main.
+The migration selection comprises 36 corpus fixtures and all 38 original sample
+projects: both roots, eighteen positive places and eighteen reject twins.
+The compiler repair adds a wrong-trait control and four existing dynamic-call
+regressions, bringing its focused selection to 41 fixtures and 39 sample projects. Each
+sample Main/Build pair is copied to its corresponding fixture under
+`tests/omega/{pass,fail}/facts/dyn_dispatch_selector_payload_bound_through_*`
+or `dyn_dispatch_payload_alias_through_*`. Reject diagnostics and raw execution
+records retain their actual producer revision and host in the claim evidence.
+Both producers use verified optimization level 1. Owned Source and combined
+execution records name the measured repair revision; later documentation,
+explanatory comments and record updates do not claim a new execution.
+Windows x86-64 and Linux ARM64 execution remain unverified.
 
-- **Check leg** (`tests/omega/corpus_outcomes.txt`): 9
-  `checked ... check-target:macos_arm64` rows for the positive places and 9
-  `rejected` rows for the twins, recorded at revision `cc6fcc708be` by the
-  check leg filtered to this fact's 18 fixtures
-  (`python3 tools/corpus_gate.py --filter <the 18 fixture paths> --record`,
-  `OMEGA_CORPUS_JOBS=2`, one host-wide record slot). The reject diagnostics name
-  the refusing machine and state: six places report ``exact arithmetic in machine
-  `main` state `entry` local `diff` may overflow `u64` ``; a nested machine reports
-  ``machine `main` state `evaluate` ``; another machine reports ``machine
-  `forward` state `entry` terminal expression ``; and another target body reports
-  ``machine `compute_target` state `entry` terminal expression `` once for each
-  hosted target. A fresh check-leg run of the same 18 fixtures on that revision
-  is clean: `0 structural moves, 0 rejected without their expected fragment,
-  0 fail fixtures did not reject`.
-- **Native leg** (`tests/omega/corpus_native_macos_arm64.txt`): the nine
-  `built ... exit:0` rows are retained evidence stamped `@143f0b3e0428`. They
-  were re-measured on revision `cc6fcc708be` by a clean `--native` run:
-  `9 fixtures {'built': 9}`, 9 of 9 authored exits met, 0 stdout differences,
-  no structural move (the `perf_faster` flags come from a job-count difference
-  against the golden and are the gate's own noise warning). No re-record was
-  needed to retain them; a later session refreshing the stamp should expect to
-  change only the `@revision` token.
-
-Both oracles were shown to discriminate on that revision, so the pinned rows
-are evidence rather than a description of the environment.
-
-- **Native oracle.** Mutating the `local` positive program's own outcome
-  (`machine done() {}` to `machine done() { crash Trap; }`, which still checks) made
-  the built artifact trap: the gate reported
-  `expected native 0, observed built {'exit': 'signal', 'signal': '5'}`,
-  1 unmet oracle, 1 structural move, exit 3, while the other eight places still
-  exited 0. Restoring the program returned the native run to clean exit 0.
-- **Check oracle.** Replacing one twin's authored `expected.txt` fragment with an
-  unrelated sentence moved its row's `expected_satisfied` from `True` to `False`:
-  the gate reported `1 rejected without their expected fragment ... it no longer
-  pins its authored reason`, verdict `regressed`, exit 3. Restoring the fragment
-  returned the check run to clean exit 0.
-
-## Dispatch discrimination
-
-The obligation's class decides where a violation is caught. For this fact the
-bound is a **value/arithmetic bound** discharged by exact subtraction, so the
-violation surfaces at the consuming operation; the selection itself settles at
-the conformance gate.
-
-- **Runtime, selector identity is load-bearing.** Two probes differ in exactly
-  one token, the selected implementation. `ActualEvaluator` (whose member
-  returns `38u64`) gives `native exit 0` / `interp exit: 0`. Swapping to
-  `OtherEvaluator` (whose member returns `7u64`, so `diff` is `81`) traps both
-  engines: `native signal 5` and `interp crash: Trap (host presentation
-  agrees)`. The runtime dispatch reads the selected implementation's body; it
-  is not a statically folded constant.
-- **Static, the bound is proof information.** `88u64 - result` is provable
-  only because `result <= 88u64` genuinely crosses the selector lane. Tightening
-  the same program to `87u64 - result` refuses statically with ``exact arithmetic
-  ... may overflow `u64` ``, so the postcondition is carried as a fact rather
-  than re-derived from a known return value.
-- **Static, at the conformance gate.** An implementation whose member realizes
-  the requirement but weakens its postcondition (`ensures result <= 200u64`,
-  returning `89u64`) is refused before any call:
-  ``machine `LooseEvaluator::compute` realizes `PayloadEvaluator::compute` but
-  does not guarantee its `ensures result <= 88`; callers of the requirement
-  assume it``. This is the same soundness behavior the sibling
-  `named_conformance_dispatch` row measured.
-- **Separation holds.** Changing only the data argument (`10u64` to `9999u64`)
-  while keeping the same selector and requirement leaves both engines at exit
-  0, confirming the selector and data lanes are independent operands with no
-  receiver attachment.
-
-The [named-contract production](alias_contract/README.md) preserves this same
-fact, bound and subtraction through all nine places when the public result
-guarantee is expressed by a typed mathematical alias. Its separate reject twins
-weaken only that public bound and retain the implementation's stronger guarantee.
+This migration does not close either parent task. Remaining source families,
+provider admission and layout/callback requirements stay on the target-selection
+board item; broader dynamic operational contracts and cross-host realization
+remain on the dynamic-selection item.

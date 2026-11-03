@@ -5,7 +5,7 @@ and typed programs. Checked fixed-array-length jobs execute through the shared
 Terminal producer and interpreter; remaining pure value and policy jobs still
 use the [checked interpreter](../../interpreter/checked-interpreter/src/interpreter.rs).
 Build activation executes only through Omega's
-[Terminal Build host](../../../omega/compilation/build-evaluation/src/build_evaluation.rs).
+[Terminal Build host](../../../omega/build-system/build-settings/src/build_evaluation.rs).
 This service owns neither Build configuration nor package acquisition or target realization.
 
 Start at [build_time_evaluation.rs](src/build_time_evaluation.rs). Its
@@ -369,7 +369,7 @@ Checked arithmetic rejects overflow rather than publishing partial accounting.
 Live cells are charged from reservation through the final alias, not estimated
 as Rust allocation size. Text backing has a separately charged lifetime.
 
-The [build observation custody note](../../../omega/packages/compilation-inputs/observation_custody.md)
+The [build observation custody note](../../../omega/packages/package-compilation/observation_custody.md)
 owns current sponsor ceilings and filesystem observation accounting.
 Those bounds and schema-version histories are neither
 semantic-evaluation laws nor host CPU/RSS containment guarantees.

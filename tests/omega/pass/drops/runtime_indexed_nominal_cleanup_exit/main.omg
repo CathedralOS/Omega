@@ -34,11 +34,11 @@ boundary trait WindowsConsoleIo {
     terminates;
 }
 
-data Token { ready: bool; byte: i32; }
+data Token dropped by drop_token { ready: bool; byte: i32; }
 data Pair { left: Token; right: Token; }
 data Bundle { pairs: [Pair; 2]; }
 
-machine Token::drop(token: &mut Token)
+machine drop_token(token: &mut Token)
 requires token.ready
 reaches Console
 {

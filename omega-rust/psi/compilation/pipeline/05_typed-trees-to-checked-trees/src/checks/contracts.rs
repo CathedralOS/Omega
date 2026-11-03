@@ -48,11 +48,11 @@ mod direct;
 mod domains;
 mod evaluator;
 pub(in crate::checks) mod prover;
-pub(crate) use prover::boolean_value_at_place;
 pub(crate) use prover::call_guarantees::captured_place as captured_guarantee_place;
 pub(crate) use prover::call_guarantees::current_predicates as current_call_guarantee_predicates;
 pub(crate) use prover::call_guarantees::{GuaranteeUse, proves_captured_predicates};
 pub(crate) use prover::contexts_prove_proposition_label;
+pub(crate) use prover::{BooleanValueQueries, boolean_value_at_place};
 
 // Provers the call requirement and exit checks consult directly.
 mod call_bounds;
@@ -107,7 +107,6 @@ pub(super) fn check_flow_call_contracts(
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     entailment: &mut ProvenExitExpressions<'_, '_>,
-    expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<ContractDecisions, Vec<Diagnostic>> {
     let mut diagnostics = phase_profile::scope(
         "psi.05.check_checked_facts.check_flow_call_contracts.cleanup_requirements",
@@ -233,7 +232,6 @@ pub(super) fn check_flow_call_contracts(
                         call_flow,
                         &nominal_requirements,
                         incoming_guards.for_machine(state_flow.machine_symbol),
-                        expression_intervals,
                         call_frames,
                         &mut state_constant_obligations,
                         &mut state_recipe_obligations,

@@ -64,93 +64,14 @@ pub(crate) fn build_crash_contract_capsules(
     let mut capsules = signatures
         .into_iter()
         .map(|(target_machine, target_state, signature)| {
-            let parameters = program.state_signature_parameters(signature);
-            let parameter_names = declared_parameter_names(parameters);
-            let contracts = program.state_signature_contracts(signature);
-            let published = build_published_crash_buckets(
+            build_signature_crash_capsule(
                 program,
-                contracts,
-                &parameter_names,
-                content_conservation,
-                CrashContractOwner::Signature(signature),
-                Some(operators),
-                &[],
-            )?;
-            let crash = checked_trees::CrashPlan::published_ceiling(published.clone());
-
-            let published_service_names = program
-                .service_reach_rows
-                .services(signature.service_reach_row)
-                .iter()
-                .filter_map(|service| program.service_reaches.definition(*service))
-                .map(|definition| definition.name.clone())
-                .collect::<Vec<_>>();
-            let published_invocations =
-                validation::declared_signature_invocations(program, signature)
-                    .into_iter()
-                    .map(|invocation| match invocation {
-                        flow_effects::InvocationTarget::Parameter(index) => {
-                            format!("parameter:{index}")
-                        }
-                        flow_effects::InvocationTarget::Service(symbol) => program
-                            .trait_definition_by_symbol(symbol)
-                            .map(|definition| format!("service:{}", definition.name))
-                            .unwrap_or_else(|| format!("service:#{}", symbol.arena_index())),
-                    })
-                    .collect::<Vec<_>>();
-
-            let generics = signature_generic_binders(program, signature);
-            let declaration = checked_trees::DeclaredContractStructure {
-                callables: vec![declared_callable(
-                    program,
-                    parameters,
-                    signature.return_type,
-                    contracts,
-                    &generics,
-                    content_conservation,
-                    true,
-                )?],
-                clauses: Vec::new(),
-            };
-            let termination = language_semantics::TerminationInterface::Published(
-                signature.termination_guarantee.clone(),
-            );
-            let termination = declared_termination(
-                program,
-                &termination,
-                &callable_binders(&generics, parameters),
-            );
-            let identity = program.type_identities.with(|table| {
-                checked_trees::contract_identity(
-                    language_semantics::MachineSupplyMode::Requirement,
-                    None,
-                    &published_service_names,
-                    language_semantics::SynchronousInvocationInterface::PublishedCeiling,
-                    &published_invocations,
-                    language_semantics::SuspensionInterface::PublishedMaySuspend(
-                        signature.suspends,
-                    ),
-                    language_semantics::BlockingInterface::PublishedMayBlock(signature.blocks),
-                    crash.interface(),
-                    &termination,
-                    &declaration,
-                    table,
-                )
-            });
-            Ok(checked_trees::CrashContractCapsule::new_with_commitment(
                 target_machine,
                 target_state,
-                identity.report_fingerprint,
-                identity.commitment,
-                published,
+                signature,
+                content_conservation,
+                operators,
             )
-            .with_operational_envelope(
-                published_service_names,
-                published_invocations,
-                signature.suspends,
-                signature.blocks,
-                signature.termination_guarantee.clone(),
-            ))
         })
         .collect::<Result<Vec<_>, diagnostics::Diagnostic>>()?;
     // Legacy declarations own their entire callable contract. Token-bearing
@@ -180,6 +101,103 @@ pub(crate) fn build_crash_contract_capsules(
     });
     capsules.dedup();
     Ok(capsules)
+}
+
+/// The signature supplies both the crash conditions and their contract identity.
+/// An applied call and an exported declaration use this same producer; callers
+/// cannot combine one signature's conditions with another's identity.
+pub(super) fn build_signature_crash_capsule(
+    program: &dyn validation::CheckingInput,
+    target_machine: symbols::SymbolHandle,
+    target_state: symbols::SymbolHandle,
+    signature: &typed_trees::signature::StateSignature,
+    content_conservation: &[validation::ContentConservationSourcePlan],
+    operators: &checked_trees::CheckedOperatorFacts,
+) -> Result<checked_trees::CrashContractCapsule, diagnostics::Diagnostic> {
+    let parameters = program.state_signature_parameters(signature);
+    let parameter_names = declared_parameter_names(parameters);
+    let contracts = program.state_signature_contracts(signature);
+    let published = build_published_crash_buckets(
+        program,
+        contracts,
+        &parameter_names,
+        content_conservation,
+        CrashContractOwner::Signature(signature),
+        Some(operators),
+        &[],
+    )?;
+    let crash = checked_trees::CrashPlan::published_ceiling(published.clone());
+
+    let published_service_names = program
+        .service_reach_rows
+        .services(signature.service_reach_row)
+        .iter()
+        .filter_map(|service| program.service_reaches.definition(*service))
+        .map(|definition| definition.name.clone())
+        .collect::<Vec<_>>();
+    let published_invocations = validation::declared_signature_invocations(program, signature)
+        .into_iter()
+        .map(|invocation| match invocation {
+            flow_effects::InvocationTarget::Parameter(index) => {
+                format!("parameter:{index}")
+            }
+            flow_effects::InvocationTarget::Service(symbol) => program
+                .trait_definition_by_symbol(symbol)
+                .map(|definition| format!("service:{}", definition.name))
+                .unwrap_or_else(|| format!("service:#{}", symbol.arena_index())),
+        })
+        .collect::<Vec<_>>();
+
+    let generics = signature_generic_binders(program, signature);
+    let declaration = checked_trees::DeclaredContractStructure {
+        callables: vec![declared_callable(
+            program,
+            parameters,
+            signature.return_type,
+            contracts,
+            &generics,
+            content_conservation,
+            true,
+        )?],
+        clauses: Vec::new(),
+    };
+    let termination = language_semantics::TerminationInterface::Published(
+        signature.termination_guarantee.clone(),
+    );
+    let termination = declared_termination(
+        program,
+        &termination,
+        &callable_binders(&generics, parameters),
+    );
+    let identity = program.type_identities.with(|table| {
+        checked_trees::contract_identity(
+            language_semantics::MachineSupplyMode::Requirement,
+            None,
+            &published_service_names,
+            language_semantics::SynchronousInvocationInterface::PublishedCeiling,
+            &published_invocations,
+            language_semantics::SuspensionInterface::PublishedMaySuspend(signature.suspends),
+            language_semantics::BlockingInterface::PublishedMayBlock(signature.blocks),
+            crash.interface(),
+            &termination,
+            &declaration,
+            table,
+        )
+    });
+    Ok(checked_trees::CrashContractCapsule::new_with_commitment(
+        target_machine,
+        target_state,
+        identity.report_fingerprint,
+        identity.commitment,
+        published,
+    )
+    .with_operational_envelope(
+        published_service_names,
+        published_invocations,
+        signature.suspends,
+        signature.blocks,
+        signature.termination_guarantee.clone(),
+    ))
 }
 
 fn build_operator_crash_contract_capsule(

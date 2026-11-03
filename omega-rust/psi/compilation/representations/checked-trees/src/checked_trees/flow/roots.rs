@@ -225,6 +225,7 @@ pub struct FlowControlFacts {
     pub calls: Arena<FlowCallFact>,
     /// Authored argument expressions, spanned by [`FlowCallFact::authored_arguments`].
     pub call_arguments: Arena<typed_trees::expression::ExpressionHandle>,
+    pub call_argument_positions: Arena<u32>,
     pub exits: Arena<FlowExitFact>,
     pub outgoing: Arena<super::FlowStateOutgoingFact>,
     pub exit_parameter_origins: Arena<super::FlowExitParameterOrigin>,
@@ -308,12 +309,27 @@ impl FlowControlFacts {
             operand_retained_paths: Arena::default(),
             calls,
             call_arguments: Arena::default(),
+            call_argument_positions: Arena::default(),
             exits,
             outgoing: Arena::default(),
             exit_parameter_origins: Arena::default(),
             states: states.into(),
             retired_calls: Vec::new(),
         }
+    }
+
+    /// The checking owner has already formed this complete source permutation.
+    /// An absent span is natural order; an unavailable nonempty span contributes
+    /// no argument observations rather than reconstructing source evaluation.
+    pub fn call_argument_evaluation_order(&self, call: &FlowCallFact) -> Vec<usize> {
+        if call.argument_evaluation_order.is_empty() {
+            return (0..call.authored_arguments.len() as usize).collect();
+        }
+        self.call_argument_positions
+            .span_or_empty(call.argument_evaluation_order)
+            .iter()
+            .map(|position| *position as usize)
+            .collect()
     }
 
     /// The call row of `state` at an authored statement and call ordinal.
@@ -590,6 +606,7 @@ paged_flow_roots!(FlowControlFacts {
         statements,
         calls,
         call_arguments,
+        call_argument_positions,
         exits,
         outgoing,
         exit_parameter_origins,

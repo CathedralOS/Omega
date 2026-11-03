@@ -54,7 +54,8 @@ impl<'program> StructuralJudge<'program> {
                 }
                 _ => return None,
             },
-        ) {
+        ) && !self.has_runtime_induction(scope.1.symbol, expression, owner_symbol(owner))
+        {
             return None;
         }
         let leading_operands = owner_leading_operands(&owner);
@@ -128,6 +129,21 @@ impl<'program> StructuralJudge<'program> {
                 entry_bindings.push((parameter.symbol, value));
             }
         }
+        // A content write can overlap the source frame's loan anchor without
+        // storing into that anchor's inline cells. The completed storage graph
+        // retains this distinction and its aliases. Preserve the entry value
+        // only when that exact call's complete inline footprint permits it;
+        // unknown effects and reinterpreted referents supply no such evidence.
+        let preserved_inline = subjects
+            .as_ref()
+            .into_iter()
+            .flatten()
+            .filter(|subject| {
+                subject.stable_on_return
+                    && self.call_preserves_inline_subject(scope.1, expression, &subject.entry)
+            })
+            .map(|subject| subject.entry.parameter)
+            .collect::<Vec<_>>();
         let mut bindings = entry_bindings
             .iter()
             .filter_map(|(symbol, value)| {
@@ -148,28 +164,30 @@ impl<'program> StructuralJudge<'program> {
                                 .then(|| (*symbol, value.clone()))
                         });
                 };
-                let observed =
-                    if crate::reference_shell(program, parameter.type_reference).is_none() {
-                        (!parameter.is_mutable).then(|| value.clone())?
-                    } else if subjects.as_ref().is_some_and(|subjects| {
-                        subjects.iter().any(|subject| {
-                            subject.entry.parameter == *symbol && subject.preserved_on_return
-                        })
-                    }) {
-                        value.clone()
-                    } else if !parameter.is_mutable
-                        && crate::slice_view_shell(program, parameter.type_reference, &[]).is_some()
-                    {
-                        // The passed descriptor can survive without preserved
-                        // referent contents. Retain only its metadata identity;
-                        // a pre-call contents observation is not a post-call fact.
-                        super::super::super::structural_terms::descriptor_only_observation(
-                            parameter.type_reference,
-                            value.clone(),
-                        )
-                    } else {
-                        return None;
-                    };
+                let observed = if crate::reference_shell(program, parameter.type_reference)
+                    .is_none()
+                {
+                    (!parameter.is_mutable).then(|| value.clone())?
+                } else if subjects.as_ref().is_some_and(|subjects| {
+                    subjects.iter().any(|subject| {
+                        subject.entry.parameter == *symbol
+                            && (subject.preserved_on_return || preserved_inline.contains(symbol))
+                    })
+                }) {
+                    value.clone()
+                } else if !parameter.is_mutable
+                    && crate::slice_view_shell(program, parameter.type_reference, &[]).is_some()
+                {
+                    // The passed descriptor can survive without preserved
+                    // referent contents. Retain only its metadata identity;
+                    // a pre-call contents observation is not a post-call fact.
+                    super::super::super::structural_terms::descriptor_only_observation(
+                        parameter.type_reference,
+                        value.clone(),
+                    )
+                } else {
+                    return None;
+                };
                 Some((*symbol, observed))
             })
             .collect::<Vec<_>>();
@@ -179,7 +197,10 @@ impl<'program> StructuralJudge<'program> {
         // guarantees own its equations. Install it only after retiring writes.
         let mut post_storage = Vec::new();
         for subject in subjects.as_ref().into_iter().flatten() {
-            if subject.preserved_on_return || !subject.stable_on_return {
+            if subject.preserved_on_return
+                || preserved_inline.contains(&subject.entry.parameter)
+                || !subject.stable_on_return
+            {
                 continue;
             }
             let Some(coordinate) = self.captured_reference_subject(&subject.entry, scope.1) else {

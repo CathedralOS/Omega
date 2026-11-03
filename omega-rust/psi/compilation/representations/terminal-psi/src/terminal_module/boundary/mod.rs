@@ -48,3 +48,6 @@ pub use reach_applications::{
     ClosedReachCapture, ClosedReachMachineBinding, ClosedReachParameter, ClosedReachSchema,
 };
 pub use services::{InstallationReachDependency, ServiceDeclaration, TerminalRootServiceReach};
+
+mod result_regions;
+pub use result_regions::ReferenceResultShape;

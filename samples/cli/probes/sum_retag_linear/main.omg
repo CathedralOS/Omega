@@ -14,8 +14,8 @@
 
 use omega::language::core::drop;
 
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 
 data Choice { case Success(token: Token); case Failure(token: Token); }
 data Holder { marker: u64; choice: Choice; }

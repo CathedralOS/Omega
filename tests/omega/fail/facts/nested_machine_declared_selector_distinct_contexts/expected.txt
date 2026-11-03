@@ -1,1 +1,1 @@
-a computed natural rank application has no independent entry formation
+no exact private-coordinate assignment proves every edge and complete cycle

@@ -1,6 +1,6 @@
 use super::facts::ContractProjectionContext;
 use crate::capture::EvidenceOption;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::expressions::names::portable_ordinal;
 use crate::capture::semantics::declarations::{nominal_identity, trait_requirement_identity};
 use crate::record::{
@@ -10,7 +10,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn checked_outcome_specific_guarantee<'a>(
-    compilation: &'a PackageReviewInput<'a>,
+    compilation: &'a SourceDeclarationInput<'a>,
     context: &ContractProjectionContext<'_>,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     result_data: SymbolHandle,
@@ -46,7 +46,7 @@ pub(crate) fn checked_outcome_specific_guarantee<'a>(
 }
 
 pub(crate) fn checked_contract_fact<'a>(
-    compilation: &'a PackageReviewInput<'a>,
+    compilation: &'a SourceDeclarationInput<'a>,
     context: &ContractProjectionContext<'_>,
     fact: arena::Handle<typed_trees::domain::ProofFact>,
     kind: PackageReviewContractKind,
@@ -75,7 +75,7 @@ pub(crate) fn checked_contract_fact<'a>(
 }
 
 pub(crate) fn validate_checked_contract_evidence(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     binding: Option<&typed_trees::name::Identifier>,
     checked: &checked_trees::ContractProofFact,
@@ -94,7 +94,7 @@ pub(crate) fn validate_checked_contract_evidence(
 
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_checked_contract_evidence_components(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     binding: Option<&typed_trees::name::Identifier>,
     checked_owner: checked_trees::ContractProofFactOwner,

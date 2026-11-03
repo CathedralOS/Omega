@@ -118,6 +118,13 @@ pub trait TerminalEffectHandler {
         Ok(true)
     }
 
+    /// Opt in to returning selections of this call's captured input storage.
+    /// This grants no backing or access; completion authenticates the selection
+    /// against the exact capture and published result regions.
+    fn accepts_reference_results(&self, _boundary: BoundaryMachineId) -> bool {
+        false
+    }
+
     /// Select the complete presentation once, before capture. A hybrid import
     /// can retain modeled streams for standard descriptors while selecting
     /// original native storage for explicitly supplied filesystem descriptors.

@@ -522,6 +522,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
     // each query re-borrows the live accumulator instead of the base.
     let statement_retirement = Retirement {
         program,
+        trace,
         facts,
         prepared_calls,
         machine,
@@ -535,6 +536,7 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         at_exit: false,
         uncommitted_owner: PlaceRoot::Symbol(Default::default()),
         returned: None,
+        scalar_completion: None,
         transported_loans: &transported_loans,
     };
     // Receiving carriers retire before their retained supplying descriptors.
@@ -919,7 +921,9 @@ pub(in crate::execution::terminal_unit) fn append_reference_releases(
         authored_state,
         statement_index,
         None,
+        None,
         false,
+        trace,
         results,
         operations,
         operations.len(),
@@ -968,6 +972,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     machine: SymbolHandle,
     state: SymbolHandle,
     returned: Option<&CheckedUnitStructuralReturnPlan>,
+    scalar_control: Option<&checked_trees::CheckedUnitScalarControlPlan>,
     results: &[(BindingPlan, PlaceRoot)],
     operations: &mut Vec<OperationPlan>,
     trace: &super::super::LocalConstructionTrace,
@@ -991,6 +996,32 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     {
         return Some(());
     }
+    // The final use of a local must finish before exit releases it. Select
+    // those return paths once, and preserve a malformed plan's reason in the
+    // construction diagnostic instead of hiding it in a retirement refusal.
+    let scalar_paths = match scalar_control {
+        Some(control)
+            if !matches!(
+                control.terminator,
+                checked_trees::CheckedScalarStateTerminator::Crash { .. }
+            ) =>
+        {
+            match control
+                .terminator
+                .returning_paths(&facts.flow.guarded_exits)
+            {
+                Ok(paths) => Some(paths),
+                Err(reason) => {
+                    trace.phase(reason);
+                    return None;
+                }
+            }
+        }
+        _ => None,
+    };
+    let scalar_completion = scalar_paths.as_deref().map(|paths| {
+        crate::execution::terminal_unit::storage_transfers::ScalarCompletion { state, paths }
+    });
     let order = program
         .statement_table
         .admitted_execution_order(authored_state.statement_nodes);
@@ -1112,6 +1143,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
     // the completed prefix, the scheduled set and the returned holder vary.
     let statement_retirement = Retirement {
         program,
+        trace,
         facts,
         prepared_calls,
         machine,
@@ -1125,6 +1157,7 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         at_exit: false,
         uncommitted_owner: PlaceRoot::Symbol(Default::default()),
         returned: None,
+        scalar_completion,
         transported_loans: &transported_loans,
     };
     // Lexical last use does not order descriptor death: a parent's last
@@ -1287,7 +1320,9 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         authored_state,
         statement_index,
         returned,
+        scalar_completion,
         true,
+        trace,
         results,
         operations,
         insertion,

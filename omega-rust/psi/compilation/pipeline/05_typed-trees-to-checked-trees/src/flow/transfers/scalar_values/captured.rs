@@ -17,7 +17,7 @@ use validation::{
 };
 
 use super::ScalarValue;
-use super::conversions::{ConversionKind, SelectedConversion};
+use super::conversions::SelectedConversion;
 
 use crate::flow::transfers::scalar_values::CallValues;
 use crate::flow::{FlowBuildContext, active_context_handles};
@@ -176,18 +176,7 @@ impl CapturedValue for ScalarValue {
         // magnitude; admission failing here means the snapshot never denoted
         // a source value, so there is nothing to convert.
         let admitted = admitted_integer(source, &value)?;
-        let converted = match &conversion.kind {
-            ConversionKind::Widen => source.widen_value_to(target, admitted)?,
-            ConversionKind::Exact(range) => {
-                // The retained occurrence fact proved the spelling's range;
-                // a captured value outside it never denoted this conversion's
-                // normal return.
-                if value < range.minimum || value > range.maximum {
-                    return None;
-                }
-                source.exact_cast_value_to(target, admitted)?
-            }
-        };
+        let converted = source.widen_value_to(target, admitted)?;
         Some(Self::Integer(integer_magnitude(converted)))
     }
 }
@@ -306,19 +295,9 @@ impl CapturedValue for IntegerRange {
 
     fn convert(self, conversion: &SelectedConversion) -> Option<Self> {
         let carrier = carrier_integer_range(conversion.target)?;
-        // Widening preserves the captured bounds. A partial conversion keeps
-        // the meet with its proved spelling range, independently of the
-        // arithmetic policy attached to its result.
-        let bounds = match &conversion.kind {
-            ConversionKind::Widen => self,
-            ConversionKind::Exact(range) => Self {
-                minimum: self.minimum.max(range.minimum.clone()),
-                maximum: self.maximum.min(range.maximum.clone()),
-            },
-        };
-        // A meet that cannot denote a normal-return value, and any interval
-        // escaping the target carrier, fails the capture outright.
-        integer_range_contains(&carrier, &bounds).then_some(bounds)
+        // Widening preserves the captured bounds; an interval escaping the
+        // target carrier fails the capture outright.
+        integer_range_contains(&carrier, &self).then_some(self)
     }
 }
 

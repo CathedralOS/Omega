@@ -4,7 +4,7 @@
 //! No fixture trust, compiler-identity override or source interpreter is used.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest, execute};
 use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use orchestration::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use package_manager::{
     PackageBuildSession, PackageCommand, PackageCommandKind, PackageCommandOptions,
     PackageCommandStatus, execute_package_command,

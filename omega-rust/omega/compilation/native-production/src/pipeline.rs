@@ -23,13 +23,13 @@ use register_environment::baseline_target_register_environment;
 use register_homes_to_post_allocation_machine::stage_optimized_post_allocation_machine_plan;
 use resolved_layout_to_resolved_layout::execute_resolved_layout_optimization;
 use selected_form_encoding_to_resolved_layout::stage_optimized_resolved_selected_form_layout;
-use selected_instructions_to_register_homes::{
-    ValidatedSelectedAnalysis, stage_register_allocation,
-};
+use selected_instructions_to_register_homes::{SelectedProgramView, stage_register_allocation};
 use selected_instructions_to_selected_instructions::{
     SelectedOptimizationInput, optimize_selected_instructions,
 };
-use target_operations_to_selected_instructions::stage_optimized_instruction_selection;
+use target_operations_to_selected_instructions::{
+    TargetSelectionInput, stage_optimized_instruction_selection,
+};
 
 /// Both application entries and separately emitted callables use these stages.
 pub(crate) fn lower_to_target(
@@ -50,7 +50,8 @@ pub(crate) fn lower_to_target(
         )
         .map_err(TargetLoweringError::AbstractOptimization)?;
         observation.enter(NativePipelineStage::AbstractToTarget);
-        let target = lower_optimized_to_target_operations(optimized, request)
+        let (program, lowering_facts) = optimized.into_lowering_parts();
+        let target = lower_optimized_to_target_operations(program, lowering_facts, request)
             .map_err(TargetLoweringError::Target)?;
         Ok(target)
     })
@@ -63,14 +64,28 @@ pub(crate) fn emit_target(
 ) -> Result<native_artifact::FragmentObjectProjection, BodyEmissionError> {
     let register_environment = baseline_target_register_environment(optimized_target.target())
         .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterEnvironment)?;
+    // Backend emission reads the optimized-target product directly;
+    // instruction selection borrows its plans and later stages never see it.
+    let target_input = std::sync::Arc::new(optimized_target);
     let selected = phase_profile::scope("omega.03", || {
         observation.enter(NativePipelineStage::InstructionSelection);
-        stage_optimized_instruction_selection(optimized_target, register_environment)
-            .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)
+        let optimized = target_input.optimized();
+        stage_optimized_instruction_selection(
+            TargetSelectionInput {
+                target: target_input.target_operations(),
+                source: optimized.plan(),
+                unit: optimized.unit(),
+                origins: target_input.boundary_origins(),
+                optimization: optimized.identity_bundle().identity(),
+                projection: optimized.projection(),
+                manifest: optimized.pre_physical_manifest().identity,
+                selections: optimized.selections().clone(),
+                budget_per_pass: optimized.budget_per_pass(),
+            },
+            register_environment,
+        )
+        .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)
     })?;
-    // Backend emission reads the optimized-target product directly; the
-    // selected-program stages after instruction selection do not carry it.
-    let target_input = std::sync::Arc::clone(selected.optimized_target_owner());
     let selected = phase_profile::scope("omega.04", || {
         observation.enter(NativePipelineStage::SelectedOptimization);
         optimize_selected_instructions(SelectedOptimizationInput {
@@ -84,7 +99,7 @@ pub(crate) fn emit_target(
     })?;
     let allocation = phase_profile::scope("omega.05", || {
         observation.enter(NativePipelineStage::RegisterAllocation);
-        stage_register_allocation(selected)
+        stage_register_allocation(selected.into_selected_output())
             .map_err(OptimizedVerifiedPhysicalPipelineError::RegisterAllocation)
     })?;
     phase_profile::scope("omega.native.frame_realization", || {
@@ -142,22 +157,28 @@ pub(crate) fn emit_target(
             )
             .map_err(FunctionRelativeOptimizationRealizationError::LayoutOptimization)
         })?;
-        let realization = phase_profile::scope("omega.native.frame_realization.assemble_fixed_frame", || {
-            machine_emission::assemble_fixed_frame_realization(
-                allocation,
-                target_input,
-                machine,
-                frame,
-                encoding,
-                layout,
-                optimized_layout,
-            )
-        })?;
+        let realization = phase_profile::scope(
+            "omega.native.frame_realization.assemble_fixed_frame",
+            || {
+                machine_emission::assemble_fixed_frame_realization(
+                    allocation,
+                    target_input,
+                    machine,
+                    frame,
+                    encoding,
+                    layout,
+                    optimized_layout,
+                )
+            },
+        )?;
         let physical = StagedOptimizedFunctionFragmentEmissionSource::from(realization);
-        phase_profile::scope("omega.native.frame_realization.emit_fragment_object", || {
-            observation.enter(NativePipelineStage::FragmentEmission);
-            native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
-        })
+        phase_profile::scope(
+            "omega.native.frame_realization.emit_fragment_object",
+            || {
+                observation.enter(NativePipelineStage::FragmentEmission);
+                native_artifact::emit_fragment_object(physical).map_err(BodyEmissionError::Object)
+            },
+        )
     })
 }
 

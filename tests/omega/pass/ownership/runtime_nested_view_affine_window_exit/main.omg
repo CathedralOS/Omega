@@ -1,7 +1,7 @@
 // Expected exit: 0. Moving a nested view element and restoring it keep exact storage.
-data Token { value: i32; }
+data Token dropped by drop_token { value: i32; }
 data Window<'storage> { tokens: &'storage mut [Token]; marker: u64; }
-machine Token::drop(token: &mut Token) { token.value = 0; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 machine mint(value: i32) -> Token { Token { value: value } }
 
 machine replace<'storage>(windows: &mut [Window<'storage>], selected: u64, position: u64) -> i32 {

@@ -132,36 +132,6 @@ fn project_operational_rows(
     (suspensions, blocking)
 }
 
-/// The storage history of every checked body, built before validation's
-/// machine loop from validation-independent inputs, so that checking
-/// judgments read one history. It is the flow fixed point with no interval,
-/// cast, assignment or projection decisions; on the corpus witnesses its
-/// stores, writes and joins equal the later complete build's. A program whose
-/// pre-flow facts fail has no graph, and its judgments keep their own reads.
-pub(crate) fn build_storage_graph(
-    program_context: &::validation::CheckingContext<'_>,
-    proof_plan: &ProofPlan<'_>,
-    content: checked_trees::ContentProjectionFacts,
-    operational: OperationalPlan,
-    service_reach_inference: flow_effects::ServiceReachInferencePlan,
-) -> Option<checked_trees::FlowFacts> {
-    match build_facts(
-        program_context,
-        proof_plan,
-        content,
-        &[],
-        operational,
-        service_reach_inference,
-        validation::ProgramValidationFacts::default(),
-        &[],
-        &crate::flow::StateMutationSummaryCache::default(),
-        FactScope::StorageGraph,
-    ) {
-        Ok(BuiltFacts::StorageGraph(flow)) => Some(flow),
-        _ => None,
-    }
-}
-
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn build_check_facts(
     program_context: &::validation::CheckingContext<'_>,
@@ -170,51 +140,9 @@ pub(crate) fn build_check_facts(
     integer_assignments: &[proof::checker::CheckedIntegerAssignment],
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
-    validation_facts: validation::ProgramValidationFacts,
-    expression_intervals: &[validation::ExpressionInterval],
+    mut validation_facts: validation::ProgramValidationFacts,
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
-    match build_facts(
-        program_context,
-        proof_plan,
-        content,
-        integer_assignments,
-        operational,
-        service_reach_inference,
-        validation_facts,
-        expression_intervals,
-        mutation_summaries,
-        FactScope::Complete,
-    )? {
-        BuiltFacts::Complete(facts, plans) => Ok((facts, plans)),
-        BuiltFacts::StorageGraph(_) => unreachable!("the complete scope builds every fact"),
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum FactScope {
-    StorageGraph,
-    Complete,
-}
-
-enum BuiltFacts {
-    StorageGraph(checked_trees::FlowFacts),
-    Complete(CheckFacts, validation::PreparedEffectPlans),
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_facts(
-    program_context: &::validation::CheckingContext<'_>,
-    proof_plan: &ProofPlan<'_>,
-    content: checked_trees::ContentProjectionFacts,
-    integer_assignments: &[proof::checker::CheckedIntegerAssignment],
-    operational: OperationalPlan,
-    service_reach_inference: flow_effects::ServiceReachInferencePlan,
-    mut validation_facts: validation::ProgramValidationFacts,
-    expression_intervals: &[validation::ExpressionInterval],
-    mutation_summaries: &crate::flow::StateMutationSummaryCache,
-    scope: FactScope,
-) -> Result<BuiltFacts, Vec<diagnostics::Diagnostic>> {
     // One resolver serves this immutable fact-construction window, including
     // stored-reference loans, flow classification, terminal ranking projections,
     // termination progress proofs, mutation frames, and crash-route refinement.
@@ -345,8 +273,6 @@ fn build_facts(
                     &service_reach_inference,
                     &prepared.values.scalar_expressions,
                     &prepared.operators,
-                    &validation_facts.exact_integer_casts,
-                    expression_intervals,
                     mutation_summaries,
                     call_frames.as_ref(),
                 )
@@ -416,9 +342,11 @@ fn build_facts(
         "after flow fixed point",
         "psi.05.build_check_facts.flow_fixed_point",
     );
-    if scope == FactScope::StorageGraph {
-        return Ok(BuiltFacts::StorageGraph(prepared.flow));
-    }
+    // The one flow fixed point is the storage history every later judgment
+    // reads: the post-flow checks here and the deferred contract entailment.
+    // Validation's machine loop ran before it existed, so its judgments
+    // treated every write as opaque.
+    program_context.attach_storage_graph(std::sync::Arc::new(prepared.flow.clone()));
     phase_profile::checkpoint(
         "flow fixed-point iterations",
         "psi.05.build_check_facts.flow_fixed_point.outer_iterations",
@@ -591,6 +519,7 @@ fn build_facts(
         || {
             build_contract_plans(
                 program,
+                &proof,
                 &service_reaches,
                 &synchronous_invocations,
                 &suspensions,
@@ -708,7 +637,7 @@ fn build_facts(
 
     let mut stored_integer_writes = arena::Arena::new();
     stored_integer_writes.insert_many(validation_facts.stored_integer_writes);
-    Ok(BuiltFacts::Complete(
+    Ok((
         CheckFacts {
             quotient_formations: validation_facts.quotient_formations,
             stored_integer_writes,

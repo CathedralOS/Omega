@@ -522,7 +522,7 @@ public data MachineItem [copy] {
 // head. A `Machine` contract `requires machine Name [<binders>] [(parameters)]
 // [-> Type] clauses ;` gives a machine binder its callable signature, or
 // with a `Satisfies` clause (`requires machine Name satisfies Trait::member;`)
-// an exact requirement; a `Proposition` contract `where proposition
+// an exact requirement; a `Proposition` contract `requires proposition
 // Name(parameters);` gives a proposition binder its signature. Which binder
 // a contract names is resolution's question: a contract may also name a
 // binder of an earlier contract's own generic parameters.
@@ -563,7 +563,7 @@ public data NamePath [copy] {
 // type-reference handles in `SyntaxTrees::trait_parents`; its member
 // machines and their descendants are a physical range of `SyntaxTrees::machines`;
 // direct requirements have parent == 0 and their container
-// is `Trait`; its `where proposition` contracts are a contiguous range of
+// is `Trait`; its `requires proposition` contracts are a contiguous range of
 // `SyntaxTrees::contracts`. `boundary trait` declares service requirements
 // at a crossing. A transparent refinement `trait Name = Base { ... }` names a
 // structural bound on a `Base` conformance, the type reference `base`: it

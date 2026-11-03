@@ -1286,7 +1286,7 @@ fn body_route(
     let statements = program.statement_table.statements(state.statement_nodes);
     // Transitions are control: loops, guarded arms and returned values out
     // of arms. A state's own contracts, and a local or by-value parameter
-    // whose owner may run a nominal `::drop` at return, need the graph's
+    // whose owner may run a selected cleanup hook at return, need the graph's
     // state signature and normal-exit cleanup; the sequence has neither. A
     // linear owner is consumed explicitly by construction, never dropped at
     // return.

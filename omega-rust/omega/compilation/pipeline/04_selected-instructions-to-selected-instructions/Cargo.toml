@@ -17,6 +17,7 @@ phase-profile = { path = "../../../../psi/foundation/phase-profile" }
 register-model = { path = "../../backend/register-model" }
 register-homes = { path = "../../representations/register-homes" }
 selected-instructions = { path = "../../representations/selected-instructions" }
+selected-instruction-analyses = { path = "../../representations/selected-instructions/analyses" }
 target = { path = "../../backend/target" }
 semantic-vocabulary = { path = "../../../../psi/foundation/semantic-vocabulary" }
 terminal-psi = { path = "../../../../psi/compilation/representations/terminal-psi" }

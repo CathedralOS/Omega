@@ -360,7 +360,7 @@ impl PreparedPhysicalContractSource {
 }
 
 fn physical_contract_package_source_report_fingerprint(identity: &[u8], source: &[u8]) -> u64 {
-    let mut hash = crate::fnv1a::Fnv1a::new();
+    let mut hash = semantic_vocabulary::Fnv1a::new();
     for bytes in [
         b"omega.program-entry-physical-package.v1".as_slice(),
         identity,

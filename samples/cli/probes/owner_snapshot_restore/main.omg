@@ -3,7 +3,7 @@
 // scalar out before `drop(g)`; `g = Guard { handle: snapshot }`
 // RE-ESTABLISHES the owner so reads after observe the new value.
 //
-//   * `Guard::drop(&mut Guard)` owner-attached hook.
+//   * `drop_guard(&mut Guard)` `dropped by` hook.
 //   * Whole-record replacement re-establishes a dropped owner.
 //   * `hits` records the reached arm.
 //
@@ -12,11 +12,11 @@
 
 use omega::language::core::drop;
 
-data Guard {
+data Guard dropped by drop_guard {
     handle: i32;
 }
 
-machine Guard::drop(guard: &mut Guard) {
+machine drop_guard(guard: &mut Guard) {
 }
 
 machine consume(value: Guard) {

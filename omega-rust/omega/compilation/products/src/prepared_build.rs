@@ -102,6 +102,9 @@ pub struct CheckedProductSource {
     /// Complete source demand is shared across targets without forcing fallible
     /// external declarations or treating nominal references as invocations.
     pub provider_inventory: Arc<psi_compiler::PreparedProviderInventory>,
+    /// Build-native declaration formation is complete before portable publication.
+    /// Targets attach Calling to these exact surfaces without reopening source.
+    pub native_bindings: Arc<provider_planning::native_bindings::PreparedNativeBuildBindings>,
     /// One portable publication for both compile-time policies and final
     /// Product applications. The holder carries no source or target selection.
     pub terminal_publication: Arc<crate::ProductTerminalPublication>,
@@ -114,17 +117,9 @@ pub struct CheckedProductSource {
             >,
         >,
     >,
-    /// One lazy declaration product for this immutable checked owner. Delaying
-    /// preparation preserves provider-failure order and avoids unused work for
-    /// consumers that do not request external declarations.
-    pub external_declarations: Arc<
-        std::sync::OnceLock<
-            Result<
-                Arc<psi_compiler::PreparedExternalProviderDeclarations>,
-                Vec<diagnostics::Diagnostic>,
-            >,
-        >,
-    >,
+    /// Checks shared by target binding, captured before Terminal publication.
+    pub binding_declarations:
+        Arc<std::sync::OnceLock<Arc<selected_dispatch::PreparedBindingDeclarations>>>,
     /// All authored Product defaults, shared unchanged across target settlement.
     pub provider_defaults:
         Arc<[build_time_evaluation::provider_declarations::TargetProviderDefaults]>,
@@ -164,6 +159,20 @@ impl CheckedProductSource {
         debug_assert!(canonical.shares_terminal_publication(self));
         self.terminal_publication = Arc::clone(&canonical.terminal_publication);
         self.calling_program = Arc::clone(&canonical.calling_program);
-        self.external_declarations = Arc::clone(&canonical.external_declarations);
+        self.binding_declarations = Arc::clone(&canonical.binding_declarations);
+    }
+}
+
+/// Compare source request identities without exposing their trees. A weak owner
+/// keeps its allocation identity distinct even after source has been dropped.
+#[derive(Clone, Debug)]
+pub struct ProductSourceIdentity(std::sync::Weak<checked_trees::CheckedTrees>);
+
+impl ProductSourceIdentity {
+    pub fn new(program: &Arc<checked_trees::CheckedTrees>) -> Self {
+        Self(Arc::downgrade(program))
+    }
+    pub fn same_source(&self, other: &Self) -> bool {
+        std::sync::Weak::ptr_eq(&self.0, &other.0)
     }
 }

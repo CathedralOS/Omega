@@ -30,8 +30,10 @@ The board row's count (208 at its measurement base) drifts to 212 at
 - **Parse.** `01_tokens-to-syntax-trees/src/grammar/declarations/`:
   `parse_declaration.rs` admits the introducer at the root
   (`:144` boundary form, `:326` nonboundary form) and inside
-  `domain.rs` / `trait_definition.rs`; `operator.rs` owns
-  `parse_operator_definition`. The `boundary requirement` route is
+  `domain.rs`; `operator.rs` owns `parse_operator_definition`.
+  Trait requirements already refuse it (`trait_definition.rs`,
+  `fail/parse/retired_trait_operator_requirement`); their sources use
+  `machine + name(...)`. The `boundary requirement` route is
   already separate (`parse_declaration.rs:103-118`,
   `is_top_level_boundary_requirement`).
 - **Representation.** `Item::Operator(OperatorDefinition)` in

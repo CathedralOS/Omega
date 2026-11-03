@@ -116,6 +116,9 @@ in 0.22 seconds. Four sessions booted from build
 `bld-20261016-63173d80-ba40-4378-bfa4-2de5a7a5f84e`, found the 148 MB binary,
 and still spent 473, 474, 483, and 487 seconds in the first `mbx build`
 because `main` was newer than the snapshot. Record `first_build_seconds`.
+The gate now builds in the checkout's own `target/`, so an install that bakes
+the compiler must build there with a plain `cargo build -p omega`; a binary
+left only in `build/gate-cli/` is no longer reused.
 Do not treat a present binary as a fast build unless that number was measured
 on the session's own checkout.
 
@@ -296,7 +299,8 @@ landed or been abandoned. Keep dirty unpublished work. Remove only a clean
 worktree whose head matches the merged PR source and whose published commit is
 in fetched main; squash publication does not preserve source-head ancestry.
 
-Report the requested count, the launched count, each linked session, the base
-SHA, the parent capability, requirement removed, remaining acceptance, sample,
-and observed result. A written skill and a session count
-are not a compiler improvement.
+User-facing reports follow [Explain the change](../../../AGENTS.md#explain-the-change).
+Lead with the sample's observed result, its significance and remaining acceptance.
+Then give the parent capability and requirement removed, supporting evidence,
+requested/launched counts, linked sessions and base SHA. A written skill and a
+session count are not a compiler improvement.

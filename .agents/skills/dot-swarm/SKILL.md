@@ -340,10 +340,12 @@ worker. Never assume another service's credentials or release bundles exist.
 
 Append each settled leg once to `build/swarm/<wave>/outcomes.json`, keyed by worker,
 item, revision and assignment. Keep the base, mode, commands/results, candidate or
-landed commits, blockers, residuals, and retained worktree paths. For compiler
-implementation, lead the report with
-`python3 tools/corpus_scoreboard.py --base <wave-base> --json` and explain its
-recorded-evidence scope; it is not a substitute for running the changed program.
+landed commits, blockers, residuals, and retained worktree paths. User-facing
+reports follow [Explain the change](../../../AGENTS.md#explain-the-change): lead
+with the changed program behavior and what remains incomplete. For compiler
+implementation, include `python3 tools/corpus_scoreboard.py --base <wave-base> --json`
+as supporting evidence after that explanation and state its recorded-evidence
+scope; it is not a substitute for running the changed program.
 For diagnostics, mark native acceptance and scoreboard execution as not run when
 they were not run. Do not claim compiler progress from an agent-count test.
 

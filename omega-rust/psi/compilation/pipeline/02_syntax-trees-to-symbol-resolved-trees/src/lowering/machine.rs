@@ -564,6 +564,11 @@ pub(crate) fn lower_generic_conformance_bounds(
                 binder_name: lower_name(syntax_trees, &bound.binder),
                 trait_symbol: SymbolHandle::invalid(),
                 trait_name: lower_name(syntax_trees, &bound.trait_name),
+                lifetime_arguments: bound
+                    .lifetime_arguments
+                    .iter()
+                    .map(|name| lower_name(syntax_trees, name))
+                    .collect(),
                 arguments: lower_child_type_references(lowerer, syntax_trees, bound.arguments)?,
             })
         })

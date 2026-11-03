@@ -1,8 +1,8 @@
 // Expected exit: 0
 // A consuming recoverable result restores its exact borrowed place and preserves disjoint storage.
 use omega::language::core::drop;
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 data Outcome { case Success(token: Token); case Failure(token: Token); }
 data Holder { token: Token; other: Token; sibling: u64; }
 machine attempt(token: Token, succeed: bool, observed: u64) -> Outcome {

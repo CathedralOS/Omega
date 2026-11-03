@@ -2,7 +2,7 @@
 //! into the policy rows every consumer publishes.
 
 use super::{nominal_identity, trait_requirement_identity_from_symbols};
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::record::PackagePolicyServiceProgressRoute;
 use diagnostics::Diagnostic;
 use effects::provider_plan::ServiceProgressEstablishmentRouteKind;
@@ -18,7 +18,7 @@ use typed_trees::domain::DomainDefinition;
 /// requirement are different establishment vocabularies, not a shared mode.
 /// `requirement_context` names the consuming policy in a rejected route.
 pub(crate) fn project_service_progress_routes(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     profile: &DomainDefinition,
     requirement_context: &str,
 ) -> Result<Vec<PackagePolicyServiceProgressRoute>, Vec<Diagnostic>> {

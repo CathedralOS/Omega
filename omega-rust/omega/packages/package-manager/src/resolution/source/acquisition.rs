@@ -137,7 +137,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
     pub fn acquire_issued(
         &mut self,
         requester: &AcquiredBuildSource,
-        requests: &[build_evaluation::host::requests::IssuedBuildRequest],
+        requests: &[build_settings::host::requests::IssuedBuildRequest],
         purpose: build_declarations::DependencyPurpose,
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {
@@ -519,16 +519,19 @@ impl AcquiredBuildSource {
     /// Bind one executed declaration; graph and compiler joins remain mandatory.
     pub fn bind_returned_build(
         &self,
-        returned: &build_evaluation::ReturnedBuild,
+        returned: &build_settings::ReturnedBuild,
     ) -> Result<package_compilation::PackageSourceBinding, String> {
         self.declare_build(returned)?.source_binding()
     }
 
     pub fn declare_build(
         &self,
-        returned: &build_evaluation::ReturnedBuild,
+        returned: &build_settings::ReturnedBuild,
     ) -> Result<DeclaredBuildSource, String> {
-        let name = match returned.declaration() {
+        let declaration = returned
+            .declaration()
+            .ok_or("default Build has no authored named source owner")?;
+        let name = match declaration {
             build_declarations::BuildDeclaration::Package(package) => &package.name,
             build_declarations::BuildDeclaration::Application(application) => &application.name,
             build_declarations::BuildDeclaration::Workspace(_) => {
@@ -547,7 +550,7 @@ impl AcquiredBuildSource {
         )?;
         let custody = PackageSourceCustody::from_resolved_parts(
             PackageKey::new(name.clone().into(), self.lineage.clone()),
-            returned.declaration().kind(),
+            declaration.kind(),
             self.resolution.clone(),
             super::PackageSourceMaterialization::from_local(self.capture.normalized()),
             self.capture.canonical_live_root().to_path_buf(),

@@ -42,6 +42,8 @@ public machine try_allocate(strategy: &mut Bump, length: u64) -> Attempt {
     }
 }
 
+// Publish the position needed to rejoin issued neighbors at release. An empty
+// tail has no one-past address obligation, so its base supplies no such equation.
 public machine allocate(strategy: &mut Bump, length: u64, available: u64) -> Extent in Granted & Vacant
 requires
     available == strategy.remaining,
@@ -49,7 +51,8 @@ requires
 ensures
     strategy.remaining == available - length,
     strategy.tail.length == available - length,
-    result.length == length
+    result.length == length,
+    available == 0 || embed(result.base) + embed(available) == embed(strategy.base) + embed(strategy.capacity)
 {
     let tail: Extent in Granted & Vacant = strategy.tail;
     let parts: VacantExtentParts = split_vacant_extent(tail, length);

@@ -121,23 +121,25 @@ impl ExpressionTransferSink for IndexChecks<'_, '_, '_> {
         // Retain the evaluated selector's singleton observation from the same
         // all-arrival range walk. This does not replace evaluation or its bound:
         // lowering uses it only to separate storage for overlap decisions.
-        let coordinate =
-            ::validation::expression_interval(facts.expression_intervals, indexed.index)
-                .and_then(|interval| {
-                    let low = interval.low?;
-                    (interval.high == Some(low)).then_some(low)
-                })
-                .or_else(|| expression_integer_value(self.transfer.program, facts, indexed.index))
-                .or_else(|| {
-                    let (low, high) = ensured_call_result_bounds(
-                        self.transfer.program,
-                        self.transfer.machine.symbol,
-                        indexed.index,
-                    )?;
-                    let low = low?;
-                    (high == Some(low)).then_some(low)
-                })
-                .and_then(|value| u64::try_from(value).ok());
+        let coordinate = self
+            .transfer
+            .program
+            .expression_interval(indexed.index)
+            .and_then(|interval| {
+                let low = interval.low?;
+                (interval.high == Some(low)).then_some(low)
+            })
+            .or_else(|| expression_integer_value(self.transfer.program, facts, indexed.index))
+            .or_else(|| {
+                let (low, high) = ensured_call_result_bounds(
+                    self.transfer.program,
+                    self.transfer.machine.symbol,
+                    indexed.index,
+                )?;
+                let low = low?;
+                (high == Some(low)).then_some(low)
+            })
+            .and_then(|value| u64::try_from(value).ok());
         self.verdicts.verdicts.push((
             expression,
             verdict == self::validation::BoundsCheckResult::ProvenScalar,

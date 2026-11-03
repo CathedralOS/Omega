@@ -35,6 +35,16 @@ macro_rules! copied_state_signature {
             spelling: $signature.spelling,
             lifetime_parameters: $signature.lifetime_parameters.clone(),
             type_parameters: $self.copy_type_parameter_span($other, $signature.type_parameters),
+            conformance_bounds: $signature
+                .conformance_bounds
+                .iter()
+                .map(|bound| crate::item::GenericConformanceBound {
+                    binder: bound.binder.clone(),
+                    trait_name: bound.trait_name.clone(),
+                    lifetime_arguments: bound.lifetime_arguments.clone(),
+                    arguments: $self.copy_type_reference_handle_span($other, bound.arguments),
+                })
+                .collect(),
             is_default: $signature.is_default,
             parameters: $self.copy_state_parameter_handle_span($other, $signature.parameters),
             native_callback_parameters: $signature.native_callback_parameters.clone(),

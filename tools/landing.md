@@ -23,6 +23,10 @@ gh pr create --draft --base main --head work/NAME --title "lane: statement" --bo
 
 Reuse the existing pull request for the branch. Do not open a second one.
 Record the actual revision, commands, results, known limitations and claim ticket in the PR.
+Keep routine validation evidence in the PR and existing CI artifacts. Do not
+create GitHub releases or tags to host evidence; release publication is separate
+product-distribution work and requires an explicit user request. Existing
+historical evidence links remain valid and need not be removed.
 
 ## Mark ready and enqueue when the change can merge
 
@@ -41,6 +45,14 @@ repeatedly refresh an otherwise eligible PR against moving main.
 
 Python 3, Git and an authenticated GitHub CLI (`gh`) work on Windows, macOS and
 Linux. Commands below use `python`; use `python3` if that is its installed name.
+
+Claude Code cloud sessions reach GitHub through a proxy that refuses GraphQL.
+There `landing.py` reads the PR and `compiler-check` through REST and uses the
+proxy's REST routes to mark the PR ready and request auto-merge, which on this
+merge-queue branch queues a green PR at once. REST exposes no queue object, so
+a queue entry is read from its active `gh-readonly-queue/main/pr-<n>-*` CI run.
+The auto-merge route cannot fence on the head, so `land` checks the head
+immediately before it. Hosts where GraphQL works are unchanged.
 
 When the work is finished and its last commit is pushed, run one command in the
 foreground. Replace `NUMBER` and `FULL_HEAD_SHA` with the PR number and the full
@@ -90,8 +102,14 @@ or removal from the queue. Waiting never re-enqueues a removed entry. A later
 and enqueues an already-armed green head. An armed request alone does not
 guarantee unattended publication; verify the final state.
 
-`PR_BODY` is a file containing the change's explanation and focused evidence.
-Include actual agent/model provenance there when known, not in commit trailers.
+Write `PR_BODY` using [Explain the change](../AGENTS.md#explain-the-change).
+Pass multiline prose through a UTF-8 file with `--body-file`, as above, or a
+structured API body field. Do not interpolate it into shell command text:
+backticks and escape sequences can execute commands or corrupt identifiers.
+Check its opening against the submitted diff before creating the PR or marking
+it ready; update the whole explanation when the scope changes. Summarize focused
+validation after the behavior and mechanism, then link or include the detailed
+records. Include actual agent/model provenance there when known, not in commit trailers.
 GitHub records the submitter and publication without a separate notes push.
 An existing PR for the owned branch is reused, not duplicated. Do not include
 unrelated local commits. Keep the candidate clean and committed before push.

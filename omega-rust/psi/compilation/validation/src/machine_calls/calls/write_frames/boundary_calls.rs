@@ -1,15 +1,12 @@
-//! Boundary-trait call resolution and caller-visible write frames.
+//! Determine which caller storage an external call may change.
 //!
-//! Boundary calls have no locally inspectable body. This owner resolves the
-//! selected trait signature and derives the exact receiver/exclusive-argument
-//! frame, failing closed when a mutable argument has no supported storage origin.
+//! An external call has no local body to inspect. Its selected declaration
+//! and supplied types tell us which arguments may carry writes. If a mutable
+//! argument's storage cannot be identified, the possible writes stay unknown.
 //!
-//! Generic receivers retain their exact owner tuple before method inference:
-//! losing it to the signature-free ceiling made copied scalar metadata appear
-//! writable. Owner and method bindings share the existing storage/origin
-//! queries, keyed by distinct symbols. This substitution is private to frame
-//! inference; fact-seeding consumers without a bound environment still refuse
-//! generic signatures rather than reading uninstantiated contracts.
+//! A generic call uses its prepared declaration together with the arguments
+//! that belong to that declaration. Contract checking has separate entry
+//! points: locating possible writes does not establish a callee's guarantees.
 
 use super::caller_aliases::{CallerWriteSite, caller_statement_owner};
 use super::isolation::{TypeIdentityMemo, aggregate_storage_types_match_in};
@@ -22,7 +19,7 @@ use super::reference_origins::exclusive_reference_origins;
 use super::stored_origins::StoredLocalOrigins;
 use super::type_capabilities::type_may_carry_write_in;
 use super::type_instantiation::{
-    TypeBindings, push_generic_application_bindings, substituted_head,
+    AppliedCallWriteSignature, TypeBindings, push_generic_application_bindings, substituted_head,
 };
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
 use crate::frozen_program::expression_table;
@@ -114,19 +111,10 @@ pub(crate) fn boundary_trait_signature<'program>(
     )
 }
 
-/// Statement-call validation's selection: the same exact receiver/target
-/// join as `boundary_trait_signature`, additionally admitting a requirement
-/// whose generic telescope is `machine` and `Type` binders. A `machine` binder
-/// is a compile-time selection, never a runtime formal: MP2b admits the call's
-/// static machine argument against its bound at this same call edge, and a
-/// `native callback name from Binder` destination takes its selection from
-/// that argument (private_callbacks.md, "Authored selection"). A `Type` binder
-/// is discharged by the call's own explicit operand, which may be a binder of
-/// the generic caller, or by its arguments; the caller substitutes it into the
-/// formals before comparing them, as an ordinary generic call does. The caller
-/// still validates result use and every runtime argument against the
-/// selected signature. Fact seeding (the monomorphic `boundary_trait_signature`)
-/// stays excluded: it must not read uninstantiated contracts.
+/// Validate arguments against the prepared contract for this exact boundary
+/// call. Generic selections keep their checked identities; ordinary validation
+/// still proves each argument and result. Importing contract facts remains a
+/// separate operation requiring a closed contract.
 pub(crate) fn boundary_trait_call_signature<'program>(
     program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
@@ -204,12 +192,9 @@ pub(super) fn boundary_trait_signature_and_receiver<'program>(
 enum SignatureBinders {
     /// Fact seeding and frame lookup read formals as written.
     Monomorphic,
-    /// Write frames substitute `Type` binders the actual arguments pin.
-    ArgumentPinnedTypes,
-    /// Call validation admits the binders the call itself discharges: `machine`
-    /// binders, which no runtime argument supplies, and `Type` binders, which
-    /// its explicit operands or arguments pin (see
-    /// `boundary_trait_call_signature`).
+    /// Write analysis uses the call's saved type and constant arguments.
+    AppliedStorageParameters,
+    /// Call validation uses the complete checked argument mapping.
     CallBinders,
 }
 
@@ -256,7 +241,7 @@ pub(super) fn call_has_authority_receiver(
         &members,
         target,
         site,
-        SignatureBinders::ArgumentPinnedTypes,
+        SignatureBinders::AppliedStorageParameters,
     )
     .is_some_and(|signature| !signature.has_runtime_receiver)
 }
@@ -281,11 +266,9 @@ fn boundary_receiver_type_symbol(
     None
 }
 
-/// The write-frame route additionally admits a signature whose `Type`
-/// parameters the call's actual arguments pin concretely; callers then prove
-/// every carrier against the instantiated environment. A parameter that no
-/// argument binds keeps the named leaf and fails the same single-origin
-/// gates.
+/// Find the declaration needed to determine what this call may change.
+/// The caller then substitutes the call's saved type and constant arguments
+/// before following references to caller-owned storage.
 fn boundary_write_signature_and_receiver<'program>(
     program: &'program dyn crate::CheckingInput,
     current_machine: &Machine,
@@ -299,7 +282,7 @@ fn boundary_write_signature_and_receiver<'program>(
         receiver_members,
         target,
         site,
-        SignatureBinders::ArgumentPinnedTypes,
+        SignatureBinders::AppliedStorageParameters,
     )
 }
 
@@ -431,7 +414,7 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
                     &receiver_scope,
                 )
             })
-        && binders != SignatureBinders::ArgumentPinnedTypes
+        && binders == SignatureBinders::Monomorphic
     {
         return None;
     }
@@ -444,19 +427,39 @@ fn boundary_trait_signature_and_receiver_inner<'program>(
     {
         return None;
     }
+    let signature = if binders == SignatureBinders::CallBinders {
+        // The checked call has already validated every generic argument kind.
+        // Read its prepared contract instead of maintaining a second list of
+        // allowed kinds that can disagree with ordinary call checking.
+        let call = site.as_call_site(program)?;
+        let (owner, applied) =
+            super::super::requirement_contract_signature(program, current_machine.symbol, &call)?;
+        if owner.symbol != trait_definition.symbol || applied.symbol != signature.symbol {
+            return None;
+        }
+        if !program.state_signature_type_parameters(applied).is_empty() {
+            let correspondence =
+                super::super::call_binding_correspondence(program, current_machine.symbol, &call)
+                    .ok()?;
+            if correspondence.public_owner != applied.symbol {
+                return None;
+            }
+        }
+        applied
+    } else {
+        signature
+    };
     let admitted_binder = |parameter: &typed_trees::data::TypeParameter| {
         parameter.symbol.is_valid()
             && match binders {
                 SignatureBinders::Monomorphic => false,
-                SignatureBinders::ArgumentPinnedTypes => {
-                    matches!(parameter.kind, TypeParameterKind::Type)
-                }
-                SignatureBinders::CallBinders => {
+                SignatureBinders::AppliedStorageParameters => {
                     matches!(
                         parameter.kind,
-                        TypeParameterKind::Type | TypeParameterKind::Machine { .. }
+                        TypeParameterKind::Type | TypeParameterKind::Const { .. }
                     )
                 }
+                SignatureBinders::CallBinders => true,
             }
     };
     let exact_signature = program
@@ -825,13 +828,11 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
     }
     let signature =
         requirement_signature_for_site(program, current_machine, receiver, target, site)?;
-    let parameters = program.state_signature_parameters(signature);
-    let paired = parameters.iter().collect::<Vec<_>>();
-    if paired.len() != arguments.len() {
-        return None;
-    }
     let mut written = Vec::new();
-    let bindings = super::type_instantiation::signature_call_type_bindings_seeded(
+    let AppliedCallWriteSignature {
+        signature,
+        bindings,
+    } = super::type_instantiation::applied_call_write_signature(
         program,
         current_machine,
         signature,
@@ -839,6 +840,8 @@ pub(super) fn known_requirement_call_written_paths_for_parts(
         arguments,
         Vec::new(),
     )?;
+    let paired =
+        super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
     boundary_written_argument_paths(
         program,
         current_machine,
@@ -1017,9 +1020,10 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
     } else {
         Vec::new()
     };
-    let parameters =
-        super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
-    let bindings = super::type_instantiation::signature_call_type_bindings_seeded(
+    let AppliedCallWriteSignature {
+        signature,
+        bindings,
+    } = super::type_instantiation::applied_call_write_signature(
         program,
         current_machine,
         signature,
@@ -1027,6 +1031,8 @@ pub(super) fn known_boundary_call_written_paths_for_parts(
         arguments,
         bindings,
     )?;
+    let parameters =
+        super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
 
     boundary_written_argument_paths(
         program,
@@ -1140,7 +1146,10 @@ pub(super) fn boundary_result_origins(
         bindings,
     } = selected;
     let arguments = expression_table(program).expression_handles(call.arguments);
-    let mut bindings = super::type_instantiation::signature_call_type_bindings_seeded(
+    let AppliedCallWriteSignature {
+        signature,
+        mut bindings,
+    } = super::type_instantiation::applied_call_write_signature(
         program,
         current_machine,
         signature,
@@ -1446,8 +1455,7 @@ pub(super) fn bodyless_callee_result_origins(
         }
         live_unconstrained_type(program, substituted_head(program, *referee, &bindings))?
     };
-    let parameters: Vec<&StateParameter> =
-        program.state_parameters(callee_state).iter().collect();
+    let parameters: Vec<&StateParameter> = program.state_parameters(callee_state).iter().collect();
     let arguments = expression_table(program).expression_handles(call.arguments);
     if parameters.len() != arguments.len() {
         return None;
@@ -1490,12 +1498,10 @@ pub(super) fn requirement_result_origins(
     );
     let signature = signature?;
     let arguments = expression_table(program).expression_handles(call.arguments);
-    let parameters = program.state_signature_parameters(signature);
-    let paired = parameters.iter().collect::<Vec<_>>();
-    if paired.len() != arguments.len() {
-        return None;
-    }
-    let mut bindings = super::type_instantiation::signature_call_type_bindings_seeded(
+    let AppliedCallWriteSignature {
+        signature,
+        mut bindings,
+    } = super::type_instantiation::applied_call_write_signature(
         program,
         current_machine,
         signature,
@@ -1503,6 +1509,8 @@ pub(super) fn requirement_result_origins(
         arguments,
         Vec::new(),
     )?;
+    let paired =
+        super::type_instantiation::signature_arity_parameters(program, signature, arguments)?;
     let referent = exclusive_result_referent(program, signature, &bindings)?;
 
     match exclusive_boundary_result_origins(
@@ -1658,6 +1666,21 @@ fn owned_storage_may_hold_inner(
     if aggregate_storage_types_match_in(program, container, referent, bindings, identities) {
         return Some(true);
     }
+    // Different symbolic lengths do not prove that two arrays are disjoint:
+    // the caller can supply the same length for both. Exact substituted types
+    // matched above; keep the remaining symbolic cases unknown, including
+    // lengths inside multidimensional arrays.
+    if matches!(
+        program.type_reference_table.type_reference(container),
+        TypeReferenceNode::FixedArray { .. }
+    ) && matches!(
+        program.type_reference_table.type_reference(referent),
+        TypeReferenceNode::FixedArray { .. }
+    ) && (!array_shape_is_closed(program, container, bindings)
+        || !array_shape_is_closed(program, referent, bindings))
+    {
+        return None;
+    }
     if program.primitive_type_reference(container).is_some() {
         return Some(false);
     }
@@ -1763,6 +1786,54 @@ fn owned_storage_may_hold_inner(
         // `live_unconstrained_type` above already erased every constraint.
         TypeReferenceNode::Constrained { .. } => None,
     }
+}
+
+/// Unequal type identities exclude an array alias only when its whole shape
+/// is known. Resolve nested type arguments in their supplying scope; an open
+/// element type or length can still become equal when the caller chooses it.
+fn array_shape_is_closed(
+    program: &dyn crate::CheckingInput,
+    reference: TypeReferenceHandle,
+    bindings: &TypeBindings,
+) -> bool {
+    let (scopes, scope) =
+        super::type_instantiation::DeclarationScopes::from_bindings(bindings.clone());
+    let mut pending = vec![(reference, scope)];
+    let mut visited = Vec::new();
+    while let Some((reference, scope)) = pending.pop() {
+        let (reference, scope) = scopes.head(program, reference, scope);
+        if visited.contains(&(reference, scope)) {
+            continue;
+        }
+        visited.push((reference, scope));
+        if program.primitive_type_reference(reference).is_some() {
+            continue;
+        }
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::FixedArray {
+                element_type,
+                length,
+            } => {
+                if !matches!(length, typed_trees::types::FixedArrayLength::Literal(_)) {
+                    return false;
+                }
+                pending.push((*element_type, scope));
+            }
+            TypeReferenceNode::Constrained { base_type, .. } => pending.push((*base_type, scope)),
+            TypeReferenceNode::Reference { referee, .. } => pending.push((*referee, scope)),
+            TypeReferenceNode::Slice { element_type } => pending.push((*element_type, scope)),
+            TypeReferenceNode::Unit => {}
+            TypeReferenceNode::Named { symbol, .. } => {
+                if program.data_type_parameter_by_symbol(*symbol).is_some() || !symbol.is_valid() {
+                    return false;
+                }
+            }
+            // Applied nominal arguments may still contain an unknown type or
+            // count. Exact equality above handles known equal applications.
+            _ => return false,
+        }
+    }
+    true
 }
 
 /// Is `container`'s root the only position inside its declared storage that

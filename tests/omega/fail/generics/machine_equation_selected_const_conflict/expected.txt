@@ -1,1 +1,1 @@
-where equation binds
+requires equation binds

@@ -161,6 +161,27 @@ impl StructuralJudge<'_> {
             self.instantiated_contract_case_guarantees(owner, binary.right, map, guarantees);
             return;
         }
+        if binary.operator == BinaryOperator::Or {
+            // A checked normal return establishes the complete disjunction,
+            // not either alternative alone. Eliminate only a sibling that the
+            // existing selected-declaration judgment independently refutes
+            // under these preserved, completed argument observations.
+            let scope = match owner {
+                SelectedCallContract::Concrete(machine, _) => machine.symbol,
+                _ => specification_calls::owner_symbol(owner),
+            };
+            let parameters = owner_parameters(self.program, owner);
+            for (alternative, sibling) in [(binary.left, binary.right), (binary.right, binary.left)]
+            {
+                if matches!(
+                    self.captured_operand_predicate_judgment(scope, parameters, sibling, map),
+                    StructuralJudgment::Refuted
+                ) {
+                    self.instantiated_contract_case_guarantees(owner, alternative, map, guarantees);
+                }
+            }
+            return;
+        }
         if !structural_terms::is_case_observation(self.program, fact) {
             return;
         }

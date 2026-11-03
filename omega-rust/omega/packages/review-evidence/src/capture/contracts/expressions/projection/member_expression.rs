@@ -2,14 +2,14 @@
 
 use super::super::calls::exact_fact_call_projection;
 use super::super::members::{
-    CollectionMeasure, checked_contract_member_path, contract_member_collection_measure,
-    contract_member_path_root, contract_member_path_source, is_data_subject_field_expression,
-    project_computed_contract_member_expression, project_contract_member_expression,
-    require_exact_checked_contract_collection_measure,
+    AuthoredMember, CollectionMeasure, checked_contract_member_path,
+    contract_member_collection_measure, contract_member_path_root, contract_member_path_source,
+    is_data_subject_field_expression, project_computed_contract_member_expression,
+    project_contract_member_expression, require_exact_checked_contract_collection_measure,
     require_exact_checked_contract_nominal_member,
 };
 use super::super::names::contract_parameter_field_symbol;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::record::PackageReviewContractExpression;
 use diagnostics::Diagnostic;
@@ -17,7 +17,7 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode, TableMemberExpression};
 
 pub(super) fn project_member_expression(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: ExpressionHandle,
     member: &TableMemberExpression,
@@ -152,7 +152,7 @@ pub(super) fn project_member_expression(
 }
 
 fn project_checked_or_computed_member(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     expression: ExpressionHandle,
     member: &TableMemberExpression,
@@ -188,7 +188,13 @@ fn project_checked_or_computed_member(
         let Some(path) = compilation.expression_table.name_path_node(root_expression) else {
             unreachable!("guarded data-subject name root")
         };
-        source_members.insert(0, path.symbol);
+        source_members.insert(
+            0,
+            AuthoredMember {
+                expression: root_expression,
+                field: path.symbol,
+            },
+        );
         PackageReviewContractExpression::DomainSubject
     } else {
         child(root_expression)?

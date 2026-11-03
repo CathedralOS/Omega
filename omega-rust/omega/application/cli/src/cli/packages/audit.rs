@@ -1,4 +1,4 @@
-use omega_build::inspect_packages;
+use orchestration::inspect_packages;
 use package_manager::operations::PackageInspectionOptions;
 
 pub(crate) fn run(options: PackageInspectionOptions) {

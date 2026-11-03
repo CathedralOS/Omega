@@ -2,7 +2,7 @@
 //! falls under, the exact row lookup, and the error when a row is missing
 //! or contradicts its operation.
 
-use crate::scalar_leaf_schema::goal_free_scalar_leaf;
+use crate::scalars::scalar_leaf_schema::goal_free_scalar_leaf;
 use crate::{
     GoalFreeScalarLeafSchema, ScalarLeafCrashPolicy, ScalarLeafDenotation,
     ScalarLeafFrontierPolicy, ScalarLeafGoalShape, ScalarLeafOperandShape, ScalarLeafResultShape,

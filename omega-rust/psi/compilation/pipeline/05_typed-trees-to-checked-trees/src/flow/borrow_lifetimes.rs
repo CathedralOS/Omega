@@ -31,33 +31,49 @@ pub(crate) fn filter_expired_borrow_loans(
     }
     reference_spans::filter_constraint_refs(constraint_refs, source, |constraint_ref| {
         match constraint_ref.kind {
-            FlowConstraintKind::BorrowLoan { loan } => {
-                let loan_fact = borrow.loans.get(loan);
-                let current = execution_order
-                    .position(statement_index)
-                    .expect("loan expiry names an admitted execution point or state exit");
-                let keep = execution_order
-                    .position(loan_fact.last_use_statement_index)
-                    .is_none_or(|last_use| last_use >= current);
-                if !keep {
-                    // Record the exact successor source point, which may be
-                    // earlier in the source file after an assembly edge.
-                    // Independent replay uses the same admitted control order.
-                    borrow_weakenings.append(FlowBorrowWeakeningFact {
-                        source: FlowInvalidationSource::Statement {
-                            statement_index: execution_order
-                                .successor(loan_fact.last_use_statement_index)
-                                .expect("an expired loan has a following execution boundary"),
-                        },
-                        loan,
-                        reason,
-                    });
-                }
-                keep
-            }
+            FlowConstraintKind::BorrowLoan { loan } => !weaken_expired_loan(
+                borrow_weakenings,
+                borrow,
+                loan,
+                statement_index,
+                execution_order,
+                reason,
+            ),
             FlowConstraintKind::Unknown | checked_trees::nonloan_constraint_pattern!(..) => true,
         }
     })
+}
+
+/// Record the admitted expiry of one actual local resource. A selected target
+/// closes its own activation-born debt without publishing that permission on
+/// the guard's untaken continuation. Both cuts use this same liveness rule.
+pub(super) fn weaken_expired_loan(
+    borrow_weakenings: &mut arena::PagedArenaSet<FlowBorrowWeakeningFact>,
+    borrow: &BorrowFacts,
+    loan: arena::Handle<checked_trees::BorrowLoanFact>,
+    statement_index: usize,
+    execution_order: &typed_trees::statement::StatementExecutionOrder,
+    reason: FlowBorrowWeakeningReason,
+) -> bool {
+    let loan_fact = borrow.loans.get(loan);
+    let current = execution_order
+        .position(statement_index)
+        .expect("loan expiry names an admitted execution point or state exit");
+    let expired = execution_order
+        .position(loan_fact.last_use_statement_index)
+        .is_some_and(|last_use| last_use < current);
+    if expired {
+        borrow_weakenings.append(FlowBorrowWeakeningFact {
+            source: FlowInvalidationSource::Statement {
+                statement_index: execution_order
+                    .successor(loan_fact.last_use_statement_index)
+                    .expect("an expired loan has a following execution boundary"),
+            },
+            loan,
+            reason,
+        });
+    }
+    expired
 }
 
 /// The destination is already resolved by completed operand capture and must

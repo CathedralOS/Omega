@@ -65,7 +65,7 @@ pub(super) fn form(
                     decisions,
                 )?)
             } else {
-                engine.captured_record_call_input(*argument)?
+                engine.captured_record_call_input(*argument, expression)?
             };
             if !crate::has_anonymous_numeric_results(program, *argument) {
                 let actual_type = match &input {
@@ -213,14 +213,10 @@ fn with_arguments<Output>(
                 ));
                 engine
                     .formal_read_arguments
-                    .extend(reads.iter().map(|(coordinate, value)| {
-                        (
-                            crate::RankSubjectCoordinate {
-                                parameter: formal.symbol,
-                                path: coordinate.path.clone(),
-                            },
-                            value.clone(),
-                        )
+                    .extend(reads.iter().map(|(read, value)| {
+                        let mut read = read.clone();
+                        read.coordinate.parameter = formal.symbol;
+                        (read, value.clone())
                     }));
             }
         }

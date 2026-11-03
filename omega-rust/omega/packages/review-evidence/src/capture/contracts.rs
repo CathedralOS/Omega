@@ -3,5 +3,6 @@
 mod evidence;
 pub(super) mod expressions;
 pub(super) mod facts;
+pub(crate) mod mathematical_calls;
 pub(crate) mod memberships;
 pub(super) mod propositions;

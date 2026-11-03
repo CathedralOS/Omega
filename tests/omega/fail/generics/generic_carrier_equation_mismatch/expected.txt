@@ -1,1 +1,1 @@
-where type equation
+requires type equation

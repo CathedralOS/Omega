@@ -3,14 +3,14 @@
 use omega::language::core::content;
 use omega::language::core::drop;
 public data ByteUnit {}
-public data Buffer [linear] { value: u64; }
-machine Buffer::drop(buffer: &mut Buffer) {}
+public data Buffer [linear] dropped by drop_buffer { value: u64; }
+machine drop_buffer(buffer: &mut Buffer) {}
 public domain Buffer::Owned;
 machine Owned::content(buffer: &Buffer) -> CountedQuantity<ByteUnit>
 satisfies Content<Buffer, CountedQuantity<ByteUnit>>::project {
     CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
-public data Pending<'source> [linear] { slot: u64; }
+public data Pending<'source> [linear] dropped by drop_pending<'source> { slot: u64; }
 public domain Pending::Retained established by Reader::register;
 machine Retained::content<'source>(pending: &Pending<'source>) -> CountedQuantity<ByteUnit>
 satisfies Content<Pending<'source>, CountedQuantity<ByteUnit>>::project {
@@ -30,7 +30,7 @@ public boundary trait Reader {
 }
 
 machine raw<'a>(buffer: &'a Buffer) -> Pending<'a> { Pending { slot: 0 } }
-machine Pending::drop(pending: &mut Pending) {}
+machine drop_pending<'source>(pending: &mut Pending<'source>) {}
 data RawCell<'a> { pending: Pending<'a>; }
 machine reset_raw<'a>(cell: &mut RawCell<'a>, unused: &'a Buffer) {
     let prior: Pending<'a> = cell.pending;

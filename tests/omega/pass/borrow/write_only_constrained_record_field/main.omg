@@ -1,19 +1,15 @@
-// PASS canary: a plain integer field, an arithmetic-policy-only integer
-// field, or a plain domain-qualified carrier field of a plain record is a
-// content-independent write-only place. `in <policy>` is a behaviour tag on
-// the carrier's operations, not a membership predicate, so every carrier
-// value is already a member and the store owes no range proof. A plain declared domain
-// (`[u8; 8] in Utf8`) is a membership predicate on the whole incoming value:
-// whole-leaf replacement displaces the complete carrier footprint, and the
-// ordinary write-side domain check discharges `in Utf8` against the stored
-// value exactly as it does for a `&mut` target. The `depth` bound (was:
-// `u8 [0..=10]` param suffix) is now the requires contract `depth <= 10`.
+// Expected exit: 0
+// Content-independent field stores retain their owning data predicates.
+// Limited's two historical u8 [0..=10] fields use ordinary data requirements;
+// depth's old suffix is a callable requirement. A write-only loan supplies
+// no stored-value observation. Policy-only fields and the intentionally named
+// Utf8 membership keep their independent operation and store obligations.
 
 domain [u8; 8]::Utf8
 requires
     valid_utf8(self);
 
-data Limited {
+data Limited requires value <= 10 && next <= 10 {
     value: u8;
     next: u8;
 }
@@ -62,6 +58,18 @@ machine forward(limited: &write Limited, depth: u8) requires depth <= 10
     replace(&write limited, depth);
 }
 
-machine main()
+machine main() crashes Trap
 {
+    let mut limited: Limited = Limited { value: 1, next: 2 };
+    forward(&write limited, 7);
+    transition limited.value == 7 && limited.next == 4 {
+        true -> again(&mut limited)
+        false -> bad()
+    }
+    machine again(limited: &mut Limited) crashes Trap {
+        replace(&write limited, 3);
+        transition limited.value == 3 && limited.next == 4 { true -> done() false -> bad() }
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
 }

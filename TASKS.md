@@ -164,8 +164,9 @@ retired-syntax deletions to completion.
     result/Unit postconditions, effects/markers, loans, invariant/hole
     restoration, cleanup, linear custody, and joint SCC measures using
     declaration calls needing exclusive-loan arguments or owned affine transfers,
-    owned copies from borrowed outer input homes or repeated selector
-    occurrences, other remaining declared body forms, nonscalar orders beyond fixed-integer
+    owned copies from borrowed outer input homes, runtime-selected stored-reference
+    call operands (captured-loan access), other remaining declared body forms,
+    nonscalar orders beyond fixed-integer
     lexicographic products, or dependent distances with computed endpoints
     without ambient parent entry facts).
   - Update Terminal production, codecs/checking, both interpreters, native
@@ -199,6 +200,10 @@ retired-syntax deletions to completion.
     [mutable recasts](omega-rust/psi/compilation/validation/recasts.md), and
     returns, preserving the audited inventories in
     [range_suffix_migration.md](wiki/drafts/designs/range_suffix_migration.md).
+  - Reject a bound helper whose call admission depends on that same pending
+    helper result (`provider_contract_endpoint/controls/circular_endpoint_formation`),
+    and reject crash-capable bound helpers at admission rather than stopping at
+    an unrelated missing-body lowering error.
   - Qualify the applicable migrated filesystem customers' native/Terminal
     oracles with **FILESYSTEM-PLATFORM-SERVICES**.
   Acceptance: spec/guide/compiler docs, bundled libraries, samples, `source/psi`,
@@ -244,12 +249,12 @@ retired-syntax deletions to completion.
     restoring hidden argument insertion.
   - Complete checked per-value loan carry evidence for suspension production
     without restoring hidden argument insertion: joins still refuse
-    supplier-less derived descriptors (casts, projected call referents),
+    derived descriptors whose source permissions have been copied, projected or
+    joined, projected call referents,
     supplied-output and lifetime-dependency descriptors, and backings with no
     enclosing owner; Terminal loan rows label accepted transfers `Unresolved`.
-  - Retire `machine Data::operation` and reserved `T::drop` spellings across
-    compiler/toolchain helper namespaces, operator/proof declarations, and
-    fixtures.
+  - Retire `machine Data::operation` spellings across compiler/toolchain
+    helper namespaces, operator/proof declarations, and fixtures.
   - Carry `dropped by` on named domains and data default domains through
     `source/psi/` product-producer parity, and qualify
     `samples/cli/facts/domain_selected_cleanup` execution across remaining
@@ -323,11 +328,7 @@ retired-syntax deletions to completion.
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
   - Carry the facts that still refuse behind a selected implementation: opaque
-    write-only boundaries requiring an admitted claim for the selected implementation,
-    a `&write`
-    slot whose referent carries a reference leaf (`write_only_reference_store`),
-    and evidence binders in requirement signatures (`selected_crash_formal`,
-    `selected_value_application`: the requirement grammar admits none). Their
+    write-only boundaries requiring an admitted claim for the selected implementation. Their
     `target_body` places keep the retired prefix until then. A requirement
     publishes `invokes` for each boundary trait its implementations invoke, and
     a public caller with an explicit ceiling names the requirement; migrated
@@ -414,8 +415,8 @@ retired-syntax deletions to completion.
     waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 4; question 5
     asks whether the landed distributivity expansion advances the normalizer
     version.
-  - Migrate library/corpus/embedded declarations off the `operator` introducer
-    ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
+  - Migrate top-level library/corpus/embedded declarations off the `operator`
+    introducer ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
     `MachineSupplyMode::Boundary`.
   Acceptance: `tests/omega/pass/expressions/declared_operator_match_result/`
@@ -438,8 +439,8 @@ narrows realization only.
   Enforce the connected single-pass Psi (`00–07`) + single-pass Build +
   per-target Omega (`00–09`) pipeline architecture and workspace dependency
   topology in [the pipeline contract](omega-rust/pipeline.md) end to end.
-  Owners: `omega-rust/omega/compilation/driver/src/compiler.rs`,
-  `omega-rust/psi/compilation/driver/`,
+  Owners: `omega-rust/omega/compilation/compiler/src/target_batch.rs`,
+  `omega-rust/psi/compilation/psi-compiler/`,
   `omega-rust/omega/compilation/native-production/`, and workspace architecture
   gates (`tools/check_native_boundary.py` and `cargo metadata` guards).
   - Admit each dependency occurrence under its exact delegated execution context
@@ -455,7 +456,7 @@ narrows realization only.
     direct-import fixture shape.
   - **BUILD-EVALUATES-ONCE / ONE-DRIVER-PER-STAGE:** evaluate `build.omg` once
     per compilation with no realized target observed, run Psi `00–07` once in
-    `compiler.rs` to produce one canonical Terminal Psi artifact, and run Omega
+    `target_batch.rs` to produce one canonical Terminal Psi artifact, and run Omega
     `00–09` and emission once per requested target without
     checked-tree/lowered-Psi sidecars. Preserve source-cohort sharing across
     package occurrences while completing provider readiness/resumption and
@@ -486,24 +487,20 @@ narrows realization only.
   float boundary-call realization, target-semantic capsule evaluation, and
   package review over canonical Terminal Psi plus target Build rows in Omega
   stage `00` end to end (`omega run --both`).
-  Owners: `omega-rust/omega/compilation/driver/src/execution_settlement.rs`,
+  Owners: `omega-rust/omega/compilation/compiler/src/execution_settlement.rs`,
   `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/{boundary_application_settlement.rs,provider_admission/compiler_builtins.rs}`,
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/physical/derivation/evidence.rs`.
   - Convert source-side preparation in `execution_settlement.rs` and
     `selected-dispatch/src/provider_binding.rs` (selected dispatch, component
     progress, intrinsic review and deferred array/const-generic recipes)
     from typed/checked records to canonical Terminal Psi
-    plus target Build rows, and replace provisional completion-role nomination
-    so unused external candidates do not make selected returning implementations
-    fail closed.
+    plus target Build rows.
   - Move opaque selection and source-qualified review onto canonical Terminal
     Psi, so target planning drops its source-side signature preparation and
     passes source-discard/reload.
   - Move the remaining source-reading provider consumers onto prepared
-    declarations: host classification's catalog-local source join, typed
-    constant/comparison evaluation (including Early Build's typed-only
-    comparison path), general review call coordinates, source-dependent
-    direct-call preparation.
+    declarations: typed constant/comparison evaluation (including Early Build's
+    typed-only comparison path) and general review call coordinates.
   - Move review-only products' complete conformance evidence from checked
     source custody into Terminal Psi.
   - Publish portable dormant-use records and the trust-model accepted-machine
@@ -571,6 +568,10 @@ decision (`SourceChecked`) into Psi 06 and Omega 00.
     until those authority decisions are made.
   - Complete the wire fixture and public-customer acceptance below, including
     the 40-field runtime qualification.
+  - Carry complete owned numbered mixed-data schema descriptions through const
+    names, nested machines, other machines and selected target implementations;
+    retain exact query-authority reject twins. Const transport needs an owned
+    image of computed array length; borrowed facades must continue rejecting.
   Owners: `source/library/std/wire.omg`,
   `omega-rust/psi/compilation/validation/src/reflection/`, and
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/reflection.rs`.
@@ -603,7 +604,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   operation end to end (`omega run --both`).
   Owners: `omega-rust/psi/interpreter/terminal-interpreter/src/{embedding/{program,instance,adapters},engine/execution}.rs`,
   `omega-rust/psi/compilation/build-time-evaluation/src/{machine_execution,const_evaluation,layouts}/`,
-  and `omega-rust/psi/compilation/driver/terminal-production/src/`.
+  and `omega-rust/psi/compilation/psi-compiler/terminal-production/src/`.
   - **INTERPRETER-CORE-ENTRY:** expose one interpreter facade accepting the
     borrowed Terminal artifact view, exact provisions, and host resources
     without checked-tree dependencies or compiler-owned source lookup; reject
@@ -637,15 +638,12 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   staging once in the Terminal interpreter under
   [scoped build execution](wiki/spec/build/scoped_execution.md) and
   [restricted-build acceptance](wiki/spec/packages/acceptance.md#restricted-build-acceptance).
-  Owners: `omega-rust/omega/compilation/build-evaluation/src/`,
-  `omega-rust/omega/packages/{build-declarations,compilation-inputs,source-acquisition,build-output,package-manager}/`,
+  Owners: `omega-rust/omega/build-system/build-settings/src/`,
+  `omega-rust/omega/packages/{build-declarations,package-compilation,source-acquisition,build-output,package-manager}/`,
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
-    remaining host operations (including admitted carriers for reference results from
-    opaque host providers), and the staged dependency preparation/provider
-    park/resume contract to the production Build scheduler, and replace the
-    Rust-supplied default declaration for a missing `build.omg` with ordinary
-    source Build execution.
+    remaining host operations, and the staged dependency preparation/provider
+    park/resume contract to the production Build scheduler.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
     description/schema queries inert during Build and resolve them at the final
@@ -722,9 +720,8 @@ helper that passes does not close an item.
   [unified requirement clauses](wiki/spec/language/state_contracts.md#requirement-clauses)
   end to end and retire `where` from Omega source syntax, without a permanent
   compatibility spelling or weaker proof obligations.
-  - Implement quotient equivalence selection (`where equivalent satisfies`),
-    `where proposition` premises, and structural/nominal `requires machine`
-    contracts in both Rust and Omega producers. Preserve logical `self`, binder-kind
+  - Implement structural/nominal `requires machine` contracts in both Rust and
+    Omega producers. Preserve logical `self`, binder-kind
     inference, static/runtime distinctions, specialization and exact subjects;
     repeated predicates conjoin only within their owning scope. Keep a nested
     callable's complete contract and terminating semicolon distinct from its
@@ -736,9 +733,13 @@ helper that passes does not close an item.
     tests where it implements the retired surface; other bootstrap languages
     keep their own syntax. Delete the old keyword, grammar, recommending
     diagnostics and compatibility paths, not just their documentation.
-  - Reword checker diagnostics that still name a data declaration's `where`
-    facts (such as ``stores a value not provably within its data's `where`
-    facts``) together with their expected fragments and corpus rows.
+  - Delete `ClauseKind::Where`, `RetiredWhereMachineRequirement` and the dead
+    case-fact readers in `source/psi` (checking, resolution, typing), and move the
+    multi-line data `where` literals in the `tests/psi` resolver, checking and
+    typing harnesses to `requires`. Verifying it needs the product gates, which
+    stop because `source/psi` fails checking with 5 errors on 2da2c5b57f1
+    (`lex/lexer.omg:781`, `parse/data.omg:275,281,515`, `parse/machine.omg:714`;
+    tracked under OMEGA-PRODUCT-COMPILER-SOURCE).
   Acceptance: both producers accept the new data, generic, callable and assembly
   forms; all affected authored sources migrate without changing their result or
   refusal obligation. Existing applicable fact rows and their sensitive reject
@@ -831,13 +832,9 @@ helper that passes does not close an item.
     compile-time evaluation, complete plan validation, field/case projection,
     nested representation composition, cleanup, references, recasts and ABI
     realization without wrapper storage or per-layout Build registration.
-    The [guarded fixed-layout byte-roundtrip row](samples/cli/facts/fixed_layout_byte_roundtrip/README.md)
-    covers all nine places on Rust/Linux x86_64, Linux ARM64 and Mac ARM64
-    with rejection twins.
-    The [typed interior-region prerequisite](samples/cli/facts/fixed_region_byte_roundtrip/README.md)
-    additionally carries byte views through fields, parameters and returned records
-    on Mac ARM64; its other five transport places and other-host observations remain open.
-    Complete Windows execution, broader reference composition, and other-host
+    Complete remaining host observations for the
+    [typed interior-region prerequisite](samples/cli/facts/fixed_region_byte_roundtrip/README.md),
+    broader reference composition and other-host
     execution for [typed stored-reference readback](samples/cli/facts/fixed_layout_reference_readback/README.md)
     and [implementation-region forwarding](samples/cli/facts/implementation_region_forwarding/README.md).
   - Complete remaining schema/case composition support and platform ABI
@@ -846,8 +843,7 @@ helper that passes does not close an item.
     to ordinary resource-backed Representation contracts and reflection-specialized library adapters with
     explicit resources, failures, full supported-value
     coverage, round-trip/preservation obligations and optional proved-total
-    forwarding. Demonstrate a separately authored encoded format family and
-    composed cross-representation conversion without compiler format recognition.
+    forwarding.
     Reuse WIRE-CODEC-LIBRARY's reflection/codec route, not a second generator.
   - Migrate Rust and Omega producers, bundled libraries, samples and fixtures;
     delete declaration-level/domain layout selection, empty policy-data and
@@ -1280,7 +1276,7 @@ defines the complete product bar.
   `language-core/src/inline_assembly/`, Psi 05 CFG/state transfer and
   `execution/terminal_unit/calls/call_operations.rs`, Psi 06 lowering,
   Omega 02 `lowering/control_flow/operations.rs`, Omega 03 scalar-graph
-  admission, `image-emission/src/function_fragments/{production,validation}.rs`,
+  admission, `image-emission/src/object/function_fragments/{production,validation}.rs`,
   `native-artifact/src/physical/derivation/provider_custody.rs`, and the
   shared Terminal/native execution paths.
   - Implement explicit `asm machine` bodies and nested basic-block declarations
@@ -1376,7 +1372,7 @@ defines the complete product bar.
   [release matrix](wiki/drafts/reference/rust_compiler_completion.md#release-matrix),
   with `python tools/corpus_gate.py` (`--filter fail/` for diagnostics,
   `--native` / `--both` on each matching host). Harness:
-  `omega-rust/omega/compilation/driver/tests/corpus_runner.rs`; attribution per
+  `omega-rust/omega/compilation/compiler/tests/corpus_runner.rs`; attribution per
   [testing](tools/testing.md#attributing-a-move).
   - **CORPUS-ROUTE-BLIND-SPOTS:** invoke production application/compiler/package/interpreter
     facades in the runner, delete `driver/tests/support/fixture_package_inputs.rs`,
@@ -1465,10 +1461,10 @@ defines the complete product bar.
   - Preserve exact closed slot applications, call occurrences, and selected
     plans across activation/result/out-parameter joins to native execution via
     `omega-rust/omega/compilation/backend/plans/program-entry-plan/`,
-    `omega-rust/omega/compilation/driver/terminal-production/`,
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/entry_settlement/`,
+    `omega-rust/psi/compilation/psi-compiler/terminal-production/`,
+    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/settlement/entry_settlement/`,
     `native-artifact`'s `publish_fragment_object`, and
-    `omega-rust/omega/compilation/backend/images/image-emission/src/hosted_receiver.rs`.
+    `omega-rust/omega/compilation/backend/images/image-emission/src/entries/hosted_receiver.rs`.
   - **PROCESS-EXIT-CONTRACT:** remove `Never` return-type assumptions in
     `source/library/std/process.omg` and treat process termination as a
     non-returning `ProcessExit` boundary call with affine cleanup before
@@ -1737,8 +1733,8 @@ defines the complete product bar.
   across the full admitted entry/call closure, native artifact custody,
   installation, and replacement (`Psi 05–08` and `Omega 00–09`). Reuse
   `omega-rust/omega/compilation/backend/plans/effects/src/provider_evidence/executable_scopes/behavior_exclusions.rs`,
-  `omega-rust/omega/compilation/driver/src/checked/checking/product_selections/exclusions.rs`,
-  `omega-rust/omega/compilation/driver/src/terminal/behavior_exclusions.rs`,
+  `omega-rust/omega/compilation/compiler/src/checked/checking/product_selections/exclusions.rs`,
+  `omega-rust/omega/compilation/compiler/src/terminal/behavior_exclusions.rs`,
   `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/retained_terminal.rs`,
   `omega-rust/omega/compilation/native-production/src/realization.rs`,
   and `omega-rust/omega/compilation/backend/artifacts/native-artifact/src/native_artifact.rs`.
@@ -1760,10 +1756,10 @@ defines the complete product bar.
   - Add `builder.tests.group<ExactRequirement>()` registration and enablement to
     `Build` (`omega-rust/omega/packages/build-declarations/src/prelude.rs`) and
     `EvaluatedBuildSettings`
-    (`omega-rust/omega/packages/compilation-inputs/src/build_execution/build_value/configuration.rs`),
+    (`omega-rust/omega/packages/package-compilation/src/build_execution/build_value/configuration.rs`),
     with package-local satisfaction discovery, separate runner roots, and
-    Terminal Psi + native execution in `omega-rust/omega/compilation/driver/`.
-  - Extend `omega-rust/omega/compilation/build-evaluation/src/admission/program.rs`
+    Terminal Psi + native execution in `omega-rust/omega/compilation/compiler/`.
+  - Extend `omega-rust/omega/build-system/build-settings/src/admission/program.rs`
     and `omega-rust/omega/packages/package-manager/src/review/restricted_build_grants.rs`
     to carry group-scoped providers, ordinary fixture storage, fresh mock state,
     and lock-reviewed test authority without automatic mutable context
@@ -1835,16 +1831,16 @@ defines the complete product bar.
   and [critical service audit policy](wiki/spec/packages/review.md#critical-service-audit-policy):
   - Carry core's critical service catalog and root `Build::audit_service<R>`
     selections through install/update review and compact lock acceptance.
-  - Settle demanded Linux x86-64 filesystem `BoundaryCall`s (`set_len`) in
-    `omega-rust/omega/compilation/realization/provider-planning/src/provider_settlement/canonical_filesystem_host.rs`,
-    replace equality-based receiver checks in
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_permissions.rs`
-    with demand-based containment, and replace the broad filesystem arm in
-    `omega-rust/omega/packages/review-evidence/src/capture/authority.rs` and
-    `omega-rust/omega/packages/package-manager/src/review/audit/triage/` with
-    exact cohort classifications from
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/settlements/source_imports.rs`
-    and `omega-rust/omega/packages/package-manager/src/review/candidate/semantic_bindings.rs`.
+  - Make Linux x86-64 filesystem calls such as `set_len` run through the
+    program's selected filesystem implementation. In the
+    [permission checks](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/terminal_authority_permissions.rs),
+    accept supplied permissions that cover every operation the call needs,
+    even if they allow additional operations. In
+    [review evidence](omega-rust/omega/packages/review-evidence/src/capture/authority.rs)
+    and [package review](omega-rust/omega/packages/package-manager/src/review/),
+    replace the broad filesystem category with the operation-specific categories
+    produced by [native import selection](omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/settlements/source_imports.rs)
+    and [accepted API bindings](omega-rust/omega/packages/package-manager/src/review/candidate/semantic_bindings.rs).
   Acceptance: `tests/omega/pass/host/console_exit_process_exit` (exit 70),
   Cathedral native smoke, `samples/cli/basics/cli_mvp`, and Squalr build and run
   without a synthesized receiver-policy file; denying policies reject and
@@ -1866,15 +1862,15 @@ defines the complete product bar.
   [platform services](wiki/spec/build/platform_services.md) and
   [bounded occurrence-specific release proofs](wiki/spec/build/permissions.md#bounded-occurrence-specific-release-proof)
   end to end (`Psi 05–08` and `Omega 00–09`):
-  - Validate the Windows portable `FilesystemService` implementation natively
+  - Validate remaining Windows portable `FilesystemService` paths natively
     (anonymous SQOS on owned path opens, HANDLE storage, explicit permissions and
-    data sync), run `note_vault` (exit 14), and provide trusted
+    data sync), and provide trusted
     Terminal adapters for the exact authored foreign bindings.
   - Wire the occurrence-bound close proof helpers in
-    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/provider_admission/terminal_authority_policy/filesystem.rs`
+    `omega-rust/omega/compilation/pipeline/00_terminal-psi-to-abstract-operations/src/providers/provider_admission/terminal_authority_policy/filesystem.rs`
     so a proved close earns an empty authority classification (with
     `tests/omega/pass/filesystem/native_close` as the unconstrained control).
-  Acceptance: `note_vault` and the remaining Windows filesystem
+  Acceptance: the remaining Windows filesystem
   fixtures pass `omega run --both` on their matching
   hosts with nested raw-provider closure checks and occurrence-bound close
   classifications, while failed acquisition, handle escape, or unproved close
@@ -1983,8 +1979,10 @@ defines the complete product bar.
   access views end to end (`Psi 05–08` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
-  - Connect `Vec` growth/reallocation/drop to the real backing allocator so
-    dynamic `Vec` growth executes natively across hosts.
+  - Extend `alloc::Vec` beyond copy-scalar elements: retain initialized-element
+    custody across growth and discharge non-copy element cleanup before returning
+    vacant backing to the allocator.
+  - Execute the library growth/release/reset witnesses on Linux and macOS hosts.
   Acceptance: `tests/omega/pass/memory/bump_allocator_canary` and `Vec` growth
   witnesses execute via `omega run --both` with real backing, coexisting
   allocations, preserved prefix elements on growth, and full reset after

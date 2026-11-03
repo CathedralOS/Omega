@@ -117,7 +117,12 @@ Wrap owned OS resources in RAII guards with `Drop` so early returns release them
 
 Use Omega's rustfmt configuration and pinned toolchain; source-study formatting does not establish repository policy.
 
-Write rustdoc for public contracts and non-obvious functions: units, ownership, errors, boundary semantics, and safety requirements. Comments explain intent or constraints and end with a period. Avoid narrating assignments or adding documentation that only repeats a name.
+Write rustdoc for public contracts and non-obvious functions. Follow
+[Explain the change](../../../../AGENTS.md#explain-the-change): start with the
+operation's purpose for its caller, then add the units, ownership, errors,
+boundary semantics and safety requirements needed to use it correctly. Comments
+explain intent or constraints and end with a period. Avoid narrating assignments
+or adding documentation that only repeats a name.
 
 For example, this pure operation keeps domain names, borrows its input, and makes invalid ranges explicit:
 

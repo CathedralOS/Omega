@@ -223,6 +223,7 @@ impl RankArrivalAdmission {
                     .collect::<Vec<_>>();
                 let receiving = plan.receiving.insert_many(receiving);
                 bindings.push(CheckedRankCoordinateBinding {
+                    application_context: Default::default(),
                     entry,
                     destination,
                     transports,
@@ -240,6 +241,9 @@ impl RankArrivalAdmission {
                     calls: plan
                         .application_calls
                         .insert_many(application.calls().iter().copied()),
+                    dispatches: plan
+                        .application_dispatches
+                        .insert_many(application.dispatches().iter().copied()),
                 },
                 None => Default::default(),
             };

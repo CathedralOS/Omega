@@ -1,30 +1,31 @@
-//! Prepare complete selected execution from immutable checked Psi and Build inputs.
-//!
-//! Canonical Product choice has already recorded provider demand and selected
-//! whole maps. Grants, callbacks, declaration catalogs, selected review and
-//! accepted host bindings close here without making another provider choice.
-//! Receiving permission remains a later join; prepared direct-call supply is
-//! not permission to execute it.
+//! Bind a target's selected implementations using declarations saved before
+//! Terminal publication. Grants, calls and callbacks are checked in order;
+//! this step cannot read source or choose a different implementation.
 
 use crate::SelectedExecution;
-use checked_trees::CheckedTrees as CheckedProgram;
 use diagnostics::Diagnostic;
 use package_compilation::AcceptedSemanticBindingRole;
-use provider_planning::ProviderPlanningContext;
 use provider_planning::service_declarations::ServiceDeclarations;
 use std::sync::Arc;
 
+mod preparation;
+pub use preparation::PreparedBindingDeclarations;
+
 /// Realization choices joined to a completed source judgment.
 pub struct ProviderBindingRequest<'a> {
-    pub provider_inventory: &'a Arc<psi_terminal_production::PreparedProviderInventory>,
-    pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
+    pub declarations: &'a PreparedBindingDeclarations,
+    pub selected_declarations:
+        Vec<Result<language_semantics::provider_declarations::ProviderDeclarations, Diagnostic>>,
+    pub native_provider_sources: Result<Arc<backend_plan::NativeProviderSources>, Vec<Diagnostic>>,
+    pub entry_service_requirements: Vec<symbols::SymbolHandle>,
     pub package_inputs: Option<&'a package_compilation::PackageCompilationInputs>,
     pub boundary_calling_plan_realizations:
         &'a [provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
     pub provider_candidates: &'a [provider_planning::ProviderPlanCandidate],
     pub boundary_provider_demands: &'a [effects::provider_plan::ProviderPlan],
     pub provider_declarations: &'a Arc<[backend_plan::TerminalTargetProviderPlan]>,
-    pub terminal_module: &'a terminal_psi::TerminalModule,
+    pub calling_program: &'a provider_planning::calling_policy_plans::CallingProgram,
+    pub exact_toolchain_sources: &'a [(source::SourceId, [u8; 32])],
     pub selected_provider_plan_facts: effects::SelectedProviderPlanFacts,
     pub root_grants: &'a [String],
     pub selected_provider_provenance: Vec<provider_planning::SelectedProviderReviewProvenance>,
@@ -35,19 +36,18 @@ pub struct ProviderBindingRequest<'a> {
     pub selected_program_entry:
         Option<provider_planning::program_entry::SelectedCompilerProgramEntry>,
     pub x86_scalar_fma_provider: Option<target::AdmittedX86ScalarFmaProvider>,
-    pub external_declarations: &'a std::sync::OnceLock<
-        Result<Arc<psi_terminal_production::PreparedExternalProviderDeclarations>, Vec<Diagnostic>>,
-    >,
 }
 
-/// Close source-dependent realization once without rewriting the shared program.
-/// Source/role failures precede Terminal lowering and checking-only task demand
-/// validation. Native-only source refusals remain deferred until that handoff.
+/// Finish target binding without reopening source. Saved errors are reported
+/// at their original step; native-only errors remain deferred until emission.
 pub fn prepare_selected_execution(
-    program: Arc<CheckedProgram>,
     mut settlement: ProviderBindingRequest<'_>,
 ) -> Result<SelectedExecution, Vec<Diagnostic>> {
-    if !Arc::ptr_eq(settlement.provider_inventory.program(), &program) {
+    settlement.declarations.owner.clone()?;
+    if !std::sync::Weak::ptr_eq(
+        &settlement.declarations.source_owner,
+        &settlement.calling_program.source_owner,
+    ) {
         return Err(vec![Diagnostic::error(
             "selected provider inventory belongs to another checked program",
         )]);
@@ -66,39 +66,25 @@ pub fn prepare_selected_execution(
         .collect::<Vec<_>>();
     if settlement.package_inputs.is_some() && !settlement.root_grants.is_empty() {
         trust_model::reject_package_non_provider_grants(
-            settlement.provider_inventory.trust_declarations(),
+            &settlement.declarations.trust,
             settlement.root_grants,
             &provider_plans,
             &settlement.selected_provider_plan_facts,
         )?;
     }
-    // Numeric plan admission consumes this exact checked owner's declaration
-    // facts. Prepare once before binding; malformed declarations can now refuse
-    // before plan/qualification errors, but neither path executes effects.
-    let external_providers = settlement
-        .external_declarations
-        .get_or_init(|| {
-            psi_terminal_production::PreparedExternalProviderDeclarations::prepare(
-                Arc::clone(&program),
-                settlement.exact_toolchain_sources,
-            )
-            .map(Arc::new)
-            .map_err(|error| {
-                vec![Diagnostic::error(format!(
-                    "external provider declarations: {error:?}"
-                ))]
-            })
-        })
-        .clone()?;
+    let external_providers = settlement.declarations.external.clone()?;
     external_providers
-        .require_owner(&program, settlement.exact_toolchain_sources)
+        .require_prepared_owner(
+            &settlement.calling_program.source_owner,
+            settlement.exact_toolchain_sources,
+        )
         .map_err(|error| {
             vec![Diagnostic::error(format!(
                 "external provider declarations: {error:?}"
             ))]
         })?;
     let declarations = provider_planning::prepare_selected_plan_declarations(
-        &program,
+        settlement.selected_declarations,
         &settlement.selected_provider_plan_facts,
         &settlement.selected_provider_provenance,
     );
@@ -109,7 +95,12 @@ pub fn prepare_selected_execution(
             identities: &external_providers.identities,
             external_providers: &external_providers.conformances,
         },
-        program.facts.semantic.admitted_qualification_issuers(),
+        settlement
+            .declarations
+            .issuers
+            .as_ref()
+            .map(|issuers| issuers.iter().collect())
+            .map_err(|reason| *reason),
         &provider_plans,
         settlement.selected_provider_plan_facts,
         declarations,
@@ -117,11 +108,7 @@ pub fn prepare_selected_execution(
         settlement.authored_root_grants,
     )?;
     let (selected_provider_plan_facts, selected_provider_grants) = binding.into_parts();
-    let provider_source = Arc::new(provider_planning::SelectedProviderSource::new(
-        Arc::clone(settlement.provider_inventory),
-        selected_provider_plan_facts,
-    ));
-    let selected_provider_plan_facts = provider_source.plans();
+    let selected_provider_plan_facts = Arc::new(selected_provider_plan_facts);
     // Close the existing exact source association once. Native ABI publication
     // is not needed to count calling declarations and must not add early errors.
     let calling_requirements = external_providers.callbacks.calling_requirements(
@@ -133,10 +120,10 @@ pub fn prepare_selected_execution(
     );
     let callback_roots = {
         let providers = provider_selection::CallbackProviderDeclarations::prepare(
-            selected_provider_plan_facts,
+            &selected_provider_plan_facts,
             &external_providers.callbacks.declarations,
             settlement.provider_declarations,
-            settlement.terminal_module,
+            settlement.calling_program.artifact.semantic_module(),
         )?;
         let selected = provider_selection::select_callback_declarations(
             &external_providers.callbacks.declarations,
@@ -146,15 +133,9 @@ pub fn prepare_selected_execution(
         external_providers.selected_callback_roots(selected)
     };
     let service_declarations = Arc::new(ServiceDeclarations::prepare(
-        settlement.provider_inventory.service_declarations(),
+        settlement.declarations.services.declared_traits(),
         settlement.boundary_calling_plan_realizations,
     ));
-    let native_provider_sources = provider_planning::prepare_native_provider_sources(
-        ProviderPlanningContext::new(&program.typed, source::DependencyScope::Product),
-        &settlement.selected_provider_provenance,
-        Arc::clone(settlement.provider_declarations),
-    )
-    .map(Arc::new);
 
     let accepted_binding = |role| {
         settlement
@@ -165,7 +146,7 @@ pub fn prepare_selected_execution(
         settlement.provider_candidates,
         &external_providers,
         &service_declarations,
-        selected_provider_plan_facts,
+        &selected_provider_plan_facts,
         &mut settlement.selected_provider_provenance,
         settlement
             .provider_planning_target_profile
@@ -204,8 +185,11 @@ pub fn prepare_selected_execution(
         direct_boundary_leaves,
         service_declarations,
         external_providers,
-        native_provider_sources,
-        provider_source,
+        native_provider_sources: settlement.native_provider_sources,
+        selected_provider_plan_facts,
+        entry_service_requirements: settlement.entry_service_requirements,
+        trust_declarations: Arc::clone(&settlement.declarations.trust),
+        has_proof_obligations: settlement.declarations.has_proof_obligations,
         selected_target_profile: settlement.selected_target_profile,
         selected_program_entry: settlement.selected_program_entry,
         x86_scalar_fma_provider: settlement.x86_scalar_fma_provider,

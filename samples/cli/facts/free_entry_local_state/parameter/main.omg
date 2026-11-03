@@ -2,8 +2,8 @@
 // Place: parameter.
 // Expected exit: 0
 data Tally { total: u64; }
-data Mark { slot: &mut Tally; code: u64; }
-machine Mark::drop(mark: &mut Mark) requires mark.code == 7 {
+data Mark dropped by drop_mark { slot: &mut Tally; code: u64; }
+machine drop_mark(mark: &mut Mark) requires mark.code == 7 {
     mark.slot.total = mark.code;
 }
 machine settle(mark: &Mark) {}

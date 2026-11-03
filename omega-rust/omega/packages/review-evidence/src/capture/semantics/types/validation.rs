@@ -1,4 +1,4 @@
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use diagnostics::Diagnostic;
 use language_semantics::const_value::CanonicalConstValue;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure;
@@ -7,7 +7,7 @@ use symbols::SymbolHandle;
 use typed_trees::wire::is_layout_domain_name;
 
 pub(crate) fn validate_package_type_identity_input(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
@@ -23,7 +23,7 @@ pub(crate) fn validate_package_type_identity_input(
 }
 
 pub(crate) fn validate_package_type_identity_input_inner(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     program: &dyn ::validation::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
     binders: &[(SymbolHandle, String)],
@@ -259,7 +259,7 @@ fn validate_package_const_binder(
 }
 
 fn validate_package_index_expression(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     program: &dyn ::validation::CheckingInput,
     expression: typed_trees::expression::ExpressionHandle,
     binders: &[(SymbolHandle, String)],
@@ -277,12 +277,12 @@ fn validate_package_index_expression(
     // projection-local type substitutions are handled by the identity context.
     if builtin_exposure.is_some()
         && (!compilation
-            .custody
+            .original_program
             .typed
             .expression_table
             .expression_is_valid(expression)
             || compilation
-                .custody
+                .original_program
                 .typed
                 .expression_table
                 .expression(expression)
@@ -386,7 +386,7 @@ fn validate_package_index_expression(
             // A HandleSpan is a roster address, not the roster's contents.
             if program.expression_table.expression_handles(call.arguments)
                 != compilation
-                    .custody
+                    .original_program
                     .typed
                     .expression_table
                     .expression_handles(call.arguments)

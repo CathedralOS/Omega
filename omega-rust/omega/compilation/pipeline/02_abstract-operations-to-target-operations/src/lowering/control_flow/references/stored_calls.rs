@@ -180,8 +180,15 @@ pub(in crate::lowering) fn catalog(
                     // This is an emission obligation, not a signature-derived
                     // memory effect. Selection and image replay independently
                     // demand this exact bounded prefix guard before the import.
-                    && crate::descriptor_input_guard(declaration, binding, types.catalog())
-                        .is_ok_and(|guard| guard.is_some())
+                    && target_operations::descriptor_input_guard(
+                        declaration,
+                        binding,
+                        types.catalog(),
+                        |buffer| {
+                            crate::lowering::borrowed_storage::capture_type(buffer, types.catalog())
+                        },
+                    )
+                    .is_ok_and(|guard| guard.is_some())
             },
         )
     else {

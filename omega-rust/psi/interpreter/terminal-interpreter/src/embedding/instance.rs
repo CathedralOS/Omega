@@ -721,6 +721,12 @@ impl TerminalEffectHandler for ImportDispatch<'_, '_> {
         self.adapter_for(effect)?.poll_effect_readiness(effect)
     }
 
+    fn accepts_reference_results(&self, boundary: BoundaryMachineId) -> bool {
+        self.bindings
+            .get(&boundary)
+            .is_some_and(|binding| binding.adapter.accepts_reference_results(boundary))
+    }
+
     fn storage_requirements(
         &self,
         boundary: BoundaryMachineId,

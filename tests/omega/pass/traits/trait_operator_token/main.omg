@@ -4,7 +4,7 @@
 // the requirement stays callable by name, and a concrete `machine <`
 // crowns the canonical token meaning for its operand signature.
 trait Ranked<T> {
-    operator < before(left: T, right: T) -> bool;
+    machine < before(left: T, right: T) -> bool;
 }
 data Card { rank: i32; }
 Ascending satisfies Ranked<Card> {

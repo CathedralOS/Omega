@@ -127,6 +127,9 @@ pub struct CheckedBoundaryMachinePlan {
     /// parameters into their independent custody namespace.
     pub scalar_parameters: Vec<CheckedStructuralScalarParameterPlan>,
     pub result: CheckedBoundaryMachineResultPlan,
+    /// Public input-relative result regions, decided by checking. These do not
+    /// locate the actual returned descriptor or grant its storage permission.
+    pub result_reference_sources: Vec<crate::CheckedReturnedReferencePlan>,
     /// Canonical `(argument_index, domain)` order derived from exact normalized
     /// membership facts in the boundary contract.
     pub domain_requirements: Vec<CheckedUnitStructuralDomainRequirementPlan>,

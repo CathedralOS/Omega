@@ -20,7 +20,7 @@ pub struct PreparedProviderInventory {
     checked: Arc<CheckedTrees>,
     uses: OnceLock<HashSet<SymbolHandle>>,
     origins: OnceLock<Vec<SelectedTargetMachineOrigin>>,
-    direct_calls: OnceLock<DirectCallDeclarations<SymbolHandle>>,
+    direct_calls: OnceLock<Arc<DirectCallDeclarations<SymbolHandle>>>,
     trust: OnceLock<language_semantics::trust_declarations::TrustDeclarations>,
     services: Arc<typed_trees::service_declarations::PreparedServiceCatalog>,
 }
@@ -49,6 +49,13 @@ impl PreparedProviderInventory {
 
     pub fn program(&self) -> &Arc<CheckedTrees> {
         &self.checked
+    }
+
+    /// Share the saved service declarations without retaining the checked program.
+    pub fn retained_service_catalog(
+        &self,
+    ) -> Arc<typed_trees::service_declarations::PreparedServiceCatalog> {
+        Arc::clone(&self.services)
     }
 
     pub fn service_declarations(
@@ -81,8 +88,25 @@ impl PreparedProviderInventory {
     }
 
     pub fn direct_calls(&self) -> &DirectCallDeclarations<SymbolHandle> {
-        self.direct_calls
-            .get_or_init(|| typed_trees::direct_calls::collect(&self.checked.typed, Product))
+        self.direct_call_declarations()
+    }
+
+    /// Share the saved calls with target compilation after source preparation.
+    pub fn retained_direct_calls_for(
+        &self,
+        checked: &CheckedTrees,
+    ) -> Result<Arc<DirectCallDeclarations<SymbolHandle>>, Diagnostic> {
+        self.require_owner(checked)?;
+        Ok(Arc::clone(self.direct_call_declarations()))
+    }
+
+    fn direct_call_declarations(&self) -> &Arc<DirectCallDeclarations<SymbolHandle>> {
+        self.direct_calls.get_or_init(|| {
+            Arc::new(typed_trees::direct_calls::collect(
+                &self.checked.typed,
+                Product,
+            ))
+        })
     }
 
     pub fn origins_for(

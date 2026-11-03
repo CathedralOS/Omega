@@ -89,9 +89,13 @@ pub(super) fn validate_parameter_correspondence(
             );
             continue;
         }
-        if let Err(error) =
-            super::validate_arguments(program, name, parameters, &arguments.arguments, state)
-        {
+        if let Err(error) = super::validate_arguments(
+            program,
+            name,
+            parameters,
+            &arguments.arguments,
+            super::ArgumentScope::Caller(state),
+        ) {
             diagnostics.push(error.with_source_span(application.operand.source_span));
         }
         let source =

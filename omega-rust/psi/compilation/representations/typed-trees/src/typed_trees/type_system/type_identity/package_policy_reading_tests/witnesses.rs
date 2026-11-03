@@ -558,6 +558,7 @@ pub(super) fn expression_witnesses(fixture: &mut Fixture) -> Vec<Witness> {
             value,
         }]);
     let literal = fixture.expression(ExpressionNode::StructLiteral(TableStructLiteral {
+        application_type: Default::default(),
         type_name: Identifier::generated("Record"),
         type_symbol: fixture.symbol("Record"),
         case_name: Some(Identifier::generated("On")),

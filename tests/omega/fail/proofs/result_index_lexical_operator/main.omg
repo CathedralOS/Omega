@@ -1,7 +1,7 @@
 data Value [copy] { code: u64; }
 data Pair [copy] { items: [Value; 2]; }
 trait Indexer {
-    operator [] select(items: [Value; 2], index: u64) -> Value
+    machine [] select(items: [Value; 2], index: u64) -> Value
     ensures result.code == 8;
 }
 machine issue<Policy satisfies Indexer>() -> Pair

@@ -38,6 +38,110 @@ fn application(
 }
 
 #[test]
+fn resolved_region_substitution_is_scoped_and_simultaneous() {
+    use crate::machine::Machine;
+    use crate::type_identity::{LifetimeParameterIdentity, applied_type_identity_in_region_scope};
+    let mut builder = SymbolTableBuilder::default();
+    let required = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("required"));
+    let actual = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("actual"));
+    let captured = builder.insert_root(SymbolKind::Machine, SymbolNameRef::Static("captured"));
+    let scalar = builder.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("u32"));
+    let mut program = TypedTrees {
+        symbols: builder.finish(),
+        ..Default::default()
+    };
+    for (symbol, name) in [
+        (required, "required"),
+        (actual, "actual"),
+        (captured, "captured"),
+    ] {
+        program.push_machine(Machine {
+            symbol,
+            name: Identifier::generated(name),
+            lifetime_parameters: vec![
+                Identifier::generated("slot"),
+                Identifier::generated("later"),
+            ],
+            ..Default::default()
+        });
+    }
+    let scalar = named(&mut program, scalar, "u32");
+    let reference = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: scalar,
+            access: language_semantics::ReferenceAccess::Shared,
+            lifetime: Some(Identifier::generated("slot")),
+        });
+    let later = program
+        .type_reference_table
+        .insert(TypeReferenceNode::Reference {
+            referee: scalar,
+            access: language_semantics::ReferenceAccess::Shared,
+            lifetime: Some(Identifier::generated("later")),
+        });
+    let region = |declaration| LifetimeParameterIdentity {
+        declaration,
+        ordinal: 0,
+    };
+    let identity = |owner, rows: &[(LifetimeParameterIdentity, LifetimeParameterIdentity)]| {
+        applied_type_identity_in_region_scope(&program, reference, owner, owner, &[], rows).unwrap()
+    };
+    assert_ne!(identity(actual, &[]), identity(required, &[]));
+
+    // Public schema keeps region position while erasing declaration-local
+    // binder identities. A different bound region must change the commitment.
+    use crate::type_identity::{DeclaredStaticOperandIdentityRequest, IndexIdentityArgument};
+    let declared = |owner, reference| {
+        program
+            .declared_static_operand_identity(DeclaredStaticOperandIdentityRequest {
+                operand: IndexIdentityArgument::TypeArgument(reference),
+                lexical_owner: owner,
+                binders: &[],
+                lifetime_binders: &[
+                    (region(owner), 0),
+                    (
+                        LifetimeParameterIdentity {
+                            declaration: owner,
+                            ordinal: 1,
+                        },
+                        1,
+                    ),
+                ],
+            })
+            .unwrap()
+    };
+    assert_eq!(declared(required, reference), declared(actual, reference));
+    assert_ne!(declared(required, reference), declared(required, later));
+    assert_ne!(identity(actual, &[]), identity(captured, &[]));
+    assert_eq!(
+        identity(actual, &[(region(actual), region(required))]),
+        identity(required, &[])
+    );
+    assert_eq!(
+        identity(actual, &[(region(captured), region(required))]),
+        identity(actual, &[])
+    );
+    // The produced correspondence is simultaneous. Its destination cannot be
+    // rewritten by a second row, and a prior normalization owns no cached frame.
+    assert_eq!(
+        identity(
+            actual,
+            &[
+                (region(actual), region(required)),
+                (region(required), region(captured))
+            ]
+        ),
+        identity(required, &[])
+    );
+    assert_eq!(
+        identity(actual, &[(region(actual), region(captured))]),
+        identity(captured, &[])
+    );
+    assert_ne!(identity(actual, &[]), identity(required, &[]));
+}
+
+#[test]
 fn ordinary_nested_implementation_const_roles_preserve_values_and_policy_identity() {
     let mut symbols = SymbolTableBuilder::default();
     let u64_symbol = symbols.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("u64"));

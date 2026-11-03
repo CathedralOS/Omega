@@ -18,7 +18,7 @@ use super::operators::{
     project_contract_unary_operator,
 };
 use crate::capture::EvidenceOption;
-use crate::capture::PackageReviewInput;
+use crate::capture::SourceDeclarationInput;
 use crate::capture::contracts::facts::ContractProjectionContext;
 use crate::capture::semantics::types::review_signature_type_identity_with_binders_and_substitutions_and_lifetimes;
 use crate::record::{
@@ -29,7 +29,7 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 
 pub(crate) fn project_contract_expression(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     expression: typed_trees::expression::ExpressionHandle,
@@ -49,7 +49,7 @@ pub(crate) fn project_contract_expression(
 }
 
 pub(crate) fn project_contract_expression_with_substitutions(
-    compilation: &PackageReviewInput<'_>,
+    compilation: &SourceDeclarationInput<'_>,
     context: &ContractProjectionContext<'_>,
     binders: &[(SymbolHandle, String)],
     expression: typed_trees::expression::ExpressionHandle,

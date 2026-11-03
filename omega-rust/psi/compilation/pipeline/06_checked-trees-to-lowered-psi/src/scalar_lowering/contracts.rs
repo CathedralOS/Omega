@@ -830,20 +830,6 @@ fn strict_result_bound(left: ScalarTerm, right: ScalarTerm) -> Proposition {
     }
 }
 
-/// The erased-proof roster the caller machine's given state exposes to its
-/// lowered terms: that state's row in the caller's published Unit body.
-pub(crate) fn caller_erased_proof_roster(
-    checked: &CheckedTrees,
-    machine: symbols::SymbolHandle,
-    state: symbols::SymbolHandle,
-) -> Result<&[CheckedErasedProofParameterPlan], LoweringError> {
-    crate::unit::attached_unit::bodies::UnitBody::find(
-        crate::unit::attached_unit::bodies::UnitPlans::published(&checked.facts.flow),
-        machine,
-    )?
-    .state_erased_proof_parameters(state)
-}
-
 /// Transfer independently checked closed source carriers into the portable
 /// contract roster. Open template telescopes never enter Terminal execution.
 pub(crate) fn mathematical_carriers(

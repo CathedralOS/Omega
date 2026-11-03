@@ -45,7 +45,6 @@ pub(super) fn check_call_requires(
     call_flow: &FlowCallFact,
     nominal_requirements: &super::nominal_inputs::DeclaredFieldRequirements,
     incoming_guards: &[crate::checks::ranges::incoming_guards::IncomingGuard],
-    expression_intervals: &[validation::ExpressionInterval],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     constant_obligations: &mut Vec<checked_trees::ConstantPredicateObligation>,
     recipe_obligations: &mut Vec<checked_trees::ConstantRecipeObligation>,
@@ -146,7 +145,6 @@ pub(super) fn check_call_requires(
                             call_flow,
                             requirement_contexts,
                             fact,
-                            expression_intervals,
                             call_frames,
                             &mut whole_contract_caches[cache_index].answers,
                         )
@@ -317,7 +315,6 @@ pub(super) fn check_call_requires(
                             .machine_by_own_or_state_symbol(call_flow.target_symbol)
                             .map_or(call_flow.target_symbol, |machine| machine.symbol),
                         expression,
-                        expression_intervals,
                         &|subject| {
                             let name = program.expression_table.name_path_node(subject)?;
                             if !program.expression_table.name_path_is_single_member(name) {

@@ -138,6 +138,12 @@ pub(crate) fn build_boundary_machine(
     };
     Ok(CheckedBoundaryMachinePlan {
         reference_outputs,
+        result_reference_sources: reference_result_sources(
+            program,
+            program.state_parameters(state),
+            state.return_type,
+            &[],
+        )?,
         machine: machine.symbol,
         kind: semantic_vocabulary::BoundaryRequirementKind::Machine,
         state: state.symbol,
@@ -260,7 +266,11 @@ pub(crate) fn build_dynamic_slot_plans(
             let Some(tuple) = application
                 .local_arguments
                 .iter()
-                .map(|argument| program.static_const_type_reference_identity(*argument))
+                .map(|argument| {
+                    argument.static_operand().and_then(|reference| {
+                        program.static_const_type_reference_identity(reference)
+                    })
+                })
                 .collect::<Option<Vec<_>>>()
             else {
                 continue;
@@ -544,6 +554,18 @@ pub(crate) fn build_static_boundary_requirements(
                 })
                 .collect();
             plans.push(CheckedBoundaryMachinePlan {
+                result_reference_sources: match reference_result_sources(
+                    program,
+                    program.state_signature_parameters(signature),
+                    signature.return_type,
+                    &substitutions,
+                ) {
+                    Ok(sources) => sources,
+                    Err(reason) => {
+                        gaps.push(machine_gap(program, signature, reason));
+                        continue;
+                    }
+                },
                 reference_outputs: match reference_outputs(
                     program,
                     program.state_signature_parameters(signature),
@@ -659,6 +681,13 @@ fn build_boundary_operator(
         transitive: language_semantics::ServiceReachRowTable::EMPTY_ROW,
     };
     Some(CheckedBoundaryMachinePlan {
+        result_reference_sources: reference_result_sources(
+            program,
+            program.operator_parameters(operator),
+            operator.return_type,
+            &[],
+        )
+        .ok()?,
         reference_outputs: reference_outputs(program, program.operator_parameters(operator), &[])
             .ok()?,
         machine: operator.symbol,
@@ -687,6 +716,30 @@ fn build_boundary_operator(
         },
         service_reach,
     })
+}
+
+/// A boundary retains the same public returned-borrow relation as a dynamic
+/// requirement. Its actual provider must still supply a captured descriptor.
+fn reference_result_sources(
+    program: &dyn validation::CheckingInput,
+    parameters: &[typed_trees::signature::StateParameter],
+    return_type: typed_trees::types::TypeReferenceHandle,
+    substitutions: &[(SymbolHandle, typed_trees::types::TypeReferenceHandle)],
+) -> Result<Vec<checked_trees::CheckedReturnedReferencePlan>, &'static str> {
+    let parameters = parameters
+        .iter()
+        .map(|parameter| {
+            let mut parameter = parameter.clone();
+            parameter.type_reference =
+                substituted_formal_type(program, parameter.type_reference, substitutions);
+            parameter
+        })
+        .collect::<Vec<_>>();
+    validation::reference_result_custody::declared_return_sources(
+        program,
+        &parameters,
+        substituted_formal_type(program, return_type, substitutions),
+    )
 }
 
 /// Retain admitted completion separately from ordinary reference-origin

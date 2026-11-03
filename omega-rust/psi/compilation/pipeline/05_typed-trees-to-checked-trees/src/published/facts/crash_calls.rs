@@ -1,18 +1,20 @@
-//! Ordinary private crash summaries compose through exact invocation substitutions;
-//! authored published ceilings remain authoritative. Predicate reduction requires
-//! the callee's builtin operator meaning and entry custody for referenced actuals.
-//! Optional scalar annotations carry checked lowering evidence: after a fully
-//! concrete substitution they may discharge or confirm a route the domain-free
-//! identity cannot fold, and they never keep an undecidable origin from widening.
+//! Check which published crash conditions remain possible at each call.
+//! A selected requirement keeps its full public signature and the argument
+//! values evaluated for that invocation. Private helpers compose those same
+//! conditions with their own checked bodies.
+//! Symbolic conditions retain caller entry-value identities. Checked scalar
+//! expressions also use captured values and bounds; missing evidence leaves
+//! the possible crash in place.
 //!
 //! This file attaches checked crash calls and infers crash causes.
-//! `summary_predicates.rs` carries summary crash predicates and buckets,
-//! `route_substitution.rs` substitutes call arguments into published crash
-//! routes and `private_summaries.rs` solves private body summaries;
-//! `tests.rs` holds the crash call tests.
+//! `summary_predicates.rs` combines and groups possible crash conditions.
+//! `route_substitution.rs` replaces declared parameters with call arguments.
+//! `private_summaries.rs` finds crashes that can propagate through private calls.
+//! `requirement_contracts.rs` prepares each call's selected public signature.
 
 mod potential_causes;
 mod private_summaries;
+mod requirement_contracts;
 mod route_substitution;
 mod summary_predicates;
 
@@ -262,7 +264,7 @@ pub(super) fn attach_checked_crash_calls(
             content_conservation,
             crash_capsules,
             plans,
-            Some(summary_graph),
+            summary_graph,
         ),
     };
     let mut plan_indices = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
@@ -315,12 +317,25 @@ pub(super) fn attach_checked_crash_calls(
                         ) else {
                             continue;
                         };
-                        let Some((target_machine_symbol, target_state_symbol)) =
-                            private_summaries::selected_invocation_target(
-                                program,
-                                call_site,
-                                call_flow.target_symbol,
+                        let public_target = summary_graph
+                            .requirement_contracts
+                            .for_call(
+                                state_flow.machine_symbol,
+                                state_flow.state_symbol,
+                                call_flow.statement_index,
+                                call_flow.call_ordinal,
                             )
+                            .map(|selected| {
+                                (selected.capsule.target_machine(), selected.capsule.target_state())
+                            });
+                        let Some((target_machine_symbol, target_state_symbol)) = public_target
+                            .or_else(|| {
+                                private_summaries::selected_invocation_target(
+                                    program,
+                                    call_site,
+                                    call_flow.target_symbol,
+                                )
+                            })
                         else {
                             continue;
                         };
@@ -380,17 +395,28 @@ pub(super) fn attach_checked_crash_calls(
                                 target_plan.commitment,
                             )
                         } else {
-                            let Some(&capsule) = capsule_by_target
-                                .get(&(target_machine_symbol, target_state_symbol))
-                            else {
-                                continue;
-                            };
-                            let Some(signature) = requirement_signature(
-                                program,
-                                target_machine_symbol,
-                                target_state_symbol,
-                            ) else {
-                                continue;
+                            let selected = summary_graph.requirement_contracts.for_call(
+                                state_flow.machine_symbol,
+                                state_flow.state_symbol,
+                                call_flow.statement_index,
+                                call_flow.call_ordinal,
+                            );
+                            let (capsule, signature) = if let Some(selected) = selected {
+                                (&selected.capsule, &selected.source.signature)
+                            } else {
+                                let Some(&capsule) = capsule_by_target
+                                    .get(&(target_machine_symbol, target_state_symbol))
+                                else {
+                                    continue;
+                                };
+                                let Some(signature) = requirement_signature(
+                                    program,
+                                    target_machine_symbol,
+                                    target_state_symbol,
+                                ) else {
+                                    continue;
+                                };
+                                (capsule, signature)
                             };
                             let parameters = program.state_signature_parameters(signature);
                             (
@@ -541,6 +567,18 @@ pub(crate) fn infer_checked_crash_causes(
     facts: &checked_trees::CheckFacts,
 ) -> Vec<(SymbolHandle, Vec<checked_trees::CrashCause>)> {
     let content_conservation = validation::content_conservation_plans(program);
+    let Ok(summary_graph) = prepare_crash_summary_graph(
+        program,
+        &facts.proof,
+        &facts.operators,
+        &facts.flow,
+        &facts.contract_plans.crash_capsules,
+        &facts.contract_plans.machines,
+        &content_conservation,
+    ) else {
+        // An invalid retained contract proves no private crash summary.
+        return Vec::new();
+    };
     // Validation-only exact-cast facts are not retained in CheckedTrees. They
     // feed only CallArgumentSubstitution.scalar, never its identity. Guard
     // retention, equality and fixed-point closure still use the identity
@@ -556,7 +594,7 @@ pub(crate) fn infer_checked_crash_causes(
         &content_conservation,
         &facts.contract_plans.crash_capsules,
         &facts.contract_plans.machines,
-        None,
+        &summary_graph,
     );
     let mut machine_counts = symbols::SymbolKeyMap::<SymbolHandle, usize>::default();
     for candidate in program.machines() {
