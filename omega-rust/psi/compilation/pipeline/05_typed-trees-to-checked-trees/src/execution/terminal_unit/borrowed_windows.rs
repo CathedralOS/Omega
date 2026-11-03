@@ -46,7 +46,7 @@ use typed_trees::statement::TableAssignment;
 use typed_trees::statement::TableLocalData;
 use typed_trees::type_identity::TypeIdentityId;
 use typed_trees::types::TypeReferenceHandle;
-use validation::reference_result_custody::initial_parameter_reference_establishment;
+use validation::reference_result_custody::initial_reference_establishment;
 use validation::reference_result_custody::replaced_reference_carrier;
 use validation::{
     CallFrameResolver, CanonicalPlace, ImmutableBoundLookup, array_window_shape,
@@ -1051,15 +1051,14 @@ impl OpenWindows {
                 // establish an absent slot, but the custody producer must name
                 // that exact occurrence. In particular a runtime projection
                 // with unavailable cleanup facts cannot silently skip hooks.
-                // Borrowed ingress owns no installed descriptor to retire.
-                // The first whole-formal replacement establishes its checked
-                // statement occurrence; later replacements still require the
-                // exact old-carrier retirement or ordinary storage facts.
-                let establishes_ingress_descriptor = !occupied
+                // A first reference store needs its exact checked activation,
+                // whether the slot starts uninitialized or has only ingress
+                // permission. Later stores still require the old carrier's
+                // retirement or ordinary storage facts.
+                let establishes_descriptor = !occupied
                     && path.is_empty()
-                    && matches!(source, SourcePlan::Parameter { .. })
                     && destination_place.root.as_symbol().is_some_and(|owner| {
-                        initial_parameter_reference_establishment(
+                        initial_reference_establishment(
                             program,
                             facts,
                             machine.symbol,
@@ -1073,7 +1072,7 @@ impl OpenWindows {
                 if !occupied
                     && opening.is_none()
                     && produced.multiplicity != Multiplicity::Unrestricted
-                    && !establishes_ingress_descriptor
+                    && !establishes_descriptor
                     && !facts.contextual_cleanup.storage_establishments.iter().any(
                         |(_, establishment)| {
                             establishment.machine == machine.symbol

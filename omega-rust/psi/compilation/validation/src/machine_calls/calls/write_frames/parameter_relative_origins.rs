@@ -516,13 +516,18 @@ fn parameter_relative_call_result_origins(
     };
     let mut origins = Vec::new();
     for (callee_machine, callee_state, actuals) in alternatives {
-        let callee_origins = transparent_callee_result_origins(
-            program,
-            callee_machine,
-            callee_state,
-            symbols,
-            inference,
-        )?;
+        let values = inference.argument_values(program, &actuals);
+        let indices = inference.argument_indices(program, &actuals);
+        let callee_origins =
+            inference.with_invocation(program, callee_state, &values, &indices, |inference| {
+                transparent_callee_result_origins(
+                    program,
+                    callee_machine,
+                    callee_state,
+                    symbols,
+                    inference,
+                )
+            })?;
         let callee_parameters = program.state_parameters(callee_state);
         for callee_origin in callee_origins {
             // A literal-produced image route is independent of formal inputs.
@@ -536,7 +541,10 @@ fn parameter_relative_call_result_origins(
                 // unchanged — but an opaque result referent's producing
                 // invocation is this call site, not the callee's inner one.
                 let mut callee_origin = callee_origin;
-                callee_origin.place.source.rebase_invocation_home(expression);
+                callee_origin
+                    .place
+                    .source
+                    .rebase_invocation_home(expression);
                 push_unique_parameter_relative(&mut origins, callee_origin);
                 continue;
             }

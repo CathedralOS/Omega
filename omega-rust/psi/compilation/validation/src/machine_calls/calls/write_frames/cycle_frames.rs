@@ -1,12 +1,9 @@
 //! Finite transition-cycle write-frame equations over storage-root substitutions.
 
 use crate::declarations::symbols::{MachineSymbols, TopLevelSymbols};
-use crate::machine_calls::calls::write_frames::alias_bindings::{
-    rebind_direct_assignment_target, representable_assignment_alias_rebinding,
-};
 use crate::machine_calls::calls::write_frames::alias_origins::{
-    stable_alias_initializer_origin, stable_alias_initializer_origins,
-    stable_assignment_target_path, stable_local_reference_alias_origin,
+    stable_alias_initializer_origins, stable_assignment_target_path,
+    stable_local_reference_alias_origin,
 };
 use crate::machine_calls::calls::write_frames::assignment_targets::expression_is_effectful_indexed_place;
 use crate::machine_calls::calls::write_frames::boundary_calls::known_boundary_call_written_paths_for_parts;
@@ -241,29 +238,8 @@ fn build_cycle_frame_equation<'program>(
             }
             _ => None,
         };
-        let representable_alias_rebinding = representable_assignment_alias_rebinding(
-            program,
-            machine,
-            state,
-            statement,
-            &local_alias_origins,
-            |aliases, value| {
-                stable_alias_initializer_origin(
-                    program,
-                    machine,
-                    machine_symbols,
-                    &mut inference,
-                    value,
-                    parameters,
-                    &isolated_local_roots,
-                    aliases,
-                    &[],
-                    symbols,
-                    true,
-                    &stored,
-                )
-            },
-        );
+        let replaces_local_binding =
+            super::reference_subjects::replaces_binding(program, machine, statement)?;
         if stored_origins::statement_exposes_frozen_binding(
             program,
             machine,
@@ -287,7 +263,7 @@ fn build_cycle_frame_equation<'program>(
                 &local_alias_origins,
                 &[],
             ) && declared_local_alias_origin.is_none()
-                && !representable_alias_rebinding
+                && !replaces_local_binding
             {
                 return None;
             }
@@ -330,33 +306,12 @@ fn build_cycle_frame_equation<'program>(
                     symbols,
                     &mut inference,
                     false,
-                    representable_alias_rebinding,
+                    replaces_local_binding,
                 )?;
-                if rebind_direct_assignment_target(
-                    program,
-                    machine,
-                    state,
-                    assignment,
-                    &mut local_alias_origins,
-                    |aliases, _| {
-                        stable_alias_initializer_origin(
-                            program,
-                            machine,
-                            machine_symbols,
-                            &mut inference,
-                            assignment.value,
-                            parameters,
-                            &isolated_local_roots,
-                            aliases,
-                            &[],
-                            symbols,
-                            true,
-                            &stored,
-                        )
-                    },
-                )?
-                .is_some()
-                {
+                if replaces_local_binding {
+                    let relative = super::coarse_place_path(program, assignment.target)?;
+                    local_alias_origins.retain(|(name, _)| name != &relative);
+                    replacement?.install(&mut inference, &mut stored);
                     continue;
                 }
                 let relative = stable_assignment_target_path(
