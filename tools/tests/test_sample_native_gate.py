@@ -636,7 +636,7 @@ class GateCliTests(unittest.TestCase):
         profile.start()
         self.addCleanup(profile.stop)
 
-    def test_default_build_is_optimized_and_isolated(self):
+    def test_default_build_is_optimized_and_reuses_the_checkout_target(self):
         built = subprocess.CompletedProcess([], 0, "", "")
         with patch.object(gate.shutil, "which", return_value=None), \
                 patch.object(gate.subprocess, "run", return_value=built) as runner, \
@@ -648,6 +648,17 @@ class GateCliTests(unittest.TestCase):
         self.assertEqual(environment["CARGO_PROFILE_DEV_OPT_LEVEL"], "1")
         self.assertEqual(environment["CARGO_TARGET_DIR"], str(gate.GATE_CLI_DIR))
         self.assertTrue(cli.startswith(str(gate.GATE_CLI_DIR)))
+
+    def test_gate_build_is_the_checkout_target_directory(self):
+        # A second target directory recompiles the whole compiler (12 minutes
+        # cold on a 4-core cloud session) when the session already built it.
+        with patch.dict(gate.os.environ, {}, clear=False):
+            gate.os.environ.pop("CARGO_TARGET_DIR", None)
+            self.assertEqual(gate.checkout_target_dir(),
+                             gate.windows_safe_target_dir(gate.ROOT / "target"))
+        with patch.dict(gate.os.environ, {"CARGO_TARGET_DIR": "elsewhere"}):
+            self.assertEqual(gate.checkout_target_dir(),
+                             gate.windows_safe_target_dir(gate.ROOT / "elsewhere"))
 
     def test_failed_build_returns_nothing(self):
         failed = subprocess.CompletedProcess([], 101, "", "error[E0425]")
@@ -663,7 +674,8 @@ class GateCliTests(unittest.TestCase):
             shared.parent.mkdir(parents=True)
             shared.write_bytes(b"image")
 
-            with patch.object(gate, "GATE_CLI_DIR", shared.parent.parent):
+            with patch.object(gate, "GATE_CLI_DIR", shared.parent.parent), \
+                    patch.object(gate, "GATE_SCRATCH_DIR", Path(directory) / "build"):
                 copy = gate.snapshot_cli(str(shared))
             self.assertNotEqual(copy, str(shared))
             self.assertEqual(Path(copy).read_bytes(), b"image")
@@ -686,6 +698,7 @@ class GateCliTests(unittest.TestCase):
                 yield
 
             with patch.object(gate, "GATE_CLI_DIR", shared.parent.parent), \
+                    patch.object(gate, "GATE_SCRATCH_DIR", Path(directory) / "build"), \
                     patch.object(gate, "gate_cli_lock", fake_lock), \
                     patch.object(gate.shutil, "copy2",
                                  side_effect=lambda *a, **k: order.append("copy")):

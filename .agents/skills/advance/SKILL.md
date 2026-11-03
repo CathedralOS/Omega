@@ -102,7 +102,7 @@ mode, cleanup disposition, or target rule, complete the entire source-to-native
 path in the same change rather than splitting work by compiler stage.
 
 Read the whole item's acceptance and verify its remaining gap with an optimized
-exact-source producer for the fixed recorded base. Reuse warm `build/gate-cli`
+exact-source producer for the fixed recorded base. Reuse warm `target/`
 artifacts with verified inputs; build only for changed producer inputs or a
 missing valid producer. Never use an unverified cached binary. Record the parent
 task and the exact requirement the next fact will discharge. Do not attach a task ID to an unrelated program after
