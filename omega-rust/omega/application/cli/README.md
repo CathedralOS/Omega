@@ -31,8 +31,9 @@ admissions file.
 
 `run_project` owns a distinct temporary directory per invocation. Disposable
 output is cleaned up on success and failure; requested retained output survives,
-including interpreter disagreement. An explicit target compiles without running
-the image. Host execution returns raw stdout/stderr bytes and process status;
+including interpreter disagreement. Native target-only invocations compile without
+running the image. Terminal engine selection retains the target but executes
+through its admitted host adapters. Host execution returns raw stdout/stderr bytes and process status;
 unsupported interpretation is a decline, not an agreement.
 
 Host comparisons accept `--both --terminal-fuel-allowance <positive-u64>`.
@@ -114,6 +115,15 @@ continues to pass representations through ordinary functions.
 The CLI package is **`omega`** (binary `omega`); there is no `omega-cli`
 package.
 
+The [standalone engine contract](../../../../wiki/spec/build/embedding.md#standalone-execution-selection)
+selects execution with `run --engine native|terminal`, defaulting to native.
+Terminal-only execution uses the same admitted Terminal runtime as comparison,
+without emitting or launching a native image. `--both` remains an explicit
+comparison and cannot be combined with `--engine`. Target/provider selection
+remains independent; missing interpreter adapters never trigger native fallback.
+The implementation work is tracked by `UNIVERSAL-INTERPRETER-CLOSURE` in
+[TASKS.md](../../../../TASKS.md#universal-interpreter-cutover).
+
 ```bash
 mbx run -p omega -- update --project samples/cli/basics/cli_mvp --target macos_arm64
 mbx run -p omega -- --check samples/cli/basics/cli_mvp/main.omg
@@ -134,7 +144,7 @@ omega [--check] [--offline] [--timings]
       [--report-file <path>]
       [--build-input <path>]... [--optional-build-input <path>]...
       [--build-dir <dir>] [--target <name>]... [--disable-optimization <ExactName>]... <root.omg>
-omega run [--both] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
+omega run [--engine <native|terminal> | --both] [--keep] [--entry-ram <position>=<hex-bytes>]... [--target <name> | (--inputs <dir> | --input <file>...) --outputs <dir>] <root.omg>
 omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>
 omega audit source --kind <local|git> <locator> [--rev <rev>]
 omega audit packages [--project <dir>] [--target <name>]... [--details] [--offline] [--build-input <path>]... [--optional-build-input <path>]...

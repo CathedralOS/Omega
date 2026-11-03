@@ -273,7 +273,10 @@ retired-syntax deletions to completion.
   - **Psi checking, contracts, and package review
     (DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION):**
     - Complete remaining operational envelope refinement for dynamic
-      requirements beyond suspension, blocking, and service reach.
+      requirements beyond suspension, blocking, and service reach under
+      [known-selection narrowing](wiki/spec/language/effects.md#known-dynamic-selections),
+      preserving unknown-input ceilings, all join alternatives and published
+      callable contracts rather than inferring from private or later-bound bodies.
   - **Omega realization and cross-host native execution:**
     - Preserve complete 8-byte tables, zero trap slots, exact private callable
       identities, and patched image targets across all supported hosts, including
@@ -400,7 +403,7 @@ retired-syntax deletions to completion.
     (`omega-rust/psi/compilation/representations/typed-trees/src/typed_trees/values/expression/index_authority.rs`),
     normalize `N + 0` and `N * 1` under it, and carry it through
     `monomorphization::finalize_domain_instance_identities`. The law shape
-    waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 4; question 5
+    waits on [OWNER_QUESTIONS.md](OWNER_QUESTIONS.md) question 1; question 2
     asks whether the landed distributivity expansion advances the normalizer
     version.
   - Migrate top-level library/corpus/embedded declarations off the `operator`
@@ -677,12 +680,17 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
     placed/aggregate/atomic host loans, case replacement, clock/descriptor
     imports, explicit standalone `process_exit` delegation, and architectural
     trap presentation across Windows, macOS, and Linux.
+  - Expose [explicit engine selection](wiki/spec/build/embedding.md#standalone-execution-selection)
+    as `omega run --engine native|terminal` (default native), with `--both`
+    remaining a mutually exclusive comparison request. Terminal-only execution
+    uses the shared runtime without native image emission or fallback, retains
+    target/provider admission and rejects missing support before guest effects.
   - Audit retired crate consumers, verify `source/psi/` and `source/omega/`
     against the same job/value/effect contract, and promote all
     migration-designated canaries in `tests/omega/interpreter_migration.json`.
   Acceptance: source/dependency audits find one dispatcher/call/store/resource
   implementation and no `checked-interpreter` or executable tree visitor;
-  public `omega run --both`, source-free Terminal artifact execution, and
+  public `omega run --both`, explicit native/Terminal execution, source-free Terminal artifact execution, and
   corpus/sample controls pass on Windows, macOS, and Linux with independent
   stdout/stderr/exit/trap oracles and pre-effect import rejection.
 
@@ -921,6 +929,13 @@ helper that passes does not close an item.
     single-evaluation pattern destructuring. Coordinate early exact-arithmetic
     formation with `ONE-INTEGER-BOUNDS-ENGINE`; a saved nonconstant bound must
     justify the operation before it is formed.
+  - Reclassify `fail/contracts/scalar_copy_guard_after_source_restore` as a
+    positive beside `pass/proofs/scalar_copy_guard_disjoint_write` under
+    [restored scalar facts](wiki/spec/language/state_contracts.md#restoring-a-saved-scalar-value),
+    re-record its actual outcome, and retain `source_write`/`selector_write`
+    rejection controls. Preserve exact value/place evidence without requiring
+    unbounded write-history tracking; do not weaken checking to retain a stale
+    negative oracle.
   Acceptance: a composed caller tolerates renamed/reordered states and inserted
   computations; operands execute left-to-right once, skipped calls never run,
   and saved values, reference locals, and terminal transition calls agree

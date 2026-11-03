@@ -39,10 +39,11 @@ through Build.
 Run each positive with `omega run --both <place>/main.omg` and each twin with
 `omega --check <place>/invalid/main.omg`.
 
-This row follows dynamic dispatch's "Coercion retains the selected
-conformance's exact envelope". [Effects](../../../../wiki/spec/language/effects.md)
-says dynamic calls keep pinned requirement ceilings; the conflict is open as
-question 3 in [OWNER_QUESTIONS.md](../../../../OWNER_QUESTIONS.md).
+This row follows the ratified
+[known dynamic contract narrowing](../../../../wiki/spec/language/effects.md#known-dynamic-selections):
+check-time selections retain their available checked contracts; unknown inputs
+and providers selected later retain their governing ceilings. A smaller private
+body does not rewrite an explicitly published callable contract.
 
 Nearest row: [dynamic suspension](../dynamic_suspension/README.md) narrows only
 the suspension and blocking summary. Its twins change the requirement input and
