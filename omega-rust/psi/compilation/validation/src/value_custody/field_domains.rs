@@ -856,7 +856,7 @@ pub fn domain_constraint_identities(
 /// target that omits it erases it (domains.md, "Exact coercion and erasure").
 /// A predicate membership still holds on the unchanged value and is never
 /// erased here. A recast re-views the same storage, and an unresolved target
-/// erases nothing. A target alias keeps its constituents.
+/// erases nothing. A target alias keeps its atomic constituents.
 pub fn cast_erases_membership(
     program: &dyn crate::CheckingInput,
     cast: &typed_trees::expression::TableCastExpression,
@@ -896,12 +896,18 @@ pub fn cast_erases_membership(
         || program
             .domain_definition(domain_symbol)
             .is_some_and(|domain| !domain.predicate_presence.is_present());
+    // An alias constituent names its domain without index arguments, so it
+    // keeps only the atomic instance, never one instance of an indexed family.
+    let atomic = program
+        .domain_definition(domain_symbol)
+        .is_some_and(|domain| domain.semantic_id == semantic_domain);
     meaning_only
         && !domain_constraint_identities(program, cast.result_type)
             .iter()
             .any(|(symbol, identity)| {
                 (*symbol == domain_symbol && *identity == semantic_domain)
                     || (*symbol != domain_symbol
+                        && atomic
                         && names(program, *symbol, domain_symbol, &mut Vec::new()))
             })
 }
