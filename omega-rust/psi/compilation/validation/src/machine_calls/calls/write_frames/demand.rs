@@ -1525,7 +1525,7 @@ impl<'program> CallFrameResolver<'program> {
             current_machine,
             &self.tables.symbols,
             CallerWriteSite::Expression(expression),
-            &self.caches.state_write_collections,
+            &self.caches.state_write_shared_collections,
             |inference, prefix| {
                 let prefix = prefix?;
                 let mut written = Vec::new();
