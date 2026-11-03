@@ -7,6 +7,7 @@ machine build(builder: &mut Build) {
     configure_windows_filesystem(builder);
     configure_posix_canonical(builder);
     configure_posix_filesystem(builder);
+    configure_posix_filesystem_darwin(builder);
     // Bind the complete ObjectiveC family once. String extents stay static.
     Build::bind<ObjectiveC::get_class>(builder, macos_arm64, ForeignBinding::DllImport {
         import: DllImport::MachODylibSymbol {
@@ -468,6 +469,159 @@ machine configure_posix_filesystem(builder: &mut Build) {
         ForeignBinding::Syscall { number: 54 });
     Build::bind<PosixFilesystemLinux::fchown>(builder, linux_arm64,
         ForeignBinding::Syscall { number: 55 });
+}
+
+// The Darwin POSIX filesystem requirements resolve against libSystem; every
+// member shares one install name and keeps its authored Mach-O symbol.
+machine configure_posix_filesystem_darwin(builder: &mut Build) {
+    Build::bind<PosixFilesystemDarwin::c_open>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_open"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_open_create>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "___open"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_create>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_creat"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_read>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_read"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_write>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_write"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_read_at>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_pread"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_write_at>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_pwrite"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_close>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_close"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_remove>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_unlink"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_seek>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_lseek"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_create_dir>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_mkdir"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_remove_dir>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_rmdir"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_create_dir_name>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_mkdir"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_open_at>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_openat"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_unlink_at>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_unlinkat"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_set_permissions>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_chmod"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_set_file_permissions>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fchmod"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_rename>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_rename"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_hard_link>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_link"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_symlink>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_symlink"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_read_link>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_readlink"
+        } });
+    Build::bind<PosixFilesystemDarwinByteViews::c_read_dir>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "___getdirentries64"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_remove_name>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_unlink"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_remove_dir_name>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_rmdir"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_read_file_metadata>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fstat"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_read_metadata_at>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fstatat"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_set_len>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_ftruncate"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_set_file_times>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_futimens"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_sync>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fsync"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_sync_data>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fdatasync"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_duplicate>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_dup"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_lock_file>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_flock"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_change_owner>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_chown"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_change_owner_no_follow>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_lchown"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_change_file_owner>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_fchown"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_error_location>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "___error"
+        } });
+    Build::bind<PosixFilesystemDarwin::c_copy_from_address>(builder, macos_arm64,
+        ForeignBinding::DllImport { import: DllImport::MachODylibSymbol {
+            install_name: "/usr/lib/libSystem.B.dylib", symbol: "_memcpy"
+        } });
 }
 
 // Native object storage belongs to the image module; the original Build value

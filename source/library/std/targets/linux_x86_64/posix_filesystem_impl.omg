@@ -23,8 +23,8 @@ boundary trait PosixFilesystemLinuxX86ByteViews: Calling<LinuxX86ByteViewCalling
 
 use filesystem_host;
 
-// Providers call the exact `PosixFilesystemLinux` leaves: a call to
-// a member of this trait is an invocation edge `PosixFilesystemHost` does not publish.
+// Providers call the exact `PosixFilesystemLinux` leaves; each
+// `PosixFilesystemHost` requirement publishes this trait through `invokes`.
 boundary trait PosixFilesystemLinux {
     machine openat(dirfd: i32, path: &[u8; 4096], flags: i32, mode: i32) -> i32
     reaches FilesystemContentRead + FilesystemContentWrite + FilesystemMetadataMutation + FilesystemNamespaceMutation;
