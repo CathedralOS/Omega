@@ -1,5 +1,5 @@
 //! Keep the checked construction and saved fields of each completed data value.
-//! A later read must still establish that its storage is current. Matching
+//! Reading a value from storage still needs a current observation. Matching
 //! constructor syntax or a destination type cannot establish that validity.
 use super::{ExpressionHandle, StructuralJudge, StructuralTerm, TypeReferenceHandle, ValueScope};
 
@@ -125,9 +125,8 @@ impl StructuralJudge<'_> {
         observed
     }
 
-    /// Follow an owned capture back to its checked value. A case-membership
-    /// question can use that value's fields; rebuilding an equal constructor
-    /// does not inherit the original construction's validity.
+    /// Follow an owned capture back to its checked value and fields. Rebuilding
+    /// an equal constructor does not inherit that value's identity or validity.
     pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn completed_nominal_subject(
         &self,
         value: &StructuralTerm,
