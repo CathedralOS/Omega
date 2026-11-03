@@ -106,7 +106,6 @@ pub(crate) fn check_checked_facts_recording(
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
     guard_index: &IncomingGuardIndexCache,
     proven_machine_contracts: &[(SymbolHandle, validation::ProvenContractExpressions)],
-    expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<(), Vec<Diagnostic>> {
     let mut diagnostics = Vec::new();
     let setup_guard =
@@ -190,7 +189,6 @@ pub(crate) fn check_checked_facts_recording(
                 incoming_guards,
                 call_frames.as_ref(),
                 &mut entailment,
-                expression_intervals,
             )
         },
     ) {
@@ -287,7 +285,6 @@ pub(crate) fn check_checked_facts_recording(
             &facts.borrow,
             &facts.flow,
             &facts.semantic,
-            expression_intervals,
             call_frames.as_ref(),
             incoming_guards,
             mutation_summaries,

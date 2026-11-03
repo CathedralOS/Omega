@@ -16,15 +16,14 @@ use typed_trees::expression::{BinaryOperator, ExpressionHandle, ExpressionNode};
 pub(super) fn proves(
     program: &dyn ::validation::CheckingInput,
     requirement: ExpressionHandle,
-    intervals: &[validation::ExpressionInterval],
     argument_for: &impl Fn(ExpressionHandle) -> Option<ExpressionHandle>,
 ) -> bool {
     let Some(binary) = program.expression_table.binary_node(requirement) else {
         return false;
     };
     if binary.operator == BinaryOperator::And {
-        return proves(program, binary.left, intervals, argument_for)
-            && proves(program, binary.right, intervals, argument_for);
+        return proves(program, binary.left, argument_for)
+            && proves(program, binary.right, argument_for);
     }
     let literal = |side: ExpressionHandle| match program.expression_table.expression(side) {
         ExpressionNode::Integer(value) => value.value_i64(),
@@ -42,7 +41,7 @@ pub(super) fn proves(
     let Some(argument) = argument_for(parameter) else {
         return false;
     };
-    let Some(interval) = validation::expression_interval(intervals, argument) else {
+    let Some(interval) = program.expression_interval(argument) else {
         return false;
     };
     match operator {
@@ -68,7 +67,6 @@ pub(super) fn recipe_requirements(
     owner: symbols::SymbolHandle,
     recipe_owner: symbols::SymbolHandle,
     requirement: ExpressionHandle,
-    intervals: &[validation::ExpressionInterval],
     argument_for: &impl Fn(ExpressionHandle) -> Option<ExpressionHandle>,
     description: &str,
 ) -> Option<Vec<checked_trees::ConstantRecipeObligation>> {
@@ -77,7 +75,7 @@ pub(super) fn recipe_requirements(
     if matches!(
         program.expression_table.expression(requirement),
         ExpressionNode::Boolean(true)
-    ) || proves(program, requirement, intervals, argument_for)
+    ) || proves(program, requirement, argument_for)
     {
         return Some(Vec::new());
     }
@@ -88,7 +86,6 @@ pub(super) fn recipe_requirements(
             owner,
             recipe_owner,
             binary.left,
-            intervals,
             argument_for,
             description,
         )?;
@@ -97,7 +94,6 @@ pub(super) fn recipe_requirements(
             owner,
             recipe_owner,
             binary.right,
-            intervals,
             argument_for,
             description,
         )?);
@@ -113,7 +109,7 @@ pub(super) fn recipe_requirements(
         return None;
     };
     let interval = if let Some(argument) = argument_for(subject) {
-        validation::expression_interval(intervals, argument)?
+        program.expression_interval(argument)?
     } else {
         return None;
     };

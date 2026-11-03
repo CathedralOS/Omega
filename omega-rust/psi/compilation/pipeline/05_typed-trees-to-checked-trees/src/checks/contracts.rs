@@ -107,7 +107,6 @@ pub(super) fn check_flow_call_contracts(
     incoming_guards: &crate::checks::ranges::incoming_guards::IncomingGuardIndex,
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     entailment: &mut ProvenExitExpressions<'_, '_>,
-    expression_intervals: &[validation::ExpressionInterval],
 ) -> Result<ContractDecisions, Vec<Diagnostic>> {
     let mut diagnostics = phase_profile::scope(
         "psi.05.check_checked_facts.check_flow_call_contracts.cleanup_requirements",
@@ -233,7 +232,6 @@ pub(super) fn check_flow_call_contracts(
                         call_flow,
                         &nominal_requirements,
                         incoming_guards.for_machine(state_flow.machine_symbol),
-                        expression_intervals,
                         call_frames,
                         &mut state_constant_obligations,
                         &mut state_recipe_obligations,

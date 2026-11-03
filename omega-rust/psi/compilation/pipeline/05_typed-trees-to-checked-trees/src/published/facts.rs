@@ -141,7 +141,6 @@ pub(crate) fn build_check_facts(
     operational: OperationalPlan,
     service_reach_inference: flow_effects::ServiceReachInferencePlan,
     mut validation_facts: validation::ProgramValidationFacts,
-    expression_intervals: &[validation::ExpressionInterval],
     mutation_summaries: &crate::flow::StateMutationSummaryCache,
 ) -> Result<(CheckFacts, validation::PreparedEffectPlans), Vec<diagnostics::Diagnostic>> {
     // One resolver serves this immutable fact-construction window, including
@@ -275,7 +274,6 @@ pub(crate) fn build_check_facts(
                     &prepared.values.scalar_expressions,
                     &prepared.operators,
                     &validation_facts.exact_integer_casts,
-                    expression_intervals,
                     mutation_summaries,
                     call_frames.as_ref(),
                 )

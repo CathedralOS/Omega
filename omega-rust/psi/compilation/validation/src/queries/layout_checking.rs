@@ -75,6 +75,13 @@ impl CheckingInput for LayoutCheckingContext<'_> {
     fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
         self.input.storage_graph()
     }
+
+    fn expression_interval(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<crate::ExpressionInterval> {
+        self.input.expression_interval(expression)
+    }
     fn prepared_mathematics(&self) -> Option<PreparedMathematicalView<'_>> {
         self.input.prepared_mathematics()
     }
