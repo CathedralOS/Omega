@@ -550,6 +550,28 @@ class CompilerPilotTests(unittest.TestCase):
         self.validate(self.report())
         self.validate(self.report(True), True)
 
+    def test_target_publication_control_needs_its_real_reason_and_no_execution(self):
+        fixture = "pass/providers/missing_target_supply"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            directory = root / "tests/omega" / fixture
+            directory.mkdir(parents=True)
+            for target in ("macos_arm64", "linux_x86_64"):
+                (directory / f"expected_native_rejection.{target}.txt").write_text(f"missing supply on {target}\n")
+            for both in (False, True):
+                target = "linux_x86_64" if both else "macos_arm64"
+                facts = {"interpreter": "unchecked"} if both else {"check-target": target}
+                row = dict(fixture=fixture, tier="pass", status="rejected", expected_satisfied=True,
+                           facts=dict(facts, **{"native-rejection": "match"}),
+                           diagnostics=[f"missing supply on {target}"])
+                report = self.report(both)
+                report["observations"] = [row]
+                with patch.object(pilot, "ROOT", root):
+                    pilot.validate_report(report, (fixture,), both=both, revision="a" * 40, target="linux_x86_64")
+                    row["diagnostics"] = ["unrelated refusal"]
+                    with self.assertRaises(ValueError):
+                        pilot.validate_report(report, (fixture,), both=both, revision="a" * 40, target="linux_x86_64")
+
     def test_golden_movement_is_not_a_failed_oracle(self):
         report = self.report()
         report["exit_code"] = 1
