@@ -209,8 +209,7 @@ where
             .copied()
             .filter(|(_, row)| row.build_keyed())
             .collect::<Vec<_>>();
-        let covering = if keyed.is_empty() { covering } else { keyed };
-        match covering.as_slice() {
+        match keyed.as_slice() {
             [] => {}
             [(candidate, _)] => choices.push(Choice {
                 candidate: *candidate,
