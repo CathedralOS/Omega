@@ -290,35 +290,105 @@ impl StructuralJudge<'_> {
             result_type,
             integer_range: None,
         };
+        self.retain_entry_scalar_snapshot(machine, state, place, value)
+    }
+
+    /// Keep an admitted entry scalar even when its pointer has not been
+    /// loaded yet. Such a snapshot is not current contents; a later read must
+    /// establish its complete backing and preservation from this entry.
+    pub(super) fn retain_entry_scalar_snapshot(
+        &mut self,
+        machine: &Machine,
+        state: &State,
+        place: crate::CanonicalPlace,
+        value: StructuralTerm,
+    ) -> Result<StructuralTerm, &'static str> {
+        if !self.requires_value_preservation()
+            || self.declaration_state != state.symbol
+            || self.storage_write_sequence != 0
+        {
+            return Err("the scalar snapshot is outside its declaration entry epoch");
+        }
         let root = place
             .root
             .as_symbol()
             .ok_or("entry predicate has no declaration root")?;
+        let program = self.program;
+        let parameter = program
+            .state_parameter_by_symbol(state, root)
+            .ok_or("entry predicate is not rooted in an admitted input")?;
+        let geometry = crate::structural_scalar_coordinate(
+            program,
+            program.state_parameters(state),
+            root,
+            &place.segments,
+        )
+        .ok_or("entry snapshot has no readable scalar geometry")?;
+        let observed_type =
+            crate::value_custody::expression_types::readable_observation_type_reference(
+                program,
+                geometry.result_type_reference,
+            )
+            .filter(|reference| {
+                program.primitive_type_reference(*reference) == Some(geometry.primitive_type)
+            })
+            .ok_or("entry snapshot has no matching scalar carrier")?;
+        let (cases, indices) =
+            super::super::super::scoped_arithmetic::scalar_projection_requirements(
+                program,
+                parameter.type_reference,
+                &place.segments,
+            )
+            .ok_or("entry snapshot lost its projection requirements")?;
+        if !self.scalar_coordinate_is_formed(
+            parameter.type_reference,
+            &StructuralTerm::Variable(parameter.name.to_string()),
+            &place.segments,
+            &cases,
+            &indices,
+        ) || !super::super::super::structural_terms::scalar_operand_is_observed(
+            program,
+            geometry.result_type_reference,
+            &value,
+        ) {
+            return Err("entry snapshot lacks a formed scalar observation");
+        }
         if self
             .entry_read_backing(machine, state, root, &place.segments)
             .is_some()
         {
             return self.retain_entry_scalar_observation(machine, state, place, value);
         }
-        self.program
-            .state_parameter_by_symbol(state, root)
-            .ok_or("entry predicate is not rooted in an admitted input")?;
         let coordinate = self
             .capture_entry_storage_place(place.clone())
             .ok_or("entry predicate has no fixed declaration coordinate")?;
-        self.retain_storage_value(coordinate.clone(), value.clone(), true);
-        let stored = std::sync::Arc::make_mut(&mut self.stored_values)
-            .value_at_mut(&coordinate)
-            .ok_or("entry predicate lost its logical snapshot")?;
-        stored.current = None;
-        stored.backing = None;
-        stored.completed_read = None;
+        let values = std::sync::Arc::make_mut(&mut self.stored_values);
+        let previous = if let Some(stored) = values.value_at_mut(&coordinate) {
+            stored.entry.get_or_insert_with(|| value.clone()).clone()
+        } else {
+            values.push(super::CapturedStorageValue {
+                coordinate,
+                entry: Some(value.clone()),
+                current: None,
+                selected_case: None,
+                completed_read: None,
+                backing: None,
+                current_anchors: vec![super::StorageAnchor::Incoming],
+                anchor_state: state.symbol,
+            });
+            value.clone()
+        };
+        // A second admitted observation of this exact entry coordinate keeps
+        // the first snapshot's identity and relates the two saved values.
+        if !previous.same_resolution_payload(&value) {
+            self.assume_completed_value_equation(observed_type, previous.clone(), value.clone());
+        }
         if super::super::super::struct_trace() {
             eprintln!(
                 "STRUCT entry-predicate-only place={place:?} value={value:?} awaiting=performed-load-and-preservation"
             );
         }
-        Ok(value)
+        Ok(previous)
     }
 
     /// Whole entry values use the entry selector namespace too. A header

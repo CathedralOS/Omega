@@ -515,21 +515,16 @@ impl StructuralJudge<'_> {
             let Some(root) = place.root.as_symbol() else {
                 continue;
             };
-            let Some(backing) = self.entry_read_backing(machine, state, root, &canonical.segments)
-            else {
-                continue;
-            };
             let Some(value) = self.declaration_term(expression) else {
                 continue;
             };
-            let backing = self.freeze_entry_read_backing(state, backing);
-            self.retain_storage_value(place.clone(), value, true);
-            if let Some(stored) =
-                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&place)
+            if let Err(reason) = self.retain_entry_scalar_snapshot(machine, state, canonical, value)
+                && super::super::struct_trace()
             {
-                stored.backing = Some(backing);
-                // No executable read was observed while admitting a Requires.
-                stored.completed_read = None;
+                eprintln!(
+                    "STRUCT entry-contract-scalar-refused state={:?} root={root:?} phase={reason}",
+                    state.symbol,
+                );
             }
         }
     }

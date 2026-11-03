@@ -210,7 +210,7 @@ impl StructuralJudge<'_> {
         formed
     }
 
-    fn scalar_coordinate_is_formed(
+    pub(super) fn scalar_coordinate_is_formed(
         &self,
         reference: TypeReferenceHandle,
         captured: &super::super::StructuralTerm,
@@ -899,11 +899,16 @@ impl StructuralJudge<'_> {
                     // owner, after the whole load frontier and current cut are
                     // independently authenticated. A retired Entry snapshot is
                     // never a substitute for changed current storage.
-                    self.storage_graph()?;
-                    let at = at?;
                     self.stored_values.values_at(&coordinate).find_map(|stored| {
                         (stored.current.is_none()
-                            && self.current_value_valid(stored, &coordinate, at))
+                            && if self.storage_graph().is_some() {
+                                at.is_some_and(|at| {
+                                    self.current_value_valid(stored, &coordinate, at)
+                                })
+                            } else {
+                                self.storage_write_sequence == 0
+                                    && stored.anchor_state == state.symbol
+                            })
                         .then(|| stored.entry.clone())
                         .flatten()
                     })
