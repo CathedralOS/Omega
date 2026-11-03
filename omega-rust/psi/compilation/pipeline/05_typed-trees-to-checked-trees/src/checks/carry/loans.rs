@@ -522,7 +522,13 @@ pub(super) fn retained_lifetime_demand(
             // exact suppliers, which the walk below retains and checks.
             _ if crate::checks::borrows::transport_suppliers(borrow, state, loan_handle)
                 .is_some() => {}
-            _ => return Err("the loan lifetime resource is unavailable"),
+            _ => {
+                eprintln!("missing retained resource for {loan_handle:?}");
+                for (handle, source) in borrow.state_loans(state) {
+                    eprintln!("{handle:?}: owner {:?}, source {:?}, lineage {:?}, root {:?}, suppliers {:?}, retained {:?}", source.owner_symbol, source.source_owner_symbol, source.lineage, source.root, borrow.loan_suppliers.span_or_empty(source.supplying_loans), source.retained_operand);
+                }
+                return Err("the loan lifetime resource is unavailable");
+            },
         }
         for supplying in borrow.loan_suppliers.span_or_empty(loan.supplying_loans) {
             let supplier = frontier
