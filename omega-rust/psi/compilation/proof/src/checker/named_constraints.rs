@@ -7,8 +7,8 @@ use crate::checker::diagnostics::{
 };
 use crate::checker::float_ranges::{
     finite_float_literal, float_range_for_assignment, float_range_for_call_argument,
-    float_range_for_initializer, float_range_for_return_value, float_range_for_transition_argument,
-    float_range_from_constraints,
+    float_range_for_initializer, float_range_for_transition_argument, float_range_from_constraints,
+    guarded_float_range_for_return_value,
 };
 use crate::checker::integer_ranges::{
     guarded_integer_range_for_assignment, guarded_integer_range_for_transition_argument,
@@ -87,7 +87,7 @@ pub(crate) fn check_return_named_constraints(
 ) {
     for constraint in named_constraints(type_constraints(proof_plan, obligation.constraints)) {
         if constraint == "finite"
-            && float_range_for_return_value(proof_plan, obligation)
+            && guarded_float_range_for_return_value(proof_plan, obligation)
                 .is_some_and(|range| range.proves_finite())
         {
             continue;
