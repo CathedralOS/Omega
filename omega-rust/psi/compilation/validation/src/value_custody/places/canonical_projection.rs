@@ -669,14 +669,22 @@ pub fn canonical_place_from_expression(
             }
             Some(place)
         }
+        // A projection reads storage: a field of an erasing cast is the
+        // operand's field, because the erased meaning qualified the whole value.
         ExpressionNode::Member(member) => {
-            let mut place = canonical_place_from_expression(program, member.receiver)?;
+            let mut place = canonical_place_from_expression(
+                program,
+                storage_operand(program, member.receiver),
+            )?;
             let symbol = effective_member_symbol(program, member.receiver, member);
             push_field_place_segments(program, &mut place.segments, symbol);
             Some(place)
         }
         ExpressionNode::Indexed(indexed) => {
-            let mut place = canonical_place_from_expression(program, indexed.collection)?;
+            let mut place = canonical_place_from_expression(
+                program,
+                storage_operand(program, indexed.collection),
+            )?;
             place
                 .segments
                 .push(index_place_segment(program, indexed.index));
@@ -830,7 +838,8 @@ pub fn place_root_may_be_symbol(
         }
         leaf = match expression_table(program).expression(leaf) {
             ExpressionNode::Borrow(inner) => inner.target,
-            ExpressionNode::Cast(cast) if cast_preserves_place(program, cast) => cast.value,
+            // Borrows and projections descend every storage-sharing cast.
+            ExpressionNode::Cast(cast) if cast_shares_storage(program, cast) => cast.value,
             ExpressionNode::Member(member) => member.receiver,
             ExpressionNode::Indexed(indexed) => indexed.collection,
             ExpressionNode::Name(path) => {
@@ -876,7 +885,7 @@ pub fn storage_place_from_expression_in_state(
 
 /// The operand whose storage `expression` occupies: every same-carrier cast
 /// leaves the value's bytes where they were.
-pub(super) fn storage_operand(
+pub fn storage_operand(
     program: &dyn CheckingInput,
     mut expression: ExpressionHandle,
 ) -> ExpressionHandle {

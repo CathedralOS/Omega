@@ -90,12 +90,13 @@ pub fn contextual_canonical_place_from_expression(
             }
             Some(place)
         }
+        // A projection reads storage, through any storage-sharing cast.
         ExpressionNode::Member(member) => {
             let mut place = contextual_canonical_place_from_expression(
                 program,
                 state_symbol,
                 statement_index,
-                member.receiver,
+                super::canonical_projection::storage_operand(program, member.receiver),
             )?;
             let symbol = {
                 let symbol = member_resolution::effective_member_symbol_from_position(
@@ -125,7 +126,7 @@ pub fn contextual_canonical_place_from_expression(
                 program,
                 state_symbol,
                 statement_index,
-                indexed.collection,
+                super::canonical_projection::storage_operand(program, indexed.collection),
             )?;
             // A whole builtin window preserves every element's coordinate.
             // Keeping a range selector here would instead put facts below a
