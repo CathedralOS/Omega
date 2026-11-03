@@ -1417,6 +1417,7 @@ fn check_fail_fixture(
         )?;
         let target_name = discovered.targets.first().cloned();
         let native_product = (target_name.is_some() || publishes).then(|| compilation_products::NativeProductRequest {
+        image: Default::default(),
         private_entry_ram,
         terminal_authority_policy:
             terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),

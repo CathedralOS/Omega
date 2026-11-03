@@ -304,7 +304,7 @@ pub(super) struct HostContext<'host> {
 impl<'host> HostContext<'host> {
     pub(super) fn finish_native_provider(&self) -> Result<(), TerminalRuntimeError> {
         self.native.finish().map_err(|error| {
-            TerminalRuntimeError::missing("native-provider-retirement", error.reason)
+            TerminalRuntimeError::missing(super::NATIVE_PROVIDER_RETIREMENT, error.reason)
         })
     }
     pub(super) fn new(

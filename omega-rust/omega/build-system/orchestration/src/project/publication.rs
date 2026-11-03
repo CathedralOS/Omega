@@ -58,7 +58,7 @@ fn publish_product(
         | ProjectProduct::Terminal
         | ProjectProduct::Inspection { .. }
         | ProjectProduct::Native {
-            destination: NativeDestination::Retained,
+            destination: NativeDestination::Retained | NativeDestination::RuntimeAdmission,
             ..
         } => (output, None),
         ProjectProduct::Native {
