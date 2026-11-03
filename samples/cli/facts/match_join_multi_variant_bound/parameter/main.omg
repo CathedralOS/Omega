@@ -21,9 +21,10 @@ machine receive(val: u64) -> u64 {
     val
 }
 
-machine main() crashes Trap {
-    let m: Mode = Mode::Mid { val: 40 };
-    let joined: u64 = evaluate(m);
+// `run` receives `mode` as a parameter, so the payload is known only through
+// `Mode`'s requirement; the operation below must use the joined bound.
+machine run(mode: Mode) crashes Trap {
+    let joined: u64 = evaluate(mode);
     let diff1: u64 = 60u64 - receive(joined);
     let diff2: u64 = receive(joined) - 20u64;
     transition diff1 == 20 && diff2 == 20 {
@@ -32,4 +33,8 @@ machine main() crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+
+machine main() crashes Trap {
+    run(Mode::Mid { val: 40 });
 }

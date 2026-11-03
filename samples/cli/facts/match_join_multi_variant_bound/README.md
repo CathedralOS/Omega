@@ -22,6 +22,13 @@ accompanied by `<place>/invalid/` reject twins:
 | another machine | [other_machine/main.omg](other_machine/main.omg) | [other_machine/invalid/main.omg](other_machine/invalid/main.omg) | match join result evaluated and consumed inside intermediate machine |
 | another target body | [target_body/main.omg](target_body/main.omg) | [target_body/invalid/main.omg](target_body/invalid/main.omg) | match join result evaluated across target-scoped machine bodies |
 
+Except the root and the match-join place, each place receives `Mode` as a
+parameter of `run`, so its payload is known only through the type's
+requirement. A literal `Mode` value would let the checker prove the operation
+from the literal, and the reject twin would compile. The match-join place
+still builds a literal: with a parameter, its value `match` whose arms call
+`evaluate` with the `Mode` argument does not lower yet.
+
 ## Execution
 
 Every positive place (and root `main.omg`) binds `ProgramEntry` for all four
