@@ -249,6 +249,7 @@ pub struct CheckingContext<'program> {
         Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
     opaque_selections: Option<&'program [OpaqueRepresentationSelection]>,
     memos: Arc<CheckingMemos>,
+    storage_memos: OnceLock<Arc<CheckingMemos>>,
     call_frame_tables:
         OnceLock<Option<Arc<crate::machine_calls::calls::CallFrameTables<'program>>>>,
 }
@@ -257,11 +258,22 @@ impl<'program> CheckingContext<'program> {
     fn reset_context_sensitive_memos(&mut self) {
         // Call-frame queries also consume the prepared effect and reach plans.
         // Only the full-input equality paths may share their cached results.
-        let memos = std::mem::take(&mut self.memos);
+        let memos = std::mem::take(&mut self.storage_memos)
+            .into_inner()
+            .unwrap_or_else(|| std::mem::take(&mut self.memos));
         self.memos = Arc::new(Arc::try_unwrap(memos).map_or_else(
             |shared| shared.clone_typed_tree_memos(),
             CheckingMemos::retain_typed_tree_memos,
         ));
+    }
+
+    fn active_memos(&self) -> &Arc<CheckingMemos> {
+        if self.storage_graph.get().is_some() {
+            self.storage_memos
+                .get_or_init(|| Arc::new(self.memos.clone_typed_tree_memos()))
+        } else {
+            &self.memos
+        }
     }
 
     /// Change the explicit declaration input before any flow-dependent memo is
@@ -272,6 +284,7 @@ impl<'program> CheckingContext<'program> {
     ) -> Self {
         self.retained_borrows = rows;
         self.memos = Arc::new(CheckingMemos::default());
+        self.storage_memos = OnceLock::new();
         self.call_frame_tables = OnceLock::new();
         self
     }
@@ -298,6 +311,7 @@ impl<'program> CheckingContext<'program> {
             prepared_mathematics: None,
             opaque_selections: None,
             memos: Arc::new(CheckingMemos::default()),
+            storage_memos: OnceLock::new(),
             call_frame_tables: OnceLock::new(),
         }
     }
@@ -318,9 +332,9 @@ impl<'program> CheckingContext<'program> {
         self
     }
 
-    /// Attach the storage graph that checking judgments read storage history
-    /// from, once, before they run. It changes no memoized typed-tree or
-    /// effect answer, so borrowers of this context keep their views.
+    /// Attach the completed storage history once. Later judgments use a fresh
+    /// set of context-sensitive memos: early observations could not distinguish
+    /// overlapping writes from disjoint writes. Typed-tree indexes survive.
     pub fn attach_storage_graph(&self, graph: Arc<checked_trees::FlowFacts>) {
         let _ = self.storage_graph.set(graph);
     }
@@ -336,7 +350,7 @@ impl<'program> CheckingContext<'program> {
     /// plans differ from the source plans while pure typed-tree indexes survive.
     pub fn with_prepared_effect_plans(mut self, plans: &'program PreparedEffectPlans) -> Self {
         self.prepared_effects = Some(plans);
-        if !self.memos.matches_effect_plans(plans) {
+        if !self.active_memos().matches_effect_plans(plans) {
             self.reset_context_sensitive_memos();
         }
         self
@@ -355,11 +369,16 @@ impl<'program> CheckingContext<'program> {
         if let Some(tables) = self.call_frame_tables.get() {
             let _ = call_frame_tables.set(tables.clone());
         }
-        let memos = if self.memos.matches_effect_plans(plans) {
-            self.memos.clone()
+        let active_memos = self.active_memos();
+        let memos = if active_memos.matches_effect_plans(plans) {
+            active_memos.clone()
         } else {
-            Arc::new(self.memos.clone_typed_tree_memos())
+            Arc::new(active_memos.clone_typed_tree_memos())
         };
+        let storage_memos = OnceLock::new();
+        if self.storage_graph.get().is_some() {
+            let _ = storage_memos.set(memos.clone());
+        }
         CheckingContext {
             defer_layout_geometry: self.defer_layout_geometry,
             program: self.program,
@@ -371,6 +390,7 @@ impl<'program> CheckingContext<'program> {
             prepared_mathematics: self.prepared_mathematics,
             opaque_selections: self.opaque_selections,
             memos,
+            storage_memos,
             call_frame_tables,
         }
     }
@@ -434,7 +454,7 @@ impl CheckingInput for CheckingContext<'_> {
     }
 
     fn checking_memos(&self) -> Option<&CheckingMemos> {
-        Some(&self.memos)
+        Some(self.active_memos())
     }
 
     fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {

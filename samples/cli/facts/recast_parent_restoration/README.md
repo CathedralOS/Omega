@@ -59,8 +59,11 @@ Other-host execution remains unverified.
 - [Forwarding marker](controls/forwarding_marker/main.omg) changes a disjoint
   marker while forwarding the formed view. Its
   [twin](controls/forwarding_marker/invalid/main.omg) breaks restoration.
-  [Dirty forwarding](controls/dirty_forward/main.omg) rejects an already false
-  parent before the nonmutating call.
+  [Dirty forwarding](controls/dirty_forward/main.omg) calls the forwarding helper
+  while the parent is already invalid. Both rejection controls currently stop
+  at the earlier field-loan check: the helper's return guarantees do not preserve
+  `start`'s required bound. These observations leave their later call/return
+  restoration checks unverified behind that existing loan limitation.
 - [Case backing](controls/case_backing/main.omg) and its
   [nonmutating form](controls/case_backing/nonmutating/main.omg) retain the
   selected `Envelope::Some` storage path. The

@@ -43,12 +43,14 @@ fn graph(
                 })
         })
         .collect::<Vec<_>>();
-    let truth = program
+    // This test checks whether requirements can be carried, not whether a value
+    // satisfies them. Keep a nonredundant row: `true` needs no emitted contract.
+    let requirement = program
         .expression_table
-        .insert(ExpressionNode::Boolean(true));
+        .insert(ExpressionNode::Boolean(false));
     let facts = program
         .proof_facts
-        .insert_many([ProofFact::Expression(truth)]);
+        .insert_many([ProofFact::Expression(requirement)]);
     let unsupported = program
         .proof_facts
         .insert_many([ProofFact::Membership(ProofMembershipFact::default())]);

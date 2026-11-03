@@ -1,1 +1,3 @@
-default domain is still FALSE at state exit
+cannot complete return from machine `restore` state `entry`
+the `requires` facts of `span` (data `Interval<32>`)
+unproved; restore them first

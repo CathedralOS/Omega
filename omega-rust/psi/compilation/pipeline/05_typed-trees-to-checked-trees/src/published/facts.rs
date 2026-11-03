@@ -374,6 +374,10 @@ pub(crate) fn build_check_facts(
     // Validation's machine loop ran before it existed, so its judgments
     // treated every write as opaque.
     program_context.attach_storage_graph(std::sync::Arc::new(prepared.flow.clone()));
+    // Pending arithmetic uses the actual operands before their result exists.
+    // Resolve it before publishing the scalar plans that consume formation.
+    validation_facts.discharge_storage_formations(program)?;
+    prepared.operators.decided_formations = validation_facts.decided_formations.clone();
     phase_profile::checkpoint(
         "flow fixed-point iterations",
         "psi.05.build_check_facts.flow_fixed_point.outer_iterations",
