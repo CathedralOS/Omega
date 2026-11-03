@@ -367,9 +367,13 @@ fn field_segment(
 /// dispatch named it directly. A reference with a storage view reinterprets
 /// bytes and is not followed.
 fn referenced_subject(blocks: &[terminal_psi::Block], mut place: Place) -> Place {
-    // A reference names a source formed earlier, so following one link per
-    // step cannot revisit a root; the bound only guards malformed input.
-    for _ in 0..blocks.len() {
+    // Each step follows one reference to the source it was formed from, so a
+    // chain is never longer than the number of operations that form references.
+    let formations = blocks
+        .iter()
+        .map(|block| block.operations.len())
+        .sum::<usize>();
+    for _ in 0..formations {
         let Some((P::Referent, rest)) = place.path.split_first() else {
             break;
         };
