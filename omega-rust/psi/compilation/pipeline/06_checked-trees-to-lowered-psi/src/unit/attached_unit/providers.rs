@@ -637,9 +637,8 @@ pub(super) fn conformances(
     Ok(conformances)
 }
 
-/// Checking holds provider callable identities as handles; their rendered text
-/// is the Terminal wire payload, interned here and never compared or selected
-/// on.
+/// Checking holds provider callable identities as handles; lowering renders
+/// each once here, at the Terminal boundary, and interns the text.
 fn intern_callable(
     identities: &mut terminal_psi::TerminalIdentityTableBuilder,
     checked: &CheckedTrees,
