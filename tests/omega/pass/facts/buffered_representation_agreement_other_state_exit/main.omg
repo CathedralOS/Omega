@@ -138,8 +138,9 @@ machine observe<'buffer>(output: &'buffer mut [u8], expected: Pair) -> bool
 requires output.len >= 3u64
 {
     let capacity: u64 = output.len;
-    let answer: Result<Request<'buffer>, Failure<'buffer>> =
+    let completed: Result<Request<'buffer>, Failure<'buffer>> =
         selected_round_trip<FirstAgreement<'buffer>>(Request { value: expected, output: output });
+    let answer: Result<Request<'buffer>, Failure<'buffer>> = carry_answer(completed);
     transition answer {
         Result::Err { error as failure } -> false
         Result::Ok { value as restored } -> consume(restored, expected, capacity)
@@ -154,6 +155,10 @@ requires output.len >= 3u64
         restored.output[0u64] = 166u8;
         bytes && same_extent
     }
+    // Returning this completed result preserves its value and borrowed output.
+    machine carry_answer(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> Result<Request<'buffer>, Failure<'buffer>>
+    ensures result == incoming
+    { incoming }
 }
 
 // The weak interface runs the same complete round trip without publishing its
@@ -174,9 +179,10 @@ machine observe_weak<'buffer>(output: &'buffer mut [u8], expected: Pair) -> bool
 requires output.len >= 3u64
 {
     let capacity: u64 = output.len;
-    let answer: Result<Request<'buffer>, Failure<'buffer>> =
+    let completed: Result<Request<'buffer>, Failure<'buffer>> =
         convert<Request<'buffer>, Request<'buffer>, Failure<'buffer>, RoundTrip<'buffer>>(
             Request { value: expected, output: output });
+    let answer: Result<Request<'buffer>, Failure<'buffer>> = carry_answer(completed);
     transition answer {
         Result::Err { error as failure } -> false
         Result::Ok { value as restored } -> check_extent(restored, expected, capacity)
@@ -197,6 +203,10 @@ requires output.len >= 3u64
         restored.output[0u64] = 167u8;
         preserved && bytes && same_extent
     }
+    // Returning this completed result preserves its value and borrowed output.
+    machine carry_answer(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> Result<Request<'buffer>, Failure<'buffer>>
+    ensures result == incoming
+    { incoming }
 }
 
 machine short_output<'buffer>(output: &'buffer mut [u8]) -> bool {
@@ -223,19 +233,18 @@ machine malformed<'buffer>(output: &'buffer mut [u8]) -> bool {
     }
 }
 
-
-machine exercise(saved: Pair, edge: Pair) crashes Trap {
+machine main() crashes Trap {
     let mut storage: [u8; 5] = [81u8, 1u8, 2u8, 3u8, 82u8];
-    let ordinary: bool = observe(&mut storage[1u64..4u64], saved);
+    let ordinary: bool = observe(&mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 });
     let first_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
         && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
-    let ordinary_weak: bool = observe_weak(&mut storage[1u64..4u64], saved);
+    let ordinary_weak: bool = observe_weak(&mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 });
     let weak_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
         && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
-    let endpoints: bool = observe(&mut storage[1u64..4u64], edge);
+    let endpoints: bool = observe(&mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 });
     let edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
         && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
-    let endpoints_weak: bool = observe_weak(&mut storage[1u64..4u64], edge);
+    let endpoints_weak: bool = observe_weak(&mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 });
     let weak_edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
         && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
     let mut short: [u8; 4] = [91u8, 61u8, 62u8, 92u8];
@@ -253,16 +262,4 @@ machine exercise(saved: Pair, edge: Pair) crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
-}
-
-machine nested(saved: Pair, edge: Pair) crashes Trap {
-    deliver(saved, edge)
-    machine deliver(saved: Pair, edge: Pair) crashes Trap {
-        exercise(saved, edge)
-    }
-}
-machine main() crashes Trap {
-    let saved: Pair = Pair { first: 17u8, last: 42u8 };
-    let edge: Pair = Pair { first: 0u8, last: 255u8 };
-    nested(saved, edge)
 }

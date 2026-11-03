@@ -223,21 +223,39 @@ machine malformed<'buffer>(output: &'buffer mut [u8]) -> bool {
     }
 }
 
-
-machine exercise(saved: Pair, edge: Pair) crashes Trap {
+// Temporary borrows stay inside this invocation. Only owned observations escape.
+data Observation [copy] {
+    strong: bool;
+    weak: bool;
+    strong_bytes: [u8; 5];
+    weak_bytes: [u8; 5];
+}
+machine observe_storage(expected: Pair) -> Observation {
     let mut storage: [u8; 5] = [81u8, 1u8, 2u8, 3u8, 82u8];
-    let ordinary: bool = observe(&mut storage[1u64..4u64], saved);
-    let first_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
-        && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
-    let ordinary_weak: bool = observe_weak(&mut storage[1u64..4u64], saved);
-    let weak_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
-        && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
-    let endpoints: bool = observe(&mut storage[1u64..4u64], edge);
-    let edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
-        && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
-    let endpoints_weak: bool = observe_weak(&mut storage[1u64..4u64], edge);
-    let weak_edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
-        && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
+    let strong: bool = observe(&mut storage[1u64..4u64], expected);
+    let strong_bytes: [u8; 5] = storage;
+    let weak: bool = observe_weak(&mut storage[1u64..4u64], expected);
+    Observation { strong: strong, weak: weak, strong_bytes: strong_bytes, weak_bytes: storage }
+}
+machine observation_matches(observed: Observation, expected: Pair) -> bool {
+    observed.strong && observed.weak
+        && observed.strong_bytes[0u64] == 81u8 && observed.strong_bytes[1u64] == 166u8
+        && observed.strong_bytes[2u64] == expected.first && observed.strong_bytes[3u64] == expected.last
+        && observed.strong_bytes[4u64] == 82u8
+        && observed.weak_bytes[0u64] == 81u8 && observed.weak_bytes[1u64] == 167u8
+        && observed.weak_bytes[2u64] == expected.first && observed.weak_bytes[3u64] == expected.last
+        && observed.weak_bytes[4u64] == 82u8
+}
+const FIRST_OBSERVATION: Observation = observe_storage(Pair { first: 17u8, last: 42u8 });
+const EDGE_OBSERVATION: Observation = observe_storage(Pair { first: 0u8, last: 255u8 });
+
+machine main() crashes Trap {
+    let constant_first: bool = observation_matches(FIRST_OBSERVATION, Pair { first: 17u8, last: 42u8 });
+    let constant_edge: bool = observation_matches(EDGE_OBSERVATION, Pair { first: 0u8, last: 255u8 });
+    let live_first: Observation = observe_storage(Pair { first: 17u8, last: 42u8 });
+    let live_edge: Observation = observe_storage(Pair { first: 0u8, last: 255u8 });
+    let runtime_first: bool = observation_matches(live_first, Pair { first: 17u8, last: 42u8 });
+    let runtime_edge: bool = observation_matches(live_edge, Pair { first: 0u8, last: 255u8 });
     let mut short: [u8; 4] = [91u8, 61u8, 62u8, 92u8];
     let exhausted: bool = short_output(&mut short[1u64..3u64]);
     let short_unchanged: bool = short[0u64] == 91u8 && short[1u64] == 61u8
@@ -246,18 +264,10 @@ machine exercise(saved: Pair, edge: Pair) crashes Trap {
     let rejected: bool = malformed(&mut invalid[1u64..4u64]);
     let invalid_unchanged: bool = invalid[0u64] == 71u8 && invalid[1u64] == 0u8
         && invalid[2u64] == 17u8 && invalid[3u64] == 42u8 && invalid[4u64] == 72u8;
-    transition ordinary && first_bytes && ordinary_weak && weak_bytes
-        && endpoints && edge_bytes && endpoints_weak && weak_edge_bytes
+    transition constant_first && constant_edge && runtime_first && runtime_edge
         && exhausted && short_unchanged && rejected && invalid_unchanged {
         true -> done() _ -> bad()
     }
     machine done() {}
     machine bad() { crash Trap; }
-}
-
-// Constants supply semantic inputs. They grant no access to the runtime buffer.
-const SAVED: Pair = Pair { first: 17u8, last: 42u8 };
-const EDGE: Pair = Pair { first: 0u8, last: 255u8 };
-machine main() crashes Trap {
-    exercise(SAVED, EDGE)
 }

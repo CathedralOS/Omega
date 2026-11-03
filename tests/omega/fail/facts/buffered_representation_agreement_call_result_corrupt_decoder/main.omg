@@ -134,13 +134,18 @@ ensures (result in Result::Ok) && result.value.value == request.value
         && result.value.output.len >= 3u64
 { Selected::round_trip(request) }
 
+// A completed forwarding call returns the exact incoming result.
+machine returned_result<'buffer>(incoming: Result<Request<'buffer>, Failure<'buffer>>) -> Result<Request<'buffer>, Failure<'buffer>>
+ensures result == incoming
+{ incoming }
+
 machine observe<'buffer>(output: &'buffer mut [u8], expected: Pair) -> bool
 requires output.len >= 3u64
 {
     let capacity: u64 = output.len;
-    let answer: Result<Request<'buffer>, Failure<'buffer>> =
+    let completed: Result<Request<'buffer>, Failure<'buffer>> =
         selected_round_trip<FirstAgreement<'buffer>>(Request { value: expected, output: output });
-    transition answer {
+    transition returned_result(completed) {
         Result::Err { error as failure } -> false
         Result::Ok { value as restored } -> consume(restored, expected, capacity)
     }
@@ -174,10 +179,10 @@ machine observe_weak<'buffer>(output: &'buffer mut [u8], expected: Pair) -> bool
 requires output.len >= 3u64
 {
     let capacity: u64 = output.len;
-    let answer: Result<Request<'buffer>, Failure<'buffer>> =
+    let completed: Result<Request<'buffer>, Failure<'buffer>> =
         convert<Request<'buffer>, Request<'buffer>, Failure<'buffer>, RoundTrip<'buffer>>(
             Request { value: expected, output: output });
-    transition answer {
+    transition returned_result(completed) {
         Result::Err { error as failure } -> false
         Result::Ok { value as restored } -> check_extent(restored, expected, capacity)
     }
@@ -223,19 +228,18 @@ machine malformed<'buffer>(output: &'buffer mut [u8]) -> bool {
     }
 }
 
-
-machine exercise(saved: Pair, edge: Pair) crashes Trap {
+machine main() crashes Trap {
     let mut storage: [u8; 5] = [81u8, 1u8, 2u8, 3u8, 82u8];
-    let ordinary: bool = observe(&mut storage[1u64..4u64], saved);
+    let ordinary: bool = observe(&mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 });
     let first_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
         && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
-    let ordinary_weak: bool = observe_weak(&mut storage[1u64..4u64], saved);
+    let ordinary_weak: bool = observe_weak(&mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 });
     let weak_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
         && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
-    let endpoints: bool = observe(&mut storage[1u64..4u64], edge);
+    let endpoints: bool = observe(&mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 });
     let edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
         && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
-    let endpoints_weak: bool = observe_weak(&mut storage[1u64..4u64], edge);
+    let endpoints_weak: bool = observe_weak(&mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 });
     let weak_edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
         && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
     let mut short: [u8; 4] = [91u8, 61u8, 62u8, 92u8];
@@ -253,14 +257,4 @@ machine exercise(saved: Pair, edge: Pair) crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
-}
-
-machine semantic(edge: bool) -> Pair {
-    transition edge {
-        true -> Pair { first: 0u8, last: 255u8 }
-        false -> Pair { first: 17u8, last: 42u8 }
-    }
-}
-machine main() crashes Trap {
-    exercise(semantic(false), semantic(true))
 }

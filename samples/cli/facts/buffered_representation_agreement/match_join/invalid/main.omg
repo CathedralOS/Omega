@@ -134,17 +134,35 @@ ensures (result in Result::Ok) && result.value.value == request.value
         && result.value.output.len >= 3u64
 { Selected::round_trip(request) }
 
-machine observe<'buffer>(output: &'buffer mut [u8], expected: Pair) -> bool
+// Both arms carry the completed result and publish distinct runtime markers.
+data JoinedResult<'buffer> {
+    answer: Result<Request<'buffer>, Failure<'buffer>>;
+    marker: u8;
+}
+machine through_join<'buffer>(incoming: Result<Request<'buffer>, Failure<'buffer>>, choose_first: bool) -> JoinedResult<'buffer>
+ensures result.answer == incoming
+{
+    let joined: JoinedResult<'buffer> = match choose_first {
+        true -> JoinedResult { answer: incoming, marker: 17u8 }
+        false -> JoinedResult { answer: incoming, marker: 29u8 }
+    };
+    joined
+}
+
+machine observe<'buffer>(output: &'buffer mut [u8], expected: Pair, choose_first: bool, expected_marker: u8) -> bool
 requires output.len >= 3u64
 {
     let capacity: u64 = output.len;
-    let answer: Result<Request<'buffer>, Failure<'buffer>> =
+    let completed: Result<Request<'buffer>, Failure<'buffer>> =
         selected_round_trip<FirstAgreement<'buffer>>(Request { value: expected, output: output });
+    let joined: JoinedResult<'buffer> = through_join(completed, choose_first);
+    let transport_ok: bool = joined.marker == expected_marker;
+    let answer: Result<Request<'buffer>, Failure<'buffer>> = joined.answer;
     transition answer {
         Result::Err { error as failure } -> false
-        Result::Ok { value as restored } -> consume(restored, expected, capacity)
+        Result::Ok { value as restored } -> consume(restored, expected, capacity, transport_ok)
     }
-    machine consume(restored: Request<'buffer>, expected: Pair, capacity: u64) -> bool
+    machine consume(restored: Request<'buffer>, expected: Pair, capacity: u64, transport_ok: bool) -> bool
     requires restored.value == expected
     requires restored.output.len >= 3u64
     {
@@ -152,7 +170,7 @@ requires output.len >= 3u64
             && restored.output[1u64] == expected.first && restored.output[2u64] == expected.last;
         let same_extent: bool = restored.output.len == capacity;
         restored.output[0u64] = 166u8;
-        bytes && same_extent
+        bytes && same_extent && transport_ok
     }
 }
 
@@ -170,24 +188,27 @@ RoundTrip<'buffer> satisfies TryFrom<Request<'buffer>, Request<'buffer>, Failure
     }
 }
 
-machine observe_weak<'buffer>(output: &'buffer mut [u8], expected: Pair) -> bool
+machine observe_weak<'buffer>(output: &'buffer mut [u8], expected: Pair, choose_first: bool, expected_marker: u8) -> bool
 requires output.len >= 3u64
 {
     let capacity: u64 = output.len;
-    let answer: Result<Request<'buffer>, Failure<'buffer>> =
+    let completed: Result<Request<'buffer>, Failure<'buffer>> =
         convert<Request<'buffer>, Request<'buffer>, Failure<'buffer>, RoundTrip<'buffer>>(
             Request { value: expected, output: output });
+    let joined: JoinedResult<'buffer> = through_join(completed, choose_first);
+    let transport_ok: bool = joined.marker == expected_marker;
+    let answer: Result<Request<'buffer>, Failure<'buffer>> = joined.answer;
     transition answer {
         Result::Err { error as failure } -> false
-        Result::Ok { value as restored } -> check_extent(restored, expected, capacity)
+        Result::Ok { value as restored } -> check_extent(restored, expected, capacity, transport_ok)
     }
-    machine check_extent(restored: Request<'buffer>, expected: Pair, capacity: u64) -> bool {
+    machine check_extent(restored: Request<'buffer>, expected: Pair, capacity: u64, transport_ok: bool) -> bool {
         transition restored.output.len >= 3u64 {
-            true -> inspect(restored, expected, capacity)
+            true -> inspect(restored, expected, capacity, transport_ok)
             false -> false
         }
     }
-    machine inspect(restored: Request<'buffer>, expected: Pair, capacity: u64) -> bool
+    machine inspect(restored: Request<'buffer>, expected: Pair, capacity: u64, transport_ok: bool) -> bool
     requires restored.output.len >= 3u64
     {
         let preserved: bool = restored.value.first == expected.first && restored.value.last == expected.last;
@@ -195,7 +216,7 @@ requires output.len >= 3u64
             && restored.output[1u64] == expected.first && restored.output[2u64] == expected.last;
         let same_extent: bool = restored.output.len == capacity;
         restored.output[0u64] = 167u8;
-        preserved && bytes && same_extent
+        preserved && bytes && same_extent && transport_ok
     }
 }
 
@@ -223,19 +244,18 @@ machine malformed<'buffer>(output: &'buffer mut [u8]) -> bool {
     }
 }
 
-
-machine exercise(saved: Pair, edge: Pair) crashes Trap {
+machine main() crashes Trap {
     let mut storage: [u8; 5] = [81u8, 1u8, 2u8, 3u8, 82u8];
-    let ordinary: bool = observe(&mut storage[1u64..4u64], saved);
+    let ordinary: bool = observe(&mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 }, false, 29u8);
     let first_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
         && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
-    let ordinary_weak: bool = observe_weak(&mut storage[1u64..4u64], saved);
+    let ordinary_weak: bool = observe_weak(&mut storage[1u64..4u64], Pair { first: 17u8, last: 42u8 }, false, 29u8);
     let weak_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
         && storage[2u64] == 17u8 && storage[3u64] == 42u8 && storage[4u64] == 82u8;
-    let endpoints: bool = observe(&mut storage[1u64..4u64], edge);
+    let endpoints: bool = observe(&mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 }, true, 17u8);
     let edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 166u8
         && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
-    let endpoints_weak: bool = observe_weak(&mut storage[1u64..4u64], edge);
+    let endpoints_weak: bool = observe_weak(&mut storage[1u64..4u64], Pair { first: 0u8, last: 255u8 }, true, 17u8);
     let weak_edge_bytes: bool = storage[0u64] == 81u8 && storage[1u64] == 167u8
         && storage[2u64] == 0u8 && storage[3u64] == 255u8 && storage[4u64] == 82u8;
     let mut short: [u8; 4] = [91u8, 61u8, 62u8, 92u8];
@@ -253,15 +273,4 @@ machine exercise(saved: Pair, edge: Pair) crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
-}
-
-machine joined(edge: bool) -> Pair {
-    let selected: Pair = match edge {
-        true -> Pair { first: 0u8, last: 255u8 }
-        false -> Pair { first: 17u8, last: 42u8 }
-    };
-    selected
-}
-machine main() crashes Trap {
-    exercise(joined(false), joined(true))
 }
