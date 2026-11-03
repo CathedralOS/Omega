@@ -91,6 +91,46 @@ pub(super) fn lending_sources(
         &mut parents,
     );
     if !complete || suppliers.is_empty() {
+        let value = facts.flow.control.operands.get(lending);
+        let frozen =
+            match frozen_reference_leaf(program, &facts.flow.control, lending, lending_path) {
+                FrozenReferenceSelection::Unavailable => "Unavailable",
+                FrozenReferenceSelection::NotFrozen => "NotFrozen",
+                FrozenReferenceSelection::ThroughReference => "ThroughReference",
+                FrozenReferenceSelection::Endpoint { .. } => "Endpoint",
+            };
+        let actuals = facts
+            .flow
+            .control
+            .calls
+            .get(call)
+            .argument_operands()
+            .handles()
+            .filter_map(|handle| {
+                let actual = facts.flow.control.operands.get(handle);
+                (actual.expression == capture.expression).then_some((
+                    handle,
+                    *actual == *capture,
+                    actual.state_symbol,
+                    actual.statement_index,
+                    actual.type_reference,
+                    actual.completion,
+                ))
+            })
+            .collect::<Vec<_>>();
+        eprintln!(
+            "lending diagnostic: source {:?} -> {:?}; source state {:?} statement {} expression {:?} type {:?} completion {:?} frozen {}; incoming {}; actuals {:?}",
+            source,
+            lending,
+            value.state_symbol,
+            value.statement_index,
+            value.expression,
+            value.type_reference,
+            value.completion,
+            frozen,
+            has_captured_incoming_contents(facts, lending),
+            actuals
+        );
         return None;
     }
     if !argument_grant {
@@ -421,8 +461,16 @@ fn collect_completed_formations(
         Some((state.state_symbol, state.statements)),
     );
     let Some(selected) = selected.filter(|selected| !selected.is_empty()) else {
+        eprintln!(
+            "lending diagnostic: no binding predecessor for {:?} at path {:?}",
+            source, projection
+        );
         return false;
     };
+    eprintln!(
+        "lending diagnostic: binding predecessors for {:?}: {:?}",
+        source, selected
+    );
     let before = output.len();
     for (selected, projection) in selected {
         if !facts.flow.control.operands.is_valid(selected)
@@ -550,9 +598,17 @@ fn collect_formed_projection(
         capture.statement_index,
         capture.expression,
     ) else {
+        eprintln!(
+            "lending diagnostic: formation {:?} has no declared expression type at state {:?} statement {} expression {:?}",
+            source, capture.state_symbol, capture.statement_index, capture.expression
+        );
         return false;
     };
     if !validation::storage_origin_types_match(program, declared, capture.type_reference) {
+        eprintln!(
+            "lending diagnostic: formation {:?} declared type {:?} disagrees with captured {:?}",
+            source, declared, capture.type_reference
+        );
         return false;
     }
     let Some((_, borrow_state)) = facts
@@ -604,6 +660,36 @@ fn collect_formed_projection(
                 segments: facts.borrow.loan_segments(row).to_vec(),
             },
         });
+    }
+    if output.len() == before {
+        eprintln!(
+            "lending diagnostic: formation {:?} sources {:?}; loans {:?}",
+            source,
+            sources
+                .iter()
+                .map(|source| {
+                    let row = facts.flow.control.operands.get(source.capture);
+                    (
+                        source.capture,
+                        row.expression,
+                        row.statement_index,
+                        source.projection.clone(),
+                    )
+                })
+                .collect::<Vec<_>>(),
+            facts
+                .borrow
+                .state_loans(borrow_state)
+                .map(|(loan, row)| (
+                    loan,
+                    row.formation_expression,
+                    row.statement_index,
+                    row.formation_owner_path.map(|path| owner_place_segments(
+                        facts.borrow.owner_segments.span_or_empty(path)
+                    ))
+                ))
+                .collect::<Vec<_>>()
+        );
     }
     output.len() > before
 }
