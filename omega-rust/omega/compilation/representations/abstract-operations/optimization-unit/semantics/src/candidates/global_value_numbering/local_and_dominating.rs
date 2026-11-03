@@ -366,9 +366,7 @@ pub(super) fn validate_scalar_common_subexpression_candidate(
         accepted_provenance,
         |output| {
             let output_function = output
-                .functions
-                .iter_mut()
-                .find(|row| row.machine == patch.leader.machine)
+                .function_mut(patch.leader.machine)
                 .expect("candidate function exists");
             let output_block = output_function
                 .blocks

@@ -277,9 +277,7 @@ pub(super) fn validate_phi_translated_scalar_common_subexpression_candidate(
         accepted_provenance,
         |output| {
             let output_function = output
-                .functions
-                .iter_mut()
-                .find(|row| row.machine == patch.redundant.machine)
+                .function_mut(patch.redundant.machine)
                 .expect("candidate function exists");
             let output_join = output_function
                 .blocks

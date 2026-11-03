@@ -618,6 +618,11 @@ fn select_function(
         environment,
         builder.edge_work,
     )?;
+    if !selected.ids_are_positions() {
+        return Err(SelectedInstructionError::custody_because(
+            "selected block or virtual register ID differs from its position",
+        ));
+    }
     Ok(selected)
 }
 
