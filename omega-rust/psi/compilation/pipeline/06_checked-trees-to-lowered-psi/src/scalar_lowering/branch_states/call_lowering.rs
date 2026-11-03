@@ -149,15 +149,15 @@ pub(crate) fn lower_scalar_call(
             .ok_or(LoweringError::Unsupported(
                 "direct scalar call has no matching checked crash-refinement row",
             ))?;
-        if checked_call.target_machine() != target_machine
-            || checked_call.target_state() != target_state
-        {
-            return unsupported("checked scalar call target disagrees with crash refinement");
-        }
-        checked_trees::MachineContractIdentity {
-            report_fingerprint: checked_call.target_contract_report_fingerprint(),
-            commitment: checked_call.target_contract_commitment(),
-        }
+        checked_call
+            .executable_contract_identity(
+                &checked.facts.contract_plans,
+                &checked.facts.proof,
+                caller_machine,
+                target_machine,
+                target_state,
+            )
+            .map_err(LoweringError::Unsupported)?
     } else {
         let SourceInvocation::Declaration {
             application, call, ..

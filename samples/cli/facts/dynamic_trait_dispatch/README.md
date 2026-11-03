@@ -44,7 +44,8 @@ and [named implementations](../../../../wiki/spec/language/conformances.md#data-
 | target_body | [program](target_body/main.omg) | [reject](target_body/invalid/main.omg) | [reject](target_body/controls/uninitialized_selector/main.omg) |
 
 The [root](main.omg) uses the local production. Every positive binds all four
-hosted targets and expects exit 0. Both match branches run with distinct choices.
+required hosted targets and expects exit 0. The target place also retains the
+macOS x86-64 binding added by the concurrent migration. Both match branches run with distinct choices.
 The field place also checks the scalar neighbors 17 and 29 around its selector.
 The `other_state` path retains the nested-machine place.
 
@@ -72,7 +73,7 @@ Sample Main and Build files match their pins under
 The target place calls the ordinary `SelectedCombine::probe` requirement. It
 forwards the caller's function choice, scalar arguments and output reference;
 the inner `WeightedCombine::combine` call then uses that choice.
-The four original target bodies performed the same computation, so four explicit
+The four original target bodies performed the same computation, so five explicit
 Build rows select one ordinary `HostedCombine` implementation. Each entry calls
 that same requirement. The two runtime function choices remain independently
 observable through their direct writes. Application identities remain unchanged.
@@ -115,11 +116,20 @@ All implementations are checked independently of the host selected for execution
 
 ## Validation and remaining scope
 
-The current complete scope passes on Linux x86-64 and macOS ARM64: eighteen
+The previously accepted `4ddfb1d9339e902e04c0cb88fc145204b6aaeeba` scope passes
+on Linux x86-64 and macOS ARM64: eighteen
 programs pass source checking, twenty-seven controls reach their intended
 rejections, and all eighteen positive fixtures exit 0 in native and Terminal
 execution. All forty-six sample projects meet their oracles: nineteen executions
 and twenty-seven intended rejections.
+
+An actual source and golden conflict required merging main
+`6b64ebbaa6bafedc9822013c3965a271a5f173b9`. That integration changes range queries,
+storage/reference handling, field checking, Terminal encoding and execution,
+and native control-flow/liveness consumers used by these programs. The reconciled
+45 checking cases, 18 positive fixture executions and 46 sample projects will be
+replayed on both hosts with a fresh producer. Previous observations remain
+historical until that replay completes.
 
 The observations retain the source actually measured:
 
@@ -184,3 +194,12 @@ Broader dynamic operational contracts, generic method families, cross-package
 visibility, product-compiler parity, and the remaining target-prefixed source
 families remain parent acceptance. Other-host execution is unverified until
 recorded. No owner design decision was required for this migration.
+
+
+The concurrent target migration in PR #1575 reports an earlier `11bdd2fe41f`
+macOS x86-64 measurement: its then-current target positive exited 0 in both
+engines, and its operand and uninitialized-selector controls rejected. It used
+separate tag-check wrappers and a different target requirement. Those observations
+remain historical. The optional macOS x86-64 Build key is retained here through
+the shared provider; execution of these stronger current programs on that host
+remains unverified.

@@ -1,7 +1,7 @@
-data Receipt [linear] { code: u64; }
-machine Receipt::drop(receipt: &mut Receipt) {}
-data Parent [linear] { receipt: Receipt; }
-machine Parent::drop(parent: &mut Parent) {}
+data Receipt [linear] dropped by drop_receipt { code: u64; }
+machine drop_receipt(receipt: &mut Receipt) {}
+data Parent [linear] dropped by drop_parent { receipt: Receipt; }
+machine drop_parent(parent: &mut Parent) {}
 
 machine main() {
     let receipt: Receipt = Receipt { code: 7 };

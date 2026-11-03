@@ -184,6 +184,18 @@ impl AllocationImport {
             return Ok(None);
         };
         let signature = TerminalImportSignature::from(declaration);
+        // Exclusive captured storage uses the native adapter's authenticated
+        // endpoint result. It is not an owned virtual allocation address.
+        // Owned values remain in this model and owe its complete contract.
+        if matches!(operation, AllocationOperation::Initialize)
+            && declaration.parameter_order.first()
+                == Some(&terminal_psi::BoundaryParameterKind::Structural)
+            && signature.structural_parameters.first().is_some_and(|parameter| {
+                parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+            })
+        {
+            return Ok(None);
+        }
         let location = admission::validate(
             program,
             declaration,

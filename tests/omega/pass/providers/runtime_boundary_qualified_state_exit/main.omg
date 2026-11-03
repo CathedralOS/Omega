@@ -2,8 +2,8 @@
 // and transfers its one linear claim into a qualified state parameter.
 use omega::language::core::drop;
 use omega::language::core::content;
-data Root [linear] { value: u64; }
-machine Root::drop(root: &mut Root) {}
+data Root [linear] dropped by drop_root { value: u64; }
+machine drop_root(root: &mut Root) {}
 domain Root::Granted established by Grant::grant;
 data ByteUnit {}
 machine Granted::content(root: &Root) -> CountedQuantity<ByteUnit>

@@ -6,8 +6,8 @@
 // restored reference still reads the original backing (73).
 use omega::language::core::drop;
 
-data Token<'storage> [linear] { value: u64; reference: &'storage i32; }
-machine Token::drop(token: &mut Token<'storage>) {}
+data Token<'storage> [linear] dropped by drop_token<'storage> { value: u64; reference: &'storage i32; }
+machine drop_token<'storage>(token: &mut Token<'storage>) {}
 data Holder<'storage> { guard: u64; token: Token<'storage>; }
 data Attempt<'storage> {
     case Success(token: Token<'storage>);

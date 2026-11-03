@@ -29,6 +29,7 @@ use crate::engine::execution::{
     operation_kind,
 };
 use crate::storage::runtime_rows::RuntimeRows;
+use crate::boundary::values::StructuralRuntimePlace;
 use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{
     ClaimTransfer, OperationKind, StructuralAccess, StructuralMultiplicity, TerminalMachineResult,
@@ -610,6 +611,15 @@ impl<'artifact> TerminalExecution<'artifact> {
             &boundary_arguments.values,
         )?;
         self.preflight_boundary_result(boundary_declaration, &operation.result)?;
+        let reference_result = operation.result.structural().is_some_and(|result| {
+            self.supports_captured_reference_result(boundary_declaration, result)
+        });
+        if reference_result && !handler.accepts_reference_results(boundary) {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "host reference results require an explicit captured-input interface",
+            ));
+        }
+
         let remaining_claims = complete_claims(
             &self.live_claims,
             structural_arguments,
@@ -617,6 +627,12 @@ impl<'artifact> TerminalExecution<'artifact> {
             &boundary_declaration.structural_parameters,
         )?;
         boundary_arguments.capture_reference_inputs(boundary_declaration, structural_arguments)?;
+        if reference_result {
+            boundary_arguments
+                .storage_inputs
+                .require_result_captures(boundary_declaration)?;
+        }
+
         boundary_arguments
             .prepare_original_storage(self, handler, boundary, original_storage)
             .map_err(|error| error.in_argument_preparation("realize original host storage"))?;
@@ -747,15 +763,48 @@ impl<'artifact> TerminalExecution<'artifact> {
                 crash,
             )));
         }
+        if matches!(&returned, TerminalEffectResult::Reference(_))
+            && !boundary_declaration
+                .result_reference_regions
+                .iter()
+                .any(|region| {
+                    matches!(
+                        region.origin,
+                        terminal_psi::TerminalDynamicReferenceOrigin::Invocation { .. }
+                    )
+                })
+        {
+            return Err(TerminalInterpretError::UnsupportedSemanticVariant(
+                "materialized host reference result has no invocation-owned public region",
+            ));
+        }
         boundary_arguments
             .validate_writeback(self, boundary_declaration)
             .map_err(|error| error.in_argument_preparation("restore captured host storage"))?;
+        let prepared_reference =
+            if let TerminalEffectResult::CapturedReference(selection) = &returned {
+                Some(boundary_arguments.prepare_reference_result(
+                    self,
+                    boundary_declaration,
+                    operation.result.structural().ok_or_else(malformed)?,
+                    selection,
+                )?)
+            } else {
+                None
+            };
         if let TerminalEffectResult::Structural(value) = &returned {
             boundary_arguments.reserve_host_result(&mut self.local_structural_identities, value)?;
         }
         boundary_arguments.commit_identity_cursor(self);
-        self.commit_boundary_result(&operation.result, &boundary_declaration.result, returned)
-            .map_err(|error| error.in_argument_preparation("commit host result"))?;
+        if let Some(prepared) = prepared_reference {
+            self.commit_boundary_reference_result(
+                operation.result.structural().ok_or_else(malformed)?,
+                prepared,
+            )?;
+        } else {
+            self.commit_boundary_result(&operation.result, &boundary_declaration.result, returned)
+                .map_err(|error| error.in_argument_preparation("commit host result"))?;
+        }
         for (argument, parameter) in structural_arguments
             .iter()
             .zip(&boundary_declaration.structural_parameters)
@@ -765,10 +814,20 @@ impl<'artifact> TerminalExecution<'artifact> {
                     && parameter.multiplicity != StructuralMultiplicity::Unrestricted
             })
         {
-            if self.structural_values.remove(&argument.place).is_none() {
-                return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
-                    argument.place,
-                ));
+            match self.structural_values.remove(&argument.place) {
+                Some(retired) => {
+                    let origin = self
+                        .reference_referents
+                        .get(&StructuralRuntimePlace::from(&retired))
+                        .cloned();
+                    self.retired_structural_homes
+                        .push((argument.place, retired, origin));
+                }
+                None => {
+                    return Err(TerminalInterpretError::VerifiedStructuralPlaceMissing(
+                        argument.place,
+                    ));
+                }
             }
             if parameter.multiplicity == StructuralMultiplicity::Affine {
                 remove_affine_root(&mut self.live_affine_frontier, argument.place);

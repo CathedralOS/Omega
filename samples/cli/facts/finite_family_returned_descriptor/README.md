@@ -34,3 +34,17 @@ Requirement evidence:
 - Instruction/frame realization and native emission: real `run --both` observations check native and Terminal exit 0, including the first-byte payload. No ISA, frame, encoding, or permission rule is changed.
 
 The resumption's ignored `build/slot9-resume-evidence` records frozen baseline inputs, immutable optimized producer digests, command exits, engine observations and exact-candidate review. Retained auditing stays explicit rather than becoming a phase of normal compilation. Passing transport alone does not establish automatic cleanup, production package approval or other-host native acceptance of the parent task.
+
+## Build-owned target-body migration
+
+The `target_body` place carries no source target prefix. Its four prefixed
+`forward` bodies became the requirement `SelectedForward::forward`, implemented by
+ordinary `X86...` and `Arm...` implementations and selected by explicit
+target-keyed `Build::select_provider` rows (`BUILD-OWNED-TARGET-SELECTION`).
+The operation, inputs, contracts and exit oracle are unchanged. The entry
+wrapper and each implementation check a target tag through a second selected
+requirement (17 for x86-64, 29 for AArch64), so a wrong Build row traps.
+Observed with the optimized producer at `11bdd2fe41f` on macOS x86-64: the
+migrated positive exits 0 under `omega run --both` (native and Terminal Psi
+agree), and the twin still rejects for returning a view of a local that does not outlive the call. No compiler change was needed. The other hosted
+targets were not executed here.

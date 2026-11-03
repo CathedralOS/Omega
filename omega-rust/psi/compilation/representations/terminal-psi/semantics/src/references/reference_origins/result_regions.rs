@@ -16,8 +16,48 @@ pub fn validate_dynamic_reference_regions<'types>(
     types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
     slot: &TerminalDynamicSlot,
 ) -> Result<(), &'static str> {
-    let regions = &slot.result_reference_regions;
-    let BoundaryMachineResult::Structural(result) = &slot.result else {
+    validate_reference_regions(
+        types,
+        &slot.result,
+        &slot.result_reference_regions,
+        |index| {
+            slot.structural_parameters
+                .get(index)
+                .map(|p| (p.structural_type, p.access))
+        },
+        true,
+    )
+}
+
+/// Pointer-reference leaves of opaque calls obey the same public region
+/// contract as selector calls. Immutable byte snapshots retain their separate
+/// materialized-value protocol, without inventing an input pointer loan.
+pub fn validate_boundary_reference_regions<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    boundary: &terminal_psi::BoundaryMachineDeclaration,
+) -> Result<(), &'static str> {
+    validate_reference_regions(
+        types,
+        &boundary.result,
+        &boundary.result_reference_regions,
+        |index| {
+            boundary
+                .structural_parameters
+                .get(index)
+                .map(|p| (p.structural_type, p.access))
+        },
+        false,
+    )
+}
+
+fn validate_reference_regions<'types>(
+    types: impl Iterator<Item = &'types StructuralTypeDeclaration> + Clone,
+    result: &BoundaryMachineResult,
+    regions: &[terminal_psi::TerminalDynamicReferenceRegion],
+    parameter: impl Fn(usize) -> Option<(StructuralTypeId, StructuralAccess)>,
+    include_views: bool,
+) -> Result<(), &'static str> {
+    let BoundaryMachineResult::Structural(result) = result else {
         return if regions.is_empty() {
             Ok(())
         } else {
@@ -35,6 +75,9 @@ pub fn validate_dynamic_reference_regions<'types>(
     )?;
     if leaves
         .iter()
+        .filter(|leaf| {
+            include_views || matches!(leaf.kind, super::BorrowedResultLeafKind::Reference(_))
+        })
         .any(|leaf| !regions.iter().any(|region| region.path == leaf.path))
     {
         return Err("dynamic reference regions omit a result leaf");
@@ -73,14 +116,15 @@ pub fn validate_dynamic_reference_regions<'types>(
                 continue;
             }
         };
-        let parameter = usize::try_from(index)
-            .ok()
-            .and_then(|position| slot.structural_parameters.get(position))
-            .ok_or("dynamic reference region has no structural input")?;
+        let (parameter_type, parameter_access) =
+            usize::try_from(index)
+                .ok()
+                .and_then(&parameter)
+                .ok_or("dynamic reference region has no structural input")?;
         validate_input_region(
             types.clone(),
-            parameter.structural_type,
-            parameter.access,
+            parameter_type,
+            parameter_access,
             &region.source_path,
             region.access,
         )?;

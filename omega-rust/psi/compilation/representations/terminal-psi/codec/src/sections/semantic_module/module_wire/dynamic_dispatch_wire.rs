@@ -57,3 +57,17 @@ wire_enum! {
         2 => Invocation { carrier_type: Id },
     }
 }
+
+// Static and dynamic callable requirements use the identical public region wire.
+pub(crate) fn encode_reference_regions(
+    writer: &mut super::super::wire::Writer,
+    value: &Vec<TerminalDynamicReferenceRegion>,
+) -> Result<(), super::super::CodecError> {
+    <List<Region> as super::super::wire_fields::Field<_>>::write(writer, value)
+}
+
+pub(crate) fn decode_reference_regions(
+    reader: &mut super::super::wire::Reader<'_>,
+) -> Result<Vec<TerminalDynamicReferenceRegion>, super::super::CodecError> {
+    <List<Region> as super::super::wire_fields::Field<_>>::read(reader)
+}

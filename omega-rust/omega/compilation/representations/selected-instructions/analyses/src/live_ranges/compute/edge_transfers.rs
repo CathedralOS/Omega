@@ -23,10 +23,9 @@ pub(super) fn derive(
         let successors = terminator_successors(&block.terminator);
         for edge in successors {
             let target = index
-                .unique_block_index(edge.block)
+                .block_index(edge.block)
                 .and_then(|idx| live.blocks.get(idx))
                 .filter(|target| target.block == edge.block)
-                .or_else(|| live.blocks.iter().find(|target| target.block == edge.block))
                 .ok_or(LiveRangeError::FunctionMismatch {
                     function: function_index,
                 })?;

@@ -333,5 +333,104 @@ class LandingTests(unittest.TestCase):
                 landing.command(".", "gh", "api")
 
 
+class FakeRestGitHub:
+    """GitHub as a Claude Code cloud session sees it: GraphQL refused, REST served."""
+
+    def __init__(self, check="success", draft=True, merged=False, queued_after_arm=True):
+        self.pull = dict(node_id="PR_example", number=1, html_url="https://github.com/example/repo/pull/1",
+                         state="open", draft=draft, merged=merged, mergeable=True, mergeable_state="clean",
+                         merge_commit_sha="b" * 40 if merged else None, auto_merge=None,
+                         base=dict(ref="main"), head=dict(sha=HEAD))
+        self.check = check
+        self.queued = False
+        self.queued_after_arm = queued_after_arm
+        self.calls = []
+
+    def __call__(self, repository, *arguments):
+        self.calls.append(arguments)
+        if arguments[:2] == ("git", "remote"):
+            return "https://github.com/example/repo.git"
+        if arguments[:3] in (("gh", "api", "graphql"), ("gh", "pr", "ready")):
+            raise landing.LandingError("gh: GitHub GraphQL is not available from Claude Code sessions (HTTP 403)")
+        assert arguments[:3] == ("gh", "api", "-X"), arguments
+        method, path = arguments[3], arguments[4]
+        if path.endswith("/ccr/ready_for_review"):
+            self.pull["draft"] = False
+            return json.dumps({"draft": False})
+        if path.endswith("/ccr/auto_merge"):
+            if self.check == "success" and self.queued_after_arm:
+                self.queued = True
+            else:
+                self.pull["auto_merge"] = {"merge_method": "squash"}
+            return json.dumps({"enabled": True})
+        if "/check-runs" in path:
+            runs = [] if self.check is None else [dict(
+                name="compiler-check", status="completed" if self.check != "pending" else "in_progress",
+                conclusion=None if self.check == "pending" else self.check, started_at="2026-11-01T00:00:00Z")]
+            return json.dumps({"check_runs": runs})
+        if "actions/runs" in path:
+            runs = [dict(head_branch="gh-readonly-queue/main/pr-1-" + "c" * 40, status="in_progress")] \
+                if self.queued else []
+            return json.dumps({"workflow_runs": runs})
+        assert method == "GET" and path == "repos/example/repo/pulls/1", path
+        return json.dumps(self.pull)
+
+
+class RestFallbackTests(unittest.TestCase):
+    def land(self, fake):
+        with mock.patch.object(landing, "command", fake):
+            return landing.land(".", "origin", 1, HEAD, 0)
+
+    def paths(self, fake):
+        return [arguments[4] for arguments in fake.calls if arguments[:3] == ("gh", "api", "-X")
+                and arguments[3] != "GET"]
+
+    def test_green_draft_is_readied_and_queued_through_rest_routes(self):
+        fake = FakeRestGitHub(check="success")
+        pull, code = self.land(fake)
+        self.assertEqual(code, 0)
+        self.assertEqual(self.paths(fake), ["repos/example/repo/pulls/1/ccr/ready_for_review",
+                                            "repos/example/repo/pulls/1/ccr/auto_merge"])
+        self.assertEqual(pull["mergeQueueEntry"], {"position": None, "state": "QUEUED"})
+        self.assertFalse(pull["isDraft"])
+
+    def test_pending_check_arms_auto_merge_without_queueing(self):
+        fake = FakeRestGitHub(check="pending")
+        pull, code = self.land(fake)
+        self.assertEqual(code, 0)
+        self.assertIsNotNone(pull["autoMergeRequest"])
+        self.assertIsNone(pull["mergeQueueEntry"])
+
+    def test_red_check_refuses_without_any_rest_mutation(self):
+        fake = FakeRestGitHub(check="failure")
+        with self.assertRaisesRegex(landing.LandingError, "concluded failure"):
+            self.land(fake)
+        self.assertEqual(self.paths(fake), [])
+
+    def test_changed_head_refuses_before_any_rest_mutation(self):
+        fake = FakeRestGitHub()
+        with mock.patch.object(landing, "command", fake), \
+                self.assertRaisesRegex(landing.LandingError, "differs from --expected-head"):
+            landing.land(".", "origin", 1, "d" * 40, 0)
+        self.assertEqual(self.paths(fake), [])
+
+    def test_merged_pull_request_is_read_as_merged(self):
+        fake = FakeRestGitHub(merged=True, draft=False)
+        fake.pull["state"] = "closed"
+        pull, code = self.land(fake)
+        self.assertEqual((pull["state"], code), ("MERGED", 0))
+        self.assertEqual(pull["mergeCommit"], {"oid": "b" * 40})
+        self.assertEqual(self.paths(fake), [])
+
+    def test_other_api_errors_are_not_taken_for_graphql_refusal(self):
+        def failing(repository, *arguments):
+            if arguments[:2] == ("git", "remote"):
+                return "https://github.com/example/repo.git"
+            raise landing.LandingError("HTTP 502: Bad Gateway")
+        with mock.patch.object(landing, "command", failing), \
+                self.assertRaisesRegex(landing.LandingError, "502"):
+            landing.pull_request(".", "origin", 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -238,7 +238,7 @@ pub(super) fn build_nominal_affine_unit_cleanup_machine(
     })
 }
 
-/// The nominal `::drop` machine selected for a parameter's data type and its
+/// The cleanup hook `dropped by` selects for a parameter's data type and its
 /// sole explicit parameter: the closed carrier owns exactly one designated
 /// checked-body cleanup machine. Regions do not alter its layout or replace
 /// the hook identity; type arguments must already have a closed definition.

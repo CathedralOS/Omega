@@ -2,8 +2,8 @@
 // cannot call the forwarding machine with that same original owner.
 use omega::language::core::drop;
 
-data Receipt [linear] { code: i32; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+data Receipt [linear] dropped by drop_receipt { code: i32; }
+machine drop_receipt(receipt: &mut Receipt) {}
 machine forward(receipt: Receipt) -> Receipt { receipt }
 machine settle(receipts: [Receipt; 2]) {
     drop(receipts[0]);

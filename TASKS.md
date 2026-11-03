@@ -253,9 +253,8 @@ retired-syntax deletions to completion.
     joined, projected call referents,
     supplied-output and lifetime-dependency descriptors, and backings with no
     enclosing owner; Terminal loan rows label accepted transfers `Unresolved`.
-  - Retire `machine Data::operation` and reserved `T::drop` spellings across
-    compiler/toolchain helper namespaces, operator/proof declarations, and
-    fixtures.
+  - Retire `machine Data::operation` spellings across compiler/toolchain
+    helper namespaces, operator/proof declarations, and fixtures.
   - Carry `dropped by` on named domains and data default domains through
     `source/psi/` product-producer parity, and qualify
     `samples/cli/facts/domain_selected_cleanup` execution across remaining
@@ -329,9 +328,7 @@ retired-syntax deletions to completion.
     ownership, reach, and public contracts through one checked Terminal artifact
     and Build companion to both engines without target-specific source rewriting.
   - Carry the facts that still refuse behind a selected implementation: opaque
-    write-only boundaries requiring an admitted claim for the selected implementation,
-    and evidence binders in requirement signatures (`selected_crash_formal`:
-    the requirement grammar admits none). Their
+    write-only boundaries requiring an admitted claim for the selected implementation. Their
     `target_body` places keep the retired prefix until then. A requirement
     publishes `invokes` for each boundary trait its implementations invoke, and
     a public caller with an explicit ceiling names the requirement; migrated
@@ -645,8 +642,7 @@ compile-time, Build, CLI/corpus, and embedded execution through the common core.
   `omega-rust/omega/packages/{build-declarations,package-compilation,source-acquisition,build-output,package-manager}/`,
   and Psi compile-time admission.
   - Connect admitted Build operations, remaining live-storage accounting,
-    remaining host operations (including admitted carriers for reference results from
-    opaque host providers), and the staged dependency preparation/provider
+    remaining host operations, and the staged dependency preparation/provider
     park/resume contract to the production Build scheduler.
   - **BUILD-PRODUCT-REFERENCES / TERMINAL-BUILD-QUERIES:** keep `bind`,
     `select_provider`, `assume_binding_contract`, test registration, and product
@@ -740,9 +736,10 @@ helper that passes does not close an item.
   - Delete `ClauseKind::Where`, `RetiredWhereMachineRequirement` and the dead
     case-fact readers in `source/psi` (checking, resolution, typing), and move the
     multi-line data `where` literals in the `tests/psi` resolver, checking and
-    typing harnesses to `requires`. Verifying it needs the product gate, whose
-    `omega update` step ran over 30 minutes at 19 GB without finishing on
-    d83ddecd769.
+    typing harnesses to `requires`. Verifying it needs the product gates, which
+    stop because `source/psi` fails checking with 5 errors on 2da2c5b57f1
+    (`lex/lexer.omg:781`, `parse/data.omg:275,281,515`, `parse/machine.omg:714`;
+    tracked under OMEGA-PRODUCT-COMPILER-SOURCE).
   Acceptance: both producers accept the new data, generic, callable and assembly
   forms; all affected authored sources migrate without changing their result or
   refusal obligation. Existing applicable fact rows and their sensitive reject
@@ -1982,8 +1979,10 @@ defines the complete product bar.
   access views end to end (`Psi 05–08` and `Omega 00–09`) under
   [allocation](wiki/spec/resources/allocation.md), needed by Squalr and
   Cathedral.
-  - Connect `Vec` growth/reallocation/drop to the real backing allocator so
-    dynamic `Vec` growth executes natively across hosts.
+  - Extend `alloc::Vec` beyond copy-scalar elements: retain initialized-element
+    custody across growth and discharge non-copy element cleanup before returning
+    vacant backing to the allocator.
+  - Execute the library growth/release/reset witnesses on Linux and macOS hosts.
   Acceptance: `tests/omega/pass/memory/bump_allocator_canary` and `Vec` growth
   witnesses execute via `omega run --both` with real backing, coexisting
   allocations, preserved prefix elements on growth, and full reset after

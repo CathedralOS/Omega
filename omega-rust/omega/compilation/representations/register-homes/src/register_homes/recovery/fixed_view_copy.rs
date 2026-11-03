@@ -123,6 +123,8 @@ pub enum FixedViewCopyDecodeError {
     UnknownBlockOrigin(u8),
     UnknownSuccessorRole(u8),
     InvalidSuccessorLineage,
+    /// A block or virtual register ID differs from its row position.
+    IdentityNotPosition,
     UnknownInstructionKind(u8),
     InvalidPackedByteWidth(u8),
     UnknownFuelSite(u8),

@@ -275,10 +275,6 @@ fn record_constructor(
         || definition.quotient.is_some()
         || definition.cleanup_selection.is_some()
         || definition.properties.multiplicity == language_semantics::Multiplicity::Linear
-        || program.machines().iter().any(|machine| {
-            machine.attached_data_symbol == definition.symbol
-                && machine.name.as_str().ends_with("::drop")
-        })
     {
         return None;
     }

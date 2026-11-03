@@ -1,8 +1,8 @@
 // Expected exit: 0. The current activation retains the anonymous owner through every admitted child use.
-data Receipt [linear] { code: u64; }
-machine Receipt::drop(receipt: &mut Receipt) {}
-data Pair { first: Receipt; second: Receipt; }
-machine Pair::drop(pair: &mut Pair) {}
+data Receipt [linear] dropped by drop_receipt { code: u64; }
+machine drop_receipt(receipt: &mut Receipt) {}
+data Pair dropped by drop_pair { first: Receipt; second: Receipt; }
+machine drop_pair(pair: &mut Pair) {}
 machine retain(receipt: &Receipt) -> &Receipt { receipt }
 machine observe(receipt: &Receipt, expected: u64) crashes Trap {
     transition receipt.code == expected { true -> done() false -> bad() }

@@ -236,6 +236,10 @@ pub struct FlowOperandFact {
     pub completion: FlowOperandCompletion,
     /// Actual receiver or source descriptor dependency, independently of value identity.
     pub backing: Handle<FlowOperandFact>,
+    /// Typed path below the completed address receiver. Present even when its
+    /// absolute address is unavailable; None withholds projection evidence,
+    /// while Some(empty) denotes the same complete receiver window.
+    pub address_projection: Option<HandleSpan<facts::PlaceSegment>>,
     /// Captured computation operands in evaluation order, including a selected
     /// short-circuit route. Presence alone does not guarantee execution on every
     /// completion. These are neither stored children nor extra backing loans.

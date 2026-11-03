@@ -3,11 +3,11 @@
 use omega::language::core::drop;
 
 data Counter { value: u32 in Wrapping; }
-data Note<'storage> { counter: &'storage mut Counter; }
+data Note<'storage> dropped by drop_note<'storage> { counter: &'storage mut Counter; }
 data First<'storage> { note: Note<'storage>; }
 data Second<'storage> { note: Note<'storage>; }
 data Swapped<'first, 'second> { left: Note<'second>; right: Note<'first>; }
-machine Note::drop(note: &mut Note) { note.counter.value = note.counter.value + 1; }
+machine drop_note<'storage>(note: &mut Note<'storage>) { note.counter.value = note.counter.value + 1; }
 
 machine separate_scopes() -> bool {
     let mut left: Counter = Counter { value: 0 };

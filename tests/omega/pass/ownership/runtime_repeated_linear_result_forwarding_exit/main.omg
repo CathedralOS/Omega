@@ -1,7 +1,7 @@
 use omega::language::core::drop;
 
-data Receipt [linear] { code: i32; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+data Receipt [linear] dropped by drop_receipt { code: i32; }
+machine drop_receipt(receipt: &mut Receipt) {}
 data Pair { left: Receipt; right: Receipt; }
 
 machine issue(code: i32) -> Receipt {

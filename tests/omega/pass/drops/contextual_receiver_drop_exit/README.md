@@ -3,7 +3,7 @@
 Prepare the project with `omega update --project tests/omega/pass/drops/contextual_receiver_drop_exit --target macos_arm64`, substituting the host target as needed.
 Run `omega run --both tests/omega/pass/drops/contextual_receiver_drop_exit/main.omg`.
 
-The entry context `main: &mut Main` carries `machine Main::drop`, so its data
+The entry context `main: &mut Main` carries `machine drop_main`, so its data
 requires nominal cleanup. A retained receiver with that obligation stays
 eligible: its cleanup is classified as hosted-extent occupancy and tracked
 through the binding, rather than refusing the entry. The program prints a

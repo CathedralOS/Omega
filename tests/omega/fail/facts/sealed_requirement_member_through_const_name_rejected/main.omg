@@ -36,20 +36,22 @@ ensures 0 <= result && result <= 100
     block Operations::combine(left, right)
 }
 
-// Place: const name. The named ceiling is wider than combine's right operand bound.
+// Place: const name. The named ceiling is wider than combine's input bounds.
 const CEILING: i32 = 100;
 
 machine probe(a: i32, b: i32) -> i32
 blocks
 requires 0 <= a && a <= CEILING
 requires 0 <= b && b <= CEILING
+ensures 0 <= result && result <= 100
 {
     block apply<Selected>(a, b)
 }
 
 machine main() blocks crashes Trap {
-    let result: i32 = block probe(20, 22);
-    transition result == 42 { true -> done() _ -> bad() }
+    let wide: i32 = block probe(20, 22);
+    let narrow: i32 = block probe(10, 12);
+    transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }
 
     machine done() {}
     machine bad() { crash Trap; }

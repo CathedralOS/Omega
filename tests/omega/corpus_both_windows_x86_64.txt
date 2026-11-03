@@ -1114,7 +1114,7 @@ pass/collections/runtime_stored_reference_array_owned_record_contract_exit incom
 pass/collections/runtime_stored_reference_array_replacement_contract_exit incomplete 2186ms interpreter:unchecked @5f668826adf3+wt
 	`observe` has no executable body: this compiler does not lower a state of it yet (sequence cleanup actions); in state `observe::entry`
 pass/collections/runtime_three_indexed_record_float_read_exit built 18223ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
-pass/collections/runtime_vec_u32_growth_exit built 21631ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/collections/runtime_vec_u32_growth_exit built 39681ms exit:0 interpreter-exit:0 interpreter:agrees @9569dace81fc+wt
 pass/collections/runtime_view_element_structural_replacement_exit built 2305ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/collections/runtime_whole_array_value_copy_exit built 13773ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
 pass/collections/shared_slice_view_dropped_receiver built 12702ms exit:181 interpreter-exit:181 interpreter:agrees @5f668826adf3+wt
@@ -4038,7 +4038,7 @@ pass/facts/resident_backing_other_state_exit built 18528ms exit:0 interpreter-ex
 pass/facts/resident_backing_parameter_exit built 18367ms exit:0 interpreter-exit:0 interpreter:agrees @9f1ea2b3a8e1
 pass/facts/resident_backing_plain_ram_exit built 7393ms exit:0 interpreter-exit:0 interpreter:agrees @c6b8285077a8+wt
 pass/facts/resident_backing_runtime_cells_exit built 16610ms exit:0 interpreter-exit:0 interpreter:agrees @d86cb017d18f+wt
-pass/facts/resident_backing_runtime_growth_exit built 20385ms exit:0 interpreter-exit:0 interpreter:agrees @3a4409d34005
+pass/facts/resident_backing_runtime_growth_exit built 20415ms exit:0 interpreter-exit:0 interpreter:agrees @b7a1f6a9630c
 pass/facts/resident_backing_runtime_helper_loop_exit built 18295ms exit:0 interpreter-exit:0 interpreter:agrees @4083ce80c932
 pass/facts/resident_backing_runtime_loop_exit built 21179ms exit:0 interpreter-exit:0 interpreter:agrees @e993f43ba966+wt
 pass/facts/resident_backing_runtime_reconstruction_loop_exit built 17474ms exit:0 interpreter-exit:0 interpreter:agrees @3a4409d34005
@@ -6154,6 +6154,7 @@ pass/proofs/nat_exact_subtraction_compile checked 2981ms @5f668826adf3+wt
 pass/proofs/nat_metric_triangle_compile checked 3147ms @5f668826adf3+wt
 pass/proofs/negative_disjunction_post_mutation_bound built 3231ms @5f668826adf3+wt
 pass/proofs/nested_loop_digit_bytes_keep_utf8_exit built 18240ms exit:70 interpreter-exit:70 interpreter:agrees @5f668826adf3+wt
+pass/proofs/normal_call_retained_nested_fields_exit built 5798ms exit:0 interpreter-exit:0 interpreter:agrees @b7a1f6a9630c
 pass/proofs/normal_return_expression_statement_sequence_exit built 3869ms exit:0 interpreter-exit:0 interpreter:agrees @5f668826adf3+wt
 pass/proofs/numeric_state_contract checked 3419ms @5f668826adf3+wt
 pass/proofs/numeric_state_contract_exit built 2851ms exit:0 interpreter-exit:0 interpreter:agrees @9a91500d1caa

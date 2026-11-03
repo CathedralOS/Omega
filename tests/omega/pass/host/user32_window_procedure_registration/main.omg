@@ -225,7 +225,7 @@ windows_x86_64 machine Imports::release(module: u64) -> i32 satisfies ModuleApi:
 
 // One occurrence owns both the live-registration capacity and one loader pin.
 // Activation changes its state; it never reconstructs an equal authority value.
-data Registration [linear] { module: u64; atom: u64; occurrence: u64; released: bool; }
+data Registration [linear] dropped by drop_registration { module: u64; atom: u64; occurrence: u64; released: bool; }
 domain Registration::Held
 requires self.module != 0
 established by Registration::acquire;
@@ -259,7 +259,7 @@ machine Registration::vacate(registration: Registration in Registration::Install
  capacity.atom = 0;
  capacity
 }
-machine Registration::drop(registration: &mut Registration)
+machine drop_registration(registration: &mut Registration)
 requires registration.atom == 0 && registration.released { }
 
 data ReleaseOutcome {

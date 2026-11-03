@@ -8,11 +8,11 @@ data DirectReply {
     case Values(items: [u64; 3]);
     case Empty;
 }
-data Receipt { value: u64; }
+data Receipt dropped by drop_receipt { value: u64; }
 data Row { value: u64; receipt: Receipt; }
 data RowReply { case Values(rows: [Row; 2]); case Empty; }
 
-machine Receipt::drop(receipt: &mut Receipt) { receipt.value = 0; }
+machine drop_receipt(receipt: &mut Receipt) { receipt.value = 0; }
 
 machine inspect_rows(reply: &RowReply, position: u64) -> bool {
     transition position < 2 {

@@ -1,9 +1,9 @@
 // Expected exit: 0. Rebinding a descriptor does not dispose its old pointee.
-data Token { value: u64; }
+data Token dropped by drop_token { value: u64; }
 data Slot<'storage> { token: &'storage mut Token; }
 data Main {}
 
-machine Token::drop(token: &mut Token)
+machine drop_token(token: &mut Token)
 requires token.value == 0 {}
 
 machine replace<'storage>(slot: &mut Slot<'storage>, replacement: &'storage mut Token) {

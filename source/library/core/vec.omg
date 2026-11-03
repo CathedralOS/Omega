@@ -11,12 +11,11 @@
 // and how `Slice`/`Array` surface their length and view contracts. The actual
 // runtime storage mechanics are OUT OF SCOPE here; only the proof-facing
 // contracts and provider-agnostic boundary requirements live in this layer.
-// The concrete construction path lives in `alloc::vec`: a `Vec<T>` over
-// caller-supplied backing that grows through a bounded capacity ladder and
-// returns every buffer explicitly (see `source/library/alloc/vec.omg` and its
-// `tests/omega/pass/collections/runtime_vec_u32_growth_exit` consumer). The arena-backed
-// form of that contract still waits on `Allocation<T>` borrowing an explicit
-// `Arena` through the lifetime model; there is no ambient allocator shortcut.
+// The concrete u32 construction path lives in `alloc::vec`: a runtime-sized
+// owner of caller-supplied qualified extents that returns every buffer
+// explicitly. It is not this generic proof-facing carrier. An allocator's
+// temporary loan ends when it issues an extent; the vector owns that extent,
+// rather than borrowing the allocator for its lifetime.
 
 // Source-visible owned vector type. The compiler/runtime own its concrete
 // buffer descriptor; core exposes the nominal type so user code, contracts, and

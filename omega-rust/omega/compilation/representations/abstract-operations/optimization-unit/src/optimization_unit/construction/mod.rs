@@ -18,8 +18,14 @@ pub use structural_custody::operation_ownership;
 pub enum OptimizationUnitBuildError {
     MissingBlocks(MachineId),
     FirstBlockDoesNotStartAtZero(MachineId),
-    InvalidBlockOffset { machine: MachineId, offset: usize },
-    DuplicateBlock(MachineId, BlockId),
+    InvalidBlockOffset {
+        machine: MachineId,
+        offset: usize,
+    },
+    /// Block entries are not strictly increasing by ID.
+    UnorderedBlock(MachineId, BlockId),
+    /// Functions are not strictly increasing by machine.
+    UnorderedMachine(MachineId),
     NodeIndexOverflow(MachineId),
     ParameterIndexOverflow(MachineId),
 }
@@ -49,6 +55,14 @@ pub fn reconstruct_psi_optimization_unit_seed(
         .iter()
         .map(reconstruct_psi_optimization_function_seed)
         .collect::<Result<Vec<_>, _>>()?;
+    if let Some(pair) = functions
+        .windows(2)
+        .find(|pair| pair[0].machine >= pair[1].machine)
+    {
+        return Err(OptimizationUnitBuildError::UnorderedMachine(
+            pair[1].machine,
+        ));
+    }
     let mut unit = PsiOptimizationUnit {
         identity: OptimizationUnitIdentity::from_canonical_bytes(b"pending canonical content"),
         psi: plan.psi,

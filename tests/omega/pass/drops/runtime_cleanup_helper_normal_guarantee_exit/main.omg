@@ -1,6 +1,6 @@
-data Token { value: u64; ready: bool; }
+data Token dropped by drop_token { value: u64; ready: bool; }
 
-machine Token::drop(token: &mut Token)
+machine drop_token(token: &mut Token)
 requires token.value == 9 && token.ready
 {
     token.value = 0;

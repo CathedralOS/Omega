@@ -81,3 +81,17 @@ The requirement established is that a record window / subview computed at runtim
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Symbolic stack-frame displacements and slice descriptor offsets resolve, basic blocks and conditional branches relax with offset reflow around exit transitions, machine-state footprint evidence is validated (`actual_transitive_footprint ⊆ permitted_transitive_use`), and direct PE/ELF/Mach-O images are emitted, achieving native execution agreement with Terminal Psi (`omega run --both`, exit 0) across host targets including `windows_x86_64` and `macos_arm64`.
 
 The row is pinned by `tests/omega/pass/facts/computed_record_window_through_*_exit` and `tests/omega/fail/facts/computed_record_window_through_*_rejected` fixtures; every positive records native exit 0.
+
+## Build-owned target-body migration
+
+The `target_body` place carries no source target prefix. Its four prefixed
+`window` bodies became the requirement `SelectedWindow::window`, implemented by
+ordinary `X86...` and `Arm...` implementations and selected by explicit
+target-keyed `Build::select_provider` rows (`BUILD-OWNED-TARGET-SELECTION`).
+The operation, inputs, contracts and exit oracle are unchanged. The entry
+wrapper and each implementation check a target tag through a second selected
+requirement (17 for x86-64, 29 for AArch64), so a wrong Build row traps.
+Observed with the optimized producer at `11bdd2fe41f` on macOS x86-64: the
+migrated positive exits 0 under `omega run --both` (native and Terminal Psi
+agree), and the twin rejects because `X86Window::window` cannot prove its `result.len == 2` ensures contract. No compiler change was needed. The other hosted
+targets were not executed here.

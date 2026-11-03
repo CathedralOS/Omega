@@ -49,8 +49,9 @@ requires 0 <= low_left && low_left <= 50
 }
 
 machine main() blocks crashes Trap {
-    let result: i32 = block probe(20, 22, 10, 12, true);
-    transition result == 42 { true -> done() _ -> bad() }
+    let wide: i32 = block probe(20, 22, 10, 12, true);
+    let narrow: i32 = block probe(20, 22, 10, 12, false);
+    transition wide == 42 && narrow == 22 { true -> done() _ -> bad() }
 
     machine done() {}
     machine bad() { crash Trap; }

@@ -64,6 +64,8 @@ pub enum TerminalEffectResult {
     Structural(TerminalStructuralValue),
     /// An immutable, storage-backed byte view, not an opaque structural atom.
     ByteSequence(TerminalByteSequenceValue),
+    /// An authenticated endpoint of this invocation's captured input storage.
+    CapturedReference(super::storage_inputs::TerminalBoundaryReferenceSelection),
     /// A host-produced reference whose referent is materialized guest storage,
     /// never an opaque token. The interpreter mints the carrier and commits
     /// the supplied payload beneath it, so the result's exclusive or shared
@@ -159,7 +161,11 @@ impl TerminalExecution<'_> {
             && ((requires_materialized_host_custody(&self.structural_types(), result.structural_type)
                 && !self.supports_scalar_aggregate_result(result)
                 && !self.supports_byte_sequence_result(result)
-                && !self.supports_host_reference_result(result))
+                && !self.supports_captured_reference_result(boundary, result)
+                && !(self.supports_host_reference_result(result)
+                    && boundary.result_reference_regions.iter().any(|region|
+                        region.path.is_empty() && matches!(region.origin,
+                            terminal_psi::TerminalDynamicReferenceOrigin::Invocation { .. }))))
                 || self.structural_values.contains_key(&result.place)
                 || self
                     .live_affine_frontier
@@ -173,6 +179,54 @@ impl TerminalExecution<'_> {
         {
             return Err(malformed());
         }
+        Ok(())
+    }
+
+    pub(crate) fn supports_captured_reference_result(
+        &self,
+        boundary: &BoundaryMachineDeclaration,
+        result: &terminal_psi::StructuralOperationResult,
+    ) -> bool {
+        result.qualifications.is_empty()
+            && result.projected_qualifications.is_empty()
+            && result.claims.is_empty()
+            && !boundary.result_reference_regions.is_empty()
+            && boundary.result_reference_regions.iter().all(|region| {
+                region.path.is_empty()
+                    && matches!(
+                        region.origin,
+                        terminal_psi::TerminalDynamicReferenceOrigin::Parameter { .. }
+                    )
+            })
+            && matches!(
+                self.structural_types()
+                    .get(&result.structural_type)
+                    .map(|row| &row.shape),
+                Some(StructuralTypeShape::Reference {
+                    access: terminal_psi::StructuralAccess::SharedBorrow
+                        | terminal_psi::StructuralAccess::MutableBorrow,
+                    ..
+                })
+            )
+    }
+
+    pub(crate) fn commit_boundary_reference_result(
+        &mut self,
+        result: &terminal_psi::StructuralOperationResult,
+        prepared: crate::storage::reference::PreparedReference,
+    ) -> Result<(), TerminalInterpretError> {
+        let mut carrier = TerminalStructuralValue::minted(
+            self.local_structural_identities.allocate()?,
+            result.structural_type,
+            Vec::new(),
+        );
+        carrier.projected_qualifications = prepared.projected_qualifications;
+        self.reference_referents.insert(
+            crate::boundary::values::StructuralRuntimePlace::from(&carrier),
+            prepared.referent,
+        )?;
+        self.structural_values.insert(result.place, carrier)?;
+        self.track_affine_result(result);
         Ok(())
     }
 

@@ -46,6 +46,8 @@ pub struct TerminalImportSignature {
     pub structural_parameters: Vec<TerminalImportStructuralParameter>,
     /// The closed result the host must produce.
     pub result: BoundaryMachineResult,
+    /// Exact public ingress regions permitted for returned reference leaves.
+    pub result_reference_regions: Vec<terminal_psi::TerminalDynamicReferenceRegion>,
     /// Exact normal-return membership preservation supplied by this import.
     pub normal_qualifications: Vec<terminal_psi::StructuralDomainRequirement>,
 }
@@ -81,6 +83,7 @@ impl From<&BoundaryMachineDeclaration> for TerminalImportSignature {
                 })
                 .collect(),
             result: declaration.result.clone(),
+            result_reference_regions: declaration.result_reference_regions.clone(),
             normal_qualifications: declaration.normal_qualifications.clone(),
         }
     }

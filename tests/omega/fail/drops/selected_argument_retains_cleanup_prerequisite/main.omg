@@ -1,6 +1,6 @@
-data Token { ready: bool; }
+data Token dropped by drop_token { ready: bool; }
 domain Token::Tagged;
-machine Token::drop(token: &mut Token) requires token.ready {}
+machine drop_token(token: &mut Token) requires token.ready {}
 machine prepare(token: &mut Token) ensures token.ready { token.ready = true; }
 machine consume(token: Token) {
     let mut owned: Token = token;

@@ -1,8 +1,8 @@
 // A completed result's readiness guarantee satisfies its normal cleanup prerequisite.
 // Expected exit: 0
-data Token { ready: bool; value: u64; }
+data Token dropped by drop_token { ready: bool; value: u64; }
 
-machine Token::drop(token: &mut Token)
+machine drop_token(token: &mut Token)
 requires token.ready {
     token.ready = false;
 }

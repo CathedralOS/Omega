@@ -2445,6 +2445,27 @@ pub(super) fn prefix_site_is_reachable(
     source: &typed_trees::state::State,
     observer: &(dyn StructuralPrefixVisitor + '_),
 ) -> bool {
+    prefix_site_is_reachable_with_entry(program, source, observer, None)
+}
+
+/// Inspect the body whose entry is being checked independently. Calls to other
+/// independent entries still stop there; this query establishes no facts.
+pub(super) fn prefix_site_is_reachable_from_entry(
+    program: &dyn crate::CheckingInput,
+    source: &typed_trees::state::State,
+    observer: &(dyn StructuralPrefixVisitor + '_),
+) -> bool {
+    let owner = crate::machine_calls::calls::machine_state_by_symbol(program, source.symbol)
+        .map(|(machine, _)| machine.symbol);
+    prefix_site_is_reachable_with_entry(program, source, observer, owner)
+}
+
+fn prefix_site_is_reachable_with_entry(
+    program: &dyn crate::CheckingInput,
+    source: &typed_trees::state::State,
+    observer: &(dyn StructuralPrefixVisitor + '_),
+    entered_machine: Option<SymbolHandle>,
+) -> bool {
     let mut pending = vec![source.symbol];
     let mut visited = Vec::new();
     while let Some(symbol) = pending.pop() {
@@ -2457,7 +2478,7 @@ pub(super) fn prefix_site_is_reachable(
         else {
             return true;
         };
-        if observer.stops_at_machine(owner.symbol) {
+        if Some(owner.symbol) != entered_machine && observer.stops_at_machine(owner.symbol) {
             continue;
         }
         if symbol == observer.site().state {

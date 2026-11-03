@@ -975,26 +975,39 @@ impl StructuralJudge<'_> {
         value: &super::StructuralTerm,
         version: Option<StorageVersion>,
     ) {
-        let equations = self
+        let mut children = self
             .stored_values
             .iter()
-            .filter_map(|stored| {
-                if stored.coordinate.root != coordinate.root
-                    || stored.coordinate.segments.len() <= coordinate.segments.len()
-                    || !stored.coordinate.segments.starts_with(&coordinate.segments)
-                    || (self.graph_storage_mode()
-                        && !version.is_some_and(|at| {
-                            self.current_value_valid(stored, &stored.coordinate, at)
-                        }))
-                {
-                    return None;
-                }
-                let current = stored.current.clone()?;
-                let (_, projection) = project_captured_value_by(
+            .filter(|stored| {
+                stored.coordinate.root == coordinate.root
+                    && stored.coordinate.segments.len() > coordinate.segments.len()
+                    && stored.coordinate.segments.starts_with(&coordinate.segments)
+            })
+            .map(|stored| stored.coordinate.clone())
+            .collect::<Vec<_>>();
+        // A field need not have been read separately: the old aggregate may
+        // already observe it. Ask the graph about each field before replacing
+        // that aggregate, descending through changed inline records only.
+        // Do not expand arrays into every element or traverse reference
+        // descriptors; individually observed indices remain in `children`.
+        children.push(coordinate.clone());
+        let mut next_child = 0;
+        let mut equations = Vec::new();
+        while let Some(child) = children.get(next_child).cloned() {
+            next_child += 1;
+            let suffix = &child.segments[coordinate.segments.len()..];
+            let Some(projected_type) = suffix.iter().try_fold(reference, |reference, segment| {
+                segment.projected_type(self.program, reference)
+            }) else {
+                continue;
+            };
+            if !suffix.is_empty()
+                && let Some(current) = self.current_storage_value_at(&child, version)
+                && let Some((_, projection)) = project_captured_value_by(
                     self.program,
                     reference,
                     value.clone(),
-                    &stored.coordinate.segments[coordinate.segments.len()..],
+                    suffix,
                     |reference, value, segment| {
                         super::super::observed_projections::project_observed_value_in_scope(
                             self.program,
@@ -1004,15 +1017,50 @@ impl StructuralJudge<'_> {
                             std::slice::from_ref(segment),
                         )
                     },
-                )?;
-                let projected_type = stored.coordinate.segments[coordinate.segments.len()..]
-                    .iter()
-                    .try_fold(reference, |reference, segment| {
-                        segment.projected_type(self.program, reference)
-                    })?;
-                Some((projected_type, projection, current))
-            })
-            .collect::<Vec<_>>();
+                )
+            {
+                equations.push((projected_type, projection, current));
+                continue;
+            }
+            if !suffix.is_empty() && crate::reference_shell(self.program, projected_type).is_some()
+            {
+                continue;
+            }
+            // A malformed recursive inline carrier may reach proof checking
+            // before its layout refusal. Do not unfold the same applied type
+            // again on this path; finite nested applications remain distinct.
+            let mut ancestor_type = reference;
+            if suffix.iter().any(|segment| {
+                let repeats = ancestor_type == projected_type;
+                if let Some(child_type) = segment.projected_type(self.program, ancestor_type) {
+                    ancestor_type = child_type;
+                }
+                repeats
+            }) {
+                continue;
+            }
+            let Some(definition) =
+                crate::field_domains::readable_nominal_definition(self.program, projected_type)
+            else {
+                continue;
+            };
+            for field in self
+                .program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| member.as_field())
+            {
+                let mut field_coordinate = child.clone();
+                field_coordinate
+                    .segments
+                    .push(CapturedStorageSegment::Place(PlaceSegment::Field {
+                        symbol: field.symbol,
+                    }));
+                if !children.contains(&field_coordinate) {
+                    children.push(field_coordinate);
+                }
+            }
+        }
         for (declared, projection, current) in equations {
             self.assume_completed_value_equation(declared, projection, current);
         }

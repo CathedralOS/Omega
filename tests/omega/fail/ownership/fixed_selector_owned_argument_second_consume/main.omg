@@ -3,9 +3,9 @@
 use omega_language_std::console;
 use omega::language::core::drop;
 
-data Receipt [linear] { code: u64; }
+data Receipt [linear] dropped by drop_receipt { code: u64; }
 data Counter [copy] { calls: u64 in Wrapping; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+machine drop_receipt(receipt: &mut Receipt) {}
 
 machine select(counter: &mut Counter) -> u64 ensures result == 0 {
     counter.calls += 1;

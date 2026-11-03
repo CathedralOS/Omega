@@ -2,8 +2,8 @@
 use omega::language::core::representation;
 use omega_language_std::console;
 public boundary data Token;
-public data Leaf { value: u32; }
-machine Leaf::drop(leaf: &mut Leaf) {}
+public data Leaf dropped by drop_leaf { value: u32; }
+machine drop_leaf(leaf: &mut Leaf) {}
 public data Carrier<T> { case Empty; case Full(value: T); }
 public Selected satisfies OpaqueRepresentation<Token, Carrier<Leaf>> {}
 data Main {}

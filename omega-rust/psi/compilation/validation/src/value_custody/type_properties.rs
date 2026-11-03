@@ -7,7 +7,6 @@
 use crate::CheckingInput;
 use crate::value_custody::claim_frontier::ClaimFrontierClaim;
 use std::sync::OnceLock;
-use symbols::SymbolHandle;
 use typed_trees::types::TypeReferenceHandle;
 
 pub(crate) struct ClaimFrontierQueries {
@@ -44,10 +43,6 @@ pub(crate) fn memoized_claim_frontier(
         return compute();
     };
     queries.rows[position].1.get_or_init(compute).clone()
-}
-
-pub(crate) fn memoized_owns_drop_hook(program: &dyn CheckingInput, symbol: SymbolHandle) -> bool {
-    program.attached_drop_machine_exists(symbol)
 }
 
 pub(crate) struct EstablishmentQueries {

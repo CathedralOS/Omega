@@ -305,8 +305,8 @@ pub use crate::machine_calls::denotational_calls::{
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
 pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
 pub use crate::value_custody::cleanup::{
-    nominal_cleanup_machine_for_type, nominal_cleanup_owner, nominal_cleanup_target,
-    validate_reserved_cleanup_selections,
+    data_cleanup_machine, nominal_cleanup_machine_for_type, nominal_cleanup_owner,
+    nominal_cleanup_target, validate_reserved_cleanup_selections,
 };
 pub use crate::value_custody::content_conservation::{
     ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
@@ -399,6 +399,7 @@ pub use proof_contracts::quotients::{
     ValidatedQuotientOperation, admit_checked_quotient_requests,
     checked_quotient_relation_identity, validate_quotient_formations,
 };
+pub use value_custody::constants::completed_integer_constant;
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
@@ -691,7 +692,7 @@ pub use value_custody::type_references::{
 };
 
 pub use value_custody::const_expressions::{
-    ImmutableConstRecordProjection, immutable_record_projection,
+    ConstProjectionStep, ImmutableConstProjection, fixed_array_geometry, immutable_const_projection,
 };
 
 // One produced-storage association serves checking and flow consumers.

@@ -7,7 +7,7 @@ Compile-scope probe. No standard-library dependency.
 - target_scoped_machines: `linux_x86_64 machine probe()` —
   target-prefixed bodies; Psi checks every target's body, only
   realization narrows.
-- drop_hook_body: owner-attached `Guard::drop(guard: &mut Guard)`
+- drop_hook_body: `dropped by` hook `drop_guard(guard: &mut Guard)`
   with a multi-statement hook calling machines and writing
   fields; `drop(local)` disposal.
 

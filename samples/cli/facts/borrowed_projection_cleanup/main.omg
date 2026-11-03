@@ -2,8 +2,8 @@
 // Expected exit: 0
 // Shared projected arguments retain their whole anonymous owner until the call
 // returns, then dispose every child under the owner's ordinary cleanup plan.
-data CapturedReceipt { code: u64; counter: &mut [u64; 1]; }
-machine CapturedReceipt::drop(receipt: &mut CapturedReceipt) requires receipt.code == 7 {
+data CapturedReceipt dropped by drop_captured_receipt { code: u64; counter: &mut [u64; 1]; }
+machine drop_captured_receipt(receipt: &mut CapturedReceipt) requires receipt.code == 7 {
     receipt.counter[0] = ((receipt.counter[0] as u64 in Wrapping) + 1) as u64;
 }
 data CapturedView<'borrow> { receipt: &'borrow CapturedReceipt; }
@@ -18,20 +18,20 @@ machine verify_captured(code: u64, counter: &[u64; 1]) crashes Trap {
     machine done() {}
     machine bad() { crash Trap; }
 }
-data CapturedToken [linear] { code: u64; }
-machine CapturedToken::drop(token: &mut CapturedToken) requires token.code == 7 {}
-data CapturedPair { first: CapturedToken; second: CapturedToken; counter: &mut [u64; 1]; }
-machine CapturedPair::drop(pair: &mut CapturedPair) {
+data CapturedToken [linear] dropped by drop_captured_token { code: u64; }
+machine drop_captured_token(token: &mut CapturedToken) requires token.code == 7 {}
+data CapturedPair dropped by drop_captured_pair { first: CapturedToken; second: CapturedToken; counter: &mut [u64; 1]; }
+machine drop_captured_pair(pair: &mut CapturedPair) {
     pair.counter[0] = ((pair.counter[0] as u64 in Wrapping) + 1) as u64;
 }
 data CapturedPairView<'borrow> { pair: &'borrow CapturedPair; }
 machine capture_pair<'borrow>(pair: &'borrow CapturedPair) -> CapturedPairView<'borrow> {
     CapturedPairView { pair: pair }
 }
-data Receipt [linear] { code: u64; }
-machine Receipt::drop(receipt: &mut Receipt) {}
-data Pair { first: Receipt; second: Receipt; }
-machine Pair::drop(pair: &mut Pair) {}
+data Receipt [linear] dropped by drop_receipt { code: u64; }
+machine drop_receipt(receipt: &mut Receipt) {}
+data Pair dropped by drop_pair { first: Receipt; second: Receipt; }
+machine drop_pair(pair: &mut Pair) {}
 
 machine issue() -> Pair {
     Pair { first: Receipt { code: 17 }, second: Receipt { code: 23 } }

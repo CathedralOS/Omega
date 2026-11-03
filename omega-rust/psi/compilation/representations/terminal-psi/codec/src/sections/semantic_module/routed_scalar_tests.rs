@@ -150,6 +150,7 @@ fn scalar_boundary_result_retains_membership_and_rejects_detached_types() {
         scalar_ensures: Vec::new(),
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),
+        result_reference_regions: Vec::new(),
         reference_outputs: Vec::new(),
         fixed_service_reach: Vec::new(),
         owning_service: None,

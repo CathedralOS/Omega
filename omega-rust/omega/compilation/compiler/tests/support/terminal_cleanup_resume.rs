@@ -145,6 +145,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
         TerminalImportSignature::from(declaration),
         TerminalImportSignature {
             normal_qualifications: Vec::new(),
+            result_reference_regions: Vec::new(),
             completion: terminal_psi::BoundaryCompletion::NormalReturn,
             scalar_parameters: vec![ScalarType::Integer(
                 IntegerType::new(IntegerSign::Signed, 32).unwrap()

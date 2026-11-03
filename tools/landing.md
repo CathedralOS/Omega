@@ -46,6 +46,14 @@ repeatedly refresh an otherwise eligible PR against moving main.
 Python 3, Git and an authenticated GitHub CLI (`gh`) work on Windows, macOS and
 Linux. Commands below use `python`; use `python3` if that is its installed name.
 
+Claude Code cloud sessions reach GitHub through a proxy that refuses GraphQL.
+There `landing.py` reads the PR and `compiler-check` through REST and uses the
+proxy's REST routes to mark the PR ready and request auto-merge, which on this
+merge-queue branch queues a green PR at once. REST exposes no queue object, so
+a queue entry is read from its active `gh-readonly-queue/main/pr-<n>-*` CI run.
+The auto-merge route cannot fence on the head, so `land` checks the head
+immediately before it. Hosts where GraphQL works are unchanged.
+
 When the work is finished and its last commit is pushed, run one command in the
 foreground. Replace `NUMBER` and `FULL_HEAD_SHA` with the PR number and the full
 output of `git rev-parse HEAD`:

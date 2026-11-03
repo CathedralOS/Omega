@@ -27,8 +27,8 @@ use omega::language::core::drop;
 data Ticket { value: i32 in Wrapping; }
 data Wrap { inner: Ticket; }
 
-data Note { log: &mut i32; value: i32 in Wrapping; }
-machine Note::drop(note: &mut Note) { advance(note.log); }
+data Note dropped by drop_note { log: &mut i32; value: i32 in Wrapping; }
+machine drop_note(note: &mut Note) { advance(note.log); }
 
 machine enter(log: &mut i32) { log = 1; }
 machine advance(log: &mut i32) {
@@ -40,8 +40,8 @@ machine advance(log: &mut i32) {
     machine wrong(log: &mut i32) { log = 9; }
 }
 
-data Receipt [linear] { code: i32 in Wrapping; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+data Receipt [linear] dropped by drop_receipt { code: i32 in Wrapping; }
+machine drop_receipt(receipt: &mut Receipt) {}
 
 data Shape {
     case Dot;

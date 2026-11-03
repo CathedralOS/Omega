@@ -273,7 +273,7 @@ capability.
    source/library/sample/fixture migration and retired-syntax deletion bullets
    to completion. Read its full acceptance
    and verify its remaining gap with an optimized exact-source producer
-   for the recorded fixed base. Reuse a warm `build/gate-cli` or retained
+   for the recorded fixed base. Reuse a warm `target/` or retained
    producer with verified inputs; build only when those inputs changed or no
    valid producer exists. Never use an unverified cached binary. Name
    the exact requirement the next witness will discharge. Never filter discovery

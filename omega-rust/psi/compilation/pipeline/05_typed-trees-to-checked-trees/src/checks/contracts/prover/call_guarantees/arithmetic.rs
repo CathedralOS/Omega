@@ -950,6 +950,14 @@ fn bind_occurrences(
         };
         let binder = match program.expression_table.expression(occurrence) {
             ExpressionNode::Member(_) => ScopedArithmeticBinder::Occurrence(occurrence),
+            // An element of an immutable Const array is one timeless value,
+            // bound like a Const record field; runtime indexed reads are not
+            // scalar leaves of this route.
+            ExpressionNode::Indexed(_)
+                if validation::immutable_const_projection(program, occurrence).is_some() =>
+            {
+                ScopedArithmeticBinder::Occurrence(occurrence)
+            }
             ExpressionNode::Name(path)
                 if validation::is_single_segment_name_path(program, path) =>
             {
@@ -996,7 +1004,7 @@ fn bind_occurrences(
                         })
                 }
                 ScopedArithmeticBinder::Occurrence(_)
-                    if validation::immutable_record_projection(program, occurrence).is_some() =>
+                    if validation::immutable_const_projection(program, occurrence).is_some() =>
                 {
                     static_actuals
                         .iter()
@@ -1086,6 +1094,14 @@ fn term(
     match program.expression_table.expression(expression) {
         ExpressionNode::Integer(_) => true,
         ExpressionNode::Name(_) | ExpressionNode::Member(_) => {
+            contents_primitive(program, callable, expression)
+                .is_some_and(|primitive| primitive.accepts_integer_literal())
+        }
+        // A literal element of an immutable Const array is a timeless scalar
+        // leaf, like a Const record field. Runtime indexed reads stay out.
+        ExpressionNode::Indexed(_)
+            if validation::immutable_const_projection(program, expression).is_some() =>
+        {
             contents_primitive(program, callable, expression)
                 .is_some_and(|primitive| primitive.accepts_integer_literal())
         }

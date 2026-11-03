@@ -1,7 +1,7 @@
 // Expected exit: 0. Observing a borrowed claim does not transfer it to the report.
 use omega::language::core::drop;
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 data Report { value: u64; }
 data Reports { first: Report; second: Report; }
 boundary trait Reader { machine read(token: &Token) -> Report reaches; }

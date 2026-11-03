@@ -6,7 +6,7 @@
 //   * `-> left_first(f, s)` vs `-> right_first(f, s)` — field
 //     order differs per arm.
 //   * `Acknowledgement::ack` is a one-member boundary trait requirement
-//     with a consuming contract. `Receipt` declares no `Receipt::drop`
+//     with a consuming contract. `Receipt` selects no `dropped by` cleanup
 //     plan, so each projected member must reach the requirement.
 //   * The selected provider is an external sink: each bound target's C
 //     library `abs` takes one 32-bit integer, which is exactly how SysV

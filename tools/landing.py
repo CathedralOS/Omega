@@ -31,6 +31,19 @@ class LandingError(RuntimeError):
     pass
 
 
+class GraphQLUnavailable(LandingError):
+    """The GitHub proxy refuses GraphQL, as Claude Code cloud sessions do.
+
+    Those sessions reach GitHub only through REST. The proxy names REST routes
+    for the writes GraphQL would make (ready for review, auto-merge), so each
+    operation below falls back to them instead of leaving the PR unlanded.
+    """
+
+
+GRAPHQL_REFUSAL = "GraphQL is not available"
+QUEUE_RUN_ACTIVE = {"queued", "in_progress", "waiting", "requested", "pending"}
+
+
 def command(repository, *arguments):
     result = subprocess.run(arguments, cwd=repository, capture_output=True,
                             text=True, timeout=60)
@@ -54,13 +67,68 @@ def graphql(repository, query, **variables):
     arguments = ["gh", "api", "graphql", "-f", "query=" + query]
     for name, value in variables.items():
         arguments.extend(["-F" if type(value) is int else "-f", f"{name}={value}"])
-    result = json.loads(command(repository, *arguments))
+    try:
+        output = command(repository, *arguments)
+    except LandingError as error:
+        if GRAPHQL_REFUSAL in str(error):
+            raise GraphQLUnavailable(str(error)) from None
+        raise
+    result = json.loads(output)
     if result.get("errors"):
         raise LandingError(json.dumps(result["errors"]))
     return result["data"]
 
 
+def rest(repository, method, path, *fields):
+    """One REST call through `gh api`; `fields` are `-f key=value` strings."""
+    arguments = ["gh", "api", "-X", method, path]
+    for field in fields:
+        arguments.extend(["-f", field])
+    output = command(repository, *arguments)
+    return json.loads(output) if output else {}
+
+
+def rest_queue_entry(repository, slug, number):
+    """The PR's merge-queue entry, read from the queue's own CI run.
+
+    REST exposes no merge-queue object. GitHub tests each queued PR on a
+    `gh-readonly-queue/main/pr-<number>-<base>` branch, so an active
+    `merge_group` run there is the queue entry. Its position is unknown.
+    """
+    runs = rest(repository, "GET", f"repos/{slug}/actions/runs?event=merge_group&per_page=50")
+    prefix = f"gh-readonly-queue/main/pr-{number}-"
+    for run in runs.get("workflow_runs", []):
+        if run.get("head_branch", "").startswith(prefix) and run.get("status") in QUEUE_RUN_ACTIVE:
+            return {"position": None, "state": "QUEUED"}
+    return None
+
+
+def rest_pull_request(repository, remote, number):
+    """`pull_request`'s record built from REST, in the same GraphQL shape."""
+    slug = repository_name(repository, remote)
+    pull = rest(repository, "GET", f"repos/{slug}/pulls/{number}")
+    merged = bool(pull.get("merged"))
+    mergeable = pull.get("mergeable")
+    return dict(
+        id=pull["node_id"], number=pull["number"], url=pull["html_url"],
+        state="MERGED" if merged else pull["state"].upper(), isDraft=pull["draft"],
+        baseRefName=pull["base"]["ref"], headRefOid=pull["head"]["sha"],
+        mergeStateStatus=str(pull.get("mergeable_state") or "unknown").upper(),
+        mergeable="CONFLICTING" if mergeable is False else "MERGEABLE" if mergeable else "UNKNOWN",
+        mergeCommit={"oid": pull["merge_commit_sha"]} if merged else None,
+        mergeQueueEntry=None if merged or pull["state"] != "open"
+        else rest_queue_entry(repository, slug, number),
+        autoMergeRequest={"enabledAt": None} if pull.get("auto_merge") else None)
+
+
 def pull_request(repository, remote, number):
+    try:
+        return graphql_pull_request(repository, remote, number)
+    except GraphQLUnavailable:
+        return rest_pull_request(repository, remote, number)
+
+
+def graphql_pull_request(repository, remote, number):
     owner, name = repository_name(repository, remote).split("/")
     query = """query($owner:String!,$name:String!,$number:Int!){
       repository(owner:$owner,name:$name){pullRequest(number:$number){
@@ -75,6 +143,19 @@ def pull_request(repository, remote, number):
 
 
 def queue_status(repository, remote):
+    try:
+        return graphql_queue_status(repository, remote)
+    except GraphQLUnavailable:
+        slug = repository_name(repository, remote)
+        runs = rest(repository, "GET", f"repos/{slug}/actions/runs?event=merge_group&per_page=50")
+        nodes = [{"position": None, "state": "QUEUED", "pullRequest": {"number": int(match[1])}}
+                 for run in runs.get("workflow_runs", []) if run.get("status") in QUEUE_RUN_ACTIVE
+                 for match in [re.match(r"gh-readonly-queue/main/pr-(\d+)-", run.get("head_branch", ""))]
+                 if match]
+        return {"entries": {"pageInfo": {"hasNextPage": False}, "nodes": nodes}}
+
+
+def graphql_queue_status(repository, remote):
     owner, name = repository_name(repository, remote).split("/")
     query = """query($owner:String!,$name:String!){repository(owner:$owner,name:$name){
       mergeQueue(branch:"main"){entries(first:100){pageInfo{hasNextPage}
@@ -85,6 +166,20 @@ def queue_status(repository, remote):
 
 def head_check(repository, remote, expected):
     """The newest required-check run on the exact commit, or None before it exists."""
+    try:
+        return graphql_head_check(repository, remote, expected)
+    except GraphQLUnavailable:
+        slug = repository_name(repository, remote)
+        listed = rest(repository, "GET",
+                      f"repos/{slug}/commits/{expected}/check-runs?check_name={REQUIRED_CHECK}&per_page=100")
+        runs = [dict(__typename="CheckRun", name=run["name"], status=run["status"].upper(),
+                     conclusion=(run.get("conclusion") or "").upper() or None,
+                     startedAt=run.get("started_at"))
+                for run in listed.get("check_runs", []) if run.get("name") == REQUIRED_CHECK]
+        return max(runs, key=lambda run: run.get("startedAt") or "", default=None)
+
+
+def graphql_head_check(repository, remote, expected):
     owner, name = repository_name(repository, remote).split("/")
     query = """query($owner:String!,$name:String!,$head:GitObjectID!){
       repository(owner:$owner,name:$name){object(oid:$head){... on Commit{
@@ -138,7 +233,13 @@ def enqueue(repository, remote, number, expected):
     query = """mutation($pullRequest:ID!,$head:GitObjectID!){enqueuePullRequest(
       input:{pullRequestId:$pullRequest,expectedHeadOid:$head}){
         mergeQueueEntry{position state}}}"""
-    return graphql(repository, query, pullRequest=pull["id"], head=expected)["enqueuePullRequest"]
+    try:
+        return graphql(repository, query, pullRequest=pull["id"], head=expected)["enqueuePullRequest"]
+    except GraphQLUnavailable:
+        # REST has no enqueue. On a merge-queue branch GitHub queues a green PR
+        # as soon as auto-merge is requested (observed on #1586, 2026-11-03).
+        request_auto_merge(repository, remote, number)
+        return {"mergeQueueEntry": pull_request(repository, remote, number)["mergeQueueEntry"]}
 
 
 def wait(repository, remote, number, expected, seconds):
@@ -164,10 +265,25 @@ def wait(repository, remote, number, expected, seconds):
 
 
 def mark_ready(repository, remote, number):
-    command(repository, "gh", "pr", "ready", str(number), "--repo", repository_name(repository, remote))
+    slug = repository_name(repository, remote)
+    try:
+        command(repository, "gh", "pr", "ready", str(number), "--repo", slug)
+    except LandingError as error:
+        if GRAPHQL_REFUSAL not in str(error):
+            raise
+        rest(repository, "POST", f"repos/{slug}/pulls/{number}/ccr/ready_for_review")
 
 
-def merge_when_green(repository, pull, expected):
+def request_auto_merge(repository, remote, number):
+    """The REST route Claude Code's GitHub proxy offers in place of GraphQL auto-merge.
+
+    It cannot fence on the head, so callers validate the head just before it.
+    """
+    slug = repository_name(repository, remote)
+    return rest(repository, "PUT", f"repos/{slug}/pulls/{number}/ccr/auto_merge", "merge_method=squash")
+
+
+def merge_when_green(repository, pull, expected, remote="origin"):
     """Ask GitHub to add the PR to the queue once the required check passes.
 
     On a merge-queue branch an auto-merge request means "add to the queue when
@@ -178,7 +294,10 @@ def merge_when_green(repository, pull, expected):
     query = """mutation($pullRequest:ID!,$head:GitObjectID!){enablePullRequestAutoMerge(
       input:{pullRequestId:$pullRequest,expectedHeadOid:$head}){
         pullRequest{autoMergeRequest{enabledAt} mergeQueueEntry{position state}}}}"""
-    return graphql(repository, query, pullRequest=pull["id"], head=expected)["enablePullRequestAutoMerge"]
+    try:
+        return graphql(repository, query, pullRequest=pull["id"], head=expected)["enablePullRequestAutoMerge"]
+    except GraphQLUnavailable:
+        return request_auto_merge(repository, remote, pull["number"])
 
 
 def arm(repository, remote, number, expected):
@@ -208,7 +327,7 @@ def arm(repository, remote, number, expected):
         enqueue(repository, remote, number, expected)
     else:
         try:
-            merge_when_green(repository, pull, expected)
+            merge_when_green(repository, pull, expected, remote)
         except LandingError:
             # The check may have passed between the read and the request, and
             # GitHub refuses to arm a PR it could queue now.

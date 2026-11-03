@@ -1,7 +1,7 @@
 use omega::language::core::drop;
 
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) { token.value = 0; }
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 data Holder { marker: u64; token: Token; }
 
 machine transform(value: u64, token: Token) -> Token {

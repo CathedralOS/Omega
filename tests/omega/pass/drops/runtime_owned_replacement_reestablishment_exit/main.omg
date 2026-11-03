@@ -1,6 +1,6 @@
-data Token { value: u64; }
+data Token dropped by drop_token { value: u64; }
 
-machine Token::drop(token: &mut Token) { token.value = 0; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 machine make_token() -> Token { Token { value: 7 } }
 
 machine main() crashes Trap {

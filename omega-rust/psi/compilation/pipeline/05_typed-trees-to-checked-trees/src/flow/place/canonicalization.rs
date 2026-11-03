@@ -26,20 +26,35 @@ pub(crate) fn narrow_pinned_index_segments(
         let facts::PlaceSegment::Index { expression } = *segment else {
             continue;
         };
-        let Some(selector) = place_at(program, state_symbol, statement_index, expression) else {
-            continue;
+        // The interval engine's enclosure of this selector evaluation, or a
+        // value the live contexts pin at its place.
+        let enclosed = program
+            .expression_interval(expression)
+            .and_then(|interval| {
+                let low = interval.low?;
+                (interval.high == Some(low)).then_some(low)
+            });
+        let index = match enclosed {
+            Some(index) => u64::try_from(index).ok(),
+            None => {
+                let Some(selector) = place_at(program, state_symbol, statement_index, expression)
+                else {
+                    continue;
+                };
+                let Some(facts::ScalarValue::Integer(index)) = crate::values::scalar_value_at_place(
+                    program,
+                    semantic,
+                    context_handles
+                        .iter()
+                        .map(|handle| semantic.contexts.get(*handle)),
+                    &selector,
+                ) else {
+                    continue;
+                };
+                index.to_u64()
+            }
         };
-        let Some(facts::ScalarValue::Integer(index)) = crate::values::scalar_value_at_place(
-            program,
-            semantic,
-            context_handles
-                .iter()
-                .map(|handle| semantic.contexts.get(*handle)),
-            &selector,
-        ) else {
-            continue;
-        };
-        if let Some(index) = index.to_u64().and_then(|index| usize::try_from(index).ok()) {
+        if let Some(index) = index.and_then(|index| usize::try_from(index).ok()) {
             *segment = facts::PlaceSegment::FixedIndex { index };
         }
     }

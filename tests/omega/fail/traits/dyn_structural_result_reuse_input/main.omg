@@ -1,6 +1,6 @@
 use omega::language::core::drop;
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 trait Relay { machine relay(token: Token) -> Token; }
 Identity satisfies Relay { machine relay(token: Token) -> Token { token } }
 machine probe() {

@@ -4,14 +4,14 @@ data Evidence {
     tag: i32;
 }
 
-data Guard {
+data Guard dropped by drop_guard {
     handle: i32;
 }
 
-machine Guard::drop(guard: &mut Guard) {
+machine drop_guard(guard: &mut Guard) {
 }
 
-// A record needs no owner-attached drop hook of its own: the cleanup edge
+// A record needs no `dropped by` hook of its own: the cleanup edge
 // selects member hooks for live storage, and an erased member carries no
 // runtime representation to clean — even though its type has no hook at all.
 data Carrier {

@@ -716,7 +716,7 @@ pub(super) fn bind_nominal_cleanup_subjects(
             ))?;
         // Terminal attachment names semantic ownership, not an implicit
         // argument. A static named subject still carries the same selected
-        // T::drop owner while its ordinary parameter carries the storage.
+        // cleanup owner while its ordinary parameter carries the storage.
         emitted.attachment = Some(owner);
         emitted.nominal_cleanup_subject =
             nominal_cleanup_subject(checked, cleanup.cleanup_machine, type_ids)?;

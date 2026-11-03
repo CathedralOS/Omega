@@ -970,6 +970,14 @@ impl<'program> Collector<'program> {
                 }
                 self.program.symbols.symbol_source_span(machine?)
             })
+            .or_else(|| {
+                // A bound requirement child keeps only its spelling and
+                // inherits provenance from its evidence binder, as source
+                // dependency collection records it.
+                logical
+                    .then(|| self.program.symbols.symbol_provenance_source_span(target))
+                    .flatten()
+            })
             .ok_or("constant call lost its exact selected declaration source")?;
         let selection = (reference, declaration);
         push_unique(&mut self.custody.calls, selection);

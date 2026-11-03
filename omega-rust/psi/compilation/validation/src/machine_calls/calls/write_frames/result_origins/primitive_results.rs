@@ -103,14 +103,10 @@ fn access_view_result_origins(
     }
     let result_type = projected_storage_type(program, state.return_type, &leaf.local_segments)?;
     let view = crate::reference_shell(program, result_type)?;
-    let definition = program.closed_data_definition(view.referee)?;
-    let mut plans = program
-        .access_view_plans
-        .iter()
-        .filter(|plan| plan.data_symbol == definition.symbol);
-    let (Some(_), None) = (plans.next(), plans.next()) else {
-        return None;
-    };
+    // The authenticated primitive's declaration supplies this loan relation
+    // even while its policy/schema binders are symbolic. Requiring a closed
+    // physical plan here loses the relation in generic helpers. Geometry and
+    // access admission belong to the concrete operation, not origin discovery.
     Some(AggregateOrigins {
         references: vec![ReferenceLeaf {
             kind: leaf.kind,

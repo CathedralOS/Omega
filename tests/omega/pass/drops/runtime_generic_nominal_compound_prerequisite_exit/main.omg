@@ -38,9 +38,9 @@ boundary trait WindowsConsoleIo {
     terminates;
 }
 
-data Token { ready: bool; value: u64; byte: i32; }
+data Token dropped by drop_token { ready: bool; value: u64; byte: i32; }
 
-machine Token::drop(token: &mut Token)
+machine drop_token(token: &mut Token)
 requires token.ready && token.value == 7
 requires 7 <= token.value && token.value <= 9
 reaches Console

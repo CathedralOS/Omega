@@ -709,7 +709,14 @@ impl TerminalExecution<'_> {
         for place in retired {
             // These are frame bindings, including aliases of stored fields.
             // Ending a callee's borrow cannot dispose the owner's descriptor.
-            self.structural_values.remove(&place);
+            if let Some(retired) = self.structural_values.remove(&place) {
+                let origin = self
+                    .reference_referents
+                    .get(&crate::boundary::values::StructuralRuntimePlace::from(&retired))
+                    .cloned();
+                self.retired_structural_homes
+                    .push((place, retired, origin));
+            }
             self.byte_sequence_values.remove(&place);
             self.element_view_values.remove(&place);
         }

@@ -3,14 +3,14 @@
 // forgetting its qualification or consuming the claim acknowledged later.
 use omega::language::core::drop;
 
-public data Receipt [linear] {
+public data Receipt [linear] dropped by drop_receipt {
     code: i32;
     first: u64;
     second: u64;
     third: u64;
     fourth: u64;
 }
-machine Receipt::drop(receipt: &mut Receipt) {}
+machine drop_receipt(receipt: &mut Receipt) {}
 public domain Receipt::Issued;
 domain Receipt::Extra requires self.code >= 0;
 domain Receipt::ExtraIssued = Issued & Extra;

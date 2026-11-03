@@ -3,7 +3,7 @@ use selected_instructions::{
 };
 
 use crate::PressureRematerializationError;
-use crate::rewrites::block_edges::{block_instruction_ids, virtual_register_ids_are_dense};
+use crate::rewrites::block_edges::block_instruction_ids;
 
 pub(super) use crate::rewrites::selected_operands::selected_operand as operand;
 
@@ -27,7 +27,7 @@ pub(super) fn validate_dense(
     function_index: usize,
     function: &SelectedFunction,
 ) -> Result<(), PressureRematerializationError> {
-    if !virtual_register_ids_are_dense(function) {
+    if !function.ids_are_positions() {
         return Err(PressureRematerializationError::FunctionMismatch {
             function: function_index,
         });
