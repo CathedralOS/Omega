@@ -224,10 +224,9 @@ fn machine_termination_violation(
     }
 
     if walk.active.contains(&machine_symbol) {
-        // Local state acyclicity does not prove call-cycle termination.
-        // Query the complete demanded component and retain all its exact body
-        // judgments. Another component owes its own query; an unproved one
-        // refuses immediately, so only successful components need caching.
+        // A cycle must make progress across its calls. Check every member
+        // using the storage history of the exact bodies selected for this walk.
+        // Reuse successful members only within this immutable walk.
         if !walk.recursive_terminations.contains(&machine_symbol) {
             let _query = phase_profile::guard("compile_time.admission.recursive_component");
             match recursive_component(machine_symbol) {

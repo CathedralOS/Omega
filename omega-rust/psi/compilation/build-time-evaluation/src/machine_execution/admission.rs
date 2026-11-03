@@ -658,6 +658,7 @@ impl BuildTimeAdmissionPlan {
             checked: &CheckedTrees,
             root: SymbolHandle,
         ) -> Result<Vec<SymbolHandle>, String> {
+            concrete_invocation::require_complete_invocation_conditions(checked, root)?;
             let machine = checked
                 .typed
                 .machine(root)
@@ -706,7 +707,6 @@ impl BuildTimeAdmissionPlan {
                     result?
                 }
             };
-            concrete_invocation::require_complete_invocation_conditions(&checked, root)?;
             return members(&checked, root);
         }
         match input {
