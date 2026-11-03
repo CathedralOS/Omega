@@ -264,7 +264,7 @@ pub(super) fn actions(
                     None,
                     None,
                 )?
-                .1
+                .path
             };
             // A death can cover the replaced place or an enclosing value. Keep
             // only actions within the destination; replacing a whole array keeps

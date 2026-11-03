@@ -21,6 +21,7 @@ use crate::execution::terminal_unit::CheckedUnitStructuralArgumentPlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralArgumentSourcePlan;
 use crate::execution::terminal_unit::CheckedUnitStructuralParameterPlan;
 use crate::execution::terminal_unit::Multiplicity;
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::published::places::place_at;
 
 use crate::execution::terminal_unit::PrimitiveType;
@@ -614,7 +615,11 @@ fn collection_storage(
     // Forming a view lends its selected collection; it does not move an
     // array element. Reuse the borrowed projection's runtime selector and
     // bounds obligation instead of requiring the collection index to fold.
-    let (mut projected, path) = super::projected_borrowed_path(
+    let ProjectedArgumentPath {
+        storage_type: mut projected,
+        path,
+        ..
+    } = super::projected_borrowed_path(
         program,
         machine.symbol,
         state.symbol,

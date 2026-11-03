@@ -7,6 +7,7 @@
 //! Terminal lowering follows the exact retained transaction, never a scan that
 //! could backdate authority onto a captured copy or a later alias.
 
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use checked_trees::{
     CheckFacts, CheckedStructuralAccess, CheckedUnitStructuralArgumentPlan,
     CheckedUnitStructuralArgumentSourcePlan,
@@ -100,7 +101,11 @@ pub(crate) fn attach(
                     }
                     _ => return Err(error("parent has no executable owned source")),
                 };
-                let (reference, path) = super::terminal_unit::calls::projected_argument_path(
+                let ProjectedArgumentPath {
+                    storage_type: reference,
+                    path,
+                    ..
+                } = super::terminal_unit::calls::projected_argument_path(
                     program,
                     state,
                     statement_index as usize,
