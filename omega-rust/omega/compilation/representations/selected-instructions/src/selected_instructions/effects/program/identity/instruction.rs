@@ -29,6 +29,7 @@ pub(super) fn encode_ordinary_instruction(
         MachineMemoryEffect::CopyBytesV1 => 6,
         MachineMemoryEffect::AtomicFenceV1 => 15,
         MachineMemoryEffect::CatalogFenceV1 => 16,
+        crate::MachineMemoryEffect::PrivateCallbackMaterializationV1 => 17,
         MachineMemoryEffect::AtomicPointerV1 => 8,
         MachineMemoryEffect::TemporaryStackStorageV1 => 9,
         MachineMemoryEffect::NoneV1 => 0,

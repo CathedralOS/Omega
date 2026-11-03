@@ -246,7 +246,14 @@ pub(super) fn validate_declaration(
                     MachineEncodedMemoryEffect::ReadTableFieldV1 { .. }
                 )
         });
+    let callback_writes = semantic == MachineSemanticKind::NormalizedForeignCall
+        && !declaration.alternatives.is_empty()
+        && declaration.alternatives.iter().all(|alternative| {
+            alternative.encoded.memory
+                == MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1
+        });
     let expected_memory = match semantic {
+        _ if callback_writes => crate::MachineMemoryEffect::PrivateCallbackMaterializationV1,
         _ if table_call => crate::MachineMemoryEffect::ReadPointerV1,
         _ if temporary_stack => crate::MachineMemoryEffect::TemporaryStackStorageV1,
         MachineSemanticKind::MemoryFence => crate::MachineMemoryEffect::CatalogFenceV1,
@@ -289,6 +296,7 @@ pub(super) fn validate_declaration(
         ));
     }
     let expected_trap = match semantic {
+        _ if callback_writes => MayArchitecturalFaultV1,
         _ if table_call => MayArchitecturalFaultV1,
         _ if temporary_stack => MayArchitecturalFaultV1,
         MachineSemanticKind::PortWrite
@@ -1091,6 +1099,26 @@ fn validate_encoded_effects(
             && encoded.external_operand_writes == [4, 5, 6, 7]
             && positional_roster(constraint, 4, 8)
             && implicit_roster_matches(encoded, constraint) => {}
+        (
+            MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1,
+            stack @ (MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                return_address_byte_count: 8,
+                ..
+            }
+            | MachineEncodedStackEffect::UnchangedV1),
+            MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+        ) if declaration.semantic == MachineSemanticKind::NormalizedForeignCall
+            && declaration.memory
+                == crate::MachineMemoryEffect::PrivateCallbackMaterializationV1
+            && declaration.trap == MayArchitecturalFaultV1
+            && encoded.control == MachineEncodedControlEffect::DirectRelativeCallV1
+            && match architecture {
+                target::Architecture::X86_64 => matches!(
+                    stack,
+                    MachineEncodedStackEffect::CallReturnAddressLifecycleV1 { .. }
+                ),
+                target::Architecture::Aarch64 => stack == MachineEncodedStackEffect::UnchangedV1,
+            } => {}
         (
             MachineEncodedMemoryEffect::ReadTableFieldV1 {
                 pointer_operand, ..

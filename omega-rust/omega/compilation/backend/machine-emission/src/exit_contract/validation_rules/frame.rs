@@ -128,7 +128,7 @@ pub(in crate::exit_contract) fn validate_internal_call(
     {
         return Err(NonReturnControlEffect(instruction));
     }
-    let effects_match = call_memory_stack_effects_match(target, stack_pointer, footprint);
+    let effects_match = call_memory_stack_effects_match(target, stack_pointer, footprint, &[]);
     if !effects_match {
         return Err(NonReturnStackEffect(instruction));
     }
@@ -204,7 +204,14 @@ pub(in crate::exit_contract) fn validate_normalized_foreign_call(
     {
         return Err(NonReturnControlEffect(instruction));
     }
-    let effects_match = call_memory_stack_effects_match(target, stack_pointer, footprint);
+    let callbacks = match &encoding.state {
+        SelectedFormEncodingState::UnresolvedNormalizedForeignCall { fixup } => {
+            fixup.callbacks.as_slice()
+        }
+        _ => &[],
+    };
+    let effects_match =
+        call_memory_stack_effects_match(target, stack_pointer, footprint, callbacks);
     if !effects_match {
         return Err(NonReturnStackEffect(instruction));
     }
@@ -215,6 +222,7 @@ fn call_memory_stack_effects_match(
     target: NativeTarget,
     stack_pointer: RegisterViewId,
     footprint: &machine_code::SelectedFormDecodedFootprint,
+    callbacks: &[machine_code::SelectedFormCallbackMaterialization],
 ) -> bool {
     let stack_matches = match target.architecture {
         Architecture::X86_64 => {
@@ -236,6 +244,17 @@ fn call_memory_stack_effects_match(
             matches!(footprint.encoded.memory,
                 MachineEncodedMemoryEffect::ReadPointerV1 { pointer_operand, byte_count: 8 }
                     if footprint.encoded.external_operand_reads.last() == Some(&pointer_operand))
+        }
+        MachineEncodedControlEffect::DirectRelativeCallV1
+            if callbacks.iter().any(|callback| {
+                matches!(
+                    callback.destination,
+                    machine_code::CallbackAddressDestination::RecordField { .. }
+                        | machine_code::CallbackAddressDestination::OutgoingStack { .. }
+                )
+            }) =>
+        {
+            footprint.encoded.memory == MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1
         }
         MachineEncodedControlEffect::DirectRelativeCallV1 => match target.architecture {
             Architecture::X86_64 => {
@@ -260,6 +279,132 @@ mod tests {
         MachineAlternativeFamily, MachineAlternativeKey, SelectedInstructionKind,
     };
     use semantic_vocabulary::BoundaryMachineId;
+
+    #[test]
+    fn callback_writes_require_memory_destinations_and_the_target_call_stack() {
+        use calling_conventions::{MachineRegister, PrivateCallbackPlacements};
+        use machine_code::{
+            CallbackAddressDestination, SelectedFormCallbackMaterialization,
+            SelectedFormCallbackMaterializationEncoding,
+        };
+        use selected_instructions::MachineEncodedEffects;
+
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let x86 = target.architecture == Architecture::X86_64;
+            let (physical, pointer_name, root, relocation) = if x86 {
+                (
+                    isa_x86_64::validated_x86_64_physical_register_model(),
+                    "rsp",
+                    MachineRegister::X86Rdi,
+                    SelectedFormCallbackMaterializationEncoding::X86_64Relative32 {
+                        patch_row_offset: 3,
+                    },
+                )
+            } else {
+                (
+                    isa_aarch64::validated_aarch64_physical_register_model(),
+                    "sp",
+                    MachineRegister::Aarch64X(0),
+                    SelectedFormCallbackMaterializationEncoding::Aarch64PageAddress {
+                        page_patch_row_offset: 0,
+                        page_offset_patch_row_offset: 4,
+                    },
+                )
+            };
+            let stack_pointer = physical.model().view_named(pointer_name).unwrap().id;
+            let mut footprint = SelectedFormDecodedFootprint {
+                register_reads: Vec::new(),
+                register_writes: Vec::new(),
+                implicit_defs: Vec::new(),
+                implicit_clobbers: Vec::new(),
+                encoded: MachineEncodedEffects {
+                    external_operand_reads: Vec::new(),
+                    external_operand_writes: Vec::new(),
+                    implicit_unit_uses: Vec::new(),
+                    implicit_unit_defs: Vec::new(),
+                    implicit_unit_clobbers: Vec::new(),
+                    memory: MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1,
+                    stack: if x86 {
+                        MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                            stack_pointer,
+                            return_address_byte_count: 8,
+                        }
+                    } else {
+                        MachineEncodedStackEffect::UnchangedV1
+                    },
+                    trap: MachineEncodedTrapBehavior::MayArchitecturalFaultV1,
+                    control: MachineEncodedControlEffect::DirectRelativeCallV1,
+                },
+            };
+            let mut destinations = vec![CallbackAddressDestination::RecordField {
+                root_register: root,
+                placements: PrivateCallbackPlacements::new(&[
+                    layout_plans::LayoutPlacementReport::At { offset: 8 },
+                ]),
+            }];
+            if x86 {
+                destinations.push(CallbackAddressDestination::OutgoingStack { byte_offset: 32 });
+            }
+            for destination in destinations {
+                let code_byte_count = match &destination {
+                    CallbackAddressDestination::OutgoingStack { .. } => 12,
+                    _ if x86 => 17,
+                    _ => 16,
+                };
+                let callback = SelectedFormCallbackMaterialization {
+                    destination,
+                    code_row_offset: 0,
+                    code_byte_count,
+                    encoding: relocation,
+                };
+                let matches = |footprint: &SelectedFormDecodedFootprint, callbacks: &[_]| {
+                    call_memory_stack_effects_match(target, stack_pointer, footprint, callbacks)
+                };
+                assert!(matches(&footprint, std::slice::from_ref(&callback)));
+                assert!(!matches(&footprint, &[]));
+                let mut register_only = callback.clone();
+                register_only.destination = CallbackAddressDestination::Register(root);
+                assert!(!matches(&footprint, &[register_only]));
+
+                let stack = footprint.encoded.stack;
+                for forged in [
+                    if x86 {
+                        MachineEncodedStackEffect::UnchangedV1
+                    } else {
+                        MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                            stack_pointer,
+                            return_address_byte_count: 8,
+                        }
+                    },
+                    MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                        stack_pointer: RegisterViewId(stack_pointer.0 + 1),
+                        return_address_byte_count: 8,
+                    },
+                    MachineEncodedStackEffect::CallReturnAddressLifecycleV1 {
+                        stack_pointer,
+                        return_address_byte_count: 4,
+                    },
+                ] {
+                    footprint.encoded.stack = forged;
+                    assert!(!matches(&footprint, std::slice::from_ref(&callback)));
+                }
+                footprint.encoded.stack = stack;
+                for unrelated in [
+                    MachineEncodedMemoryEffect::NoneV1,
+                    MachineEncodedMemoryEffect::WritePointerV1 { pointer_operand: 0 },
+                    MachineEncodedMemoryEffect::WriteReturnAddressBelowStackPointerV1 {
+                        stack_pointer,
+                        byte_count: 8,
+                    },
+                ] {
+                    footprint.encoded.memory = unrelated;
+                    assert!(!matches(&footprint, std::slice::from_ref(&callback)));
+                }
+                footprint.encoded.memory =
+                    MachineEncodedMemoryEffect::PrivateCallbackMaterializationV1;
+            }
+        }
+    }
 
     #[test]
     fn system_call_exit_contract_preserves_supervisor_control_without_import_stack_effects() {

@@ -115,10 +115,11 @@ pub use invalidations::{FlowInvalidationFact, FlowInvalidationSource};
 pub use operand::{
     FlowAtomicExecutionFact, FlowCapturedReferenceLeaf, FlowCaseAccessFact, FlowCopiedValue,
     FlowCopiedValueUse, FlowDescriptorContextObservation, FlowOperandAlternative, FlowOperandChild,
-    FlowOperandCompletion, FlowOperandFact, FlowOperandLifetimeContract, FlowOperandReferent,
-    FlowOperandRetainedLeaf, FlowOperandRetainedRegion, FlowOperandRetainedSupplier,
-    FlowOperandRetention, FlowOutputLifetimeSources, FlowReferentFormation,
-    FlowReferentFormationEvidence, FlowValueObservationFact, ViewReturnInputSource,
+    FlowOperandCompletion, FlowOperandFact, FlowOperandLifetimeContract, FlowOperandReborrowSource,
+    FlowOperandReferent, FlowOperandRetainedLeaf, FlowOperandRetainedRegion,
+    FlowOperandRetainedSupplier, FlowOperandRetention, FlowOutputLifetimeSources,
+    FlowReferentFormation, FlowReferentFormationEvidence, FlowValueObservationFact,
+    ViewReturnInputSource,
 };
 pub use ownership::{
     FlowBorrowClaimFact, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource,

@@ -163,7 +163,6 @@ impl Execution<'_, '_, '_> {
             InvocationSite::Transition(target),
             super::InvocationInputs {
                 operands: &captured_operands,
-                arguments: &captured_operands,
             },
             contexts,
             constraints,

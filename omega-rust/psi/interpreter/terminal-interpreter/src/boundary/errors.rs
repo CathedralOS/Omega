@@ -78,7 +78,9 @@ pub enum TerminalInterpretError {
     },
     /// A projection cannot be represented exactly by the interpreter's current
     /// path-aware structural model, so execution fails closed.
-    AffineProjectionNotRepresentable,
+    AffineProjectionNotRepresentable {
+        context: String,
+    },
     /// A direct-entry access-view input was not established by any supplied
     /// `TerminalAccessViewEstablishment`, or an ordinary actual names no live
     /// compatible placed occurrence. Neither type nor pointer identity alone

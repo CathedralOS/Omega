@@ -70,7 +70,7 @@ pub(super) fn reference_local_borrow_loans(
             supplying_loans: vec![source.handle],
             lineage: checked_trees::BorrowLoanLineage::UnretainedDerived,
             kind: local_access,
-            call_result: false,
+            formation: super::BorrowFormation::Ordinary,
         }]);
     }
     if let Some(mut loans) = super::returned_carriers::result_loans(
@@ -242,7 +242,11 @@ pub(super) fn reference_local_borrow_loans(
                 &rebased,
             ),
             kind: retained_access.clone(),
-            call_result: is_call_result,
+            formation: if is_call_result {
+                super::BorrowFormation::ReturnedDescriptor
+            } else {
+                super::BorrowFormation::Ordinary
+            },
         })
         .collect())
 }
