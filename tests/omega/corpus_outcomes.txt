@@ -14,6 +14,8 @@ fail/borrows/borrowed_reference_field_live_child_write rejected 6506ms expected 
 	statement 1 mutates `held.target.value` while local borrow `child` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/collection_metadata_descriptor_slot_suspended rejected 4601ms expected @e2e21da6e1d9
 	statement 4 reads `alias.view` while local borrow `exclusive` is still active (borrowed at statement 3; its last use is at statement 5 and it is released at state exit)
+fail/borrows/erased_cast_borrow_overlaps_mutable_borrow rejected 5526ms expected @f2672d675498
+	state `both` receives `t` as both mutable and read-only
 fail/borrows/independent_invocation_reference_result_escapes rejected 1619ms expected @c0424312ea2a+wt
 	machine `Code::reply` returns a view borrowing the local `bytes`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/borrows/inline_carried_reference_holds_backing rejected 9683ms expected @6b1e6a51ea70
@@ -207,6 +209,23 @@ fail/domains/mutable_domain_parameter_body_write_outside_domain rejected 1778ms 
 	cannot prove assignment value `value + 200` satisfies bounded target `value` in `mirror.entry`; expected 0..=100
 fail/domains/mutable_domain_parameter_outside_arrival rejected 5172ms expected @18fc751d0060+wt
 	cannot prove requires contract for call mirror from main: 105 in i32::Counted in state `entry`
+fail/domains/linear_erased_cast_field_read_moves_operand rejected 4968ms expected @f2672d675498
+	cannot use `t.value` in machine `main` state `entry` (statement 1) after `t` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `t` first
+fail/domains/routed_qualification_cast_computed_operand rejected 9135ms expected @47a2311bffbe
+	`as ... in i32::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+	cannot prove scalar result domain for return from counterfeit at statement 0: i32::Issued
+fail/domains/routed_qualification_erased_array_element rejected 5639ms expected @f2672d675498
+	cannot prove requires contract for call consume from main: tickets[0] in Ticket::Held in state `entry`
+fail/domains/routed_qualification_erased_call_argument rejected 5889ms expected @f2672d675498
+	cannot prove requires contract for call consume from main: issued as Ticket in Ticket::Held in state `entry`
+fail/domains/routed_qualification_erased_case_payload rejected 5653ms expected @f2672d675498
+	cannot prove requires contract for call consume from main: wrapped::Some.ticket in Ticket::Held in state `entry`
+fail/domains/routed_qualification_erased_literal_field rejected 6059ms expected @f2672d675498
+	cannot prove requires contract for call consume from main: holder.ticket in Ticket::Held in state `entry`
+fail/domains/routed_qualification_erased_return rejected 6034ms expected @f2672d675498
+	cannot prove default-domain field requirement for return from forward, state entry, at statement 0: t as Ticket  requires Ticket::Held
+fail/domains/routed_qualification_erased_transition_argument rejected 4714ms expected @f2672d675498
+	cannot prove requires contract for call next from main: issued as Ticket in Ticket::Held in state `entry`
 fail/drops/retired_attached_drop rejected 2739ms expected @ee4dbb4b2d56
 	`machine Token::drop` attaches cleanup to data `Token`, which is retired: data owns no cleanup machines; declare an independent static machine taking `&mut Token` and select it with `data Token dropped by <machine>`
 fail/effects/opaque_leaf_inherited_reach_exceeds_ceiling rejected 1453ms @409a3e82132d+wt
@@ -5772,6 +5791,9 @@ pass/domains/domain_pattern_match_bound_routed_boolean_retained_exit checked 370
 pass/domains/domain_pattern_match_bound_routed_retained_exit checked 3288ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/domains/domain_signed_clamp checked 3218ms @ccdb99ca2214
 pass/domains/domain_subslice_carry checked 2896ms @ccdb99ca2214
+pass/domains/erasing_cast_keeps_field_domains_exit checked 10345ms check-target:macos_arm64 @f2672d675498
+pass/domains/erasing_cast_keeps_field_facts_exit checked 10338ms check-target:macos_arm64 @f2672d675498
+pass/domains/erasing_cast_keeps_predicates_and_named_domains_exit checked 8704ms check-target:macos_arm64 @f2672d675498
 pass/domains/established_by_domain checked 2632ms @ccdb99ca2214
 pass/domains/executable_domain_membership_expression_exit checked 12605ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/executable_domain_membership_union_guard_exit checked 17146ms check-target:macos_arm64 @ccdb99ca2214
@@ -5788,6 +5810,7 @@ pass/domains/intersected_qualifiers checked 3265ms @ccdb99ca2214
 pass/domains/issued_indexed_subject_predicate checked 2311ms @ccdb99ca2214
 pass/domains/linear_qualification_nested_move checked 15239ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/domains/linear_qualification_projected_sibling checked 20774ms check-target:macos_arm64 @ee4dbb4b2d56
+pass/domains/linear_routed_erasure_keeps_storage_exit checked 8718ms check-target:macos_arm64 @f2672d675498
 pass/domains/local_alias_domain_transfer checked 2806ms @ccdb99ca2214
 pass/domains/logical_subject_constants checked 3023ms @ccdb99ca2214
 pass/domains/match_domain_patterns checked 2386ms @ccdb99ca2214
@@ -19285,11 +19308,8 @@ fail/domains/completed_membership_before_later_guarantee rejected 1962ms expecte
 	construction of `Selection` field `amount` is not proven in domain `Amount::Positive` in selected state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
 fail/domains/completed_routed_record_join_unissued_arm rejected 1640ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from select_ticket: selected in Ticket::Issued in state `entry`
-fail/domains/computed_qualification_requires_operand_facts rejected 1851ms unexpected @ccdb99ca2214
-	machine `wrong_conversion` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `counterfeit` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	machine `false_predicate` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-	`as ... in Three` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
+fail/domains/computed_qualification_requires_operand_facts rejected 4806ms expected @47a2311bffbe
+	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Three` cannot mint: a `Three` domain fact is FALSE at this value -- the predicate obligation is owed (decision 19's "predicate obligation not discharged" class)
 	`as ... in Positive` cannot prove every domain predicate from the checked operand value; constrain that value with a guarantee or guard
@@ -19653,12 +19673,13 @@ fail/domains/routed_domain_bare_argument rejected 2091ms expected @ccdb99ca2214
 	cannot prove requires contract for call spend from relay: x in u64::Issued in state `entry`
 fail/domains/routed_primitive_receiver_requires_issuer rejected 11221ms unexpected @ccdb99ca2214
 	cannot prove the value assigned to `row` in replace is in domain `u64::IssuedIndex`; a place declared `in u64::IssuedIndex` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-fail/domains/routed_qualification_cast_after_erasure checked 3519ms @ccdb99ca2214
+fail/domains/routed_qualification_cast_after_erasure rejected 7187ms expected regressed-from:checked @47a2311bffbe
+	`as ... in Ticket::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
+	cannot prove initializer of `forged` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
 fail/domains/routed_qualification_cast_constant rejected 64ms unexpected @ccdb99ca2214
 	failed to finalize semantic qualification-cast domain custody: AlreadyResolved
-fail/domains/routed_qualification_cast_wrong_family_instance rejected 1980ms expected @ccdb99ca2214
+fail/domains/routed_qualification_cast_wrong_family_instance rejected 6457ms expected @f2672d675498
 	`as ... in Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
-	cannot prove default-domain field requirement for return from forge, state entry, at statement 0: ticket requires Issued
 fail/domains/routed_qualification_cast_wrong_occurrence rejected 2255ms expected @ccdb99ca2214
 	`as ... in Ticket::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove initializer of `forged` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
@@ -34486,7 +34507,8 @@ fail/providers/direct_foreign_rejected_calling rejected 11514ms expected @ccdb99
 	calling policy rejected the boundary: direct foreign policy refuses
 fail/providers/direct_foreign_wrong_table rejected 7086ms expected @e2e21da6e1d9
 	cannot realize table field `invoke` for `query`: no runtime field `invoke` in the dispatch table
-fail/providers/erased_routed_result_not_recovered checked 2624ms @ccdb99ca2214
+fail/providers/erased_routed_result_not_recovered rejected 5819ms expected regressed-from:checked @47a2311bffbe
+	cannot prove requires contract for call consume from main: erased in Token::Issued in state `entry`
 fail/providers/explicit_unavailable_target_provider rejected 9055ms expected @ccdb99ca2214
 	build selects provider `FirmwareValue` for slot `Value`, but no candidate exists in the loaded dependency closure
 fail/providers/external_boundary_requires_preserved rejected 1273ms expected @ccdb99ca2214
