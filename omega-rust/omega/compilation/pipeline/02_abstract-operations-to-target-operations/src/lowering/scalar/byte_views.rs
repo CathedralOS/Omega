@@ -374,7 +374,7 @@ pub(in crate::lowering) fn resolve_byte_view(
     values: &BTreeMap<ValueId, KnownScalar>,
     lengths: &BTreeMap<ValueId, PlaceId>,
     place: PlaceId,
-    active: &mut Vec<PlaceId>,
+    active: &mut [PlaceId],
 ) -> Result<(TargetByteView, StructuralAccess), LoweringError> {
     let invalid = || {
         refusal(

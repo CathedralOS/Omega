@@ -14,42 +14,6 @@ pub struct ProductTerminalPublication {
     program: OnceLock<Result<Arc<PortableTerminalProgram>, Vec<Diagnostic>>>,
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use optimization_core::Optimization;
-
-    #[test]
-    fn publication_keeps_its_projection_and_one_refusal_without_retry() {
-        let publication = ProductTerminalPublication::new(OptimizationSelections::default());
-        let mut attempts = 0;
-        for _ in 0..2 {
-            let result = publication.retain(&OptimizationSelections::default(), || {
-                attempts += 1;
-                Err(vec![Diagnostic::error("fixed source refusal")])
-            });
-            assert_eq!(result.unwrap_err()[0].message, "fixed source refusal");
-        }
-        assert_eq!(attempts, 1);
-        let different = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
-        let error = publication
-            .retain(&different, || {
-                attempts += 1;
-                Err(Vec::new())
-            })
-            .unwrap_err();
-        assert!(
-            error[0]
-                .message
-                .contains("fixed Psi optimization selection")
-        );
-        assert_eq!(
-            attempts, 1,
-            "a different projection cannot replace published code or its refusal"
-        );
-    }
-}
-
 impl std::fmt::Debug for ProductTerminalPublication {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter
@@ -112,5 +76,41 @@ impl ProductTerminalPublication {
             )]);
         }
         self.program.get_or_init(|| produce().map(Arc::new)).clone()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use optimization_core::Optimization;
+
+    #[test]
+    fn publication_keeps_its_projection_and_one_refusal_without_retry() {
+        let publication = ProductTerminalPublication::new(OptimizationSelections::default());
+        let mut attempts = 0;
+        for _ in 0..2 {
+            let result = publication.retain(&OptimizationSelections::default(), || {
+                attempts += 1;
+                Err(vec![Diagnostic::error("fixed source refusal")])
+            });
+            assert_eq!(result.unwrap_err()[0].message, "fixed source refusal");
+        }
+        assert_eq!(attempts, 1);
+        let different = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let error = publication
+            .retain(&different, || {
+                attempts += 1;
+                Err(Vec::new())
+            })
+            .unwrap_err();
+        assert!(
+            error[0]
+                .message
+                .contains("fixed Psi optimization selection")
+        );
+        assert_eq!(
+            attempts, 1,
+            "a different projection cannot replace published code or its refusal"
+        );
     }
 }

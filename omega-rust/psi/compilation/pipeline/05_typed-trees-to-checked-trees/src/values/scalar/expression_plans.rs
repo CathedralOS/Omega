@@ -320,9 +320,7 @@ pub(crate) fn lower_closed_integer_literal_guard(
             _ => {}
         }
     }
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     if !operator_is_builtin(operators, expression) {
         return None;
     }

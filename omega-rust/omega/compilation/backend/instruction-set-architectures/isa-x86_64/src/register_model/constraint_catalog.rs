@@ -805,7 +805,8 @@ pub fn x86_64_register_constraint_catalog(
             &["rax", "rdi", "rsi", "rdx", "rcx", "r11", "rflags"],
         ),
     });
-    for key in [X86_64_HOSTED_EXIT_PROCESS_I32] {
+    {
+        let key = X86_64_HOSTED_EXIT_PROCESS_I32;
         constraints.push(RegisterInstructionConstraint {
             id: RegisterConstraintId(0),
             key,

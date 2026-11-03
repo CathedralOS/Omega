@@ -561,7 +561,6 @@ fn type_reference_for_symbol(
 /// A data definition by symbol, resolved through the build-scope memo when
 /// one is open — receiver-path and attached-data walks otherwise re-scan
 /// the declaration table per member hop.
-
 fn push_call(
     program: &dyn crate::CheckingInput,
     target: SymbolHandle,

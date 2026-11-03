@@ -305,15 +305,13 @@ fn validate_terms(
             application,
             scalar_type,
         } = term
-        {
-            if module
+            && module
                 .scalar_applications
                 .declaration(*application)
                 .and_then(|declaration| declaration.scalar_type())
                 != Some(*scalar_type)
-            {
-                return malformed("scalar application term has no exact catalog carrier");
-            }
+        {
+            return malformed("scalar application term has no exact catalog carrier");
         }
         if let ScalarTerm::BooleanField { root, path }
         | ScalarTerm::IntegerField { root, path, .. }

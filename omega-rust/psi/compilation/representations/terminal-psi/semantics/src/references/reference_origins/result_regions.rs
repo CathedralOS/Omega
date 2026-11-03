@@ -303,9 +303,7 @@ pub fn reference_leaves<'types>(
                 if let Some(case) = case {
                     child_path.push(StructuralPathSegment::Case(case));
                 }
-                child_path.push(terminal_psi::StructuralPathSegment::Field(
-                    field.identity.clone(),
-                ));
+                child_path.push(terminal_psi::StructuralPathSegment::Field(field.identity));
                 pending.push((child, child_path));
             }
         }

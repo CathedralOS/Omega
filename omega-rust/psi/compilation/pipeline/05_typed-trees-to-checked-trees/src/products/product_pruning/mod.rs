@@ -368,5 +368,5 @@ fn selection_identity(
     encode(roots);
     encode(retained);
     encode(pruned);
-    CheckedTreeProductSelectionIdentity(hasher.finish().into())
+    CheckedTreeProductSelectionIdentity(hasher.finish())
 }

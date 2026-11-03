@@ -138,9 +138,7 @@ impl CaseObservation<'_> {
     }
 
     pub(super) fn observe(&self, expression: ExpressionHandle) -> Option<bool> {
-        let Some(binary) = self.program.expression_table.binary_node(expression) else {
-            return None;
-        };
+        let binary = self.program.expression_table.binary_node(expression)?;
         let case = validation::applied_case_membership_variant(
             self.program,
             self.machine,

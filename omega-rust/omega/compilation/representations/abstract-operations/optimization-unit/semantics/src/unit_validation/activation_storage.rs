@@ -194,7 +194,7 @@ fn operation(source: &A, active: bool) -> Result<Option<Operation>, &'static str
             source, storage, ..
         } => T::EstablishReference {
             source: source.clone(),
-            storage: storage.clone(),
+            storage: *storage,
         },
         A::EstablishAccessReference {
             source,

@@ -13,7 +13,7 @@
 // correctly or fail to compile, never silently ZII. Differential.
 use omega_language_std::console;
 data Main { hits: i32 in Wrapping; total: i32 in Wrapping; }
-machine Main::count(main: &mut Main, i: u64, j: u64) -> i32
+machine count(main: &mut Main, i: u64, j: u64) -> i32
 terminates by (j, i) -> Nat::BoundedDistance
 {
     main.hits = main.hits + 1;
@@ -26,9 +26,9 @@ terminates by (j, i) -> Nat::BoundedDistance
         result
     }
 }
-machine Main::main(main: &mut Main) reaches Console {
+machine main(main: &mut Main) reaches Console {
     // i = 4: entries at j = 0,1,2,3,4 -> hits == 5; result returns hits (5).
-    main.total = Main::count(main, 4, 0) as i32 in Wrapping;
+    main.total = count(main, 4, 0) as i32 in Wrapping;
     transition main.total == 5 { true -> ck_hits(main) _ -> bad(main, 71) }
     machine ck_hits(main: &mut Main) {
         transition main.hits == 5 { true -> good(main) _ -> bad(main, 72) }
@@ -40,5 +40,5 @@ machine Main::main(main: &mut Main) reaches Console {
 // The entry owns ordinary local state; selection supplies no context.
 machine entry_start() reaches Console {
     let mut entry_storage: Main;
-    Main::main(&mut entry_storage);
+    main(&mut entry_storage);
 }

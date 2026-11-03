@@ -104,6 +104,7 @@ pub(crate) struct ReferenceBacking {
     suffix: Vec<terminal_psi::ReferenceOriginProjection>,
     extent: semantic_vocabulary::ReferenceOriginExtent,
     element_view: Option<crate::storage::element_views::ElementView>,
+    byte_binding: Option<crate::storage::byte_sequences::binding::ByteSequenceBinding>,
     access: StructuralAccess,
 }
 
@@ -1955,6 +1956,10 @@ impl TerminalExecution<'_> {
         aggregate_backings: &RuntimeRows<PlaceId, AggregateBacking>,
         primitive_loans: &RuntimeRows<PlaceId, crate::storage::primitive_storage::PrimitiveLoan>,
         array_loans: &RuntimeRows<PlaceId, crate::storage::element_views::ElementView>,
+        byte_bindings: &RuntimeRows<
+            PlaceId,
+            crate::storage::byte_sequences::binding::ByteSequenceBinding,
+        >,
         access_occurrences: &BTreeMap<
             terminal_psi::TerminalAccessViewInput,
             crate::boundary::structural_inputs::access_views::AccessViewOccurrence,
@@ -2001,7 +2006,7 @@ impl TerminalExecution<'_> {
                         owner.structural_type,
                         source,
                     )
-                    .map_err(|reason| TerminalInterpretError::UnsupportedSemanticVariant(reason))?;
+                    .map_err(TerminalInterpretError::UnsupportedSemanticVariant)?;
                     if binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
                         && binding.endpoint != referent_type
                     {
@@ -2089,7 +2094,41 @@ impl TerminalExecution<'_> {
                             .then(|| array_loans.get(&parameter.place).cloned())
                             .flatten()
                     });
+                    let byte_binding = if self
+                        .structural_types()
+                        .get(&expected.structural_type)
+                        .is_some_and(|declaration| {
+                            declaration.shape.is_borrowed_byte_carrier()
+                                || declaration.shape.is_bounded_owned_byte_sequence()
+                        }) {
+                        let binding = match byte_bindings
+                            .get(&parameter.place)
+                            .filter(|_| path.is_empty())
+                        {
+                            Some(binding) => binding.clone(),
+                            None => self.retained_byte_descriptor_binding(
+                                &StructuralArgument {
+                                    place: parameter.place,
+                                    path: path.to_vec(),
+                                    access: source.access,
+                                },
+                                &expected,
+                            )?.ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "returned byte reference source has no retained descriptor binding",
+                            ))?,
+                        };
+                        if !access_covers(binding.access(), source.access) {
+                            return Err(malformed());
+                        }
+                        // Capture the admitted descriptor now. A callee may
+                        // replace its slot before returning an earlier byte loan.
+                        self.byte_descriptor_length(&binding, &expected)?;
+                        Some(binding)
+                    } else {
+                        None
+                    };
                     backings.push(ReferenceBacking {
+                        byte_binding,
                         element_view: if (!binding.suffix.is_empty()
                             || binding.extent
                                 == semantic_vocabulary::ReferenceOriginExtent::WithinRegion)
@@ -2264,15 +2303,12 @@ impl TerminalExecution<'_> {
                 if endpoint != referent_type {
                     return Err(malformed());
                 }
-                if path
-                    .iter()
-                    .any(|projection| {
-                        !matches!(
-                            projection,
-                            terminal_psi::ReferenceOriginProjection::Exact(_)
-                        )
-                    })
-                {
+                if path.iter().any(|projection| {
+                    !matches!(
+                        projection,
+                        terminal_psi::ReferenceOriginProjection::Exact(_)
+                    )
+                }) {
                     return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                         "invocation reference origin element window",
                     ));
@@ -2288,9 +2324,11 @@ impl TerminalExecution<'_> {
                     .structural_values
                     .iter()
                     .map(|(place, value)| (place, value, None))
-                    .chain(self.retired_structural_homes.iter().map(
-                        |(place, value, origin)| (place, value, origin.as_ref()),
-                    ));
+                    .chain(
+                        self.retired_structural_homes
+                            .iter()
+                            .map(|(place, value, origin)| (place, value, origin.as_ref())),
+                    );
                 for (place, value, retired_origin) in produced_entries {
                     if value.structural_type != *carrier_type
                         || machine.producing_operation(*place).is_none()
@@ -2332,6 +2370,7 @@ impl TerminalExecution<'_> {
                         suffix: suffix.to_vec(),
                         extent: *extent,
                         element_view: None,
+                        byte_binding: None,
                         access: *source_access,
                     });
                 }

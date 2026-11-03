@@ -966,7 +966,7 @@ fn establish_record(
             return None;
         };
         Some((
-            vec![StructuralPathSegment::Field(declaration.identity.clone())],
+            vec![StructuralPathSegment::Field(declaration.identity)],
             argument,
         ))
     });
@@ -1041,8 +1041,8 @@ fn establish_constructor<'a>(
     Ok(())
 }
 
-/// Substitute a callee's formal result-source mapping into the caller's actual
-/// argument at the same structural-parameter position.
+// Substitute a callee's formal result-source mapping into the caller's actual
+// argument at the same structural-parameter position.
 
 /// Replay one operation against the live loan set. This runs inside the same
 /// operation transaction as the owning frontier: reads and writes cannot touch
@@ -1779,7 +1779,7 @@ pub(super) fn apply_operation(
                 contract,
                 structural_arguments,
             )
-            .map_err(|reason| refusal(reason))?
+            .map_err(&refusal)?
         }
         _ => Vec::new(),
     };

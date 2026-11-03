@@ -211,7 +211,7 @@ pub(crate) fn saved_guard_observations<'program>(
                 &mut observations,
             );
             for (expression, value) in observations {
-                let current_expression = (expression_is_stable_predicate(program, expression)
+                let current_expression = if expression_is_stable_predicate(program, expression)
                     && reads_survive(
                         program,
                         machine,
@@ -220,9 +220,11 @@ pub(crate) fn saved_guard_observations<'program>(
                         expression,
                         &dispatch_writes,
                         frames,
-                    ))
-                .then_some(expression)
-                .unwrap_or(ExpressionHandle::invalid());
+                    ) {
+                    expression
+                } else {
+                    ExpressionHandle::invalid()
+                };
                 let observation = GuardObservation {
                     expression,
                     value,

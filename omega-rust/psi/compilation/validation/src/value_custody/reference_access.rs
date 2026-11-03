@@ -186,11 +186,10 @@ pub(crate) fn report_reference_access_conflict(
         ReferenceAccessRefusal::WriteOnlyMayNotRead => {
             "may read, but the source supplies only write-only authority"
         }
-        ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { access, .. }
-            if access == language_semantics::ReferenceAccess::WriteOnly =>
-        {
-            "requires exclusive source access; shared or immutable storage cannot supply it"
-        }
+        ReferenceAccessRefusal::ExclusiveBorrowSourceRequired {
+            access: language_semantics::ReferenceAccess::WriteOnly,
+            ..
+        } => "requires exclusive source access; shared or immutable storage cannot supply it",
         ReferenceAccessRefusal::ExclusiveBorrowSourceRequired { .. }
         | ReferenceAccessRefusal::MutableSourceRequired => {
             "requires mutable source access; shared or immutable storage cannot supply it"
@@ -298,15 +297,13 @@ fn value_forwarded_exclusive_reference_access(
     prior_statements: &[typed_trees::statement::StatementNode],
     argument: ExpressionHandle,
 ) -> Option<language_semantics::ReferenceAccess> {
-    let Some((root, binding_type, _)) = source_place_root(
+    let (root, binding_type, _) = source_place_root(
         program,
         current_machine,
         current_state,
         prior_statements,
         argument,
-    ) else {
-        return None;
-    };
+    )?;
     crate::value_custody::expression_types::place_forwarded_exclusive_reference_access(
         program,
         argument,

@@ -234,48 +234,48 @@ pub enum ElementViewRegion {
     },
 }
 
-/// Closed operation vocabulary for the current pre-release compiler.
-///
-/// `IntegerConstant` writes the declared integer value to its result and
-/// establishes the semantic axiom `result == literal`. It cannot trap and
-/// generates no additional obligation because construction verifies that the
-/// literal belongs to the declared terminal integer type.
-///
-/// `BooleanConstant` writes the declared Boolean value to its result and
-/// establishes `result == literal`.
-///
-/// `WrappingIntegerAdd` reads two values of
-/// the result's exact integer type and reduces their sum modulo the declared
-/// width. Signed values interpret the reduced bits as two's complement. It is
-/// total and therefore generates no overflow obligation; the verifier
-/// reconstructs its exact result-term axiom.
-///
-/// `SaturatingIntegerMultiply` reads two
-/// values of the result's exact integer type and clamps their product at that
-/// type's representable bounds. It is total and generates no overflow
-/// obligation; the verifier reconstructs its exact result-term axiom.
-///
-/// `WrappingIntegerMultiply` reads two
-/// values of the result's exact integer type and reduces their product modulo
-/// the declared width. Signed values interpret the reduced bits as two's
-/// complement. It is total and generates no overflow obligation; the verifier
-/// reconstructs its exact result-term axiom.
-///
-/// `SaturatingIntegerSubtract` reads two
-/// values of the result's exact integer type and clamps `left - right` at that
-/// type's representable bounds. It is total and generates no overflow
-/// obligation; the verifier reconstructs its exact result-term axiom.
-///
-/// `SaturatingIntegerAdd` reads two values
-/// of the result's exact integer type and clamps their sum at that type's
-/// representable bounds. It is total and therefore generates no overflow
-/// obligation; the verifier reconstructs its exact result-term axiom.
-///
-/// `WrappingIntegerSubtract` reads two
-/// values of the result's exact integer type and reduces `left - right` modulo
-/// the declared width. Signed values interpret the reduced bits as two's
-/// complement. It is total and generates no overflow obligation; the verifier
-/// reconstructs its exact result-term axiom.
+// Closed operation vocabulary for the current pre-release compiler.
+//
+// `IntegerConstant` writes the declared integer value to its result and
+// establishes the semantic axiom `result == literal`. It cannot trap and
+// generates no additional obligation because construction verifies that the
+// literal belongs to the declared terminal integer type.
+//
+// `BooleanConstant` writes the declared Boolean value to its result and
+// establishes `result == literal`.
+//
+// `WrappingIntegerAdd` reads two values of
+// the result's exact integer type and reduces their sum modulo the declared
+// width. Signed values interpret the reduced bits as two's complement. It is
+// total and therefore generates no overflow obligation; the verifier
+// reconstructs its exact result-term axiom.
+//
+// `SaturatingIntegerMultiply` reads two
+// values of the result's exact integer type and clamps their product at that
+// type's representable bounds. It is total and generates no overflow
+// obligation; the verifier reconstructs its exact result-term axiom.
+//
+// `WrappingIntegerMultiply` reads two
+// values of the result's exact integer type and reduces their product modulo
+// the declared width. Signed values interpret the reduced bits as two's
+// complement. It is total and generates no overflow obligation; the verifier
+// reconstructs its exact result-term axiom.
+//
+// `SaturatingIntegerSubtract` reads two
+// values of the result's exact integer type and clamps `left - right` at that
+// type's representable bounds. It is total and generates no overflow
+// obligation; the verifier reconstructs its exact result-term axiom.
+//
+// `SaturatingIntegerAdd` reads two values
+// of the result's exact integer type and clamps their sum at that type's
+// representable bounds. It is total and therefore generates no overflow
+// obligation; the verifier reconstructs its exact result-term axiom.
+//
+// `WrappingIntegerSubtract` reads two
+// values of the result's exact integer type and reduces `left - right` modulo
+// the declared width. Signed values interpret the reduced bits as two's
+// complement. It is total and generates no overflow obligation; the verifier
+// reconstructs its exact result-term axiom.
 
 /// Source-selected scalar interpretation over the original captured bytes.
 /// The offset is evaluated at formation, not reloaded at each later use. This

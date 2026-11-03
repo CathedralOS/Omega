@@ -187,9 +187,10 @@ impl EntryOperands<'_> {
             // The checked geometry owner retains the descriptor path in the
             // authored parameter namespace; the contract term owner later
             // resolves the same path against its exact structural signature.
-            CheckedScalarExpression::StructuralSequenceLength { root, path }
-                if matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. }) =>
-            {
+            CheckedScalarExpression::StructuralSequenceLength {
+                root: checked_trees::CheckedStorageRoot::Parameter { .. },
+                path,
+            } => {
                 for step in path {
                     if let checked_trees::CheckedScalarReadProjection::RuntimeIndex(selector) = step
                     {
@@ -198,11 +199,11 @@ impl EntryOperands<'_> {
                 }
             }
             CheckedScalarExpression::StructuralParameterIndexedRead {
-                root,
+                root: checked_trees::CheckedStorageRoot::Parameter { .. },
                 index,
                 element_path,
                 ..
-            } if matches!(root, checked_trees::CheckedStorageRoot::Parameter { .. }) => {
+            } => {
                 // Collection roots retain authored structural positions. Each
                 // selector independently enters the dense scalar namespace;
                 // its occurrence still owns the separate bounds obligation.

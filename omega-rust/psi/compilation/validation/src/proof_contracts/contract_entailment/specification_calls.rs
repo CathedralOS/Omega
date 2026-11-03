@@ -532,11 +532,11 @@ fn declaration_anonymous_fit(
 
 /// The declaration-owned logical subject exposes carrier geometry, not an
 /// already admitted runtime value of the default domain currently being formed.
-fn pending_data_subject<'program>(
-    program: &'program dyn crate::CheckingInput,
+fn pending_data_subject(
+    program: &dyn crate::CheckingInput,
     owner: SymbolHandle,
     mut expression: ExpressionHandle,
-) -> Option<&'program typed_trees::data::DataDefinition> {
+) -> Option<&typed_trees::data::DataDefinition> {
     let definition = program.data_definition_by_symbol(owner)?;
     if !definition.predicate_subject_symbol.is_valid() || definition.where_facts.is_empty() {
         return None;

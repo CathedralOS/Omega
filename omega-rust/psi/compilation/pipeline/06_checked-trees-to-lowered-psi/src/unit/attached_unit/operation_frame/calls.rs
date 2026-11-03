@@ -157,12 +157,11 @@ impl OperationFrame<'_, '_> {
                 call.coordinate.statement_index as usize,
                 call.coordinate.call_ordinal as usize,
             )
-        }) {
-            if let lowered_psi::LoweredSourceCallSite::Operation(operation) = emitted.terminal_site
-            {
-                self.evaluation
-                    .retire_structural_operation_operands(operation, self.operations)?;
-            }
+        }) && let lowered_psi::LoweredSourceCallSite::Operation(operation) =
+            emitted.terminal_site
+        {
+            self.evaluation
+                .retire_structural_operation_operands(operation, self.operations)?;
         }
         self.publish_loan_completions(identities, call)?;
         if let Some(completed) = inputs.completed_structural_arguments {

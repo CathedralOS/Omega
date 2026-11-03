@@ -13,9 +13,7 @@ pub(super) fn classify(
 ) -> Option<IndependentTotalScalarIdentity> {
     use IntegerArithmeticOperator as Operator;
     use TotalScalarIdentityKind as Kind;
-    let Some(operands) = operation.integer_arithmetic() else {
-        return None;
-    };
+    let operands = operation.integer_arithmetic()?;
     if operands.arithmetic.policy() != IntegerOverflowPolicy::Saturating {
         return None;
     }

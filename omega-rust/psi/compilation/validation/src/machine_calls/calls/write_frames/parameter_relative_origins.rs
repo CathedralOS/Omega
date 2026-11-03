@@ -129,11 +129,7 @@ fn parameter_relative_place_origins_in(
         }
         ExpressionNode::Indexed(indexed) => {
             if expression_is_effectful_for_transparent_result(program, indexed.index) {
-                let Some(machine_symbols) =
-                    super::demand::machine_symbols(program, current_machine)
-                else {
-                    return None;
-                };
+                let machine_symbols = super::demand::machine_symbols(program, current_machine)?;
                 if !parameter_relative_expression_preserves_transparent_result(
                     program,
                     current_machine,
@@ -414,11 +410,7 @@ fn parameter_relative_call_result_origins(
                 // boundary trait member admits its receiver routes first;
                 // a non-boundary requirement answers the same signature.
                 None => {
-                    let Some(machine_symbols) =
-                        super::demand::machine_symbols(program, current_machine)
-                    else {
-                        return None;
-                    };
+                    let machine_symbols = super::demand::machine_symbols(program, current_machine)?;
                     return super::boundary_calls::boundary_result_origins(
                         program,
                         current_machine,
@@ -476,11 +468,7 @@ fn parameter_relative_call_result_origins(
                 // Its signature routes answer in this frame already, so the
                 // origins below keep them parameter-independent.
                 [] => {
-                    let Some(machine_symbols) =
-                        super::demand::machine_symbols(program, current_machine)
-                    else {
-                        return None;
-                    };
+                    let machine_symbols = super::demand::machine_symbols(program, current_machine)?;
                     return super::boundary_calls::bodyless_callee_result_origins(
                         program,
                         current_machine,

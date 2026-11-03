@@ -601,7 +601,7 @@ pub fn discard_package_review(
 }
 
 fn digest(bytes: &[u8]) -> [u8; 32] {
-    content_identity(&bytes).into()
+    content_identity(bytes)
 }
 
 fn targets(

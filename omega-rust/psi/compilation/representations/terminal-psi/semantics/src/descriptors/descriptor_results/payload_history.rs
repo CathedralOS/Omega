@@ -934,11 +934,11 @@ fn payload_contract_at_cut(
             }
             if let Some(reads) = machine.scalar_payload_reads.get(&current) {
                 for (location, value) in reads {
-                    if let Some(contract) = after.values.get_mut(&location.root) {
-                        if let Some(equality) = observe_scalar(contract, &location.path, value) {
-                            Arc::make_mut(&mut after.scalar_requirements)
-                                .push(premises.intern(equality));
-                        }
+                    if let Some(contract) = after.values.get_mut(&location.root)
+                        && let Some(equality) = observe_scalar(contract, &location.path, value)
+                    {
+                        Arc::make_mut(&mut after.scalar_requirements)
+                            .push(premises.intern(equality));
                     }
                 }
             }

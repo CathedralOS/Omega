@@ -346,7 +346,7 @@ pub(super) fn build_traced(
         {
             std::ops::Bound::Included(terminator_index)
         } else if control::terminal_invocation(program, owner, state, terminator_index)
-            .is_some_and(|target| fused_target_index(program, &fused, target).is_none())
+            .is_some_and(|target| fused_target_index(program, fused, target).is_none())
         {
             // An unconditional terminal machine call is this state's last
             // operation (`terminal_calls`), whatever the machine's result: the
@@ -679,15 +679,10 @@ pub(super) fn build_traced(
         }
     }
     trace.phase("state graph: finish");
-    let mut plan = composed_control::finish_state_graph(
-        program,
-        facts,
-        machine,
-        attachment,
-        planned,
-    )
-    .map_err(|reason| trace.phase(reason))
-    .ok()?;
+    let mut plan =
+        composed_control::finish_state_graph(program, facts, machine, attachment, planned)
+            .map_err(|reason| trace.phase(reason))
+            .ok()?;
     plan.natural_ranks = natural_ranks;
     plan.rank_components = rank_components;
     plan.preserving_rank_edges = preserving_rank_edges;

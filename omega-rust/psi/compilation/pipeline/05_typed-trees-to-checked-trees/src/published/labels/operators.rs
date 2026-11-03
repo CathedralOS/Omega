@@ -45,7 +45,7 @@ pub(crate) fn instantiate_operator_contract_expression_label(
                         MatchPattern::Destructure(_) => display_match_pattern(
                             &program.expression_table,
                             arm.pattern,
-                            &instantiate,
+                            instantiate,
                         ),
                     };
                     format!("{pattern} -> {}", instantiate(arm.value))

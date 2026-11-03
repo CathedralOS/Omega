@@ -1140,14 +1140,7 @@ mod tests {
                 });
             }
             let context = FlowBuildContext::new(
-                &program,
-                &borrow,
-                &proof,
-                &semantic,
-                &plans,
-                &operators,
-                None,
-                &mutation,
+                &program, &borrow, &proof, &semantic, &plans, &operators, None, &mutation,
             );
             let actual = context
                 .selected_scalar_at(state, 0, |binding| binding.role == role)

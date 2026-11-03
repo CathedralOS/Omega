@@ -590,9 +590,7 @@ fn proof_fact_machine_name(owner: ProofFactOwner<'_>) -> Option<&str> {
 fn self_member_name(program: &dyn CheckingInput, expression: ExpressionHandle) -> Option<&str> {
     match expression_table(program).expression(expression) {
         ExpressionNode::Member(member) => {
-            let Some(path) = expression_table(program).name_path_node(member.receiver) else {
-                return None;
-            };
+            let path = expression_table(program).name_path_node(member.receiver)?;
             matches!(
                 expression_table(program).name_path_members(path.members),
                 [name] if name.is_self_receiver()

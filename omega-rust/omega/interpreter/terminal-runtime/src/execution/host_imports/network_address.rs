@@ -126,7 +126,7 @@ impl TerminalEffectHandler for NetworkAddressImport {
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let invalid =
             super::refusal("inet operands or owned occurrence differ from the admitted contract");
-        let call = super::call_operands(effect, &invalid)?;
+        let call = super::call_operands(effect, invalid)?;
         let word = IntegerType::new(IntegerSign::Unsigned, 32).map_err(|_| invalid())?;
         let mut values = self.values.lock().map_err(|_| {
             TerminalEffectRejection::new("inet owned occurrence store was poisoned")

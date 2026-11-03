@@ -37,9 +37,7 @@ fn unsigned_remainder_upper_bound(
     facts: &RangeFacts<'_>,
     expression: ExpressionHandle,
 ) -> Option<i64> {
-    let Some(binary) = program.expression_table.binary_node(expression) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(expression)?;
     if binary.operator != BinaryOperator::Modulo
         || !has_builtin_binary_expression_meaning(program, machine, Some(state), expression)
         || facts.checked_operators.is_some_and(|operators| {

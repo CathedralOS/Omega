@@ -8,9 +8,7 @@
 //! Finite child positions use the profile's boxed strict empty/unit types.
 
 use proof_admission::{
-    Declaration, IndexedFamily, Level, Sort, Term, TermArena, TermHandle, check_signature,
-    check_type, convertible, indexed_scheme, infer_type, judgment_assumption_closure, shift,
-    substitute,
+    Declaration, IndexedFamily, Level, Sort, Term, TermArena, TermHandle, shift, substitute,
 };
 use symbols::SymbolHandle;
 
@@ -1112,6 +1110,7 @@ pub(super) fn induction(
 mod induction_tests {
     use super::*;
     use proof_admission::{Budget, Context, DEFAULT_CONVERSION_STEPS, Signature};
+    use proof_admission::{check_signature, check_type, indexed_scheme, infer_type};
 
     #[test]
     fn constructor_abstraction_binds_dependent_child_and_premise_domains() {
@@ -1432,6 +1431,10 @@ mod indexed_vector_budget_tests {
     use numerics::bignum::BigInt;
     use proof_admission::{
         Budget, Context, DEFAULT_CONVERSION_STEPS, Declaration, Signature, SourceIntegerTheory,
+    };
+    use proof_admission::{
+        check_signature, check_type, convertible, indexed_scheme, infer_type,
+        judgment_assumption_closure,
     };
 
     fn apply(arena: &mut TermArena, function: TermHandle, argument: TermHandle) -> TermHandle {

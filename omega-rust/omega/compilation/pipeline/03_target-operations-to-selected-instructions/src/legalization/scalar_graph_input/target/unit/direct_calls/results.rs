@@ -74,7 +74,6 @@ pub(super) fn validate(
                         ..
                     },
                 structural_arguments,
-                requirement_obligations: _,
                 ..
             },
         ) => {

@@ -84,7 +84,7 @@ pub(crate) fn normalize_static_module_calls(
             _ => continue,
         };
         let lexical_head = if original_receiver.is_valid() {
-            body_expressions(&program)
+            body_expressions(program)
                 .name_path_node(original_receiver)
                 .map(|path| path.head_symbol)
                 .unwrap_or_default()
@@ -103,7 +103,7 @@ pub(crate) fn normalize_static_module_calls(
         // Declaration indexing can already have normalized this occurrence.
         // A later body batch must not dereference its now-absent receiver.
         if original_receiver.is_valid()
-            && let ExpressionNode::Name(original_path) = body_expressions(&program)
+            && let ExpressionNode::Name(original_path) = body_expressions(program)
                 .expression(original_receiver)
                 .clone()
         {

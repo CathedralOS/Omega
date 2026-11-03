@@ -1267,7 +1267,7 @@ impl Evaluation {
             ))?;
         let computation = argument
             .selector_computation(segment, &checked.facts.values.scalar_computations.operands)
-            .or_else(|| match path {
+            .or(match path {
                 checked_trees::CheckedUnitStructuralPathSegment::ComputedIndex(root) => Some(*root),
                 _ => None,
             });
@@ -1685,7 +1685,7 @@ impl Evaluation {
             let mut expansion = crate::scalar_lowering::computations::Expansion::new(
                 checked,
                 &self.scalar_applications,
-                &qualifications,
+                qualifications,
                 machine,
                 1,
                 environment.next_place,

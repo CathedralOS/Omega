@@ -185,15 +185,7 @@ fn check_replay(
         }
     );
     reject_every_bit_flip(encoded.bytes(), &format!("{kind:?}"), |corrupt| {
-        check_memory(
-            physical,
-            kind,
-            alternative,
-            operands,
-            displacement,
-            &corrupt,
-        )
-        .is_err()
+        check_memory(physical, kind, alternative, operands, displacement, corrupt).is_err()
     });
     for end in 0..encoded.bytes().len() {
         assert!(

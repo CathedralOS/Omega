@@ -32,7 +32,7 @@ pub(super) fn position(
                     .operation
                     .module_invocation()
                     .map(|call| call.structural_arguments)
-                    .or_else(|| match &node.operation {
+                    .or(match &node.operation {
                         abstract_operations::boundary_or_structural_call_pair_pattern!(
                             structural_arguments,
                             ..

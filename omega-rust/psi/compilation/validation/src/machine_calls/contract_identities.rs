@@ -313,10 +313,10 @@ pub fn prepare_specialization_contract_identities(
     );
     for (_, capture) in program.captured_machine_applications.iter() {
         super::calls::capture_binding_is_exact(program, capture).map_err(|reason| {
-            let supplying_owner = capture.supplying_application.is_valid().then(|| {
+            let supplying_owner = if capture.supplying_application.is_valid() { {
                 let source = expression_table(program).static_machine_application(capture.supplying_application);
                 program.symbols.display_path(source.lexical_owner, "::").to_string()
-            }).unwrap_or_else(|| "<missing>".into());
+            } } else { "<missing>".into() };
             let declaration_occurrences = program
                 .closed_conformance_application_sites()
                 .iter()

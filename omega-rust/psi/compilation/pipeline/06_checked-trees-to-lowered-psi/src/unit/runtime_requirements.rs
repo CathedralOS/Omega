@@ -77,11 +77,10 @@ fn validate_namespace(expression: &CheckedBooleanExpression) -> Result<(), Lower
 
 fn validate_float_namespace(expression: &CheckedScalarExpression) -> Result<(), LoweringError> {
     match expression {
-        CheckedScalarExpression::StructuralParameterIndexedRead { primitive_type, .. }
-            if matches!(primitive_type, PrimitiveType::F32 | PrimitiveType::F64) =>
-        {
-            validate_indexed_operands(expression, &validate_integer_namespace)
-        }
+        CheckedScalarExpression::StructuralParameterIndexedRead {
+            primitive_type: PrimitiveType::F32 | PrimitiveType::F64,
+            ..
+        } => validate_indexed_operands(expression, &validate_integer_namespace),
 
         CheckedScalarExpression::Parameter { primitive_type, .. }
         | CheckedScalarExpression::ErasedParameter { primitive_type, .. }

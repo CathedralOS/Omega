@@ -695,12 +695,12 @@ fn hash_target(
     machine_of_symbol: &[u32],
     other_symbols: &mut Vec<Option<String>>,
 ) {
-    if let Some(machine_index) = machine_slot(machine_of_symbol, symbol) {
-        if let Some(identity) = identities.get(machine_index).and_then(Option::as_ref) {
-            hash.byte(1);
-            hash.string_terminated(identity);
-            return;
-        }
+    if let Some(machine_index) = machine_slot(machine_of_symbol, symbol)
+        && let Some(identity) = identities.get(machine_index).and_then(Option::as_ref)
+    {
+        hash.byte(1);
+        hash.string_terminated(identity);
+        return;
     }
     let symbol_index = symbol.arena_index() as usize;
     if other_symbols.len() <= symbol_index {

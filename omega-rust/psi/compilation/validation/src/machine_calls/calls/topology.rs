@@ -14,18 +14,17 @@ use typed_trees::state::State;
 /// Unknown bodies and unclassified value evaluation remain potentially normal;
 /// missing custody/origin evidence is never evidence of nonreturning control.
 pub fn normal_completion_possible(program: &dyn CheckingInput, initial: &State) -> Option<bool> {
-    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
-        if let Ok(cache) = memos.normal_completion_possible.lock() {
-            if let Some(&cached) = cache.get(&initial.symbol) {
-                return cached;
-            }
-        }
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+        && let Ok(cache) = memos.normal_completion_possible.lock()
+        && let Some(&cached) = cache.get(&initial.symbol)
+    {
+        return cached;
     }
     let result = compute_normal_completion_possible(program, initial);
-    if let Some(memos) = crate::frozen_program::frozen_program_memos(program) {
-        if let Ok(mut cache) = memos.normal_completion_possible.lock() {
-            cache.insert(initial.symbol, result);
-        }
+    if let Some(memos) = crate::frozen_program::frozen_program_memos(program)
+        && let Ok(mut cache) = memos.normal_completion_possible.lock()
+    {
+        cache.insert(initial.symbol, result);
     }
     result
 }

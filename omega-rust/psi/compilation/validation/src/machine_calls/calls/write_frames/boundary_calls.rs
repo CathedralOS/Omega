@@ -660,7 +660,7 @@ fn boundary_written_argument_paths(
 ) -> Option<()> {
     for (parameter, argument) in parameters.into_iter().zip(arguments) {
         let parameter_type = live_unconstrained_type(program, parameter.type_reference)?;
-        let parameter_type = substituted_head(program, parameter_type, &bindings);
+        let parameter_type = substituted_head(program, parameter_type, bindings);
         let TypeReferenceNode::Reference { access, .. } =
             program.type_reference_table.type_reference(parameter_type)
         else {

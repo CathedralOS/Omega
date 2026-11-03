@@ -233,7 +233,7 @@ fn encode_fields(
 
 fn hash_field(hash: &mut crate::digest_encoder::DomainDigestEncoder, bytes: &[u8]) {
     hash_u64(hash, bytes.len() as u64);
-    hash.raw(&bytes);
+    hash.raw(bytes);
 }
 
 fn hash_u64(hash: &mut crate::digest_encoder::DomainDigestEncoder, value: u64) {

@@ -883,7 +883,6 @@ fn resolve(
 /// `owned_or_shared_view_fields` peels them one record deep: constraint
 /// wrappers ride the loan's declared type and change neither the viewed
 /// shape nor which owner keeps the backing.
-
 pub(crate) fn is_plain_value_domain(
     program: &dyn crate::CheckingInput,
     domain: &typed_trees::types::DomainConstraint,

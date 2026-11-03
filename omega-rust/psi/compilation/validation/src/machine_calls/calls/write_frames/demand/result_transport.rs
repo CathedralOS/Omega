@@ -45,10 +45,12 @@ impl CallFrameResolver<'_> {
                     ReferenceResultTransport::Reference(leaf) => &leaf.source,
                     ReferenceResultTransport::Value { source, .. } => source,
                 };
-                source
-                    .segments
-                    .iter()
-                    .any(|segment| matches!(segment, facts::PlaceSegment::Index { .. }))
+                source.segments.iter().any(|segment| {
+                    matches!(
+                        segment,
+                        facts::PlaceSegment::Index { .. } | facts::PlaceSegment::OpaqueRange
+                    )
+                })
             })
         {
             return Some(ordinary);
@@ -90,8 +92,7 @@ impl CallFrameResolver<'_> {
             // provenance call-site routes mint — carried as a transport leaf
             // whose call identity the caller reassigns.
             let (_, signature) = crate::selected_requirement_signature(self.program, symbol)?;
-            let referent =
-                exclusive_transport_referent(self.program, signature.return_type)?;
+            let referent = exclusive_transport_referent(self.program, signature.return_type)?;
             return Some(vec![invocation_result_transport(referent)]);
         };
         let machine = self.program.machine_holding_state(symbol)?;
@@ -120,10 +121,15 @@ impl CallFrameResolver<'_> {
             // cannot mask a constructed or unresolved leaf on another.
             // Unknown reference origins therefore still refuse here;
             // the capture consumer independently checks case presence.
+            let mut origin = leaf.origin?.into_symbolic_place()?;
+            // A caller cannot interpret this callee's selector expression.
+            // Preserve its checked window dimension without treating it as an
+            // element index or inventing exact bounds in the caller's scope.
+            super::super::summary_windows::coarsen_origin(self.program, &mut origin);
             transports.push(ReferenceResultTransport::Reference(
                 ReferenceResultLeafOrigin {
                     result_path: leaf.local_segments,
-                    source: LocalWriteSource::from(leaf.origin?.into_symbolic_place()?),
+                    source: LocalWriteSource::from(origin),
                 },
             ));
         }
@@ -167,10 +173,8 @@ fn exclusive_transport_referent(
     program: &dyn crate::CheckingInput,
     return_type: typed_trees::types::TypeReferenceHandle,
 ) -> Option<typed_trees::types::TypeReferenceHandle> {
-    let result_type = typed_trees::operator::unconstrained_type_reference(
-        program.typed_program(),
-        return_type,
-    )?;
+    let result_type =
+        typed_trees::operator::unconstrained_type_reference(program.typed_program(), return_type)?;
     let typed_trees::types::TypeReferenceNode::Reference {
         access, referee, ..
     } = program.type_reference_table.type_reference(result_type)
@@ -193,12 +197,10 @@ fn invocation_result_transport(
         result_path: Vec::new(),
         source: LocalWriteSource {
             invocation_output: None,
-            invocation_result: Some(
-                super::super::caller_aliases::InvocationResultHome {
-                    call: typed_trees::expression::ExpressionHandle::invalid(),
-                    referent,
-                },
-            ),
+            invocation_result: Some(super::super::caller_aliases::InvocationResultHome {
+                call: typed_trees::expression::ExpressionHandle::invalid(),
+                referent,
+            }),
             is_image_storage: false,
             recasts: Vec::new(),
             representation: None,

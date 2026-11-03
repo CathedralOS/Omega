@@ -64,13 +64,12 @@ use terminal_semantics::{
     borrowed_referent_matches, boundary_buffer_capacity, bounded_byte_owner_capacity,
     byte_owned_result_predicates, byte_parameter_predicates, byte_sequence_source_predicates,
     contains_access_carrier, fixed_byte_array_loan, fixed_element_array_extent,
-    primitive_projection_declaration, projected_field_declaration,
-    pure_byte_qualifications, qualification_path_carrier, reference_origin_type,
-    representation_view_declaration, runtime_structural_path_tip, scalar_array_leaf_shape,
-    shared_boundary_buffer_capacity, stored_view_field_presentation,
-    structural_memberships_disjoint_from_write, validate_access_lifecycle_plans,
-    validate_access_view_plans, validate_dynamic_reference_regions,
-    validate_runtime_evidence_inputs,
+    primitive_projection_declaration, projected_field_declaration, pure_byte_qualifications,
+    qualification_path_carrier, reference_origin_type, representation_view_declaration,
+    runtime_structural_path_tip, scalar_array_leaf_shape, shared_boundary_buffer_capacity,
+    stored_view_field_presentation, structural_memberships_disjoint_from_write,
+    validate_access_lifecycle_plans, validate_access_view_plans,
+    validate_dynamic_reference_regions, validate_runtime_evidence_inputs,
 };
 
 /// The declared scalar type of a value anywhere it may be declared on the
@@ -159,7 +158,7 @@ pub(crate) fn validate_structural_foundation(module: &TerminalModule) -> Result<
     terminal_semantics::closed_reach::validate_closed_reach_applications(module)
         .map_err(CodecError::MalformedStructuralFoundation)?;
     terminal_semantics::closed_conformances::validate_closed_conformances(module)
-        .map_err(|reason| CodecError::MalformedStructuralFoundation(reason))?;
+        .map_err(CodecError::MalformedStructuralFoundation)?;
     let mut placed_coordinates = BTreeSet::new();
     for row in &module.access_view_inputs {
         if !placed_coordinates.insert((
@@ -1077,22 +1076,18 @@ fn validate_operation_foundation(
             if !event.ordering_is_legal() {
                 return malformed("atomic access has an illegal ordering");
             }
-            let root = structural_place_type(machine, *place).ok_or_else(|| {
-                CodecError::MalformedStructuralFoundation(
-                    "atomic location has no declared root".into(),
-                )
+            let root = structural_place_type(machine, *place).ok_or({
+                CodecError::MalformedStructuralFoundation("atomic location has no declared root")
             })?;
             let declaration =
                 projected_field_declaration(module.structural_types.iter(), root, path, *field)
-                    .ok_or_else(|| {
+                    .ok_or({
                         CodecError::MalformedStructuralFoundation(
-                            "atomic location is not an atomic cell".into(),
+                            "atomic location is not an atomic cell",
                         )
                     })?;
-            let resident = declaration.field_type.atomic_scalar_type().ok_or_else(|| {
-                CodecError::MalformedStructuralFoundation(
-                    "atomic location is not an atomic cell".into(),
-                )
+            let resident = declaration.field_type.atomic_scalar_type().ok_or({
+                CodecError::MalformedStructuralFoundation("atomic location is not an atomic cell")
             })?;
             let bounded = matches!(
                 declaration.field_type,

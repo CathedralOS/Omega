@@ -147,9 +147,7 @@ fn checked_spelled_operator_resolution(
     let ExpressionNode::Binary(binary) = node else {
         return None;
     };
-    let Some(spelling) = typed_trees::operator::binary_operator_spelling(binary.operator) else {
-        return None;
-    };
+    let spelling = typed_trees::operator::binary_operator_spelling(binary.operator)?;
     let operand_types = [
         checked_operand_type(program, facts, expression, binary.left, owner_index),
         checked_operand_type(program, facts, expression, binary.right, owner_index),

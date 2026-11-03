@@ -7,7 +7,6 @@ use crate::preparation::generic_data::uses::{
     closed_constructor_carrier, collect_statement_expression_handles, concrete_state_local_types,
     constructor_carrier_span, constructor_path_name, expected_instance, selected_constructor,
 };
-use crate::tables::syntax_expressions;
 
 use crate::preparation::generic_data::Instantiation;
 

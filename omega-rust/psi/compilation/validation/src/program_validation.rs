@@ -53,6 +53,7 @@ pub use contract_queries::{
     validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
 };
 pub use dependency_bodies::{DependencyBodyJudgment, FrozenDependencyBody};
+pub use statements::statement_source_span;
 use statements::validate_state_statement_node;
 
 pub use checked_trees::operators::ExactIntegerCastFact;
@@ -1242,6 +1243,42 @@ struct JudgedEntailment {
     captured_entailments: Vec<Option<dependency_bodies::CapturedEntailment>>,
 }
 
+/// A restricted field lent to a call must satisfy its standing predicate again
+/// when the call returns, which needs the callee's guarantees applied to the
+/// field's current storage. That storage history exists only once the flow
+/// fixed point is attached, so this judgment runs here rather than in the
+/// machine loop, where every write is opaque.
+fn validate_machine_scalar_loan_handbacks(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let frames = crate::CallFrameResolver::new(program);
+    for state in program.machine_states(machine) {
+        let statements = program.statement_table.statements(state.statement_nodes);
+        for (statement_index, statement) in statements.iter().enumerate() {
+            let mark = diagnostics.len();
+            crate::proof_contracts::contract_entailment::validate_scalar_loan_handbacks(
+                program,
+                machine,
+                state,
+                statement_index,
+                frames.as_ref(),
+                diagnostics,
+            );
+            if diagnostics.len() > mark
+                && let Some(source_span) = statements::statement_source_span(program, statement)
+            {
+                for diagnostic in &mut diagnostics[mark..] {
+                    if diagnostic.source_span.is_none() {
+                        diagnostic.source_span = Some(source_span);
+                    }
+                }
+            }
+        }
+    }
+}
+
 fn judge_machines(
     program: &dyn crate::CheckingInput,
     body_index: &dependency_bodies::DependencyBodyIndex,
@@ -1286,6 +1323,7 @@ fn judge_machines(
                     record_dependency_entailment(false);
                 }
                 let mut machine_diagnostics = Vec::new();
+                validate_machine_scalar_loan_handbacks(program, machine, &mut machine_diagnostics);
                 let mut proven = ProvenContractExpressions::default();
                 crate::proof_contracts::contract_entailment::validate_machine_contract_entailment(
                     program,

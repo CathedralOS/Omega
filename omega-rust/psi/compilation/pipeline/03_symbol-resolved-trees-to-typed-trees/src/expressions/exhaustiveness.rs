@@ -1187,7 +1187,8 @@ fn subject_declared_type(
     subject: ExpressionHandle,
 ) -> Option<TypeReference> {
     let expressions = &scope.program.tables.bodies.expressions;
-    let resolved = match expressions.expression(subject) {
+
+    match expressions.expression(subject) {
         ExpressionNode::Member(member) => {
             field_declared_type(scope, member.member_symbol).or_else(|| {
                 // `member_symbol` is not yet bound on this stage's copies;
@@ -1217,8 +1218,7 @@ fn subject_declared_type(
             subject_declared_type(scope, expressions.match_subject(saved.capture).subject)
         }
         _ => None,
-    };
-    resolved
+    }
 }
 
 /// The declared type a bare case-subject name resolves to: a state

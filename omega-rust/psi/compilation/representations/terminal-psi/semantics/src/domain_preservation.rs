@@ -71,7 +71,7 @@ fn term_dependencies<'a>(
             let path = path
                 .iter()
                 .map(|step| match step {
-                    ScalarReadProjection::Static(step) => Some(step.clone()),
+                    ScalarReadProjection::Static(step) => Some(*step),
                     _ => None,
                 })
                 .collect::<Option<Vec<_>>>()?;
@@ -346,9 +346,7 @@ fn content_dependencies<'a>(
                 })
             }
         };
-        if valid.is_none() {
-            return None;
-        }
+        valid?;
     }
     Some(())
 }
@@ -536,7 +534,7 @@ pub fn store_preserves_content<'a>(
             ) else {
                 return false;
             };
-            if !structural_paths_may_overlap(&input, &write) {
+            if !structural_paths_may_overlap(&input, write) {
                 return true;
             }
             let Some(relative) = write.strip_prefix(input.as_slice()) else {

@@ -437,7 +437,6 @@ fn validate_structural_field_range_authority(
             .chain(
                 node.operation
                     .cleanup_rosters()
-                    .into_iter()
                     .flat_map(|(edge, actions)| {
                         actions.iter().map(move |action| (edge, action.path()))
                     }),
@@ -883,7 +882,7 @@ fn validate_structural_field_range_authority(
                 if requires {
                     let value = event
                         .replacement()
-                        .or_else(|| match event {
+                        .or(match event {
                             abstract_operations::AbstractAtomicEvent::ReadModifyWrite {
                                 operand,
                                 ..

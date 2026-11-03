@@ -21,9 +21,7 @@ use crate::statement::{
     TransitionTargetNode,
 };
 use crate::syntax_trees::SyntaxTrees;
-use crate::types::{
-    DomainConstraint, FixedArrayLength, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode,
-};
+use crate::types::{DomainConstraint, TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 use arena::{Handle, HandleSpan};
 
 /// `StateSignature` assembly shared by the signature copy entrances: one row
