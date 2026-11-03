@@ -35953,7 +35953,8 @@ fail/text/borrowed_bounded_byte_invariant_write rejected 12137ms unexpected @ccd
 	cannot prove requires contract for call write from write: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii) in state `entry`
 fail/text/borrowed_byte_snapshot_missing_predicate rejected 5081ms expected @911f6617ba9e
 	cannot prove requires contract for call snapshot from copy: text in [u8]::SnapshotUtf8 in state `entry`
-fail/text/borrowed_byte_snapshot_reseated_descriptor checked 5116ms @911f6617ba9e
+fail/text/borrowed_byte_snapshot_reseated_descriptor rejected 7358ms expected regressed-from:checked @eacf2cdc1c30
+	cannot prove requires contract for call snapshot from copy: other.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `observed.len <= 16`
 fail/text/borrowed_byte_snapshot_unbounded rejected 3887ms expected @911f6617ba9e
 	cannot prove requires contract for call snapshot from copy: text.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/text/bounded_carrier_growth_overflow_rejected rejected 32263ms expected @911f6617ba9e
