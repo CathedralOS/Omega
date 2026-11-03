@@ -73,7 +73,13 @@ strict-const control. All nineteen public projects meet their expected results:
 [baseline run 41559023368](https://github.com/CathedralOS/Omega/actions/runs/41559023368).
 The checkpoint changes only this README's title/link from the fixed published
 base. These results establish existing behavior, not a new compiler repair.
-The strengthened examples and target migration still need their focused run.
+The strengthened examples and target migration pass
+[run 41560780946](https://github.com/CathedralOS/Omega/actions/runs/41560780946),
+source `74bbe3c7f0f173fe5063b15d085e810758a215be`. All nine positive fixtures
+check and run with native/Terminal exit 0. All ten invalid fixtures reject for
+their intended causes. All nineteen public projects meet their expected results
+(nine executions and ten intended rejections). The optimized producer has
+verified level 1; recorded inputs and outcomes retain that measured source.
 
 Other-host execution and the broader parent tasks remain open. Remaining finite
 family requirements include borrowed descriptor results, entry content claims
