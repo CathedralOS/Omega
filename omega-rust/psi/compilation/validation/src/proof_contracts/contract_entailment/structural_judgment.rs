@@ -572,7 +572,7 @@ pub(super) struct StructuralJudge<'program> {
     // the program has no graph or this judge walks no runtime body.
     storage_version: Option<storage_effects::StorageVersion>,
     // Typed storage observations retain live values and detached entry snapshots.
-    stored_values: Arc<Vec<storage_effects::CapturedStorageValue>>,
+    stored_values: Arc<storage_effects::StoredValues>,
     pub(super) capture_sequence: usize,
     storage_write_sequence: usize,
     pub(super) normal_guarantees: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
@@ -797,10 +797,12 @@ impl<'program> StructuralJudge<'program> {
         } else {
             let mut intersected = Vec::with_capacity(first.stored_values.len());
             for entry in first.stored_values.iter() {
-                if outcomes[1..]
-                    .iter()
-                    .all(|judge| judge.stored_values.contains(entry))
-                {
+                if outcomes[1..].iter().all(|judge| {
+                    judge
+                        .stored_values
+                        .values_at(&entry.coordinate)
+                        .any(|stored| stored == entry)
+                }) {
                     intersected.push(entry.clone());
                     continue;
                 }
@@ -814,11 +816,7 @@ impl<'program> StructuralJudge<'program> {
                 let mut matched_anchors = entry.current_anchors.clone();
                 let mut all_have_coord = true;
                 for judge in &outcomes[1..] {
-                    let Some(other) = judge
-                        .stored_values
-                        .iter()
-                        .find(|s| s.coordinate == entry.coordinate)
-                    else {
+                    let Some(other) = judge.stored_values.value_at(&entry.coordinate) else {
                         all_have_coord = false;
                         break;
                     };
@@ -894,7 +892,8 @@ impl<'program> StructuralJudge<'program> {
                     });
                 }
             }
-            rejoined.stored_values = Arc::new(intersected);
+            rejoined.stored_values =
+                Arc::new(storage_effects::StoredValues::from_values(intersected));
         }
         if exclude_result.is_none()
             && outcomes[1..].iter().all(|judge| {
@@ -1133,7 +1132,7 @@ impl<'program> StructuralJudge<'program> {
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
             storage_version: None,
-            stored_values: Arc::new(Vec::new()),
+            stored_values: Arc::default(),
             capture_sequence: 0,
             storage_write_sequence: 0,
             normal_guarantees: Arc::new(Vec::new()),
