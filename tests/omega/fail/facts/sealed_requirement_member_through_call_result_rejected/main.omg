@@ -36,7 +36,7 @@ ensures 0 <= result && result <= 100
     block Operations::combine(left, right)
 }
 
-// Place: call result. The right supply call has no result range, so apply cannot prove combine's requires.
+// Place: call result. The supplier omits its input/result contracts, so apply lacks the required operand bounds.
 machine supply(value: i32) -> i32
 {
     value
@@ -47,7 +47,7 @@ blocks
 requires 0 <= a && a <= 50
 ensures 0 <= result && result <= 100
 {
-    block apply<Selected>(a, supply(b))
+    block apply<Selected>(supply(a), supply(b))
 }
 
 machine main() blocks crashes Trap {

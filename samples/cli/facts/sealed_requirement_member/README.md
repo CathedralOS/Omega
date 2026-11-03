@@ -30,8 +30,8 @@ different pairs, so selecting the wrong branch fails the runtime check.
 
 The paired invalid programs keep the same runtime checks and result promises.
 Their inputs or producing contracts lack a range needed by `apply`, `step` or
-`forward`. The call-result control uses a supplier without the input/result
-contract needed to bound its right result. The const-name control widens the
+`forward`. The call-result control keeps both supplier calls but removes the supplier
+contracts and the right input bound. The const-name control widens the
 shared ceiling from 50 to 100; it weakens both operand bounds. Each refusal must
 identify the missing range at the call that needs it.
 
