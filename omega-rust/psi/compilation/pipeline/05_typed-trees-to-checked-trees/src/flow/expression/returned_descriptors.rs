@@ -1,12 +1,10 @@
-//! Preserve exact body-derived descriptors or admitted local dispatch regions.
-//! Region coverage is exclusion-only; it does not manufacture an exact pointer.
-//! The body-derived association retains evaluated
-//! explicit actuals, after receiver separation. Declared lifetime relations still retain every owed input; the
-//! body relation supplies geometry only. Its observation discards pre-call
-//! predicates and pointee snapshots, so later field reads use current storage.
-//! Body-relative source coordinates select the invocation-entry descriptor.
-//! A callee can replace its containing slot before returning an earlier saved
-//! descriptor; re-reading that slot at return would select a different pointer.
+//! Keep a returned view tied to the inputs actually evaluated for its call.
+//! Exact projections retain descriptor candidates. Computed ranges retain the
+//! lending descriptor and enclosing backing without inventing an offset.
+//! The resource owner still checks every captured borrowing parent separately.
+//! Declared lifetimes retain every owed input; pre-call contents are discarded.
+//! A saved descriptor keeps its invocation-entry identity after its slot changes.
+//! Public local-dispatch regions supply exclusion coverage alone.
 use super::Execution;
 use arena::Handle;
 use checked_trees::{FlowOperandCompletion, FlowOperandFact, FlowOperandRetention};
@@ -76,7 +74,12 @@ impl Execution<'_, '_, '_> {
         let sources = self
             .context
             .call_frames?
-            .reference_result_leaf_origins(state.symbol)?;
+            .reference_result_leaf_origins_for_arguments(
+                state.symbol,
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments),
+            )?;
         let reference =
             validation::project_type_reference_from_segments(self.program, returned, path)?;
         let expected = validation::reference_shell(self.program, reference)?;
@@ -91,7 +94,7 @@ impl Execution<'_, '_, '_> {
             }
             if source.source.is_image_storage {
                 has_unknown_geometry = true;
-                candidates.push((Vec::new(), true, None));
+                candidates.push((Vec::new(), true, None, false));
                 continue;
             }
             // An indexed descriptor home coarsens the may-write footprint,
@@ -100,14 +103,18 @@ impl Execution<'_, '_, '_> {
             // cannot veto it or stand in for its path/type/access checks.
             if !source.source.recasts.is_empty()
                 || source.source.representation.is_some()
-                || !source
-                    .source
-                    .segments
-                    .iter()
-                    .all(super::super::place_segment_has_static_identity)
+                || !source.source.segments.iter().all(|segment| {
+                    super::super::place_segment_has_static_identity(segment)
+                        || matches!(segment, PlaceSegment::OpaqueRange)
+                })
             {
                 return None;
             }
+            let has_exact_projection = source
+                .source
+                .segments
+                .iter()
+                .all(super::super::place_segment_has_static_identity);
             let position =
                 typed_trees::signature::state_parameter_position(parameters, source.source.root)?;
             inputs.get(position)?;
@@ -168,14 +175,17 @@ impl Execution<'_, '_, '_> {
                 // Preserve the exact captured formation namespace. An opaque
                 // supplier can withhold geometry without losing its independent
                 // evaluated-source association; roots never fill that gap.
-                let selected =
-                    super::super::operand_values::captured_operand_reference_places_with_formation(
-                        self.program,
-                        &self.context.control,
-                        &value,
-                        value.type_reference,
-                        &projection,
-                    );
+                let selected = has_exact_projection
+                    .then(|| {
+                        super::super::operand_values::captured_operand_reference_places_with_formation(
+                            self.program,
+                            &self.context.control,
+                            &value,
+                            value.type_reference,
+                            &projection,
+                        )
+                    })
+                    .flatten();
                 if selected.as_ref().is_some_and(Vec::is_empty) && !image {
                     return None;
                 }
@@ -187,7 +197,12 @@ impl Execution<'_, '_, '_> {
                     }
                 }
                 all_image &= image;
-                candidates.push((selected, image, Some((operand, projection))));
+                candidates.push((
+                    selected,
+                    image,
+                    Some((operand, projection)),
+                    has_exact_projection,
+                ));
             }
         }
         if candidates.is_empty() {
@@ -197,7 +212,7 @@ impl Execution<'_, '_, '_> {
         // partial address union. Image alternatives have no invented address;
         // every alternative retains the complete declared lifetime frontier.
         let mut alternatives = Vec::new();
-        for (places, image, supplier) in candidates {
+        for (places, image, supplier, has_exact_projection) in candidates {
             let retention = self.append_retention(&roots);
             self.context
                 .control
@@ -225,19 +240,48 @@ impl Execution<'_, '_, '_> {
                     .control
                     .operand_retained_paths
                     .insert_many(projection);
-                let suppliers = self
-                    .context
-                    .control
-                    .operand_retained_suppliers
-                    .insert_many([checked_trees::FlowOperandRetainedSupplier {
-                        contract: None,
-                        operand,
-                        projection,
-                    }]);
+                let suppliers = if has_exact_projection {
+                    self.context
+                        .control
+                        .operand_retained_suppliers
+                        .insert_many([checked_trees::FlowOperandRetainedSupplier {
+                            contract: None,
+                            operand,
+                            projection,
+                        }])
+                } else {
+                    Default::default()
+                };
+                // A computed range keeps the descriptor that lent its backing,
+                // but not an exact offset or an unchanged input pointer. Retain
+                // its checked formation and enclosing input regions separately.
+                let enclosing_regions = if has_exact_projection {
+                    Default::default()
+                } else {
+                    if reborrow_sources.is_empty() {
+                        return None;
+                    }
+                    let regions = self
+                        .context
+                        .control
+                        .operand_reborrow_sources
+                        .span_or_empty(reborrow_sources)
+                        .iter()
+                        .map(|source| checked_trees::FlowOperandRetainedRegion {
+                            operand: source.operand,
+                            projection: source.source_path,
+                        })
+                        .collect::<Vec<_>>();
+                    self.context
+                        .control
+                        .operand_retained_regions
+                        .insert_many(regions)
+                };
                 let profile = self.context.control.operand_retentions.get_mut(retention);
                 profile.suppliers = suppliers;
                 profile.descriptor_sources = suppliers;
                 profile.reborrow_sources = reborrow_sources;
+                profile.enclosing_regions = enclosing_regions;
             }
             let referents = self.append_captured_references(&places);
             alternatives.push(FlowOperandFact {

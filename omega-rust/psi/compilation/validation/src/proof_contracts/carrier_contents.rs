@@ -62,7 +62,7 @@ pub(crate) fn type_has_forbidden_argument_observation_content(
             referee,
             access: language_semantics::ReferenceAccess::Shared,
             ..
-        } => type_has_forbidden_value_observation_content(program, *referee),
+        } => shared_referent_has_forbidden_observation_content(program, *referee),
         TypeReferenceNode::Constrained {
             base_type,
             constraints,
@@ -76,6 +76,35 @@ pub(crate) fn type_has_forbidden_argument_observation_content(
                         if first_routed_qualification(program, domain, &mut HashSet::new()).is_some())
                 })
                 || type_has_forbidden_argument_observation_content(program, *base_type)
+        }
+        _ => type_has_forbidden_value_observation_content(program, type_reference),
+    }
+}
+
+/// A shared slice input exposes its elements to this invocation, without
+/// turning its descriptor into a proof value. Element contents still pass
+/// the value fence, so nested references and resource authority stay opaque.
+fn shared_referent_has_forbidden_observation_content(
+    program: &dyn crate::CheckingInput,
+    type_reference: TypeReferenceHandle,
+) -> bool {
+    match program.type_reference_table.type_reference(type_reference) {
+        TypeReferenceNode::Slice { element_type } => {
+            type_has_forbidden_value_observation_content(program, *element_type)
+        }
+        TypeReferenceNode::Constrained {
+            base_type,
+            constraints,
+        } => {
+            program
+                .type_reference_table
+                .constraints(*constraints)
+                .iter()
+                .any(|constraint| {
+                    matches!(constraint, TypeConstraintNode::Domain(domain)
+                        if first_routed_qualification(program, domain, &mut HashSet::new()).is_some())
+                })
+                || shared_referent_has_forbidden_observation_content(program, *base_type)
         }
         _ => type_has_forbidden_value_observation_content(program, type_reference),
     }
