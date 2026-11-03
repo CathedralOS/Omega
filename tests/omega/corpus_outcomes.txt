@@ -128,6 +128,8 @@ fail/cases/constructor_subject_range_unsigned_to_signed_unproved rejected 1007ms
 	Exact integer cast in machine `make` state `entry` from `u64` to `i64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
 fail/comptime/const_recursive_counter_survives_unrelated_writes rejected 609ms expected @c5cc3d874922+wt
 	fixed-array length `[u8; extent()]`: const evaluation of `extent` failed: machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/constants/predicate_constant_static_index_violates_domain rejected 2472ms expected @8e3c139d8359
+	data `Bounded` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/constants/target_layout_derived_ground_guarantee_reject rejected 1261ms expected @d6c89b306726
 	cannot prove ensures contract for exit from incorrect at statement 1: result >= 5
 fail/contracts/assignment_destination_cannot_use_rhs_call_guarantee rejected 7105ms expected @8f7188b97d7a
@@ -3440,6 +3442,8 @@ fail/parse/retired_standalone_boundary_requirement rejected 28ms @409a3e82132d+w
 	tests/omega/fail/parse/retired_standalone_boundary_requirement/main.omg:6:10: standalone `boundary requirement Owner::operation(...);` declarations are retired; declare the operation as a member of a boundary trait (`boundary trait Owner { machine operation(...) reaches ...; }`), using a one-member trait when it needs independent provider selection
 fail/parse/retired_trait_operator_requirement rejected 680ms expected @c2cfe5f3dece+wt
 	tests/omega/fail/parse/retired_trait_operator_requirement/main.omg:5:5: the `operator` introducer is retired: a trait requirement binds operator syntax as an ordinary machine -- write `machine + name(...)`, or `machine name(...)` without a token
+fail/ports/asm_port_in_missing_reach rejected 9548ms expected @8e3c139d8359
+	machine `Main::main` publishes service reach `<none>` but its checked body reaches undeclared service `PortIo`
 fail/proofs/completed_guard_converted_snapshot_without_condition rejected 1136ms expected @2cede9e14eca
 	exact arithmetic in machine `invoke` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `echo(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
 fail/proofs/completed_guard_private_boolean_without_condition rejected 1893ms expected @2cede9e14eca
@@ -5141,6 +5145,7 @@ pass/constants/machine_const_indices rejected 807ms regressed-from:checked @ccdb
 pass/constants/mathematical_constant_domain_selection rejected 806ms regressed-from:checked @ccdb99ca2214
 	constant initializer: constant initializer lost its selected construction field
 pass/constants/nested_const_projection checked 3735ms @ccdb99ca2214
+pass/constants/predicate_constant_static_index checked 11348ms @8e3c139d8359
 pass/constants/qualified_variant_constant checked 2287ms @ccdb99ca2214
 pass/constants/runtime_predicate_constant_materialization_exit checked 5689ms check-target:macos_arm64 @911f6617ba9e
 pass/constants/runtime_scoped_const_exit checked 57128ms check-target:macos_arm64 @911f6617ba9e
@@ -13842,6 +13847,7 @@ pass/parser/deep_nesting_within_limit checked 2816ms @ccdb99ca2214
 pass/parser/invariant_is_an_identifier checked 2769ms @ccdb99ca2214
 pass/parser/move_named_state_transition_exit checked 11035ms check-target:macos_arm64 @ccdb99ca2214
 pass/patterns/named_value_before_negative_integer_pattern_exit checked 3256ms check-target:macos_arm64 @ccdb99ca2214
+pass/ports/asm_port_in_immediate checked 12467ms check-target:linux_x86_64 @8e3c139d8359
 pass/progress/provider_receiver_progress_installation checked 2860ms check-target:linux_x86_64 @ccdb99ca2214
 pass/proofs/accepted_axiom_cited_exit rejected 12195ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	machine `body` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
@@ -18323,7 +18329,6 @@ fail/constants/predicate_constant_generic_static_index_fence rejected 428ms unex
 	const argument for `Indexed::Value` is invalid at this index site: computed constant carrier member is not yet a closed structural type
 fail/constants/predicate_constant_nested_projection_shadow rejected 810ms expected @46cdd6b85b82+wt
 	data `Packet` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/constants/predicate_constant_static_index_fence checked 7636ms @911f6617ba9e
 fail/constants/target_layout_derived_crashing_helper_reject rejected 10781ms expected @c5cc3d874922+wt
 	terminal-artifact production failed: Lowering(CompilerEvaluationAdmission("machine `@constant-BAD` is not build-time admissible: a checked crash route remains possible (Trap); calls: [forbidden]; constant evaluation requires proof that no crash route can occur before execution"))
 fail/constants/target_layout_derived_demanded_crashing_helper_reject rejected 10192ms expected @c5cc3d874922+wt
@@ -33974,7 +33979,6 @@ fail/parse/machine_clause_garbage_rejected rejected 7ms expected @2fc408782574
 	tests/omega/fail/parse/machine_clause_garbage_rejected/main.omg:6:22: expected one of `terminates`, `decreases`, `reaches`, `invokes <binding>`, `suspends`, `blocks`, `crashes <Cause>`, `boundary`, `requires`, `ensures`, `->`, `{`, found identifier `bogus`
 fail/parser/nesting_exceeds_max_depth rejected 5ms expected @ccdb99ca2214
 	tests/omega/fail/parser/nesting_exceeds_max_depth/main.omg:7:1076: expression or type nesting is too deep (exceeds the maximum of 1024 levels)
-fail/ports/asm_port_in_unsettled checked 4344ms @0af7c594a1c0
 fail/proofs/accepted_axiom_engine_veto rejected 7934ms expected @ccdb99ca2214
 	accepted boundary machine `false_axiom` claims `Nat == Nat`, which the engine REFUTES structurally -- a refutable statement is a compile error, grants notwithstanding (chapter 10 engine veto)
 fail/proofs/accumulator_guarantee_unbounded_formals rejected 13322ms expected @ccdb99ca2214
