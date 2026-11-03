@@ -133,11 +133,22 @@ fn enrich_selected_plans(
                     let template =
                         identities.intern(prepared.plan.identities.text(row.requirement_identity));
                     for application in applications {
+                        if !prepared
+                            .plan
+                            .schema
+                            .declaration
+                            .matches_receiving_application(
+                                prepared.plan.identity_text(row.requirement_identity),
+                                Some(&application.receiving_application),
+                            )
+                        {
+                            continue;
+                        }
                         aliases.push(effects::SelectedRequirementSpecialization {
                             provider_plan_report_identity: prepared.plan.report_fingerprint(),
                             selected_requirement_identity: template,
                             selected_machine_identity: template,
-                            requirement_identity: identities.intern(application),
+                            requirement_identity: identities.intern(&application.requirement),
                             machine_identity: template,
                         });
                     }
@@ -188,7 +199,7 @@ fn enrich_selected_plans(
                     provider_plan_digest: plan.identity_digest(),
                     selected_requirement_identity: identities
                         .intern(plan.identities.text(row.requirement_identity)),
-                    requirement_identity: identities.intern(application),
+                    requirement_identity: identities.intern(&application.requirement),
                 });
             }
         }
