@@ -326,14 +326,14 @@ fn check_program(
             &mutation_summaries,
         )
     });
-    let (mut facts, prepared_effects) = match built {
+    let (mut facts, prepared_effects, program) = match built {
         Ok(built) => built,
-        Err(errors) => {
+        Err(failure) => {
             return Err(
                 crate::checking::program_validation::entailment_errors_first(
-                    &program,
+                    failure.program.as_deref().unwrap_or(&program),
                     deferred_entailment,
-                    errors,
+                    failure.diagnostics,
                 ),
             );
         }
