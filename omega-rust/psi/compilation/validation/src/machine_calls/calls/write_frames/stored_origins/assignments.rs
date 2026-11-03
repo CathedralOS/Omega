@@ -114,7 +114,14 @@ pub(in crate::machine_calls::calls::write_frames) fn assignment_origins(
     include_shared: bool,
     replaces_local_binding: bool,
 ) -> Option<Option<AssignmentOrigins>> {
-    let replaces_stored = replaces_local_binding
+    // Storing a reference changes a descriptor even when its slot is reached
+    // through a fixed incoming pointer. The receiving value, rather than
+    // ownership of that outer pointer, selects the stored-reference transfer.
+    let stores_reference =
+        reference_subjects::assignment_stored_value_type(program, machine, state, assignment)
+            .is_some_and(|reference| crate::reference_shell(program, reference).is_some());
+    let replaces_stored = stores_reference
+        || replaces_local_binding
         || super::assignment_replaces_case_binding(program, assignment, stored, aliases)
         || (include_shared
             && super::assignment_replaces_reference_ancestor(program, assignment, stored, aliases))
@@ -177,11 +184,17 @@ fn assigned_stored_origins(
     }
     let target_type =
         reference_subjects::assignment_stored_value_type(program, machine, state, assignment)?;
-    // A bare reference slot requires the typed local-replacement decision.
-    // A value-shaped assignment through a reference still replaces its referent.
+    // A local rebind owns its descriptor home; a fixed exclusive parameter
+    // instead writes its incoming referent. When that referent is a reference,
+    // the same transfer updates the inner slot without rebinding the ingress.
     if !replaces_local_binding
         && super::super::type_reference_is_reference(program, target_type)
         && source.segments.is_empty()
+        && !reference_subjects::expression_is_fixed_incoming_reference(
+            program,
+            state,
+            assignment.target,
+        )
     {
         return None;
     }
