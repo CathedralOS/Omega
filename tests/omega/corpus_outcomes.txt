@@ -14851,8 +14851,7 @@ pass/termination/progress_selector_owned_arrival_owned_parameter_exit rejected 2
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
 pass/termination/progress_selector_owned_arrival_reference_boundary_exit rejected 3124ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
-pass/termination/progress_selector_owned_arrival_reference_reborrow_exit rejected 2434ms check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
+pass/termination/progress_selector_owned_arrival_reference_reborrow_exit checked 9694ms check-target:macos_arm64 @49d08ea371fd
 pass/termination/progress_selector_owned_arrival_repeated_rebind_exit rejected 2811ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
 pass/termination/progress_selector_owned_arrival_replacement_helper_exit rejected 2258ms check-target:macos_arm64 @ccdb99ca2214
