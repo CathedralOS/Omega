@@ -53,16 +53,6 @@ impl ResultSelection {
         let StatementNode::Assignment(assignment) = statement else {
             return;
         };
-        eprintln!(
-            "corpus_runner: REFERENCE_ASSIGNMENT_TRACE state={:?} target_kind={} rhs_kind={} tracked={:?}",
-            state.symbol,
-            diagnostic_expression_kind(program, assignment.target),
-            diagnostic_expression_kind(program, assignment.value),
-            self.captured_results
-                .iter()
-                .map(|(symbol, roots)| (*symbol, program.symbols.name(*symbol), roots.clone()))
-                .collect::<Vec<_>>(),
-        );
         let ExpressionNode::Name(target) = expression_table(program).expression(assignment.target)
         else {
             return;
@@ -81,13 +71,6 @@ impl ResultSelection {
                     program, machine, statement,
                 )
             });
-        eprintln!(
-            "corpus_runner: REFERENCE_ASSIGNMENT_TRACE target={:?}:{} replacement={:?} exposed={}",
-            target.symbol,
-            program.symbols.name(target.symbol),
-            replacement,
-            binding_is_exclusively_exposed(program, state, target.symbol),
-        );
         if replacement == Some(false) {
             // A store through the reference keeps its descriptor's choice.
             return;
@@ -99,12 +82,6 @@ impl ResultSelection {
             && !binding_is_exclusively_exposed(program, state, target.symbol))
         .then(|| contributed_parameters(program, state, self, reachability, assignment.value))
         .flatten();
-        eprintln!(
-            "corpus_runner: REFERENCE_ASSIGNMENT_TRACE target={:?}:{} selected={:?}",
-            target.symbol,
-            program.symbols.name(target.symbol),
-            selected,
-        );
         self.captured_results[position].1 = selected;
     }
 }
@@ -140,33 +117,6 @@ pub(super) fn retain_reachable_sources(
             break roots;
         }
     };
-    eprintln!(
-        "corpus_runner: REFERENCE_RETENTION_TRACE state={:?} parameters={:?} values={:?} reachable={:?} physical={:?}",
-        state.symbol,
-        parameters
-            .iter()
-            .map(|parameter| (parameter.symbol, parameter.name.as_str()))
-            .collect::<Vec<_>>(),
-        actual_values
-            .iter()
-            .map(|value| match value {
-                BoolTruth::True => "true",
-                BoolTruth::False => "false",
-                BoolTruth::Unknown => "unknown",
-            })
-            .collect::<Vec<_>>(),
-        reachable,
-        origins
-            .references
-            .iter()
-            .map(|leaf| (
-                leaf.kind,
-                leaf.origin
-                    .as_ref()
-                    .map(|origin| origin.place().source.root)
-            ))
-            .collect::<Vec<_>>(),
-    );
     let Some(reachable) = reachable else { return };
     let retain = |leaf: &super::ReferenceLeaf| {
         if !matches!(
@@ -317,15 +267,6 @@ fn reachable_value_parameters_body(
                         )
                     })
                     .flatten();
-                eprintln!(
-                    "corpus_runner: REFERENCE_LOCAL_TRACE state={:?} local={:?}:{} initializer={} stable={} result={:?}",
-                    state.symbol,
-                    local.symbol,
-                    program.symbols.name(local.symbol),
-                    diagnostic_expression_kind(program, local.initial_value),
-                    stable,
-                    result,
-                );
                 current.captured_results.push((local.symbol, result));
             }
             StatementNode::LocalData(_) => {
@@ -433,13 +374,6 @@ fn contributed_parameters(
                 } else {
                     !parameter.is_mutable
                 };
-                eprintln!(
-                    "corpus_runner: REFERENCE_PARAMETER_TRACE state={:?} parameter={:?}:{} stable={}",
-                    state.symbol,
-                    parameter.symbol,
-                    parameter.name.as_str(),
-                    stable,
-                );
                 if !stable {
                     return None;
                 }
@@ -523,26 +457,7 @@ fn parameters_reached_through(
         parameters,
         &actual_values,
         reachability,
-    );
-    eprintln!(
-        "corpus_runner: REFERENCE_CALL_TRACE host={:?} target={:?} kinds={:?} values={:?} inner={:?}",
-        host_state.symbol,
-        target_state.symbol,
-        target_arguments
-            .iter()
-            .map(|expression| diagnostic_expression_kind(program, *expression))
-            .collect::<Vec<_>>(),
-        actual_values
-            .iter()
-            .map(|value| match value {
-                BoolTruth::True => "true",
-                BoolTruth::False => "false",
-                BoolTruth::Unknown => "unknown",
-            })
-            .collect::<Vec<_>>(),
-        inner,
-    );
-    let inner = inner?;
+    )?;
     let mut mapped = Vec::new();
     for symbol in inner {
         let position = parameters
@@ -556,21 +471,4 @@ fn parameters_reached_through(
         }
     }
     Some(mapped)
-}
-
-// Temporary diagnostics for the frozen reference-declaration probe.
-fn diagnostic_expression_kind(
-    program: &dyn crate::CheckingInput,
-    expression: ExpressionHandle,
-) -> &'static str {
-    if !expression.is_valid() {
-        return "absent";
-    }
-    match expression_table(program).expression(expression) {
-        ExpressionNode::Name(_) => "name",
-        ExpressionNode::Call(_) => "call",
-        ExpressionNode::SavedSubject(_) => "saved subject",
-        ExpressionNode::Borrow(_) => "borrow",
-        _ => "other",
-    }
 }

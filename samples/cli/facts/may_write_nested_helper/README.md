@@ -117,9 +117,12 @@ reference's choice before replacing the old binding; writes through a reference
 keep its choice, while exposed or ambiguous replacements remain unknown.
 Run [41576089167](https://github.com/CathedralOS/Omega/actions/runs/41576089167)
 validated the original 20 positives in both engines and all 33 invalid controls,
-but the declared-then-assigned reference still wrongly lost the bound. Its
-current result capture is being traced on that same frozen program. Full
-acceptance and publication remain unfinished.
+but the declared-then-assigned reference still wrongly lost the bound. A focused trace confirmed that the earlier write summary discarded the reference
+before saved-choice analysis ran. The next repair captures replacement pointer
+contents through the same stored-reference transfer used for record fields, then
+replaces the local slot after right-hand-side effects. It does not read the old
+pointer or discard writes through a reference. Full acceptance and publication
+remain unfinished.
 
 The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
 on the frozen baseline in
