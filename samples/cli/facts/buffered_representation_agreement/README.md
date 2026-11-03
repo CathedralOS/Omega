@@ -43,7 +43,7 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [latest seventeen-fixture source check](https://github.com/CathedralOS/Omega/actions/runs/41724179317)
+The [retained seventeen-fixture source check](https://github.com/CathedralOS/Omega/actions/runs/41724179317)
 at clean `bbe054f7027e732e4078d00b9fb8b71fe38b5742` removes both contract
 errors in `restore`: declared field reads now recover the decoder's saved Pair
 fields. The returned-data identity positive checks, and all thirteen negatives
@@ -56,14 +56,22 @@ remaining obligation is equality of the complete returned and original Pairs.
 at `eb40e219ab92c59818eba8a1c376213d78ec74ce` still reports those four errors.
 It selects the original field paths, but the compiler's saved description of the
 returned value has already replaced the decoder result with a local match name.
-Inside `restore`, the same fields still name the original decoder result. The
-pending repair must keep those field values when the helper returns. The
-surrounding Request contains a mutable buffer reference; saving its owned fields
-must not grant a read through that reference or extend its access permission.
+Inside `restore`, the same fields still name the original decoder result. The surrounding Request contains a mutable buffer reference; saving its owned
+fields must not grant a read through that reference or extend its access permission.
+
+[The next local check](https://github.com/CathedralOS/Omega/actions/runs/41731119817)
+at `9efb551fdb7cc04cec78c7bae6d2a17cbb7943fe` proves every contract in the local
+positive. Its only refusal is an unresolved selected `output` field after checking.
+[The authenticated CLI diagnostic](https://github.com/CathedralOS/Omega/actions/runs/41735608214)
+locates it at `result.value.output` in the encoder trait's return contract. The
+successful payload is `Frame`, so the field lookup must retain that type through
+`Result::value`. The selection audit remains strict. The corrupt twin now rejects
+only its decoder field law; the positive still needs complete checking and execution.
 
 Earlier traces retain entry byte identities, all three caller byte facts through
-owned Frame arguments and both decoder field equations. The new result proves
-the individual `restore` field promises, not the complete round-trip contract.
+owned Frame arguments and both decoder field equations. The retained seventeen-fixture result proves
+the individual `restore` field promises. The later local result proves its whole
+round-trip contract, but the selected-field refusal still blocks compilation.
 No buffered witness has execution acceptance; full qualification remains held
 until the source proofs pass.
 
