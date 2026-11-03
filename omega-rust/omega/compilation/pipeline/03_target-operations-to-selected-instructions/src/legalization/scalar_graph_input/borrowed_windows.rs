@@ -153,10 +153,10 @@ pub(in crate::legalization) fn extent(
             })
         } else {
             path.is_empty()
-                && matches!(
+                && (matches!(
                     root,
                     abstract_operations::StructuralWindowRoot::Parameter(_)
-                )
+                ) || required_access == StructuralAccess::MutableBorrow)
         };
         if !authenticated {
             return Err(LegalizationError::custody());
@@ -204,6 +204,17 @@ pub(in crate::legalization) fn moved(
     plan: &AbstractOperationPlan,
     custody: &super::reference_custody::Custody,
 ) -> Result<WindowExtent, LegalizationError> {
+    // Whole owned-home initialization adds no extraction route. Moving a
+    // whole value still uses its ordinary owned transfer operation.
+    if path.is_empty()
+        && field.is_none()
+        && !matches!(
+            root,
+            abstract_operations::StructuralWindowRoot::Parameter(_)
+        )
+    {
+        return Err(LegalizationError::custody());
+    }
     let extent = extent(
         function,
         root,

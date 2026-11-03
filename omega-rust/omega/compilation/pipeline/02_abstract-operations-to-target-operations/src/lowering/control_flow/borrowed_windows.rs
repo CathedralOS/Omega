@@ -170,21 +170,29 @@ pub(super) fn store_field(
         path,
         disposition.required_access(),
     )?;
+    // Initializing a whole owned home stores its descriptor or value, not
+    // a referent. The live-home and vacant-store checks remain independent.
+    let whole_owned_store = path.is_empty()
+        && field.is_none()
+        && destination.parameter().is_none()
+        && *disposition == terminal_psi::StructuralStoreDisposition::Vacant;
     if !window_root(
         function,
         prepared,
         live,
         destination,
         disposition.required_access(),
-    ) || !root_window_loan(
-        function,
-        live,
-        types,
-        destination,
-        path,
-        *field,
-        disposition.required_access(),
-    ) || value.access != StructuralAccess::Owned
+    ) || (!whole_owned_store
+        && !root_window_loan(
+            function,
+            live,
+            types,
+            destination,
+            path,
+            *field,
+            disposition.required_access(),
+        ))
+        || value.access != StructuralAccess::Owned
         || !value.path.is_empty()
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
