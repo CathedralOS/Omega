@@ -1,0 +1,1 @@
+checked body reaches undeclared service `External`

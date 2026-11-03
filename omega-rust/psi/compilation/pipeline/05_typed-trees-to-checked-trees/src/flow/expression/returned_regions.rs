@@ -92,9 +92,23 @@ impl Execution<'_, '_, '_> {
                 parameter.type_reference,
                 &origin.source.path,
             )?;
-            for (capture, projection) in
+            let checked_trees::FlowOperandCompletion::InvocationResult { invocation, .. } =
+                completion
+            else {
+                return None;
+            };
+            let actual = self
+                .context
+                .control
+                .calls
+                .get(invocation)
+                .argument_operands()
+                .handles()
+                .nth(position)?;
+            for (operand, projection) in
                 self.call_slot_values(actual, &projection, source_snapshot)?
             {
+                let capture = self.context.control.operands.get(operand);
                 let selected = validation::project_type_reference_from_segments(
                     self.program,
                     capture.type_reference,
@@ -104,7 +118,6 @@ impl Execution<'_, '_, '_> {
                 if !validation::storage_origin_types_match(self.program, selected, expected) {
                     return None;
                 }
-                let operand = self.context.control.operands.insert(capture);
                 let projection = self
                     .context
                     .control

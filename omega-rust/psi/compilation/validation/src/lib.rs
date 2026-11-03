@@ -592,8 +592,9 @@ pub use program_validation::{
     FrozenDependencyBody, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
     ProvenContractExpressions, admit_prepared_program_effects, checking_thread_pool,
     dependency_body_read_totals, dependency_entailment_totals, judge_contract_entailment,
-    prepare_specialized_program, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment, validate_program,
+    prepare_specialized_program, statement_source_span,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
+    validate_program,
 };
 pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
 
@@ -639,8 +640,8 @@ pub use value_custody::places::{
     projected_statement_receiver_type_reference, push_field_place_segments,
     qualification_storage_path, receiver_projections, resolve_member_symbol_from_type_symbol,
     runtime_field_subject, source_type_application_from_segments, state_scoped_name_symbol,
-    structural_member_identity, symbol_type_symbol, unique_data_definition_by_symbol,
-    whole_collection_view_source,
+    storage_operand, storage_place_from_expression_in_state, structural_member_identity, symbol_type_symbol,
+    unique_data_definition_by_symbol, whole_collection_view_source,
 };
 
 /// Walk a type-reference table once into a positional row vector: row 0 is
@@ -668,6 +669,7 @@ pub use value_custody::activation_storage::{
     ActivationStorageContract, ActivationStorageOperation,
     activation_accessor_has_empty_write_frame, activation_claim_byte_carrier,
     activation_storage_bound, exact_toolchain_activation_storage_contract,
+    type_carries_activation_claim,
 };
 pub use value_custody::atomic_fences::{
     AtomicFenceContract, exact_toolchain_atomic_fence_contract,

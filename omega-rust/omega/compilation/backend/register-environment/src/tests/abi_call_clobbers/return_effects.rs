@@ -97,7 +97,7 @@ fn every_selected_return_rule_binds_the_declared_abi_return_contract() {
         binds_catalog_provenance(&catalog, case, &environment, keys);
 
         for (key, semantic) in &return_rules {
-            let (row, declaration) = row_and_declaration(&environment, &catalog, *key);
+            let (row, declaration) = row_and_declaration(&environment, &catalog, *key, *semantic);
             assert_eq!(declaration.semantic, *semantic, "{key:?}");
             assert_eq!(declaration.barrier, MachineBarrier::ControlFlow, "{key:?}");
             assert_eq!(declaration.call, MachineCallEffect::NoneV1, "{key:?}");

@@ -200,7 +200,7 @@ fn collect_authored_requirement_routes(
                     }
                 })?,
             };
-            let trait_definition = resolved.trait_definition;
+            let trait_definition = resolved.declaring_trait;
             let requirement = resolved.requirement;
             if !requirement_authorizes_domain_subject(
                 program,
@@ -235,7 +235,7 @@ fn collect_authored_requirement_routes(
                     (
                         path_source_span(trait_path),
                         SelectionKind::DomainIssuerAuthorization,
-                        route.source_symbol(),
+                        resolved.trait_definition.symbol,
                     ),
                     (
                         requirement_name.source_span(),
