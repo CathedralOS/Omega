@@ -39,11 +39,12 @@ struct StaticDeclaration<'program> {
 /// A call executes its implementation while its saved operands belong to the
 /// public contract. Keep both identities so checking either cannot replace the
 /// other. Closed dispatch admission authenticates their selected-map relation.
-struct RetainedCallTarget {
+struct RetainedCallTarget<'program> {
     application: StaticMachineApplicationHandle,
     executable: SymbolHandle,
     contract: SymbolHandle,
     requirement_application: TypeReferenceHandle,
+    dispatch: Option<&'program typed_trees::typed_trees::StaticRequirementDispatch>,
 }
 
 impl<'program> StaticDeclaration<'program> {
@@ -113,9 +114,9 @@ fn is_declared_source_tuple(
     program: &dyn crate::CheckingInput,
     application: &StaticMachineApplication,
     bindings: &[StaticMachineBinding],
-    requirement_application: TypeReferenceHandle,
-    target: SymbolHandle,
+    call: &RetainedCallTarget<'_>,
 ) -> bool {
+    let target = call.contract;
     let Some((declaring_trait, signature)) =
         program.trait_machine_signature(application.binding_declaration)
     else {
@@ -147,40 +148,55 @@ fn is_declared_source_tuple(
                     .typed_program()
                     .callable_body_has_open_parameters(owner)
             });
-    if requirement_application.is_valid() {
-        let Some(scope) = program
-            .applied_requirement_scope(application.lexical_owner, requirement_application)
+    let scope = if call.requirement_application.is_valid() {
+        program
+            .applied_requirement_scope(application.lexical_owner, call.requirement_application)
             .and_then(|scope| scope.declaring_scope(program, declaring_trait.symbol))
-        else {
+    } else if let Some(dispatch) = call.dispatch {
+        // Selecting an implementation consumes the authored qualifier, but
+        // its saved map still owns the public arguments. A generic body reads
+        // that exact environment even before it has a closed executable call.
+        let selected = program.selected_conformance_applications(
+            application.lexical_owner,
+            dispatch.selection_application,
+            dispatch.evidence_parameter,
+            dispatch.requirement,
+            dispatch.application_report_fingerprint,
+            dispatch.application_commitment,
+        );
+        let [selected] = selected.as_slice() else {
             return false;
         };
-        if let Some(bound) = &bound
-            && bound
-                .application
-                .declaring_scope(program, declaring_trait.symbol)
-                .is_none_or(|declared| !declared.same_application(program, &scope))
-        {
-            return false;
-        }
-        if program.require_declared_trait_operands(&scope).is_err() {
-            return false;
-        }
-        open |= program.require_receiving_trait_operands(&scope).is_err();
+        selected
+            .trait_scope
+            .scope(program)
+            .and_then(|scope| scope.declaring_scope(program, declaring_trait.symbol))
     } else if let Some(bound) = &bound {
-        let Some(scope) = bound
+        bound
             .application
             .declaring_scope(program, declaring_trait.symbol)
-        else {
-            return false;
-        };
-        if program.require_declared_trait_operands(&scope).is_err() {
-            return false;
-        }
-    } else if !program.trait_type_parameters(declaring_trait).is_empty()
-        || !declaring_trait.lifetime_parameters.is_empty()
+    } else if program.trait_type_parameters(declaring_trait).is_empty()
+        && declaring_trait.lifetime_parameters.is_empty()
+    {
+        Some(typed_trees::trait_definition::AppliedTraitScope::abstract_scope(declaring_trait))
+    } else {
+        None
+    };
+    let Some(scope) = scope else {
+        return false;
+    };
+    if let Some(bound) = &bound
+        && bound
+            .application
+            .declaring_scope(program, declaring_trait.symbol)
+            .is_none_or(|declared| !declared.same_application(program, &scope))
     {
         return false;
     }
+    if program.require_declared_trait_operands(&scope).is_err() {
+        return false;
+    }
+    open |= program.require_receiving_trait_operands(&scope).is_err();
     let operands = bindings
         .iter()
         .filter_map(|binding| match binding.value {
@@ -283,6 +299,7 @@ pub fn validate_static_machine_bindings(
                             .as_ref()
                             .map_or(call.target_symbol, |dispatch| dispatch.contract_symbol()),
                         requirement_application: call.requirement_application,
+                        dispatch: call.static_requirement_dispatch.as_ref(),
                     });
                     Some(call.authored_machine_application)
                 }
@@ -309,6 +326,7 @@ pub fn validate_static_machine_bindings(
                                         dispatch.contract_symbol()
                                     }),
                                 requirement_application: TypeReferenceHandle::invalid(),
+                                dispatch: call.static_requirement_dispatch.as_ref(),
                             });
                             Some(call.authored_machine_application)
                         }
@@ -359,6 +377,7 @@ pub fn validate_static_machine_bindings(
                 executable: *target,
                 contract: *target,
                 requirement_application: TypeReferenceHandle::invalid(),
+                dispatch: None,
             }),
     );
     applications.extend(providers.into_iter().map(|(provider, _)| provider));
@@ -427,13 +446,7 @@ pub fn validate_static_machine_bindings(
                     // The checks below must still prove its lifetime, constant,
                     // bound and caller-supplied proof requirements.
                     if !selected.is_some_and(|previous| previous != application.binding_declaration)
-                        && is_declared_source_tuple(
-                            program,
-                            application,
-                            bindings,
-                            call.requirement_application,
-                            target,
-                        )
+                        && is_declared_source_tuple(program, application, bindings, call)
                     {
                         selected = Some(application.binding_declaration);
                         continue;
