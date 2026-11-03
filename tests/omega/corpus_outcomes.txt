@@ -174,6 +174,8 @@ fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch reject
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/domains/mutable_domain_parameter_outside_arrival rejected 5172ms expected @18fc751d0060+wt
+	cannot prove requires contract for call mirror from main: 105 in i32::Counted in state `entry`
 fail/drops/retired_attached_drop rejected 2739ms expected @ee4dbb4b2d56
 	`machine Token::drop` attaches cleanup to data `Token`, which is retired: data owns no cleanup machines; declare an independent static machine taking `&mut Token` and select it with `data Token dropped by <machine>`
 fail/effects/opaque_leaf_inherited_reach_exceeds_ceiling rejected 1453ms @409a3e82132d+wt
@@ -5672,6 +5674,7 @@ pass/domains/match_domain_results checked 4098ms @ccdb99ca2214
 pass/domains/match_join_alias_domain_transfer checked 2514ms @ccdb99ca2214
 pass/domains/module_domain_narrow_import_spelling checked 1746ms @ccdb99ca2214
 pass/domains/moved_payload_uses_current_membership_exit checked 3602ms check-target:macos_arm64 @ccdb99ca2214
+pass/domains/mutable_domain_parameter_exit checked 7070ms check-target:macos_arm64 @18fc751d0060+wt
 pass/domains/named_const_subject_binding checked 11741ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/named_subject_capacity_identity_exit checked 11323ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/policy_plan_shapes checked 3084ms @ccdb99ca2214
