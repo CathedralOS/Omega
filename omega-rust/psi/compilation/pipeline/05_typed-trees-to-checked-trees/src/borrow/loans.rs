@@ -91,6 +91,8 @@ pub(super) struct PendingIncomingReference {
     pub(super) owner_path: Vec<checked_trees::BorrowLoanOwnerSegment>,
 }
 
+pub(super) use checked_trees::BorrowLoanFormation as BorrowFormation;
+
 #[derive(Clone)]
 pub(super) struct StatementBorrowLoan {
     pub(super) incoming_origin: Option<PendingIncomingReference>,
@@ -107,10 +109,7 @@ pub(super) struct StatementBorrowLoan {
     pub(super) supplying_loans: Vec<Handle<checked_trees::BorrowLoanFact>>,
     pub(super) lineage: checked_trees::BorrowLoanLineage,
     pub(super) kind: checked_trees::BorrowAccessKind,
-    /// A call result may forward an established descriptor. Its captured root
-    /// is not itself a new borrowing authority; only the retained source
-    /// association can supply a later view's real parent.
-    pub(super) call_result: bool,
+    pub(super) formation: BorrowFormation,
 }
 
 #[derive(Clone)]

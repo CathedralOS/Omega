@@ -592,8 +592,9 @@ pub use program_validation::{
     FrozenDependencyBody, OpaquePropertyValidation, ProgramValidation, ProgramValidationFacts,
     ProvenContractExpressions, admit_prepared_program_effects, checking_thread_pool,
     dependency_body_read_totals, dependency_entailment_totals, judge_contract_entailment,
-    prepare_specialized_program, validate_checked_operator_realization_contract,
-    validate_generic_machine_contract_entailment, validate_program,
+    prepare_specialized_program, statement_source_span,
+    validate_checked_operator_realization_contract, validate_generic_machine_contract_entailment,
+    validate_program,
 };
 pub(crate) use program_validation::{DependencyBodyRead, note_dependency_body_read};
 

@@ -222,6 +222,38 @@ pub(super) fn exit_return_expression(
     }
 }
 
+/// The authored occurrence an exit diagnostic should point at: the arm's own
+/// call target or returned value, else the statement's authored span.
+/// Compiler-generated occurrences keep the default span, which names no
+/// source, so they yield `None` rather than an invented location.
+pub(super) fn exit_source_span(
+    program: &dyn ::validation::CheckingInput,
+    exit: &FlowExitFact,
+) -> Option<source::SourceSpan> {
+    let state = validation::find_state_for_exit(program, exit)?;
+    let statement = program
+        .statement_table
+        .statements(state.statement_nodes)
+        .get(exit.statement_index)?;
+    let arm = match statement {
+        StatementNode::Transition(_) if exit.transition_target.is_valid() => {
+            match program
+                .statement_table
+                .transition_target(exit.transition_target)
+            {
+                TransitionTargetNode::Named { source_span, .. } => Some(*source_span),
+                TransitionTargetNode::Value(value) => {
+                    program.expression_table.try_source_span(*value)
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    };
+    arm.filter(|span| *span != source::SourceSpan::default())
+        .or_else(|| validation::statement_source_span(program, statement))
+}
+
 pub(super) fn is_result_reference(
     program: &dyn ::validation::CheckingInput,
     machine: &Machine,

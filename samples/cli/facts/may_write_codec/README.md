@@ -13,7 +13,8 @@ platform-prefixed bodies. Four explicit Build rows select it. The public
 requirement retains both original input bounds; the caller receives a byte,
 not a new promise about reference aliasing or the cursor’s value.
 
-The value owner supplies an ordinary reflection visitor for its numbered field.
+The value owner supplies the free `packet_fields` visitor for its numbered field.
+The free `encode_packet` machine adapts the existing core-library entry.
 The core `CompactBinary` library performs the encoding with explicit output,
 scratch storage, field storage and fuel. Runtime checks observe bytes
 `[0, 0, 200, 1]` as well as the original cursor and indexed result. The match
@@ -67,44 +68,46 @@ No caller equality guard establishes the index bound after encoding.
 
 ## Validation
 
-The original programs and oracles are frozen against published base
-`e4617438fb66df39eeb1fa6605b8fcacba19df62`. README-only source
-`d0c7f056bee383c45a8836a63cefa796d7679219` has the same compiler and library.
+[Run 41620319587](https://github.com/CathedralOS/Omega/actions/runs/41620319587)
+passed on optimized source `9637a7912c043bc9c8c27d151d8953c35b942516`.
+All nine positive fixtures checked, all nine twins rejected their intended
+stale bound, and all nine pinned native/Terminal comparisons agreed on exit `0`.
+The 18 public place/twin projects produced nine explicit engine agreements and
+nine intended rejections. Root `main.omg` passed ordinary CLI admission and both
+engines at exit `0`; all 234 copied replay-input hashes match the measured source.
+
+Source checks use macOS arm64; runtime observations use Linux x86_64.
+The exact measured source archive is public in
+[part 1](https://github.com/CathedralOS/Omega/pull/1662#issuecomment-6602051584),
+[part 2](https://github.com/CathedralOS/Omega/pull/1662#issuecomment-6602052751), and
+[part 3](https://github.com/CathedralOS/Omega/pull/1662#issuecomment-6602053934).
+The posted bytes were retrieved and verified. The archive preserves source;
+the run’s engine observations supply runtime evidence.
+
+## Source migration and remaining work
+
+`STATIC-MACHINE-MIGRATION` owns the client helper correction. The examples use
+free `packet_fields` and `encode_packet` machines, rather than declaring code
+under an empty data type. Explicit arguments, encoding bodies and runtime checks
+are retained. The [machines contract](../../../../wiki/spec/language/machines.md#static-declarations-and-explicit-state)
+requires this separation; earlier passing engines did not ratify the retired
+helper spelling.
+
+Original source at the earlier published base
+`e4617438fb66df39eeb1fa6605b8fcacba19df62` used implicit `Packet::encode`.
 [Baseline run 41608807527](https://github.com/CathedralOS/Omega/actions/runs/41608807527)
-refuses every place because legacy `Packet::encode` has no callable declaration.
-The twins stop at the same formation error; that is no evidence of their index
-obligation. No engines or public projects ran.
+refused that missing callable before any engines or intended index checks.
+[PR 1655](https://github.com/CathedralOS/Omega/pull/1655) migrated to the real core
+codec and explicit target selection. Its successful executions retain their
+historical source identities; the fresh run above validates the corrected free
+helper declarations.
 
-The accepted [codec rules](../../../../wiki/spec/layouts/codecs.md) require ordinary
-checked library bodies and owner-authorized reflection. The migrated sources
-use that idiom, with stable field number `0` on the actual visited value.
-[Build-owned selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection)
-selects the ordinary probe, and [mutation contracts](../../../../wiki/spec/language/state_contracts.md#mutation-and-subject-identity)
-require preserving the exact disjoint storage fact. Compiler code is unchanged.
-The complete row is validated by two measured revisions. At
-`6ab94efb1d699133108fa31bd704636c9613b4b9`,
-[run 41612327184](https://github.com/CathedralOS/Omega/actions/runs/41612327184)
-checked eight positive places and their eight intended bound rejections, then
-observed native/Terminal exit `0` for those eight positives. Its target project
-stopped at an authored Build syntax error; that refusal is not fact enforcement.
+The existing public `CompactBinary::encode` and `CompactBinary::scalar_field`
+entries in `source/library/core/wire.omg` still use the library’s older
+qualification. That is separate migration debt under the same task, with no
+syntax exemption or full library-closure claim. This client adds no such
+declaration and leaves that public API unchanged.
 
-Only the four target Build files changed afterward, to the documented
-`Build::select_provider` operation. At `77d5742e003ce607ca3856dfa76cb17d0679aa17`,
-[run 41614342092](https://github.com/CathedralOS/Omega/actions/runs/41614342092)
-checked the corrected target, rejected its stale-bound twin, and observed target
-native/Terminal exit `0`. It also ran all 18 public place/twin projects: nine
-positive engine agreements and nine intended rejections. The root passed
-ordinary CLI admission and both engines at exit `0`. Independent review accepts
-reuse of the unchanged eight corpus projects at their original source stamps.
-
-Source checks use macOS arm64; all runtime observations use Linux x86_64.
-The exact source archive, including both measured revisions, is published in
-[part 1](https://github.com/CathedralOS/Omega/pull/1655#issuecomment-6600701813),
-[part 2](https://github.com/CathedralOS/Omega/pull/1655#issuecomment-6600702345), and
-[part 3](https://github.com/CathedralOS/Omega/pull/1655#issuecomment-6600702935).
-The posted bytes were retrieved and verified against the retained bundle.
-Source retention and actual engine observations are separate evidence.
-
-Other runtime targets and the wider target-source migration remain open. This
-row does not close the codec library’s general schema agreement, decoding or
-wire-protocol customer acceptance.
+Other runtime targets, the wider target-source/static-machine migrations, and
+the codec library’s general schema agreement, decoding and customer acceptance
+remain open.

@@ -595,6 +595,8 @@ pub enum MachineAlternativeApplicability {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineMemoryEffect {
+    /// Writes callback containers; partial placements also read their original bits.
+    PrivateCallbackMaterializationV1,
     /// Exact ordering event selected by the catalog operation, without a location.
     CatalogFenceV1,
     /// Orders coherent memory without accessing a location.
@@ -811,6 +813,9 @@ impl MachineEncodedEffects {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MachineEncodedMemoryEffect {
+    /// Containers and record roots come from the retained normalized callback roster.
+    /// The separate stack effect retains any return-address write by CALL.
+    PrivateCallbackMaterializationV1,
     /// Catalog ordering event; the selected kind and byte decoder fix its exact mask.
     CatalogFenceV1,
     /// Load one pointer from a named, layout-derived table field. The call's
