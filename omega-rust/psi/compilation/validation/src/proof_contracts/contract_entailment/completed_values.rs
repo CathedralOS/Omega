@@ -191,9 +191,9 @@ pub(super) fn term_field_paths(
     )
 }
 
-/// Rejoin saved owned field projections to their declared coordinates. Each
-/// case still needs the caller's independent tag fact. A stored descriptor is
-/// the boundary of this operation; its referent supplies no further fields.
+/// A helper receiving a result payload must still find its original fields.
+/// Follow declared owned fields only, with independent case facts. A stored
+/// descriptor ends this walk; its referent supplies no further fields.
 pub(super) fn owned_term_field_paths_in_scope(
     program: &dyn crate::CheckingInput,
     judge: &StructuralJudge<'_>,

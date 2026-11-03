@@ -1153,13 +1153,18 @@ pub(super) fn recognize_structural_state_prefixes<'a>(
                 let truth = guard_preserves_values
                     .then(|| constructor.boolean_constructor())
                     .flatten();
-                let subject_judgment = truth.map(|_| {
-                    outcome.judge.judge_equation(
-                        outcome.judge.resolve(subject.clone()),
-                        constructor.clone(),
-                        0,
-                    )
-                });
+                let subject_judgment = guard_preserves_values
+                    .then(|| {
+                        completed_guard_judgment(
+                            program,
+                            &outcome.judge,
+                            (machine, state, subject_type),
+                            guard,
+                            &subject,
+                            &constructor,
+                        )
+                    })
+                    .flatten();
                 if !matches!(subject_judgment, Some(StructuralJudgment::Proven)) {
                     let (next_judge, next_contra_state) = if let Some(truth) = truth {
                         let skipped_eq = [(
@@ -1967,16 +1972,21 @@ fn recognize_structural_state_leaves_from<'a>(
                     let truth = guard_preserves_values
                         .then(|| constructor.boolean_constructor())
                         .flatten();
-                    let subject_judgment = truth.map(|_| {
-                        outcome.judge.judge_equation(
-                            outcome.judge.resolve(subject.clone()),
-                            constructor.clone(),
-                            0,
-                        )
-                    });
-                    // A Boolean has exactly two values. Nominal classifiers
-                    // retain their selected tag but do not invent a single
-                    // constructor for the complement of a multi-case type.
+                    let subject_judgment = guard_preserves_values
+                        .then(|| {
+                            completed_guard_judgment(
+                                program,
+                                &outcome.judge,
+                                (invocation, state, subject_type),
+                                guard,
+                                &subject,
+                                &constructor,
+                            )
+                        })
+                        .flatten();
+                    // Completed facts can select or exclude this arm. A failed
+                    // Boolean has one complement; an unknown nominal test
+                    // leaves all remaining cases available to later arms.
                     if !matches!(subject_judgment, Some(StructuralJudgment::Proven)) {
                         let next_judge = if let Some(truth) = truth {
                             let skipped_eq = (
@@ -2906,6 +2916,39 @@ fn guard_observation(
             case: "true".to_owned(),
             fields: Vec::new(),
         },
+    ))
+}
+
+/// Check the guard before adding its own arm assumptions. A checked call can
+/// already have selected a case; its other arms cannot execute. A known tag
+/// supplies no payload fields, and an unknown tag keeps both paths available.
+fn completed_guard_judgment(
+    program: &dyn crate::CheckingInput,
+    judge: &StructuralJudge<'_>,
+    scope: (
+        &Machine,
+        &typed_trees::state::State,
+        typed_trees::types::TypeReferenceHandle,
+    ),
+    guard: ExpressionHandle,
+    subject: &StructuralTerm,
+    constructor: &StructuralTerm,
+) -> Option<StructuralJudgment> {
+    if constructor.boolean_constructor().is_some() {
+        return Some(judge.judge_equation(judge.resolve(subject.clone()), constructor.clone(), 0));
+    }
+    let (machine, state, subject_type) = scope;
+    let (definition, variant) =
+        super::structural_terms::case_guard_classifier(program, machine, Some(state), guard)?;
+    let reference =
+        crate::value_custody::field_domains::readable_type_reference(program, subject_type)?;
+    let selected_definition = program.data_constructor_definition(reference, definition.symbol)?;
+    let selected_variant =
+        program.data_constructor_case(reference, definition.symbol, variant.symbol)?;
+    Some(judge.judge_case(
+        subject.clone(),
+        selected_definition.symbol,
+        selected_variant.symbol,
     ))
 }
 
