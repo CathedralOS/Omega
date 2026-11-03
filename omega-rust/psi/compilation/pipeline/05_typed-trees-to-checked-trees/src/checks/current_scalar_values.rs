@@ -249,8 +249,7 @@ impl<'program> CurrentScalarValues<'program> {
                     alternatives: Vec::new(),
                     immutable_coordinate: false,
                     unwritable: !parameter.is_mutable
-                        && validation::reference_shell(program, parameter.type_reference)
-                            .is_none(),
+                        && validation::reference_shell(program, parameter.type_reference).is_none(),
                 })
             })
             .collect::<Vec<_>>();
