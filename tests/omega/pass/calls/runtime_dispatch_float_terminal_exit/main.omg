@@ -10,6 +10,7 @@ use omega::language::core::float_operations;
 use omega_language_std::console;
 data Main { }
 machine pick(main: &mut Main, n: i32, acc: f64) -> f64
+requires n >= 0
 terminates by n -> Nat::Descending
 {
     transition n > 0 { true -> pick(main, n - 1, acc) false -> leaf(main, acc) }
