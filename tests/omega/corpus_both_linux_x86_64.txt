@@ -15,6 +15,7 @@ pass/borrows/borrowed_literal_backing_releases_input_loan_exit built 9073ms exit
 pass/borrows/borrowed_reference_field_read_and_write_exit built 8133ms exit:0 interpreter-exit:0 interpreter:agrees @db6331a216fde821d9ba7e2a6bd6171a77e2ee0c
 pass/borrows/collection_metadata_descriptor_storage_exit built 14682ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
 pass/borrows/opaque_incoming_nested_stored_byte_view_relay_exit built 15278ms exit:0 interpreter-exit:0 interpreter:agrees @7a2c1562808d
+pass/borrows/rebound_parameter_keeps_earlier_copy_exit built 8645ms exit:0 interpreter-exit:0 interpreter:agrees @28549af67d45
 pass/borrows/runtime_byte_case_partial_cleanup_exit built 15056ms exit:0 interpreter-exit:0 interpreter:agrees @3139db74cf0d
 pass/borrows/runtime_exclusive_byte_field_cleanup_exit built 15242ms exit:0 interpreter-exit:0 interpreter:agrees @60b8f1171d45
 pass/borrows/view_local_rebind_keeps_alias_exit built 184696ms exit:70 interpreter-exit:70 interpreter:agrees @7a2c1562808d
@@ -7090,6 +7091,7 @@ pass/recast/write_footprint/local built 1999ms exit:0 interpreter-exit:0 interpr
 pass/recast/write_footprint/state built 1776ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/references/mutable_loan_member_read_initializes_local_exit built 6293ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/references/rebound_local_reference_follows_new_referent_exit built 9819ms exit:0 interpreter-exit:0 interpreter:agrees @292918dbcd2d
+pass/references/rebound_parameter_reference_follows_new_referent_exit built 8403ms exit:0 interpreter-exit:0 interpreter:agrees @ebc975d3ee17
 pass/references/runtime_shared_ref_param_guard_exit built 6019ms exit:1 interpreter-exit:1 interpreter:agrees @a92f16431042
 pass/references/selected_record_loan_disjoint_fields_exit built 6654ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/register_allocation/fixed_uses_across_hosted_clobbers_exit built 6306ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042
