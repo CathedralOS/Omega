@@ -12,8 +12,31 @@ use source_audit::violations;
 /// The crate whose sources these guards pin.
 const CRATE_ROOT: &str = env!("CARGO_MANIFEST_DIR");
 
-/// No boundary declarations: every identity in this crate is interned.
-const ALLOWED: &[(&str, &str)] = &[];
+macro_rules! row {
+    ($a:expr => $b:expr) => {
+        ($a, $b)
+    };
+}
+
+/// Boundary declarations where identity text is a wire payload: lowering only
+/// interns it into the Terminal identity table, and no checker or lowering
+/// step compares, keys or dispatches on the text itself.
+const ALLOWED: &[(&str, &str)] = &[
+    // Provider instance publication: checking renders the callable identities
+    // once; lowering interns each into `RequiredProviderInstance` rows.
+    row!("facts/provider_instance_publication.rs" => "pub template_identity: String,"),
+    row!("facts/provider_instance_publication.rs" => "pub source_candidate_identity: String,"),
+    row!("facts/provider_instance_publication.rs" => "pub requirement_identity: String,"),
+    row!("facts/provider_instance_publication.rs" => "pub candidate_identity: String,"),
+    // Declaration ABI row: lowering interns it into `CallingAbiDeclaration`.
+    row!("terminal/calling_signatures.rs" => "pub requirement_identity: String,"),
+    // Native layout provenance: lowering interns it into the
+    // `NativeLayoutCatalog`; plans are keyed by `TypeIdentityId`, and the text
+    // takes part only in whole-plan equality when duplicate plans must agree.
+    row!("terminal/structural_type_plans.rs" => "pub native_identity: Option<String>,"),
+    row!("terminal/structural_type_plans.rs" => "pub native_policy_identity: Option<String>,"),
+    row!("terminal/structural_type_plans.rs" => "pub native_semantic_identity: Option<String>,"),
+];
 
 /// Checked plans and facts carry program-owned identities as handles; any
 /// `*identity`/`identities` field declared as text is a checker decision
