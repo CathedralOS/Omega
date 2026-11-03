@@ -481,7 +481,13 @@ impl Execution<'_, '_, '_> {
                     }
                     // Only descriptor identity and lifetime cross. Earlier
                     // pointee facts and scalar predicates do not become output.
+                    let descriptor_loan = if known {
+                        self.supplied_descriptor_permission(call, &origins, reference)
+                    } else {
+                        Handle::invalid()
+                    };
                     let value = self.context.control.operands.insert(FlowOperandFact {
+                        descriptor_loan,
                         type_reference: reference,
                         state_symbol: self.state.symbol,
                         statement_index: self.statement_index,
@@ -516,5 +522,78 @@ impl Execution<'_, '_, '_> {
             }
         }
         values
+    }
+
+    /// The helper's produced pointer keeps the permission of that exact
+    /// output. A later copy can use it after the output variable changes.
+    /// The resource consumer still authenticates normal completion; a pending
+    /// output coordinate or equal address cannot authorize the pointer.
+    fn supplied_descriptor_permission(
+        &self,
+        call: &BorrowCallFact,
+        origins: &[crate::flow::CapturedReferencePlace],
+        reference: typed_trees::types::TypeReferenceHandle,
+    ) -> Handle<checked_trees::BorrowLoanFact> {
+        let [origin] = origins else {
+            return Handle::invalid();
+        };
+        let facts::PlaceRoot::InvocationOutput(identity) = origin.place.root else {
+            return Handle::invalid();
+        };
+        let Some(expected) = validation::reference_shell(self.program, reference) else {
+            return Handle::invalid();
+        };
+        let mut permissions = call.completed_reference_loans.handles().filter(|loan| {
+            let row = self.borrow.loans.get(*loan);
+            if row.lineage != checked_trees::BorrowLoanLineage::SuppliedOutput
+                || !row.established_by_call.is_valid()
+                || !self
+                    .borrow
+                    .incoming_references
+                    .is_valid(row.incoming_reference)
+            {
+                return false;
+            }
+            let incoming = self.borrow.incoming_references.get(row.incoming_reference);
+            let path = self
+                .borrow
+                .owner_segments
+                .span_or_empty(incoming.owner_path);
+            let place_path = crate::borrow::owner_place_segments(path);
+            incoming.origin == (checked_trees::IncomingReferenceOrigin::Output { identity })
+                && place_path.len() == origin.place.segments.len()
+                && place_path
+                    .iter()
+                    .zip(&origin.place.segments)
+                    .all(|(left, right)| {
+                        validation::storage_path_relations::canonical_place_segments_equal(
+                            self.program,
+                            *left,
+                            *right,
+                        )
+                    })
+                && validation::project_type_reference_from_segments(
+                    self.program,
+                    incoming.carrier_type,
+                    &place_path,
+                )
+                .and_then(|reference| validation::reference_shell(self.program, reference))
+                .is_some_and(|supplied| {
+                    supplied.access == expected.access
+                        && validation::storage_origin_types_match(
+                            self.program,
+                            supplied.referee,
+                            expected.referee,
+                        )
+                })
+        });
+        let Some(permission) = permissions.next() else {
+            return Handle::invalid();
+        };
+        if permissions.next().is_some() {
+            Handle::invalid()
+        } else {
+            permission
+        }
     }
 }

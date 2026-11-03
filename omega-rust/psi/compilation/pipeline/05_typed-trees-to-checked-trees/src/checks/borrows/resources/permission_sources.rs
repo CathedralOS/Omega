@@ -246,7 +246,17 @@ pub(super) fn collect(
         &mut Vec::new(),
     );
     let frozen = frozen_reference_leaf(program, &facts.flow.control, source, projection);
-    let resolved = if matches!(&frozen, FrozenReferenceSelection::Unavailable) {
+    let resolved = if let Some(complete) = collect_completed_output(
+        program,
+        facts,
+        state,
+        capture,
+        projection,
+        output_access,
+        output,
+    ) {
+        complete
+    } else if matches!(&frozen, FrozenReferenceSelection::Unavailable) {
         false
     } else if collect_formed_projection(
         program,
@@ -438,6 +448,87 @@ pub(super) fn collect(
         output.truncate(before);
     }
     resolved
+}
+
+/// A pointer installed by a helper carries its completed output permission.
+/// This link belongs to the produced value, so replacing its former variable
+/// cannot retarget it. Input lifetime debts never enter this permission route.
+fn collect_completed_output(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    capture: &FlowOperandFact,
+    projection: &[facts::PlaceSegment],
+    access: &checked_trees::BorrowAccessKind,
+    output: &mut Vec<PermissionSupplier>,
+) -> Option<bool> {
+    let loan = capture.descriptor_loan;
+    if !facts.borrow.loans.is_valid(loan)
+        || facts.borrow.loans.get(loan).lineage != checked_trees::BorrowLoanLineage::SuppliedOutput
+    {
+        return None;
+    }
+    let complete = (|| {
+        if !projection.is_empty() || capture.state_symbol != state.state_symbol {
+            return None;
+        }
+        let call = super::supplied_permissions::normal_call(&facts.borrow, &facts.flow, loan)?;
+        let invocation = facts.flow.control.calls.get(call);
+        if capture.statement_index != invocation.statement_index
+            || capture.storage_snapshot != invocation.invocation_storage
+        {
+            return None;
+        }
+        let mut resources = facts
+            .borrow
+            .supplied_output_resources
+            .iter()
+            .filter(|(_, resource)| resource.loan == loan);
+        let (_, resource) = resources.next()?;
+        if resources.next().is_some()
+            || resource.call != call
+            || resource.machine_symbol != state.machine_symbol
+            || resource.state_symbol != state.state_symbol
+        {
+            return None;
+        }
+        let row = facts.borrow.loans.get(loan);
+        if resource.identity != row.incoming_reference
+            || row.kind.direct_reborrow_effect(access).is_none()
+        {
+            return None;
+        }
+        let incoming = facts.borrow.incoming_references.get(resource.identity);
+        let path = owner_place_segments(facts.borrow.owner_segments.span(incoming.owner_path)?);
+        let supplied =
+            validation::project_type_reference_from_segments(program, incoming.carrier_type, &path)
+                .and_then(|reference| validation::reference_shell(program, reference))?;
+        let presented = validation::reference_shell(program, capture.type_reference)?;
+        if supplied.access != presented.access
+            || !validation::storage_origin_types_match(program, supplied.referee, presented.referee)
+        {
+            return None;
+        }
+        Some(PermissionSupplier {
+            source: CheckedCallBorrowLoanSource::StoredLoan { loan },
+            backing: checked_trees::CapturedPlace {
+                incoming_reference: row.incoming_reference,
+                incoming_owner_path: facts
+                    .borrow
+                    .access_segments
+                    .span(row.incoming_owner_path)?
+                    .to_vec(),
+                root: row.root,
+                segments: facts.borrow.loan_segments(row).to_vec(),
+            },
+        })
+    })();
+    Some(if let Some(supplier) = complete {
+        output.push(supplier);
+        true
+    } else {
+        false
+    })
 }
 
 /// A helper can return a saved reference without making a new borrow. Follow
