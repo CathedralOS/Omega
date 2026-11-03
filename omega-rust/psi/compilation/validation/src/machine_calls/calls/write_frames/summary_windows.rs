@@ -5,7 +5,7 @@
 //! crossing and recast issuer. Opaque coordinates supply no pointer equality.
 
 use super::stored_calls::SlotSource;
-use super::{FramePlaceOrigin, FrameSourcePlace};
+use super::{FramePathPrecision, FramePlaceOrigin, FrameSourcePlace};
 use facts::PlaceSegment;
 use typed_trees::expression::ExpressionHandle;
 
@@ -19,7 +19,7 @@ pub(super) fn coarsen(program: &dyn crate::CheckingInput, source: &mut SlotSourc
 
 pub(super) fn coarsen_origin(program: &dyn crate::CheckingInput, origin: &mut FramePlaceOrigin) {
     if coarsen_place(program, &mut origin.source) {
-        origin.precision = super::super::FramePathPrecision::CollectionCoarse;
+        origin.precision = FramePathPrecision::CollectionCoarse;
     }
 }
 
