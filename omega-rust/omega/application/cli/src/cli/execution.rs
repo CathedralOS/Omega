@@ -12,6 +12,7 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     if let Some(outputs) = arguments.outputs.clone() {
         run_cases(arguments, outputs);
     }
+    let selection = arguments.selection;
     let outcome = match run_project(RunRequest {
         private_entry_ram: arguments.private_entry_ram,
         root_path: arguments.main_path,
@@ -22,7 +23,17 @@ pub(crate) fn run(arguments: RunArguments) -> ! {
     }) {
         Ok(outcome) => outcome,
         Err(error) => {
-            eprintln!("{error}");
+            match (&error, selection) {
+                // No native compilation was requested; keep the native
+                // wording that sample tooling matches for native runs.
+                (RunError::Compilation(diagnostics), ExecutionSelection::Terminal) => {
+                    eprintln!("terminal compile FAILED:");
+                    for diagnostic in diagnostics {
+                        eprintln!("  {diagnostic}");
+                    }
+                }
+                _ => eprintln!("{error}"),
+            }
             std::process::exit(compile_failure_status(&error));
         }
     };
