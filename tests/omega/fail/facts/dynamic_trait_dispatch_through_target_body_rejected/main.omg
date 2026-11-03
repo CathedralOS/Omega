@@ -41,7 +41,7 @@ ensures result >= 100u64 && result <= 100u64
     WeightedCombine::combine(selector, a, b, observation)
 }
 
-'
+
 boundary trait SelectedCombine {
     machine probe(selected: dyn WeightedCombine, a: u64, b: u64, observation: &mut u64) -> u64
     requires a >= 60u64 && a <= 60u64
