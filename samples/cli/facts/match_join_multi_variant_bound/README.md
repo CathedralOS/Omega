@@ -50,10 +50,14 @@ Exit `0` is strictly discriminative. The joined interval `[20u64, 60u64]` is
 what discharges `60u64 - joined`; widening any one variant gate (`High` to
 `val <= 61`) admits `joined == 61` and the exact subtraction refuses to compile
 with the exact-arithmetic obligation
-(``exact arithmetic in machine `main` state `entry` local `diff1` may overflow
+(``exact arithmetic in machine `run` state `entry` local `diff1` may overflow
 `u64`: the operands are not provably in range (decision 17 -- exact arithmetic
 is a proof obligation)``, pinned as ``may overflow `u64` `` in each twin's
-`expected.txt`). Corrupting the observed
+`expected.txt`). Each place receives the mode as a formal parameter, as
+`other_machine` always did: if `main` passed its constant `Mode::Mid { val: 40 }`
+straight into the helper, the checker would substitute that exact actual and
+read the result 40, so the twin's widened `High` gate would never be consulted.
+Corrupting the observed
 transition instead of the bound (`diff1 == 20 && diff2 == 20` to
 `diff1 == 21 && diff2 == 20`) routes to `bad()`, which executes `crash Trap;`;
 both engines abort non-zero (`native signal 5` with
