@@ -92,9 +92,10 @@ impl Builder<'_, '_> {
         &mut self,
         expression: ExpressionHandle,
     ) -> Result<Option<(CheckedScalarComputationHandle, TypeReferenceHandle)>, &'static str> {
-        // Only a peer's declaring application rebinds a sequence formal. A
-        // state's own measure (for example `terminates by (i, path.len)`)
-        // reads its length through the ordinary coordinate route below.
+        // Only a declaring application (a peer's endpoint or a declared
+        // measure) rebinds a sequence formal. Without one, for example a
+        // state's own `terminates by (i, path.len)`, the caller's ordinary
+        // expression lowering reads the length, as it did before this route.
         let Some(scope) = self.declaration_scope.as_ref() else {
             return Ok(None);
         };
