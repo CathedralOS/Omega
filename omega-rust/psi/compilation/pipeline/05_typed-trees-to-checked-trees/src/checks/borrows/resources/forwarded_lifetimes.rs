@@ -60,11 +60,7 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
             )]);
         };
         for (loan, row) in facts.borrow.state_loans(state) {
-            if !matches!(
-                row.lineage,
-                checked_trees::BorrowLoanLineage::DirectRoot
-                    | checked_trees::BorrowLoanLineage::Reborrow { .. }
-            ) {
+            if !holds_own_resource(row) {
                 continue;
             }
             let Ok((_, lexical)) =
@@ -91,7 +87,12 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                     continue;
                 };
                 for candidate in transferred.holders.iter().copied() {
-                    if holders.contains(&candidate) {
+                    // A call-completed derived descriptor is transport, not a
+                    // local resource: it has no lifecycle of its own to extend
+                    // the supplier's permission (see reference_custody.rs).
+                    if holders.contains(&candidate)
+                        || !holds_own_resource(facts.borrow.loans.get(candidate))
+                    {
                         continue;
                     }
                     let (activation, weakening) = exact_loan_lifecycle_rows(
@@ -135,6 +136,16 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
     }
     facts.borrow.resource_holders = holders_arena;
     Ok(rows)
+}
+
+/// Only direct and reborrowed loans own a lifecycle; derived descriptors
+/// installed by a completed call transport custody without one.
+fn holds_own_resource(loan: &BorrowLoanFact) -> bool {
+    matches!(
+        loan.lineage,
+        checked_trees::BorrowLoanLineage::DirectRoot
+            | checked_trees::BorrowLoanLineage::Reborrow { .. }
+    )
 }
 
 pub(super) fn get(
