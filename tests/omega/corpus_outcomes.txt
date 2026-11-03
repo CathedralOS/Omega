@@ -3445,6 +3445,9 @@ fail/reflection/schema_borrowed_facade_const rejected 2810ms expected @63af67b94
 	constant initializer: build-time result of machine `@const-argument-0` is not ConstEvaluable: result.storage contains Text; borrowed or dynamically sized text cannot cross the semantic const boundary
 fail/reflection/schema_runtime_operand rejected 1193ms expected @6b1e6a51ea70
 	semantic schema query accepts no runtime or evidence operands
+fail/termination/bounded_distance_stalled_slice_length_cursor rejected 4907ms expected @94241455d5b4
+	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `walk` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
+	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/termination/declared_measure_hidden_overflow_rejected rejected 721ms expected @4518281b90b2+wt
 	terminating machine walk_flat: cannot prove rank range `0..=10` for the rank produced by the selected view
 	terminating machine walk: cannot prove rank range `0..=limit` for the rank produced by the selected view
