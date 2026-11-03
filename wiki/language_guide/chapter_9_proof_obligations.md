@@ -59,6 +59,20 @@ postcondition would not establish it. Stronger theorems can be supplied by
 checked machines when automatic reasoning is insufficient; their exact premises
 still need to hold at each use.
 
+## Impossible Paths
+
+If a machine requires `count >= 10`, a branch that requires `count < 5` cannot
+execute for that same value. The checker can prove the conditions contradict
+each other and close that path's obligations. It cannot declare a path impossible
+just because some other proof failed, or export facts from the impossible path
+to a reachable one. The source must still be well-formed.
+
+Such a source-level contradiction produces an unreachable-branch warning by
+default, explaining the conflicting conditions. An alternative removed only by
+generic specialization or compile-time selection normally does not warn. Neither
+the warning nor removal of the dead instructions is needed for the proof to be
+valid. See [unreachable branches](../spec/language/state_contracts.md#unreachable-branches).
+
 ## Saved Values And Restored Storage
 
 Overwriting a slot does not change a scalar you already copied from it. Restoring
