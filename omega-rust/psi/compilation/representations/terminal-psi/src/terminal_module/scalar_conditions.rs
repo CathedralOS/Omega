@@ -9,7 +9,9 @@ use arena::{Arena, Handle, HandleSpan};
 use numerics::bignum::BigInt;
 use numerics::integer_bounds::IntegerBoundStep;
 use numerics::scalar_predicates::{PredicateNode, PredicateValueKind, ScalarValue, evaluate_nodes};
-use semantic_vocabulary::{MachineId, ScalarApplicationId, ScalarType, ValueId};
+use semantic_vocabulary::{
+    MachineId, ScalarApplicationId, ScalarConditionRole, ScalarType, ValueId,
+};
 
 use super::ProofDeclarationId;
 
@@ -51,6 +53,7 @@ pub enum ScalarRangeCondition {
     Missing,
     Range {
         subject: ScalarConditionSubject,
+        role: ScalarConditionRole,
         requirement: ScalarRangeRequirement,
         steps: HandleSpan<IntegerBoundStep<ScalarRangeObservation>>,
     },
@@ -89,6 +92,7 @@ pub struct ScalarPredicateNode(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ScalarPredicateCondition {
     pub subject: ScalarConditionSubject,
+    pub role: ScalarConditionRole,
     pub description: String,
     nodes: Arena<ScalarPredicateNode>,
     root: Handle<ScalarPredicateNode>,
@@ -98,6 +102,7 @@ impl Default for ScalarPredicateCondition {
     fn default() -> Self {
         Self {
             subject: ScalarConditionSubject::Module,
+            role: ScalarConditionRole::Prerequisite,
             description: String::new(),
             nodes: Arena::new(),
             root: Handle::invalid(),
@@ -181,6 +186,7 @@ impl ScalarConditions {
     pub fn retain_predicate(
         &mut self,
         subject: ScalarConditionSubject,
+        role: ScalarConditionRole,
         description: String,
         nodes: Arena<ScalarPredicateNode>,
         root: Handle<ScalarPredicateNode>,
@@ -220,6 +226,7 @@ impl ScalarConditions {
         }
         self.predicates.insert(ScalarPredicateCondition {
             subject,
+            role,
             description,
             nodes,
             root,
@@ -270,6 +277,7 @@ impl ScalarConditions {
     pub fn retain_range(
         &mut self,
         subject: ScalarConditionSubject,
+        role: ScalarConditionRole,
         requirement: ScalarRangeRequirement,
         steps: Vec<IntegerBoundStep<ScalarRangeObservation>>,
     ) -> Result<(), &'static str> {
@@ -313,6 +321,7 @@ impl ScalarConditions {
         let steps = self.steps.insert_many(steps);
         self.ranges.insert(ScalarRangeCondition::Range {
             subject,
+            role,
             requirement,
             steps,
         });
@@ -348,6 +357,7 @@ mod tests {
             assert_eq!(
                 ScalarConditions::default().retain_predicate(
                     ScalarConditionSubject::Module,
+                    semantic_vocabulary::ScalarConditionRole::Prerequisite,
                     "bad kinds".into(),
                     nodes,
                     root
@@ -362,6 +372,7 @@ mod tests {
         assert_eq!(
             ScalarConditions::default().retain_predicate(
                 ScalarConditionSubject::Module,
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
                 "integer root".into(),
                 nodes,
                 root
@@ -388,6 +399,7 @@ mod tests {
         conditions
             .retain_predicate(
                 ScalarConditionSubject::Module,
+                semantic_vocabulary::ScalarConditionRole::Prerequisite,
                 "exact integer observations".into(),
                 nodes,
                 root,

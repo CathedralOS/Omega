@@ -2532,6 +2532,24 @@ fail/facts/provider_contract_endpoint_closed_owner_through_parameter_rejected re
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
 fail/facts/provider_contract_endpoint_closed_owner_through_target_body_rejected rejected 3087ms expected @390bdce3859c
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 0
+fail/facts/provider_contract_endpoint_pending_call_through_call_result_rejected rejected 11005ms expected @4b50ded92ae9
+	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
+fail/facts/provider_contract_endpoint_pending_call_through_const_name_rejected rejected 4108ms expected @4b50ded92ae9
+	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
+fail/facts/provider_contract_endpoint_pending_call_through_field_rejected rejected 3600ms expected @4b50ded92ae9
+	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 2
+fail/facts/provider_contract_endpoint_pending_call_through_local_rejected rejected 9058ms expected @4b50ded92ae9
+	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
+fail/facts/provider_contract_endpoint_pending_call_through_match_join_rejected rejected 4216ms expected @4b50ded92ae9
+	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
+fail/facts/provider_contract_endpoint_pending_call_through_other_machine_rejected rejected 4423ms expected @4b50ded92ae9
+	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
+fail/facts/provider_contract_endpoint_pending_call_through_other_state_rejected rejected 3971ms expected @4b50ded92ae9
+	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
+fail/facts/provider_contract_endpoint_pending_call_through_parameter_rejected rejected 3969ms expected @4b50ded92ae9
+	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
+fail/facts/provider_contract_endpoint_pending_call_through_target_body_rejected rejected 3326ms expected @4b50ded92ae9
+	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
 fail/facts/recast_parent_restoration_argument_snapshot_rejected rejected 710ms expected @0a3a759c64e3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_case_backing_overlap_rejected rejected 3289ms expected @8fce926f9735
@@ -4194,7 +4212,7 @@ pass/build/sibling_module_service_exclusion_exit checked 4008ms check-target:mac
 pass/build/sibling_module_slot_family_rows_exit rejected 16789ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(gate::Gate::open),parameters(),result-dispatch())` has duplicate canonical realizations
 pass/build/static_assumed_binding_spelling_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/terminal_calling_policy_execution checked 78393ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @647f9c72eddf
+pass/build/terminal_calling_policy_execution checked 78393ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @4b50ded92ae9
 pass/build/terminal_nested_input_contents checked 6990ms check-target:macos_arm64 terminal-runtime.inspect:unrequested terminal-runtime.inspect_second:unrequested terminal-runtime.inspect_erased:unrequested terminal-runtime.inspect_reference:unrequested terminal-inspections:match @38f862ee379f
 pass/build/terminal_private_callback_calling checked 79138ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @f8fd5ea66130
 pass/build/terminal_project_requests checked 6659ms check-target:macos_arm64 terminal-runtime.requests:unrequested terminal-inspections:match @ccdb99ca2214
@@ -10159,11 +10177,21 @@ pass/facts/provider_contract_endpoint_closed_owner_through_target_body_exit chec
 pass/facts/provider_contract_endpoint_control_composed_endpoint checked 4993ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/provider_contract_endpoint_control_computed_composition_mode checked 3449ms check-target:macos_arm64 @390bdce3859c
 pass/facts/provider_contract_endpoint_control_dormant_target_endpoint_positive checked 3256ms check-target:macos_arm64 @390bdce3859c
+pass/facts/provider_contract_endpoint_control_earlier_operand_exit checked 5222ms check-target:macos_arm64 @4b50ded92ae9
 pass/facts/provider_contract_endpoint_control_field_snapshot_before_sibling_write checked 3282ms check-target:macos_arm64 @390bdce3859c
 pass/facts/provider_contract_endpoint_control_forwarded_provider_selection checked 3245ms check-target:macos_arm64 @390bdce3859c
 pass/facts/provider_contract_endpoint_control_generic_forwarded_provider_selection checked 3418ms check-target:macos_arm64 @390bdce3859c
 pass/facts/provider_contract_endpoint_control_indirect_helper checked 3239ms check-target:macos_arm64 @390bdce3859c
-pass/facts/provider_contract_endpoint_control_unrelated_pending_target_contract checked 3305ms check-target:macos_arm64 @8c239a425808
+pass/facts/provider_contract_endpoint_control_unrelated_pending_target_contract checked 3305ms check-target:macos_arm64 @4b50ded92ae9
+pass/facts/provider_contract_endpoint_pending_call_through_call_result_exit checked 7397ms check-target:macos_arm64 @4b50ded92ae9
+pass/facts/provider_contract_endpoint_pending_call_through_const_name_exit checked 5224ms check-target:macos_arm64 @4b50ded92ae9
+pass/facts/provider_contract_endpoint_pending_call_through_field_exit checked 5675ms check-target:macos_arm64 @4b50ded92ae9
+pass/facts/provider_contract_endpoint_pending_call_through_local_exit checked 4270ms check-target:macos_arm64 @4b50ded92ae9
+pass/facts/provider_contract_endpoint_pending_call_through_match_join_exit checked 5821ms check-target:macos_arm64 @4b50ded92ae9
+pass/facts/provider_contract_endpoint_pending_call_through_other_machine_exit checked 4397ms check-target:macos_arm64 @4b50ded92ae9
+pass/facts/provider_contract_endpoint_pending_call_through_other_state_exit checked 4982ms check-target:macos_arm64 @4b50ded92ae9
+pass/facts/provider_contract_endpoint_pending_call_through_parameter_exit checked 4362ms check-target:macos_arm64 @4b50ded92ae9
+pass/facts/provider_contract_endpoint_pending_call_through_target_body_exit checked 4504ms check-target:macos_arm64 @4b50ded92ae9
 pass/facts/provider_contract_endpoint_through_call_result_exit checked 3250ms check-target:macos_arm64 @390bdce3859c
 pass/facts/provider_contract_endpoint_through_const_name_exit checked 3274ms check-target:macos_arm64 @390bdce3859c
 pass/facts/provider_contract_endpoint_through_field_exit checked 3306ms check-target:macos_arm64 @390bdce3859c
@@ -12598,7 +12626,7 @@ pass/generics/dependent_const_array_carrier checked 2375ms @ccdb99ca2214
 pass/generics/dependent_const_carrier_arguments checked 2386ms @ccdb99ca2214
 pass/generics/dependent_const_recursive_forwarding checked 2214ms @ccdb99ca2214
 pass/generics/erased_static_arguments_keep_lexical_scope_exit checked 5269ms check-target:macos_arm64 @911f6617ba9e
-pass/generics/folded_range_endpoint_selection_custody checked 26931ms check-target:macos_arm64 @390bdce3859c
+pass/generics/folded_range_endpoint_selection_custody checked 26931ms check-target:macos_arm64 @4b50ded92ae9
 pass/generics/foreign_case_membership_dispatch_exit checked 9835ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/foreign_case_payload_reads_exit checked 11738ms check-target:macos_arm64 @ccdb99ca2214
 pass/generics/forwarded_slice_result_local_receipt checked 2744ms @ccdb99ca2214
@@ -28110,7 +28138,8 @@ fail/facts/projection_call_premise_through_target_body_rejected rejected 2964ms 
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call project from observe: mark.kept (needs fact `mark.kept` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/provider_contract_endpoint_control_circular_endpoint_formation checked 3259ms @390bdce3859c
+fail/facts/provider_contract_endpoint_control_circular_endpoint_formation rejected 10387ms expected regressed-from:checked @4b50ded92ae9
+	constant checking: A constant calculation cannot use its unfinished result to prove a call's precondition. The constant invocation cannot establish its own pending target condition: requires contract for call need from limit state entry statement 0; scalar evaluation has a dependency cycle at application 1
 fail/facts/provider_contract_endpoint_control_crashing_endpoint incomplete 2632ms unexpected @390bdce3859c
 	`@constant-expression-1` has no executable body: this compiler does not lower a state of it yet (statement sequence: call count agreement); in state `@constant-expression-1::@constant-expression-1`
 fail/facts/provider_contract_endpoint_control_direct_provider_protocol rejected 116ms expected @390bdce3859c

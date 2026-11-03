@@ -28,7 +28,9 @@ pub(crate) use optimization::codec_bytes;
 
 mod behavior_policy;
 mod boundary;
+mod scalar_condition_role;
 mod scalars;
+pub use scalar_condition_role::ScalarConditionRole;
 mod storage;
 pub use behavior_policy::{CrashCause, TerminalAuthorityClass};
 pub use boundary::callback_identities::{

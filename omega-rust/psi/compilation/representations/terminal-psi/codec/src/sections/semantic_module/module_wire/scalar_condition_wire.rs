@@ -34,6 +34,7 @@ pub(super) fn encode(writer: &mut Writer, conditions: &ScalarConditions) -> Resu
     for condition in conditions.ranges() {
         let ScalarRangeCondition::Range {
             subject,
+            role,
             requirement,
             ..
         } = condition
@@ -43,6 +44,7 @@ pub(super) fn encode(writer: &mut Writer, conditions: &ScalarConditions) -> Resu
             ));
         };
         encode_subject(writer, *subject);
+        encode_role(writer, *role);
         match requirement {
             ScalarRangeRequirement::Fixed { minimum, maximum } => {
                 writer.u8(1);
@@ -106,6 +108,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarConditions, CodecE
     let mut conditions = ScalarConditions::default();
     for _ in 0..count {
         let subject = decode_subject(reader)?;
+        let role = decode_role(reader)?;
         let requirement = match reader.u8()? {
             1 => ScalarRangeRequirement::Fixed {
                 minimum: decode_integer(reader)?,
@@ -134,7 +137,7 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarConditions, CodecE
             steps.push(step);
         }
         conditions
-            .retain_range(subject, requirement, steps)
+            .retain_range(subject, role, requirement, steps)
             .map_err(CodecError::MalformedStructuralFoundation)?;
     }
     super::scalar_predicate_wire::decode(reader, &mut conditions)?;
@@ -145,6 +148,23 @@ pub(super) fn decode(reader: &mut Reader<'_>) -> Result<ScalarConditions, CodecE
         conditions.retain_completion(subject, application);
     }
     Ok(conditions)
+}
+
+pub(super) fn encode_role(writer: &mut Writer, role: semantic_vocabulary::ScalarConditionRole) {
+    writer.u8(match role {
+        semantic_vocabulary::ScalarConditionRole::Prerequisite => 1,
+        semantic_vocabulary::ScalarConditionRole::Result => 2,
+    });
+}
+
+pub(super) fn decode_role(
+    reader: &mut Reader<'_>,
+) -> Result<semantic_vocabulary::ScalarConditionRole, CodecError> {
+    match reader.u8()? {
+        1 => Ok(semantic_vocabulary::ScalarConditionRole::Prerequisite),
+        2 => Ok(semantic_vocabulary::ScalarConditionRole::Result),
+        tag => Err(CodecError::InvalidTag("ScalarConditionRole", tag)),
+    }
 }
 
 pub(super) fn encode_subject(writer: &mut Writer, subject: ScalarConditionSubject) {
@@ -226,7 +246,8 @@ pub(super) fn decode_observation(
 mod tests {
     use super::*;
     use semantic_vocabulary::{
-        IntegerSign, IntegerType, MachineId, ScalarApplicationId, ScalarType, ValueId,
+        IntegerSign, IntegerType, MachineId, ScalarApplicationId, ScalarConditionRole, ScalarType,
+        ValueId,
     };
     use terminal_psi::ProofDeclarationId;
 
@@ -271,15 +292,20 @@ mod tests {
             ScalarConditionSubject::Application(application),
         ] {
             conditions.retain_completion(subject, application);
-            for requirement in [
+            for (requirement, role) in [
                 ScalarRangeRequirement::AddressModel,
                 ScalarRangeRequirement::Fixed {
                     minimum: wide.negate(),
                     maximum: wide.clone(),
                 },
-            ] {
+            ]
+            .into_iter()
+            .zip([
+                ScalarConditionRole::Prerequisite,
+                ScalarConditionRole::Result,
+            ]) {
                 conditions
-                    .retain_range(subject, requirement, steps.clone())
+                    .retain_range(subject, role, requirement, steps.clone())
                     .unwrap();
             }
         }
@@ -289,6 +315,18 @@ mod tests {
         let mut reader = Reader::new(&bytes);
         let decoded = decode(&mut reader).unwrap();
         assert_eq!(decoded, conditions);
+        for (condition, role) in decoded.ranges().iter().zip(
+            [
+                ScalarConditionRole::Prerequisite,
+                ScalarConditionRole::Result,
+            ]
+            .into_iter()
+            .cycle(),
+        ) {
+            assert!(
+                matches!(condition, ScalarRangeCondition::Range { role: retained, .. } if *retained == role)
+            );
+        }
         assert_eq!(reader.remaining(), 0);
         let mut writer = Writer::default();
         encode(&mut writer, &decoded).unwrap();
@@ -296,10 +334,42 @@ mod tests {
     }
 
     #[test]
+    fn scalar_conditions_reject_semantic_marker_without_explicit_roles() {
+        // Earlier 237 layouts recorded only one of these requirements:
+        // scalar prerequisite roles or public returned-borrow regions.
+        for marker in [236_u16, 237] {
+            let mut bytes = super::super::super::MAGIC.to_vec();
+            bytes.extend_from_slice(&marker.to_le_bytes());
+            assert!(matches!(
+                super::super::super::decode_module(&bytes),
+                Err(CodecError::UnsupportedFormatMarker(actual)) if actual == marker
+            ));
+        }
+    }
+
+    #[test]
+    fn scalar_conditions_reject_absent_or_unknown_roles() {
+        for role in [0, 3, u8::MAX] {
+            let mut writer = Writer::default();
+            writer.u32(1);
+            encode_subject(&mut writer, ScalarConditionSubject::Module);
+            writer.u8(role);
+            assert!(matches!(
+                decode(&mut Reader::new(&writer.finish())),
+                Err(CodecError::InvalidTag("ScalarConditionRole", rejected)) if rejected == role
+            ));
+        }
+    }
+
+    #[test]
     fn scalar_conditions_reject_malformed_bound_stack() {
         let mut writer = Writer::default();
         writer.u32(1); // One condition.
         writer.u8(1); // Module subject.
+        encode_role(
+            &mut writer,
+            semantic_vocabulary::ScalarConditionRole::Prerequisite,
+        );
         writer.u8(2); // Address-model requirement.
         writer.u32(1); // One step.
         writer.u8(3); // Add without operands.

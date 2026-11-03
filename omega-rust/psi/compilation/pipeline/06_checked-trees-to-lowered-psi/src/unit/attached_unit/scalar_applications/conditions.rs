@@ -13,7 +13,7 @@ use lowered_psi::{LoweredSourceCallOccurrence, LoweredSourceCallSite};
 use numerics::bignum::BigInt;
 use numerics::integer_bounds::IntegerBoundStep;
 use numerics::scalar_predicates::{PredicateNode, PredicateOperator};
-use semantic_vocabulary::{MachineId, ScalarApplicationId};
+use semantic_vocabulary::{MachineId, ScalarApplicationId, ScalarConditionRole};
 use symbols::SymbolHandle;
 use terminal_psi::{
     ScalarConditionSubject, ScalarConditions, ScalarRangeObservation, ScalarRangeRequirement,
@@ -31,10 +31,12 @@ pub(super) struct Condition {
 enum Requirement {
     Completion(ScalarApplicationId),
     Range {
+        role: ScalarConditionRole,
         requirement: ScalarRangeRequirement,
         steps: Vec<IntegerBoundStep<Observation>>,
     },
     Predicate {
+        role: ScalarConditionRole,
         description: String,
         nodes: Vec<PredicateNode<usize, Observation>>,
         root: usize,
@@ -124,7 +126,11 @@ pub(super) fn prepare(
             owner,
             expression,
             subject,
-            requirement: Requirement::Range { requirement, steps },
+            requirement: Requirement::Range {
+                role: obligation.role(),
+                requirement,
+                steps,
+            },
         });
     }
     for obligation in &checked.facts.constant_predicate_obligations {
@@ -155,6 +161,7 @@ pub(super) fn prepare(
             expression,
             subject,
             requirement: Requirement::Predicate {
+                role: obligation.role(),
                 description: obligation.description().to_owned(),
                 nodes,
                 root,
@@ -211,6 +218,7 @@ pub(super) fn prepare(
             expression,
             subject,
             requirement: Requirement::Predicate {
+                role: obligation.role(),
                 description: obligation.description().to_owned(),
                 nodes: vec![
                     PredicateNode::Leaf(left),
@@ -377,7 +385,11 @@ pub(super) fn publish(
         };
         match &range.requirement {
             Requirement::Completion(application) => result.retain_completion(subject, *application),
-            Requirement::Range { requirement, steps } => {
+            Requirement::Range {
+                role,
+                requirement,
+                steps,
+            } => {
                 let steps = steps
                     .iter()
                     .map(|step| {
@@ -388,10 +400,11 @@ pub(super) fn publish(
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(|reason| range.error(reason))?;
                 result
-                    .retain_range(subject, requirement.clone(), steps)
+                    .retain_range(subject, *role, requirement.clone(), steps)
                     .map_err(|reason| range.error(reason.to_owned()))?;
             }
             Requirement::Predicate {
+                role,
                 description,
                 nodes,
                 root,
@@ -418,7 +431,7 @@ pub(super) fn publish(
                     .copied()
                     .ok_or_else(|| range.error("scalar predicate lost its root".to_owned()))?;
                 result
-                    .retain_predicate(subject, description.clone(), published, root)
+                    .retain_predicate(subject, *role, description.clone(), published, root)
                     .map_err(|reason| range.error(reason.to_owned()))?;
             }
         }
@@ -538,20 +551,30 @@ mod tests {
         let first_application = ScalarApplicationId::new(1).unwrap();
         let second_application = ScalarApplicationId::new(2).unwrap();
         let mut facts = CheckFacts::default();
-        for requirement in [
+        let roles = [
+            ScalarConditionRole::Result,
+            ScalarConditionRole::Prerequisite,
+            ScalarConditionRole::Prerequisite,
+            ScalarConditionRole::Result,
+        ];
+        for (requirement, role) in [
             ConstantRecipeRequirement::EqualRecipe(second),
             ConstantRecipeRequirement::ExceedsBound(BigInt::from_u64(23)),
             ConstantRecipeRequirement::AtLeast(BigInt::from_u64(24)),
             ConstantRecipeRequirement::AtMost(BigInt::from_u64(24)),
-        ] {
+        ]
+        .into_iter()
+        .zip(roles)
+        {
             facts
                 .constant_recipe_obligations
                 .push(ConstantRecipeObligation::retain(
                     SymbolHandle::invalid(),
+                    role,
                     first,
                     requirement,
                     source::SourceSpan::default(),
-                    "test formation".into(),
+                    "test recipe condition".into(),
                 ));
         }
         let checked = CheckedTrees::with_roots(typed, facts);
@@ -577,8 +600,9 @@ mod tests {
         )
         .unwrap();
         assert_eq!(conditions.predicates().len(), 4);
-        for condition in conditions.predicates() {
+        for (condition, role) in conditions.predicates().iter().zip(roles) {
             assert_eq!(condition.subject, ScalarConditionSubject::Module);
+            assert_eq!(condition.role, role);
         }
         for (value, expected) in [
             (23, [true, false, false, true]),

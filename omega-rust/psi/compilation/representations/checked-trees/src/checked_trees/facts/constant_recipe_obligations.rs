@@ -9,6 +9,7 @@
 
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
+use semantic_vocabulary::ScalarConditionRole;
 use typed_trees::TypedTrees;
 use typed_trees::constant_recipes::ConstantRecipeHandle;
 
@@ -29,6 +30,7 @@ pub enum ConstantRecipeRequirement {
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct ConstantRecipeObligation {
     owner: symbols::SymbolHandle,
+    role: ScalarConditionRole,
     /// Lexical scope of the operands, separate from the caller that owes the
     /// relation. Invalid for genuinely unscoped type-position recipes.
     recipe_owner: symbols::SymbolHandle,
@@ -45,6 +47,7 @@ impl ConstantRecipeObligation {
     /// mark it publishable, and its subjects cannot mutate afterward.
     pub fn retain(
         owner: symbols::SymbolHandle,
+        role: ScalarConditionRole,
         recipe: ConstantRecipeHandle,
         requirement: ConstantRecipeRequirement,
         source_span: source::SourceSpan,
@@ -52,6 +55,7 @@ impl ConstantRecipeObligation {
     ) -> Self {
         Self {
             owner,
+            role,
             recipe_owner: symbols::SymbolHandle::invalid(),
             recipe,
             requirement,
@@ -63,6 +67,10 @@ impl ConstantRecipeObligation {
 
     pub fn owner(&self) -> symbols::SymbolHandle {
         self.owner
+    }
+
+    pub fn role(&self) -> ScalarConditionRole {
+        self.role
     }
 
     pub fn with_recipe_owner(mut self, owner: symbols::SymbolHandle) -> Self {
