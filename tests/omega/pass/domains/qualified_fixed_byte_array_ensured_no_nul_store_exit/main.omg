@@ -9,7 +9,7 @@ ensures bytes in NoNul
 machine main() crashes Trap {
     let mut bytes: [u8; 4] in NoNul = "wxyz";
     mutate(&mut bytes);
-    transition bytes[0] == 7 && bytes[1] == 120 && bytes[3] == 122 {
+    transition bytes[0] == 7 && bytes[1] == 120 && bytes[2] == 121 && bytes[3] == 122 {
         true -> good()
         _ -> bad()
     }
