@@ -83,5 +83,16 @@ The join example now executes both arms, and an independent marker distinguishes
 the helper arm from the direct arm. Additional controls preserve a reference
 choice captured before a later Boolean store, reject an unknown choice, and
 reject reading an input while the common result lifetime keeps its loan active.
-These candidate changes have not yet been validated. The broader Build migration
-and other hosted targets remain open.
+The first candidate run
+[41555935352](https://github.com/CathedralOS/Omega/actions/runs/41555935352)
+still rejected all nine nested-helper and nine direct-choice positives, plus the
+saved-choice positive. It confirmed all 30 invalid controls reject and the
+finite-cycle positive executes with native and Terminal exit `0`. An additional
+dynamic-return example refused descriptor reconstruction; that failure has no
+baseline attribution and is not claimed as a regression or a pass.
+
+Transition subjects are saved as private Boolean locals before their guards.
+The follow-up records these locals when they are declared, then advances direct
+stores in order. Authored locals use the same rule. Exposed homes and values
+that may be changed indirectly remain unknown. Candidate validation is still
+pending. The broader Build migration and other hosted targets remain open.

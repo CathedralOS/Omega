@@ -112,7 +112,6 @@ pub(super) fn retain_reachable_sources(
         // Only modeled reference slots in declared input coordinates belong
         // to this selection. Hidden-pointer enclosures and lifetime debt stay
         // conservative even when the returned descriptor choice is known.
-        // Only declared input coordinates belong to this selection's namespace.
         // Images, invocation results, foreign captures and unknowns stay intact.
         place.is_static()
             || place.result_home().is_some()
@@ -248,6 +247,7 @@ fn reachable_value_parameters_body(
                     .flatten();
                 current.captured_results.push((local.symbol, result));
             }
+            StatementNode::LocalData(_) => current.finish_statement(program, state, statement),
             StatementNode::Transition(transition) => {
                 let truth = match transition.guard {
                     TransitionGuardNode::Always => BoolTruth::True,

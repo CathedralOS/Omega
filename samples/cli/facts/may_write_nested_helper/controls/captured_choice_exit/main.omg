@@ -10,10 +10,11 @@ machine choose<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pi
 }
 
 
-machine relay<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool) -> &'storage mut u64 {
+machine relay<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool, changed: &write bool) -> &'storage mut u64 {
     let mut flag: bool = pick_chosen;
     let selected: &'storage mut u64 = choose(chosen, other, flag);
     flag = !flag;
+    changed = flag;
     selected
 }
 
@@ -30,9 +31,11 @@ machine main() crashes Trap {
     let mut chosen: u64 = 0;
     let mut other: u64 = 1;
     let items: [u8; 4] = [4, 7, 8, 9];
+    let mut changed: bool = true;
     let zero: u64 in Wrapping = 0;
-    let marker: u64 in Wrapping = add(overwrite(relay(&mut chosen, &mut other, true)), zero);
-    transition (marker as u64) == 1 && chosen == 9 && items[other] == 7 {
+    let marker: u64 in Wrapping = add(overwrite(relay(&mut chosen, &mut other, true, &write changed)), zero);
+    let found: u8 = items[other];
+    transition (marker as u64) == 1 && chosen == 9 && !changed && found == 7 {
         true -> done()
         _ -> bad()
     }
