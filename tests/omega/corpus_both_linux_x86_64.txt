@@ -921,10 +921,10 @@ pass/calls/runtime_copied_record_call_results_reused_exit built 2750ms exit:0 in
 pass/calls/runtime_cross_machine_substate_name_exit built 5802ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_cyclic_state_reference_result_exit built 6589ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/calls/runtime_dispatch_binary_call_argument_exit built 6485ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/calls/runtime_dispatch_float_terminal_exit built 9538ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/calls/runtime_dispatch_machine_array_slice_arg_exit built 6377ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/calls/runtime_dispatch_result_enum_case_exit built 5796ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/calls/runtime_dispatch_slice_element_terminal_exit built 6681ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/calls/runtime_dispatch_float_terminal_exit built 203371ms exit:70 interpreter-exit:70 interpreter:agrees @24c8a9dd52b6
+pass/calls/runtime_dispatch_machine_array_slice_arg_exit built 202821ms exit:70 interpreter-exit:70 interpreter:agrees @24c8a9dd52b6
+pass/calls/runtime_dispatch_result_enum_case_exit built 182765ms exit:70 interpreter-exit:70 interpreter:agrees @24c8a9dd52b6
+pass/calls/runtime_dispatch_slice_element_terminal_exit built 199013ms exit:70 interpreter-exit:70 interpreter:agrees @24c8a9dd52b6
 pass/calls/runtime_distinct_receiver_value_calls_exit built 6206ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_enum_self_method_exit built 6114ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_explicit_discard_executes_exit built 6287ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
@@ -1004,7 +1004,7 @@ pass/calls/runtime_value_call_literal_len_arm_guard_exit built 8403ms exit:70 in
 pass/calls/runtime_value_call_nested_entry_call_exit built 7715ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_value_call_return_types_exit built 7603ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/runtime_value_call_single_execution_exit built 7278ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/calls/runtime_value_call_statement_recursive_walk_exit built 7222ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/calls/runtime_value_call_statement_recursive_walk_exit built 178871ms exit:70 interpreter-exit:70 interpreter:agrees @24c8a9dd52b6
 pass/calls/runtime_value_call_terminal_exit built 12991ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/scalar_callee_borrowed_primitive_reads_exit built 6950ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/calls/scalar_expression_binding_evaluation_order_exit built 2476ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -1452,7 +1452,7 @@ pass/control_flow/state_local_operand_edge_call_exit built 5680ms exit:70 interp
 pass/control_flow/stored_reference_holder_disposal_exit built 1995ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/control_flow/structural_result_transition_tail built 5885ms exit:10 interpreter-exit:10 interpreter:agrees @a92f16431042
 pass/control_flow/sum_field_storage_roundtrip built 5984ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/control_flow/termination_index_distance_compile built 2155ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/control_flow/termination_index_distance_compile built 8891ms exit:0 interpreter-exit:0 interpreter:agrees @24c8a9dd52b6
 pass/control_flow/three_param_state_forward_compile checked 1500ms @a92f16431042
 pass/control_flow/transition_operand_schedule checked 1407ms @a92f16431042
 pass/control_flow/transition_tail_self_call checked 1451ms @a92f16431042
@@ -6802,10 +6802,10 @@ pass/proofs/requires_bridge_telescope checked 4233ms @a92f16431042
 pass/proofs/ring_full_polynomial_compile built 13708ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/proofs/ring_law_conformance built 13816ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/proofs/runtime_byte_predicate_state_contract_exit built 13776ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/proofs/runtime_decreases_u64_measure_exit built 13712ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/proofs/runtime_decreases_u64_measure_exit built 187671ms exit:70 interpreter-exit:70 interpreter:agrees @24c8a9dd52b6
 pass/proofs/runtime_indexed_field_relations_exit built 4187ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/proofs/runtime_inductive_climbing_sum_exit built 11932ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
-pass/proofs/runtime_inductive_gauss_sum_exit built 11514ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/proofs/runtime_inductive_climbing_sum_exit built 171906ms exit:70 interpreter-exit:70 interpreter:agrees @24c8a9dd52b6
+pass/proofs/runtime_inductive_gauss_sum_exit built 177166ms exit:70 interpreter-exit:70 interpreter:agrees @24c8a9dd52b6
 pass/proofs/runtime_mutable_ranked_accumulator_exit built 12195ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/proofs/runtime_nat_structural_recursion_exit built 7454ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/proofs/runtime_ranked_accumulator_early_exit built 6826ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
@@ -7599,7 +7599,7 @@ pass/termination/runtime_ranked_assignment_call_prefix_exit built 2575ms exit:0 
 pass/termination/runtime_ranked_recursive_argmax_forwarding_exit built 2058ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/termination/runtime_ranked_sequence_arrival_coordinates_exit built 2019ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/termination/runtime_rankless_boundary_suffix_exit built 1874ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/termination/runtime_receiver_byte_slice_recursion_exit built 6690ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/termination/runtime_receiver_byte_slice_recursion_exit built 175557ms exit:70 interpreter-exit:70 interpreter:agrees @24c8a9dd52b6
 pass/termination/runtime_record_measure_constructed_arrivals_exit incomplete 2016ms interpreter:unchecked @a92f16431042
 	`walk` has no executable body: this compiler does not lower its declaration of it yet (state graph: natural ranks)
 pass/termination/runtime_same_pair_call_occurrence built 2009ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -7612,7 +7612,7 @@ pass/termination/runtime_selected_requirement_reference_identity_exit built 2020
 pass/termination/runtime_selected_result_ranked_arrival_exit built 1945ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/termination/runtime_self_call_forwarding_state_exit built 2260ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/termination/runtime_shift_result_rank_arrivals_exit built 2808ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/termination/runtime_shrinking_slice_recursion_exit built 7829ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
+pass/termination/runtime_shrinking_slice_recursion_exit built 179155ms exit:70 interpreter-exit:70 interpreter:agrees @24c8a9dd52b6
 pass/termination/runtime_stored_exclusive_endpoint_exit built 6049ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/termination/runtime_zero_local_rank_prefix_exit built 2445ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/termination/satisfies_terminates checked 1908ms @a92f16431042
