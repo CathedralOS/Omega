@@ -896,7 +896,7 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
 
     // Valid but uncovered signature shapes retain no complete evidence: a
     // callback beside the structural formals, an owned
-    // formal, a qualified or non-unrestricted formal, a non-field or empty
+    // formal, a non-unrestricted formal, a non-field or empty
     // projection path, and an argument not rooted at a caller structural
     // parameter.
     assert_eq!(
@@ -926,11 +926,14 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
     let mut affine = parameters.clone();
     affine[0].multiplicity = StructuralMultiplicity::Affine;
     assert_eq!(signature(&arguments, &affine, &placements), Ok(None));
+    // A qualified formal stays in the exact lane: domain membership adds no
+    // runtime word, so its referent is still one pointer-width placement, and
+    // that placement is still checked. The qualification itself is bound by
+    // the parent settlement identity, not by this transport signature.
     let mut qualified = parameters.clone();
     qualified[0]
         .qualifications
         .push(StructuralDomainId::new(3).unwrap());
-    assert_eq!(signature(&arguments, &qualified, &placements), Ok(None));
     let mut projected_qualified = parameters.clone();
     projected_qualified[0]
         .projected_qualifications
@@ -940,10 +943,16 @@ fn normalized_foreign_structural_signature_requires_the_exact_admitted_lane() {
             )],
             domain: StructuralDomainId::new(5).unwrap(),
         });
-    assert_eq!(
-        signature(&arguments, &projected_qualified, &placements),
-        Ok(None)
-    );
+    for qualified in [&qualified, &projected_qualified] {
+        assert_eq!(
+            signature(&arguments, qualified, &placements),
+            Ok(Some(vec![pointer, pointer]))
+        );
+        assert_eq!(
+            signature(&arguments, qualified, &narrow),
+            Err("normalized foreign D41 child changed its structural call custody")
+        );
+    }
     let mut indexed = arguments.clone();
     indexed[0].path.push(StructuralPathSegment::FixedIndex(0));
     assert_eq!(signature(&indexed, &parameters, &placements), Ok(None));

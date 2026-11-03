@@ -203,54 +203,7 @@ lets static callable requirements bind fresh per-invocation lifetimes, and the
 [static machine binder categories](wiki/spec/language/generics.md#static-machine-binder-categories)
 cover machine binders; neither covers evidence binders on a requirement.
 
-### 4. Is derived ex falso part of the certificate fragment?
-
-Two accepted passages disagree about whether a `Falsehood` premise may close an
-arbitrary goal. [Classicality](wiki/spec/proofs/classicality.md) (lines 68-70)
-says `Falsehood` has no elimination rule, that there is no ex falso in the
-certificate fragment, and that the calculus is therefore stricter than
-intuitionistic logic on that point. [Integer certificates](wiki/spec/terminal-psi/integer_certificates.md)
-(lines 111-119) describe how an impossible arrival closes: the `Truth`/`Falsehood`
-denotation conversion turns `3 < 3` into `Falsehood`, and "existing conversion
-of `Falsehood` to `Falsehood AND goal`, followed by conjunction elimination,
-then closes an impossible arrival" without an integer-contradiction rule. That
-derived route proves any goal from `Falsehood`, which is ex falso.
-
-The implementation takes the second reading. `connective` in
-`omega-rust/psi/compilation/proof/admission/src/predicate_denotation.rs`
-(lines 464-468) collapses a conjunction containing `Falsehood` to `Falsehood`,
-and `predicate_denotation_relation` in `proof/equality_rules.rs` (line 30)
-admits a step whose premise and conclusion have equal normalized denotations,
-so `Falsehood` converts to `Falsehood AND goal` and the goal follows by
-elimination.
-
-The customers are the existing closure of unreachable arrivals from
-contradictory bounds (checked transitivity yielding `3 < 3`), which must keep
-working under either answer, and the classicality statement that the kernel
-metatheory and the matching-logic comparison cite as a property of the fragment.
-
-Option A, ex falso is an intended derived rule: keep the conversion and the
-integer-certificate route; reword classicality.md to say the fragment has no
-primitive `Falsehood` elimination but derives one through denotation
-conversion, and drop "stricter than intuitionistic on that point".
-
-Option B, the fragment has no ex falso: the denotation conversion may not
-introduce conjuncts (no `Falsehood` to `Falsehood AND goal`), and impossible
-arrivals close through an explicit arrival-pruning or contradiction step that
-integer_certificates.md currently says is not added. That is a new certificate
-rule and a change to the integer-certificate route and its fixtures.
-
-Contracts checked: the classicality structural boundary (lines 61-70) states
-the absence; integer_certificates.md (lines 111-119) states the derived route;
-[foundation](wiki/spec/proofs/foundation.md) and
-[kernel metatheory](wiki/spec/proofs/kernel_metatheory.md) do not mention
-`Falsehood` elimination for the certificate fragment;
-[fact validity](wiki/spec/terminal-psi/fact_validity.md) (lines 86-92) defines
-the bounded conversion and says false is not inferred from a search failure,
-without saying whether a false denotation may be strengthened by a conjunct.
-None says which passage governs.
-
-### 5. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
+### 4. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
 
 [Epsilon's grammar](bootstrap/4_epsilon/LANGUAGE.md) (lines 128-139) lets an
 arm's continuation be `"return" expression?`, and lets the next arm's pattern
@@ -295,7 +248,7 @@ define observations and resources, not parsing;
 not fix Epsilon's grammar; `implementation_notes.md` describes the probe as
 implementation, not as a language rule.
 
-### 6. Is a layout used only inside unselected library code a Psi obligation under every target?
+### 5. Is a layout used only inside unselected library code a Psi obligation under every target?
 
 A fixed-representation use (`LayoutStorage`, `CLayout`) inside a body that no
 Build row selects and no entry reaches is laid out today by Psi's build-time
@@ -379,3 +332,71 @@ Contracts checked, and why they do not decide it:
   providers" and that a scope with no application needs no facts. Lines 96-98 and
   110-113 follow provider bodies "under each applicable target" and reject a bad
   target-family member "even when deployment requests another target".
+
+### 7. Must a domain membership's candidate have the domain's carrier?
+
+A `u8` value is accepted as a member of a `u16`-carrier domain in every form
+tried. With `domain u16::Small requires self <= 10;`, each of these checks:
+
+- `machine guarded() -> u16 requires 7u8 in Small { 3 }`, where `u8` appears
+  nowhere else in the program;
+- the same program with an unrelated `machine unrelated(value: u8) -> u8`, so
+  the `u8` carrier is otherwise present;
+- `machine guarded(value: u8) -> u16 requires value in Small { 3 }`, with no
+  literal at all.
+
+Observed on hosted compiler-pilot runs 41656219861 and 41657251758 (checking
+only, branch `work/wave3-membership-probe` over main `f2c75870eb`). The probes
+were written to test a compiler degrade path (a suffixed literal whose width
+row is missing); the outcome is the same with and without that row, so the
+acceptance comes from the membership rule itself.
+
+Option A, carrier-exact membership: `candidate in D` requires the candidate's
+carrier to equal the carrier named by `D`'s `Carrier::` prefix, and a
+cross-carrier `in` rejects; an explicit exact conversion is needed first. A
+heuristic scan of the 68,463 `.omg` files found no `requires` membership whose
+parameter's declared integer type differs from its domain's carrier (91
+integer-carrier domains), and none among qualified parameters (`x: uN in D`)
+whose type differs from the domain's carrier, so the known migration cost is
+small; the scan did not cover memberships on locals, fields or literal
+candidates.
+
+Option B, membership by exact value: `candidate in D` substitutes the
+candidate's exact mathematical value for `self`, across widths, as fixed-integer
+comparison already does. This is today's behavior.
+
+Contracts checked, and why they do not decide it:
+- [Domains, declaration and membership](wiki/spec/language/domains.md#declaration-and-membership):
+  "`Player::` determines the domain's carrier", and membership "substitutes that
+  exact candidate for `self`". It does not say whether the candidate must have
+  that carrier.
+- [Domains, refinement and executable membership](wiki/spec/language/domains.md#refinement-and-executable-membership):
+  "Domains classify values within the carrier's ordinary validity", and
+  "Establishing membership requires all carrier, predicate, and provenance
+  obligations". Whether a "carrier obligation" means the candidate has the
+  carrier's type, or only that its value is valid in that carrier, is the open
+  point.
+- [Domains, exact coercion and erasure](wiki/spec/language/domains.md#exact-coercion-and-erasure):
+  "Exact widening and proved representable narrowing are carrier coercions",
+  and a predicate-free qualification needs "carrier compatibility". This is the
+  explicit conversion Option A would require before a cross-carrier `in`; it
+  does not say a bare `in` needs one.
+- [Terminal Psi calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md):
+  a qualification change "strictly adds same-carrier membership". This governs
+  qualification-change edges, not a bare `in` proposition, though it leans
+  toward Option A.
+- [Numeric values, literal landing](wiki/spec/language/numeric_values.md#literal-landing-and-destinations):
+  "A suffixed integer or float literal retains its chosen carrier ... An
+  incompatible destination rejects". It does not say whether a membership
+  candidate is a destination.
+- [Numeric values, integer equality and order](wiki/spec/language/numeric_values.md#integer-equality-and-order):
+  "Builtin fixed-integer comparisons use exact mathematical integer values"
+  across width and signedness (`mixed-integer-comparison`), which supports
+  reading `self <= 10` across carriers. The same section says this "adds
+  neither implicit arithmetic widening nor conversion at assignments,
+  arguments, or returns"; a membership candidate is none of those positions.
+- Qualification `value: T in D` "requires the exact named domain `D`"
+  (domains.md, declaration and membership), which constrains the qualified
+  type, not a bare `in` proposition.
+- No clause in `state_contracts.md`, `generics.md` or elsewhere in
+  `wiki/spec` states a carrier rule for `in` propositions.

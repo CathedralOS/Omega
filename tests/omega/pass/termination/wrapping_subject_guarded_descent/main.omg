@@ -18,14 +18,14 @@
 data Main {
 }
 
-machine Main::main(main: &mut Main) {
-    let narrow: u32 in Wrapping = Main::count_down(main, 5);
-    let signed: i64 in Wrapping = Main::signed_down(main, 6, 0);
-    let clamped: u8 in Saturating = Main::saturating_down(main, 3);
-    let climbed: u64 in Wrapping = Main::climb(main, 2, 9);
+machine main(main: &mut Main) {
+    let narrow: u32 in Wrapping = count_down(main, 5);
+    let signed: i64 in Wrapping = signed_down(main, 6, 0);
+    let clamped: u8 in Saturating = saturating_down(main, 3);
+    let climbed: u64 in Wrapping = climb(main, 2, 9);
 }
 
-machine Main::count_down(main: &mut Main, n: u32 in Wrapping) -> u32 in Wrapping
+machine count_down(main: &mut Main, n: u32 in Wrapping) -> u32 in Wrapping
 terminates by n
 {
     transition n >= 1 {
@@ -34,7 +34,7 @@ terminates by n
     }
 }
 
-machine Main::signed_down(main: &mut Main, n: i64 in Wrapping, acc: i64 in Wrapping) -> i64 in Wrapping
+machine signed_down(main: &mut Main, n: i64 in Wrapping, acc: i64 in Wrapping) -> i64 in Wrapping
 requires n >= 0
 terminates by n -> Nat::Descending
 {
@@ -44,7 +44,7 @@ terminates by n -> Nat::Descending
     }
 }
 
-machine Main::saturating_down(main: &mut Main, n: u8 in Saturating) -> u8 in Saturating
+machine saturating_down(main: &mut Main, n: u8 in Saturating) -> u8 in Saturating
 terminates by n
 {
     transition n > 0 {
@@ -53,7 +53,7 @@ terminates by n
     }
 }
 
-machine Main::climb(main: &mut Main, cursor: u64 in Wrapping, limit: u64 in Wrapping) -> u64 in Wrapping
+machine climb(main: &mut Main, cursor: u64 in Wrapping, limit: u64 in Wrapping) -> u64 in Wrapping
 terminates by (cursor, limit) -> Nat::BoundedDistance
 {
     transition cursor < limit {
