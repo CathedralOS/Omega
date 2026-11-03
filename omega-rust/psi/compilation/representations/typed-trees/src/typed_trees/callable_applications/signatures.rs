@@ -421,6 +421,16 @@ impl CallableApplication {
                     membership.domain_arguments =
                         self.type_arguments(program, membership.domain_arguments)?;
                     membership.domain_symbol = self.symbol(membership.domain_symbol);
+                    let arguments = program
+                        .type_reference_table
+                        .type_reference_handles(membership.domain_arguments)
+                        .to_vec();
+                    membership.semantic_domain = Self::domain_identity(
+                        program,
+                        membership.domain_symbol,
+                        &arguments,
+                        membership.semantic_domain,
+                    )?;
                     domain::ProofFact::Membership(membership)
                 }
                 domain::ProofFact::Proposition(mut application) => {

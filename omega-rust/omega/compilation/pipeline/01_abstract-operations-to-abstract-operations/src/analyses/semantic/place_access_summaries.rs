@@ -17,9 +17,8 @@
 //! call boundary truncates just before its first runtime segment: the
 //! prefix is the bound every caller can express in its own operand identity.
 //!
-//! `Revision` is carried per row like the effect summary: a retained row
-//! from an older unit revision is stale evidence, so the analysis manager
-//! force-invalidates this product across every commit.
+//! `Revision` is carried per row like the effect summary: a row is evidence
+//! only for the unit revision that computed it.
 
 use std::collections::{BTreeMap, BTreeSet};
 

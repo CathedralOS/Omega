@@ -19,7 +19,7 @@ use crate::ranked_rewrites::loop_invariant_scalar_motion::{
     validate_loop_invariant_scalar_motion,
 };
 use crate::rules::PsiPassStep;
-use crate::{AnalysisManager, OrderedRuleRegistry};
+use crate::{AnalysisRevision, OrderedRuleRegistry};
 
 use super::{
     CandidateContractAxis, ExternalDecisionReplayError, OptimizationRun, OptimizationRunError,
@@ -193,7 +193,6 @@ fn run_unit_inner_with_retention(
     mut external_replay: Option<&mut ExternalDecisionReplayCursor<'_>>,
     validated_candidates: &mut Vec<PsiValidatedCandidateDeclaration>,
 ) -> Result<OptimizationRunOutput, OptimizationRunError> {
-    let mut analyses = AnalysisManager::new(&unit);
     let initial_identity = unit.identity;
     let psi = unit.psi;
     let fuel_schedule = unit.fuel_schedule;
@@ -208,9 +207,7 @@ fn run_unit_inner_with_retention(
         charge(&mut usage.iterations, budget.iterations(), "iterations")?;
         let previous_measure = convergence_measure(&unit, registry);
         let mut chosen: Option<(PsiCandidateDeclaration, ValidatedPsiRewrite)> = None;
-        let mut revision = analyses
-            .bind_revision(&unit)
-            .map_err(OptimizationRunError::Analysis)?;
+        let mut revision = AnalysisRevision::bind(&unit).map_err(OptimizationRunError::Analysis)?;
         for rule in registry.iter() {
             let contract = rule.contract();
             dispatched.insert(contract.identity());
@@ -335,7 +332,6 @@ fn run_unit_inner_with_retention(
         let candidate_identity = validated.candidate();
         let provenance = validated.provenance().to_vec();
         let pruned_machines = candidate.pruned_machine_custody().to_vec();
-        let invalidated_analyses = candidate.invalidated_analyses();
         let rule = candidate.rule();
         let predicted_cost_delta = candidate.predicted_cost_delta();
         let next = validated.into_unit();
@@ -347,9 +343,6 @@ fn run_unit_inner_with_retention(
                 current: current_measure,
             });
         }
-        analyses
-            .commit_revision(&next, invalidated_analyses, true)
-            .map_err(OptimizationRunError::Analysis)?;
         charge(&mut usage.commits, budget.commits(), "commits")?;
         commits.push(PsiOptimizationCommit {
             rule,

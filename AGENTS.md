@@ -781,7 +781,7 @@ The rules that touch every edit:
 - Read the matching skill before starting: `.agents/skills/` — `advance` for
   the sample loop, `rust-systems-programmer` for Rust implementation and review,
   `architecture-cleanup`, `task-board-cleanup`, `local-swarm`, `devin-swarm`,
-  `codex-swarm`, `cursor-swarm`.
+  `codex-swarm`, `cursor-swarm`, `claude-swarm`.
 
 Deliberate configuration — do not "fix" it: `clippy.toml` thresholds are
 raised and dev/test profiles use `debug = 0` and `opt-level = 1`;
@@ -905,6 +905,14 @@ To reuse a worktree for a new task, simply reset its detached HEAD to the latest
 Only remove worktrees (`git worktree remove .agents/worktree/<short-name>`) when
 explicitly requested or when reclaiming disk space.
 
+In a Claude Code cloud session, `.agents/worktree/warm` arrives checked out at
+a recent main commit with that commit's compiler build already restored
+([tools/warm_build.py](tools/warm_build.py)). Run
+`python3 tools/warm_build.py wait`, then use it as the workbench and record its
+commit as the fixed base. Do not move it to a newer main first: main's frequent
+changes to the lowest crates make that rebuild as slow as a cold build
+(12 minutes).
+
 Before launching a new swarm or creating a new worker, successfully fetch remote
 `main` (`git fetch origin main`) and record its exact commit. Do not modify, pull into,
 or fast-forward the primary checkout; preserve it intact as a stable reference.
@@ -946,6 +954,10 @@ not a completed launch preflight.
   [cursor-swarm](.agents/skills/cursor-swarm/SKILL.md). Each worker is a
   Cursor Task subagent with its own VM and branch, started from fetched
   remote main. Select its model through the exposed Task fields.
+- A requested Claude Code cloud wave follows
+  [claude-swarm](.agents/skills/claude-swarm/SKILL.md). Each worker is a
+  Claude Code cloud session with its own container and branch, started at a
+  pinned base. Select its model through `create_session`'s `model` field.
 - Parallel sessions take distinct samples, chosen by root cause, not by
   file. Shared implementation paths are fine; each session works in its
   own worktree and reconciles at rebase. Reuse another session's repair when

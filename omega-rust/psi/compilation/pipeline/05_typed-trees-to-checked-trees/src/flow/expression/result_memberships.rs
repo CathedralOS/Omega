@@ -54,6 +54,7 @@ impl Execution<'_, '_, '_> {
         let realization = crate::flow::calls::checked_realization_result_identities(
             self.program,
             self.context,
+            self.machine.symbol,
             source,
         );
         let point = ProgramPoint::CallEnsures {
