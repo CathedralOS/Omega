@@ -23,9 +23,11 @@ mod argument_reads;
 mod entry_reads;
 mod graph_versions;
 mod read_backing;
+mod stored_values;
 pub(in crate::proof_contracts::contract_entailment) use graph_versions::{
     StorageAnchor, StorageVersion,
 };
+pub(super) use stored_values::StoredValues;
 
 type StorageScope<'scope> = Option<(&'scope Machine, &'scope State)>;
 
@@ -290,7 +292,7 @@ impl StructuralJudge<'_> {
                 });
             }
         }
-        self.stored_values = std::sync::Arc::new(values);
+        self.stored_values = std::sync::Arc::new(StoredValues::from_values(values));
         self.invalidated_storage = std::sync::Arc::new(Vec::new());
         for parameter in self.program.state_parameters(entry) {
             let coordinate = CapturedStorageCoordinate {
@@ -1235,10 +1237,8 @@ impl StructuralJudge<'_> {
             .storage_version
             .map_or_else(SymbolHandle::invalid, |version| version.state);
         let values = std::sync::Arc::make_mut(&mut self.stored_values);
-        if let Some(stored) = values
-            .iter_mut()
-            .find(|stored| stored.coordinate == coordinate)
-        {
+        if let Some(position) = values.position(&coordinate) {
+            let stored = &mut values[position];
             if entry && stored.entry.is_none() {
                 stored.entry = Some(value.clone());
             }
@@ -1765,8 +1765,8 @@ impl StructuralJudge<'_> {
                     })
             {
                 let values = std::sync::Arc::make_mut(&mut self.stored_values);
-                if let Some(stored) = values.iter_mut().find(|stored| stored.coordinate == prefix) {
-                    stored.selected_case = Some(*variant);
+                if let Some(position) = values.position(&prefix) {
+                    values[position].selected_case = Some(*variant);
                 } else {
                     values.push(CapturedStorageValue {
                         coordinate: prefix.clone(),

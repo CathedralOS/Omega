@@ -572,7 +572,7 @@ pub(super) struct StructuralJudge<'program> {
     // the program has no graph or this judge walks no runtime body.
     storage_version: Option<storage_effects::StorageVersion>,
     // Typed storage observations retain live values and detached entry snapshots.
-    stored_values: Arc<Vec<storage_effects::CapturedStorageValue>>,
+    stored_values: Arc<storage_effects::StoredValues>,
     pub(super) capture_sequence: usize,
     storage_write_sequence: usize,
     pub(super) normal_guarantees: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
@@ -894,7 +894,8 @@ impl<'program> StructuralJudge<'program> {
                     });
                 }
             }
-            rejoined.stored_values = Arc::new(intersected);
+            rejoined.stored_values =
+                Arc::new(storage_effects::StoredValues::from_values(intersected));
         }
         if exclude_result.is_none()
             && outcomes[1..].iter().all(|judge| {
@@ -1133,7 +1134,7 @@ impl<'program> StructuralJudge<'program> {
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
             storage_version: None,
-            stored_values: Arc::new(Vec::new()),
+            stored_values: Arc::default(),
             capture_sequence: 0,
             storage_write_sequence: 0,
             normal_guarantees: Arc::new(Vec::new()),
