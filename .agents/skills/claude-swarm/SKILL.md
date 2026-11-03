@@ -66,6 +66,14 @@ prompt keeps the session on that one build:
   directory.
 - For the next witness, reuse the same worktree
   (`git checkout --detach origin/main`) instead of creating a cold one.
+
+The trial sessions also lost time waiting badly. Seven had `sleep` loops
+blocked by the harness. In one, `while pgrep -f "cargo build …"` matched its
+own shell and kept waiting 16.5 minutes after the build had finished. Tell
+sessions to start a long build or gate with `run_in_background` and act on its
+completion notification, and never to poll with `sleep` or `pgrep -f`. A
+worktree made from a fetched commit has no `origin/main`, so they pass
+`--base <commit>` to `tools/check_rules.py`.
 - Pin `source_revision` to the coordinator's fetched base when sessions must
   start from the same commit. Otherwise sessions clone the default branch at
   creation.
