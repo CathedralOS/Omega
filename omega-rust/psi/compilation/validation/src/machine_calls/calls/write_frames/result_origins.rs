@@ -139,7 +139,11 @@ fn call_body_result_origins(
                 || !machine.body_is_present))
         || !program.machine_type_parameters(machine).is_empty()
         || !call.machine_arguments.is_empty()
-        || call.receiver.is_valid() != machine.attached_data.is_some()
+        // A qualifier selects code without supplying a runtime receiver.
+        // Authenticate that role against this exact target before comparing
+        // value receivers with the callee's attached data.
+        || (!program.call_has_no_runtime_receiver_for_target(call)
+            && call.receiver.is_valid() != machine.attached_data.is_some())
         || arguments.len() != parameters.iter().count()
         || !super::isolation::aggregate_storage_types_match(program, applied_result, expected)
     {

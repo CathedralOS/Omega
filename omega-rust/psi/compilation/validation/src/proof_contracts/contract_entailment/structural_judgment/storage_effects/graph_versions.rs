@@ -19,6 +19,9 @@ use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionHandle;
 use typed_trees::state::State;
 
+#[cfg(test)]
+mod tests;
+
 /// One position in the storage graph: a state's history and the version after
 /// the last effect observed there. The invalid snapshot is incoming storage.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -603,10 +606,16 @@ impl<'program> StructuralJudge<'program> {
                     ))
         };
         let reached = |reaching: &crate::completed_storage::StoredOperand| match reaching {
-            crate::completed_storage::StoredOperand::Incoming(_) => stored
-                .current_anchors
-                .iter()
-                .any(|anchor| matches!(anchor, StorageAnchor::Incoming)),
+            crate::completed_storage::StoredOperand::Incoming(_) => {
+                stored.current_anchors.iter().any(|anchor| match anchor {
+                    StorageAnchor::Incoming => true,
+                    // An unchanged input field may be read after other stores.
+                    // That read has its own observation point even though no
+                    // store supplied the field's bytes.
+                    StorageAnchor::After(cut) => preserved(*cut),
+                    StorageAnchor::Store(_) | StorageAnchor::CallReturn => false,
+                })
+            }
             crate::completed_storage::StoredOperand::Value { capture, .. } => {
                 let expression = graph.operands.get(*capture).expression;
                 stored.current_anchors.iter().any(|anchor| match anchor {
