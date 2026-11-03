@@ -725,11 +725,14 @@ fn is_independent_return(
     };
     identity.machine_symbol == state.machine_symbol
         && identity.state_symbol == state.state_symbol
-        && facts
-            .borrow
-            .owner_segments
-            .span_or_empty(identity.owner_path)
-            == facts.borrow.loan_owner_path(row)
+        && target.is_valid()
+        && row.formation_owner_path.is_some_and(|path| {
+            facts
+                .borrow
+                .owner_segments
+                .span_or_empty(identity.owner_path)
+                == facts.borrow.owner_segments.span_or_empty(path)
+        })
         && expression == capture.expression
         && row.root == facts::PlaceRoot::Expression(expression)
         && state.calls.handles().any(|invocation| {
