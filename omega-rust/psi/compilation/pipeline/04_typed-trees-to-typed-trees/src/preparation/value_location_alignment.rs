@@ -27,6 +27,7 @@ use validation::expression_traversal::collect_statement_expression_trees;
 pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     let mut settled = Vec::new();
     let mut diagnostics = Vec::new();
+    let mut rejected = Vec::new();
     for machine in program.machines() {
         for state in program.machine_states(machine) {
             for (statement_index, statement) in program
@@ -46,10 +47,13 @@ pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
                     }
                     match observed_storage_type(program, state.symbol, statement_index, place) {
                         Ok(subject) => settled.push((query, subject)),
-                        Err(message) => diagnostics.push(
-                            Diagnostic::error(message)
-                                .with_source_span(expressions_of(program).source_span(query)),
-                        ),
+                        Err(message) => {
+                            rejected.push(query);
+                            diagnostics.push(
+                                Diagnostic::error(message)
+                                    .with_source_span(expressions_of(program).source_span(query)),
+                            );
+                        }
                     }
                 }
             }
@@ -77,6 +81,7 @@ pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
         unsettled.extend(
             handles
                 .into_iter()
+                .filter(|query| !rejected.contains(query))
                 .filter(|query| value_query_operand(program, *query).is_some()),
         );
     }
