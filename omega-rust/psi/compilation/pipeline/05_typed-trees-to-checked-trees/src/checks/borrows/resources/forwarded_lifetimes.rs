@@ -60,7 +60,11 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
             )]);
         };
         for (loan, row) in facts.borrow.state_loans(state) {
-            if !holds_own_resource(row) {
+            if !matches!(
+                row.lineage,
+                checked_trees::BorrowLoanLineage::DirectRoot
+                    | checked_trees::BorrowLoanLineage::Reborrow { .. }
+            ) {
                 continue;
             }
             let Ok((_, lexical)) =
@@ -71,15 +75,18 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                 continue;
             };
             let mut holders = vec![loan];
+            // Each holder's own end, used when it supplies a later copy.
+            let mut holder_ends = vec![lexical];
             let mut cursor = 0;
             let mut final_weakening = lexical;
             while cursor < holders.len() {
                 let supplier = holders[cursor];
+                let supplier_end = facts
+                    .flow
+                    .borrow_lifetimes
+                    .weakenings
+                    .get(holder_ends[cursor]);
                 cursor += 1;
-                let (_, supplier_end) =
-                    exact_loan_lifecycle_rows(&facts.borrow, &facts.flow, flow_state, supplier)
-                        .map_err(|error| vec![error])?;
-                let supplier_end = facts.flow.borrow_lifetimes.weakenings.get(supplier_end);
                 let Some(transferred) = transfers
                     .get(supplier.arena_index() as usize)
                     .filter(|row| row.loan == supplier)
@@ -87,12 +94,23 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                     continue;
                 };
                 for candidate in transferred.holders.iter().copied() {
-                    // A call-completed derived descriptor is transport, not a
-                    // local resource: it has no lifecycle of its own to extend
-                    // the supplier's permission (see reference_custody.rs).
-                    if holders.contains(&candidate)
-                        || !holds_own_resource(facts.borrow.loans.get(candidate))
+                    if holders.contains(&candidate) {
+                        continue;
+                    }
+                    // A descriptor a completed call installed carries custody
+                    // without minting a local loan, so it has no lifecycle rows
+                    // (reference_custody.rs). Its slot's own loan covers the
+                    // slot; keep walking through it to its later copies, which
+                    // live no longer than the supplier that reached it.
+                    if facts
+                        .borrow
+                        .loans
+                        .get(candidate)
+                        .established_by_call
+                        .is_valid()
                     {
+                        holder_ends.push(holder_ends[cursor - 1]);
+                        holders.push(candidate);
                         continue;
                     }
                     let (activation, weakening) = exact_loan_lifecycle_rows(
@@ -117,6 +135,7 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                     {
                         final_weakening = weakening;
                     }
+                    holder_ends.push(weakening);
                     holders.push(candidate);
                 }
             }
@@ -136,16 +155,6 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
     }
     facts.borrow.resource_holders = holders_arena;
     Ok(rows)
-}
-
-/// Only direct and reborrowed loans own a lifecycle; derived descriptors
-/// installed by a completed call transport custody without one.
-fn holds_own_resource(loan: &BorrowLoanFact) -> bool {
-    matches!(
-        loan.lineage,
-        checked_trees::BorrowLoanLineage::DirectRoot
-            | checked_trees::BorrowLoanLineage::Reborrow { .. }
-    )
 }
 
 pub(super) fn get(
