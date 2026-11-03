@@ -13,17 +13,17 @@ machine Main::main(main: &mut Main) reaches Console {
     main.partition.valid = true;
     block read_integer(&mut main.reader);
     transition main.reader.valid && main.reader.value >= 3.0 && main.reader.value <= 12.0 {
-        true -> count(main)
+        true -> block count(main)
         false -> invalid()
     }
     machine count(main: &mut Main) {
         main.partition.boundary.count = U64::from_f64(main.reader.value) as u64;
-        transition { _ -> boundary(main, 0) }
+        transition { _ -> block boundary(main, 0) }
     }
     machine boundary(main: &mut Main, index: u64) {
         transition index < main.partition.boundary.count && index < 32 {
-            true -> coordinate(main, index)
-            false -> site_count(main)
+            true -> block coordinate(main, index)
+            false -> block site_count(main)
         }
     }
     machine coordinate(main: &mut Main, index: u64) {
@@ -31,23 +31,23 @@ machine Main::main(main: &mut Main) reaches Console {
         main.partition.boundary.x[index] = main.reader.value;
         block read_integer(&mut main.reader);
         main.partition.boundary.y[index] = main.reader.value;
-        transition main.reader.valid { true -> boundary(main, index + 1) false -> invalid() }
+        transition main.reader.valid { true -> block boundary(main, index + 1) false -> invalid() }
     }
     machine site_count(main: &mut Main) {
         block read_integer(&mut main.reader);
         transition main.reader.valid && main.reader.value >= 1.0 && main.reader.value <= 8.0 {
-            true -> sites(main)
+            true -> block sites(main)
             false -> invalid()
         }
     }
     machine sites(main: &mut Main) {
         main.partition.site_count = U64::from_f64(main.reader.value) as u64;
-        transition { _ -> site(main, 0) }
+        transition { _ -> block site(main, 0) }
     }
     machine site(main: &mut Main, index: u64) {
         transition index < main.partition.site_count && index < 8 {
-            true -> location(main, index)
-            false -> validate(main)
+            true -> block location(main, index)
+            false -> block validate(main)
         }
     }
     machine location(main: &mut Main, index: u64) {
@@ -55,7 +55,7 @@ machine Main::main(main: &mut Main) reaches Console {
         main.partition.site_x[index] = main.reader.value;
         block read_integer(&mut main.reader);
         main.partition.site_y[index] = main.reader.value;
-        transition main.reader.valid { true -> site(main, index + 1) false -> invalid() }
+        transition main.reader.valid { true -> block site(main, index + 1) false -> invalid() }
     }
     machine validate(main: &mut Main) {
         block end_input(&mut main.reader);

@@ -57,7 +57,7 @@ machine Main::main(main: &mut Main) reaches Console {
     Main::step(main, Dir::S);
 
     transition {
-        _ -> report(main)
+        _ -> block report(main)
     }
 
     machine report(main: &mut Main) {
