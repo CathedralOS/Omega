@@ -71,7 +71,10 @@ pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
 }
 
 /// A value-form query keeps exactly one authored operand until settled here.
-fn value_query_operand(program: &TypedTrees, expression: ExpressionHandle) -> Option<ExpressionHandle> {
+fn value_query_operand(
+    program: &TypedTrees,
+    expression: ExpressionHandle,
+) -> Option<ExpressionHandle> {
     let ExpressionNode::Call(call) = expressions_of(program).expression(expression) else {
         return None;
     };
@@ -125,8 +128,9 @@ fn observed_storage_type(
             );
         }
     }
-    let declared = validation::expression_type_reference_in_state(program, state, statement_index, place)
-        .ok_or("`align_of(value)` requires an operand whose storage type is known")?;
+    let declared =
+        validation::expression_type_reference_in_state(program, state, statement_index, place)
+            .ok_or("`align_of(value)` requires an operand whose storage type is known")?;
     // A reference observes its referent's location, not its descriptor.
     let subject = referent(program, declared);
     if matches!(
