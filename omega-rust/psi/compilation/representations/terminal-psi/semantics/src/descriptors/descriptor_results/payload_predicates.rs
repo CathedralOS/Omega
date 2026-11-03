@@ -445,7 +445,7 @@ pub(super) struct TerminalScalarExpressions<'machine> {
     // Keep their checked order once and store each value's inputs together.
     sources: Vec<ScalarValueSource<'machine>>,
     constants: std::cell::RefCell<
-        crate::unchanged_scalar::UnchangedScalarIdentities<(
+        crate::scalars::unchanged_scalar::UnchangedScalarIdentities<(
             ScalarType,
             semantic_vocabulary::IntegerValue,
         )>,

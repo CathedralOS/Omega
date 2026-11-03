@@ -152,7 +152,11 @@ pub(super) fn select(
     }
     let cases = Arc::make_mut(&mut state.cases);
     for subject in subjects {
-        cases.insert_fact(subject, possible.clone());
+        super::origin_maps::OriginMap::insert_if_changed(
+            &mut cases.facts,
+            subject,
+            possible.clone(),
+        );
     }
     Some(true)
 }
