@@ -497,7 +497,7 @@ impl TypedTrees {
         self.trait_application_arguments(trait_symbol, &application)
     }
 
-    fn materialize_trait_application(
+    pub(super) fn materialize_trait_application(
         &mut self,
         environment: &crate::trait_definition::TraitApplicationEnvironment,
     ) -> Result<CallableApplication, &'static str> {

@@ -44,27 +44,6 @@ pub(super) struct ResolvedStateCall<'program, 'flow> {
     pub(super) site: validation::CallSite<'program>,
 }
 
-impl ResolvedStateCall<'_, '_> {
-    pub(super) fn parameters<'program>(
-        &self,
-        program: &'program dyn ::validation::CheckingInput,
-        lexical_owner: SymbolHandle,
-    ) -> Option<&'program [typed_trees::signature::StateParameter]> {
-        // An applied requirement's prepared signature already substitutes its
-        // owning trait telescope, including inherited scopes. Reading the bare
-        // target instead loses those bindings; reconstructing them here would
-        // create another, incomplete application-normalization path.
-        if let validation::CallSite::Expression { call, .. } = &self.site
-            && call.requirement_application.is_valid()
-        {
-            return program
-                .requirement_call_signature(lexical_owner, call)
-                .map(|signature| program.state_signature_parameters(signature));
-        }
-        validation::call_target_parameters(program, self.fact.target_symbol)
-    }
-}
-
 pub(super) struct StateCallIndex<'program, 'flow> {
     pub(super) calls: Vec<ResolvedStateCall<'program, 'flow>>,
 }
@@ -211,13 +190,20 @@ pub(super) fn expression_indexed_instances(
             return instances;
         }
         ExpressionNode::Call(call) => {
-            let return_type = if call.requirement_application.is_valid() {
-                program
-                    .requirement_call_signature(machine.symbol, call)
-                    .map(|signature| signature.return_type)
-            } else {
-                call_return_type(program, call.target_symbol)
-            };
+            // Both trait applications and named implementations select a
+            // logical contract. The private executable's captured binders are
+            // not caller-side indices, even when both are printed as P or T.
+            // Reuse the prepared signature rather than rediscovering which
+            // source spelling carried the selection.
+            let return_type = program
+                .requirement_call_signature(machine.symbol, call)
+                .map(|signature| signature.return_type)
+                .or_else(|| {
+                    (!call.requirement_application.is_valid()
+                        && call.static_requirement_dispatch.is_none())
+                    .then(|| call_return_type(program, call.target_symbol))
+                    .flatten()
+                });
             if let Some(return_type) = return_type {
                 collect_type_indexed_instances(
                     program,

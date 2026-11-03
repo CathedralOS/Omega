@@ -519,7 +519,7 @@ fn append_call_result_field_domain_facts<'plans>(
     // an exact result membership the adapter's own contract carries is kept
     // because its body owes it. A promise about an input, another projection,
     // or another domain application cannot stand in for this result row.
-    let realization = checked_realization_result_identities(program, build, call);
+    let realization = checked_realization_result_identities(program, build, machine.symbol, call);
     let rows = paths.iter().filter(|row| {
         result_identity_is_available(program, realization.as_deref().map(Vec::as_slice), row)
     });
@@ -556,6 +556,7 @@ pub(in crate::flow) fn result_identity_is_available(
 pub(in crate::flow) fn checked_realization_result_identities<'plans>(
     program: &'plans dyn ::validation::CheckingInput,
     build: &mut FlowBuildContext<'plans>,
+    lexical_owner: SymbolHandle,
     call: &typed_trees::expression::TableCallExpression,
 ) -> Option<
     std::rc::Rc<
@@ -576,14 +577,21 @@ pub(in crate::flow) fn checked_realization_result_identities<'plans>(
     // template parameter identities cannot match a closed invocation's rows.
     // This fence reads the checked realization's own declared result, not a
     // public requirement's stronger receiving annotation.
-    let return_type = memoized_call_target_return_type(program, build, call.target_symbol)?;
-    let key = (call.target_symbol, 0, return_type);
+    let selected = program.realization_call_signature(lexical_owner, call);
+    let return_type = selected
+        .map(|signature| signature.return_type)
+        .or_else(|| memoized_call_target_return_type(program, build, call.target_symbol))?;
+    let key = (
+        call.target_symbol,
+        selected.map_or(0, |s| std::ptr::from_ref(s) as usize),
+        return_type,
+    );
     if !build.call_result_identities.contains_key(&key) {
         let computed = std::rc::Rc::new(call_result_qualification_identities_indexed(
             program,
             build,
             call.target_symbol,
-            None,
+            selected,
             return_type,
         ));
         build.call_result_identities.insert(key, computed);
