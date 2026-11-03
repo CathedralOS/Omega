@@ -1047,9 +1047,6 @@ impl<'program> StructuralJudge<'program> {
         for fact in requires {
             judge.intake_proposition(program, *fact);
             judge.intake_entry_collection_predicate(*fact);
-            if let Some(state) = state {
-                judge.retain_entry_scalar_reads(state, *fact);
-            }
         }
         if let Some(state) = state {
             judge.intake_entry_domain_predicates(machine, state);
@@ -1059,6 +1056,14 @@ impl<'program> StructuralJudge<'program> {
         // values and their predicates keep the original invocation identity.
         for fact in requires {
             judge.intake_preserved_predicate(*fact);
+        }
+        // Entry read checks need the admitted case and bounds facts above.
+        // Retain each snapshot after those predicates are recorded; a scalar
+        // observation must not establish its own formation premise.
+        if let Some(state) = state {
+            for fact in requires {
+                judge.retain_entry_scalar_reads(state, *fact);
+            }
         }
         judge
     }

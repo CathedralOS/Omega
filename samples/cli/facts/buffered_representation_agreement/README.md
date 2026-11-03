@@ -43,13 +43,15 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [current source check](https://github.com/CathedralOS/Omega/actions/runs/41698139623)
-at `fd5a12981fc4fbf47edc4e5c0b2d571f482faccd` proves the encoder's byte
-promises and the buffer-capacity requirement at restoration entry. Local still
-has six restoration proof failures. Field transport now preserves each case
-field's own source, but forming its retained lifetime obligations still reports
-loan conflicts. It also treats mutually exclusive cases of the same saved
-Result as simultaneous loans.
+The [current source check](https://github.com/CathedralOS/Omega/actions/runs/41702001857)
+at `25c7948b99244262d63b27c7f31f746d7c051acb` proves the encoder's byte
+promises and the buffer-capacity requirement at restoration entry. All 28 field
+formation conflicts are resolved: each case field retains its own source, and
+formation distinguishes lifetime obligations and opposite cases of the same
+saved Result. Local and field still have six restoration proof failures.
+Three additional reference controls reject before their intended obligations,
+and a sibling control times out. Their attribution is pending a same-host
+comparison of retained producers; these are not accepted controls yet.
 
 The [stale-byte control](../../../../tests/omega/fail/contracts/forwarded_data_identity_does_not_preserve_mutated_contents/main.omg)
 reads a byte, replaces it, then asks to prove that the old and current bytes are
