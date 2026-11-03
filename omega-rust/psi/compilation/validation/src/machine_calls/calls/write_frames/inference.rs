@@ -463,6 +463,9 @@ fn bool_truth(
     current: &ParameterValues,
     expression: ExpressionHandle,
 ) -> BoolTruth {
+    if !expression.is_valid() {
+        return BoolTruth::Unknown;
+    }
     match program.expression_table.expression(expression) {
         ExpressionNode::Boolean(value) => {
             if *value {

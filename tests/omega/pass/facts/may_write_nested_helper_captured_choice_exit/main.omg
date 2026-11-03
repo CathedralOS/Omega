@@ -11,7 +11,8 @@ machine choose<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pi
 
 
 machine relay<'storage>(chosen: &'storage mut u64, other: &'storage mut u64, pick_chosen: bool, changed: &write bool) -> &'storage mut u64 {
-    let mut flag: bool = pick_chosen;
+    let mut flag: bool;
+    flag = pick_chosen;
     let selected: &'storage mut u64 = choose(chosen, other, flag);
     flag = !flag;
     changed = flag;
