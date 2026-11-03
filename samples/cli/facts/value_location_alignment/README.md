@@ -101,9 +101,11 @@ authored rows, unexecuted here.
 
 ## What remains open
 
-- Contract positions accept a whole parameter or its referent; a field path or
-  a slice in a contract still rejects, since a contract cannot carry the
-  slice's nonempty proof.
+- Contract positions: `requires` on an ordinary machine accepts a whole
+  parameter or its referent. Still rejected: `ensures` clauses (a true clause
+  cannot yet be proved at exit), contracts on trait requirements (so a
+  per-target implementation cannot carry the clause), and field paths or
+  slices in any contract.
 - Stronger-than-type alignment from placement or allocator contracts, and
   runtime computation of a location's alignment, are not implemented; the
   result is always the type minimum.

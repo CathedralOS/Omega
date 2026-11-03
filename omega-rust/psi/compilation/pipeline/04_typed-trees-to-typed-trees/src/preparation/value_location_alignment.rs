@@ -89,9 +89,10 @@ pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
             call.arguments = HandleSpan::empty();
         }
     }
-    // A query in a `requires` or `ensures` contract runs in no statement.
-    // Contracts bind only parameters, so its place must be rooted at one and
-    // takes that parameter's declared type. Anything else (a constant
+    // A query in a `requires` contract runs in no statement. Contracts bind
+    // only parameters, so its place must be rooted at one and takes that
+    // parameter's declared type. `ensures` and trait requirement contracts
+    // are not yet answered and reject. Anything else (a constant
     // initializer, a data predicate) names no storage place and rejects.
     let roots: Vec<_> = expressions_of(program)
         .iter_expressions()
@@ -107,8 +108,52 @@ pub(super) fn settle(program: &mut TypedTrees) -> Result<(), Vec<Diagnostic>> {
     }
     unsettled.sort_by_key(|query| (query.arena_index(), query.generation()));
     unsettled.dedup();
+    // A value-form `ensures` is admitted by settling but cannot yet be proved
+    // at exit, so a true clause would fail as unprovable. Reject it plainly.
+    let mut ensures_handles = Vec::new();
+    let mut collect_ensures = |contract: &typed_trees::signature::SignatureContract| {
+        if contract.kind == typed_trees::signature::SignatureContractKind::Ensures {
+            for fact in program.proof_facts.span_or_empty(contract.facts) {
+                if let Some(expression) = fact.as_expression() {
+                    validation::expression_traversal::collect_expression_tree(
+                        program,
+                        *expression,
+                        &mut ensures_handles,
+                    );
+                }
+            }
+        }
+    };
+    for machine in program.machines() {
+        program
+            .signature_contracts
+            .span_or_empty(machine.contracts)
+            .iter()
+            .for_each(&mut collect_ensures);
+        for state in program.machine_states(machine) {
+            program
+                .state_contracts(state)
+                .iter()
+                .for_each(&mut collect_ensures);
+        }
+    }
+    for signature in program.prepared_callable_signatures() {
+        program
+            .state_signature_contracts(signature)
+            .iter()
+            .for_each(&mut collect_ensures);
+    }
     let mut contract_settled = Vec::new();
     for query in unsettled {
+        if ensures_handles.contains(&query) {
+            diagnostics.push(
+                Diagnostic::error(
+                    "`align_of(value)` in an `ensures` contract is not yet supported; state the alignment in `requires` or check it in the body",
+                )
+                .with_source_span(expressions_of(program).source_span(query)),
+            );
+            continue;
+        }
         let Some(place) = value_query_operand(program, query) else {
             continue;
         };
@@ -153,9 +198,10 @@ fn value_query_operand(
     }
 }
 
-/// A contract query's subject: a parameter, or a reference parameter's
-/// referent. Contracts carry no proof context for a slice's nonempty view or
-/// a field path, so those stay statement-only.
+/// A `requires` query's subject: a parameter of an ordinary machine, or a
+/// reference parameter's referent. Contracts carry no proof context for a
+/// slice's nonempty view or a field path, so those stay statement-only, and
+/// trait requirement contracts are not yet answered.
 fn contract_storage_type(
     program: &TypedTrees,
     place: ExpressionHandle,
@@ -174,8 +220,20 @@ fn contract_storage_type(
         .flat_map(|machine| program.machine_states(machine).iter())
         .flat_map(|state| program.state_parameters(state).iter())
         .find(|parameter| parameter.symbol == root)
-        .map(|parameter| parameter.type_reference)
-        .ok_or(NO_PLACE)?;
+        .map(|parameter| parameter.type_reference);
+    let Some(declared) = declared else {
+        let trait_parameter = program
+            .traits()
+            .iter()
+            .flat_map(|definition| program.trait_machine_signatures(definition).iter())
+            .flat_map(|signature| program.state_signature_parameters(signature).iter())
+            .any(|parameter| parameter.symbol == root);
+        return Err(if trait_parameter {
+            "`align_of(value)` in a trait requirement's contract is not yet supported; its implementations cannot carry the clause"
+        } else {
+            NO_PLACE
+        });
+    };
     let subject = referent(program, declared);
     if matches!(
         program.type_reference_table.type_reference(subject),
