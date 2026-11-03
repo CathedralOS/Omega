@@ -282,12 +282,12 @@ structural_parameter_accessor!(PsiOptimizationFunction);
 impl PsiOptimizationFunction {
     /// The block keyed `block`, when the function declares it.
     pub fn block(&self, block: BlockId) -> Option<&OptimizationBlock> {
-        self.blocks.iter().find(|row| row.id == block)
+        self.block_index(block).map(|index| &self.blocks[index])
     }
 
     /// The block keyed `block`, mutably, when the function declares it.
     pub fn block_mut(&mut self, block: BlockId) -> Option<&mut OptimizationBlock> {
-        self.blocks.iter_mut().find(|row| row.id == block)
+        self.block_index(block).map(|index| &mut self.blocks[index])
     }
 
     /// The structural place keyed `place`, when the function declares it.
@@ -314,8 +314,10 @@ impl PsiOptimizationFunction {
     }
 
     /// The position of the block keyed `id`, when the function declares it.
+    /// Blocks are strictly increasing by ID, checked at construction and by
+    /// unit validation. Block merging removes rows, so IDs are not positions.
     pub fn block_index(&self, id: BlockId) -> Option<usize> {
-        self.blocks.iter().position(|row| row.id == id)
+        self.blocks.binary_search_by_key(&id, |row| row.id).ok()
     }
 
     /// Every block's nodes, in block order.

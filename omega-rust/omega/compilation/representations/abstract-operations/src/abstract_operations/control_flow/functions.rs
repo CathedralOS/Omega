@@ -46,9 +46,14 @@ macro_rules! structural_parameter_accessor {
 structural_parameter_accessor!(AbstractFunction);
 
 impl AbstractFunction {
-    /// The block entry registered at `block`.
+    /// The block entry registered at `block`. Entries follow the Terminal
+    /// machine's strictly increasing block order, which the optimization seed
+    /// rechecks.
     pub fn block_entry(&self, block: BlockId) -> Option<&AbstractBlockEntry> {
-        self.block_entries.iter().find(|entry| entry.block == block)
+        self.block_entries
+            .binary_search_by_key(&block, |entry| entry.block)
+            .ok()
+            .map(|index| &self.block_entries[index])
     }
 
     /// Every block entry's structural parameters, in block order.

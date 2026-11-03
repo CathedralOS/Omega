@@ -57,7 +57,8 @@ pub enum OptimizationUnitValidationError {
     EntryClaimIndexMismatch(MachineId),
     FunctionResultMismatch(MachineId),
     MissingEntryMachine(MachineId),
-    DuplicateMachine(MachineId),
+    /// Functions are not strictly increasing by machine; names the first out of order.
+    UnorderedMachine(MachineId),
     NonCanonicalPrunedMachineRoster,
     ActivePrunedMachineOverlap(MachineId),
     PrunedEntryMachine(MachineId),
@@ -177,7 +178,8 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         block: BlockId,
     },
-    DuplicateBlock {
+    /// Blocks are not strictly increasing by ID; names the first out of order.
+    UnorderedBlock {
         machine: MachineId,
         block: BlockId,
     },

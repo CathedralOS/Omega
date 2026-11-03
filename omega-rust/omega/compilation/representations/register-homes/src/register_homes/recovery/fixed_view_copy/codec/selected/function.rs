@@ -84,5 +84,8 @@ pub(super) fn decode_function(
         boundary_settlements: Vec::new(),
     };
     super::structural::decode_contracts(cursor, &mut function)?;
+    if !function.ids_are_positions() {
+        return Err(FixedViewCopyDecodeError::IdentityNotPosition);
+    }
     Ok(function)
 }
