@@ -395,8 +395,6 @@ retired-syntax deletions to completion.
     on windows_x86_64. Native runs exit 70 as authored; the Terminal leg stops
     at the private native sponsor for `WindowsGuiImports::create_window`
     (**TERMINAL-RUNTIME-DRIVERS**).
-  - Add a fail control for ambiguous whole-trait provider supply of a migrated
-    raw trait.
   Acceptance: migrated customers execute through `omega run --both` under
   boundary-trait selection on their matching hosts; unselected, ambiguous, or
   reach-exceeding providers reject.
