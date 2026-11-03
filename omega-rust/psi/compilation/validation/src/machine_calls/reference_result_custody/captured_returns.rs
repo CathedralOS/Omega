@@ -117,6 +117,18 @@ struct CapturedReturnOrigin {
     result_path: Vec<facts::PlaceSegment>,
     source: crate::LocalWriteSource,
     extent: ReferenceOriginExtent,
+    presentation: Option<CapturedReturnPresentation>,
+}
+
+/// A callee can return another checked view of the same backing. Its typed
+/// view steps travel with the result; their original formation is not replayed
+/// as an expression in the caller.
+#[derive(Clone, PartialEq, Eq)]
+struct CapturedReturnPresentation {
+    path: Vec<CheckedReferenceOriginProjection>,
+    source_type: typed_trees::type_identity::TypeIdentityId,
+    endpoint_type: typed_trees::type_identity::TypeIdentityId,
+    result_type: typed_trees::type_identity::TypeIdentityId,
 }
 
 impl Captures<'_> {
@@ -776,6 +788,7 @@ impl Captures<'_> {
                             result_path: origin.result_path,
                             source: origin.source,
                             extent: ReferenceOriginExtent::Projected,
+                            presentation: None,
                         })
                         .collect::<Vec<_>>()
                 })
@@ -872,20 +885,41 @@ impl Captures<'_> {
                 for origin in matching {
                     let captured =
                         self.frame_origin_path(selected, &incoming_segments, &origin.source)?;
-                    let source_identity = self.program.normalized_type_identity(captured.backing);
-                    let extent = self.result_origin_extent(
-                        captured.presentation,
-                        state.return_type,
-                        &result_path,
-                        leaf.source.type_identity,
-                        if origin.extent == ReferenceOriginExtent::WithinRegion {
-                            ReferenceOriginExtent::WithinRegion
-                        } else {
-                            captured.extent
-                        },
-                    )?;
+                    let retained_extent = if origin.extent == ReferenceOriginExtent::WithinRegion
+                        || captured.extent == ReferenceOriginExtent::WithinRegion
+                    {
+                        ReferenceOriginExtent::WithinRegion
+                    } else {
+                        ReferenceOriginExtent::Projected
+                    };
+                    let mut source_identity =
+                        self.program.normalized_type_identity(captured.backing);
+                    let extent = if let Some(presentation) = &origin.presentation
+                        && !presentation.path.is_empty()
+                    {
+                        if self.program.normalized_type_identity(captured.presentation)
+                            != presentation.source_type
+                            || presentation.result_type != leaf.source.type_identity
+                            || !presentation.endpoint_type.is_valid()
+                        {
+                            return None;
+                        }
+                        source_identity = presentation.endpoint_type;
+                        retained_extent
+                    } else {
+                        self.result_origin_extent(
+                            captured.presentation,
+                            state.return_type,
+                            &result_path,
+                            leaf.source.type_identity,
+                            retained_extent,
+                        )?
+                    };
                     let mut complete = path.clone();
                     complete.extend(captured.path);
+                    if let Some(presentation) = &origin.presentation {
+                        complete.extend(presentation.path.iter().cloned());
+                    }
                     let source = CheckedReferenceOriginSourcePlan {
                         root: checked_trees::CheckedReferenceOriginRoot::Parameter {
                             index: parameter_index,

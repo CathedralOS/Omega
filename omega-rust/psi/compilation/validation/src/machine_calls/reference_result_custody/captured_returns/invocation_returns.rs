@@ -7,9 +7,9 @@ use super::super::{
     MAX_REFERENCE_ORIGIN_LEAVES, declared_carrier_references, origin_place_segments,
 };
 use super::{
-    CapturedReturnOrigin, Captures, CheckedReferenceOriginProjection, CheckedReturnedReferencePlan,
-    CheckedUnitStructuralPathSegment, SymbolHandle, TypeReferenceHandle, loan_owner_path,
-    loan_place_segments,
+    CapturedReturnOrigin, CapturedReturnPresentation, Captures, CheckedReferenceOriginProjection,
+    CheckedReturnedReferencePlan, CheckedUnitStructuralPathSegment, SymbolHandle,
+    TypeReferenceHandle, loan_owner_path, loan_place_segments,
 };
 
 impl Captures<'_> {
@@ -29,6 +29,7 @@ impl Captures<'_> {
         // relation or recover the origins of an abstract requirement's result.
         let relative = self.target_sources(call.target_symbol, active)?;
         let leaves = self.reference_leaves(state)?;
+        let target_leaves = self.reference_leaves(target)?;
         let parameters = self.program.state_parameters(target);
         let operands = self
             .facts
@@ -67,7 +68,14 @@ impl Captures<'_> {
             {
                 return None;
             }
-            let relative = self.checked_input_origin(parameter, &candidate.source)?;
+            let target_leaf = target_leaves
+                .iter()
+                .find(|leaf| leaf.path == candidate.path)?;
+            let (relative, presentation) = self.checked_input_origin(
+                parameter,
+                &candidate.source,
+                target_leaf.source.type_identity,
+            )?;
             for source in self.captured_input_sources(
                 state,
                 parameter.type_reference,
@@ -79,6 +87,7 @@ impl Captures<'_> {
                     result_path: result_path.clone(),
                     source,
                     extent: candidate.source.extent,
+                    presentation: Some(presentation.clone()),
                 };
                 if !origins.contains(&origin) {
                     origins.push(origin);
@@ -230,7 +239,8 @@ impl Captures<'_> {
         &self,
         parameter: &typed_trees::signature::StateParameter,
         origin: &checked_trees::CheckedReferenceOriginSourcePlan,
-    ) -> Option<crate::LocalWriteSource> {
+        result_type: typed_trees::type_identity::TypeIdentityId,
+    ) -> Option<(crate::LocalWriteSource, CapturedReturnPresentation)> {
         let ingress = super::super::stored_loan_parts(self.program, parameter.type_reference)
             .map_or(parameter.type_reference, |(referent, _)| referent);
         let mut entered = parameter.type_reference;
@@ -252,12 +262,30 @@ impl Captures<'_> {
         {
             return None;
         }
+        // Substitute addresses only up to the first checked interpretation.
+        // Following fields belong to that presentation's declaration and must
+        // retain their typed coordinates, rather than become backing fields.
+        let interpretation = path
+            .iter()
+            .position(|projection| {
+                matches!(
+                    projection,
+                    CheckedReferenceOriginProjection::Exact(
+                        CheckedUnitStructuralPathSegment::RepresentationView { .. }
+                    )
+                )
+            })
+            .unwrap_or(path.len());
+        let (physical, presentation) = path.split_at(interpretation);
         let mut projected =
-            super::super::origin_place_projection(self.program, ingress, path.iter().cloned())?;
-        if projected.type_identity(self.program) != origin.type_identity {
+            super::super::origin_place_projection(self.program, ingress, physical.iter().cloned())?;
+        let source_type = projected.type_identity(self.program);
+        if !source_type.is_valid()
+            || (presentation.is_empty() && source_type != origin.type_identity)
+        {
             return None;
         }
-        Some(crate::LocalWriteSource {
+        let source = crate::LocalWriteSource {
             invocation_output: None,
             invocation_result: None,
             is_image_storage: false,
@@ -267,7 +295,16 @@ impl Captures<'_> {
             collection_coarse: false,
             root: parameter.symbol,
             segments: projected.segments,
-        })
+        };
+        Some((
+            source,
+            CapturedReturnPresentation {
+                path: presentation.to_vec(),
+                source_type,
+                endpoint_type: origin.type_identity,
+                result_type,
+            },
+        ))
     }
 
     fn captured_input_sources(
