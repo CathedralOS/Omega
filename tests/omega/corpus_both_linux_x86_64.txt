@@ -17,6 +17,17 @@ pass/calls/selected_crash_distinct_limits_exit built 10688ms exit:0 interpreter-
 pass/calls/selected_crash_match_record_exit built 13834ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/calls/selected_crash_private_forwarding_exit built 10143ms exit:0 interpreter-exit:0 interpreter:agrees @feef96dc297d
 pass/facts/build_activation_borrow_entry_return_exit built 11951ms exit:0 interpreter-exit:0 interpreter:agrees @b208ceef9bc2
+pass/facts/data_where_standing_nested_borrowed_field_call_result built 10659ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_const_name built 10613ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot built 9568ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_field built 9679ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_known_saved_descriptor built 9716ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_local built 9389ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_match_join built 9662ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_other_machine built 9131ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_other_state built 9757ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_parameter built 9256ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
+pass/facts/data_where_standing_nested_borrowed_field_target_body built 9331ms exit:0 interpreter-exit:0 interpreter:agrees @d3679195288a
 pass/facts/domain_selected_cleanup_enclosing_generic_telescope_exit built 14212ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
 pass/facts/domain_selected_cleanup_erased_interface_exit built 13801ms exit:0 interpreter-exit:0 interpreter:agrees @dfac2536232b
 pass/facts/dynamic_float_input_alternatives_equal_exit built 19259ms exit:0 interpreter-exit:0 interpreter:agrees @95f6bd2b4430
