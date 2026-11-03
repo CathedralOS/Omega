@@ -2426,11 +2426,22 @@ impl<'program> StructuralJudge<'program> {
             // algebra must still refuse it. The typed owner masks a
             // reference child. Returning that descriptor supports metadata,
             // not a later unchecked read of its referent.
-            return super::observed_projections::project_declared_field(
+            let projected = super::observed_projections::project_declared_field(
                 self.program,
                 self,
                 value,
                 field_name,
+            )?;
+            // A constructor can move an observed owned value into this field.
+            // Keep that input's identity without reading contained references.
+            return Some(
+                if super::structural_terms::owned_observation_type(self.program, &projected)
+                    .is_some()
+                {
+                    self.completed_nominal_subject(&projected)
+                } else {
+                    projected
+                },
             );
         }
         let projected = super::observed_projections::project_field(value, field_name)?;

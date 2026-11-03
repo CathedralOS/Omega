@@ -1,0 +1,3 @@
+cannot prove ensures contract
+wrong_subject
+result.answer == incoming
