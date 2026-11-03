@@ -1,11 +1,11 @@
-//! A window of a window stays in the same collection dimension. Recursive
-//! normal-exit equations retain may-origins, not the number of times a loop
-//! narrowed a descriptor. Keeping that history makes their source lattice
-//! infinite. Compose adjacent windows at this summary boundary only;
-//! preserve every root, field, element, reference crossing and recast issuer.
-//! Opaque selectors grant neither exact coordinates nor descriptor equality.
+//! Call summaries keep window coordinates without exporting callee expressions.
+//! Unresolved builtin ranges become opaque windows; local operand evaluation
+//! and bounds remain with the checked body. Adjacent windows compose in their
+//! original collection dimension, preserving every field, element, reference
+//! crossing and recast issuer. Opaque coordinates supply no pointer equality.
 
-use super::{FramePlaceOrigin, FrameSourcePlace, SlotSource};
+use super::stored_calls::SlotSource;
+use super::{FramePlaceOrigin, FrameSourcePlace};
 use facts::PlaceSegment;
 use typed_trees::expression::ExpressionHandle;
 
@@ -17,7 +17,7 @@ pub(super) fn coarsen(program: &dyn crate::CheckingInput, source: &mut SlotSourc
     }
 }
 
-fn coarsen_origin(program: &dyn crate::CheckingInput, origin: &mut FramePlaceOrigin) {
+pub(super) fn coarsen_origin(program: &dyn crate::CheckingInput, origin: &mut FramePlaceOrigin) {
     if coarsen_place(program, &mut origin.source) {
         origin.precision = super::super::FramePathPrecision::CollectionCoarse;
     }
@@ -49,9 +49,17 @@ fn coarsen_path(path: &mut Vec<PlaceSegment>, is_range: impl Fn(ExpressionHandle
         PlaceSegment::Index { expression } => expression.is_valid() && is_range(expression),
         _ => false,
     };
+    let mut changed = false;
     let mut written = 0;
     for read in 0..path.len() {
-        let part = path[read];
+        let original = path[read];
+        let part = match original {
+            PlaceSegment::Index { expression } if expression.is_valid() && is_range(expression) => {
+                PlaceSegment::OpaqueRange
+            }
+            _ => original,
+        };
+        changed |= part != original;
         if written > 0 && is_window(path[written - 1]) && is_window(part) {
             // Compose fixed geometry when both windows prove it; otherwise
             // retain unknown bounds in that original dimension. This cannot cross an
@@ -81,7 +89,7 @@ fn coarsen_path(path: &mut Vec<PlaceSegment>, is_range: impl Fn(ExpressionHandle
             written += 1;
         }
     }
-    let changed = written != path.len();
+    changed |= written != path.len();
     path.truncate(written);
     changed
 }

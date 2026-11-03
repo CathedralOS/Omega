@@ -74,7 +74,12 @@ impl Execution<'_, '_, '_> {
         let sources = self
             .context
             .call_frames?
-            .reference_result_leaf_origins(state.symbol)?;
+            .reference_result_leaf_origins_for_arguments(
+                state.symbol,
+                self.program
+                    .expression_table
+                    .expression_handles(call.arguments),
+            )?;
         let reference =
             validation::project_type_reference_from_segments(self.program, returned, path)?;
         let expected = validation::reference_shell(self.program, reference)?;
@@ -96,26 +101,6 @@ impl Execution<'_, '_, '_> {
             // even after its loaded value resolves to an exact supplier. The
             // structural source below owns descriptor identity; the footprint
             // cannot veto it or stand in for its path/type/access checks.
-            if std::env::var_os("OMEGA_RETURNED_VIEW_TRACE").is_some() {
-                let kinds = source
-                    .source
-                    .segments
-                    .iter()
-                    .map(|segment| match segment {
-                        PlaceSegment::Index { expression } if expression.is_valid() => {
-                            format!(
-                                "{:?}",
-                                self.program.expression_table.expression(*expression)
-                            )
-                        }
-                        _ => format!("{segment:?}"),
-                    })
-                    .collect::<Vec<_>>();
-                eprintln!(
-                    "corpus_runner: RETURNED_VIEW_TRACE candidate state={:?} target={:?} source={:?} kinds={kinds:?}",
-                    self.state.symbol, call.target_symbol, source.source
-                );
-            }
             if !source.source.recasts.is_empty()
                 || source.source.representation.is_some()
                 || !source.source.segments.iter().all(|segment| {
@@ -144,12 +129,8 @@ impl Execution<'_, '_, '_> {
                 .argument_operands()
                 .handles()
                 .nth(position)?;
-            let values = self.call_backing_values(actual, &source.source, reference, source_snapshot).or_else(|| {
-                if std::env::var_os("OMEGA_RETURNED_VIEW_TRACE").is_some() {
-                    eprintln!("corpus_runner: RETURNED_VIEW_TRACE backing-values-refused actual={actual:?} source={:?}", source.source);
-                }
-                None
-            })?;
+            let values =
+                self.call_backing_values(actual, &source.source, reference, source_snapshot)?;
             for (operand, projection) in values {
                 let value = *self.context.control.operands.get(operand);
                 let supplied = validation::project_type_reference_from_segments(
