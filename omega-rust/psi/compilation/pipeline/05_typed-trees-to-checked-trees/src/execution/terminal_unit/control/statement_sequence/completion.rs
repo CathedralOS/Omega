@@ -38,6 +38,7 @@ pub(super) struct Completion<'a, 'program, 'shapes> {
     pub(super) prepared_calls:
         &'a mut crate::execution::terminal_unit::structural_value_calls::PreparedCalls,
     pub(super) calls: &'a [&'a checked_trees::FlowCallFact],
+    pub(super) statement_end: std::ops::Bound<usize>,
     pub(super) binders: &'a [(SymbolHandle, String)],
     pub(super) scalar_control: Option<checked_trees::CheckedUnitScalarControlPlan>,
     pub(super) operations: Vec<OperationPlan>,
@@ -70,6 +71,7 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
         owner_candidates,
         prepared_calls,
         calls,
+        statement_end,
         binders,
         scalar_control,
         mut operations,
@@ -418,10 +420,21 @@ pub(super) fn complete(completion: Completion<'_, '_, '_>) -> Option<StatementSe
             program.statement_table.statements(state.statement_nodes),
         );
         let completion_index = statements.len().checked_sub(1)?;
-        // The retained computation owns a bare result and its normalized
-        // terminal invocation alike. Named state transfers keep their edge.
-        if let Some(expression) =
-            super::super::completion_expression(program, machine, state, completion_index)
+        // A call excluded from this sequence belongs to a graph edge. Its
+        // retained root must not execute here before that edge transfers.
+        // Pure final values retain their separate completion after the prefix.
+        let order = program
+            .statement_table
+            .admitted_execution_order(state.statement_nodes);
+        let end_position = order.prefix_end(statement_end)?;
+        let owns_completion =
+            super::super::terminal_invocation(program, machine, state, completion_index).is_none()
+                || order
+                    .position(completion_index)
+                    .is_some_and(|position| position < end_position);
+        if owns_completion
+            && let Some(expression) =
+                super::super::completion_expression(program, machine, state, completion_index)
         {
             let statement_index = u32::try_from(completion_index).ok()?;
             let role = CheckedScalarExpressionRole::Return;

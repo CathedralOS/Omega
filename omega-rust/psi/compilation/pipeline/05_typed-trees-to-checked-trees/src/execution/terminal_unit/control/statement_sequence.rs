@@ -772,6 +772,7 @@ pub(in super::super) fn build(
                 prepared_calls,
                 binders: &binders,
                 calls,
+                statement_end,
                 scalar_control,
                 operations,
                 place_loans,
