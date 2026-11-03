@@ -243,11 +243,11 @@ pub(super) fn collect(
     let frozen = frozen_reference_leaf(program, &facts.flow.control, source, projection);
     let resolved = if matches!(&frozen, FrozenReferenceSelection::Unavailable) {
         false
-    } else if collect_completed_formations(
+    } else if collect_formed_projection(
         program,
         facts,
         state,
-        source,
+        capture,
         projection,
         output_access,
         output,
@@ -267,6 +267,20 @@ pub(super) fn collect(
                             && collect_supplier!(alternative.value, projection, retained_by_store)
                     })
             })
+    } else if let Some(complete) = collect_completed_formations(
+        program,
+        facts,
+        state,
+        call,
+        source,
+        projection,
+        output_access,
+        retained_by_store,
+        active,
+        output,
+        parents,
+    ) {
+        complete
     } else if let FrozenReferenceSelection::Endpoint {
         owner,
         leaf,
@@ -386,7 +400,6 @@ pub(super) fn collect(
                             program,
                             facts,
                             state,
-                            source,
                             capture,
                             projection,
                             output_access,
@@ -427,22 +440,7 @@ pub(super) fn collect(
         ) {
             InvocationAccessCoverage::Complete => true,
             InvocationAccessCoverage::Unavailable => false,
-            InvocationAccessCoverage::Absent => {
-                // A prior stored formation has no current invocation access. Its
-                // exact occurrence, rather than the current slot path or backing
-                // geometry, identifies the permission carried by this capture.
-                for (loan, row) in facts.borrow.state_loans(borrow_state).filter(|(_, row)| {
-                    !matches!(
-                        row.lineage,
-                        checked_trees::BorrowLoanLineage::LifetimeDependency
-                    ) && capture.expression.is_valid()
-                        && row.formation_expression == capture.expression
-                        && row.statement_index == capture.statement_index
-                }) {
-                    push_stored_loan!(loan, row);
-                }
-                output.len() > before
-            }
+            InvocationAccessCoverage::Absent => false,
         }
     };
     active.pop();
@@ -455,15 +453,20 @@ pub(super) fn collect(
 /// Resolve the installed descriptor generation before joining a loan. A later
 /// read has a different expression from its initializer; the completed-storage
 /// relation carries that exact earlier formation without rereading its slot.
+#[allow(clippy::too_many_arguments)]
 fn collect_completed_formations(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
+    call: Handle<FlowCallFact>,
     source: Handle<FlowOperandFact>,
     projection: &[facts::PlaceSegment],
     access: &checked_trees::BorrowAccessKind,
+    retained_by_store: bool,
+    active: &mut Vec<(Handle<FlowOperandFact>, Vec<facts::PlaceSegment>)>,
     output: &mut Vec<PermissionSupplier>,
-) -> bool {
+    parents: &mut Arena<Handle<BorrowLoanFact>>,
+) -> Option<bool> {
     let selected = validation::completed_storage::predecessors_in_control(
         program,
         &facts.flow.control,
@@ -471,29 +474,51 @@ fn collect_completed_formations(
         projection,
         validation::completed_storage::StoredObservation::Binding,
         Some((state.state_symbol, state.statements)),
-    );
-    let Some(selected) = selected.filter(|selected| !selected.is_empty()) else {
-        return false;
-    };
+    )?;
+    if selected.is_empty() {
+        return Some(false);
+    }
+    // A descriptor transport must end at reference values on every path.
+    // A new borrow's owned operand has a different type and is not a prior
+    // descriptor: only that borrow's own checked formation can authorize it.
+    let descriptors = selected
+        .iter()
+        .map(|(capture, projection)| {
+            facts.flow.control.operands.is_valid(*capture)
+                && validation::owned_projection_type_reference(
+                    program,
+                    facts.flow.control.operands.get(*capture).type_reference,
+                    projection,
+                )
+                .is_some_and(|selected| validation::reference_shell(program, selected).is_some())
+        })
+        .collect::<Vec<_>>();
+    if descriptors.iter().all(|descriptor| !descriptor) {
+        return None;
+    }
+    if descriptors.iter().any(|descriptor| !descriptor) {
+        return Some(false);
+    }
     let before = output.len();
     for (selected, projection) in selected {
-        if !facts.flow.control.operands.is_valid(selected)
-            || !collect_formed_projection(
-                program,
-                facts,
-                state,
-                selected,
-                facts.flow.control.operands.get(selected),
-                &projection,
-                access,
-                output,
-            )
-        {
+        if !collect(
+            program,
+            facts,
+            state,
+            call,
+            selected,
+            &projection,
+            access,
+            retained_by_store,
+            active,
+            output,
+            parents,
+        ) {
             output.truncate(before);
-            return false;
+            return Some(false);
         }
     }
-    true
+    Some(true)
 }
 
 /// Exact checked access occurrences are permission evidence for a whole
@@ -568,16 +593,14 @@ fn collect_invocation_accesses(
     InvocationAccessCoverage::Complete
 }
 
-/// Retain the existing loan of one completed result leaf. Public backing
-/// regions are deliberately absent from this lookup: they cannot identify a
-/// supplier or create permission. Destination storage prefixes do not identify
-/// the formation leaf either, so the checker records that relative path once.
+/// Stop at the checked borrow that created this exact reference. Copies and
+/// selections create no permission and must follow every saved predecessor.
+/// Public backing regions and enclosing storage cannot authorize this event.
 #[allow(clippy::too_many_arguments)]
 fn collect_formed_projection(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
     state: &FlowStateFact,
-    source: Handle<FlowOperandFact>,
     capture: &FlowOperandFact,
     projection: &[facts::PlaceSegment],
     output_access: &checked_trees::BorrowAccessKind,
@@ -624,15 +647,6 @@ fn collect_formed_projection(
     else {
         return false;
     };
-    let Some(sources) = validation::completed_storage::descriptor_formation_sources(
-        program,
-        &facts.flow.control,
-        source,
-        projection,
-        state.statements,
-    ) else {
-        return false;
-    };
     let before = output.len();
     for (loan, row) in facts.borrow.state_loans(borrow_state) {
         let Some(formed) = row.formation_owner_path else {
@@ -640,17 +654,15 @@ fn collect_formed_projection(
         };
         // The formation cut can retain lifetime debts alongside descriptor loans.
         // A keepalive row never supplies a physical address or reborrow permission.
-        if matches!(
+        if !matches!(
             row.lineage,
-            checked_trees::BorrowLoanLineage::LifetimeDependency
-        ) || row.kind.direct_reborrow_effect(output_access).is_none()
-            || !sources.iter().any(|source| {
-                let capture = facts.flow.control.operands.get(source.capture);
-                row.formation_expression == capture.expression
-                    && row.statement_index == capture.statement_index
-                    && owner_place_segments(facts.borrow.owner_segments.span_or_empty(formed))
-                        == source.projection
-            })
+            checked_trees::BorrowLoanLineage::DirectRoot
+                | checked_trees::BorrowLoanLineage::Reborrow { .. }
+        ) || row.formation == checked_trees::BorrowLoanFormation::ReturnedDescriptor
+            || row.kind.direct_reborrow_effect(output_access).is_none()
+            || row.formation_expression != capture.expression
+            || row.statement_index != capture.statement_index
+            || owner_place_segments(facts.borrow.owner_segments.span_or_empty(formed)) != projection
         {
             continue;
         }
