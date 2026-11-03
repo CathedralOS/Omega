@@ -187,20 +187,28 @@ impl Captures<'_> {
         let operand = self.completed_operand_source(actual)?;
         let mut relative = relative.clone();
         let selected = operand;
-        if crate::reference_shell(self.program, reference).is_none() {
-            let carrier = declared_carrier_references(self.program, reference)?;
-            let mut boundary = None;
-            for leaf in carrier {
-                let segments =
-                    origin_place_segments(self.program, reference, leaf.path.iter().cloned())?;
-                if relative.segments.starts_with(&segments) {
-                    if boundary.is_some() {
-                        return None;
-                    }
-                    boundary = Some((leaf, segments));
-                }
+        let outer_reference = crate::reference_shell(self.program, reference).is_some();
+        // A write-only input exposes its pointer, not the descriptors inside
+        // its pointee. Keeping that outer type leaves pointer forwarding intact.
+        let carrier =
+            super::super::input_carrier_type(self.program, reference).unwrap_or(reference);
+        let mut boundary = None;
+        for leaf in declared_carrier_references(self.program, carrier)? {
+            let segments = origin_place_segments(self.program, carrier, leaf.path.iter().cloned())?;
+            // Forwarding the outer reference preserves that captured pointer.
+            // A reference stored inside its record is a different pointer: read
+            // that slot at this call's storage cut, including preceding writes.
+            if outer_reference && segments.is_empty() {
+                continue;
             }
-            let (leaf, segments) = boundary?;
+            if relative.segments.starts_with(&segments) {
+                if boundary.is_some() {
+                    return None;
+                }
+                boundary = Some((leaf, segments));
+            }
+        }
+        if let Some((leaf, segments)) = boundary {
             let path = leaf
                 .path
                 .iter()
@@ -225,7 +233,7 @@ impl Captures<'_> {
                 .strip_prefix(segments.as_slice())?
                 .to_vec();
             let expected =
-                crate::project_type_reference_from_segments(self.program, reference, &segments)?;
+                crate::project_type_reference_from_segments(self.program, carrier, &segments)?;
             let actual_path = loan_place_segments(self.program, actual.type_reference, &path)?;
             return self.completed_descriptor_sources(
                 state,
@@ -235,6 +243,9 @@ impl Captures<'_> {
                 &relative,
                 &mut Vec::new(),
             );
+        }
+        if !outer_reference {
+            return None;
         }
         let referents = self
             .facts
