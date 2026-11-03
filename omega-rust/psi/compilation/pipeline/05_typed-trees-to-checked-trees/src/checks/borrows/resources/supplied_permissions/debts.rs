@@ -14,14 +14,14 @@ use diagnostics::Diagnostic;
 pub(in crate::checks::borrows::resources) fn install_transfers(
     facts: &mut CheckFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    let mut pending = facts
-        .borrow
+    let borrow = &facts.borrow;
+    let mut pending = borrow
         .states
         .iter()
         .flat_map(|(_, state)| {
-            facts.borrow.state_loans(state).filter_map(|(loan, row)| {
+            borrow.state_loans(state).filter_map(move |(loan, row)| {
                 (row.lineage == BorrowLoanLineage::LifetimeDependency
-                    && resource(&facts.borrow, loan).is_none())
+                    && resource(borrow, loan).is_none())
                 .then_some((state.machine_symbol, state.state_symbol, loan))
             })
         })

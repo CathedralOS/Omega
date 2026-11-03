@@ -537,7 +537,7 @@ pub struct CheckedOutputLifetimeDependencyResource {
     pub inputs: HandleSpan<CheckedOutputBorrowInput>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]
 pub enum CheckedOutputLifetimeDependencySource {
     Completion {
         output: Handle<CheckedSuppliedOutputBorrowResource>,
