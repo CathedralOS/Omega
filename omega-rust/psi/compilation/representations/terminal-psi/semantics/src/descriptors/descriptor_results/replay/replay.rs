@@ -1741,6 +1741,10 @@ fn merge_state(existing: &mut State, incoming: &State) -> bool {
 }
 
 impl State {
+    /// An unknown value at a strict ancestor hides where the query's leaf
+    /// lives. An unknown value at the queried leaf itself does not: a move
+    /// out of that slot leaves it vacant, and a later store must still find
+    /// it. Reads of such a leaf remain unknown through the slot read.
     pub(super) fn contents_path_invalidated(&self, query: &DescriptorContentsQuery) -> bool {
         if query
             .exact_location()
@@ -1752,7 +1756,7 @@ impl State {
             value.is_none()
                 && prefix.root == query.root
                 && !prefix.path.is_empty()
-                && prefix.path.len() <= query.steps.len()
+                && prefix.path.len() < query.steps.len()
                 && prefix.path.iter().zip(&query.steps).all(|(segment, step)| {
                     matches!(step, DescriptorContentsStep::Address(actual) if actual == segment)
                         || matches!(
