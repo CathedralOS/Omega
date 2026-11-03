@@ -95,7 +95,9 @@ impl NativeExecutionScope {
                 roots.insert(result.structural_type);
             }
         }
-        calling_conventions::terminal_layout::required_scalar_extents(roots, &declarations)
+        calling_conventions::terminal_layout::StructuralLayouts::new(declarations.into_values())
+            .map_err(|error| format!("native storage declarations: {error:?}"))?
+            .required_scalar_extents(roots)
             .map_err(|error| format!("native storage extent demand: {error:?}"))
     }
 }

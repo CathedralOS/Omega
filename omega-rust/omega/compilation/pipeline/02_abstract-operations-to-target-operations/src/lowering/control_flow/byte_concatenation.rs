@@ -34,7 +34,7 @@ pub(super) fn lower(
         || !result.projected_qualifications.is_empty()
         || !result.qualification_establishments.is_empty()
         || !types
-            .get(&result.structural_type)
+            .get(result.structural_type)
             .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
     {
         return Err(LoweringError::unsupported_control_flow(function.machine));
@@ -52,7 +52,7 @@ pub(super) fn lower(
                 let values = super::observations::scalar_values(live, &prepared.scalar_parameters)?;
                 if source.access != StructuralAccess::SharedBorrow
                     || !indices.is_empty()
-                    || !types.get(&selected).is_some_and(|declaration| {
+                    || !types.get(selected).is_some_and(|declaration| {
                         matches!(
                             declaration.shape,
                             terminal_psi::StructuralTypeShape::ByteSequence(_)

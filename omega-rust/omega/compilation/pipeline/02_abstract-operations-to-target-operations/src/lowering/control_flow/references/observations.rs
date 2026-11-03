@@ -55,7 +55,7 @@ pub(super) fn observe(
 ) -> Option<ReferenceStorage> {
     let root = source_contract(function, live, place)?;
     let carrier_type = leaf_type(types, root, path)?;
-    let StructuralTypeShape::Reference { referent, .. } = types.get(&carrier_type)?.shape else {
+    let StructuralTypeShape::Reference { referent, .. } = types.get(carrier_type)?.shape else {
         return None;
     };
     // One static slot is one location. A runtime index over a fixed array
@@ -119,7 +119,7 @@ pub(super) fn observe(
                         };
                         let StructuralTypeShape::Reference {
                             access: required, ..
-                        } = types.get(&carrier_type)?.shape
+                        } = types.get(carrier_type)?.shape
                         else {
                             return None;
                         };

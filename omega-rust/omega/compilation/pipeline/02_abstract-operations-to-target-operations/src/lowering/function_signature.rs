@@ -9,7 +9,7 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractFunctionResult};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{IeeeFloatFormat, MachineId, PlaceId, ScalarType, ValueId};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use target::NativeTarget;
 use target_operations::{ScalarAbiValue, TargetStructuralParameter};
 
@@ -82,8 +82,6 @@ pub(super) fn prepare_function_signature(
             })),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut shape_cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
     let signature = StructuralCallSignature::derive(
         &scalar_parameter_shapes,
         function
@@ -103,8 +101,6 @@ pub(super) fn prepare_function_signature(
                 .transpose()?,
         },
         structural_types,
-        &mut shape_cache,
-        &mut active,
     )?;
     let parameter_shapes = signature.structural_shapes().to_vec();
     let call_plan = signature.plan(target)?;
