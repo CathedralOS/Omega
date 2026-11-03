@@ -42,10 +42,11 @@ Pins are `tests/omega/{pass,fail}/facts/checked_asm_fence_contracts_through_*`.
   model, records each completed fence in order, and retains progress across
   fuel pauses. Missing supply and mismatched targets must reject before effects.
   This model supplies neither shared/device memory nor synchronization proofs.
-- Native realization: each selected kind has an independent byte decoder and
-  a catalog-ordering footprint. The final span must retain the exact form,
-  unchanged stack, empty clobbers and external-effect barrier. Tests must reject
-  missing, doubled, truncated, substituted and wrong-target fence bytes.
+- Native realization: each emitted sequence passes the compiler's independent
+  checks of instruction bytes, stack use and changed registers. This row
+  observes actual execution on both Linux architectures. Wider catalog controls
+  for missing, doubled, truncated, substituted or wrong-target bytes remain
+  part of the parent acceptance; they are not all replayed by this milestone.
 
 The older producer `3020fc62f3be` recorded Linux x86-64 execution and additional
 Terminal target/fence checks. Those results are historical. They do not qualify
@@ -96,33 +97,26 @@ The pins request the existing compiled-application cohort, which retains one
 shared artifact and each target's checked entry. All missing/wrong-model,
 exact-event, fuel-pause and unchanged-artifact checks remain in force.
 
-The qualified observations use two source checkpoints. The complete row at
-`8721004523b87c02c24a41bae489b1d4db424f8e` passes source checking, both engines
-and all four-target entry/fence checks on
-[Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41696336361) and
-[Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41696342140).
-Those full jobs still report failure: one compatible ISA control lacked an
-ordinary execution header and was unscored in each public sample leg. The
-reports retain ten public engine agreements, nineteen source refusals and one
-source-checked publication refusal per host; the unscored case is not an
-execution result.
+Fresh complete observations use source
+`d4c693b8b0f429a49b3f2d77a331bad656d8cda4`, including main's updated calling and
+wire formats. Both [Linux x86-64](https://github.com/CathedralOS/Omega/actions/runs/41705562039)
+and [Linux ARM64](https://github.com/CathedralOS/Omega/actions/runs/41705566829)
+pass the full selected scope: twelve source-valid programs, nineteen intended
+source refusals, eleven actual native/Terminal exit-zero agreements and one
+incompatible-ISA publication refusal. All 31 ordinary projects meet their
+runtime or rejection oracle. The two source-valid ISA controls have ordinary
+execution headers on compatible profiles and independent source-check plus
+publication-refusal evidence on incompatible profiles.
 
-Checkpoint `501f6a3e942297e3712add3925e6113e4f59eb46` adds only the missing
-execution headers to the two controls and their pins. Their bodies, Build rows
-and target-specific refusal/exit files are unchanged. Focused
-[x86-64](https://github.com/CathedralOS/Omega/actions/runs/41700473396) and
-[ARM64](https://github.com/CathedralOS/Omega/actions/runs/41700784597) replays each
-check both programs, execute the compatible one with native/Terminal exit zero,
-and independently source-check the incompatible one before its intended
-publication refusal. The unchanged row observations keep their original source
-identities.
+All ten standard positives retain the exact fence streams on all four Terminal
+target installations, missing/wrong-model refusals, fuel-pause progress and
+unchanged artifact identity. Every current record uses this measured source;
+final README/record-only commits are not claimed executed. Earlier checkpoints,
+including their failed full jobs and later header corrections, remain tied to
+their original source identities in the retained qualification and
+[PR #1725](https://github.com/CathedralOS/Omega/pull/1725) source archives.
 
-Together, each host has twelve accepted source-valid programs, nineteen intended
-source rejections, eleven actual native/Terminal agreements and one target
-publication refusal. All 31 ordinary projects meet their runtime or rejection
-oracle. The ten standard positives retain the exact fence streams on all four
-Terminal target installations, missing/wrong-model refusals, fuel-pause progress
-and unchanged artifact identity. These are Linux native observations and
-four-target Terminal observations; Windows and macOS native execution, and the
-broader parent acceptance, remain open. Source archives and the exact evidence
-identities are preserved with [PR #1725](https://github.com/CathedralOS/Omega/pull/1725).
+These are Linux native observations and four-target Terminal observations.
+Windows and macOS native execution, malformed-byte catalog controls beyond this
+scope, and the broader parent acceptance remain open. The supplied private
+sequential model establishes no shared/device-memory or hardware-timing claim.
