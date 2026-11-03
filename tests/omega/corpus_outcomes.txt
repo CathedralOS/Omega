@@ -3457,6 +3457,8 @@ fail/reflection/schema_borrowed_facade_const rejected 2810ms expected @63af67b94
 	constant initializer: build-time result of machine `@const-argument-0` is not ConstEvaluable: result.storage contains Text; borrowed or dynamically sized text cannot cross the semantic const boundary
 fail/reflection/schema_runtime_operand rejected 1193ms expected @6b1e6a51ea70
 	semantic schema query accepts no runtime or evidence operands
+fail/slices/rebound_slice_local_index_uses_new_extent rejected 4938ms expected @a55978ecf3a8
+	cannot prove index `1` is within unknown slice length of `s` in observe_view::entry
 fail/termination/bounded_distance_stalled_slice_length_cursor rejected 4907ms expected @94241455d5b4
 	terminating machine walk: cannot prove strict rank decrease on a recurrent arrival: the transition from `walk` back to itself is not shown to strictly decrease the rank, and every transition inside a loop must (decision 23) -- update the ranked value on that transition, or merge the states so the loop has no forwarding step
 	machine call cycle: `walk` -- a member lacks a source-complete ranking witness; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
@@ -5808,7 +5810,7 @@ pass/drops/owned_qualified_contextual_cleanup_exit rejected 77409ms check-target
 	cannot prove automatic cleanup requires at selected edge from retire$specialized$453b300fedac3c8c$0$11792 state entry after statement 0: value does not establish drop_capacity clause `capacity.active == 0 && capacity.released`
 pass/drops/projected_case_subject_root_cleanup_exit checked 14476ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/qualified_scalar_control_consumed_owner_exit checked 17060ms check-target:macos_arm64 @ee4dbb4b2d56
-pass/drops/reference_rebinding_preserves_pointee_exit checked 10959ms check-target:macos_arm64 @ebc975d3ee17
+pass/drops/reference_rebinding_preserves_pointee_exit checked 8814ms check-target:macos_arm64 @a55978ecf3a8
 pass/drops/result_cleanup_implicit_boolean_exit checked 15079ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/result_cleanup_integer_exit checked 13996ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/drops/result_cleanup_named_boolean_exit checked 14043ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -14339,6 +14341,7 @@ pass/recast/write_footprint/state checked 3336ms check-target:macos_arm64 @ccdb9
 pass/references/mutable_loan_member_read_initializes_local_exit checked 13571ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/rebound_local_reference_follows_new_referent_exit checked 10745ms check-target:macos_arm64 @292918dbcd2d
 pass/references/rebound_parameter_reference_follows_new_referent_exit checked 8295ms check-target:macos_arm64 @ebc975d3ee17
+pass/references/rebound_parameter_returns_new_caller_view_exit checked 8630ms check-target:macos_arm64 @a55978ecf3a8
 pass/references/runtime_shared_ref_param_guard_exit checked 19666ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/selected_record_loan_disjoint_fields_exit checked 12565ms check-target:macos_arm64 @ccdb99ca2214
 pass/reflection/schema_query_scalar_const checked 32268ms check-target:macos_arm64 @63af67b94f91
@@ -14434,6 +14437,7 @@ pass/slices/projected_array_call_exit checked 12929ms check-target:macos_arm64 @
 pass/slices/projected_loan_arg checked 3158ms @ccdb99ca2214
 pass/slices/projected_slice_length checked 4617ms @ccdb99ca2214
 pass/slices/qualified_subslice_composition_exit checked 13134ms check-target:macos_arm64 @ccdb99ca2214
+pass/slices/rebound_slice_local_reads_new_view_exit checked 8831ms check-target:macos_arm64 @a55978ecf3a8
 pass/slices/recursive_subslice_element_accumulator_exit checked 12420ms check-target:macos_arm64 @ccdb99ca2214
 pass/slices/requires_field_count_alias_index_compile checked 2532ms @ccdb99ca2214
 pass/slices/returned_collection_window_copy checked 3426ms check-target:macos_arm64 @ccdb99ca2214
@@ -14850,8 +14854,7 @@ pass/termination/progress_selector_owned_arrival_affine_exit rejected 2824ms che
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
 pass/termination/progress_selector_owned_arrival_borrowed_reborrow_exit rejected 2975ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
-pass/termination/progress_selector_owned_arrival_frozen_ingress_exit rejected 3262ms check-target:macos_arm64 @ccdb99ca2214
-	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
+pass/termination/progress_selector_owned_arrival_frozen_ingress_exit checked 8657ms check-target:macos_arm64 @a55978ecf3a8
 pass/termination/progress_selector_owned_arrival_mixed_ingress_exit rejected 2542ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
 pass/termination/progress_selector_owned_arrival_owned_input_replacement_exit rejected 2392ms check-target:macos_arm64 @ccdb99ca2214
@@ -14861,8 +14864,7 @@ pass/termination/progress_selector_owned_arrival_owned_parameter_exit rejected 2
 pass/termination/progress_selector_owned_arrival_reference_boundary_exit rejected 3124ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
 pass/termination/progress_selector_owned_arrival_reference_reborrow_exit checked 9694ms check-target:macos_arm64 @49d08ea371fd
-pass/termination/progress_selector_owned_arrival_repeated_rebind_exit rejected 5978ms check-target:macos_arm64 @ebc975d3ee17
-	cannot prove requires contract for call consume from arrive: selected in Token::Fair in state `entry`
+pass/termination/progress_selector_owned_arrival_repeated_rebind_exit checked 8434ms check-target:macos_arm64 @a55978ecf3a8
 pass/termination/progress_selector_owned_arrival_replacement_helper_exit rejected 2258ms check-target:macos_arm64 @ccdb99ca2214
 	cannot prove published termination for machine `select`: its checked body reaches an operation without a usable termination guarantee
 pass/termination/progress_selector_owned_snapshot_exit checked 3533ms check-target:macos_arm64 @ccdb99ca2214
@@ -15391,9 +15393,9 @@ fail/arithmetic/collection_result_endpoint_effect rejected 4995ms expected @ccdb
 	cannot prove subslice range ordering `__hoist_1..__hoist_2` is within slice length 3
 fail/arithmetic/collection_result_false_loop_bound rejected 2181ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from count at statement 0: result < values.len
-fail/arithmetic/collection_result_rebound_descriptor rejected 13450ms expected @5a72d03b2a48
-	cannot prove index `count` is within length 2 in rejected::entry
-fail/arithmetic/collection_result_rebound_descriptor_in_later_state rejected 13258ms expected regressed-from:checked @5a72d03b2a48
+fail/arithmetic/collection_result_rebound_descriptor rejected 5985ms expected @a55978ecf3a8
+	cannot prove ensures contract for exit from count at statement 2: result <= values.len
+fail/arithmetic/collection_result_rebound_descriptor_in_later_state rejected 4918ms expected regressed-from:checked @a55978ecf3a8
 	cannot prove ensures contract for exit from count at statement 0: result <= values.len
 fail/arithmetic/collection_result_window_metadata rejected 2381ms expected @ccdb99ca2214
 	cannot prove ensures contract for exit from rejected at statement 3: result <= 1
