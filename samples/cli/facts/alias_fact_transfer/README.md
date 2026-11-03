@@ -23,7 +23,7 @@ and carries an authored `expected_native_exit.txt` containing `0` beside its ent
 | const_name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | const bound `main.player == BASE_PLAYER` carries `Alive` into `inspect(copy)` |
 | other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | state transition parameter `arrived(copy)` receives the alias and its `Alive` fact |
 | other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | helper machine `produce(main.player)` returns alias carrying `Alive` to `consume` |
-| target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | every target-scoped body uses the transferred `Alive` fact across all hosted targets |
+| target_body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | each target's Build-selected implementation uses the transferred `Alive` fact |
 
 ## Execution
 
@@ -78,3 +78,17 @@ Full 8-layer specification and lowering evidence:
 ## What remains open
 
 Mutable borrow alias fact invalidation under exclusive write projections (`&mut`), and cross-package domain contract re-export proofs remain governed under the wider `CONSERVATION-CONTRACT` roadmap.
+
+## Build-owned target-body migration
+
+The `target_body` place carries no source target prefix. Its four prefixed
+`inspect_target` bodies became the requirement `SelectedInspectTarget::inspect_target`, implemented by
+ordinary `X86...` and `Arm...` implementations and selected by explicit
+target-keyed `Build::select_provider` rows (`BUILD-OWNED-TARGET-SELECTION`).
+The operation, inputs, contracts and exit oracle are unchanged. The entry
+wrapper and each implementation check a target tag through a second selected
+requirement (17 for x86-64, 29 for AArch64), so a wrong Build row traps.
+Observed with the optimized producer at `11bdd2fe41f` on macOS x86-64: the
+migrated positive exits 0 under `omega run --both` (native and Terminal Psi
+agree), and the twin rejects because `X86InspectTarget::inspect_target` cannot prove `player in Player::Alive` for its call to `inspect`. No compiler change was needed. The other hosted
+targets were not executed here.
