@@ -658,7 +658,8 @@ fn collect_formed_projection(
             row.lineage,
             checked_trees::BorrowLoanLineage::DirectRoot
                 | checked_trees::BorrowLoanLineage::Reborrow { .. }
-        ) || row.formation == checked_trees::BorrowLoanFormation::ReturnedDescriptor
+        ) || (row.formation == checked_trees::BorrowLoanFormation::ReturnedDescriptor
+            && !is_independent_return(program, facts, state, loan, row, capture))
             || row.kind.direct_reborrow_effect(output_access).is_none()
             || row.formation_expression != capture.expression
             || row.statement_index != capture.statement_index
@@ -681,4 +682,45 @@ fn collect_formed_projection(
         });
     }
     output.len() > before
+}
+
+/// A returned reference with no borrowed input owns its invocation's permission,
+/// rather than forwarding an earlier caller loan. Require that exact checked
+/// incoming identity and performed call; an empty lifetime roster proves neither.
+fn is_independent_return(
+    program: &dyn validation::CheckingInput,
+    facts: &CheckFacts,
+    state: &FlowStateFact,
+    loan: Handle<BorrowLoanFact>,
+    row: &BorrowLoanFact,
+    capture: &FlowOperandFact,
+) -> bool {
+    let Some((_, borrow_state)) = facts
+        .borrow
+        .first_state_borrow(state.machine_symbol, state.state_symbol)
+    else {
+        return false;
+    };
+    if row.lineage != checked_trees::BorrowLoanLineage::DirectRoot
+        || !facts.borrow.state_owns_loan(borrow_state, loan)
+        || !facts
+            .borrow
+            .state_owns_incoming_reference(borrow_state, row.incoming_reference)
+    {
+        return false;
+    }
+    let identity = facts.borrow.incoming_references.get(row.incoming_reference);
+    let checked_trees::IncomingReferenceOrigin::Invocation { expression, target } = identity.origin
+    else {
+        return false;
+    };
+    expression == capture.expression
+        && row.root == facts::PlaceRoot::Expression(expression)
+        && state.calls.handles().any(|invocation| {
+            let call = facts.flow.control.calls.get(invocation);
+            call.authored_expression == expression
+                && call.statement_index == capture.statement_index
+                && validation::call_target_entry_symbol(program, call.target_symbol)
+                    == validation::call_target_entry_symbol(program, target)
+        })
 }

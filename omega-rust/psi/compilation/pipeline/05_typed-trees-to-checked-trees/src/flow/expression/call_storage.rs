@@ -44,9 +44,9 @@ impl Execution<'_, '_, '_> {
         let mut places = if let Some(shell) = reference_shell(self.program, reference) {
             reference = shell.referee;
             let places = self.captured_reference_places(actual.referents);
-            if places.is_empty() {
-                return None;
-            }
+            // An authenticated returned reference can intentionally withhold
+            // absolute addresses. Keep its typed source; empty geometry is
+            // unknown here and never grants borrowing permission.
             places
         } else {
             vec![super::super::CapturedReferencePlace::unformed(place_at(
@@ -96,10 +96,8 @@ impl Execution<'_, '_, '_> {
                     &path[..=ordinal],
                     at,
                     |place| self.is_incoming_descriptor_place(place),
-                )?;
-                if places.is_empty() {
-                    return None;
-                }
+                )
+                .unwrap_or_default();
             }
         }
         Some(CallPlaceProjection {
@@ -147,12 +145,36 @@ impl Execution<'_, '_, '_> {
                 return None;
             }
             let referents = self.append_captured_references(&projected.addresses);
-            let retention = self.retention_from_referents(referents);
+            let sources = projected.sources.captures()?;
+            if sources.is_empty() {
+                return None;
+            }
+            let mut roots = Vec::new();
+            for source in &sources {
+                let value = self.context.control.operands.get(source.capture);
+                let profiles = validation::completed_storage::captured_retention_profiles_at_path(
+                    self.program,
+                    &self.context.control,
+                    value,
+                    &source.projection,
+                )?;
+                if profiles.is_empty() {
+                    return None;
+                }
+                for profile in profiles {
+                    for root in self.context.control.retained_roots(profile)? {
+                        crate::shared::collections::push_unique(&mut roots, *root);
+                    }
+                }
+            }
+            // Even a proved empty local lifetime frontier needs a profile to
+            // retain its checked source relation. Image-backed references have
+            // no activation-relative absolute address to publish.
+            let retention = self.append_retention(&roots);
             // The last crossed descriptor lends this view. Earlier inline
             // values retain their argument epoch; a descriptor reached through
             // a pointer was selected at the invocation-entry storage cut.
             // An unavailable alternative withholds the complete association.
-            let sources = projected.sources.captures().unwrap_or_default();
             let reborrow_sources = sources
                 .into_iter()
                 .map(|source| checked_trees::FlowOperandReborrowSource {

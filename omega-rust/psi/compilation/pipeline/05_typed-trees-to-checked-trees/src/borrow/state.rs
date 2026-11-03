@@ -385,11 +385,22 @@ pub(super) fn append_carrier_loans(
                 kind: pending.kind.clone(),
             },
         );
+        // An independent result owns its invocation's permission. A returned
+        // descriptor that forwards caller input still follows that input.
+        let independent_return = pending.lineage == checked_trees::BorrowLoanLineage::DirectRoot
+            && arenas
+                .incoming_references
+                .is_valid(pending.place.incoming_reference)
+            && matches!(arenas.incoming_references.get(pending.place.incoming_reference).origin,
+                ReferenceOrigin::Invocation { expression, .. }
+                    if expression == pending.formation_expression
+                        && pending.place.root == PlaceRoot::Expression(expression));
         if matches!(
             pending.lineage,
             checked_trees::BorrowLoanLineage::DirectRoot
                 | checked_trees::BorrowLoanLineage::Reborrow { .. }
-        ) && pending.formation != super::loans::BorrowFormation::ReturnedDescriptor
+        ) && (pending.formation != super::loans::BorrowFormation::ReturnedDescriptor
+            || independent_return)
         {
             permission_sources.push(super::tracker::RetainedBorrowSource {
                 loan: handle,
