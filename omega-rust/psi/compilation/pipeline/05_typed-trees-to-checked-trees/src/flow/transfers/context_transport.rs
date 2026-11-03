@@ -101,13 +101,7 @@ pub(super) fn transport(
                         // A cast's target describes the whole value, so it
                         // erases only the source's own membership; a field
                         // keeps its declared domains.
-                        let whole_value = source_place.is_some_and(|source| {
-                            let source = semantic.places.get(source);
-                            let fact = semantic.places.get(fact_place);
-                            source.root == fact.root
-                                && semantic.place_segments.span_or_empty(source.segments)
-                                    == semantic.place_segments.span_or_empty(fact.segments)
-                        });
+                        let whole_value = matches_source(fact_place);
                         if whole_value
                             && super::owned_qualifications::explicitly_erased(
                                 program,
