@@ -51,6 +51,7 @@ mod dynamic_outputs;
 mod invocation_contract;
 mod opaque_outputs;
 pub(super) use dynamic_outputs::relative_effects as dynamic_effects;
+pub(super) use dynamic_outputs::{caller_may_receive_selector, declared_formal_effects};
 pub use invocation_contract::ReferenceSlotContract;
 pub(super) use invocation_contract::invocation_contract;
 pub(super) use opaque_outputs::owner_segments;

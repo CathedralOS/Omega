@@ -7,6 +7,7 @@
 //! No predicate or private postcondition is imported through this relation.
 
 use super::*;
+use crate::borrow_contracts::{ProviderOutputDestination, resolve_provider_outputs};
 use typed_trees::dynamic_traits::DynamicSlotSignature;
 
 pub(in crate::machine_calls::calls::write_frames) fn relative_effects(
@@ -152,4 +153,52 @@ fn data_may_carry_selector(
         });
     visiting.pop();
     carries
+}
+
+/// The requirement's declared slot outputs in the slot's own formal namespace.
+/// An unknown selection may install any reference its declared lifetimes
+/// permit, so each output keeps only its lifetime debts: no supplier
+/// completes its pointer coverage, and the written slot's prior descriptor
+/// does not survive.
+pub(in crate::machine_calls::calls::write_frames) fn declared_formal_effects(
+    program: &dyn crate::CheckingInput,
+    slot: &DynamicSlotSignature,
+) -> Option<Vec<StoredReferenceEffect>> {
+    let parameters = slot.parameters.as_slice();
+    let relation = resolve_provider_outputs(program, parameters).ok()?;
+    if relation.readiness != crate::borrow_contracts::BorrowRelationReadiness::Complete {
+        return None;
+    }
+    let mut effects = Vec::new();
+    for output in relation.outputs {
+        let ProviderOutputDestination::Parameter(position) = output.destination;
+        let parameter = parameters.get(position)?;
+        let segments = super::opaque_outputs::owner_segments(&output.owner_path)?;
+        let mut sources = Vec::new();
+        for dependency in output.dependencies {
+            let source_parameter = parameters.get(dependency.parameter_index)?;
+            if source_parameter.type_reference != dependency.source_type {
+                return None;
+            }
+            let source = FrameSourcePlace {
+                segments: super::opaque_outputs::owner_segments(&dependency.source_path)?,
+                ..FrameSourcePlace::parameter_root(source_parameter)
+            };
+            sources.push(SlotSource::from_place(
+                program,
+                source,
+                FramePathPrecision::Exact,
+                Some(dependency.access),
+            ));
+        }
+        effects.push(SlotEffect {
+            root: parameter.symbol,
+            segments,
+            sources: Some(sources),
+            incoming: false,
+            may_select: false,
+            kind: stored_origins::StoredOriginKind::Reference(output.access),
+        });
+    }
+    super::public_effects(effects)
 }

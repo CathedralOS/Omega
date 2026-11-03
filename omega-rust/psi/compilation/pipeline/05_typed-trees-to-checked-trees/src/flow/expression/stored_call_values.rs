@@ -44,11 +44,17 @@ impl Execution<'_, '_, '_> {
                 inputs = selected;
                 validation::ReferenceSlotContract::CheckedBody { machine, state }
             } else {
-                let Some(effects) = self
-                    .context
-                    .call_frames
-                    .and_then(|frames| frames.dynamic_stored_reference_effects(slot.symbol))
-                else {
+                // A selector this state received may be any fitting
+                // implementation; the closed roster covers only selectors the
+                // program forms. Validation's loan formation uses the same rule.
+                let effects = self.context.call_frames.and_then(|frames| {
+                    match frames.received_selector_stored_reference_effects(self.state, slot.symbol)
+                    {
+                        Some(declared) => declared,
+                        None => frames.dynamic_stored_reference_effects(slot.symbol),
+                    }
+                });
+                let Some(effects) = effects else {
                     return Vec::new();
                 };
                 validation::ReferenceSlotContract::Opaque {

@@ -310,6 +310,26 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
+    /// The slot relation of a dynamic call whose selector the calling state may
+    /// have received: the requirement's declared outputs, with lifetime debts
+    /// only (dynamic_dispatch.md: an unknown selection retains the requirement
+    /// ceiling). `None` when the caller cannot receive such a selector, so the
+    /// closed roster below covers every selector it can hold.
+    pub fn received_selector_stored_reference_effects(
+        &self,
+        caller: &State,
+        target: SymbolHandle,
+    ) -> Option<Option<Vec<super::StoredReferenceEffect>>> {
+        let slot = self.program.dynamic_slot_by_symbol(target)?;
+        if !super::stored_calls::caller_may_receive_selector(self.program, caller, slot) {
+            return None;
+        }
+        Some(super::stored_calls::declared_formal_effects(
+            self.program,
+            slot,
+        ))
+    }
+
     /// Closed dispatch joins the checked slot-output relation of every possible
     /// realization. These are custody suppliers, never private predicate facts.
     pub fn dynamic_stored_reference_effects(
