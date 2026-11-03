@@ -765,6 +765,8 @@ fn walk_state_write_prefix_body(
                         program,
                         inference,
                         &mut stored,
+                        &mut local_alias_origins,
+                        &mut divergent_alias_origins,
                         stored_call_effects.as_ref(),
                     );
                     continue;
@@ -874,6 +876,8 @@ fn walk_state_write_prefix_body(
                         program,
                         inference,
                         &mut stored,
+                        &mut local_alias_origins,
+                        &mut divergent_alias_origins,
                         stored_call_effects.as_ref(),
                     );
                     local_alias_origins.retain(|(name, _)| name != &relative);
@@ -1056,6 +1060,8 @@ fn walk_state_write_prefix_body(
                         program,
                         inference,
                         &mut stored,
+                        &mut local_alias_origins,
+                        &mut divergent_alias_origins,
                         stored_call_effects.as_ref(),
                     );
                     continue;
@@ -1191,6 +1197,8 @@ fn walk_state_write_prefix_body(
             program,
             inference,
             &mut stored,
+            &mut local_alias_origins,
+            &mut divergent_alias_origins,
             stored_call_effects.as_ref(),
         );
         if let Some(replacement) = assignment_replacement {
@@ -1213,10 +1221,12 @@ fn install_statement_call_effects(
     program: &dyn crate::CheckingInput,
     inference: &mut FrameInference,
     stored: &mut Vec<StoredLocalOrigins>,
+    aliases: &mut Vec<(String, FramePlaceOrigin)>,
+    divergent: &mut Vec<(String, Vec<FramePlaceOrigin>)>,
     effects: Option<&super::stored_calls::SlotRelationTransfer>,
 ) {
     if let Some(effects) = effects {
-        super::stored_calls::apply_transfer(program, stored, effects);
+        super::stored_calls::apply_transfer(program, stored, aliases, divergent, effects);
         for record in stored {
             inference.record_local(record);
         }

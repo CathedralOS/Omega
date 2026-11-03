@@ -555,7 +555,13 @@ impl<'program> CallFrameResolver<'program> {
         if !transfer.is_complete() {
             return None;
         }
-        super::stored_calls::apply(self.program, &mut prefix.stored, &transfer.effects);
+        super::stored_calls::apply_transfer(
+            self.program,
+            &mut prefix.stored,
+            &mut prefix.aliases,
+            &mut prefix.divergent,
+            &transfer,
+        );
         let mut origins = super::caller_aliases::prefix_reference_origins(
             self.program,
             Some((state, index)),
@@ -1086,8 +1092,7 @@ impl<'program> CallFrameResolver<'program> {
         root: SymbolHandle,
         path: &[PlaceSegment],
     ) -> bool {
-        let Some((_, _, mut prefix, transfers)) =
-            self.statement_reference_transfer(machine, statement)
+        let Some((_, _, prefix, transfers)) = self.statement_reference_transfer(machine, statement)
         else {
             return false;
         };
@@ -1095,9 +1100,13 @@ impl<'program> CallFrameResolver<'program> {
         if !transfer.is_complete() {
             return false;
         }
-        let before = prefix.stored.clone();
-        super::stored_calls::apply(self.program, &mut prefix.stored, &transfer.effects);
-        super::assignment_addresses::binding_preserved(&before, &prefix.stored, root, path)
+        super::stored_calls::binding_preserved_after_transfer(
+            self.program,
+            prefix,
+            &transfer,
+            root,
+            path,
+        )
     }
 
     /// Declared fixed homes retain their typed addresses independently of

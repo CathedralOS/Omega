@@ -66,8 +66,11 @@ pub(in crate::machine_calls::calls::write_frames) fn public_effects(
 pub(in crate::machine_calls::calls::write_frames) fn apply_transfer(
     program: &dyn crate::CheckingInput,
     stored: &mut Vec<StoredLocalOrigins>,
+    aliases: &mut Vec<(String, FramePlaceOrigin)>,
+    divergent: &mut Vec<(String, Vec<FramePlaceOrigin>)>,
     transfer: &SlotRelationTransfer,
 ) {
+    materialize_changed_aliases(program, stored, aliases, divergent, &transfer.effects);
     // Retire prior case/move epochs before publishing current pointer slots.
     // Only a complete normal route can justify a closed case-frontier update.
     if transfer.is_complete() {
@@ -78,7 +81,139 @@ pub(in crate::machine_calls::calls::write_frames) fn apply_transfer(
     apply(program, stored, &transfer.effects);
 }
 
-pub(in crate::machine_calls::calls::write_frames) fn apply(
+/// Compare binding generations using the same pre-call descriptor inventory
+/// as installation. Materialization itself does not change the saved pointer.
+pub(in crate::machine_calls::calls::write_frames) fn binding_preserved_after_transfer(
+    program: &dyn crate::CheckingInput,
+    mut context: CollectedStatementPrefix,
+    transfer: &SlotRelationTransfer,
+    root: SymbolHandle,
+    path: &[PlaceSegment],
+) -> bool {
+    materialize_changed_aliases(
+        program,
+        &mut context.stored,
+        &mut context.aliases,
+        &mut context.divergent,
+        &transfer.effects,
+    );
+    let before = context.stored.clone();
+    apply_transfer(
+        program,
+        &mut context.stored,
+        &mut context.aliases,
+        &mut context.divergent,
+        transfer,
+    );
+    super::super::assignment_addresses::binding_preserved(&before, &context.stored, root, path)
+}
+
+fn materialize_changed_aliases(
+    program: &dyn crate::CheckingInput,
+    stored: &mut Vec<StoredLocalOrigins>,
+    aliases: &mut Vec<(String, FramePlaceOrigin)>,
+    divergent: &mut Vec<(String, Vec<FramePlaceOrigin>)>,
+    effects: &[SlotEffect],
+) {
+    // A call can replace a bare descriptor which previously used the direct
+    // alias roster. Move its old alternatives into the typed slot inventory
+    // before composing conditional, preserving or unavailable writes. Later
+    // reads must use that resulting inventory, rather than its old alias.
+    for effect in effects {
+        if !effect.root.is_valid()
+            || !effect.segments.is_empty()
+            || !matches!(effect.kind, stored_origins::StoredOriginKind::Reference(_))
+        {
+            continue;
+        }
+        let name = program.symbols.name(effect.root);
+        let mut previous = aliases
+            .iter()
+            .filter(|(alias, _)| alias == name)
+            .map(|(_, origin)| origin.clone())
+            .chain(
+                divergent
+                    .iter()
+                    .filter(|(alias, _)| alias == name)
+                    .flat_map(|(_, origins)| origins.iter().cloned()),
+            )
+            .collect::<Vec<_>>();
+        let has_alias = aliases.iter().any(|(alias, _)| alias == name)
+            || divergent.iter().any(|(alias, _)| alias == name);
+        if !has_alias {
+            continue;
+        }
+        let represented = stored.iter().any(|record| {
+            record.local_symbol == effect.root
+                && record.references.iter().any(|leaf| {
+                    leaf.local_segments.is_empty()
+                        && matches!(leaf.kind, stored_origins::StoredOriginKind::Reference(_))
+                })
+        });
+        if !represented {
+            let reference = program
+                .state_by_symbol(program.symbols.get(effect.root).parent)
+                .and_then(|state| crate::state_root_type(program, state, effect.root));
+            let typed = reference.and_then(|reference| {
+                stored_origins::declared_origins_for_query(
+                    program,
+                    effect.root,
+                    name,
+                    reference,
+                    true,
+                )
+            });
+            let mut prior = typed.unwrap_or_else(|| {
+                StoredLocalOrigins::new(stored_origins::StoredOriginRecord {
+                    local_symbol: effect.root,
+                    references: Vec::new(),
+                    cases: Vec::new(),
+                    moves: Vec::new(),
+                    symbolic: false,
+                })
+            });
+            let template = prior
+                .references
+                .iter()
+                .find(|leaf| leaf.local_segments.is_empty() && leaf.kind == effect.kind)
+                .cloned();
+            prior.references.clear();
+            prior.symbolic = false;
+            if let Some(template) = template.filter(|_| !previous.is_empty()) {
+                for origin in previous.drain(..) {
+                    let mut leaf = template.clone();
+                    leaf.origin = Some(origin);
+                    prior.references.push(leaf);
+                }
+            } else {
+                // The performed effect supplies a typed slot, but no complete
+                // prior inventory was available. Preserve that unknown route;
+                // only a definite later store may replace it.
+                prior.references.push(StoredWriteOrigin {
+                    kind: effect.kind,
+                    local_symbol: effect.root,
+                    local_path: name.to_owned(),
+                    local_segments: Vec::new(),
+                    may_select: false,
+                    origin: None,
+                    lifetime_dependencies: None,
+                });
+            }
+            if let Some(record) = stored
+                .iter_mut()
+                .find(|row| row.local_symbol == effect.root)
+            {
+                record.references.extend(prior.references.iter().cloned());
+            } else {
+                stored.push(prior);
+            }
+        }
+        aliases.retain(|(alias, _)| alias != name);
+        divergent.retain(|(alias, _)| alias != name);
+    }
+}
+
+fn apply(
     program: &dyn crate::CheckingInput,
     stored: &mut Vec<StoredLocalOrigins>,
     effects: &[SlotEffect],
