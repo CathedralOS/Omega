@@ -105,8 +105,8 @@ pub fn selected_call_arguments<'program>(
     let dispatch = site
         .static_requirement_dispatch()
         .ok_or("argument correspondence requires a retained selected application")?;
-    let (_, applied) = requirement_contract_signature(program, caller, site)
-        .ok_or("selected call has no admitted public application")?;
+    let (_, applied) =
+        super::generic_requirement::resolve_requirement_contract(program, caller, site)?;
     let (_, declared) = program
         .trait_machine_signature(dispatch.requirement)
         .filter(|(owner, _)| owner.symbol == dispatch.declaring_trait)

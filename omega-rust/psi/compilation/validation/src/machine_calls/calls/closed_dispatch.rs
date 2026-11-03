@@ -14,9 +14,19 @@ pub fn closed_requirement_dispatch_is_valid(
     target: SymbolHandle,
     dispatch: &StaticRequirementDispatch,
 ) -> bool {
-    let reject = |_reason: &str| false;
+    validate_closed_requirement_dispatch(program, owner, target, dispatch).is_ok()
+}
+
+/// Keep the failed selection check available to call diagnostics. A boolean
+/// query alone loses the reason a saved public application cannot be used.
+pub(super) fn validate_closed_requirement_dispatch(
+    program: &dyn crate::CheckingInput,
+    owner: SymbolHandle,
+    target: SymbolHandle,
+    dispatch: &StaticRequirementDispatch,
+) -> Result<(), &'static str> {
     if dispatch.application_commitment.is_zero() || dispatch.application_report_fingerprint == 0 {
-        return reject("missing-application-commitment");
+        return Err("selected map has no application commitment");
     }
     let applications = program.selected_conformance_applications(
         owner,
@@ -27,11 +37,11 @@ pub fn closed_requirement_dispatch_is_valid(
         dispatch.application_commitment,
     );
     let [application] = applications.as_slice() else {
-        return reject("application-not-unique");
+        return Err("selected call has no unique supplying map application");
     };
     let mut executable = match program.machine_holding_state(target) {
         Some(machine) => machine.symbol,
-        None => return reject("missing-executable-target-owner"),
+        None => return Err("selected executable entry has no owning machine"),
     };
     let supplying_application = if dispatch.selection_application.is_valid() {
         dispatch.selection_application
@@ -42,7 +52,7 @@ pub fn closed_requirement_dispatch_is_valid(
             .filter(|row| row.instance == owner)
             .collect::<Vec<_>>();
         let [supplying] = supplying.as_slice() else {
-            return reject("supplying-specialization-not-unique");
+            return Err("selected call has no unique supplying specialization");
         };
         supplying.binding_application
     };
@@ -52,21 +62,18 @@ pub fn closed_requirement_dispatch_is_valid(
     // The public call may be checked before an open map can acquire an
     // executable clone. Its retained telescope still owes the same exact
     // supplying-application join as a materialized capture.
-    if application.callable_application.is_valid()
-        && conformance_binding_is_exact(
+    if application.callable_application.is_valid() {
+        conformance_binding_is_exact(
             program,
             supplying_application,
             application.callable_application,
             application,
-        )
-        .is_err()
-    {
-        return reject("supplying-map-telescope");
+        )?;
     }
     let mut visited = Vec::new();
     loop {
         if visited.contains(&executable) {
-            return reject("executable-template-cycle");
+            return Err("selected executable has cyclic template provenance");
         }
         visited.push(executable);
         for (_, capture) in program
@@ -74,47 +81,45 @@ pub fn closed_requirement_dispatch_is_valid(
             .iter()
             .filter(|(_, capture)| capture.instance == executable)
         {
-            if capture_binding_is_exact(program, capture).is_err()
-                || expression_table(program)
-                    .static_machine_application(capture.supplying_application)
-                    .lexical_owner
-                    != supplying_owner
+            capture_binding_is_exact(program, capture)?;
+            if expression_table(program)
+                .static_machine_application(capture.supplying_application)
+                .lexical_owner
+                != supplying_owner
             {
-                return reject("capture-binding-or-supplying-owner");
+                return Err("captured executable belongs to a different supplying owner");
             }
         }
         match program.executable_application_template(executable) {
             Ok(Some(template)) => executable = template,
             Ok(None) => break,
-            Err(_) => {
-                return reject("executable-template-error");
-            }
+            Err(reason) => return Err(reason),
         }
     }
     if program.realization_entry_template(target, application)
         != Some((dispatch.realization_machine, dispatch.realization_state))
     {
-        return reject("realization-entry-template");
+        return Err("selected executable does not match the exact authored implementation entry");
     }
     if dispatch.contract_signature.is_valid() {
         let Some(closed) = program.closed_requirement_application(dispatch.contract_signature)
         else {
-            return reject("missing-closed-public-contract");
+            return Err("selected public contract has no closed application");
         };
         let Some(scope) = application.trait_scope.scope(program) else {
-            return reject("missing-public-trait-scope");
+            return Err("selected map has no public trait scope");
         };
         if closed.declaring_trait != dispatch.declaring_trait
             || closed.template != dispatch.requirement
             || !program.requirement_application_matches_scope(dispatch.contract_signature, &scope)
         {
-            return reject("closed-public-contract-scope");
+            return Err("selected public contract belongs to a different trait application");
         }
     }
     let requirement = dispatch.requirement;
     let Some(application_trait) = program.trait_definition_by_symbol(application.trait_definition)
     else {
-        return reject("missing-application-trait");
+        return Err("selected map has no declaring trait");
     };
     let mut pending = vec![application_trait];
     let mut visited = Vec::new();
@@ -135,10 +140,10 @@ pub fn closed_requirement_dispatch_is_valid(
         }
     }
     if !declares {
-        return reject("requirement-not-declared-by-selected-trait");
+        return Err("selected trait does not declare the called requirement");
     }
     let Some(declaration) = program.trait_definition_by_symbol(dispatch.declaring_trait) else {
-        return reject("missing-requirement-owner");
+        return Err("called requirement has no declaring trait");
     };
     if program
         .trait_machine_signatures(declaration)
@@ -147,10 +152,10 @@ pub fn closed_requirement_dispatch_is_valid(
         .count()
         != 1
     {
-        return reject("requirement-roster-not-unique");
+        return Err("called requirement does not occur exactly once in its declaring trait");
     }
     let Some(selected) = program.conformance_by_symbol(application.declaration) else {
-        return reject("missing-selected-conformance");
+        return Err("selected map declaration is missing");
     };
     // A requirement owns one selection, not merely one matching tuple among
     // conflicting alternatives. Check cardinality before the private identity.
@@ -172,12 +177,17 @@ pub fn closed_requirement_dispatch_is_valid(
     let ([selected_row], [application_row]) =
         (selected_rows.as_slice(), application_rows.as_slice())
     else {
-        return reject("selected-row-not-unique");
+        return Err("selected requirement does not have exactly one implementation row");
     };
-    selected_row.realization_machine == dispatch.realization_machine
+    if selected_row.realization_machine == dispatch.realization_machine
         && selected_row.realization_state == dispatch.realization_state
         && application_row.realization_machine == dispatch.realization_machine
         && application_row.realization_state == dispatch.realization_state
+    {
+        Ok(())
+    } else {
+        Err("selected rows name a different implementation")
+    }
 }
 
 /// Replay a capture substitution from the exact original selected evidence
