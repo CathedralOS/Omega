@@ -60,7 +60,17 @@ with the exact-arithmetic obligation
 (``exact arithmetic in machine `run` state `entry` local `diff1` may overflow
 `u64`: the operands are not provably in range (decision 17 -- exact arithmetic
 is a proof obligation)``, pinned as ``may overflow `u64` `` in each twin's
-`expected.txt`). Corrupting the observed
+`expected.txt`). The local, field, parameter, call-result and const-name
+places receive the mode as a formal parameter, as `other_machine` always did:
+if `main` passed its constant `Mode::Mid { val: 40 }` straight into the helper,
+the checker would substitute that exact actual and read the result 40, so the
+twin's widened `High` gate would never be consulted. The match-join and
+nested-machine places still pass the constant, so their twins still compile:
+with a formal input the match-join positive does not lower ("does not lower a
+statement of it yet (outer calls: ordered statement call)") and the nested
+machine `step` does not receive the joined bound (`60u64 - val` may overflow).
+Those are open compiler gaps, not fixture choices.
+Corrupting the observed
 transition instead of the bound (`diff1 == 20 && diff2 == 20` to
 `diff1 == 21 && diff2 == 20`) routes to `bad()`, which executes `crash Trap;`;
 both engines abort non-zero (`native signal 5` with
@@ -71,7 +81,9 @@ both engines abort non-zero (`native signal 5` with
 Each place has an `invalid/` reject twin that widens only the `High` variant's
 payload gate (`val <= 60` to `val <= 61`); everything else is identical to its
 positive (verified with `git diff`). Proof checking fails closed during
-compile-time verification with the fragment named in the twin's `expected.txt`:
+compile-time verification with the fragment named in the twin's `expected.txt`,
+except for the match-join and nested-machine twins, which still compile
+because their places pass a constant (see above):
 
 | Place | Twin | Pinned Diagnostic Fragment |
 | --- | --- | --- |
@@ -81,7 +93,7 @@ compile-time verification with the fragment named in the twin's `expected.txt`:
 | call result | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | ``may overflow `u64` `` |
 | match join | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | ``may overflow `u64` ``; open: compiles, because the place still builds a literal |
 | const name | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | ``may overflow `u64` `` |
-| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``may overflow `u64` `` |
+| a nested machine | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | ``may overflow `u64` `` (still compiles: open gap) |
 | another machine | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | ``may overflow `u64` `` |
 | another target body | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) | ``may overflow `u64` `` |
 
@@ -91,6 +103,7 @@ The row is pinned by
 `tests/omega/{pass,fail}/facts/match_join_multi_variant_bound_through_*`
 fixtures; every positive records native exit 0 and Terminal agreement, and
 every twin except match join records its rejection with the expected fragment. The nine pass
+with the expected fragment. The nine pass
 fixtures are byte-identical copies of their place programs, and the nine fail
 fixtures are byte-identical copies of their twins, so sample and fixture cannot
 drift apart.
@@ -124,7 +137,8 @@ in `corpus_outcomes.txt`, +18 rows each in `corpus_native_macos_arm64.txt` and
 Direct runs with the same pair's CLI (opt_level 1, stdin closed, macOS arm64):
 the root and all nine places exit 0 through `omega run --both` (`native exit
 0`, `interp exit: 0`), and the nine twins exit 1 with the pinned ``may overflow
-`u64` `` fragment. Over both rows `tools/sample_gate.py --cli` reads 37/37
+`u64` `` fragment. (That historical run predates the formal-input migration;
+on current main the match-join and nested-machine twins compile.) Over both rows `tools/sample_gate.py --cli` reads 37/37
 checked with 18 intended rejection controls matched and
 `tools/sample_native_gate.py --facts --cli` reads 19/19 samples at their
 documented oracle on macos_arm64 with 18/18 intended-invalid controls. Earlier
@@ -160,7 +174,7 @@ Full 8-layer specification and lowering evidence:
 - **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend lowering selects target ISA instructions (`x86_64` and `arm64`) for discriminant comparison, branch jumps, and 64-bit subtractions (`sub`). Disjoint activation stack frames and register homes are allocated with entry prologues and restoration epilogues honoring the `StatePlan` frame ceiling.
 - **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Direct PE/ELF/Mach-O images are emitted with valid machine-state footprint evidence, executing natively and agreeing with Terminal Psi (`omega run --both` reports `native exit 0` and `interp exit: 0`) across all hosted targets.
 
-Remaining open under `CANONICALIZE-SCALAR-RANGE-CONTRACTS` / `MATCH-SELECTIVE-LOWERING`: non-exhaustive pattern coverage inference with unreachable default traps, multi-payload tuple-variant destructuring joins, and arbitrary disjoint interval-set unions. This row closes only the exhaustive three-variant case join whose arms share one interval gate.
+Remaining open: the match-join and nested-machine places do not yet carry the bound with a formal input. The match-join positive does not lower ("does not lower a statement of it yet (outer calls: ordered statement call)" in `run::entry`, statement 0), and the nested machine `step` loses the joined bound (`60u64 - val` may overflow), so those two twins still compile. Also open under `CANONICALIZE-SCALAR-RANGE-CONTRACTS` / `MATCH-SELECTIVE-LOWERING`: non-exhaustive pattern coverage inference with unreachable default traps, multi-payload tuple-variant destructuring joins, and arbitrary disjoint interval-set unions. This row closes only the exhaustive three-variant case join whose arms share one interval gate.
 
 ## Build-owned target-body migration
 

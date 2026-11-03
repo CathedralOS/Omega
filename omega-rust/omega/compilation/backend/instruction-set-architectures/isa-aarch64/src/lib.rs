@@ -174,3 +174,5 @@ pub use register_model::{aarch64_float_scalar_call_keys, aarch64_float_scalar_re
 
 pub use register_model::{AARCH64_ACCESSOR_READ, AARCH64_ACCESSOR_WRITE};
 pub use register_model::{AARCH64_SYSTEM_REGISTER_READ, AARCH64_SYSTEM_REGISTER_WRITE};
+
+pub use selected_form_encoding::callback_group_bytes as encode_private_callback_materialization;

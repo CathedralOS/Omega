@@ -21,7 +21,6 @@ machine evaluate(mode: Mode) -> u64 {
     }
 }
 
-// `run` receives `mode` as a parameter, so the payload is known only through
 // `Mode`'s requirement; the operation below must use the joined bound.
 machine run(mode: Mode) crashes Trap {
     let joined: u64 = evaluate(mode);

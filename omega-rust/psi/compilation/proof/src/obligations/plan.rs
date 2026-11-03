@@ -685,6 +685,13 @@ pub struct BoundedStateReturnObligation {
     pub base_type: TypeReferenceHandle,
     pub constraints: HandleSpan<ProofConstraint>,
     pub binary_operands: Option<BinaryValueOperands>,
+    /// The guard of the transition arm that returns `value` (`Always` for a
+    /// tail expression or an arm whose value contains a call), with the same
+    /// meaning as [`BoundedTransitionArgumentObligation::guard`].
+    pub guard: TransitionGuardNode,
+    /// Guards of prior in-state exits that control reaching this return; see
+    /// [`BoundedTransitionArgumentObligation::refuted_exit_guards`].
+    pub refuted_exit_guards: Vec<ExpressionHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

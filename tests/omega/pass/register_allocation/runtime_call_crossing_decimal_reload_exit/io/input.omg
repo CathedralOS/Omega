@@ -8,38 +8,38 @@ invokes Console
 blocks
 crashes Trap
 {
-    transition { _ -> scan(0, false, false, false) }
+    transition { _ -> block scan(0, false, false, false) }
     machine scan(magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool) -> i64 in Wrapping {
         let byte: ByteRead = block Console::read_byte();
         transition byte {
             ByteRead::Eof -> finish(magnitude, negative, digits)
-            ByteRead::Byte { value } -> classify(magnitude, negative, started, digits, value)
+            ByteRead::Byte { value } -> block classify(magnitude, negative, started, digits, value)
         }
     }
     machine classify(magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool, character: i32) -> i64 in Wrapping {
         transition character == 32 || character == 10 || character == 13 || character == 9 {
-            true -> space(magnitude, negative, started, digits)
-            _ -> symbol(magnitude, negative, started, digits, character)
+            true -> block space(magnitude, negative, started, digits)
+            _ -> block symbol(magnitude, negative, started, digits, character)
         }
     }
     machine space(magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool) -> i64 in Wrapping {
-        transition started { true -> finish(magnitude, negative, digits) _ -> scan(magnitude, negative, false, false) }
+        transition started { true -> finish(magnitude, negative, digits) _ -> block scan(magnitude, negative, false, false) }
     }
     machine symbol(magnitude: i64 in Wrapping, negative: bool, started: bool, digits: bool, character: i32) -> i64 in Wrapping {
         transition character == 45 && !started {
-            true -> scan(magnitude, true, true, false)
-            _ -> digit(magnitude, negative, character)
+            true -> block scan(magnitude, true, true, false)
+            _ -> block digit(magnitude, negative, character)
         }
     }
     machine digit(magnitude: i64 in Wrapping, negative: bool, character: i32) -> i64 in Wrapping {
         transition character >= 48 && character <= 57 {
-            true -> accumulate(magnitude, negative, character)
+            true -> block accumulate(magnitude, negative, character)
             _ -> (2001)
         }
     }
     machine accumulate(magnitude: i64 in Wrapping, negative: bool, character: i32) -> i64 in Wrapping {
         let next: i64 in Wrapping = magnitude * 10 + (widen_i32_to_i64(character) as i64 in Wrapping) - 48;
-        transition next <= 1000 { true -> scan(next, negative, true, true) _ -> (2001) }
+        transition next <= 1000 { true -> block scan(next, negative, true, true) _ -> (2001) }
     }
     machine finish(magnitude: i64 in Wrapping, negative: bool, digits: bool) -> i64 in Wrapping {
         transition digits { true -> sign(magnitude, negative) _ -> empty(negative) }

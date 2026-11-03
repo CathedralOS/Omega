@@ -17,10 +17,9 @@ machine produce_joined(mode: Mode) -> u64 {
     }
 }
 
-// `run` receives `mode` as a parameter, so the payload is known only through
+    let joined: u64 = produce_joined(mode);
 // `Mode`'s requirement; the operation below must use the joined bound.
 machine run(mode: Mode) crashes Trap {
-    let joined: u64 = produce_joined(mode);
     let diff1: u64 = 60u64 - joined;
     let diff2: u64 = joined - 20u64;
     transition diff1 == 20 && diff2 == 20 {

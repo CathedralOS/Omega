@@ -125,7 +125,7 @@ pub(in crate::borrow) fn prepare(
                 supplying_loans: Vec::new(),
                 lineage: BorrowLoanLineage::DirectRoot,
                 kind,
-                call_result: false,
+                formation: super::BorrowFormation::Ordinary,
             });
         },
     );

@@ -1,11 +1,13 @@
 //! Frozen provider publication decisions, independent of executable retention.
 //!
-//! Checking resolves original applications and normalizes their portable identity
-//! payloads once. Lowering selects retained interfaces and interns these payloads;
-//! it does not reconstruct a requirement/body or receiving-region association.
+//! Checking resolves original applications and records their callable identities
+//! once, as handles. Lowering selects retained interfaces, renders each handle and
+//! interns the text; it does not reconstruct a requirement/body or receiving-region
+//! association.
 
 use arena::{Arena, Handle, HandleSpan};
 use symbols::SymbolHandle;
+use typed_trees::type_identity::CallableIdentityId;
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProviderInstanceRequirement {
@@ -29,12 +31,14 @@ impl Default for CheckedProviderInstanceRequirement {
 
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProviderInstanceDeclaration {
-    pub template_identity: String,
+    pub template_identity: CallableIdentityId,
     pub package: Option<semantic_vocabulary::PackageKeyIdentity>,
     pub selecting_declaration: SymbolHandle,
-    pub source_candidate_identity: String,
-    pub requirement_identity: String,
-    pub candidate_identity: String,
+    /// Zero for a requirement-only obligation, which has no source candidate.
+    pub source_candidate_identity: CallableIdentityId,
+    pub requirement_identity: CallableIdentityId,
+    /// Zero for a requirement-only obligation, which has no closed candidate.
+    pub candidate_identity: CallableIdentityId,
     pub receiving: Handle<CheckedProviderReceivingApplication>,
 }
 

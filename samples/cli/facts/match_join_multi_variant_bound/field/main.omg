@@ -21,10 +21,9 @@ data JoinedCarrier {
     joined: u64;
 }
 
-// `run` receives `mode` as a parameter, so the payload is known only through
+    let carrier: JoinedCarrier = JoinedCarrier { joined: evaluate(mode) };
 // `Mode`'s requirement; the operation below must use the joined bound.
 machine run(mode: Mode) crashes Trap {
-    let carrier: JoinedCarrier = JoinedCarrier { joined: evaluate(mode) };
     let diff1: u64 = 60u64 - carrier.joined;
     let diff2: u64 = carrier.joined - 20u64;
     transition diff1 == 20 && diff2 == 20 {

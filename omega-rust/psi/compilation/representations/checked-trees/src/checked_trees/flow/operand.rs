@@ -81,6 +81,11 @@ impl FlowReferentFormation {
 /// An invalid retention handle means that dependency was unavailable.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct FlowOperandRetention {
+    /// A checked producer formed a new projected view from these completed
+    /// descriptors. Empty withholds formation evidence. Unlike `suppliers`,
+    /// these rows do not transport an existing pointer or grant permission;
+    /// the resource owner must authenticate every source and borrowing parent.
+    pub reborrow_sources: HandleSpan<FlowOperandReborrowSource>,
     /// Complete nonempty possible contents footprint captured by the producing
     /// operation. Unknown element selectors retain structural dimensions only.
     /// This permits interference checks, never address equality, membership,
@@ -202,6 +207,17 @@ pub struct FlowOperandRetainedSupplier {
     /// Present on a declared lifetime edge, independently of permission and
     /// descriptor suppliers, whose selected field contract stays with its owner.
     pub contract: Option<FlowOperandLifetimeContract>,
+}
+
+/// Keep the reference actually read when a helper returns a view of its data.
+/// The source path selects a descriptor in that captured value; only the new
+/// suffix projects into its referent. A completed invocation authenticates
+/// the return relation separately from the source's borrowing permission.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]
+pub struct FlowOperandReborrowSource {
+    pub operand: Handle<FlowOperandFact>,
+    pub source_path: HandleSpan<facts::PlaceSegment>,
+    pub projection: HandleSpan<facts::PlaceSegment>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, compiler_storage::Record)]

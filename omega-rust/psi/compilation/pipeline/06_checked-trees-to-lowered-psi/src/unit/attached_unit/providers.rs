@@ -72,7 +72,7 @@ pub(super) fn instance_requirements(
             .declaration
             .as_ref()
             .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.clone()))?;
-        let template = identities.intern(&declaration.template_identity);
+        let template = intern_callable(identities, checked, declaration.template_identity);
         let package = declaration.package;
         let selecting_declaration = if declaration.selecting_declaration.is_valid() {
             Some(
@@ -87,7 +87,8 @@ pub(super) fn instance_requirements(
         } else {
             None
         };
-        let source_candidate_identity = identities.intern(&declaration.source_candidate_identity);
+        let source_candidate_identity =
+            intern_callable(identities, checked, declaration.source_candidate_identity);
         let (receiving_application, receiving_region_arguments) =
             selection_coordinates::intern_prepared_receiving_application(
                 identities,
@@ -95,8 +96,16 @@ pub(super) fn instance_requirements(
                 declaration.receiving,
             )?;
         let required = terminal_psi::RequiredProviderInstance {
-            requirement_identity: identities.intern(&declaration.requirement_identity),
-            candidate_identity: identities.intern(&declaration.candidate_identity),
+            requirement_identity: intern_callable(
+                identities,
+                checked,
+                declaration.requirement_identity,
+            ),
+            candidate_identity: intern_callable(
+                identities,
+                checked,
+                declaration.candidate_identity,
+            ),
             receiving_application,
             receiving_region_arguments,
         };
@@ -548,10 +557,10 @@ pub(super) fn conformances(
                 receiving_region_arguments,
                 source_candidate_identity,
                 source_candidate_package_identity,
-                requirement_identity: identities.intern(
-                    &checked
-                        .typed
-                        .callable_identity_text(candidate.requirement_identity),
+                requirement_identity: intern_callable(
+                    identities,
+                    checked,
+                    candidate.requirement_identity,
                 ),
                 provider_identity,
                 provider_declaration: crate::machine_lowering::declarations::nominal(
@@ -561,10 +570,10 @@ pub(super) fn conformances(
                     candidate.provider,
                 )
                 .map_err(LoweringError::Unsupported)?,
-                candidate_identity: identities.intern(
-                    &checked
-                        .typed
-                        .callable_identity_text(candidate.candidate_identity),
+                candidate_identity: intern_callable(
+                    identities,
+                    checked,
+                    candidate.candidate_identity,
                 ),
                 candidate: terminal_candidate,
                 signature: ProviderSignature {
@@ -626,4 +635,14 @@ pub(super) fn conformances(
             ))
     });
     Ok(conformances)
+}
+
+/// Checking holds provider callable identities as handles; lowering renders
+/// each once here, at the Terminal boundary, and interns the text.
+fn intern_callable(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    identity: typed_trees::type_identity::CallableIdentityId,
+) -> terminal_psi::TerminalIdentityIndex {
+    identities.intern(&checked.typed.callable_identity_text(identity))
 }
