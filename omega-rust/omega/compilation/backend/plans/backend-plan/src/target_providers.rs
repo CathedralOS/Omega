@@ -736,42 +736,15 @@ fn receiving_application_matches(
     module: &terminal_psi::TerminalModule,
     receiving_application: terminal_psi::TerminalIdentityIndex,
 ) -> bool {
-    let requirement = plan.identity_text(row.requirement_identity);
-    let surface = &plan.schema.declaration;
-    let Some(method) = surface
-        .methods
-        .iter()
-        .find(|method| surface.identity_text(method.requirement_identity) == requirement)
-    else {
-        return false;
+    let receiving = if receiving_application == terminal_psi::TerminalIdentityIndex::default() {
+        None
+    } else {
+        let Some(receiving) = module.identities.text(receiving_application) else {
+            return false;
+        };
+        Some(receiving)
     };
-    let views = || {
-        surface.receiver_applications.iter().filter(|application| {
-            surface.identity_text(application.trait_name) == method.requirement_owner
-                && application.trait_package_identity == method.requirement_owner_package_identity
-                && application
-                    .requirement_identities
-                    .iter()
-                    .any(|identity| surface.identity_text(*identity) == requirement)
-        })
-    };
-    if !surface.receiver_applications.is_empty() && views().next().is_none() {
-        return false;
-    }
-    if receiving_application == terminal_psi::TerminalIdentityIndex::default() {
-        // Non-applied declarations have no closed receiver coordinate. They
-        // cannot supply a parameterized or region-applied receiver selection.
-        return views().all(|application| {
-            application.argument_identities.is_empty()
-                && application.lifetime_argument_identities.is_empty()
-        });
-    }
-    let Some(receiving) = module
-        .identities
-        .text(receiving_application)
-        .filter(|text| !text.is_empty())
-    else {
-        return false;
-    };
-    views().any(|application| surface.identity_text(application.application) == receiving)
+    plan.schema
+        .declaration
+        .matches_receiving_application(plan.identity_text(row.requirement_identity), receiving)
 }

@@ -14083,6 +14083,7 @@ pass/providers/scalar_membership_boundary_exit checked 4706ms check-target:macos
 pass/providers/scalar_membership_foreign checked 3013ms check-target:macos_arm64 @ccdb99ca2214
 pass/providers/selected_const_provider_call_identity_exit rejected 13878ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	terminal-artifact production failed: Lowering(Unsupported("pending constant expression has no retained complete evaluation entry"))
+pass/providers/selected_lifecycle_review_exit checked 12248ms check-target:macos_arm64 @73e41145e49b
 pass/providers/selected_parent_ignores_unused_descendant_exit checked 2268ms check-target:macos_arm64 @002791b61f14
 pass/providers/service_borrowed_parameter checked 1969ms @ccdb99ca2214
 pass/providers/service_fused_root checked 3420ms @ccdb99ca2214
