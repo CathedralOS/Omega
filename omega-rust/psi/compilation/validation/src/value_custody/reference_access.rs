@@ -84,7 +84,12 @@ pub(crate) fn receiving_reference_access_refusal(
                 )
             });
     }
-    let expected_access = declared_reference_access(program, required);
+    let (applied_required, _) = super::expression_types::substituted_required_reference(
+        program,
+        required,
+        required_substitutions,
+    );
+    let expected_access = declared_reference_access(program, applied_required);
     let completed_borrow = completed_reference_borrow_source(program, machine, state, value);
     let supplied_access = completed_borrow
         .as_ref()

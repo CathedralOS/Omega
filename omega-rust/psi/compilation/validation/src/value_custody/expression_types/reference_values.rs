@@ -1340,7 +1340,7 @@ fn place_machine_symbol(
 
 /// A call's formal-to-actual environment is simultaneous: the replacement
 /// already belongs to the caller, including when caller and callee coincide.
-pub(super) fn substituted_required_reference<'bindings>(
+pub(crate) fn substituted_required_reference<'bindings>(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &'bindings [(symbols::SymbolHandle, TypeReferenceHandle)],

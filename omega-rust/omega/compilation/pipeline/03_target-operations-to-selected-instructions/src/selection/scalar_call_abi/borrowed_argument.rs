@@ -9,7 +9,7 @@ use crate::selection::established_view_input::{
 use crate::selection::scalar_call_abi::scalar_value_type;
 use crate::structural_inputs::structural_reference_input::{
     bounded_byte_field_owner, fixed_byte_array_view, fixed_element_array_view,
-    internal_borrow_shape, owned_storage_shape, runtime_borrowed_projection,
+    internal_borrow_shape, owned_storage_shape, runtime_borrowed_projection, stored_value_shape,
 };
 
 /// Rejoin the original parameter or earlier literal before pointer transport.
@@ -88,7 +88,7 @@ pub(super) fn validate_borrowed_argument(
     let aggregate_home = crate::selection::aggregate_result_input::home(source, semantic.place);
     let aggregate_block_home =
         crate::selection::aggregate_result_input::block_home(source, semantic.place);
-    let aggregate_root = aggregate_home
+    let storage_root = aggregate_home
         .map(|(_, result)| result.structural_type)
         .or_else(|| aggregate_block_home.map(|(_, declaration)| declaration.structural_type))
         .or_else(|| {
@@ -104,12 +104,22 @@ pub(super) fn validate_borrowed_argument(
                 })
                 .map(|parameter| parameter.semantic.structural_type)
         });
-    // Every owned aggregate home lends its original storage. Storage geometry
-    // already distinguishes aggregates from scalar and borrowed descriptors;
-    // a bounded byte owner needs no second whole-place, readable-only route.
-    // Access and source custody stay independent of that physical distinction.
-    let aggregate = aggregate_root
-        .filter(|root| owned_storage_shape(*root, &signature.structural_types).is_some())
+    // A caller can lend the storage holding a saved pointer as well as a
+    // record's contents. Use that stored value's geometry without loading its
+    // pointer. This does not make its pointee writable or admit an owned move;
+    // byte and element views keep their separate backing-window interpretation.
+    let storage_loan = storage_root
+        .filter(|root| {
+            owned_storage_shape(*root, &signature.structural_types).is_some()
+                || terminal_psi::find_structural_type(&signature.structural_types, *root)
+                    .is_some_and(|declaration| {
+                        matches!(
+                            declaration.shape,
+                            terminal_psi::StructuralTypeShape::Reference { .. }
+                        )
+                    })
+                    && stored_value_shape(*root, &signature.structural_types).is_some()
+        })
         .and_then(|root| {
             let (selected, offset, elements) = runtime_borrowed_projection(
                 root,
@@ -313,7 +323,7 @@ pub(super) fn validate_borrowed_argument(
             }
             internal_borrow_shape(selected, &signature.structural_types)?
         }
-    } else if let Some(shape) = aggregate {
+    } else if let Some(shape) = storage_loan {
         shape
     } else if block_forward && aggregate_block_home.is_none() {
         destination_shape
@@ -372,7 +382,7 @@ pub(super) fn validate_borrowed_argument(
     let no_indirect_home = !exclusive
         && !block_forward
         && address_join.is_none()
-        && aggregate.is_none()
+        && storage_loan.is_none()
         && byte_view.is_none()
         && byte_field.is_none()
         && byte_owner.is_none()
@@ -421,7 +431,7 @@ pub(super) fn validate_borrowed_argument(
                 })
                 && completed_descriptor(source, semantic.place)
                     .is_some_and(|(actual, _)| actual == producer);
-            if (aggregate.is_none() && !home_view && !descriptor_home)
+            if (storage_loan.is_none() && !home_view && !descriptor_home)
                 || *psi_operation != producer
                 || super::input_site::producer_before_use(source, producer, site).is_none()
             {
@@ -459,7 +469,7 @@ pub(super) fn validate_borrowed_argument(
         }
         target_operations::TargetStructuralArgumentSource::BlockParameter { block, place }
             if aggregate_block_home.is_some()
-                && (aggregate.is_some() || byte_view.is_some() || element_view.is_some()) =>
+                && (storage_loan.is_some() || byte_view.is_some() || element_view.is_some()) =>
         {
             // The exact block home retains owned backing. Shared, mutable,
             // and write-only calls borrow that same storage; their access and

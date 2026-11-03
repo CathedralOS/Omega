@@ -90,7 +90,7 @@ pub(crate) use delivered_types::report_delivered_type_mismatch;
 pub(crate) use reference_values::{
     StorageWriteAccess, borrow_selects_reference_storage, owned_rvalue_exclusive_reference_access,
     place_forwarded_exclusive_reference_access, place_permits_reference_borrow,
-    place_storage_borrow_access, place_storage_write_access,
+    place_storage_borrow_access, place_storage_write_access, substituted_required_reference,
 };
 // The declared borrow a reference type spells is a place query; the expression
 // module's consumers read it through this re-export.

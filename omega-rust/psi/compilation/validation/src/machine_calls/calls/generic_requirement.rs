@@ -178,7 +178,13 @@ pub(super) fn validate_requirement_call_arguments(
                     requirement,
                 );
             }
-            argument_matches_call_carrier(program, machine.symbol, argument, required, &[])
+            argument_matches_call_carrier(
+                program,
+                machine.symbol,
+                argument,
+                required,
+                &requirement.application.substitutions,
+            )
         },
         diagnostics,
         formation_obligations,

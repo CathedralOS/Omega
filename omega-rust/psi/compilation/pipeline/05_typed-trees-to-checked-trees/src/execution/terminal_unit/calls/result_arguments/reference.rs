@@ -69,16 +69,28 @@ pub(crate) fn argument(
         return None;
     }
     phase("stored reference argument: projected referent");
-    let (selected, path) = if place.segments.is_empty() {
+    let lends_descriptor = place.segments.is_empty()
+        && stored_structural_type_identity(program, reference, &[], &[]) == target_identity;
+    if !lends_descriptor
+        && carrier_access != CheckedStructuralAccess::MutableBorrow
+        && carrier_access != access
+    {
+        return None;
+    }
+    let (selected, path) = if lends_descriptor {
+        (reference, Vec::new())
+    } else if place.segments.is_empty() {
         // A saved pointer has storage of its own. Select the complete typed
         // endpoint before loading it, so `&mut &Cell` lends the writable slot
         // while `&Cell` still loads its shared pointee. Source admission owns
         // slot mutability; the old pointer's access cannot replace it.
-        borrowed_argument_endpoint(program, reference, Vec::new(), parameter.type_reference)?
+        borrowed_argument_endpoint(
+            program,
+            referent,
+            vec![CheckedUnitStructuralPathSegment::Referent],
+            parameter.type_reference,
+        )?
     } else {
-        if carrier_access != CheckedStructuralAccess::MutableBorrow && carrier_access != access {
-            return None;
-        }
         phase("result reference argument: projected referent path");
         // This operand owns its selector evaluation. Stored-reference roots
         // use that occurrence's captured scalar slots just like other result

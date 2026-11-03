@@ -78,6 +78,13 @@ pub(super) fn validate(
     // unsummarized, and overlapping implementations remain
     // conservative. Authored `stores` clauses are retired; exactness
     // grows through inferred implementation summaries.
+    if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+        eprintln!(
+            "STRUCT completed-call-writes caller={} target={} written={direct_written:?}",
+            machine.name,
+            call.target.as_str()
+        );
+    }
     if let Some(written) = direct_written.as_deref() {
         value_environment.invalidate_call_paths(program, current_state, written);
     } else {
