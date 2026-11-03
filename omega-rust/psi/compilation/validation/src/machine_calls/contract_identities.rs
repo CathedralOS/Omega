@@ -207,9 +207,7 @@ pub fn canonical_template_contract_bytes(
         true,
     )?;
     bytes.extend(
-        program
-            .type_identities
-            .with(|table| checked_trees::contract_declarations_commitment(&contracts, table))
+        checked_trees::contract_declarations_commitment(&contracts, &program.type_identities)
             .as_bytes(),
     );
     let termination = contract_structure::declared_termination(
@@ -315,10 +313,10 @@ pub fn prepare_specialization_contract_identities(
     );
     for (_, capture) in program.captured_machine_applications.iter() {
         super::calls::capture_binding_is_exact(program, capture).map_err(|reason| {
-            let supplying_owner = capture.supplying_application.is_valid().then(|| {
+            let supplying_owner = if capture.supplying_application.is_valid() { {
                 let source = expression_table(program).static_machine_application(capture.supplying_application);
                 program.symbols.display_path(source.lexical_owner, "::").to_string()
-            }).unwrap_or_else(|| "<missing>".into());
+            } } else { "<missing>".into() };
             let declaration_occurrences = program
                 .closed_conformance_application_sites()
                 .iter()
@@ -1012,9 +1010,7 @@ fn encode_state_signature(
         true,
     )?;
     output.extend(
-        program
-            .type_identities
-            .with(|table| checked_trees::contract_declarations_commitment(&contracts, table))
+        checked_trees::contract_declarations_commitment(&contracts, &program.type_identities)
             .as_bytes(),
     );
     let termination = contract_structure::declared_termination(
@@ -1115,9 +1111,7 @@ fn encode_state_shape(
         true,
     )?;
     output.extend(
-        program
-            .type_identities
-            .with(|table| checked_trees::contract_declarations_commitment(&contracts, table))
+        checked_trees::contract_declarations_commitment(&contracts, &program.type_identities)
             .as_bytes(),
     );
     Ok(())

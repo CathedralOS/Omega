@@ -1,4 +1,5 @@
-//! Compile, publish, and optionally execute one project with a private output directory.
+//! Compile, publish, and optionally execute one project with a private output directory,
+//! or execute its admitted Terminal program without a native image (`--engine terminal`).
 //! Interpreter comparison observes the same produced Terminal artifact. This operation
 //! neither prints nor exits; callers decide how to present outcomes and exit status.
 
@@ -20,15 +21,31 @@ use std::process::{Command, Output, Stdio};
 // A measured long workload may request more fuel; exhaustion still declines comparison.
 const DEFAULT_TERMINAL_FUEL_ALLOWANCE: u64 = 10_000_000;
 
+/// The `omega run` execution axis
+/// ([standalone execution selection](../../../../../wiki/spec/build/embedding.md#standalone-execution-selection)).
+/// `Both` is the comparison request, not a third engine.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ExecutionSelection {
+    #[default]
+    Native,
+    /// Execute the admitted Terminal program without emitting or launching a
+    /// native image. Missing support is reported before guest effects; there
+    /// is no native fallback.
+    Terminal,
+    Both,
+}
+
 pub struct RunRequest {
     pub private_entry_ram: Vec<compilation_products::PrivateEntryRamInitialization>,
     pub root_path: PathBuf,
-    /// An explicit target produces an image without executing it on the host.
+    /// With the native engine, an explicit target produces an image without
+    /// executing it on the host. The Terminal engine keeps the target as its
+    /// execution environment and still executes.
     pub target_name: Option<String>,
-    /// Host comparison snapshots process stdin to EOF when the compiled program
-    /// demands a stdin host import, replaying that stream to Terminal and native
+    /// `Both` snapshots process stdin to EOF when the compiled program demands
+    /// a stdin host import, replaying that stream to Terminal and native
     /// execution. Programs without stdin imports run without reading caller stdin.
-    pub compare_interpreter: bool,
+    pub selection: ExecutionSelection,
     /// Positive sponsor budget per Terminal invocation; None selects ten million.
     pub terminal_fuel_allowance: Option<std::num::NonZeroU64>,
     pub keep_artifacts: bool,
@@ -52,6 +69,19 @@ pub enum ExecutionOutcome {
         comparison: InterpreterComparison,
         private_entry_ram: Vec<(u32, Vec<u8>)>,
     },
+    /// `--engine terminal`: the exact Terminal semantic outcome; no native
+    /// image exists for this invocation.
+    Terminal(TerminalOutcome),
+}
+
+/// One Terminal-only execution. `Unavailable` is a refusal raised before the
+/// guest's first instruction (a missing provider, host adapter or interpreter
+/// capability). `Failed` covers everything later; its buffered program output
+/// is not returned by the runtime and is lost.
+pub enum TerminalOutcome {
+    Completed(terminal_runtime::TerminalRuntimeObservation),
+    Unavailable(String),
+    Failed(String),
 }
 
 /// Host-presented termination comparison only, not an equivalence proof, a semantic
@@ -122,6 +152,9 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
     let output_directory = TemporaryDirectory::create("probe", request.keep_artifacts)
         .map_err(RunError::TemporaryStorage)?;
     let build_dir = output_directory.path().to_path_buf();
+    if request.selection == ExecutionSelection::Terminal {
+        return run_terminal(request, build_dir, terminal_fuel_allowance);
+    }
     let compilation::ProbeCompilation {
         report,
         target_name,
@@ -133,6 +166,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             build_dir: Some(build_dir.clone()),
             target_name: request.target_name.clone(),
         },
+        orchestration::NativeDestination::Retained,
         Vec::new(),
         terminal_fuel_allowance,
     )
@@ -140,7 +174,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
     // Only comparison of a stdin-reading program needs a finite snapshot.
     // Programs without a stdin host import complete preflight and execution
     // with `None` without blocking on an open caller pipe or console.
-    let (replay_input, interpretation) = if request.compare_interpreter
+    let (replay_input, interpretation) = if request.selection == ExecutionSelection::Both
         && request.target_name.is_none()
     {
         match compilation::interpret_product(&report, None, target_name, terminal_fuel_allowance) {
@@ -153,7 +187,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
                 let input = captured.open_input().map_err(RunError::StandardInput)?;
                 let retry = compilation::interpret_product(
                     &report,
-                    Some(input),
+                    Some(Box::new(input)),
                     target_name,
                     terminal_fuel_allowance,
                 );
@@ -168,7 +202,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         retained_artifacts::retain(&report, &build_dir)?;
     }
     let (report, executable) =
-        omega_build::publication::publish_native_artifact(report, &build_dir)
+        orchestration::publication::publish_native_artifact(report, &build_dir)
             .map_err(RunError::Publication)?;
     let execution = match request.target_name {
         Some(target_name) => ExecutionOutcome::TargetOnly { target_name },
@@ -214,31 +248,7 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
             if request.keep_artifacts
                 && let Some(Ok(reference)) = interpretation.as_ref()
             {
-                std::fs::write(build_dir.join("terminal.stdout"), &reference.stdout)
-                    .map_err(RunError::ReferenceOutput)?;
-                std::fs::write(build_dir.join("terminal.stderr"), &reference.stderr)
-                    .map_err(RunError::ReferenceOutput)?;
-                let fuel = format!(
-                    "allowance\t{terminal_fuel_allowance}\nused\t{}\nschedule\t{:?}\n",
-                    reference.fuel_usage.total_units(),
-                    reference.fuel_usage.schedule(),
-                );
-                std::fs::write(build_dir.join("terminal.fuel.tsv"), fuel)
-                    .map_err(RunError::ReferenceOutput)?;
-                let events = reference
-                    .effects
-                    .iter()
-                    .map(|effect| format!("{effect:?}\n"))
-                    .collect::<String>();
-                std::fs::write(build_dir.join("terminal.effects"), events)
-                    .map_err(RunError::ReferenceOutput)?;
-                for (position, contents) in &reference.private_entry_ram {
-                    std::fs::write(
-                        build_dir.join(format!("terminal.entry-ram.{position}.bin")),
-                        contents,
-                    )
-                    .map_err(RunError::ReferenceOutput)?;
-                }
+                retain_terminal_observation(&build_dir, reference, terminal_fuel_allowance)?;
             }
             let comparison = compare_interpretation(exit, interpretation);
             ExecutionOutcome::Host {
@@ -254,6 +264,93 @@ pub fn run_project(request: RunRequest) -> Result<RunOutcome, RunError> {
         build_dir,
         execution,
     })
+}
+
+/// `--engine terminal`: the native request stops after Build, package, trust,
+/// provider and entry admission, before any object or image is emitted, and
+/// the admitted Terminal program executes on the shared runtime with the
+/// caller's live stdin. Nothing is published or launched.
+fn run_terminal(
+    request: RunRequest,
+    build_dir: PathBuf,
+    terminal_fuel_allowance: u64,
+) -> Result<RunOutcome, RunError> {
+    let compilation::ProbeCompilation {
+        report,
+        target_name,
+        ..
+    } = compilation::compile(
+        request.private_entry_ram,
+        CompileOptions {
+            root_path: request.root_path,
+            build_dir: Some(build_dir.clone()),
+            target_name: request.target_name,
+        },
+        orchestration::NativeDestination::RuntimeAdmission,
+        Vec::new(),
+        terminal_fuel_allowance,
+    )
+    .map_err(RunError::Compilation)?;
+    if request.keep_artifacts {
+        retained_artifacts::retain(&report, &build_dir)?;
+    }
+    let outcome = match compilation::interpret_product(
+        &report,
+        Some(Box::new(std::io::stdin())),
+        target_name,
+        terminal_fuel_allowance,
+    ) {
+        Ok(observation) => {
+            if request.keep_artifacts {
+                retain_terminal_observation(&build_dir, &observation, terminal_fuel_allowance)?;
+            }
+            TerminalOutcome::Completed(observation)
+        }
+        // A mid-execution unsupported capability is not unavailability:
+        // earlier boundary calls may already have acted on the host.
+        Err(error) if error.unavailable_before_guest_effects() => {
+            TerminalOutcome::Unavailable(error.to_string())
+        }
+        Err(error) => TerminalOutcome::Failed(error.to_string()),
+    };
+    Ok(RunOutcome {
+        report,
+        build_dir,
+        execution: ExecutionOutcome::Terminal(outcome),
+    })
+}
+
+/// `--keep` retains the exact Terminal streams, fuel and effect receipts.
+fn retain_terminal_observation(
+    build_dir: &std::path::Path,
+    reference: &terminal_runtime::TerminalRuntimeObservation,
+    terminal_fuel_allowance: u64,
+) -> Result<(), RunError> {
+    std::fs::write(build_dir.join("terminal.stdout"), &reference.stdout)
+        .map_err(RunError::ReferenceOutput)?;
+    std::fs::write(build_dir.join("terminal.stderr"), &reference.stderr)
+        .map_err(RunError::ReferenceOutput)?;
+    let fuel = format!(
+        "allowance\t{terminal_fuel_allowance}\nused\t{}\nschedule\t{:?}\n",
+        reference.fuel_usage.total_units(),
+        reference.fuel_usage.schedule(),
+    );
+    std::fs::write(build_dir.join("terminal.fuel.tsv"), fuel).map_err(RunError::ReferenceOutput)?;
+    let events = reference
+        .effects
+        .iter()
+        .map(|effect| format!("{effect:?}\n"))
+        .collect::<String>();
+    std::fs::write(build_dir.join("terminal.effects"), events)
+        .map_err(RunError::ReferenceOutput)?;
+    for (position, contents) in &reference.private_entry_ram {
+        std::fs::write(
+            build_dir.join(format!("terminal.entry-ram.{position}.bin")),
+            contents,
+        )
+        .map_err(RunError::ReferenceOutput)?;
+    }
+    Ok(())
 }
 
 /// Many stdin cases against one compilation: each input file is replayed
@@ -313,6 +410,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
             build_dir: Some(build_dir.clone()),
             target_name: None,
         },
+        orchestration::NativeDestination::Retained,
         reference_inputs,
         terminal_fuel_allowance,
     )
@@ -321,7 +419,7 @@ pub fn run_project_cases(request: CaseRunRequest) -> Result<CaseRunOutcome, RunE
         retained_artifacts::retain(&report, &build_dir)?;
     }
     let (report, executable) =
-        omega_build::publication::publish_native_artifact(report, &build_dir)
+        orchestration::publication::publish_native_artifact(report, &build_dir)
             .map_err(RunError::Publication)?;
     let mut interpretations = interpretations.into_iter();
     let mut cases = Vec::new();

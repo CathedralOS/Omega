@@ -32,9 +32,7 @@ impl<'program> StructuralJudge<'program> {
         // exact prefix origins and preservation through this normal return.
         // A written subject or replaced formal binding needs post-state facts,
         // not the detached child term captured during operand evaluation.
-        let Some(machine) = program.machine(scope.0.symbol) else {
-            return None;
-        };
+        let machine = program.machine(scope.0.symbol)?;
         let frames = self.frame_resolver();
         // The frame owner captures entry subjects independently of future
         // writes. Its return flags withhold correspondence for an opaque frame;
@@ -44,7 +42,7 @@ impl<'program> StructuralJudge<'program> {
         if !independent_call_application(
             program,
             self.machine_symbol,
-            owner_symbol(&owner),
+            owner_symbol(owner),
             match site {
                 crate::CallSite::Expression { expression, call } => {
                     typed_trees::references::StaticArgumentCall::Expression(expression, call)
@@ -54,15 +52,13 @@ impl<'program> StructuralJudge<'program> {
                 }
                 _ => return None,
             },
-        ) {
+        ) && !self.has_runtime_induction(scope.1.symbol, expression, owner_symbol(owner))
+        {
             return None;
         }
-        let leading_operands = owner_leading_operands(&owner);
-        let Some(arguments) =
-            crate::call_site_argument_expressions(program, &site).get(leading_operands..)
-        else {
-            return None;
-        };
+        let leading_operands = owner_leading_operands(owner);
+        let arguments =
+            crate::call_site_argument_expressions(program, &site).get(leading_operands..)?;
         if arguments.len() != parameters.len() {
             return None;
         }
@@ -74,12 +70,9 @@ impl<'program> StructuralJudge<'program> {
         // formal map before this capture would reinterpret another actual in
         // the callee's telescope.
         let completed_arguments = actuals?;
-        let Some(actuals) = completed_arguments
+        let actuals = completed_arguments
             .get(leading_operands..)
-            .filter(|actuals| actuals.len() == arguments.len())
-        else {
-            return None;
-        };
+            .filter(|actuals| actuals.len() == arguments.len())?;
         // Entry requirements observe the arguments before this call's writes.
         // Guarantees may use only formals whose observations survive return.
         // Keep both substitutions: dropping a mutable input's post-state
@@ -108,7 +101,7 @@ impl<'program> StructuralJudge<'program> {
             super::super::super::specification_calls::call_contract_scalar_substitution(
                 program,
                 scope.0.symbol,
-                &owner,
+                owner,
                 site,
                 |subject| {
                     self.completed_scalar_subject(
@@ -209,7 +202,7 @@ impl<'program> StructuralJudge<'program> {
             let value = StructuralTerm::CapturedValue {
                 statement,
                 expression,
-                callable: owner_symbol(&owner),
+                callable: owner_symbol(owner),
                 occurrence: self.capture_sequence,
                 result_type: subject.entry.type_reference,
                 integer_range: None,

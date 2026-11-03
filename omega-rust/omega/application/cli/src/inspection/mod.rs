@@ -2,7 +2,7 @@
 //! Neither route grants native installation or runtime authority.
 
 use diagnostics::Diagnostic;
-use omega_build::{BuildError, BuildRequest, BuildTargets, ProjectProduct};
+use orchestration::{BuildError, BuildRequest, BuildTargets, ProjectProduct};
 use std::path::PathBuf;
 use terminal_codec::CanonicalTerminalArtifact;
 
@@ -47,7 +47,7 @@ pub fn inspect_terminal(
         ),
         None => BuildTargets::Host,
     };
-    let outcomes = omega_build::build(BuildRequest {
+    let outcomes = orchestration::build(BuildRequest {
         root_path: request.root_path.clone(),
         build_directory: None,
         targets,

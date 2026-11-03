@@ -38,5 +38,5 @@ pub use handle::{Handle, unique_handles_in_order};
 pub use hierarchy_arena::{HierarchyArena, HierarchyNode};
 pub use ordered_root_arena::{OrderedRootArena, OrderedRootArenaIter};
 pub use owned_index::OwnedIndex;
-pub use owned_interner::OwnedInterner;
+pub use owned_interner::{OwnedInterner, OwnedTextInterner};
 pub use paged_arena_set::{PagedArenaFrontier, PagedArenaSet};

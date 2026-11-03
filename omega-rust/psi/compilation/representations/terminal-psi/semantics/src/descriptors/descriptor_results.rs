@@ -552,10 +552,10 @@ pub enum FlowFeasibility {
 }
 
 /// The graph row for `id`, when the catalog covers that machine.
-pub fn descriptor_machine<'graph>(
-    graph: &'graph [DescriptorMachine],
+pub fn descriptor_machine(
+    graph: &[DescriptorMachine],
     id: MachineId,
-) -> Option<&'graph DescriptorMachine> {
+) -> Option<&DescriptorMachine> {
     graph.iter().find(|current| current.id == id)
 }
 
@@ -575,8 +575,9 @@ pub struct DescriptorInvocation {
 /// Public regions bound backing reach, never the selected runtime descriptor.
 pub enum DescriptorInvocationTarget {
     Machine(MachineId),
-    /// Normal completion of an admitted boundary. Unlike a public region
-    /// contract, these results need not be spatially contained in any input.
+    /// Normal completion joins parameter writes and public returned regions.
+    /// Parameter-output promises need not identify spatial input backing;
+    /// returned pointer descriptors retain their independent region contract.
     Provider {
         results: Vec<DescriptorResultSlot>,
         effects: Vec<DescriptorStoredEffect>,

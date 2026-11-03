@@ -125,9 +125,7 @@ fn exact_mutable_referent(
         .span_or_empty(borrow_call.accesses)
         .iter()
         .filter(|access| access.root == facts::PlaceRoot::Symbol(source_symbol));
-    let Some(access) = accesses.next() else {
-        return None;
-    };
+    let access = accesses.next()?;
     if accesses.next().is_some()
         || !borrow.access_segments(access).is_empty()
         || access.kind != checked_trees::BorrowAccessKind::Read

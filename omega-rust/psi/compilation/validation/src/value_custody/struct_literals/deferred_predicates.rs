@@ -116,6 +116,7 @@ pub(super) fn construction_conditions(
         conditions.push(checked_trees::IntegerRangeObligation::retain(
             predicate,
             machine.symbol,
+            semantic_vocabulary::ScalarConditionRole::Prerequisite,
             difference,
             minimum,
             maximum,

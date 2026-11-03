@@ -99,16 +99,14 @@ impl ExitScalars<'_, '_> {
         {
             return Some(true);
         }
-        let Some(expression) = crate::values::lower_scalar_contract_predicate(
+        let expression = crate::values::lower_scalar_contract_predicate(
             self.program,
             &self.facts.operators,
             self.machine,
             expression,
             true,
             &mut 4096,
-        ) else {
-            return None;
-        };
+        )?;
         let entry = self.program.machine_states(self.machine).first()?;
         let completed =
             return_values::completed_return_operand(self.program, self.facts, self.exit);

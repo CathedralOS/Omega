@@ -2,7 +2,7 @@
 
 [lib.rs](src/lib.rs) exposes opaque source preparation and exact-return completion
 for any supplied target count. Application
-[`compile_sources`](../../compilation/build/src/compile/source_compilation.rs) owns the
+[`compile_sources`](../../build-system/orchestration/src/compile/source_compilation.rs) owns the
 one-shot `CompileRequest` lifecycle and executes Build between those calls.
 The coordinator sequences typed owner results; it does
 not implement package loading, build evaluation, transformation algorithms or
@@ -61,7 +61,7 @@ image and reloaded Terminal artifact. Build-helper production in
 [package compilation](src/checked/package_compilation.rs) publishes the same
 checked source without private constant replay. The waiting Build activation
 owns exact slot admission, canonical scalar completion and component installation
-in [provider installation](../build-evaluation/src/activation/provider_installation.rs).
+in [provider installation](../../build-system/build-settings/src/activation/provider_installation.rs).
 Its live account pays the evaluation, and installed components retain completed
 scalar inputs for the rest of that invocation.
 
@@ -100,9 +100,9 @@ reports belong to their product owners.
 
 Application Build requests package admission, then schedules dependency-ordered
 `PackageCompilationRequest`s in
-[`compile_packages`](../../compilation/build/src/package/package_compilation.rs), with the
+[`compile_packages`](../../build-system/orchestration/src/package/package_compilation.rs), with the
 requested product and root permission consent supplied up front. Its
-[Build execution owner](../../compilation/build/src/compile/build_execution.rs) advances
+[Build execution owner](../../build-system/orchestration/src/compile/build_execution.rs) advances
 dependency frontiers, joins generated outputs and waits for demanded independent
 components before their consumers advance. The compiler no longer schedules that
 dependency loop. Its [package facade](src/checked/package_compilation.rs) prepares
@@ -135,7 +135,7 @@ defaults, overrides or assumed bindings.
 This is work partitioning within the submitted batch, not a historical cache.
 Opaque pending evaluation authorities must be the same retained authority;
 matching paths or settings alone never establish interchangeable continuations.
-`mbx run -p omega-build --example package_batch` asserts whole-invocation
+`mbx run -p orchestration --example package_batch` asserts whole-invocation
 work through the application Build route. Counters start before local-project
 preparation and remain checked when production rejects. Its default two-target
 fixture requires one Build execution, two settled checks (Build and Product),
@@ -149,8 +149,8 @@ The ordinary dependency control retains two different Builds and one Product
 check rather than merging their work:
 
 ```sh
-mbx run -p omega-build --example package_batch -- tests/omega/pass/build/package_batch_distinct_builds/main.omg 1 1 2 3
-mbx run -p omega-build --example package_batch -- --check --targets linux_x86_64 tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg 1 0 1 2
+mbx run -p orchestration --example package_batch -- tests/omega/pass/build/package_batch_distinct_builds/main.omg 1 1 2 3
+mbx run -p orchestration --example package_batch -- --check --targets linux_x86_64 tests/omega/fail/build/unrequested_target_entry_returns_value/main.omg 1 0 1 2
 ```
 
 The latter must reject `foreign_launch` because `ProgramEntry` has no result,
@@ -176,7 +176,7 @@ The application request enters one compiler-stack worker; preparing Builds and
 checking source cohorts do not spawn additional workers.
 
 Fresh execution and retained-source Product inputs enter the same
-`omega_build::compile_packages` scheduler as explicit `PackageSourceRequest`
+`orchestration::compile_packages` scheduler as explicit `PackageSourceRequest`
 variants. `prepare_package` uses that same input model for review consumers
 that stop before Product checking. Retained requests never fall back to
 execution when their source custody or pre-effect contract is missing.
@@ -188,7 +188,7 @@ for production. The compiler compares fresh supplied
 permissions with the exact root Product consent before native production,
 using the independent package-evidence projection owner. Inspection is an
 explicit product with no native authority. Standalone inspection and corpus
-production submit the same `CompilationProduct` through `omega_build::produce_source`;
+production submit the same `CompilationProduct` through `orchestration::produce_source`;
 named inspection joins shared Terminal production and completes declaration
 conditions against that artifact, rather than producing a disposable check
 artifact first. Same-name requests share code and exact Build companions;
@@ -202,7 +202,7 @@ its rootless declaration artifact, and artifact-only requests do not emit native
 images. Review descriptions borrow the same
 Terminal production inputs without making the producer branch on review history.
 
-Checked-only consumers supply `CheckedCompileRequest` to `omega_build::check_source`.
+Checked-only consumers supply `CheckedCompileRequest` to `orchestration::check_source`.
 Package inputs, build staging and session sponsors are request
 data, not alternate compilation entrypoints. The request enters the same prepared
 source continuation used by production and target batches.
@@ -248,7 +248,7 @@ they do not import the evaluator or coordinator. Compilation still visibly
 schedules the stages and supplies their complete results to sealing.
 The continuation calls resolution and typing directly, including generated-source
 extension, with timing around those actual calls rather than another transition
-module. The existing [Build evaluator](../build-evaluation/src/build_evaluation.rs)
+module. The existing [Build evaluator](../../build-system/build-settings/src/build_evaluation.rs)
 owns the complete pre-effect admission/consent/execution protocol and returns
 configuration, restricted requests and the admitted source commitment together.
 Its private declaration-admission operation still uses the preliminary Psi
@@ -278,7 +278,7 @@ storage until mutation; review instantiation borrow-projects table rows rather
 than clone-rebuilding scratch. Any mutation does not reseal evidence, and
 downstream reconstruction remains mandatory.
 
-Diagnostic consumers call `omega_build::check_source(session, request)` for the verdict
+Diagnostic consumers call `orchestration::check_source(session, request)` for the verdict
 and independent-component discovery. The session owns source frontiers, Pure
 Build values, exact language judgments and Product root selections; callers
 carry none of those caches. Root paths and immutable package inputs must match,
@@ -319,7 +319,7 @@ custody owns staging and installation mechanics.
 ## Supporting packages
 
 This directory contains only compilation coordination. Build activation belongs to
-[realization/build-evaluation](../build-evaluation/README.md), an
+[build-settings](../../build-system/build-settings/README.md), an
 independent package consumed by the coordinator and package review.
 Project declaration grammar, retained build outputs and compilation-input custody
 belong to the package system's independent

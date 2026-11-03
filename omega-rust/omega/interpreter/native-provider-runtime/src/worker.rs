@@ -117,6 +117,7 @@ pub fn run_worker_if_requested() {
                 3 => worker.call(cursor),
                 5 => worker.pointer_link(cursor, true),
                 6 => worker.pointer_link(cursor, false),
+                7 => worker.returned_pointer_matches(cursor),
                 _ => Err(invalid("unknown native worker request")),
             };
             match result {

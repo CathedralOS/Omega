@@ -9,8 +9,8 @@
 use omega::language::core::drop;
 use omega_language_std::console;
 
-public data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+public data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 
 public boundary trait TokenScale {
     machine weigh(token: &Token) -> u64 reaches;

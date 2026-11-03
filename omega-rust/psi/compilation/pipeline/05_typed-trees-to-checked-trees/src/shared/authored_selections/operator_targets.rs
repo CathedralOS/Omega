@@ -389,9 +389,7 @@ fn resolve_authored_operator_without_use_fact<'program>(
 
     let (spelling, operand_types) = match node {
         ExpressionNode::Binary(binary) => {
-            let Some(spelling) = binary_operator_spelling(binary.operator) else {
-                return None;
-            };
+            let spelling = binary_operator_spelling(binary.operator)?;
             (
                 spelling,
                 vec![

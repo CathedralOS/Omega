@@ -14,7 +14,7 @@ pub(in crate::symbols) fn insert_proposition_symbol_children(
 ) {
     builder.insert_children(
         proposition_symbol,
-        resolved_declarations(&program)
+        resolved_declarations(program)
             .proposition_binders
             .span_or_empty(proposition.binders)
             .iter()

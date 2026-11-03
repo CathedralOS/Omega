@@ -20,10 +20,13 @@ mod descriptor_regions;
 mod result_regions;
 pub use call_results::{
     ReferenceCallContract, ReferenceCallOrigin, ReferenceCallResult, ReferenceCallSource,
-    bind_reference_call_results,
+    bind_public_reference_call_results, bind_reference_call_results,
 };
 pub use descriptor_regions::validate_descriptor_result_regions;
-pub use result_regions::{ReferenceLeaf, reference_leaves, validate_dynamic_reference_regions};
+pub use result_regions::{
+    ReferenceLeaf, reference_leaves, validate_boundary_reference_regions,
+    validate_dynamic_reference_regions,
+};
 use std::slice::from_ref;
 
 /// The exact supplying permission and the relation below it. All consumers use
@@ -174,15 +177,11 @@ fn reference_origin_refines<'types>(
                     _ => {}
                 }
             }
-            if actual.extent == WithinRegion
+            !(actual.extent == WithinRegion
                 && actual.path.len() > allowed.path.len()
                 && captured_reference_origin_type(types.clone(), root, &actual.path)
                     .and_then(|endpoint| crate::structural_declaration(types.clone(), endpoint))
-                    .is_some_and(|row| descriptor_region(&row.shape))
-            {
-                return false;
-            }
-            true
+                    .is_some_and(|row| descriptor_region(&row.shape)))
         }
     }
 }

@@ -682,15 +682,7 @@ impl StructuralJudge<'_> {
         // changing its established membership. Follow only completed-value
         // receipts; mathematical equality and local annotations grant none.
         let subject = self.completed_nominal_subject(&subject);
-        let Some(machine) = program.machine(self.machine_symbol) else {
-            return StructuralJudgment::Unknown;
-        };
-        let state = if self.declaration_state.is_valid() {
-            program.state_in_machine(machine, self.declaration_state)
-        } else {
-            program.machine_states(machine).first()
-        };
-        let Some(state) = state else {
+        let Some((machine, state)) = self.runtime_declaration_scope() else {
             return StructuralJudgment::Unknown;
         };
         // Qualification belongs to the admitted value, including a qualified
@@ -698,11 +690,18 @@ impl StructuralJudge<'_> {
         // Entry values cease to describe live storage after an overlapping
         // write; completed calls retain their detached occurrence identities.
         for parameter in program.state_parameters(state) {
+            let Some(value) = self.captured_parameter_projection(
+                parameter.symbol,
+                &[],
+                language_semantics::content::ContentPlaceVersion::Entry,
+            ) else {
+                continue;
+            };
             if self.declaration_state.is_valid()
                 && !self.storage_binding_invalidated(parameter.symbol)
                 && self.admitted_value_has_membership(
                     parameter.type_reference,
-                    StructuralTerm::Variable(parameter.name.as_str().to_owned()),
+                    value,
                     required,
                     &subject,
                 )

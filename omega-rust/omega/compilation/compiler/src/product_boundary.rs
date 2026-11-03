@@ -81,8 +81,9 @@ fn product_policy_admission_has_one_source_owner() {
             "native_binding_evaluation",
         ],
     );
-    let source =
-        include_str!("../../../../psi/compilation/psi-compiler/src/source_compilation/product_policy.rs");
+    let source = include_str!(
+        "../../../../psi/compilation/psi-compiler/src/source_compilation/product_policy.rs"
+    );
     assert_in_order(
         source,
         "Psi product policy",
@@ -137,7 +138,8 @@ fn product_provider_request_admission_belongs_to_psi() {
 
 #[test]
 fn selected_constant_evaluation_belongs_to_psi() {
-    let selection = include_str!("../../build-evaluation/src/admission/selected_constants.rs");
+    let selection =
+        include_str!("../../../build-system/build-settings/src/admission/selected_constants.rs");
     assert_absent(&[selection], "selection drives", &[".finish(typed)"]);
     let geometry = include_str!("../../realization/provider-planning/src/data_layout_queries.rs");
     assert_absent(
@@ -178,7 +180,8 @@ fn reused_product_selection_shares_the_checked_program() {
 
 #[test]
 fn canonical_proof_completion_has_no_source_rewrite_api() {
-    let coordinator = include_str!("../../build-evaluation/src/activation/scalar_completion.rs");
+    let coordinator =
+        include_str!("../../../build-system/build-settings/src/activation/scalar_completion.rs");
     assert_absent(
         &[coordinator],
         "coordinator owns",
@@ -234,9 +237,9 @@ fn package_binding_policy_does_not_interpret_checked_source() {
 fn build_operations_do_not_assemble_compiler_products() {
     assert_absent(
         &[
-            include_str!("../../../compilation/build/src/build.rs"),
-            include_str!("../../../compilation/build/src/project/project_compilation.rs"),
-            include_str!("../../../compilation/build/src/project/products.rs"),
+            include_str!("../../../build-system/orchestration/src/build.rs"),
+            include_str!("../../../build-system/orchestration/src/project/project_compilation.rs"),
+            include_str!("../../../build-system/orchestration/src/project/products.rs"),
         ],
         "Build operation drives",
         &[
@@ -270,7 +273,7 @@ fn accepted_packages_supply_plans_not_compiler_continuations() {
 fn package_frontiers_batch_components_without_nested_source_workers() {
     assert_absent(
         &[
-            include_str!("../../../compilation/build/src/compile/build_execution.rs"),
+            include_str!("../../../build-system/orchestration/src/compile/build_execution.rs"),
             include_str!("checked/product_batch.rs"),
         ],
         "package batch nests source work:",
@@ -386,7 +389,8 @@ fn components_use_the_shared_product_sequence() {
 
 #[test]
 fn component_handoff_retains_the_producing_join() {
-    let components = include_str!("../../../compilation/build/src/compile/native_completion.rs");
+    let components =
+        include_str!("../../../build-system/orchestration/src/compile/native_completion.rs");
     assert_absent(
         &[components],
         "native handoff reconstructs",
@@ -410,7 +414,8 @@ fn component_handoff_retains_the_producing_join() {
 
 #[test]
 fn terminal_calling_activation_uses_only_canonical_geometry() {
-    let execution = include_str!("../../build-evaluation/src/calling_policy_execution.rs");
+    let execution =
+        include_str!("../../../build-system/build-settings/src/calling_policy_execution.rs");
     let protocol = include_str!(
         "../../realization/provider-planning/src/calling_policy_plans/policy_signature.rs"
     );
@@ -509,7 +514,7 @@ fn provider_derivation_consumes_the_prepared_service_census() {
             "if selected_target != Some(target)",
         ],
     );
-    let build = include_str!("../../build-evaluation/src/admission/checking.rs");
+    let build = include_str!("../../../build-system/build-settings/src/admission/checking.rs");
     assert_in_order(
         build,
         "Build admission checking",
@@ -523,13 +528,14 @@ fn provider_derivation_consumes_the_prepared_service_census() {
 #[test]
 fn native_product_supplies_inputs_without_orchestrating_component_emission() {
     let source = include_str!("product_execution.rs");
-    let inputs = include_str!("../../../compilation/build/src/compile/native_completion.rs");
+    let inputs =
+        include_str!("../../../build-system/orchestration/src/compile/native_completion.rs");
     assert_absent(
         &[source],
         "compiler still drives",
         &[
             "native_production::prepare(&terminal, request)",
-            "build_evaluation::scalar_completion::complete(",
+            "build_settings::scalar_completion::complete(",
             "native_production::compile(prepared)",
         ],
     );

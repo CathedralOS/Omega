@@ -9,18 +9,18 @@ use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::types::{PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
-use validation::{ImmutableConstRecordProjection, ScopedArithmeticValue};
+use validation::{ConstProjectionStep, ImmutableConstProjection, ScopedArithmeticValue};
 
 pub(super) fn atom(
     program: &dyn validation::CheckingInput,
-    projection: &ImmutableConstRecordProjection,
+    projection: &ImmutableConstProjection,
     primitive: PrimitiveType,
 ) -> Option<ScopedArithmeticValue> {
     (program.primitive_type_reference(projection.carrier) == Some(primitive)).then(|| {
         ScopedArithmeticValue::Atom {
             identity: format!(
-                "\0static-parameter:{:?}:fields:{:?}",
-                projection.root, projection.fields
+                "\0static-parameter:{:?}:path:{:?}",
+                projection.root, projection.path
             ),
             unsigned: matches!(
                 primitive,
@@ -35,7 +35,7 @@ pub(super) fn value(
     facts: &checked_trees::CheckFacts,
     invocation: &Invocation<'_>,
     reference: TypeReferenceHandle,
-    projection: &ImmutableConstRecordProjection,
+    projection: &ImmutableConstProjection,
     primitive: PrimitiveType,
 ) -> Option<ScopedArithmeticValue> {
     let parameter = program.data_type_parameter_by_symbol(projection.root)?;
@@ -52,7 +52,7 @@ pub(super) fn value(
             invocation,
             *expression,
             carrier,
-            &projection.fields,
+            &projection.path,
             primitive,
             &mut Vec::new(),
         ),
@@ -71,9 +71,9 @@ pub(super) fn value(
                 }
                 return atom(
                     program,
-                    &ImmutableConstRecordProjection {
+                    &ImmutableConstProjection {
                         root: *symbol,
-                        fields: projection.fields.clone(),
+                        path: projection.path.clone(),
                         carrier: projection.carrier,
                     },
                     primitive,
@@ -94,41 +94,66 @@ pub(super) fn value(
             } else {
                 CanonicalConstValue::from_atom(name.as_str())?
             };
-            decoded_value(program, carrier, &projection.fields, primitive, value)
+            decoded_value(program, carrier, &projection.path, primitive, value)
         }
         _ => None,
     }
 }
 
+/// Walk a projection path through its declared carriers. Each field step
+/// names its declared field; each element step stays inside the fixed extent.
 fn schema(
     program: &dyn validation::CheckingInput,
     mut carrier: TypeReferenceHandle,
-    fields: &[SymbolHandle],
-) -> Option<(Vec<String>, TypeReferenceHandle)> {
-    let mut names = Vec::with_capacity(fields.len());
-    for field in fields {
-        let reference = program.unwrapped_type_reference(carrier)?;
-        let symbol = program
-            .type_reference_table
-            .type_reference(reference)
-            .as_named_symbol()?;
-        let definition = program.data_definition_by_symbol(symbol)?;
-        let mut selected = program
-            .data_members(definition)
-            .iter()
-            .filter_map(|member| member.as_field())
-            .filter(|candidate| candidate.symbol == *field);
-        let selected = selected.next().filter(|_| selected.next().is_none())?;
-        names.push(selected.name.as_str().to_owned());
-        carrier = selected.type_reference;
+    path: &[ConstProjectionStep],
+) -> Option<TypeReferenceHandle> {
+    for step in path {
+        carrier = step_carrier(program, carrier, *step)?;
     }
-    Some((names, carrier))
+    Some(carrier)
+}
+
+fn step_carrier(
+    program: &dyn validation::CheckingInput,
+    carrier: TypeReferenceHandle,
+    step: ConstProjectionStep,
+) -> Option<TypeReferenceHandle> {
+    match step {
+        ConstProjectionStep::Field(field) => {
+            field_step(program, carrier, field).map(|(_, carrier)| carrier)
+        }
+        ConstProjectionStep::Element(index) => {
+            let (element, length) = validation::fixed_array_geometry(program, carrier)?;
+            (index < length).then_some(element)
+        }
+    }
+}
+
+/// The declared name and carrier of one exact record field of `carrier`.
+fn field_step(
+    program: &dyn validation::CheckingInput,
+    carrier: TypeReferenceHandle,
+    field: SymbolHandle,
+) -> Option<(String, TypeReferenceHandle)> {
+    let reference = program.unwrapped_type_reference(carrier)?;
+    let symbol = program
+        .type_reference_table
+        .type_reference(reference)
+        .as_named_symbol()?;
+    let definition = program.data_definition_by_symbol(symbol)?;
+    let mut selected = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_field())
+        .filter(|candidate| candidate.symbol == field);
+    let selected = selected.next().filter(|_| selected.next().is_none())?;
+    Some((selected.name.as_str().to_owned(), selected.type_reference))
 }
 
 fn decoded_value(
     program: &dyn validation::CheckingInput,
     carrier: TypeReferenceHandle,
-    fields: &[SymbolHandle],
+    path: &[ConstProjectionStep],
     primitive: PrimitiveType,
     value: CanonicalConstValue,
 ) -> Option<ScopedArithmeticValue> {
@@ -137,16 +162,28 @@ fn decoded_value(
         return None;
     }
     validation::validate_exact_const_value_encoding(program, carrier, &value.encoding).ok()?;
-    let (names, terminal) = schema(program, carrier, fields)?;
+    let terminal = schema(program, carrier, path)?;
     if program.primitive_type_reference(terminal) != Some(primitive) {
         return None;
     }
     let mut decoded = value.decode_encoding()?;
-    for name in names {
-        let DecodedCanonicalConstValue::Record { fields, .. } = decoded else {
-            return None;
+    let mut current = carrier;
+    for step in path {
+        decoded = match (step, decoded) {
+            (
+                ConstProjectionStep::Field(field),
+                DecodedCanonicalConstValue::Record { fields, .. },
+            ) => {
+                let (name, _) = field_step(program, current, *field)?;
+                fields.into_iter().find(|(field, _)| *field == name)?.1
+            }
+            (
+                ConstProjectionStep::Element(index),
+                DecodedCanonicalConstValue::Array { values, .. },
+            ) => values.into_iter().nth(*index)?,
+            _ => return None,
         };
-        decoded = fields.into_iter().find(|(field, _)| *field == name)?.1;
+        current = step_carrier(program, current, *step)?;
     }
     let DecodedCanonicalConstValue::Integer { type_name, value } = decoded else {
         return None;
@@ -161,14 +198,14 @@ fn expression_value(
     invocation: &Invocation<'_>,
     expression: ExpressionHandle,
     carrier: TypeReferenceHandle,
-    fields: &[SymbolHandle],
+    path: &[ConstProjectionStep],
     primitive: PrimitiveType,
     active: &mut Vec<ExpressionHandle>,
 ) -> Option<ScopedArithmeticValue> {
     if !program.expression_table.expression_is_valid(expression) || active.contains(&expression) {
         return None;
     }
-    if fields.is_empty() {
+    if path.is_empty() {
         let handle = match invocation.site {
             validation::CallSite::Expression { call, .. } => call.authored_machine_application,
             validation::CallSite::Statement(call) => call.authored_machine_application,
@@ -190,6 +227,9 @@ fn expression_value(
         ExpressionNode::StructLiteral(literal)
             if literal.case_symbol.is_none() && literal.case_name.is_none() =>
         {
+            let ConstProjectionStep::Field(field) = path[0] else {
+                return None;
+            };
             let reference = program.unwrapped_type_reference(carrier)?;
             let symbol = program
                 .type_reference_table
@@ -216,23 +256,44 @@ fn expression_value(
             {
                 return None;
             }
-            let (_, child_carrier) = schema(program, carrier, &fields[..1])?;
-            let selected = supplied
-                .iter()
-                .find(|value| value.field_symbol == fields[0])?;
+            let child_carrier = step_carrier(program, carrier, path[0])?;
+            let selected = supplied.iter().find(|value| value.field_symbol == field)?;
             expression_value(
                 program,
                 facts,
                 invocation,
                 selected.value,
                 child_carrier,
-                &fields[1..],
+                &path[1..],
                 primitive,
                 active,
             )
         }
-        ExpressionNode::Name(path) => {
-            if let Some(parameter) = program.data_type_parameter_by_symbol(path.symbol) {
+        // An element step selects the literal's own element under the
+        // array's declared element carrier; the extent must match exactly.
+        ExpressionNode::ArrayLiteral(elements) => {
+            let ConstProjectionStep::Element(index) = path[0] else {
+                return None;
+            };
+            let (_, length) = validation::fixed_array_geometry(program, carrier)?;
+            let elements = program.expression_table.expression_handles(*elements);
+            if elements.len() != length {
+                return None;
+            }
+            let child_carrier = step_carrier(program, carrier, path[0])?;
+            expression_value(
+                program,
+                facts,
+                invocation,
+                *elements.get(index)?,
+                child_carrier,
+                &path[1..],
+                primitive,
+                active,
+            )
+        }
+        ExpressionNode::Name(name) => {
+            if let Some(parameter) = program.data_type_parameter_by_symbol(name.symbol) {
                 let TypeParameterKind::Const {
                     type_reference: actual,
                 } = parameter.kind
@@ -244,18 +305,18 @@ fn expression_value(
                 {
                     return None;
                 }
-                let (_, terminal) = schema(program, actual, fields)?;
+                let terminal = schema(program, actual, path)?;
                 atom(
                     program,
-                    &ImmutableConstRecordProjection {
+                    &ImmutableConstProjection {
                         root: parameter.symbol,
-                        fields: fields.to_vec(),
+                        path: path.to_vec(),
                         carrier: terminal,
                     },
                     primitive,
                 )
             } else {
-                let declaration = program.const_declaration_by_symbol(path.symbol)?;
+                let declaration = program.const_declaration_by_symbol(name.symbol)?;
                 if program.normalized_type_identity(declaration.declared_type)
                     != program.normalized_type_identity(carrier)
                 {
@@ -264,7 +325,7 @@ fn expression_value(
                 decoded_value(
                     program,
                     carrier,
-                    fields,
+                    path,
                     primitive,
                     CanonicalConstValue::new(
                         program.normalized_type_identity_text(carrier),

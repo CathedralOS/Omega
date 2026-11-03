@@ -27,6 +27,69 @@ pub enum AccessLifecycleOperands {
     },
 }
 
+impl AccessLifecycleOperands {
+    pub fn from_arguments(
+        operation: LifecycleOperation,
+        arguments: &[StructuralArgument],
+    ) -> Result<Self, &'static str> {
+        match (operation, arguments) {
+            (LifecycleOperation::View, [storage, profile])
+                if matches!(storage.access, terminal_psi::reading_borrow_pair_pattern!())
+                    && profile.access == StructuralAccess::SharedBorrow =>
+            {
+                Ok(Self::View {
+                    storage: storage.clone(),
+                    profile: profile.clone(),
+                })
+            }
+            (LifecycleOperation::Initialize, [storage, value, profile])
+                if storage.access == StructuralAccess::Owned
+                    && value.access == StructuralAccess::Owned
+                    && profile.access == StructuralAccess::SharedBorrow =>
+            {
+                Ok(Self::Initialize {
+                    storage: storage.clone(),
+                    value: value.clone(),
+                    profile: profile.clone(),
+                })
+            }
+            (LifecycleOperation::MoveOut, [storage, profile])
+                if storage.access == StructuralAccess::Owned
+                    && profile.access == StructuralAccess::SharedBorrow =>
+            {
+                Ok(Self::MoveOut {
+                    storage: storage.clone(),
+                    profile: profile.clone(),
+                })
+            }
+            _ => Err("access lifecycle operands differ from the operation's ownership roles"),
+        }
+    }
+
+    pub fn arguments(&self) -> impl Iterator<Item = &StructuralArgument> {
+        match self {
+            Self::Initialize {
+                storage,
+                value,
+                profile,
+            } => [Some(storage), Some(value), Some(profile)],
+            Self::MoveOut { storage, profile } | Self::View { storage, profile } => {
+                [Some(storage), Some(profile), None]
+            }
+        }
+        .into_iter()
+        .flatten()
+    }
+
+    pub const fn operation(&self) -> LifecycleOperation {
+        match self {
+            Self::Initialize { .. } => LifecycleOperation::Initialize,
+            Self::MoveOut { .. } => LifecycleOperation::MoveOut,
+            Self::View { .. } => LifecycleOperation::View,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
@@ -112,68 +175,5 @@ mod tests {
             AccessLifecycleOperands::from_arguments(LifecycleOperation::MoveOut, &original[2..],)
                 .is_err()
         );
-    }
-}
-
-impl AccessLifecycleOperands {
-    pub fn from_arguments(
-        operation: LifecycleOperation,
-        arguments: &[StructuralArgument],
-    ) -> Result<Self, &'static str> {
-        match (operation, arguments) {
-            (LifecycleOperation::View, [storage, profile])
-                if matches!(storage.access, terminal_psi::reading_borrow_pair_pattern!())
-                    && profile.access == StructuralAccess::SharedBorrow =>
-            {
-                Ok(Self::View {
-                    storage: storage.clone(),
-                    profile: profile.clone(),
-                })
-            }
-            (LifecycleOperation::Initialize, [storage, value, profile])
-                if storage.access == StructuralAccess::Owned
-                    && value.access == StructuralAccess::Owned
-                    && profile.access == StructuralAccess::SharedBorrow =>
-            {
-                Ok(Self::Initialize {
-                    storage: storage.clone(),
-                    value: value.clone(),
-                    profile: profile.clone(),
-                })
-            }
-            (LifecycleOperation::MoveOut, [storage, profile])
-                if storage.access == StructuralAccess::Owned
-                    && profile.access == StructuralAccess::SharedBorrow =>
-            {
-                Ok(Self::MoveOut {
-                    storage: storage.clone(),
-                    profile: profile.clone(),
-                })
-            }
-            _ => Err("access lifecycle operands differ from the operation's ownership roles"),
-        }
-    }
-
-    pub fn arguments(&self) -> impl Iterator<Item = &StructuralArgument> {
-        match self {
-            Self::Initialize {
-                storage,
-                value,
-                profile,
-            } => [Some(storage), Some(value), Some(profile)],
-            Self::MoveOut { storage, profile } | Self::View { storage, profile } => {
-                [Some(storage), Some(profile), None]
-            }
-        }
-        .into_iter()
-        .flatten()
-    }
-
-    pub const fn operation(&self) -> LifecycleOperation {
-        match self {
-            Self::Initialize { .. } => LifecycleOperation::Initialize,
-            Self::MoveOut { .. } => LifecycleOperation::MoveOut,
-            Self::View { .. } => LifecycleOperation::View,
-        }
     }
 }

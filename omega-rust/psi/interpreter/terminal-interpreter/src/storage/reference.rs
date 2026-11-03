@@ -104,6 +104,7 @@ pub(crate) struct ReferenceBacking {
     suffix: Vec<terminal_psi::ReferenceOriginProjection>,
     extent: semantic_vocabulary::ReferenceOriginExtent,
     element_view: Option<crate::storage::element_views::ElementView>,
+    byte_binding: Option<crate::storage::byte_sequences::binding::ByteSequenceBinding>,
     access: StructuralAccess,
 }
 
@@ -128,6 +129,8 @@ pub(crate) struct ReferenceByteRegion {
 
 /// Disposition ends carrier custody, never the captured primitive backing.
 /// Ownership transfers deliberately keep using ordinary map removal instead.
+/// The discarded home and its carrier referent association remain reachable
+/// through `retired`: they still prove produced-home provenance at return.
 pub(crate) fn discard_structural_value(
     values: &mut RuntimeRows<PlaceId, TerminalStructuralValue>,
     referents: &mut RuntimeRows<StructuralRuntimePlace, ReferenceReferent>,
@@ -135,10 +138,15 @@ pub(crate) fn discard_structural_value(
         StructuralRuntimePlace,
         crate::storage::element_views::ElementView,
     >,
+    retired: &mut Vec<(PlaceId, TerminalStructuralValue, Option<ReferenceReferent>)>,
     place: PlaceId,
     machine: &terminal_psi::TerminalMachine,
 ) -> Option<TerminalStructuralValue> {
     let value = values.remove(&place)?;
+    let origin = referents
+        .get(&StructuralRuntimePlace::from(&value))
+        .cloned();
+    retired.push((place, value.clone(), origin));
     // A borrowed signature/block binding names the supplying descriptor's
     // physical cells. Ending this loan retires its binding, not those cells:
     // the owner can still observe or lend its stored descriptor afterward.
@@ -1086,10 +1094,13 @@ impl TerminalExecution<'_> {
                 access: StructuralAccess::Owned,
             },
         )?;
-        self.reference_referents.remove(&key);
+        let origin = self.reference_referents.remove(&key);
         self.live_affine_frontier = frontier;
-        if path.is_empty() {
-            self.structural_values.remove(&source);
+        if path.is_empty()
+            && let Some(retired) = self.structural_values.remove(&source)
+        {
+            self.retired_structural_homes
+                .push((source, retired, origin));
         }
         Ok(())
     }
@@ -1945,6 +1956,10 @@ impl TerminalExecution<'_> {
         aggregate_backings: &RuntimeRows<PlaceId, AggregateBacking>,
         primitive_loans: &RuntimeRows<PlaceId, crate::storage::primitive_storage::PrimitiveLoan>,
         array_loans: &RuntimeRows<PlaceId, crate::storage::element_views::ElementView>,
+        byte_bindings: &RuntimeRows<
+            PlaceId,
+            crate::storage::byte_sequences::binding::ByteSequenceBinding,
+        >,
         access_occurrences: &BTreeMap<
             terminal_psi::TerminalAccessViewInput,
             crate::boundary::structural_inputs::access_views::AccessViewOccurrence,
@@ -1991,7 +2006,7 @@ impl TerminalExecution<'_> {
                         owner.structural_type,
                         source,
                     )
-                    .map_err(|reason| TerminalInterpretError::UnsupportedSemanticVariant(reason))?;
+                    .map_err(TerminalInterpretError::UnsupportedSemanticVariant)?;
                     if binding.extent == semantic_vocabulary::ReferenceOriginExtent::Projected
                         && binding.endpoint != referent_type
                     {
@@ -2079,7 +2094,41 @@ impl TerminalExecution<'_> {
                             .then(|| array_loans.get(&parameter.place).cloned())
                             .flatten()
                     });
+                    let byte_binding = if self
+                        .structural_types()
+                        .get(&expected.structural_type)
+                        .is_some_and(|declaration| {
+                            declaration.shape.is_borrowed_byte_carrier()
+                                || declaration.shape.is_bounded_owned_byte_sequence()
+                        }) {
+                        let binding = match byte_bindings
+                            .get(&parameter.place)
+                            .filter(|_| path.is_empty())
+                        {
+                            Some(binding) => binding.clone(),
+                            None => self.retained_byte_descriptor_binding(
+                                &StructuralArgument {
+                                    place: parameter.place,
+                                    path: path.to_vec(),
+                                    access: source.access,
+                                },
+                                &expected,
+                            )?.ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
+                                "returned byte reference source has no retained descriptor binding",
+                            ))?,
+                        };
+                        if !access_covers(binding.access(), source.access) {
+                            return Err(malformed());
+                        }
+                        // Capture the admitted descriptor now. A callee may
+                        // replace its slot before returning an earlier byte loan.
+                        self.byte_descriptor_length(&binding, &expected)?;
+                        Some(binding)
+                    } else {
+                        None
+                    };
                     backings.push(ReferenceBacking {
+                        byte_binding,
                         element_view: if (!binding.suffix.is_empty()
                             || binding.extent
                                 == semantic_vocabulary::ReferenceOriginExtent::WithinRegion)
@@ -2254,35 +2303,74 @@ impl TerminalExecution<'_> {
                 if endpoint != referent_type {
                     return Err(malformed());
                 }
-                if path
-                    .iter()
-                    .any(|projection| {
-                        !matches!(
-                            projection,
-                            terminal_psi::ReferenceOriginProjection::Exact(_)
-                        )
-                    })
-                {
+                if path.iter().any(|projection| {
+                    !matches!(
+                        projection,
+                        terminal_psi::ReferenceOriginProjection::Exact(_)
+                    )
+                }) {
                     return Err(TerminalInterpretError::UnsupportedSemanticVariant(
                         "invocation reference origin element window",
                     ));
                 }
                 let machine = self.program.verified_machine(self.current_machine)?;
-                for (place, value) in self.structural_values.iter() {
+                // Consumption ends a carrier's custody, not its production: a
+                // retired home remains admissible, and each candidate still
+                // proves exact referent view identity below. A retired
+                // carrier's captured referent row seeds the declared
+                // `Referent` crossing; the fields beneath it traverse live
+                // storage like any other projection.
+                let produced_entries = self
+                    .structural_values
+                    .iter()
+                    .map(|(place, value)| (place, value, None))
+                    .chain(
+                        self.retired_structural_homes
+                            .iter()
+                            .map(|(place, value, origin)| (place, value, origin.as_ref())),
+                    );
+                for (place, value, retired_origin) in produced_entries {
                     if value.structural_type != *carrier_type
                         || machine.producing_operation(*place).is_none()
                     {
                         continue;
                     }
+                    // The declared projection always begins by crossing the
+                    // produced carrier's `Referent`. A live carrier resolves
+                    // that crossing through `reference_referents`; a retired
+                    // one resumes from the referent view it captured, with
+                    // that row's own backing companions.
+                    let (value, suffix, placed, aggregate_view, primitive_storage) =
+                        match retired_origin {
+                            Some(origin)
+                                if path.first()
+                                    == Some(&terminal_psi::ReferenceOriginProjection::Exact(
+                                        StructuralPathSegment::Referent,
+                                    )) =>
+                            {
+                                (
+                                    &origin.view,
+                                    &path[1..],
+                                    origin.placed.clone(),
+                                    origin.aggregate_view,
+                                    origin
+                                        .primitive_loan
+                                        .as_ref()
+                                        .map(|loan| loan.storage.clone()),
+                                )
+                            }
+                            _ => (value, &path[..], None, None, None),
+                        };
                     invocation_backings.push(ReferenceBacking {
                         array_loan: None,
-                        placed: None,
+                        placed,
                         value: value.clone(),
-                        aggregate_view: None,
-                        primitive_storage: None,
-                        suffix: path.clone(),
+                        aggregate_view,
+                        primitive_storage,
+                        suffix: suffix.to_vec(),
                         extent: *extent,
                         element_view: None,
+                        byte_binding: None,
                         access: *source_access,
                     });
                 }

@@ -112,10 +112,10 @@ impl SelectedProgramEntryCall {
             if matching_rows.next().is_some() {
                 return Err("semantic-entry transport has competing selected provider rows".into());
             }
-            if let Some((_, _, previous_boundary)) = selected {
-                if previous_boundary != boundary_id {
-                    return Err("semantic-entry transport has competing selected bindings".into());
-                }
+            if let Some((_, _, previous_boundary)) = selected
+                && previous_boundary != boundary_id
+            {
+                return Err("semantic-entry transport has competing selected bindings".into());
             }
             selected = Some((plan, row_requirement, boundary_id));
         }

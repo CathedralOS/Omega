@@ -246,9 +246,7 @@ fn project(
                 // Nested routed membership needs its own provenance theory;
                 // flattening only its predicates would lose that obligation.
                 scalar_membership_carrier(program, nested)?;
-                if crate::exact_domain_subject_type(program, domain, nested.value).is_none() {
-                    return None;
-                }
+                crate::exact_domain_subject_type(program, domain, nested.value)?;
                 let arguments = program
                     .type_reference_table
                     .type_reference_handles(nested.domain_arguments);
@@ -498,13 +496,12 @@ impl Predicate<'_> {
         // A direct conformance call's target is the selected body's entry.
         // An evidence binder has no body here; the public requirement stays
         // the contract and this projector does not invent one.
-        if let Some(dispatch) = &call.static_requirement_dispatch {
-            if dispatch.evidence_parameter.is_valid()
+        if let Some(dispatch) = &call.static_requirement_dispatch
+            && (dispatch.evidence_parameter.is_valid()
                 || !dispatch.realization_state.is_valid()
-                || dispatch.realization_state != call.target_symbol
-            {
-                return None;
-            }
+                || dispatch.realization_state != call.target_symbol)
+        {
+            return None;
         }
         let (machine, state) =
             crate::machine_calls::calls::machine_state_by_symbol(self.program, call.target_symbol)?;
@@ -538,7 +535,8 @@ impl Predicate<'_> {
         };
         let body = if let Some(expression) = statement.as_expression() {
             *expression
-        } else if let Some(transition) = statement.as_transition() {
+        } else {
+            let transition = statement.as_transition()?;
             if transition.continuation.is_valid()
                 || !matches!(transition.guard, TransitionGuardNode::Always)
             {
@@ -552,8 +550,6 @@ impl Predicate<'_> {
                 return None;
             };
             *value
-        } else {
-            return None;
         };
         Some((body, parameter.symbol))
     }

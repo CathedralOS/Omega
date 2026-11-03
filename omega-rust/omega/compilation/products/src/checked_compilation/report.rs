@@ -246,6 +246,32 @@ impl CompileReportSettlement {
         self.finish(report)
     }
 
+    /// Settle a native request that stopped after runtime admission as the
+    /// Terminal product it executes, carrying the admitted provisions. The
+    /// request was admitted as native; it never produces native output.
+    pub fn finish_terminal_runtime(
+        mut self,
+        artifact: RetainedTerminalArtifact,
+        provisions: Option<native_artifact::TerminalRuntimeProvisions>,
+        rollback: Option<OptimizationRollbackReceipt>,
+    ) -> Result<CompileReport, Vec<Diagnostic>> {
+        if self.expected_kind != CompileOutputKind::RetainedNativeArtifact {
+            return Err(diagnostics(
+                "Terminal runtime admission requires an admitted native request",
+            ));
+        }
+        self.expected_kind = CompileOutputKind::TerminalArtifact;
+        let report = CompileReport::from_retained_terminal_artifact(
+            self.root_path.clone(),
+            self.source_file_count,
+            artifact,
+        )
+        .and_then(|report| report.with_terminal_runtime_provisions(provisions))
+        .and_then(|report| report.with_terminal_optimization_rollback(rollback))
+        .map_err(diagnostics)?;
+        self.finish(report)
+    }
+
     /// Assemble the admitted retained-native product with this compilation's
     /// application metadata. A dynamically linked ELF output keeps its own
     /// report variant, so it never satisfies direct-image custody.

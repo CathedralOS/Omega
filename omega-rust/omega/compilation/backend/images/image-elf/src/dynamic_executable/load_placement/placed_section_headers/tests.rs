@@ -23,8 +23,8 @@ fn load_layout(target: TargetProfile) -> ValidatedElfDynamicLoadLayout {
         target,
         "versioned import locator",
     );
-    let load = crate::test_support::import_call_load_layout(image, symbol_handle, target);
-    load
+
+    crate::test_support::import_call_load_layout(image, symbol_handle, target)
 }
 
 fn candidate(target: TargetProfile) -> Candidate {

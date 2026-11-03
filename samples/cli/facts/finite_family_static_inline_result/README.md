@@ -17,3 +17,17 @@ Publication requires fixed-candidate qualification, independent review and the n
 Additional controls challenge the row's assumptions. `authored_sum` supplies the common concrete result ABI for runtime-selected sizes; `nested_static` keeps identically named nested const binders distinct. `runtime_shape/invalid` and `nested_runtime_shape/invalid` reject runtime extents in inline storage, including an ordinary machine without a finite call. This is a general storage check rather than a family-call recognizer. References, erased fields and explicit storage retain their independent contracts; absence of a diagnostic is never layout authority.
 
 `uncalled_target` calls only row 16 while row 32 requires a target-specific helper. Its invalid twin supplies that helper only on Linux ARM64; realizing Linux x86-64 must still reject the uncalled row. `argument_effect` supplies the focused nested-producer reproduction. Its invalid twin changes only the result annotation to index 32 while still selecting row 16; nested effects cannot erase that exact index mismatch.
+
+## Build-owned target-body migration
+
+The `target_body` place carries no source target prefix. Its four prefixed
+`pair` bodies became the requirement `SelectedPair::pair`, implemented by
+ordinary `X86...` and `Arm...` implementations and selected by explicit
+target-keyed `Build::select_provider` rows (`BUILD-OWNED-TARGET-SELECTION`).
+The operation, inputs, contracts and exit oracle are unchanged. The entry
+wrapper and each implementation check a target tag through a second selected
+requirement (17 for x86-64, 29 for AArch64), so a wrong Build row traps.
+Observed with the optimized producer at `11bdd2fe41f` on macOS x86-64: the
+migrated positive exits 0 under `omega run --both` (native and Terminal Psi
+agree), and the twin still rejects because the row argument does not match the binder's trait arguments. No compiler change was needed. The other hosted
+targets were not executed here.

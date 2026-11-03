@@ -147,9 +147,8 @@ impl StructuralJudge<'_> {
                 representation: None,
             });
             self.retain_storage_value(coordinate.clone(), value, false);
-            if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                .iter_mut()
-                .find(|stored| stored.coordinate == coordinate)
+            if let Some(stored) =
+                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&coordinate)
             {
                 stored.backing = Some(CapturedScalarReadBacking {
                     dependencies: backing,
@@ -275,9 +274,8 @@ impl StructuralJudge<'_> {
         }
         self.retain_storage_value(storage.coordinate.clone(), value, false);
         if let Some(backing) = backing
-            && let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                .iter_mut()
-                .find(|stored| stored.coordinate == storage.coordinate)
+            && let Some(stored) =
+                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&storage.coordinate)
         {
             stored.backing = Some(backing);
         }
@@ -325,38 +323,38 @@ impl StructuralJudge<'_> {
             return None;
         };
         let mut refusal = "no-cell";
-        let value = self.stored_values.iter().find_map(|stored| {
-            if stored.coordinate != coordinate {
-                return None;
-            }
-            if stored.backing.is_none() {
-                refusal = "no-backing";
-                return None;
-            }
-            if !self.storage_value_transfer_is_current(stored, self.storage_version) {
-                refusal = "storage-not-current";
-                return None;
-            }
-            let Some(current) = stored.current.as_ref() else {
-                refusal = "retired-cell";
-                return None;
-            };
-            let mut root = current.semantic_value();
-            loop {
-                root = match root {
-                    super::super::StructuralTerm::Projection { subject, .. } => {
-                        subject.semantic_value()
-                    }
-                    super::super::StructuralTerm::IndexedValue { collection, .. } => {
-                        collection.semantic_value()
-                    }
-                    _ => break,
+        let value = self
+            .stored_values
+            .values_at(&coordinate)
+            .find_map(|stored| {
+                if stored.backing.is_none() {
+                    refusal = "no-backing";
+                    return None;
+                }
+                if !self.storage_value_transfer_is_current(stored, self.storage_version) {
+                    refusal = "storage-not-current";
+                    return None;
+                }
+                let Some(current) = stored.current.as_ref() else {
+                    refusal = "retired-cell";
+                    return None;
                 };
-            }
-            refusal = "capture-identity";
-            root.same_resolution_payload(&captured)
-                .then(|| current.clone())
-        });
+                let mut root = current.semantic_value();
+                loop {
+                    root = match root {
+                        super::super::StructuralTerm::Projection { subject, .. } => {
+                            subject.semantic_value()
+                        }
+                        super::super::StructuralTerm::IndexedValue { collection, .. } => {
+                            collection.semantic_value()
+                        }
+                        _ => break,
+                    };
+                }
+                refusal = "capture-identity";
+                root.same_resolution_payload(&captured)
+                    .then(|| current.clone())
+            });
         if value.is_none() {
             self.trace_completed_result_read_refusal(&captured, path, refusal);
         }
@@ -709,13 +707,10 @@ impl StructuralJudge<'_> {
                     // owner, after the whole load frontier and current cut are
                     // independently authenticated. A retired Entry snapshot is
                     // never a substitute for changed current storage.
-                    if self.storage_graph().is_none() {
-                        return None;
-                    }
+                    self.storage_graph()?;
                     let at = at?;
-                    self.stored_values.iter().find_map(|stored| {
-                        (stored.coordinate == coordinate
-                            && stored.current.is_none()
+                    self.stored_values.values_at(&coordinate).find_map(|stored| {
+                        (stored.current.is_none()
                             && self.current_value_valid(stored, &coordinate, at))
                         .then(|| stored.entry.clone())
                         .flatten()

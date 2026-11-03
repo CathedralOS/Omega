@@ -12,6 +12,7 @@
 use super::super::StructuralJudge;
 use super::{CapturedStorageCoordinate, CapturedStorageSegment, CapturedStorageValue};
 use crate::CanonicalPlace;
+use crate::completed_storage::versions;
 use arena::Handle;
 use checked_trees::{FlowControlFacts, FlowStateFact, FlowStorageSnapshot};
 use facts::PlaceSegment;
@@ -47,9 +48,7 @@ impl<'program> StructuralJudge<'program> {
     }
 
     fn flow_state(&self, state: SymbolHandle) -> Option<&'program FlowStateFact> {
-        let graph = self.storage_graph()?;
-        let (machine, _) = crate::find_state(self.program, state)?;
-        graph.unique_state(machine.symbol, state)
+        versions::state_row(self.program, self.storage_graph()?, state)
     }
 
     /// Incoming storage of `state`, for a runtime body whose state the graph
@@ -68,16 +67,15 @@ impl<'program> StructuralJudge<'program> {
         state: &State,
         statement_index: usize,
     ) -> Option<StorageVersion> {
-        let graph = self.storage_graph()?;
-        let row = self.flow_state(state.symbol)?;
-        let statement = graph
-            .statements
-            .span(row.statements)?
-            .iter()
-            .find(|statement| statement.statement_index == statement_index)?;
+        let snapshot = versions::statement_snapshot(
+            self.program,
+            self.storage_graph()?,
+            state.symbol,
+            statement_index,
+        )?;
         Some(StorageVersion {
             state: state.symbol,
-            snapshot: statement.storage_snapshot,
+            snapshot,
         })
     }
 
@@ -102,15 +100,13 @@ impl<'program> StructuralJudge<'program> {
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<StorageVersion> {
-        let graph = self.storage_graph()?;
-        let row = self.flow_state(state.symbol)?;
-        let mut calls = graph
-            .calls
-            .span(row.calls)?
-            .iter()
-            .filter(|call| call.authored_expression == expression);
-        let call = calls.next()?;
-        calls.next().is_none().then_some(StorageVersion {
+        let call = versions::unique_call(
+            self.program,
+            self.storage_graph()?,
+            state.symbol,
+            expression,
+        )?;
+        Some(StorageVersion {
             state: state.symbol,
             snapshot: call.completed_storage,
         })
@@ -168,20 +164,8 @@ impl<'program> StructuralJudge<'program> {
         let Some(graph) = self.storage_graph() else {
             return false;
         };
-        let Some(row) = self.flow_state(state.symbol) else {
-            return false;
-        };
-        let Some(calls) = graph.calls.span(row.calls) else {
-            return false;
-        };
-        let mut matching = calls
-            .iter()
-            .filter(|call| call.authored_expression == expression);
-        let Some(call) = matching.next() else {
-            return false;
-        };
-        matching.next().is_none()
-            && crate::completed_storage::contents_preserved_from(
+        versions::unique_call(self.program, graph, state.symbol, expression).is_some_and(|call| {
+            crate::completed_storage::contents_preserved_from(
                 self.program,
                 graph,
                 call.completed_storage,
@@ -189,6 +173,7 @@ impl<'program> StructuralJudge<'program> {
                 &[call.invocation_storage],
                 crate::completed_storage::StoredObservation::InlineContents,
             )
+        })
     }
 
     /// The version a read observed: its own completed operand's snapshot.
@@ -197,19 +182,10 @@ impl<'program> StructuralJudge<'program> {
         state: &State,
         expression: ExpressionHandle,
     ) -> Option<StorageVersion> {
-        let graph = self.storage_graph()?;
-        graph.with_expression_operands(expression, |rows| {
-            let mut matching = rows
-                .iter()
-                .map(|handle| graph.operands.get(*handle))
-                .filter(|operand| operand.state_symbol == state.symbol);
-            let operand = matching.next()?;
-            matching
-                .all(|other| other.storage_snapshot == operand.storage_snapshot)
-                .then_some(StorageVersion {
-                    state: state.symbol,
-                    snapshot: operand.storage_snapshot,
-                })
+        let snapshot = versions::operand_snapshot(self.storage_graph()?, state.symbol, expression)?;
+        Some(StorageVersion {
+            state: state.symbol,
+            snapshot,
         })
     }
 
@@ -300,7 +276,7 @@ impl<'program> StructuralJudge<'program> {
         let Some(graph) = self.storage_graph() else {
             return;
         };
-        let Some(path) = Self::followed_path(graph, from.snapshot, to.snapshot) else {
+        let Some(path) = versions::followed_path(graph, from.snapshot, to.snapshot) else {
             return;
         };
         let retained = self
@@ -334,83 +310,6 @@ impl<'program> StructuralJudge<'program> {
                 stored.anchor_state = to.state;
             }
         }
-    }
-
-    /// The events from `to` back to `from` along the path through each join's
-    /// one predecessor that reaches `from`, as (event, its predecessor on the
-    /// path) pairs. None unless the walk crosses such a join and reaches
-    /// `from`, or when a join has several predecessors reaching `from`.
-    fn followed_path(
-        graph: &FlowControlFacts,
-        from: Handle<FlowStorageSnapshot>,
-        to: Handle<FlowStorageSnapshot>,
-    ) -> Option<Vec<(Handle<FlowStorageSnapshot>, Handle<FlowStorageSnapshot>)>> {
-        let mut path = Vec::new();
-        let mut crossed_join = false;
-        let mut current = to;
-        while current != from {
-            if !current.is_valid() || !graph.storage_snapshots.is_valid(current) {
-                return None;
-            }
-            let event = graph.storage_snapshots.get(current);
-            let previous = match event.operation {
-                checked_trees::FlowStorageOperation::Join { predecessors } => {
-                    // Only a join this judge's path enters through exactly one
-                    // predecessor is a path choice. Value alternatives of one
-                    // call all descend from `from` and choose nothing.
-                    let mut reaching = graph
-                        .storage_predecessors
-                        .span_or_empty(predecessors)
-                        .iter()
-                        .filter(|predecessor| Self::reaches(graph, **predecessor, from));
-                    let predecessor = *reaching.next()?;
-                    if reaching.next().is_some() {
-                        return None;
-                    }
-                    crossed_join = true;
-                    predecessor
-                }
-                _ => {
-                    // A preservation query needs a valid cut below the event.
-                    if !event.previous.is_valid() && from.is_valid() {
-                        return None;
-                    }
-                    path.push((current, event.previous));
-                    event.previous
-                }
-            };
-            current = previous;
-        }
-        (crossed_join && path.iter().all(|(_, before)| before.is_valid())).then_some(path)
-    }
-
-    /// Whether `target` lies on some path back from `start`.
-    fn reaches(
-        graph: &FlowControlFacts,
-        start: Handle<FlowStorageSnapshot>,
-        target: Handle<FlowStorageSnapshot>,
-    ) -> bool {
-        let mut visited = std::collections::BTreeSet::new();
-        let mut pending = vec![start];
-        while let Some(current) = pending.pop() {
-            if current == target {
-                return true;
-            }
-            if !current.is_valid()
-                || !graph.storage_snapshots.is_valid(current)
-                || !visited.insert(current.arena_index())
-            {
-                continue;
-            }
-            let event = graph.storage_snapshots.get(current);
-            match event.operation {
-                checked_trees::FlowStorageOperation::Join { predecessors } => {
-                    pending.extend(graph.storage_predecessors.span_or_empty(predecessors));
-                }
-                _ => pending.push(event.previous),
-            }
-        }
-        false
     }
 
     /// Whether this judge reads storage validity from the graph.

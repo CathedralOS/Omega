@@ -500,8 +500,7 @@ fn canonical_join_rejects_missing_owner_template_and_duplicate_coordinate() {
                 .push(changed.provider_candidates[0].clone()),
         }
         let error = checked_candidate_roster(std::slice::from_ref(&declaration), &changed)
-            .err()
-            .expect(mismatch);
+            .expect_err(mismatch);
         assert!(
             error.contains(if mismatch == "duplicate" {
                 "duplicate canonical realizations"

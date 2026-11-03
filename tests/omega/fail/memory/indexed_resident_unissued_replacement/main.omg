@@ -1,8 +1,8 @@
 use omega::language::core::drop;
 data First {}
 data Second {}
-data Slot [linear] { value: u64; }
-machine Slot::drop(slot: &mut Slot) { slot.value = 0; }
+data Slot [linear] dropped by drop_slot { value: u64; }
+machine drop_slot(slot: &mut Slot) { slot.value = 0; }
 domain<P> Slot::Resident<P> established by initialize;
 data Storage<P> { resident: Slot in Resident<P>; }
 machine initialize<P>(value: u64) -> Slot in Resident<P> { Slot { value: value } }

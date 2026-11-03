@@ -3,8 +3,8 @@
 use omega::language::core::layout;
 use omega::language::core::drop;
 
-data Retained [linear] { value: u64; }
-machine Retained::drop(retained: &mut Retained) { retained.value = 0; }
+data Retained [linear] dropped by drop_retained { value: u64; }
+machine drop_retained(retained: &mut Retained) { retained.value = 0; }
 
 public data Value { number: u64; }
 public data StablePlacement {}

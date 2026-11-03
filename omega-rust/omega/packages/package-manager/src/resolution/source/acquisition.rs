@@ -137,7 +137,7 @@ impl<'operation> BuildSourceAcquisitions<'operation> {
     pub fn acquire_issued(
         &mut self,
         requester: &AcquiredBuildSource,
-        requests: &[build_evaluation::host::requests::IssuedBuildRequest],
+        requests: &[build_settings::host::requests::IssuedBuildRequest],
         purpose: build_declarations::DependencyPurpose,
         ordinal: usize,
     ) -> Result<AcquiredSourceSelection, String> {
@@ -519,14 +519,14 @@ impl AcquiredBuildSource {
     /// Bind one executed declaration; graph and compiler joins remain mandatory.
     pub fn bind_returned_build(
         &self,
-        returned: &build_evaluation::ReturnedBuild,
+        returned: &build_settings::ReturnedBuild,
     ) -> Result<package_compilation::PackageSourceBinding, String> {
         self.declare_build(returned)?.source_binding()
     }
 
     pub fn declare_build(
         &self,
-        returned: &build_evaluation::ReturnedBuild,
+        returned: &build_settings::ReturnedBuild,
     ) -> Result<DeclaredBuildSource, String> {
         let declaration = returned
             .declaration()
@@ -538,12 +538,10 @@ impl AcquiredBuildSource {
                 return Err("a workspace declaration does not name a Product source owner".into());
             }
         };
-        if let super::PackageSourceSelectionEvidence::GitWorkspace(evidence) = &self.selection {
-            if name != evidence.plan().selected_member().package_name() {
-                return Err(
-                    "returned Build name differs from its executed workspace selection".into(),
-                );
-            }
+        if let super::PackageSourceSelectionEvidence::GitWorkspace(evidence) = &self.selection
+            && name != evidence.plan().selected_member().package_name()
+        {
+            return Err("returned Build name differs from its executed workspace selection".into());
         }
         let requests = DependencyProjections::from_executed_requests(
             returned.requests().iter().map(|issued| issued.request()),

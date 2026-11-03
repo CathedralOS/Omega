@@ -174,7 +174,16 @@ impl DestinationPreparationReceipt {
 /// this carrier. No source-language write-only view is implied.
 #[derive(Debug)]
 pub struct PreparedPostHandoffWriterDestination<'mapping, 'bytes> {
+    // Held for linear custody until the COMPONENT-SUBSTRATE route consumes them.
+    #[expect(
+        dead_code,
+        reason = "custody carrier per the struct doc; TASKS.md COMPONENT-SUBSTRATE wires its reader"
+    )]
     mapping: MappedExtent<'mapping>,
+    #[expect(
+        dead_code,
+        reason = "custody carrier per the struct doc; TASKS.md COMPONENT-SUBSTRATE wires its reader"
+    )]
     receipt: DestinationPreparationReceipt,
     site: PlacementSite,
     bytes: &'bytes mut [u8],

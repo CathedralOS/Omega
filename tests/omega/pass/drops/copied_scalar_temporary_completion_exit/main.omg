@@ -1,6 +1,6 @@
 // Expected exit: 0. Copies finish before their source descriptors and backing hooks.
-data Receipt { counter: &mut [u64; 1]; value: u64; }
-machine Receipt::drop(receipt: &mut Receipt) {
+data Receipt dropped by drop_receipt { counter: &mut [u64; 1]; value: u64; }
+machine drop_receipt(receipt: &mut Receipt) {
     receipt.counter[0] = ((receipt.counter[0] as u64 in Wrapping) + 1) as u64;
 }
 machine issue(counter: &mut [u64; 1], value: u64) -> Receipt {

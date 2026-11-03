@@ -1,5 +1,5 @@
 trait Addition {
-    operator + add(left: u8, right: u8) -> u8;
+    machine + add(left: u8, right: u8) -> u8;
 }
 
 Selected satisfies Addition {

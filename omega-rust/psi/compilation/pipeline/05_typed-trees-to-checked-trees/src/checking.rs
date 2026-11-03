@@ -308,7 +308,9 @@ fn check_program(
     // Retain the arithmetic walk's occurrence intervals for value publication
     // and the later range/contract checks. The analysis already hulled every
     // clean evaluation of a shared expression; no initializer is replayed.
-    let expression_intervals = std::mem::take(&mut validated.validation_facts.expression_intervals);
+    program.attach_expression_intervals(std::sync::Arc::from(std::mem::take(
+        &mut validated.validation_facts.expression_intervals,
+    )));
     let proof_recipe_obligations = std::mem::take(&mut validated.constant_recipe_obligations);
     let integer_range_obligations =
         std::mem::take(&mut validated.validation_facts.integer_range_obligations);
@@ -321,7 +323,6 @@ fn check_program(
             validated.operational,
             validated.service_reaches,
             validated.validation_facts,
-            &expression_intervals,
             &mutation_summaries,
         )
     });
@@ -390,7 +391,6 @@ fn check_program(
             &mutation_summaries,
             &incoming_guard_index,
             &proven_machine_contracts,
-            &expression_intervals,
         )
     })?;
     phase_profile::checkpoint("after checked-fact checks", "psi.05.check_checked_facts");
@@ -496,9 +496,8 @@ fn check_program(
         || validation::reference_result_custody::classify_program_reference_custody(&finalized),
     );
     // Content classification rides the same placement, and for the same
-    // reason. Both memos it leans on -- the data-definition index and the
-    // attached-`::drop` index -- are owned by `program` and keyed by table
-    // revision, so they still answer from cache here.
+    // reason. The data-definition index it leans on is owned by `program`
+    // and keyed by table revision, so it still answers from cache here.
     facts.content_classes = phase_profile::scope(
         "psi.05.selections_custody_types_boundaries.content_classes",
         || validation::classify_program_content_classes(&finalized),

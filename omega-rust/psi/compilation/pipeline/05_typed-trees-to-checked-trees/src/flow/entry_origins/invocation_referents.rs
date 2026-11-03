@@ -1,10 +1,12 @@
-//! Original reference subjects outlive executable state bindings, not their
-//! contents. Qualifiers still pass through the ordinary all-incoming meet and
-//! mutation invalidation. Project observation writes into this same namespace;
-//! otherwise a renamed writer could leave an obsolete entry claim alive.
+//! Track which caller values can change through reference arguments.
+//! A helper may rename a reference as it moves between states, but writes must
+//! still invalidate facts about the original value. These aliases describe
+//! affected values; they do not supply executable addresses or memory access.
 use super::{entry_storage_origins, reference_type, root_storage, stable_parameter};
 use crate::flow::FlowBuildContext;
+use crate::shared::collections::UniqueRoster;
 use facts::PlaceRoot;
+use std::collections::HashSet;
 use symbols::SymbolHandle;
 use validation::CanonicalPlace;
 
@@ -155,9 +157,7 @@ pub(in crate::flow) fn project_invocation_place(
         place.clone(),
         build.call_frames,
     )?;
-    let Some(root) = place.root.as_symbol() else {
-        return None;
-    };
+    let root = place.root.as_symbol()?;
     if program
         .state_parameter_by_symbol(state, root)
         .is_some_and(|parameter| {
@@ -197,9 +197,9 @@ pub(in crate::flow) fn project_invocation_place(
     Some(projected)
 }
 
-/// Observation aliases only: never publish these as physical descriptor
-/// stores or as executable reference origins. Unknown writes retire every
-/// original reference subject without inventing a particular alias.
+/// Include the caller values that a write may change through a reference.
+/// If projection is unknown, invalidate every possible incoming referent;
+/// these additional observations never grant authority for a physical store.
 pub(in crate::flow) fn extend_invocation_observations(
     program: &dyn validation::CheckingInput,
     build: &mut FlowBuildContext,
@@ -218,7 +218,10 @@ pub(in crate::flow) fn extend_invocation_observations(
     {
         return;
     }
-    let mut projected = Vec::new();
+    let measured = phase_profile::guard("psi.05.invocation_observations");
+    let input_count = places.len();
+    let mut candidate_count = 0;
+    let mut projected = UniqueRoster::default();
     for place in places.iter() {
         match project_invocation_place(
             program,
@@ -230,12 +233,11 @@ pub(in crate::flow) fn extend_invocation_observations(
             false,
         ) {
             Some(incoming) => {
-                // Many physical field writes can observe the same enclosing
-                // invocation region. Collapse that projection before searching
-                // the original footprint: appending every duplicate here made
-                // an aggregate store perform one full footprint scan per leaf.
+                // Many fields can refer to the same caller storage. Keep its
+                // first occurrence without rescanning every earlier projection.
+                candidate_count += incoming.len();
                 for place in incoming {
-                    crate::shared::collections::push_unique(&mut projected, place);
+                    projected.push(place);
                 }
             }
             None => {
@@ -261,10 +263,8 @@ pub(in crate::flow) fn extend_invocation_observations(
                                     Vec::new()
                                 },
                             };
-                            crate::shared::collections::push_unique(
-                                &mut projected,
-                                projected_place,
-                            );
+                            candidate_count += 1;
+                            projected.push(projected_place);
                         }
                     }
                 }
@@ -272,7 +272,43 @@ pub(in crate::flow) fn extend_invocation_observations(
             }
         }
     }
-    for place in projected {
-        crate::shared::collections::push_unique(&mut *places, place);
+    phase_profile::count(
+        "psi.05.invocation_observations.input_places",
+        input_count as u64,
+    );
+    phase_profile::count(
+        "psi.05.invocation_observations.candidates",
+        candidate_count as u64,
+    );
+    phase_profile::count(
+        "psi.05.invocation_observations.distinct",
+        projected.as_slice().len() as u64,
+    );
+    let mut projected = projected.into_vec();
+    if !projected.is_empty() {
+        // Preserve the original list, including any repeated entries. The new
+        // projections are already unique, so only original membership matters.
+        let existing: HashSet<_> = places.iter().collect();
+        projected.retain(|place| !existing.contains(place));
+        places.extend(projected);
+    }
+    drop(measured);
+    if input_count >= 256 {
+        phase_profile::checkpoint(
+            "large invocation observation merge",
+            "psi.05.invocation_observations",
+        );
+        phase_profile::checkpoint(
+            "invocation observation inputs",
+            "psi.05.invocation_observations.input_places",
+        );
+        phase_profile::checkpoint(
+            "invocation observation candidates",
+            "psi.05.invocation_observations.candidates",
+        );
+        phase_profile::checkpoint(
+            "invocation observation distinct projections",
+            "psi.05.invocation_observations.distinct",
+        );
     }
 }

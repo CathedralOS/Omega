@@ -173,9 +173,7 @@ impl StructuralJudge<'_> {
             typed_trees::expression::StaticMachineArgument,
         )],
     ) -> Option<CaseGuarantee> {
-        let Some(binary) = self.program.expression_table.binary_node(fact) else {
-            return None;
-        };
+        let binary = self.program.expression_table.binary_node(fact)?;
         if !crate::proof_contracts::bound_expression_meaning::has_exact_declaration_case_membership_meaning(
             self.program, scope, parameters, fact, binary,
         ) {
@@ -188,15 +186,13 @@ impl StructuralJudge<'_> {
             binary.left,
         );
         let (definition, variant) = applied_case_classifier(self.program, binary.right, reference)?;
-        let Some(subject) = structural_terms::structural_term(
+        let subject = structural_terms::structural_term(
             self.program,
             None,
             Some((scope, parameters)),
             binary.left,
             None,
-        ) else {
-            return None;
-        };
+        )?;
         Some(CaseGuarantee {
             subject: Self::substitute_call_term(&subject, map, machine_map),
             data: definition.symbol,

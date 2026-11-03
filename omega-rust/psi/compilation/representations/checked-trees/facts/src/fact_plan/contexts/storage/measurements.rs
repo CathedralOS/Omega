@@ -52,6 +52,7 @@ fn prepared_entry_group_cost() {
                 baseline.append(FactContext {
                     point: ProgramPoint::Machine { machine_symbol },
                     facts: HandleSpan::empty(),
+                    assignments: HandleSpan::empty(),
                 });
             }
             let mut states = Vec::new();
@@ -67,6 +68,7 @@ fn prepared_entry_group_cost() {
                     baseline.append(FactContext {
                         point,
                         facts: HandleSpan::empty(),
+                        assignments: HandleSpan::empty(),
                     });
                 }
                 // Keep unrelated per-call groups in the same store, not only
@@ -80,6 +82,7 @@ fn prepared_entry_group_cost() {
                             call_ordinal,
                         },
                         facts: HandleSpan::empty(),
+                        assignments: HandleSpan::empty(),
                     });
                 }
                 states.push(point);
@@ -162,6 +165,7 @@ fn context_index_cost() {
             source.push(FactContext {
                 point: machine_point,
                 facts: HandleSpan::empty(),
+                assignments: HandleSpan::empty(),
             });
             for state_index in 0..4 {
                 let state_symbol =
@@ -175,6 +179,7 @@ fn context_index_cost() {
                     source.push(FactContext {
                         point,
                         facts: HandleSpan::empty(),
+                        assignments: HandleSpan::empty(),
                     });
                 }
             }

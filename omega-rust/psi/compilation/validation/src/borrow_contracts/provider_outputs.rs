@@ -107,7 +107,7 @@ pub fn resolve_provider_outputs(
             reference,
             carried_lifetimes::LifetimeFrontier::BorrowedStorage,
         )
-        .ok_or_else(|| ViewReturnAmbiguity::IncompleteStructure { subject })?;
+        .ok_or(ViewReturnAmbiguity::IncompleteStructure { subject })?;
         template_dependent |= leaves.template_dependent;
         for leaf in leaves.leaves.into_iter().filter(|leaf| !leaf.lifetime_only) {
             let matching: Vec<_> = inputs

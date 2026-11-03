@@ -1,8 +1,8 @@
 // Expected exit: 0. One saved dispatch subject owns both selected linear fields.
 use omega::language::core::drop;
 
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 data Extracted<Value> {
     case Moved(storage: Token, value: Value);
     case Held(storage: Token, value: Value);

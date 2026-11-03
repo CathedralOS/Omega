@@ -28,12 +28,10 @@ fn geometry_error(
     }
 }
 use calling_conventions::ValueShape;
+use calling_conventions::terminal_layout::StructuralLayouts;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
 use terminal_psi::{StructuralAccess, StructuralPathSegment};
-use terminal_psi::{
-    StructuralFieldDeclaration, StructuralFieldType, StructuralTypeDeclaration, StructuralTypeShape,
-};
+use terminal_psi::{StructuralFieldDeclaration, StructuralFieldType, StructuralTypeShape};
 
 /// Address arithmetic within one contiguous storage region. Crossing a
 /// reference starts a new region; neither offsets nor indices commute with
@@ -78,7 +76,7 @@ pub(super) fn reference_referent_projection(
     mut path: &[StructuralPathSegment],
     requested: StructuralAccess,
     expected: Option<StructuralTypeId>,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<
     (
         StructuralTypeId,
@@ -88,22 +86,14 @@ pub(super) fn reference_referent_projection(
     ),
     LoweringError,
 > {
-    let mut shapes = BTreeMap::new();
-    let mut active = BTreeSet::new();
     let mut runs = Vec::new();
     while let Some(crossing) = path
         .iter()
         .position(|segment| *segment == StructuralPathSegment::Referent)
     {
-        let (carrier, _, _, indices) = runtime_projection(
-            root,
-            &path[..crossing],
-            declarations,
-            &mut shapes,
-            &mut active,
-        )?;
+        let (carrier, _, _, indices) = runtime_projection(root, &path[..crossing], declarations)?;
         let Some(StructuralTypeShape::Reference { referent, access }) = declarations
-            .get(&carrier)
+            .get(carrier)
             .map(|declaration| &declaration.shape)
         else {
             return Err(LoweringError::UnsupportedStructuralReference(root));
@@ -126,15 +116,8 @@ pub(super) fn reference_referent_projection(
             return Err(LoweringError::UnsupportedStructuralReference(root));
         }
     }
-    let (selected, shape, offset, indices) = runtime_borrowed_projection(
-        root,
-        path,
-        requested,
-        expected,
-        declarations,
-        &mut shapes,
-        &mut active,
-    )?;
+    let (selected, shape, offset, indices) =
+        runtime_borrowed_projection(root, path, requested, expected, declarations)?;
     runs.extend(indices);
     Ok((selected, shape, offset, runs))
 }
@@ -145,7 +128,7 @@ pub(super) fn reference_referent_projection(
 pub(super) fn primitive_leaf_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Option<PrimitiveProjection> {
     primitive_access_projection(root, path, declarations, contiguous_primitive_projection)
 }
@@ -153,11 +136,11 @@ pub(super) fn primitive_leaf_projection(
 fn primitive_access_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
     endpoint: impl Fn(
         StructuralTypeId,
         &[StructuralPathSegment],
-        &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        &StructuralLayouts<'_>,
     ) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)>,
 ) -> Option<PrimitiveProjection> {
     let regions = reference_projection_regions(root, path, declarations)?;
@@ -201,7 +184,7 @@ impl ReferenceProjectionRegions<'_> {
 pub(super) fn reference_projection_regions<'path>(
     mut root: StructuralTypeId,
     path: &'path [StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Option<ReferenceProjectionRegions<'path>> {
     let mut pointer_slots = Vec::new();
     let mut readable = true;
@@ -225,7 +208,7 @@ pub(super) fn reference_projection_regions<'path>(
             }
             continue;
         };
-        let (next_root, next_start) = match (segment, &declarations.get(&carrier)?.shape) {
+        let (next_root, next_start) = match (segment, &declarations.get(carrier)?.shape) {
             (
                 StructuralPathSegment::Referent,
                 StructuralTypeShape::Reference { referent, access },
@@ -279,21 +262,16 @@ pub(super) fn reference_projection_regions<'path>(
 fn contiguous_primitive_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)> {
     if let Some((selector, prefix)) = path.split_last()
         && matches!(
             selector,
             StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. }
         )
-        && let Ok((selected, _, owner_offset, mut indices)) = runtime_projection(
-            root,
-            prefix,
-            declarations,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
-        )
-        && let StructuralTypeShape::ByteSequence(carrier) = declarations.get(&selected)?.shape
+        && let Ok((selected, _, owner_offset, mut indices)) =
+            runtime_projection(root, prefix, declarations)
+        && let StructuralTypeShape::ByteSequence(carrier) = declarations.get(selected)?.shape
     {
         let scalar = primitive_projection_type(declarations.values().copied(), root, path)?;
         let payload_offset: u32 = match carrier {
@@ -319,15 +297,9 @@ fn contiguous_primitive_projection(
         };
     }
     if let Some((StructuralPathSegment::Field(identity), carrier_path)) = path.split_last() {
-        let (carrier, _, offset, runs) = runtime_projection(
-            root,
-            carrier_path,
-            declarations,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
-        )
-        .ok()?;
-        if let Some(fields) = declarations.get(&carrier)?.shape.direct_fields() {
+        let (carrier, _, offset, runs) =
+            runtime_projection(root, carrier_path, declarations).ok()?;
+        if let Some(fields) = declarations.get(carrier)?.shape.direct_fields() {
             let field = terminal_psi::live_field_by_identity(fields, *identity)?;
             let scalar = match field.field_type {
                 StructuralFieldType::Scalar(scalar @ ScalarType::IeeeFloat(_)) => Some(scalar),
@@ -341,15 +313,8 @@ fn contiguous_primitive_projection(
             }
         }
     }
-    let (leaf, _, byte_offset, runs) = runtime_projection(
-        root,
-        path,
-        declarations,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )
-    .ok()?;
-    match declarations.get(&leaf)?.shape {
+    let (leaf, _, byte_offset, runs) = runtime_projection(root, path, declarations).ok()?;
+    match declarations.get(leaf)?.shape {
         StructuralTypeShape::PrimitiveScalar(scalar) => Some((scalar, byte_offset, runs)),
         _ => None,
     }
@@ -364,7 +329,7 @@ fn contiguous_primitive_projection(
 pub(super) fn primitive_read_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Option<PrimitiveProjection> {
     let scalar = primitive_read_projection_type(declarations.values().copied(), root, path)?;
     let projection = primitive_access_projection(
@@ -380,7 +345,7 @@ pub(super) fn primitive_read_projection(
 fn contiguous_primitive_read_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Option<(ScalarType, u32, Vec<(semantic_vocabulary::ValueId, u32)>)> {
     if let Some(leaf) = contiguous_primitive_projection(root, path, declarations) {
         return Some(leaf);
@@ -394,14 +359,8 @@ fn contiguous_primitive_read_projection(
         Some((StructuralPathSegment::Case(_), prefix)) => (prefix, &carrier[carrier.len() - 1..]),
         _ => (carrier, &[][..]),
     };
-    let (carrier_type, _, carrier_offset, runs) = runtime_projection(
-        root,
-        prefix,
-        declarations,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )
-    .ok()?;
+    let (carrier_type, _, carrier_offset, runs) =
+        runtime_projection(root, prefix, declarations).ok()?;
     // Eligibility was checked on the complete read. This suffix supplies only
     // the scalar's storage layout, never store authority or a canonical fact.
     let scalar = field.field_type.scalar_type()?;
@@ -422,12 +381,10 @@ pub(super) use scalar_fields::{
 /// nested path. Record-root projections have no root array metadata.
 pub(super) fn root_array_projection_metadata(
     root: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<(Option<u64>, Option<u32>), LoweringError> {
     let declaration = declarations
-        .get(&root)
+        .get(root)
         .ok_or(LoweringError::UnknownStructuralType(root))?;
     let StructuralTypeShape::FixedArray {
         element,
@@ -436,7 +393,7 @@ pub(super) fn root_array_projection_metadata(
     else {
         return Ok((None, None));
     };
-    let shape = structural_shape(element, declarations, cache, active)?;
+    let shape = structural_shape(element, declarations)?;
     let stride = checked_align_up_u32(shape.byte_size, u32::from(shape.alignment))
         .ok_or(LoweringError::StructuralTypeTooLarge(root))?;
     Ok((Some(length), Some(stride)))
@@ -444,47 +401,31 @@ pub(super) fn root_array_projection_metadata(
 
 pub(crate) fn structural_shape(
     structural_type: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<ValueShape, LoweringError> {
-    calling_conventions::terminal_layout::structural_shape(
-        structural_type,
-        declarations,
-        cache,
-        active,
-    )
-    .map_err(geometry_error)
+    declarations.shape(structural_type).map_err(geometry_error)
 }
 
 pub(super) fn scalar_storage_type(
     structural_type: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Option<ScalarType> {
-    calling_conventions::terminal_layout::scalar_storage_type(structural_type, declarations)
+    declarations.scalar_storage_type(structural_type)
 }
 
 pub(super) fn structural_sum_layout(
     structural_type: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
-    calling_conventions::terminal_layout::structural_sum_layout(
-        structural_type,
-        declarations,
-        cache,
-        active,
-    )
-    .map_err(geometry_error)
+    declarations
+        .sum_layout(structural_type)
+        .map_err(geometry_error)
 }
 
 fn structural_field_storage_shape(
     field: &terminal_psi::StructuralFieldDeclaration,
     owner: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<ValueShape, LoweringError> {
     if matches!(
         field.storage.as_ref(),
@@ -501,7 +442,7 @@ fn structural_field_storage_shape(
             .ok_or(LoweringError::UnknownStructuralType(owner))?;
         return Ok(ValueShape::integer(u32::from(codec.byte_size()), 1));
     }
-    structural_field_shape(&field.field_type, owner, declarations, cache, active)
+    structural_field_shape(&field.field_type, owner, declarations)
 }
 
 fn structural_field_offset(
@@ -523,26 +464,17 @@ fn structural_field_offset(
 fn structural_field_shape(
     field: &StructuralFieldType,
     owner: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<ValueShape, LoweringError> {
-    calling_conventions::terminal_layout::structural_field_shape(
-        field,
-        owner,
-        declarations,
-        cache,
-        active,
-    )
-    .map_err(geometry_error)
+    declarations
+        .field_shape(field, owner)
+        .map_err(geometry_error)
 }
 
 fn field_geometry<'types>(
     structural_type: StructuralTypeId,
     segment: &StructuralPathSegment,
-    declarations: &BTreeMap<StructuralTypeId, &'types StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'types>,
 ) -> Result<
     (
         &'types StructuralFieldDeclaration,
@@ -557,7 +489,7 @@ fn field_geometry<'types>(
         return Err(LoweringError::UnknownStructuralType(structural_type));
     };
     let declaration = declarations
-        .get(&structural_type)
+        .get(structural_type)
         .copied()
         .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
     let Some(fields) = declaration.shape.direct_fields() else {
@@ -567,12 +499,7 @@ fn field_geometry<'types>(
     // sit after the tag. Use their actual conventional-sum placements,
     // never a record-relative accumulation that would read tag bytes.
     let common_layout = if matches!(declaration.shape, StructuralTypeShape::Mixed { .. }) {
-        Some(structural_sum_layout(
-            structural_type,
-            declarations,
-            cache,
-            active,
-        )?)
+        Some(structural_sum_layout(structural_type, declarations)?)
     } else {
         None
     };
@@ -588,8 +515,7 @@ fn field_geometry<'types>(
         if field.storage.is_some() && field.identity != *identity {
             continue;
         }
-        let field_shape =
-            structural_field_storage_shape(field, structural_type, declarations, cache, active)?;
+        let field_shape = structural_field_storage_shape(field, structural_type, declarations)?;
         local_offset = match &common_layout {
             Some(layout) => {
                 layout
@@ -622,15 +548,13 @@ fn field_geometry<'types>(
 fn byte_sequence_field_geometry(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<Option<(u32, terminal_psi::ByteSequenceCarrier)>, LoweringError> {
     if !matches!(path.last(), Some(StructuralPathSegment::Field(_))) {
         return Ok(None);
     }
     let (selected, _, offset, indices) =
-        runtime_storage_projection(structural_type, path, declarations, cache, active)?;
+        runtime_storage_projection(structural_type, path, declarations)?;
     if !indices.is_empty() {
         return Err(LoweringError::UnsupportedStructuralReference(
             structural_type,
@@ -654,21 +578,17 @@ fn byte_sequence_field_geometry(
 pub(super) fn bounded_byte_field_geometry(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<Option<(u32, u64)>, LoweringError> {
-    byte_sequence_field_geometry(structural_type, path, declarations, cache, active).map(
-        |geometry| {
-            geometry.and_then(|(offset, carrier)| match carrier {
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
-                    Some((offset, capacity))
-                }
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => None,
-            })
-        },
-    )
+    byte_sequence_field_geometry(structural_type, path, declarations).map(|geometry| {
+        geometry.and_then(|(offset, carrier)| match carrier {
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { capacity } => {
+                Some((offset, capacity))
+            }
+            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+            | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => None,
+        })
+    })
 }
 
 /// A stored borrowed-view descriptor field (`ByteSequence(BorrowedView)`)
@@ -679,19 +599,15 @@ pub(super) fn bounded_byte_field_geometry(
 pub(super) fn borrowed_view_field_offset(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<Option<u32>, LoweringError> {
-    byte_sequence_field_geometry(structural_type, path, declarations, cache, active).map(
-        |geometry| {
-            geometry.and_then(|(offset, carrier)| match carrier {
-                terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
-                | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => Some(offset),
-                terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => None,
-            })
-        },
-    )
+    byte_sequence_field_geometry(structural_type, path, declarations).map(|geometry| {
+        geometry.and_then(|(offset, carrier)| match carrier {
+            terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
+            | terminal_psi::ByteSequenceCarrier::BoundedView { .. } => Some(offset),
+            terminal_psi::ByteSequenceCarrier::BoundedOwned { .. } => None,
+        })
+    })
 }
 
 /// Case payloads overlay storage, but their case and field identities remain
@@ -699,9 +615,7 @@ pub(super) fn borrowed_view_field_offset(
 pub(super) fn case_projection(
     root: StructuralTypeId,
     path: &[semantic_vocabulary::CanonicalStructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
     let invalid = || LoweringError::UnsupportedStructuralSum(root);
     let endpoint =
@@ -714,7 +628,7 @@ pub(super) fn case_projection(
     // copies already separate their regions and require readable references;
     // use that geometry rather than flattening pointers into inline offsets.
     let (selected, shape, offset, indices) =
-        runtime_leaf_copy_projection(root, &storage_path, endpoint, declarations, cache, active)?;
+        runtime_leaf_copy_projection(root, &storage_path, endpoint, declarations)?;
     if selected != endpoint || !indices.is_empty() {
         return Err(invalid());
     }
@@ -727,16 +641,12 @@ pub(super) fn case_projection(
 pub(super) fn resolve_structural_projection_path(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<(StructuralTypeId, ValueShape, u32), LoweringError> {
     let (selected, shape, offset, indices) = storage_projection_path(
         structural_type,
         path,
         declarations,
-        cache,
-        active,
         None,
         StructuralFieldType::canonical_leaf_type,
     )?;
@@ -751,14 +661,13 @@ pub(super) fn resolve_structural_projection_path(
 fn storage_projection_path(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
+
     expected: Option<StructuralTypeId>,
     leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Result<RuntimeProjection, LoweringError> {
     let (selected, shape, offset, indices) =
-        runtime_storage_projection(structural_type, path, declarations, cache, active)?;
+        runtime_storage_projection(structural_type, path, declarations)?;
     Ok((
         selected.declaration(structural_type, expected, declarations, leaf_type)?,
         shape,
@@ -781,7 +690,7 @@ impl ProjectedStorage<'_> {
         self,
         root: StructuralTypeId,
         expected: Option<StructuralTypeId>,
-        declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+        declarations: &StructuralLayouts<'_>,
         leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
     ) -> Result<StructuralTypeId, LoweringError> {
         let leaf = match self {
@@ -804,14 +713,14 @@ impl ProjectedStorage<'_> {
 
     pub(super) fn shape<'types>(
         self,
-        declarations: &BTreeMap<StructuralTypeId, &'types StructuralTypeDeclaration>,
+        declarations: &StructuralLayouts<'types>,
     ) -> Option<std::borrow::Cow<'types, StructuralTypeShape>> {
         match self {
             Self::Declaration(identity) => declarations
-                .get(&identity)
+                .get(identity)
                 .map(|row| std::borrow::Cow::Borrowed(&row.shape)),
             Self::Field(field) if field.field_type.as_structural().is_some() => declarations
-                .get(&field.field_type.as_structural()?)
+                .get(field.field_type.as_structural()?)
                 .map(|row| std::borrow::Cow::Borrowed(&row.shape)),
             Self::Field(field) => field
                 .field_type
@@ -835,9 +744,7 @@ type RuntimeStorageProjection<'types> = (
 pub(super) fn runtime_storage_projection<'types>(
     mut structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &'types StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'types>,
 ) -> Result<RuntimeStorageProjection<'types>, LoweringError> {
     let root_type = structural_type;
     let mut selected_storage = ProjectedStorage::Declaration(structural_type);
@@ -860,7 +767,7 @@ pub(super) fn runtime_storage_projection<'types>(
             }
             StructuralPathSegment::Case(case) => {
                 let invalid = || LoweringError::UnsupportedStructuralSum(structural_type);
-                let declaration = declarations.get(&structural_type).ok_or_else(invalid)?;
+                let declaration = declarations.get(structural_type).ok_or_else(invalid)?;
                 let (StructuralTypeShape::Sum { cases } | StructuralTypeShape::Mixed { cases, .. }) =
                     &declaration.shape
                 else {
@@ -880,16 +787,10 @@ pub(super) fn runtime_storage_projection<'types>(
                     .storage
                     .as_ref()
                     .and_then(semantic_vocabulary::AuthoredFieldStorage::element_stride);
-                let layout = structural_sum_layout(structural_type, declarations, cache, active)?;
+                let layout = structural_sum_layout(structural_type, declarations)?;
                 (
                     ProjectedStorage::Field(field),
-                    structural_field_storage_shape(
-                        field,
-                        structural_type,
-                        declarations,
-                        cache,
-                        active,
-                    )?,
+                    structural_field_storage_shape(field, structural_type, declarations)?,
                     layout.cases[case_position].fields[field_position].byte_offset,
                 )
             }
@@ -905,13 +806,13 @@ pub(super) fn runtime_storage_projection<'types>(
             }
             StructuralPathSegment::Field(_) => {
                 let (selected, shape, offset, stride) =
-                    field_geometry(structural_type, segment, declarations, cache, active)?;
+                    field_geometry(structural_type, segment, declarations)?;
                 repeated_stride = stride;
                 (ProjectedStorage::Field(selected), shape, offset)
             }
             StructuralPathSegment::FixedIndex(_) | StructuralPathSegment::RuntimeIndex { .. } => {
                 let declaration = declarations
-                    .get(&structural_type)
+                    .get(structural_type)
                     .copied()
                     .ok_or(LoweringError::UnknownStructuralType(structural_type))?;
                 let element = match &declaration.shape {
@@ -931,7 +832,7 @@ pub(super) fn runtime_storage_projection<'types>(
                     StructuralTypeShape::ElementView { element, .. } => *element,
                     _ => return Err(LoweringError::UnknownStructuralType(structural_type)),
                 };
-                let shape = structural_shape(element, declarations, cache, active)?;
+                let shape = structural_shape(element, declarations)?;
                 let stride = match repeated_stride.take() {
                     Some(stride) => u32::try_from(stride)
                         .map_err(|_| LoweringError::StructuralTypeTooLarge(root_type))?,
@@ -962,7 +863,7 @@ pub(super) fn runtime_storage_projection<'types>(
     // Resolve its root through the same layout validation as every child.
     let shape = match selected_shape {
         Some(shape) => shape,
-        None => structural_shape(structural_type, declarations, cache, active)?,
+        None => structural_shape(structural_type, declarations)?,
     };
     Ok((selected_storage, shape, total_offset, indices))
 }
@@ -987,43 +888,33 @@ type RuntimeProjection = (
 pub(super) fn runtime_descriptor_projection(
     root: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<RuntimeProjection, LoweringError> {
-    runtime_projection_with_leaf_type(
-        root,
-        path,
-        declarations,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-        None,
-        |field| {
-            field
-                .byte_sequence_carrier()
-                .map(|carrier| {
-                    StructuralFieldType::ByteSequence(match carrier {
-                        terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
-                            terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
+    runtime_projection_with_leaf_type(root, path, declarations, None, |field| {
+        field
+            .byte_sequence_carrier()
+            .map(|carrier| {
+                StructuralFieldType::ByteSequence(match carrier {
+                    terminal_psi::ByteSequenceCarrier::BorrowedView { .. } => {
+                        terminal_psi::ByteSequenceCarrier::BorrowedView { access: None }
+                    }
+                    terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
+                        terminal_psi::ByteSequenceCarrier::BoundedView {
+                            access: None,
+                            capacity,
                         }
-                        terminal_psi::ByteSequenceCarrier::BoundedView { capacity, .. } => {
-                            terminal_psi::ByteSequenceCarrier::BoundedView {
-                                access: None,
-                                capacity,
-                            }
-                        }
-                        owned => owned,
-                    })
+                    }
+                    owned => owned,
                 })
-                .or_else(|| field.canonical_leaf_type())
-        },
-    )
+            })
+            .or_else(|| field.canonical_leaf_type())
+    })
 }
 
 pub(super) fn runtime_projection(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<
     (
         StructuralTypeId,
@@ -1037,8 +928,6 @@ pub(super) fn runtime_projection(
         structural_type,
         path,
         declarations,
-        cache,
-        active,
         None,
         StructuralFieldType::canonical_leaf_type,
     )
@@ -1051,15 +940,13 @@ pub(super) fn runtime_leaf_copy_projection(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
     expected: StructuralTypeId,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<RuntimeProjection, LoweringError> {
     // A snapshot follows the same ordered descriptor crossings as other
     // observations. Flatten only the selector roster for operand custody;
     // selection reconstructs each region from the retained path.
     let expected = declarations
-        .get(&expected)
+        .get(expected)
         .copied()
         .ok_or(LoweringError::UnknownStructuralType(expected))?;
     let regions = reference_projection_regions(structural_type, path, declarations)
@@ -1071,8 +958,6 @@ pub(super) fn runtime_leaf_copy_projection(
         regions.root,
         regions.path,
         declarations,
-        cache,
-        active,
         Some(expected.id),
         |field| field.leaf_copy_type(Some(expected)),
     )?;
@@ -1089,9 +974,7 @@ pub(super) fn runtime_borrowed_projection(
     path: &[StructuralPathSegment],
     access: StructuralAccess,
     expected: Option<StructuralTypeId>,
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<RuntimeProjection, LoweringError> {
     let regions = reference_projection_regions(structural_type, path, declarations).ok_or(
         LoweringError::UnsupportedStructuralReference(structural_type),
@@ -1099,7 +982,7 @@ pub(super) fn runtime_borrowed_projection(
     let expected = expected
         .map(|identity| {
             declarations
-                .get(&identity)
+                .get(identity)
                 .copied()
                 .ok_or(LoweringError::UnknownStructuralType(identity))
         })
@@ -1108,8 +991,6 @@ pub(super) fn runtime_borrowed_projection(
         regions.root,
         regions.path,
         declarations,
-        cache,
-        active,
         expected.map(|declaration| declaration.id),
         |field| field.borrowed_presentation_type(access, expected),
     )?;
@@ -1123,28 +1004,21 @@ pub(super) fn runtime_borrowed_projection(
 pub(super) fn storage_address_indices(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    declarations: &StructuralLayouts<'_>,
 ) -> Result<Vec<(semantic_vocabulary::ValueId, u32)>, LoweringError> {
     let invalid = || LoweringError::UnsupportedStructuralReference(structural_type);
     let regions =
         reference_projection_regions(structural_type, path, declarations).ok_or_else(invalid)?;
     let leaf_indices = if !regions.path.is_empty()
         && matches!(
-            declarations.get(&regions.root).map(|row| &row.shape),
+            declarations.get(regions.root).map(|row| &row.shape),
             Some(StructuralTypeShape::ByteSequence(_))
         ) {
         contiguous_primitive_projection(regions.root, regions.path, declarations)
             .ok_or_else(invalid)?
             .2
     } else {
-        runtime_storage_projection(
-            regions.root,
-            regions.path,
-            declarations,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
-        )?
-        .3
+        runtime_storage_projection(regions.root, regions.path, declarations)?.3
     };
     Ok(regions.selector_runs(leaf_indices))
 }
@@ -1152,9 +1026,8 @@ pub(super) fn storage_address_indices(
 fn runtime_projection_with_leaf_type(
     structural_type: StructuralTypeId,
     path: &[StructuralPathSegment],
-    declarations: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
-    cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+    declarations: &StructuralLayouts<'_>,
+
     expected: Option<StructuralTypeId>,
     leaf_type: impl Fn(&StructuralFieldType) -> Option<StructuralFieldType>,
 ) -> Result<RuntimeProjection, LoweringError> {
@@ -1163,7 +1036,7 @@ fn runtime_projection_with_leaf_type(
     // canonical scalar declaration for borrowed-call signature transport.
     if !path.is_empty()
         && matches!(
-            declarations.get(&structural_type).map(|row| &row.shape),
+            declarations.get(structural_type).map(|row| &row.shape),
             Some(StructuralTypeShape::ByteSequence(_))
         )
     {
@@ -1178,7 +1051,7 @@ fn runtime_projection_with_leaf_type(
         let endpoint = match expected {
             Some(expected) => {
                 let declaration = declarations
-                    .get(&expected)
+                    .get(expected)
                     .ok_or(LoweringError::UnsupportedStructuralReference(expected))?;
                 let contract = leaf_type(&StructuralFieldType::Scalar(scalar))
                     .ok_or(LoweringError::UnsupportedStructuralReference(expected))?;
@@ -1196,18 +1069,10 @@ fn runtime_projection_with_leaf_type(
                 structural_type,
             ))?,
         };
-        let shape = structural_shape(endpoint, declarations, cache, active)?;
+        let shape = structural_shape(endpoint, declarations)?;
         return Ok((endpoint, shape, byte_offset, indices));
     }
-    storage_projection_path(
-        structural_type,
-        path,
-        declarations,
-        cache,
-        active,
-        expected,
-        leaf_type,
-    )
+    storage_projection_path(structural_type, path, declarations, expected, leaf_type)
 }
 
 pub(super) fn byte_sequence_shape(
@@ -1227,7 +1092,8 @@ mod placed_geometry_tests {
     use super::*;
     use semantic_vocabulary::{AuthoredFieldStorage, AuthoredRecordStorage, StructuralFieldId};
     use terminal_psi::{
-        StructuralFieldDeclaration, StructuralRecordStorage, TerminalIdentityIndex,
+        StructuralFieldDeclaration, StructuralRecordStorage, StructuralTypeDeclaration,
+        TerminalIdentityIndex,
     };
 
     #[test]
@@ -1257,7 +1123,7 @@ mod placed_geometry_tests {
             shape,
         })
         .collect::<Vec<_>>();
-        let declarations = types.iter().map(|row| (row.id, row)).collect();
+        let declarations = StructuralLayouts::new(&types).unwrap();
         let root = types[0].id;
         let path = [StructuralPathSegment::FixedIndex(2)];
         let (selected, _, offset, _) = reference_referent_projection(
@@ -1332,13 +1198,11 @@ mod placed_geometry_tests {
             },
         };
         let declarations =
-            BTreeMap::from([(root, &root_declaration), (accessor, &accessor_declaration)]);
+            StructuralLayouts::new([&root_declaration, &accessor_declaration]).unwrap();
         let (selected, shape, offset, indices) = runtime_projection(
             root,
             &[StructuralPathSegment::Field(TerminalIdentityIndex(3))],
             &declarations,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
         )
         .unwrap();
         assert_eq!(selected, accessor);

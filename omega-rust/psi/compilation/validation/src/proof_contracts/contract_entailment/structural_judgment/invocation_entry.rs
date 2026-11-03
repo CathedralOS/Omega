@@ -10,7 +10,7 @@ use typed_trees::{machine::Machine, signature::StateParameter, state::State};
 
 impl<'program> StructuralJudge<'program> {
     pub(in crate::proof_contracts::contract_entailment) fn entry_argument_value(
-        &self,
+        &mut self,
         parameter: &StateParameter,
         value: &StructuralTerm,
         subject: Option<&InvocationEntrySubject>,
@@ -71,7 +71,8 @@ impl<'program> StructuralJudge<'program> {
         // Saved equations still describe the original evaluated values; they
         // cannot reevaluate caller expressions using the callee's parameters.
         self.normal_results = std::sync::Arc::new(Vec::new());
-        self.completed_nominal_values = std::sync::Arc::new(Vec::new());
+        // Nominal receipts name detached completed values, not callee source
+        // expressions. Passed values retain those receipts across activation.
         self.premise_facts.clear();
         std::sync::Arc::make_mut(&mut self.body_invocations).push(entry.symbol);
         self.declaration_state = entry.symbol;

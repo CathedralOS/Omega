@@ -8,7 +8,7 @@ use abstract_operations::{AbstractFunction, AbstractOperation};
 use calling_conventions::ValueShape;
 use semantic_vocabulary::{BoundaryMachineId, MachineId, OperationId, PlaceId, ScalarType};
 use semantic_vocabulary::{IntegerSign, IntegerType};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use target::NativeTarget;
 use target_operations::{
     BoundaryRealization, BoundarySettlementBinding, BoundarySettlementRealization,
@@ -461,7 +461,7 @@ pub(super) fn lower_operation(
                 StructuralTypeShape::ByteSequence(
                     terminal_psi::ByteSequenceCarrier::BorrowedView { .. }
                 )
-            ) || structural_types.get(&structural_type.id).copied() != Some(structural_type)
+            ) || structural_types.get(structural_type.id).copied() != Some(structural_type)
             {
                 return Err(LoweringError::unsupported_control_flow(function.machine));
             }
@@ -552,8 +552,6 @@ pub(super) fn lower_operation(
                 &site.live.structural_homes,
                 reference_destination,
                 &super::scalar_sources::ScalarSources::from(&*site.live),
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
                 site.operations,
                 site.provenance,
             )
@@ -630,8 +628,6 @@ pub(super) fn lower_operation(
                         &site.live.structural_homes,
                         &site.live.address_joins,
                         &site.live.block_views,
-                        &mut BTreeMap::new(),
-                        &mut BTreeSet::new(),
                         &BTreeMap::new(),
                         &mut site.live.integers,
                         &mut site.live.scalar_homes,

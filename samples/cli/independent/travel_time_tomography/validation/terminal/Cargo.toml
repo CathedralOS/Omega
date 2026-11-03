@@ -10,7 +10,7 @@ name = "new087-terminal-validation"
 path = "main.rs"
 
 [dependencies]
-omega-build = { path = "../../../../../../omega-rust/omega/compilation/build" }
+orchestration = { path = "../../../../../../omega-rust/omega/build-system/orchestration" }
 compiler = { path = "../../../../../../omega-rust/omega/compilation/compiler" }
 terminal-runtime = { path = "../../../../../../omega-rust/omega/interpreter/terminal-runtime" }
 terminal-interpreter = { path = "../../../../../../omega-rust/psi/interpreter/terminal-interpreter" }

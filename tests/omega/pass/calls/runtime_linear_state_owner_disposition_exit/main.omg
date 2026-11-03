@@ -1,8 +1,8 @@
 use omega_language_std::console;
 use omega::language::core::drop;
 
-data Receipt [linear] { code: i32; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+data Receipt [linear] dropped by drop_receipt { code: i32; }
+machine drop_receipt(receipt: &mut Receipt) {}
 
 machine consume_pair(first: Receipt, second: Receipt) -> bool {
     let first_code: i32 = first.code;

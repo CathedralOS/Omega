@@ -83,7 +83,7 @@ pub fn split_layout() -> LayoutPlanReport {
         schema_report_fingerprint: 1,
         entries: vec![
             layout_field_entry(
-                "address".into(),
+                "address",
                 LayoutPlacementReport::Bits {
                     container: 0,
                     container_width: 16,
@@ -93,7 +93,7 @@ pub fn split_layout() -> LayoutPlanReport {
                 },
             ),
             layout_field_entry(
-                "address".into(),
+                "address",
                 LayoutPlacementReport::Bits {
                     container: 2,
                     container_width: 16,
@@ -103,7 +103,7 @@ pub fn split_layout() -> LayoutPlanReport {
                 },
             ),
             layout_field_entry(
-                "address".into(),
+                "address",
                 LayoutPlacementReport::Bits {
                     container: 8,
                     container_width: 64,
@@ -129,7 +129,7 @@ pub fn repeated_layout() -> LayoutPlanReport {
         entries: (0..4)
             .map(|index| {
                 numbered_layout_field_entry(
-                    "handlers".into(),
+                    "handlers",
                     9,
                     LayoutPlacementReport::At { offset: index * 8 },
                 )
@@ -152,8 +152,8 @@ pub fn deeply_nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
         LayoutPlanReport {
             schema_report_fingerprint: 1,
             entries: vec![
-                layout_field_entry("header".into(), LayoutPlacementReport::At { offset: 0 }),
-                layout_field_entry("slot".into(), LayoutPlacementReport::At { offset: 8 }),
+                layout_field_entry("header", LayoutPlacementReport::At { offset: 0 }),
+                layout_field_entry("slot", LayoutPlacementReport::At { offset: 8 }),
             ],
             offsets: Some(vec![0, 8]),
             size: Some(40),
@@ -164,8 +164,8 @@ pub fn deeply_nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
             LayoutPlanReport {
                 schema_report_fingerprint: 2,
                 entries: vec![
-                    layout_field_entry("pad".into(), LayoutPlacementReport::At { offset: 0 }),
-                    layout_field_entry("sub".into(), LayoutPlacementReport::At { offset: 8 }),
+                    layout_field_entry("pad", LayoutPlacementReport::At { offset: 0 }),
+                    layout_field_entry("sub", LayoutPlacementReport::At { offset: 8 }),
                 ],
                 offsets: Some(vec![0, 8]),
                 size: Some(32),
@@ -177,9 +177,9 @@ pub fn deeply_nested_layout() -> (LayoutPlanReport, SymbolicFieldInnerLayout) {
             LayoutPlanReport {
                 schema_report_fingerprint: 3,
                 entries: vec![
-                    layout_field_entry("entry".into(), LayoutPlacementReport::At { offset: 0 }),
-                    layout_field_entry("flags".into(), LayoutPlacementReport::At { offset: 8 }),
-                    layout_field_entry("args".into(), LayoutPlacementReport::At { offset: 16 }),
+                    layout_field_entry("entry", LayoutPlacementReport::At { offset: 0 }),
+                    layout_field_entry("flags", LayoutPlacementReport::At { offset: 8 }),
+                    layout_field_entry("args", LayoutPlacementReport::At { offset: 16 }),
                 ],
                 offsets: Some(vec![0, 8, 16]),
                 size: Some(24),
@@ -287,7 +287,7 @@ pub fn stored_integer_layout() -> LayoutPlanReport {
     LayoutPlanReport {
         schema_report_fingerprint: 1,
         entries: vec![layout_field_entry(
-            "address".into(),
+            "address",
             LayoutPlacementReport::IntegerAt {
                 offset: 0,
                 stored_width: 32,
@@ -307,9 +307,7 @@ pub fn record_layout(fingerprint: u64, fields: &[(&str, u64)], size: u64) -> Lay
         schema_report_fingerprint: fingerprint,
         entries: fields
             .iter()
-            .map(|&(field, offset)| {
-                layout_field_entry(field.into(), LayoutPlacementReport::At { offset })
-            })
+            .map(|&(field, offset)| layout_field_entry(field, LayoutPlacementReport::At { offset }))
             .collect(),
         offsets: Some(fields.iter().map(|&(_, offset)| offset).collect()),
         size: Some(size),

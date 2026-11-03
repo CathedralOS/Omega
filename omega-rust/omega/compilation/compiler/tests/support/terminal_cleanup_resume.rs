@@ -1,8 +1,7 @@
 //! Portable corpus provision for resumable cleanup of a source-produced linear owner.
 //! This adapter records the exact authored Console byte boundary. It is a
 //! semantic test sink, not native Console/provider qualification.
-#[path = "terminal_provision.rs"]
-mod terminal_provision;
+use super::terminal_provision;
 
 use semantic_vocabulary::{IntegerSign, IntegerType, IntegerValue, MachineId, ScalarType};
 use std::sync::{Arc, Mutex};
@@ -145,6 +144,7 @@ fn exercise(artifact: &CanonicalTerminalArtifact) {
         TerminalImportSignature::from(declaration),
         TerminalImportSignature {
             normal_qualifications: Vec::new(),
+            result_reference_regions: Vec::new(),
             completion: terminal_psi::BoundaryCompletion::NormalReturn,
             scalar_parameters: vec![ScalarType::Integer(
                 IntegerType::new(IntegerSign::Signed, 32).unwrap()

@@ -49,7 +49,7 @@ pub(super) use place_predicates::place_predicate;
 pub(in crate::checks) mod call_guarantees;
 mod current_boolean;
 mod field_actuals;
-pub(crate) use current_boolean::boolean_value_at_place;
+pub(crate) use current_boolean::{BooleanValueQueries, boolean_value_at_place};
 
 use self::booleans::{
     semantic_context_proves_boolean_expression,
@@ -193,20 +193,15 @@ fn live_scalar_value(
     expression: typed_trees::expression::ExpressionHandle,
     primitive: typed_trees::types::PrimitiveType,
 ) -> Option<ScalarValue> {
-    let Some(selected) = crate::values::lower_unit_scalar_argument(
+    let selected = crate::values::lower_unit_scalar_argument(
         program,
         &facts.operators,
         state,
         statement_index,
         expression,
         primitive,
-    ) else {
-        return None;
-    };
-    let Some(symbols) = crate::values::unit_scalar_binding_symbols(program, state, statement_index)
-    else {
-        return None;
-    };
+    )?;
+    let symbols = crate::values::unit_scalar_binding_symbols(program, state, statement_index)?;
     let semantic = &facts.semantic;
     let mut values = crate::values::PlaceScalarValues {
         program,

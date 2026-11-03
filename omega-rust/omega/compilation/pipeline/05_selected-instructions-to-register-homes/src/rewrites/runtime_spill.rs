@@ -323,7 +323,7 @@ pub(crate) fn stored_transport_size(transport: SelectedStructuralTransport) -> O
             source: selected_instructions::SelectedScalarReferenceSource::Descriptor,
             ..
         } => Some(16),
-        SelectedStructuralTransport::WholeValue { byte_size, .. } => Some(u32::from(byte_size)),
+        SelectedStructuralTransport::WholeValue { byte_size, .. } => Some(byte_size),
     }
 }
 
@@ -434,34 +434,10 @@ pub(crate) fn next_instruction_id(function: &SelectedFunction) -> Option<u32> {
         .checked_add(1)
 }
 
-/// The register twin of [`next_instruction_id`].
+/// The register twin of [`next_instruction_id`]: a register's ID is its
+/// position, so the next one is the roster length.
 pub(crate) fn next_register_id(function: &SelectedFunction) -> Option<u32> {
-    if let Some(last) = function.virtual_registers.last()
-        && last.id.0 as usize + 1 == function.virtual_registers.len()
-        && function
-            .virtual_registers
-            .first()
-            .is_some_and(|first| first.id.0 == 0)
-    {
-        return last.id.0.checked_add(1);
-    }
-    if let Some(last) = function.virtual_registers.last()
-        && function.virtual_registers.len() > 1
-        && last.id.0 as usize >= function.virtual_registers.len() - 1
-        && function
-            .virtual_registers
-            .windows(2)
-            .all(|pair| pair[0].id.0 < pair[1].id.0)
-    {
-        return last.id.0.checked_add(1);
-    }
-    function
-        .virtual_registers
-        .iter()
-        .map(|value| value.id.0)
-        .max()
-        .unwrap_or(0)
-        .checked_add(1)
+    u32::try_from(function.virtual_registers.len()).ok()
 }
 
 pub(crate) fn control_mut(

@@ -2292,7 +2292,7 @@ impl<'program> StructuralJudge<'program> {
     }
 
     pub(in crate::proof_contracts::contract_entailment) fn reference_subject_term(
-        &self,
+        &mut self,
         subject: &crate::machine_calls::calls::InvocationEntrySubject,
         actual: &StructuralTerm,
         environment: &[(String, StructuralTerm)],
@@ -2318,6 +2318,18 @@ impl<'program> StructuralJudge<'program> {
             .access
             .is_readable()
             .then_some(())?;
+        if subject.has_aggregate_view(program) {
+            let observation = self.capture_view_argument_fields(subject, actual, scope.0, scope.1);
+            if let Err(reason) = &observation
+                && super::super::struct_trace()
+            {
+                eprintln!(
+                    "STRUCT aggregate-view-observation-refused caller={} argument={:?} reason={reason}",
+                    scope.0.name, subject.argument,
+                );
+            }
+            return observation.ok();
+        }
         let scalar = subject.scalar_storage_coordinate(program, scope.1);
         let [source] = subject.sources.as_slice() else {
             // Origin authority quantifies over the complete join. Its actual

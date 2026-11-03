@@ -224,9 +224,9 @@ pub(crate) fn leaf_referent(
     referent(types, current).or_else(|| {
         types
             .get(&current)
-            .and_then(|declaration| match declaration.shape {
-                terminal_psi::StructuralTypeShape::Reference { referent, .. } => Some(referent),
-                _ => Some(current),
+            .map(|declaration| match declaration.shape {
+                terminal_psi::StructuralTypeShape::Reference { referent, .. } => referent,
+                _ => current,
             })
     })
 }

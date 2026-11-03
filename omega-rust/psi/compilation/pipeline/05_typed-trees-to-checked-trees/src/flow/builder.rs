@@ -53,8 +53,6 @@ pub(crate) fn build_flow_facts(
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     operators: &checked_trees::CheckedOperatorFacts,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
-    expression_intervals: &[validation::ExpressionInterval],
     state_mutation_summary_cache: &StateMutationSummaryCache,
     shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> FlowFacts {
@@ -95,7 +93,11 @@ pub(crate) fn build_flow_facts(
     // changes with the incoming value inputs. Keep first-demand construction
     // lazy; the check pass owns the table so later consumers reuse it rather
     // than rebuilding identical rows.
-    let shared_tables = std::sync::Arc::new(SharedFlowTables::new(program, scalar_expressions));
+    let shared_tables = std::sync::Arc::new(SharedFlowTables::new(
+        program,
+        scalar_expressions,
+        call_frames,
+    ));
     let new_build = || {
         FlowBuildContext::with_shared_tables(
             program,
@@ -104,8 +106,6 @@ pub(crate) fn build_flow_facts(
             &baseline,
             scalar_expressions,
             operators,
-            exact_integer_casts,
-            expression_intervals,
             call_frames,
             state_mutation_summary_cache,
             shared_tables.clone(),

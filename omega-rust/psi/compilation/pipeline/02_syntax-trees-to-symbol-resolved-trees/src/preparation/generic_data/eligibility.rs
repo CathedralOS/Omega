@@ -49,7 +49,7 @@ pub(in crate::preparation::generic_data) fn base_is_fully_monomorphizable(
     let Some(shape) = generic_data_shape(syntax, base_info) else {
         return false;
     };
-    syntax_items(&syntax)
+    syntax_items(syntax)
         .data_members(base_info.members)
         .iter()
         .all(|member| match member {
@@ -71,7 +71,7 @@ pub(in crate::preparation::generic_data) fn base_is_fully_monomorphizable(
                     GenericDataShape::PureSum | GenericDataShape::MixedSum
                 ) =>
             {
-                syntax_items(&syntax)
+                syntax_items(syntax)
                     .data_payload_fields(variant.payload)
                     .iter()
                     .all(|field| {
@@ -154,7 +154,7 @@ pub(in crate::preparation::generic_data) fn generic_inline_data_edges(
                 ..
             } => {
                 edges.push(base_name.clone());
-                for argument in syntax_type_references(&syntax).type_reference_handles(*arguments) {
+                for argument in syntax_type_references(syntax).type_reference_handles(*arguments) {
                     collect(syntax, *argument, edges);
                 }
             }
@@ -249,7 +249,7 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
             // lexical boundary before recursing into an application.
             !parameters.contains_key(head)
                 && selected_generic_data(syntax, generic_data, selection, base_name).is_some()
-                && syntax_type_references(&syntax)
+                && syntax_type_references(syntax)
                     .type_reference_handles(*arguments)
                     .iter()
                     .all(|&argument| {
@@ -347,12 +347,12 @@ pub(in crate::preparation::generic_data) fn type_reference_handle_is_substitutab
                 base_info,
                 *base_type,
                 parameters,
-            ) && syntax_type_references(&syntax)
+            ) && syntax_type_references(syntax)
                 .constraints(*constraints)
                 .iter()
                 .all(|constraint| match constraint {
                     TypeConstraintNode::Named(_) | TypeConstraintNode::ArithmeticDomain(_) => true,
-                    TypeConstraintNode::Domain(domain) => syntax_type_references(&syntax)
+                    TypeConstraintNode::Domain(domain) => syntax_type_references(syntax)
                         .type_reference_handles(domain.arguments)
                         .iter()
                         .all(|&argument| {

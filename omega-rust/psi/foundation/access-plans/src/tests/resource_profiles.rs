@@ -222,7 +222,7 @@ fn resource_compatibility_joins_observation_operations_width_and_reach() {
     let atomic_layout = LayoutPlanReport {
         schema_report_fingerprint: 93,
         entries: vec![layout_field_entry(
-            "head".into(),
+            "head",
             LayoutPlacementReport::At { offset: 0 },
         )],
         offsets: Some(vec![0]),
@@ -288,7 +288,7 @@ fn subrange_loan_rebases_profile_and_preserves_denied_bytes() {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 94,
         entries: vec![layout_field_entry(
-            "word".into(),
+            "word",
             LayoutPlacementReport::At { offset: 0 },
         )],
         offsets: Some(vec![0]),
@@ -440,8 +440,8 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
     let conflicting_layout = LayoutPlanReport {
         schema_report_fingerprint: 91,
         entries: vec![
-            layout_field_entry("left".into(), LayoutPlacementReport::At { offset: 0 }),
-            layout_field_entry("right".into(), LayoutPlacementReport::At { offset: 2 }),
+            layout_field_entry("left", LayoutPlacementReport::At { offset: 0 }),
+            layout_field_entry("right", LayoutPlacementReport::At { offset: 2 }),
         ],
         offsets: Some(vec![0, 2]),
         size: Some(8),
@@ -499,7 +499,7 @@ fn transfer_alignment_derives_build_time_and_runtime_base_checks() {
     let layout = LayoutPlanReport {
         schema_report_fingerprint: 92,
         entries: vec![layout_field_entry(
-            "word".into(),
+            "word",
             LayoutPlacementReport::At { offset: 0 },
         )],
         offsets: Some(vec![0]),

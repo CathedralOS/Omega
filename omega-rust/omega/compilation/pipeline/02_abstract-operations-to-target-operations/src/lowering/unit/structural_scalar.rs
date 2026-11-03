@@ -3,9 +3,8 @@
 use crate::LoweringError;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::{AbstractFunction, AbstractOperation};
-use calling_conventions::ValueShape;
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
+use semantic_vocabulary::PlaceId;
+use std::collections::BTreeMap;
 use target_operations::{
     TargetStructuralParameter, TargetUnitOperation, TargetUnitScalarArgumentSource,
     TerminalPsiProvenance,
@@ -30,8 +29,7 @@ pub(in crate::lowering) fn lower_field_store(
     structural_homes: &BTreeMap<PlaceId, target_operations::TargetStructuralHomeRequirement>,
     reference_destination: Option<crate::lowering::control_flow::references::ReferentProjection>,
     scalar_sources: &crate::lowering::control_flow::scalar_sources::ScalarSources<'_>,
-    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
+
     operations: &mut Vec<TargetUnitOperation>,
     provenance: &mut TerminalPsiProvenance,
 ) -> Result<(), LoweringError> {
@@ -171,12 +169,8 @@ pub(in crate::lowering) fn lower_field_store(
             "scalar field destination is not an admitted scalar projection",
         ));
     }
-    let destination_shape = super::super::structural_layout::structural_shape(
-        projection_root,
-        structural_types,
-        shape_cache,
-        active,
-    )?;
+    let destination_shape =
+        super::super::structural_layout::structural_shape(projection_root, structural_types)?;
     // The retained destination and its exact storage origin select the
     // write. Additional borrowed inputs do not change that storage authority.
     // A field consumes the same dominating scalar source as a call or edge:
@@ -227,13 +221,8 @@ pub(in crate::lowering) fn lower_field_store(
         }
         _ => (projection_path, &[][..]),
     };
-    let (carrier_type, _, carrier_byte_offset, runs) = runtime_projection(
-        projection_root,
-        carrier_path,
-        structural_types,
-        shape_cache,
-        active,
-    )?;
+    let (carrier_type, _, carrier_byte_offset, runs) =
+        runtime_projection(projection_root, carrier_path, structural_types)?;
     let indices = runtime_indices(runs, function, scalar_sources)?;
     let (scalar_byte_offset, field_byte_size) = if namespace.is_empty() {
         direct_scalar_field_geometry(carrier_type, *field, value.scalar_type, structural_types)?
@@ -252,7 +241,7 @@ pub(in crate::lowering) fn lower_field_store(
     // base+extent carrier is not the write's frame.
     let destination_is_view = matches!(
         structural_types
-            .get(&destination.structural_type())
+            .get(destination.structural_type())
             .map(|declaration| &declaration.shape),
         Some(
             terminal_psi::StructuralTypeShape::ElementView { .. }

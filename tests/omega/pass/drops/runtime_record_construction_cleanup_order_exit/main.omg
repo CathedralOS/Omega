@@ -36,16 +36,16 @@ boundary trait WindowsConsoleIo {
 
 domain u64::Positive requires 1 <= self;
 
-data Token { value: u64 in Positive; byte: i32; }
-data Triple { left: Token; right: Token; last: Token; }
-data Marker { byte: i32; }
+data Token dropped by drop_token { value: u64 in Positive; byte: i32; }
+data Triple dropped by drop_triple { left: Token; right: Token; last: Token; }
+data Marker dropped by drop_marker { byte: i32; }
 data Pair { left: Marker; right: Marker; }
 
-machine Marker::drop(marker: &mut Marker) reaches Console {
+machine drop_marker(marker: &mut Marker) reaches Console {
     Console::write_byte(marker.byte);
 }
 
-machine Token::drop(token: &mut Token)
+machine drop_token(token: &mut Token)
 requires token.value == 42
 reaches Console
 {
@@ -53,7 +53,7 @@ reaches Console
     token.value = 1;
 }
 
-machine Triple::drop(triple: &mut Triple) reaches Console {
+machine drop_triple(triple: &mut Triple) reaches Console {
     Console::write_byte(88);
 }
 

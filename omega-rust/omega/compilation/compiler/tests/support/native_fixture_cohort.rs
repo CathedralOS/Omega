@@ -85,6 +85,7 @@ pub(super) fn produce(
         .collect::<Vec<_>>();
     let root_path = discovered.authored_root_path.clone();
     let native = compiler::CompilationProduct::Native(compilation_products::NativeProductRequest {
+        image: Default::default(),
         private_entry_ram: entry_inputs::load(&root_path)?,
         terminal_authority_policy: terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),
         terminal_authority_permission_policy: None,
@@ -116,7 +117,7 @@ pub(super) fn produce(
         if let Some(snapshot) = execution.snapshot {
             request = request.with_build_snapshot(snapshot);
         }
-        let outcomes = omega_build::compile_sources(prepared.session.compiler(), request)?;
+        let outcomes = orchestration::compile_sources(prepared.session.compiler(), request)?;
         let mut reports = Vec::new();
         let mut failures = Vec::new();
         for outcome in outcomes.into_outcomes().into_vec() {

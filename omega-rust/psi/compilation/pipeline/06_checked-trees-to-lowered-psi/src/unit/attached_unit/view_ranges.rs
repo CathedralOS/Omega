@@ -461,7 +461,7 @@ pub(crate) fn stage_source(
     declarations: &[terminal_psi::StructuralTypeDeclaration],
     bindings: &ScalarBindings,
     next_place: &mut u64,
-    values: &mut Vec<ValueDeclaration>,
+    values: &[ValueDeclaration],
     next_value: &mut u64,
     operations: &mut OperationBuffer,
 ) -> Result<(ViewRangeSource, Option<StructuralPlaceDeclaration>), LoweringError> {

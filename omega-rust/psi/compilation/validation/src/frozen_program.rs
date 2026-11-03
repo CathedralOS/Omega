@@ -133,6 +133,16 @@ pub trait CheckingInput: sealed::Sealed + fmt::Debug + Send + Sync {
         None
     }
 
+    /// The arithmetic walk's enclosure of `expression` over every clean
+    /// evaluation. Stage 05 attaches validation's intervals after its machine
+    /// loop; before that, and for inputs without them, there is none.
+    fn expression_interval(
+        &self,
+        _expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<crate::ExpressionInterval> {
+        None
+    }
+
     fn prepared_mathematics(
         &self,
     ) -> Option<crate::mathematical_applications::PreparedMathematicalView<'_>> {
@@ -204,6 +214,10 @@ impl CheckingInput for typed_trees::FrozenTypedTrees {
 }
 
 impl CheckingInput for checked_trees::CheckedTrees {
+    fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
+        Some(&self.facts.flow.control)
+    }
+
     fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
         &self.facts.qualifications.content.retained_borrow_custodies
     }
@@ -230,6 +244,7 @@ pub struct CheckingContext<'program> {
     finalized_selections: Option<&'program AuthoredDeclarationSelections>,
     prepared_effects: Option<&'program PreparedEffectPlans>,
     storage_graph: OnceLock<Arc<checked_trees::FlowFacts>>,
+    expression_intervals: OnceLock<Arc<[crate::ExpressionInterval]>>,
     prepared_mathematics:
         Option<crate::mathematical_applications::PreparedMathematicalView<'program>>,
     opaque_selections: Option<&'program [OpaqueRepresentationSelection]>,
@@ -279,6 +294,7 @@ impl<'program> CheckingContext<'program> {
             finalized_selections: None,
             prepared_effects: None,
             storage_graph: OnceLock::new(),
+            expression_intervals: OnceLock::new(),
             prepared_mathematics: None,
             opaque_selections: None,
             memos: Arc::new(CheckingMemos::default()),
@@ -307,6 +323,12 @@ impl<'program> CheckingContext<'program> {
     /// effect answer, so borrowers of this context keep their views.
     pub fn attach_storage_graph(&self, graph: Arc<checked_trees::FlowFacts>) {
         let _ = self.storage_graph.set(graph);
+    }
+
+    /// Attach validation's expression intervals, once, before the checks that
+    /// read them run. Like the storage graph, they change no memoized answer.
+    pub fn attach_expression_intervals(&self, intervals: Arc<[crate::ExpressionInterval]>) {
+        let _ = self.expression_intervals.set(intervals);
     }
 
     /// Switch to the ownership-complete execution graph. Effects participate
@@ -345,6 +367,7 @@ impl<'program> CheckingContext<'program> {
             finalized_selections: self.finalized_selections,
             prepared_effects: Some(plans),
             storage_graph: self.storage_graph.clone(),
+            expression_intervals: self.expression_intervals.clone(),
             prepared_mathematics: self.prepared_mathematics,
             opaque_selections: self.opaque_selections,
             memos,
@@ -436,6 +459,13 @@ impl CheckingInput for CheckingContext<'_> {
 
     fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
         self.storage_graph.get().map(|graph| &graph.control)
+    }
+
+    fn expression_interval(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<crate::ExpressionInterval> {
+        crate::expression_interval(self.expression_intervals.get()?, expression).copied()
     }
 
     fn prepared_mathematics(
@@ -556,6 +586,13 @@ impl CheckingInput for CheckingProjection<'_> {
         self.memo_source()?.storage_graph()
     }
 
+    fn expression_interval(
+        &self,
+        expression: typed_trees::expression::ExpressionHandle,
+    ) -> Option<crate::ExpressionInterval> {
+        self.memo_source()?.expression_interval(expression)
+    }
+
     fn call_frame_tables(&self) -> Option<Arc<crate::machine_calls::calls::CallFrameTables<'_>>> {
         self.memo_source()?.call_frame_tables()
     }
@@ -604,21 +641,11 @@ pub struct CheckingMemos {
         flow_effects::ServiceReachInferencePlan,
     )>,
     pub(crate) call_frames: Arc<CallFrameCaches>,
-    /// One normal-value traversal supplies scalar reads and operation-entry
-    /// orderings for this exact immutable state prefix. No runtime occurrence
-    /// is transported into another invocation by these scoped observations.
-    pub(crate) completed_numeric_observations: Mutex<
-        symbols::SymbolKeyMap<
-            (
-                symbols::SymbolHandle,
-                symbols::SymbolHandle,
-                usize,
-                bool,
-                crate::NumericObservationDemand,
-            ),
-            crate::CapturedNumericObservations,
-        >,
-    >,
+    /// Every observed statement position of a state, by demand, from one
+    /// normal-value traversal per state. No runtime occurrence is transported
+    /// into another invocation by these scoped observations.
+    pub(crate) numeric_observations:
+        crate::proof_contracts::contract_entailment::numeric_observations::NumericObservationTable,
     /// One exact-operation operand-fit verdict per (machine, expression),
     /// published by a single per-machine population instead of a fresh
     /// prefix walk per occurrence. `None` retains "processed, no
@@ -790,11 +817,6 @@ pub struct CheckingMemos {
     /// walk through specialization templates is program-fixed, so cleanup
     /// consumers that probe every machine share each declaration's walk once.
     pub(crate) nominal_cleanup_owners: Mutex<symbols::SymbolMap<Option<symbols::SymbolHandle>>>,
-    /// Effective owner -> cleanup machine candidates, built once: a machine
-    /// binds under its direct cleanup owner and under the generic base of
-    /// that owner's origin, so consumers stop scanning every machine.
-    pub(crate) nominal_cleanup_machine_index:
-        OnceLock<Arc<symbols::SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>>>,
     /// One selected-application carrier verdict per (caller machine,
     /// application target, declared result, arity); each consultation
     /// re-derives program-fixed ownership, parameter eligibility, callee
@@ -910,7 +932,6 @@ impl CheckingMemos {
             content_conservation: self.content_conservation,
             case_reference_owners: self.case_reference_owners,
             nominal_cleanup_owners: self.nominal_cleanup_owners,
-            nominal_cleanup_machine_index: self.nominal_cleanup_machine_index,
             contract_occurrences: self.contract_occurrences,
             bound_maps: self.bound_maps,
             declared_float_field_bounds: self.declared_float_field_bounds,
@@ -946,7 +967,6 @@ impl CheckingMemos {
                     .map(|guard| guard.clone())
                     .unwrap_or_default(),
             ),
-            nominal_cleanup_machine_index: self.nominal_cleanup_machine_index.clone(),
             contract_occurrences: self.contract_occurrences.clone(),
             bound_maps: self.bound_maps.clone(),
             declared_float_field_bounds: Mutex::new(

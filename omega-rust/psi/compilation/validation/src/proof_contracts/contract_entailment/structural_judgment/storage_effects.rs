@@ -23,9 +23,11 @@ mod argument_reads;
 mod entry_reads;
 mod graph_versions;
 mod read_backing;
+mod stored_values;
 pub(in crate::proof_contracts::contract_entailment) use graph_versions::{
     StorageAnchor, StorageVersion,
 };
+pub(super) use stored_values::StoredValues;
 
 type StorageScope<'scope> = Option<(&'scope Machine, &'scope State)>;
 
@@ -297,7 +299,7 @@ impl StructuralJudge<'_> {
                 });
             }
         }
-        self.stored_values = std::sync::Arc::new(values);
+        self.stored_values = std::sync::Arc::new(StoredValues::from_values(values));
         self.invalidated_storage = std::sync::Arc::new(Vec::new());
         for parameter in self.program.state_parameters(entry) {
             let coordinate = CapturedStorageCoordinate {
@@ -464,10 +466,9 @@ impl StructuralJudge<'_> {
             );
             if let Some(backing) = backing
                 && let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                    .iter_mut()
-                    .find(|stored| {
-                        stored.coordinate.root == facts::PlaceRoot::Symbol(parameter.symbol)
-                            && stored.coordinate.segments.is_empty()
+                    .value_at_mut(&CapturedStorageCoordinate {
+                        root: facts::PlaceRoot::Symbol(parameter.symbol),
+                        segments: Vec::new(),
                     })
             {
                 stored.backing = Some(backing);
@@ -523,9 +524,8 @@ impl StructuralJudge<'_> {
             };
             let backing = self.freeze_entry_read_backing(state, backing);
             self.retain_storage_value(place.clone(), value, true);
-            if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-                .iter_mut()
-                .find(|stored| stored.coordinate == place)
+            if let Some(stored) =
+                std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&place)
             {
                 stored.backing = Some(backing);
                 // No executable read was observed while admitting a Requires.
@@ -687,6 +687,11 @@ impl StructuralJudge<'_> {
         subject: &crate::machine_calls::calls::InvocationEntrySubject,
         state: &State,
     ) -> Option<CapturedStorageCoordinate> {
+        // A view's logical fields cannot be appended to its raw backing path.
+        // Scalar views have their own authenticated representation translation.
+        if subject.has_aggregate_view(self.program) {
+            return None;
+        }
         // A finite origin join authorizes an entry observation, not one
         // physical write destination. No selected payload identifies an alias.
         let [source] = subject.sources.as_slice() else {
@@ -842,8 +847,7 @@ impl StructuralJudge<'_> {
         };
         if let Some(value) = self
             .stored_values
-            .iter()
-            .find(|stored| &stored.coordinate == place)
+            .value_at(place)
             .filter(|stored| valid(stored))
             .and_then(|stored| stored.current.clone())
         {
@@ -952,18 +956,16 @@ impl StructuralJudge<'_> {
         let version = self
             .read_storage_version(state, expression)
             .or(self.storage_version);
+        let selected_case = self
+            .stored_values
+            .values_at(&coordinate)
+            .find(|stored| {
+                !self.graph_storage_mode()
+                    || version.is_some_and(|at| self.current_value_valid(stored, &coordinate, at))
+            })
+            .and_then(|stored| stored.selected_case);
         if !super::super::structural_terms::term_is_unobserved_descriptor(self.program, value)
-            && let Some(case) = self
-                .stored_values
-                .iter()
-                .find(|stored| {
-                    stored.coordinate == coordinate
-                        && (!self.graph_storage_mode()
-                            || version.is_some_and(|at| {
-                                self.current_value_valid(stored, &coordinate, at)
-                            }))
-                })
-                .and_then(|stored| stored.selected_case)
+            && let Some(case) = selected_case
             && let Some((owner, _)) = self.program.variant_owner(case)
             && let Some(definition) = self.program.data_constructor_definition(
                 self.program
@@ -988,6 +990,76 @@ impl StructuralJudge<'_> {
         self.intake_storage_field_observations(&coordinate, reference, value, version);
     }
 
+    /// Capture this view's current fields before entering a call. The frame
+    /// already authenticated the complete readable supplier list. The descriptor
+    /// must still be the evaluated argument, and each field must independently
+    /// survive to this storage version. Unobserved fields remain unknown.
+    pub(super) fn capture_view_argument_fields(
+        &mut self,
+        subject: &crate::machine_calls::calls::InvocationEntrySubject,
+        actual: &super::StructuralTerm,
+        machine: &Machine,
+        state: &State,
+    ) -> Result<super::StructuralTerm, &'static str> {
+        self.storage_graph()
+            .ok_or("the current storage graph is unavailable")?;
+        let version = self
+            .storage_version
+            .ok_or("the call-entry storage version is unavailable")?;
+        let reference =
+            crate::expression_result_type_reference(self.program, machine, state, subject.argument)
+                .ok_or("the evaluated argument has no declared carrier")?;
+        let shell = crate::reference_shell(self.program, reference)
+            .ok_or("the evaluated argument is not a reference")?;
+        if !shell.access.is_readable() {
+            return Err("the evaluated reference does not permit reading");
+        }
+        if !crate::declared_carriers_match(self.program, shell.referee, subject.type_reference) {
+            return Err("the logical view carrier differs from the arriving referee");
+        }
+        let coordinate = self
+            .captured_storage_coordinate(Some((machine, state)), subject.argument)
+            .ok_or("the evaluated descriptor has no captured logical storage path")?;
+        let current = self
+            .current_storage_value_at(&coordinate, Some(version))
+            .ok_or("the descriptor has no current value at call entry")?;
+        let current_identity = current
+            .into_collection_descriptor()
+            .observation_identity_key()
+            .ok_or("the current descriptor has no captured identity")?;
+        let actual_identity = actual
+            .clone()
+            .into_collection_descriptor()
+            .observation_identity_key()
+            .ok_or("the evaluated argument has no captured identity")?;
+        if current_identity != actual_identity {
+            return Err("the current descriptor differs from the evaluated argument");
+        }
+        // A new content observation must not reuse the pointer's identity:
+        // the same pointer can designate different contents after a write.
+        self.capture_sequence += 1;
+        let value = super::StructuralTerm::CapturedValue {
+            expression: subject.argument,
+            statement: arena::Handle::invalid(),
+            callable: SymbolHandle::invalid(),
+            occurrence: self.capture_sequence,
+            result_type: subject.type_reference,
+            integer_range: None,
+        };
+        let observed = super::super::structural_terms::owned_projection_observation(
+            self.program,
+            subject.type_reference,
+            value,
+        );
+        self.intake_storage_field_observations(
+            &coordinate,
+            subject.type_reference,
+            &observed,
+            Some(version),
+        );
+        Ok(observed)
+    }
+
     /// Attach surviving child observations to a fresh aggregate identity. Both
     /// whole reads and normal-call handback must perform this join: replacing
     /// the whole observation alone would hide unchanged fields behind an opaque
@@ -1000,26 +1072,39 @@ impl StructuralJudge<'_> {
         value: &super::StructuralTerm,
         version: Option<StorageVersion>,
     ) {
-        let equations = self
+        let mut children = self
             .stored_values
             .iter()
-            .filter_map(|stored| {
-                if stored.coordinate.root != coordinate.root
-                    || stored.coordinate.segments.len() <= coordinate.segments.len()
-                    || !stored.coordinate.segments.starts_with(&coordinate.segments)
-                    || (self.graph_storage_mode()
-                        && !version.is_some_and(|at| {
-                            self.current_value_valid(stored, &stored.coordinate, at)
-                        }))
-                {
-                    return None;
-                }
-                let current = stored.current.clone()?;
-                let (_, projection) = project_captured_value_by(
+            .filter(|stored| {
+                stored.coordinate.root == coordinate.root
+                    && stored.coordinate.segments.len() > coordinate.segments.len()
+                    && stored.coordinate.segments.starts_with(&coordinate.segments)
+            })
+            .map(|stored| stored.coordinate.clone())
+            .collect::<Vec<_>>();
+        // A field need not have been read separately: the old aggregate may
+        // already observe it. Ask the graph about each field before replacing
+        // that aggregate, descending through changed inline records only.
+        // Do not expand arrays into every element or traverse reference
+        // descriptors; individually observed indices remain in `children`.
+        children.push(coordinate.clone());
+        let mut next_child = 0;
+        let mut equations = Vec::new();
+        while let Some(child) = children.get(next_child).cloned() {
+            next_child += 1;
+            let suffix = &child.segments[coordinate.segments.len()..];
+            let Some(projected_type) = suffix.iter().try_fold(reference, |reference, segment| {
+                segment.projected_type(self.program, reference)
+            }) else {
+                continue;
+            };
+            if !suffix.is_empty()
+                && let Some(current) = self.current_storage_value_at(&child, version)
+                && let Some((_, projection)) = project_captured_value_by(
                     self.program,
                     reference,
                     value.clone(),
-                    &stored.coordinate.segments[coordinate.segments.len()..],
+                    suffix,
                     |reference, value, segment| {
                         super::super::observed_projections::project_observed_value_in_scope(
                             self.program,
@@ -1029,15 +1114,50 @@ impl StructuralJudge<'_> {
                             std::slice::from_ref(segment),
                         )
                     },
-                )?;
-                let projected_type = stored.coordinate.segments[coordinate.segments.len()..]
-                    .iter()
-                    .try_fold(reference, |reference, segment| {
-                        segment.projected_type(self.program, reference)
-                    })?;
-                Some((projected_type, projection, current))
-            })
-            .collect::<Vec<_>>();
+                )
+            {
+                equations.push((projected_type, projection, current));
+                continue;
+            }
+            if !suffix.is_empty() && crate::reference_shell(self.program, projected_type).is_some()
+            {
+                continue;
+            }
+            // A malformed recursive inline carrier may reach proof checking
+            // before its layout refusal. Do not unfold the same applied type
+            // again on this path; finite nested applications remain distinct.
+            let mut ancestor_type = reference;
+            if suffix.iter().any(|segment| {
+                let repeats = ancestor_type == projected_type;
+                if let Some(child_type) = segment.projected_type(self.program, ancestor_type) {
+                    ancestor_type = child_type;
+                }
+                repeats
+            }) {
+                continue;
+            }
+            let Some(definition) =
+                crate::field_domains::readable_nominal_definition(self.program, projected_type)
+            else {
+                continue;
+            };
+            for field in self
+                .program
+                .data_members(definition)
+                .iter()
+                .filter_map(|member| member.as_field())
+            {
+                let mut field_coordinate = child.clone();
+                field_coordinate
+                    .segments
+                    .push(CapturedStorageSegment::Place(PlaceSegment::Field {
+                        symbol: field.symbol,
+                    }));
+                if !children.contains(&field_coordinate) {
+                    children.push(field_coordinate);
+                }
+            }
+        }
         for (declared, projection, current) in equations {
             self.assume_completed_value_equation(declared, projection, current);
         }
@@ -1083,9 +1203,7 @@ impl StructuralJudge<'_> {
             }
             _ => self.retain_storage_value(place.clone(), value, entry),
         }
-        if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values)
-            .iter_mut()
-            .find(|stored| stored.coordinate == place)
+        if let Some(stored) = std::sync::Arc::make_mut(&mut self.stored_values).value_at_mut(&place)
         {
             stored.completed_read = Some((expression, self.storage_write_sequence));
             stored.backing = backing;
@@ -1137,10 +1255,7 @@ impl StructuralJudge<'_> {
             .storage_version
             .map_or_else(SymbolHandle::invalid, |version| version.state);
         let values = std::sync::Arc::make_mut(&mut self.stored_values);
-        if let Some(stored) = values
-            .iter_mut()
-            .find(|stored| stored.coordinate == coordinate)
-        {
+        if let Some(stored) = values.value_at_mut(&coordinate) {
             if entry && stored.entry.is_none() {
                 stored.entry = Some(value.clone());
             }
@@ -1189,6 +1304,17 @@ impl StructuralJudge<'_> {
                     crate::declared_carriers_match(self.program, reference, *observed)
                 })
                 .map(|_| value.clone())
+                .or_else(|| {
+                    // A local pointer keeps its address when its referent can
+                    // change. Retain only the completed descriptor here;
+                    // subsequent reads must establish current field contents.
+                    crate::reference_shell(self.program, reference).map(|_| {
+                        super::super::structural_terms::descriptor_only_observation(
+                            reference,
+                            value.clone(),
+                        )
+                    })
+                })
                 .or_else(|| self.owned_argument_observation(reference, &value));
         let Some(value) = observed else {
             return;
@@ -1271,8 +1397,7 @@ impl StructuralJudge<'_> {
         let coordinate = self.capture_storage_place(place.clone())?;
         let active_case = self
             .stored_values
-            .iter()
-            .find(|stored| stored.coordinate == coordinate)
+            .value_at(&coordinate)
             .and_then(|stored| stored.selected_case);
         if super::super::struct_trace() {
             eprintln!(
@@ -1377,11 +1502,7 @@ impl StructuralJudge<'_> {
         {
             return Some(value);
         }
-        if let Some(stored) = self
-            .stored_values
-            .iter()
-            .find(|stored| stored.coordinate == *coordinate)
-        {
+        if let Some(stored) = self.stored_values.value_at(coordinate) {
             let value = match version {
                 ContentPlaceVersion::Entry => stored.entry.clone(),
                 ContentPlaceVersion::Current => stored.current.clone(),
@@ -1395,10 +1516,11 @@ impl StructuralJudge<'_> {
         // captured revision; a retired current snapshot cannot borrow Entry.
         let reference =
             crate::declaration_type_reference(self.program, coordinate.root.as_symbol()?)?;
-        self.stored_values.iter().find_map(|stored| {
-            if stored.coordinate.root != coordinate.root || !stored.coordinate.segments.is_empty() {
-                return None;
-            }
+        let whole = CapturedStorageCoordinate {
+            root: coordinate.root,
+            segments: Vec::new(),
+        };
+        self.stored_values.values_at(&whole).find_map(|stored| {
             let value = match version {
                 ContentPlaceVersion::Entry => stored.entry.clone(),
                 ContentPlaceVersion::Current => stored.current.clone(),
@@ -1656,7 +1778,7 @@ impl StructuralJudge<'_> {
                     })
             {
                 let values = std::sync::Arc::make_mut(&mut self.stored_values);
-                if let Some(stored) = values.iter_mut().find(|stored| stored.coordinate == prefix) {
+                if let Some(stored) = values.value_at_mut(&prefix) {
                     stored.selected_case = Some(*variant);
                 } else {
                     values.push(CapturedStorageValue {

@@ -81,7 +81,7 @@ fn validate_type(
                     StructuralFieldType::Structural(child) => {
                         parent
                             .path
-                            .push(StructuralPathSegment::Field(field.identity.clone()));
+                            .push(StructuralPathSegment::Field(field.identity));
                         validate_type(types, *child, parent, values, argument_index, active)?;
                         parent.path.pop();
                     }

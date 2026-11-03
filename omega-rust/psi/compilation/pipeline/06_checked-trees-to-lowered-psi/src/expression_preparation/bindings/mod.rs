@@ -350,7 +350,7 @@ impl ScalarBindings {
         // has any qualified descendants (including disjoint siblings).
         let storage_root = argument
             .structural_storage_root()
-            .or_else(|| match argument.source {
+            .or(match argument.source {
                 // Mutable declarations use this checked identity for both
                 // scalar and aggregate storage. Their completed home still
                 // joins the same symbol roster as immutable declarations.
@@ -842,7 +842,7 @@ impl ScalarBindings {
                 source.place,
                 &static_path(&argument.path[..selector_position])?,
                 &static_path(&argument.path[selector_position + 1..])?,
-                &checked_trees::CheckedMemberIdentity::of_spelling(&case),
+                &checked_trees::CheckedMemberIdentity::of_spelling(case),
             )?;
         let index = match selector {
             checked_trees::CheckedRuntimeIndex::StorageRead { symbol } => {

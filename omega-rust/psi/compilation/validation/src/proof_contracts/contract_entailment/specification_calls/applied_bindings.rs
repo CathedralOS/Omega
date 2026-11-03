@@ -1424,13 +1424,13 @@ fn enclosing_type_reference(
 ) -> Option<TypeReferenceHandle> {
     let machine = program.machine_by_symbol(lexical_owner)?;
     for parameter in program.machine_type_parameters(machine) {
-        if parameter.name.as_str() == name && matches!(parameter.kind, TypeParameterKind::Type) {
-            if let Some(reference) = program
+        if parameter.name.as_str() == name
+            && matches!(parameter.kind, TypeParameterKind::Type)
+            && let Some(reference) = program
                 .type_reference_table
                 .find_named_type_reference(parameter.symbol)
-            {
-                return Some(reference);
-            }
+        {
+            return Some(reference);
         }
         let TypeParameterKind::Machine { contract } = &parameter.kind else {
             continue;
@@ -1442,13 +1442,13 @@ fn enclosing_type_reference(
             continue;
         }
         for binder in program.state_signature_type_parameters(view.signature()) {
-            if binder.name.as_str() == name && matches!(binder.kind, TypeParameterKind::Type) {
-                if let Some(reference) = program
+            if binder.name.as_str() == name
+                && matches!(binder.kind, TypeParameterKind::Type)
+                && let Some(reference) = program
                     .type_reference_table
                     .find_named_type_reference(binder.symbol)
-                {
-                    return Some(reference);
-                }
+            {
+                return Some(reference);
             }
         }
     }

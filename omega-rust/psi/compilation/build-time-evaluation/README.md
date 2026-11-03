@@ -5,7 +5,7 @@ and typed programs. Checked fixed-array-length jobs execute through the shared
 Terminal producer and interpreter; remaining pure value and policy jobs still
 use the [checked interpreter](../../interpreter/checked-interpreter/src/interpreter.rs).
 Build activation executes only through Omega's
-[Terminal Build host](../../../omega/compilation/build-evaluation/src/build_evaluation.rs).
+[Terminal Build host](../../../omega/build-system/build-settings/src/build_evaluation.rs).
 This service owns neither Build configuration nor package acquisition or target realization.
 
 Start at [build_time_evaluation.rs](src/build_time_evaluation.rs). Its

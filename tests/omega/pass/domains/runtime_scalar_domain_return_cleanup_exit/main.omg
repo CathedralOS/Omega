@@ -1,7 +1,7 @@
 // Expected exit: 0.
 // A result-completion formation retains its edge through nominal cleanup.
-data Token { ready: bool; }
-machine Token::drop(token: &mut Token) requires token.ready { token.ready = false; }
+data Token dropped by drop_token { ready: bool; }
+machine drop_token(token: &mut Token) requires token.ready { token.ready = false; }
 domain i64::Nonnegative requires self >= 0 established by seed, choose;
 machine seed() -> i64 in Nonnegative { 17 }
 machine choose(old: bool, existing: i64 in Nonnegative) -> i64 in Nonnegative {

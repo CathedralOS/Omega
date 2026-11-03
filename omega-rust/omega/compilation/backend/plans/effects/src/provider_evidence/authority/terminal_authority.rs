@@ -1252,7 +1252,7 @@ fn terminal_authority_closure_review_identity(
             }
         }
     }
-    digest.finish().into()
+    digest.finish()
 }
 
 fn encode_authority_classes(

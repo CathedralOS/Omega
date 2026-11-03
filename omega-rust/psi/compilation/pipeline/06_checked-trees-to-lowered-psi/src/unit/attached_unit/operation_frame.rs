@@ -917,7 +917,7 @@ impl OperationFrame<'_, '_> {
         let conditions = crate::unit::unit_cleanup::lower_cleanup_conditions(
             identities,
             self.checked,
-            &flow_facts(&self.checked)
+            &flow_facts(self.checked)
                 .terminal_unit_effects
                 .cleanup_control,
             *case_conditions,

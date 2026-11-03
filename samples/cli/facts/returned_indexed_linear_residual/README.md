@@ -28,7 +28,7 @@ authored [] operator to acquire builtin array meaning.
    name the same exact field/fixed-index path in all nine places.
 4. Soundness: literal selectors need builtin selection and an in-range closed
    extent. Runtime selectors gain no new admission. The seed-8 twins reject
-   Receipt::drop's fixed prerequisite, without a caller equality guard.
+   drop_receipt's fixed prerequisite, without a caller equality guard.
 5. Checked-to-Terminal: preserve selected transfer, scalar capture before hook
    mutation, residual cleanup and separate original-home retirement.
 6. Layout and ABI: carry the complete array result and selected Receipt through

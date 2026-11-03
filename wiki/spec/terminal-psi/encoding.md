@@ -59,7 +59,7 @@ its logical result and obligations; an encoded proof cannot select them.
 Scalar declarations encode a qualification-set identity after their payload
 type. Zero denotes the bare set and has no catalog row. The module's scalar
 qualification catalog follows the entry identity as six counted tables, in the
-order below. This layout uses semantic format marker 236 even when every table
+order below. This layout uses semantic format marker 238 even when every table
 is empty; older markers reject rather than selecting an optional dialect:
 
 | Catalog table | Row fields |
@@ -146,8 +146,27 @@ or execution authority. The migration's unresolved-execution fences remain
 until a receiving target can discharge the complete requirements.
 
 The condition section encodes counted integer-range rows, counted predicate
-rows, then counted completion rows. A predicate row contains its subject, diagnostic description,
-counted graph nodes and root coordinate. Node tags are integer literal (1),
+rows, then counted completion rows:
+
+| Condition | Row fields |
+| --- | --- |
+| integer range | subject + role tag + range requirement + counted bound steps |
+| predicate | subject + role tag + diagnostic description + counted graph nodes + root coordinate |
+| completion | subject + scalar-application identity |
+
+The role is one byte immediately after the subject: prerequisite (1) or
+completed-result judgment (2). Other tags reject. A prerequisite must be
+discharged before the call or operation it protects. Independent calculations
+close before entry execution; an earlier captured operand inside the entry is
+checked when it becomes available, before execution resumes. An entry with an
+unresolved prerequisite cannot return a publishable result. A completed-result
+judgment may use observations from independently admitted execution; it cannot
+justify that execution's own prerequisites. The role is explicit and does not
+follow from the observation kind or diagnostic description. A completion row
+requires the named calculation to finish. It carries the application identity
+and no role tag.
+
+Predicate node tags are integer literal (1),
 Boolean literal (2), scalar observation (3), forwarding (4), negation (5), and
 binary operator (6). Binary operators are `and`, `or`, equality, inequality,
 less, less-or-equal, greater, greater-or-equal (tags 1 through 8). Child and
@@ -657,17 +676,43 @@ crossing id binding the call-side suspension demand; 0 records none).
 | 90 | WriteOnlyPrimitiveStore | destination place id + structural path + value id; projected form requires a nonempty path, whose elements may be `RuntimeIndex` |
 | 91 | TrappingInteger | `u8` primitive (1 add, 2 subtract, 3 multiply, 4 divide, 5 remainder, 6 shift left, 7 shift right, 8 convert; others reject) + its operand value ids: left + right, value + count, or the one conversion operand. No cause, guard, or frontier follows: the operation is its own `Trap` site |
 | 92 | ElementViewRead | source place id + index value id + length value id + obligation id + structural element path; the projected form requires a nonempty static path to a scalar leaf of the element (a record field or literal index; tag 81 spells the pathless read of a scalar element) |
-| 93 | AtomicAccess | place id + structural carrier path + field id + `u8` event (1 load + ordering; 2 store + value id + ordering; 3 read-modify-write + `u8` operation (1 add, 2 subtract, 3 and, 4 or, 5 xor) + operand value id + ordering; 4 swap + value id + ordering; 5 compare-exchange + expected value id + replacement value id + success ordering + failure ordering; others reject). Each ordering is a `u8` (1 NoOrdering, 2 Receive, 3 Publish, 4 ReceivePublish, 5 GlobalOrder; others reject). Ordering legality, the static carrier path, field type, and root authority are verification's judgments |
+| 93 | AtomicAccess | place id + structural carrier path + field id + `u8` event (1 load + ordering; 2 store + value id + ordering; 3 read-modify-write + `u8` operation (1 add, 2 subtract, 3 and, 4 or, 5 xor) + operand value id + ordering; 4 swap + value id + ordering; 5 compare-exchange + expected value id + replacement value id + success ordering + failure ordering, whose scalar result is the observed resident; 6 single-attempt compare-exchange + the same four fields, whose result is the canonical structural outcome, including Uncommitted, with no scalar observed prior; others reject). Each ordering is a `u8` (1 NoOrdering, 2 Receive, 3 Publish, 4 ReceivePublish, 5 GlobalOrder; others reject). Ordering legality, the static carrier path, field type, and root authority are verification's judgments |
+| 94 | EstablishZeroedStructural | none; the result declaration names the whole type whose every runtime leaf begins zero (recursively all-scalar-leaf records and their fixed arrays) |
+| 95 | EstablishByteSequenceConcatenation | left byte-sequence operand + right byte-sequence operand + capacity obligation id (the sum of the two observed lengths fits the result declaration) |
+| 96 | ByteSequenceStore | destination place id + source place id + length value id + obligation id; replaces the complete live value through a borrowed bounded owner |
+| 97 | ElementViewWrite | destination structural argument + structural element path + index value id + value id + length value id + obligation id (index < length) |
+| 99 | FloatResultPolicy | `u8` policy (1 Trapping + raw result value id; 4 Saturating + raw result value id + eligible value id; others reject) |
 | 100 | StructuralByteViewFieldStore | destination place id + structural path + field id (zero: the whole destination) + source place id; no predicate obligation |
+| 101 | ScalarRepresentationView | operand value id; total bit re-view, no landing obligation |
+| 102 | ScalarRepresentationView | operand value id + landing obligation id; the integer-to-`bool` landing form |
+| 103 | EstablishStructuralLocal | none; the result declaration supplies the structural local's home |
+| 104 | ByteSequencePredicate | byte-sequence operand + `u8` predicate (1 ValidUtf8, 2 NoNul, 4 AsciiOnly, 8 NonEmpty; others reject) |
 | 105 | ByteSequenceEqual | left byte-sequence operand + right byte-sequence operand |
 | 106 | StructuralByteViewFieldStore | destination place id + structural path + field id (zero: the whole destination) + source place id + predicate obligation id |
+| 107 | EstablishStructuralArray | counted structural arguments, the ordered owned elements |
+| 108 | ReleaseReference | place id + structural path; projected form requires a nonempty path (tag 70 spells the root release) |
+| 109 | SelectImplementation | `u32` dynamic-dispatch table index |
+| 110 | CallDynamic | selector value id + `u32` interface + `u32` slot + counted value ids + counted family actual value ids + scalar term list + proof term list + counted structural arguments + counted claim transfers + obligation id list + crash routes |
+| 111 | EstablishReference | structural argument + byte-offset value id + `u8` stored-scalar flag (1 + scalar type; 0 aggregate view); storage-view form |
 | 112 | ElementViewLength | source place id + structural access + structural path |
 | 113 | ByteSequenceSubslice | source place id + structural access + structural path + start value id + end value id + length value id + obligation id |
 | 114 | ElementViewSubslice | source place id + structural access + structural path + start value id + end value id + length value id + obligation id |
 | 115 | ByteSequenceLength | source place id + structural access + structural path |
+| 116 | WriteOnlyPrimitiveStore | destination place id + structural path + value id + receiving obligation id; restricted-endpoint form |
+| 119 | AtomicFence | `u8` ordering (1 Receive, 2 Publish, 3 ReceivePublish; others reject) |
+| 120 | EstablishAccessReference | structural argument + `u8` resident flag (1 + base field id + length field id + granted domain id + resident domain id; 0 interprets the source's own declared RAM) |
 | 121 | RegisterAccess | service id + `u16` catalog identity + declared scalar input IDs |
+| 122 | EstablishNativeCodeLayout | machine id |
+| 123 | StorageAddress | structural argument |
+| 124 | MoveStructuralValue | structural argument (owned source) |
 | 125 | TransformContent | counted structural arguments containing exactly one raw payload + counted parent structural arguments + counted content transformation derivations |
 | 126 | RegisterObservation | `u16` catalog identity + declared scalar input IDs; no service authority |
+| 127 | EstablishActivationClaim | `u64` bound + committed value id + backing type id + established case id + rejected case id |
+| 128 | ReleaseActivationClaim | structural argument + claim id |
+| 129 | SplitActivationClaim | structural argument + claim id + `u64` static cut + runtime cut value id + covered case id + rejected case id |
+| 130 | MergeActivationClaim | lower structural argument + upper structural argument + lower claim id + upper claim id + covered case id + rejected case id |
+| 131 | AtomicAccess | resident obligation id, then tag 93's fields; restricted-resident form |
+| 132 | ReadScalarApplication | scalar application id |
 
 Catalog ordering events use the existing authority-free `RegisterObservation`
 carrier, with no scalar operands or result. Their `u16` identities are 0x500
@@ -792,8 +837,8 @@ An empty path denotes the scalar element itself. The path is part of semantic
 identity and independently selects the destination leaf; its bounded carrier
 contributes range clauses to the operation's index obligation.
 
-Module bytes are `PSITERM\0` + `u16` format marker 236 + `u16` vocabulary
-marker 130 + a Boolean default-entry presence flag, followed by the entry
+Module bytes are `PSITERM\0` + `u16` format marker 238 + `u16` vocabulary
+marker 133 + a Boolean default-entry presence flag, followed by the entry
 callable when present and the module tables in the declaration order below.
 The entry callable uses its ordinary machine-or-boundary tag and identifier
 encoding. An absent default entry requires empty root-service reach; it does
@@ -904,6 +949,13 @@ Older markers are rejected before their payload is read.
 | 43 | callback applications | counted checked registrar occurrences |
 | 44 | boundary application candidates | counted checked bodies for closed applications |
 | 45 | task activation demands | counted task activation demand rows |
+
+Marker 238 requires the explicit prerequisite/result role byte after the
+subject of every integer-range and predicate condition, together with complete
+public returned-borrow regions in boundary declarations. Completion rows require
+the named calculation to finish and carry no role byte. Earlier 236 and 237
+layouts lack one of these requirements and reject rather than supplying a
+default role or inferring a returned-borrow region.
 
 Marker 236 additionally retains the remaining source type-parameter count in
 each callable header, as a `u32` after the checked-body flag and before the
@@ -2130,7 +2182,12 @@ an unknown debug-presence tag, and trailing bytes.
 
 Decoding is reconstruction: the semantic module validates on its own; the
 optimization and debug sections rebind to it. The artifact manifest is rebuilt
-from the section bytes, never transported. Every decoded section must re-encode
+from the section bytes, never transported. Its identity bytes are `u16`
+manifest format marker 4 + the `u16` vocabulary marker + the 32-byte program
+fingerprint + the 32-byte optimization execution identity + the installation
+and then the debug section fingerprints, each `u8` 0 absent or 1 + 32 bytes.
+The identity is the artifact-manifest domain digest of their `u64` byte length
+followed by those bytes. Every decoded section must re-encode
 to the exact transported bytes — a producer's non-canonical serialization
 rejects.
 
@@ -2267,14 +2324,14 @@ written inline with no sharing table.
 
 Each codec-emitted envelope opens with an eight-byte magic and a `u16` format
 marker; the semantic module and debug map envelopes then carry the shared `u16`
-vocabulary marker (122). A receiver rejects an unknown magic or stale marker
+vocabulary marker (133). A receiver rejects an unknown magic or stale marker
 before reading any counted table. The installation record `PSIINST\0` is emitted
 outside this codec.
 
 <!-- envelope-markers -->
 | Envelope | Magic | `u16` marker | Vocabulary field |
 | --- | --- | --- | --- |
-| semantic module | `PSITERM\0` | 174 | yes |
+| semantic module | `PSITERM\0` | 238 | yes |
 | canonical artifact | `PSIART\0\0` | 3 | no |
 | debug map | `PSIDBG\0\0` | 1 | yes |
 | optimization execution | `PSIOEXE\0` | 2 | no |

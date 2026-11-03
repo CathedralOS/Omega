@@ -95,7 +95,6 @@ pub(crate) use operation_frame::completed_arguments::{
 pub(crate) use operation_frame::{BoundaryParameters, OperationEnvironment};
 mod normal_guarantees;
 mod ordinary_machine;
-mod provider_attachments;
 mod quotients;
 mod structural_returns;
 
@@ -718,7 +717,7 @@ pub(crate) fn lower_unit_closure(
         declaration.quotient_carrier = Some(representation.carrier);
     }
     let mathematical_carriers =
-        crate::scalar_lowering::contracts::mathematical_carriers(&checked, identities)?;
+        crate::scalar_lowering::contracts::mathematical_carriers(checked, identities)?;
     let indexed_theorems =
         indexed_theorems(checked, identities, exact_toolchain_sources, &machine_ids)?;
     let (scalar_applications, source_proof_declarations) = scalar_applications.publish(

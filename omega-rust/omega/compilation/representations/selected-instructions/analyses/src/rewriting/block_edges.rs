@@ -18,17 +18,6 @@ use selected_instructions::{
     SelectedValueTransport, VirtualRegisterId, terminator_instruction,
 };
 
-/// Whether every virtual register's identifier is its own position in the
-/// roster: the dense-id precondition an index-arithmetic rewrite states before
-/// it counts, indexes or renumbers registers.
-pub fn virtual_register_ids_are_dense(function: &SelectedFunction) -> bool {
-    function
-        .virtual_registers
-        .iter()
-        .enumerate()
-        .all(|(index, register)| usize::try_from(register.id.0) == Ok(index))
-}
-
 /// The function a plan-level rewrite entrypoint resolves — every
 /// admission and audit begins by naming the index its member recorded.
 /// The `(block_index, member_index)` of the instruction `member` names.
@@ -47,17 +36,17 @@ pub fn member_position(
         })
 }
 
-pub fn function_at<'p, E>(
-    plan: &'p selected_instructions::SelectedInstructionPlan,
+pub fn function_at<E>(
+    plan: &selected_instructions::SelectedInstructionPlan,
     function_index: usize,
     miss: E,
-) -> Result<&'p SelectedFunction, E> {
+) -> Result<&SelectedFunction, E> {
     plan.functions.get(function_index).ok_or(miss)
 }
 
-/// The instruction a terminator carries — a position every traversal of
-/// its block observes, and the body-end landing position a destination can
-/// name.
+// The instruction a terminator carries — a position every traversal of
+// its block observes, and the body-end landing position a destination can
+// name.
 
 /// Every position of a block: its body instructions, then the instruction
 /// its terminator carries.

@@ -420,10 +420,10 @@ fn append_callable_ensured_domain_atoms(
 /// machine-level rows, or the closed requirement signature a boundary call
 /// targets. A value-position call passes its target symbol; an argument passes
 /// the parameter's owning callable.
-fn callable_signature_contracts<'program>(
-    program: &'program dyn CheckingInput,
+fn callable_signature_contracts(
+    program: &dyn CheckingInput,
     target: SymbolHandle,
-) -> Option<Vec<&'program typed_trees::signature::SignatureContract>> {
+) -> Option<Vec<&typed_trees::signature::SignatureContract>> {
     if let Some((machine, state)) =
         crate::machine_calls::calls::machine_state_by_symbol(program, target)
     {

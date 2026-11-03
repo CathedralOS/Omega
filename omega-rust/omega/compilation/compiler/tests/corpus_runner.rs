@@ -1,7 +1,7 @@
 //! Corpus outcome runner — a `harness = false` test target that walks
 //! `tests/omega/{pass,fail,run}` and compiles every fixture, printing one
 //! text record per fixture to stdout (format below): pass and run fixtures go through
-//! `omega_build::compile_sources` with a `Check` product (run fixtures are compile-
+//! `orchestration::compile_sources` with a `Check` product (run fixtures are compile-
 //! checked only — the suite's execution leg is not reproduced here), fail
 //! fixtures through the compiler session with reviewed repository package
 //! inputs, continuing that checked compilation to native production only when
@@ -645,7 +645,7 @@ fn completed_files(sets: &Path) -> Result<Vec<String>, String> {
 }
 
 /// The pass/run tier of `production_compile` restricted to the Check product:
-/// reviewed package inputs plus `omega_build::compile_sources`, targetless.
+/// reviewed package inputs plus `orchestration::compile_sources`, targetless.
 fn check_pass_fixture(
     discovered: fixture_package_inputs::DiscoveredFixture,
     build_dir: PathBuf,
@@ -1417,6 +1417,7 @@ fn check_fail_fixture(
         )?;
         let target_name = discovered.targets.first().cloned();
         let native_product = (target_name.is_some() || publishes).then(|| compilation_products::NativeProductRequest {
+        image: Default::default(),
         private_entry_ram,
         terminal_authority_policy:
             terminal_psi_to_abstract_operations::provider_admission::current_terminal_authority_policy(),

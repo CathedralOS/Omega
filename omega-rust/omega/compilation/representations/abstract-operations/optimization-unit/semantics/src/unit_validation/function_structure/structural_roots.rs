@@ -1109,7 +1109,7 @@ pub(crate) fn validate_structural_root_operations(
                             let parent_contract = current_selected_payload_contract(
                                 &unit.structural_types,
                                 &unit.structural_domains,
-                                &graph,
+                                graph,
                                 function.machine,
                                 (block.id, node_index),
                                 parent.place,
@@ -1445,7 +1445,6 @@ pub(crate) fn validate_structural_root_operations(
 /// a final `Case` step names. The payload overlays the sum's own place; the
 /// verified module proved that case active, and this replay rebuilds only the
 /// declared carrier and leaf, so a substituted case or field fails here.
-
 fn observed_scalar_field(
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
     root: StructuralTypeId,
@@ -1639,7 +1638,7 @@ fn borrowed_window_root(
                                     && source.operation_result() == Some(result)
                             })
                     });
-            producer_admits && place_kinds_operation_result(&place_kinds, result, *producer)
+            producer_admits && place_kinds_operation_result(place_kinds, result, *producer)
         }
     }
 }
@@ -1725,11 +1724,7 @@ fn reference_result_memberships_match(
     else {
         return true;
     };
-    let Some(callee) = callee.machine().and_then(|machine| {
-        unit.functions
-            .iter()
-            .find(|function| function.machine == machine)
-    }) else {
+    let Some(callee) = callee.machine().and_then(|machine| unit.function(machine)) else {
         return true;
     };
     let Some(signature) = callee.result.structural() else {
@@ -1896,7 +1891,7 @@ fn copy_memberships_match(
                 terminal_semantics::descriptor_results::current_payload_contract(
                     &unit.structural_types,
                     &unit.structural_domains,
-                    &graph,
+                    graph,
                     function.machine,
                     position,
                     place,

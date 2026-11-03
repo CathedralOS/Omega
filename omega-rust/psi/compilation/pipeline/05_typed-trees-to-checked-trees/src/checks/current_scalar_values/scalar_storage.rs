@@ -1,9 +1,7 @@
 //! One completed scalar store updates its physical storage associations.
 //! Capture RHS first, authenticate exact locations at the same effect cut,
-//! retire overwritten observations, then publish the new value and dependencies.
-//! Typed origins establish equality; invalidation paths only expire observations.
-mod preservation;
-
+//! retire overwritten observations, then publish the new value.
+//! Typed origins establish equality; the storage graph expires observations.
 use super::scalar_fields::capture_path;
 use super::scalar_fields::same_projection;
 use super::scalar_fields::{CapturedScalarField, ScalarProjection, source_path};
@@ -14,11 +12,9 @@ use typed_trees::types::PrimitiveType;
 use validation::ScopedArithmeticValue;
 
 /// A current storage association, refreshed at the store's observation cut.
-/// The read paths serve later invalidation; they are never equality evidence.
 pub(super) struct ScalarStoreAlias {
     owner: SymbolHandle,
     path: Vec<ScalarProjection>,
-    read_dependencies: Vec<String>,
 }
 
 impl CurrentScalarValues<'_> {
@@ -50,13 +46,6 @@ impl CurrentScalarValues<'_> {
         Some(CapturedScalarField {
             path: Vec::new(),
             carrier,
-            read_dependencies: self
-                .fields
-                .iter()
-                .find(|field| {
-                    field.owner == owner && same_projection(self.occurrence(), &field.path, &path)
-                })
-                .map_or_else(Vec::new, |field| field.read_dependencies.clone()),
             value,
         })
     }
@@ -69,24 +58,18 @@ impl CurrentScalarValues<'_> {
         expression: ExpressionHandle,
         primitive: PrimitiveType,
         frames: Option<&validation::CallFrameResolver<'_>>,
-    ) -> (Option<ScopedArithmeticValue>, Option<Vec<String>>) {
-        let Some(frames) = frames else {
-            return (None, None);
-        };
+    ) -> Option<ScopedArithmeticValue> {
+        let frames = frames?;
         if !frames
             .expression_write_frame(self.machine, expression)
             .into_complete_paths()
             .is_some_and(|paths| paths.is_empty())
         {
-            return (None, None);
+            return None;
         }
-        let Some(sources) = frames
+        let sources = frames
             .reference_expression_sources_before_statement(self.machine, statement, expression)
-            .filter(|sources| !sources.is_empty())
-        else {
-            return (None, None);
-        };
-        let dependencies = Some(sources.iter().map(|source| source.path.clone()).collect());
+            .filter(|sources| !sources.is_empty())?;
         let values = sources
             .iter()
             .map(|source| {
@@ -122,15 +105,12 @@ impl CurrentScalarValues<'_> {
                     .value
                     .clone()
             })
-            .collect::<Option<Vec<_>>>();
-        let value = values.and_then(|values| {
-            let first = values.first()?;
-            values
-                .iter()
-                .all(|value| value == first)
-                .then(|| first.clone())
-        });
-        (value, dependencies)
+            .collect::<Option<Vec<_>>>()?;
+        let first = values.first()?;
+        values
+            .iter()
+            .all(|value| value == first)
+            .then(|| first.clone())
     }
 
     /// A store publishes one completed scalar to every proven identical live
@@ -206,11 +186,7 @@ impl CurrentScalarValues<'_> {
                     && source.representation == destination.representation
                     && source.invocation_output == destination.invocation_output
                     && source.is_image_storage == destination.is_image_storage)
-                    .then(|| ScalarStoreAlias {
-                        owner,
-                        path,
-                        read_dependencies: vec![source.path.clone()],
-                    })
+                    .then_some(ScalarStoreAlias { owner, path })
             })
             .collect()
     }
@@ -221,13 +197,12 @@ impl CurrentScalarValues<'_> {
         value: &ScopedArithmeticValue,
     ) {
         for binding in &mut self.current {
-            if let Some(alias) = aliases
+            if aliases
                 .iter()
-                .find(|alias| alias.owner == binding.symbol && alias.path.is_empty())
+                .any(|alias| alias.owner == binding.symbol && alias.path.is_empty())
             {
                 binding.value = Some(value.clone());
                 binding.alternatives.clear();
-                binding.read_dependencies = Some(alias.read_dependencies.clone());
             }
         }
         let occurrence = super::ScopedOccurrence {
@@ -239,11 +214,10 @@ impl CurrentScalarValues<'_> {
             result_fields: None,
         };
         for field in &mut self.fields {
-            if let Some(alias) = aliases.iter().find(|alias| {
+            if aliases.iter().any(|alias| {
                 alias.owner == field.owner && same_projection(occurrence, &alias.path, &field.path)
             }) {
                 field.value = Some(value.clone());
-                field.read_dependencies.clone_from(&alias.read_dependencies);
             }
         }
     }

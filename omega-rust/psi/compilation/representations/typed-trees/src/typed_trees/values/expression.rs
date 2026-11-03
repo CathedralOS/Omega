@@ -1727,6 +1727,11 @@ pub struct PrivateLayoutOperationRequest {
 pub struct DataLayoutQueryRequest {
     pub kind: language_core::data_layout_queries::DataLayoutQueryKind,
     pub operand: StaticMachineArgument,
+    /// `align_of(view)` over a borrowed slice observes its first element, so
+    /// the view must be nonempty. This proof-only `view[0]` index carries that
+    /// obligation to range checking; it is never evaluated, loaded or
+    /// borrowed. Zero for every other query.
+    pub nonempty_view: ExpressionHandle,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, compiler_storage::Record)]

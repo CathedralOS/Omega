@@ -567,7 +567,7 @@ impl super::structural_prefix::StructuralPrefixVisitor for CallRequirement<'_> {
             .inherited
             .as_ref()
             .map_or(self.parameters, |predicate| predicate.parameters.as_slice());
-        for entry in entries {
+        for mut entry in entries {
             if !self.proven {
                 return;
             }

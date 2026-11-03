@@ -426,7 +426,7 @@ pub(crate) fn lowered_direct_scalar_term(
             };
             ScalarTerm::IntegerWiden {
                 source_type,
-                target_type: target_type,
+                target_type,
                 operand: Box::new(operand),
             }
         }
@@ -447,7 +447,7 @@ pub(crate) fn lowered_direct_scalar_term(
             };
             ScalarTerm::IntegerExactCast {
                 source_type,
-                target_type: target_type,
+                target_type,
                 operand: Box::new(operand),
             }
         }

@@ -24,17 +24,17 @@ boundary trait WindowsConsoleIo {
 // binding changes the original backing; the following read must see 41.
 
 data Counter { value: u64; }
-data Carrier { output: &mut Counter; byte: i32; }
-data Marker { byte: i32; }
-data Keeper { carrier: Carrier; code: u64; }
+data Carrier dropped by drop_carrier { output: &mut Counter; byte: i32; }
+data Marker dropped by drop_marker { byte: i32; }
+data Keeper dropped by drop_keeper { carrier: Carrier; code: u64; }
 data Pair { first: Carrier; second: Marker; }
-machine Carrier::drop(carrier: &mut Carrier) reaches Console {
+machine drop_carrier(carrier: &mut Carrier) reaches Console {
     Console::write_byte(carrier.byte);
 }
-machine Marker::drop(marker: &mut Marker) reaches Console {
+machine drop_marker(marker: &mut Marker) reaches Console {
     Console::write_byte(marker.byte);
 }
-machine Keeper::drop(keeper: &mut Keeper)
+machine drop_keeper(keeper: &mut Keeper)
     requires keeper.code == 41
     reaches Console
 {

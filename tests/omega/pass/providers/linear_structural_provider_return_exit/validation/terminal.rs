@@ -5,7 +5,7 @@
 //! synthetic receiver, expected-result callback, or package acceptance occurs.
 use terminal_runtime::{TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use orchestration::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
@@ -271,7 +271,7 @@ fn validate(sample: &Path, output: &Path, resume: bool) -> Result<(), String> {
     // Publish only after interpretation, exactly as `omega run --both` does.
     // The public publisher retains executable custody; it supplies no acceptance.
     let (_, executable) =
-        omega_build::publication::publish_native_artifact(report, &native_directory)?;
+        orchestration::publication::publish_native_artifact(report, &native_directory)?;
     std::fs::write(
         output.join("native-path.txt"),
         format!("{}\n", executable.display()),

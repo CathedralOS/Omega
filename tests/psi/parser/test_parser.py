@@ -1593,16 +1593,16 @@ def machine_form_cases(program: str) -> None:
 
     # A transparent refinement `trait Name = Base { ... }` narrows its base's
     # operational axes: members name `*` or one requirement and hold only
-    # `reaches`, `suspends`, `blocks` and `terminates`, each ending at `;`.
-    source = (b'public trait LocalLogger = Logger {\n    machine *\n        reaches;\n        suspends false;\n        blocks false;\n        terminates;\n}')
+    # `reaches`, `suspends`, `blocks` and `terminates`, the member ending at `;`.
+    source = (b'public trait LocalLogger = Logger {\n    machine *\n        reaches\n        suspends false\n        blocks false\n        terminates;\n}')
     actual = declaration_accepted(
         program, "refinement-of-every-requirement", source,
         roots=((TRAIT_ROOT, 0, *whole(source)),),
         clauses=(
-            clause_row(REACHES, (0, 0), 0, span(source, b"reaches;")),
-            clause_row(SUSPENDS, (0, 0), 0, span(source, b"suspends false;"), True),
-            clause_row(BLOCKS, (0, 0), 1, span(source, b"blocks false;"), True),
-            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates;")),
+            clause_row(REACHES, (0, 0), 0, span(source, b"reaches")),
+            clause_row(SUSPENDS, (0, 0), 0, span(source, b"suspends false"), True),
+            clause_row(BLOCKS, (0, 0), 1, span(source, b"blocks false"), True),
+            clause_row(TERMINATES, (0, 0), 0, span(source, b"terminates")),
         ),
         traits=((*span(source, b"LocalLogger"), 0, 0, 0, 0, 0, 1, 0, 1, *whole(source), 0, 0, 1, 0),),
     )
@@ -1614,8 +1614,8 @@ def machine_form_cases(program: str) -> None:
         program, "refinement-of-named-requirements", source,
         members=(member(source, b"_"), member(source, b"Clock")),
         clauses=(
-            clause_row(SUSPENDS, (0, 0), 0, span(source, b"suspends;")),
-            clause_row(REACHES, (0, 2), 0, span(source, b"reaches _ + Clock;")),
+            clause_row(SUSPENDS, (0, 0), 0, span(source, b"suspends")),
+            clause_row(REACHES, (0, 2), 0, span(source, b"reaches _ + Clock")),
         ),
         traits=((*span(source, b"Quiet"), 0, 1, 0, 0, 0, 2, 0, 0, *whole(source), 0, 0, 1, 1),),
     )
@@ -1668,14 +1668,14 @@ def machine_form_cases(program: str) -> None:
         program, "generic-conformance-after-semicolon", source,
         roots=((MACHINE_ROOT, 0, *span(source, b"machine f() requires a;")),
                (CONFORMANCE_ROOT, 0, *span(source, b"Impl<T> satisfies Trait<T> { }"))),
-        conformances=((*span(source, b"Impl"), 0, 1, 1, 1, 0, 0, 0, 0, *span(source, b"Impl<T> satisfies Trait<T> { }")),),
+        conformances=((*span(source, b"Impl"), 0, 1, 1, 1, 0, 0, *span(source, b"Impl<T> satisfies Trait<T> { }")),),
     )
     source = b"machine f() requires a; Impl<T, O satisfies Order<T>> satisfies Sorted<T> { }"
     declaration_accepted(
         program, "evidence-conformance-after-semicolon", source,
         roots=((MACHINE_ROOT, 0, *span(source, b"machine f() requires a;")),
                (CONFORMANCE_ROOT, 0, *through(source, b"Impl", b"{ }"))),
-        conformances=((*span(source, b"Impl"), 0, 2, 3, 1, 0, 0, 0, 0, *through(source, b"Impl", b"{ }")),),
+        conformances=((*span(source, b"Impl"), 0, 2, 3, 1, 0, 0, *through(source, b"Impl", b"{ }")),),
     )
 
     for name, source, diagnostic, fragment, occurrence, counts in (
@@ -1709,13 +1709,13 @@ def machine_form_cases(program: str) -> None:
         ("refinement-takes-no-clauses", b"trait X = Base requires P; {}", 116, b"requires", 1, {"type_reference_count": 1}),
         ("refinement-takes-no-parent", b"trait X = Base { requires P; }", 117, b"requires", 1, {"type_reference_count": 1}),
         ("refinement-requirement", b"trait X = Base { machine ( }", 183, b"(", 1, {"type_reference_count": 1}),
-        ("refinement-axis", b"trait X = Base { machine * suspends maybe; }", 184, b"maybe", 1, {"type_reference_count": 1}),
+        ("refinement-axis", b"trait X = Base { machine * suspends maybe; }", 94, b"maybe", 1, {"type_reference_count": 1}),
         ("refinement-adds-no-requires", b"trait X = Base { machine * requires a; }", 105, b"requires", 1,
          {"type_reference_count": 1}),
         ("refinement-takes-no-witness", b"trait X = Base { machine * terminates by n; }", 105, b"by", 1,
          {"type_reference_count": 1}),
-        ("refinement-declares-no-signature", b"trait X = Base { machine f(x: u8); }", 117, b"(", 1,
-         {"type_reference_count": 1, "machine_count": 1}),
+        ("refinement-declares-no-signature", b"trait X = Base { machine f(x: u8); }", 94, b"(", 1,
+         {"type_reference_count": 1}),
         ("refinement-clause-end", b"trait X = Base { machine * reaches A }", 94, b"}", 1,
          {"type_reference_count": 1, "member_count": 1}),
         ("definition-name", b"let : u8 = 1;", 185, b":", 1, {}),
@@ -1999,9 +1999,9 @@ def nested_machine_cases(program: str) -> None:
 def complete_nested_machine_cases(program: str) -> None:
     source = (
         b"machine outer<T>(x: u64) -> u64 requires x > 0 ensures result > 0 "
-        b"reaches blocks; suspends; crashes Trap { x "
+        b"reaches blocks suspends crashes Trap { x "
         b"machine left(y: u64) -> u64 requires y > 1 ensures result > 1 "
-        b"reaches blocks; suspends; crashes Trap { y machine leaf(z: u64) -> u64 { z } } "
+        b"reaches blocks suspends crashes Trap { y machine leaf(z: u64) -> u64 { z } } "
         b"machine right(y: u64) -> u64 { y machine leaf(z: u64) -> u64 { z } } }"
     )
     status, payload = run(program, source)
@@ -2028,9 +2028,9 @@ def complete_nested_machine_cases(program: str) -> None:
     )
     contracted = (
         b"machine outer<machine F>(x: u8) -> u8 "
-        b"where machine F(value: u8) -> u8; { x "
+        b"requires machine F(value: u8) -> u8; { x "
         b"machine inner<machine G>(y: u8) -> u8 "
-        b"where machine G(value: u8) -> u8; "
+        b"requires machine G(value: u8) -> u8; "
         b"requires y > 0 ensures result > 0 { y } }"
     )
     status, payload = run(program, contracted)

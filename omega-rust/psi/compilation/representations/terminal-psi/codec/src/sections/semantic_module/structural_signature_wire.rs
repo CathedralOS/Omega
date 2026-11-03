@@ -47,6 +47,7 @@ wire_record! {
         crash_routes: CrashRoutes,
         structural_parameters: List<StructuralParameter>,
         result: CallResult,
+        result_reference_regions: ReferenceRegions,
         requires: List<DomainRequirement>,
         normal_qualifications: List<DomainRequirement>,
         scalar_domain_requirements: List<ScalarDomain>,
@@ -206,10 +207,8 @@ impl Field<Option<language_semantics::numeric_intrinsics::NumericIntrinsic>> for
         let bytes = [reader.u8()?, reader.u8()?, reader.u8()?, reader.u8()?];
         language_semantics::numeric_intrinsics::NumericIntrinsic::from_canonical_encoding(bytes)
             .map(Some)
-            .ok_or_else(|| {
-                CodecError::MalformedStructuralFoundation(
-                    "invalid numeric intrinsic meaning".into(),
-                )
+            .ok_or({
+                CodecError::MalformedStructuralFoundation("invalid numeric intrinsic meaning")
             })
     }
 }
@@ -458,5 +457,20 @@ pub(crate) fn decode_optional_structural_access(
     match reader.u8()? {
         0 => Ok(None),
         tag => Ok(Some(decode_structural_access_tag(tag)?)),
+    }
+}
+
+struct ReferenceRegions;
+impl Field<Vec<terminal_psi::TerminalDynamicReferenceRegion>> for ReferenceRegions {
+    fn write(
+        writer: &mut Writer,
+        value: &Vec<terminal_psi::TerminalDynamicReferenceRegion>,
+    ) -> Result<(), CodecError> {
+        super::module_wire::dynamic_dispatch_wire::encode_reference_regions(writer, value)
+    }
+    fn read(
+        reader: &mut Reader<'_>,
+    ) -> Result<Vec<terminal_psi::TerminalDynamicReferenceRegion>, CodecError> {
+        super::module_wire::dynamic_dispatch_wire::decode_reference_regions(reader)
     }
 }

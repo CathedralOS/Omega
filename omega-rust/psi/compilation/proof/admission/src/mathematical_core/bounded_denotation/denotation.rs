@@ -123,10 +123,10 @@ pub(super) struct ExactDefinitionBoundTarget<'a> {
 /// whose operation side is the term being denoted; the checks differ only in
 /// the math term variant, so one predicate-parameterized pass returns the
 /// bound side, the operation side and the direction.
-pub(super) fn math_less_or_equal_sides<'a>(
-    conclusion: &'a Proposition,
+pub(super) fn math_less_or_equal_sides(
+    conclusion: &Proposition,
     is_target_operation: fn(&IntegerMathTerm) -> bool,
-) -> Option<(bool, &'a IntegerMathTerm, &'a IntegerMathTerm)> {
+) -> Option<(bool, &IntegerMathTerm, &IntegerMathTerm)> {
     match conclusion {
         Proposition::IntegerMathLessOrEqual(bound, operation) if is_target_operation(operation) => {
             Some((true, bound, operation))

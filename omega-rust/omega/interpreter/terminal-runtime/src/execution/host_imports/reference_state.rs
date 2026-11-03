@@ -46,7 +46,14 @@ impl ReferenceStateImport {
             return Ok(None);
         };
         let signature = TerminalImportSignature::from(declaration);
-        let result = validate(program, declaration, binding, application, &signature, operation)?;
+        let result = validate(
+            program,
+            declaration,
+            binding,
+            application,
+            &signature,
+            operation,
+        )?;
         Ok(Some(Self { signature, result }))
     }
 }
@@ -66,7 +73,7 @@ impl TerminalEffectHandler for ReferenceStateImport {
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let invalid =
             super::refusal("provider reference operands differ from the admitted signature");
-        let call = super::call_operands(effect, &invalid)?;
+        let call = super::call_operands(effect, invalid)?;
         if *call.result != self.signature.result
             || !call.arguments.is_empty()
             || !call.structural_arguments.is_empty()
@@ -156,15 +163,14 @@ fn validate(
         result: Some(ValueShape::integer(8, 8)),
     };
     super::admit_exact_foreign_call(signature, declaration, binding, &native)?;
-    if let Some(application) = application {
-        if application.plan.plan() != &binding.boundary_entry_plan
+    if let Some(application) = application
+        && (application.plan.plan() != &binding.boundary_entry_plan
             || application.commitment == [0; 32]
-            || !application.opaque_applications.is_empty()
-        {
-            return Err(invalid(
-                "provider reference calling application is unbound or contains opaque/callback transport",
-            ));
-        }
+            || !application.opaque_applications.is_empty())
+    {
+        return Err(invalid(
+            "provider reference calling application is unbound or contains opaque/callback transport",
+        ));
     }
     match operation {
         ReferenceStateOperation::ErrnoLocation => {
@@ -181,17 +187,23 @@ fn validate(
             )
         }
         ReferenceStateOperation::LibcVersion => {
-            let integer = IntegerType::new(IntegerSign::Unsigned, 8)
-                .map_err(|_| invalid("libc version requires a supported u8 carrier"))?;
+            // The libc version cell is one scalar leaf; admitted referents
+            // may wrap it in layout storage, so the leaf's declared carrier —
+            // not the operation — chooses the integer width. The semantic
+            // model supplies the same stable small version for every
+            // carrier.
+            let integer = super::native_word::scalar_leaf_integer(program, *referent)?;
+            let value = match integer.sign() {
+                IntegerSign::Signed => IntegerValue::Signed(2),
+                IntegerSign::Unsigned => IntegerValue::Unsigned(2),
+            };
             scalar_state(
                 program,
                 *referent,
                 ScalarType::Integer(integer),
-                // A stable nonzero byte: the semantic version cell this
-                // provider owns for the invocation's life.
                 TerminalScalarValue::Integer {
                     scalar_type: integer,
-                    value: IntegerValue::Unsigned(2),
+                    value,
                 },
             )
         }
@@ -256,22 +268,22 @@ fn locale_view(
         let path =
             super::native_word::scalar_payload_path(program, *nested, ScalarType::Integer(byte))?;
         references.push((
-            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(field.id)],
+            vec![semantic_vocabulary::CanonicalStructuralPathSegment::Field(
+                field.id,
+            )],
             TerminalReferenceResult {
-                referent: TerminalReferencePayload::ScalarAggregate(
-                    TerminalScalarAggregateValue {
-                        structural_type: *nested,
-                        result_case: None,
-                        // "." under the "C" locale.
-                        fields: vec![(
-                            path,
-                            TerminalScalarValue::Integer {
-                                scalar_type: byte,
-                                value: IntegerValue::Unsigned(46),
-                            },
-                        )],
-                    },
-                ),
+                referent: TerminalReferencePayload::ScalarAggregate(TerminalScalarAggregateValue {
+                    structural_type: *nested,
+                    result_case: None,
+                    // "." under the "C" locale.
+                    fields: vec![(
+                        path,
+                        TerminalScalarValue::Integer {
+                            scalar_type: byte,
+                            value: IntegerValue::Unsigned(46),
+                        },
+                    )],
+                }),
                 references: Vec::new(),
             },
         ));

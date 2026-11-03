@@ -20,7 +20,7 @@ use abstract_operations::{
     AbstractCallSignature, AbstractCallTarget, AbstractFunction, AbstractFunctionResult,
     AbstractOperation, AbstractResult, AbstractStructuralCallResult, StructuralCallFormal,
 };
-use calling_conventions::{ValueLocation, ValueShape};
+use calling_conventions::ValueLocation;
 use semantic_vocabulary::{
     MachineId, ObligationId, OperationId, PlaceId, StructuralTypeId, ValueId,
 };
@@ -106,8 +106,6 @@ pub(super) fn lower_no_normal(
             scalar_argument(*callee, position, *value, parameter, function, live)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut shape_cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
     let arguments = structural_arguments
         .iter()
         .zip(&declaration.structural_parameters)
@@ -124,8 +122,6 @@ pub(super) fn lower_no_normal(
                 parameters_by_place,
                 live,
                 operations,
-                &mut shape_cache,
-                &mut active,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -327,8 +323,6 @@ pub(super) fn lower_call(
             scalar_argument(call.callee, position, *value, parameter, function, live)
         })
         .collect::<Result<Vec<_>, _>>()?;
-    let mut shape_cache = BTreeMap::new();
-    let mut active = BTreeSet::new();
     let arguments = call
         .structural_arguments
         .iter()
@@ -351,8 +345,6 @@ pub(super) fn lower_call(
                 parameters_by_place,
                 live,
                 operations,
-                &mut shape_cache,
-                &mut active,
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -520,9 +512,7 @@ fn published_scalar_contract(
         &parameter_shapes,
         [],
         Some(result_shape),
-        &BTreeMap::new(),
-        &mut BTreeMap::new(),
-        &mut std::collections::BTreeSet::new(),
+        &calling_conventions::terminal_layout::StructuralLayouts::default(),
     )?
     .plan(target)?;
     if call.scalar_arguments.len() != callee_function.parameters.len()
@@ -708,7 +698,7 @@ fn bounded_owned_byte_result(
     types: &StructuralTypeLookup<'_>,
 ) -> bool {
     types
-        .get(&structural_type)
+        .get(structural_type)
         .is_some_and(|declaration| declaration.shape.is_bounded_owned_byte_sequence())
 }
 
@@ -752,8 +742,6 @@ fn structural_argument(
     parameters_by_place: &BTreeMap<PlaceId, &TargetStructuralParameter>,
     live: &LiveDefinitions,
     operations: &[TargetUnitOperation],
-    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<TargetStructuralArgument, LoweringError> {
     // Existing geometry classifiers consume declaration-shaped inputs but read
     // only formal type/access and placement. Bind that scratch view to the
@@ -848,7 +836,7 @@ fn structural_argument(
     // A view arriving at a state block lends its elements the same way.
     let invocation_projection = !argument.path.is_empty()
         && !types
-            .get(&declaration.structural_type)
+            .get(declaration.structural_type)
             .is_some_and(|ty| matches!(ty.shape, StructuralTypeShape::ByteSequence(_)))
         && (prepared.parameters.iter().any(|parameter| {
             parameter.place == argument.place && parameter.access != StructuralAccess::Owned
@@ -918,8 +906,6 @@ fn structural_argument(
         &live.views,
         operations,
         &super::scalar_sources::ScalarSources::from(live),
-        shape_cache,
-        active,
     )
 }
 

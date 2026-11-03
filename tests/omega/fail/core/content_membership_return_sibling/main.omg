@@ -4,7 +4,7 @@
 use omega::language::core::content;
 use omega::language::core::drop;
 
-data Ticket [linear] { amount: u64; }
+data Ticket [linear] dropped by drop_ticket { amount: u64; }
 domain Ticket::Owned established by issue;
 domain Ticket::Ready established by MarkReady::transfer;
 machine Owned::content(ticket: &Ticket) -> CountedQuantity<Nat>
@@ -16,7 +16,7 @@ satisfies Content<Ticket, CountedQuantity<Nat>>::project {
     CountedQuantity { magnitude: embed(ticket.amount) as Nat }
 }
 machine issue() -> Ticket in Owned { Ticket { amount: 64 } }
-machine Ticket::drop(ticket: &mut Ticket) {}
+machine drop_ticket(ticket: &mut Ticket) {}
 
 boundary trait MarkReady {
     machine transfer(ticket: Ticket in Owned) -> Ticket

@@ -16,9 +16,9 @@
 //! choices through those phases. Finished products and publication belong to the independent
 //! `compilation_products` owner; this crate only sequences their production.
 
-mod target_batch;
 mod execution_settlement;
 mod identity;
+mod target_batch;
 pub use psi_compiler::ProducedTerminalProgram;
 pub use psi_compiler::{
     LibrarySliceTotals, declaration_page_fork_totals, dependency_body_read_totals,
@@ -47,7 +47,7 @@ pub use crate::checked::{
     preliminary_check_totals, settled_check_totals, source_assembly_invocation_count,
     typed_frontier_reuse_count,
 };
-pub use build_evaluation::BuildSnapshotRequest;
+pub use build_settings::BuildSnapshotRequest;
 pub use checked::SourceCompilation;
 pub use checked::checking::ProductQueries;
 pub use checked::{PackageReviewFailure, PackageReviewProduct, PackageReviewSource};
@@ -59,7 +59,6 @@ pub use compilation_products::{
     CompileOutputKind, CompileReport, ExecutablePublicationReceipt, OptimizationRollbackReceipt,
     RetainedBuildOutputs, RetainedNativeArtifact,
 };
-pub use target_batch::PreparedCompilation;
 pub use native_production::SourceEvaluatedImportSettlement;
 pub use package_compilation::BuildExecutionInputs;
 pub use package_evidence::permission_acceptance::TerminalPermissionAcceptance;
@@ -67,3 +66,4 @@ pub use product_execution::{
     CompilationOutput, CompilationProduct, CompilationProductError, TargetProductOutcome,
 };
 pub use target::ExplicitTargetSet;
+pub use target_batch::PreparedCompilation;

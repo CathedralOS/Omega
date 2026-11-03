@@ -384,6 +384,7 @@ impl TerminalExecution<'_> {
                     &prepared_arguments.aggregate_backings,
                     &prepared_arguments.primitive_loans,
                     &prepared_arguments.element_views,
+                    &prepared_arguments.byte_sequences,
                     &access_view_occurrences,
                 )
                 .map_err(|error| {
@@ -615,10 +616,9 @@ impl TerminalExecution<'_> {
         };
         if let crate::engine::execution::ResultClaimOrigin::TargetFamilyReturn { head, member } =
             claim_origin
+            && (member != callee_id || !program.is_target_family_head(head))
         {
-            if member != callee_id || !program.is_target_family_head(head) {
-                return Err(malformed());
-            }
+            return Err(malformed());
         }
         let mut preserved_projected_qualifications = Vec::new();
         if claim_origin == crate::engine::execution::ResultClaimOrigin::CalleeReturn

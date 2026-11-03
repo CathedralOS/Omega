@@ -2,9 +2,9 @@
 // nominal and nested empty arrays is complete once its scalar is written,
 // and its hook runs on the scalar wherever the owner dies.
 data Token { value: u64; }
-data Holder { values: [u64; 0]; tokens: [[Token; 0]; 3]; value: u64; }
+data Holder dropped by drop_holder { values: [u64; 0]; tokens: [[Token; 0]; 3]; value: u64; }
 
-machine Holder::drop(holder: &mut Holder)
+machine drop_holder(holder: &mut Holder)
 requires holder.value == 5
 {
     holder.value = 0;

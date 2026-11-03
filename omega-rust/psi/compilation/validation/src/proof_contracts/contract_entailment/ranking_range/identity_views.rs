@@ -265,12 +265,9 @@ pub fn measure_body_shape(
         }
         // An intermediate step must itself be an exact declared record so the
         // next member resolves against one nominal owner.
-        let Some(next) = program
+        let next = program
             .type_reference_table
-            .unconstrained_named_symbol(field.type_reference)
-        else {
-            return None;
-        };
+            .unconstrained_named_symbol(field.type_reference)?;
         if !crate::declarations::data_queries::data_definition_by_symbol(program, next).is_some() {
             return None;
         }

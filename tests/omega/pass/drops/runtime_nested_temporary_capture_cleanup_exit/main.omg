@@ -1,7 +1,7 @@
-data Token { ready: bool; value: u64; }
+data Token dropped by drop_token { ready: bool; value: u64; }
 data Bundle { tokens: [Token; 2]; }
 
-machine Token::drop(token: &mut Token)
+machine drop_token(token: &mut Token)
 requires token.ready
 {
     token.ready = false;

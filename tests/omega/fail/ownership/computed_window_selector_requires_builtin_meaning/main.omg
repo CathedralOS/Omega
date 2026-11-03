@@ -1,10 +1,10 @@
 // The selected operator returns one, not the builtin sum. Its captured
 // result cannot identify the hole with the unchanged parameter at zero.
-data Token { byte: i32; }
-machine Token::drop(token: &mut Token) { token.byte = 0; }
+data Token dropped by drop_token { byte: i32; }
+machine drop_token(token: &mut Token) { token.byte = 0; }
 
 trait IndexAdd {
-    operator + add(left: u8, right: u8) -> u8;
+    machine + add(left: u8, right: u8) -> u8;
 }
 
 Selected satisfies IndexAdd {

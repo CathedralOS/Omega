@@ -168,7 +168,7 @@ fn block(identifier: u32) -> crate::SelectedBlock {
 }
 fn blocked() -> SelectedInstructionPlan {
     let mut function = function(1);
-    function.blocks = vec![block(0), block(4)].into();
+    function.blocks = vec![block(0), block(1)].into();
     plan(vec![function])
 }
 fn fresh_identity(source: &SelectedInstructionPlan) -> crate::SelectedInstructionPlanIdentity {
@@ -202,12 +202,12 @@ fn a_block_edit_detaches_only_its_contents_and_rehashes_the_plan() {
             .blocks
             .shares_block_storage(&source.functions[0].blocks, 1)
     );
-    assert_eq!(source.functions[0].blocks[1].id, SelectedBlockId(4));
+    assert_eq!(source.functions[0].blocks[1].id, SelectedBlockId(1));
     assert_eq!(selected_instruction_plan_identity(&source), original);
 
     let mut by_identity = source.clone();
     by_identity.functions[0]
-        .block_mut(SelectedBlockId(4))
+        .block_mut(SelectedBlockId(1))
         .unwrap()
         .id = SelectedBlockId(9);
     assert_eq!(
@@ -233,7 +233,7 @@ fn every_mutable_block_route_invalidates_shared_and_unique_digest_memos() {
             2 => blocks.iter_mut().nth(1).unwrap().id = SelectedBlockId(9),
             _ => {
                 for block in blocks {
-                    if block.id == SelectedBlockId(4) {
+                    if block.id == SelectedBlockId(1) {
                         block.id = SelectedBlockId(9);
                     }
                 }
@@ -245,7 +245,7 @@ fn every_mutable_block_route_invalidates_shared_and_unique_digest_memos() {
             fresh_identity(&changed)
         );
         // This second edit has no shared block payload left to force a detach.
-        changed.functions[0].blocks[1].id = SelectedBlockId(4);
+        changed.functions[0].blocks[1].id = SelectedBlockId(1);
         assert_eq!(selected_instruction_plan_identity(&changed), original);
     }
 }
@@ -255,7 +255,7 @@ fn rebuilding_a_block_roster_preserves_content_identity_and_unchanged_pages() {
     let original = selected_instruction_plan_identity(&source);
     let mut changed = source.clone();
     changed.functions[0].blocks.truncate(1);
-    changed.functions[0].blocks.push(block(4));
+    changed.functions[0].blocks.push(block(1));
     assert_eq!(changed.functions[0].blocks, source.functions[0].blocks);
     assert!(
         changed.functions[0]
@@ -263,7 +263,7 @@ fn rebuilding_a_block_roster_preserves_content_identity_and_unchanged_pages() {
             .shares_block_storage(&source.functions[0].blocks, 0)
     );
     assert_eq!(selected_instruction_plan_identity(&changed), original);
-    changed.functions[0].blocks.push(block(8));
+    changed.functions[0].blocks.push(block(2));
     assert_ne!(selected_instruction_plan_identity(&changed), original);
     assert_eq!(
         selected_instruction_plan_identity(&changed),
@@ -300,7 +300,7 @@ fn mechanical_block_lookup_tracks_mutation_without_changing_content_identity() {
     assert_eq!(selected_instruction_plan_identity(&source), identity);
     let mut changed = source.clone();
     let instruction = &mut changed.functions[0].blocks[0].instructions[0];
-    instruction.id = crate::SelectedInstructionId(3);
+    instruction.id = crate::SelectedInstructionId(0);
     instruction.operands[0].fixed_view = None;
     assert!(
         !changed.functions[0]
@@ -309,7 +309,7 @@ fn mechanical_block_lookup_tracks_mutation_without_changing_content_identity() {
     );
     assert_eq!(
         changed.functions[0].blocks.maximum_instruction_id(),
-        Some(crate::SelectedInstructionId(4))
+        Some(crate::SelectedInstructionId(1))
     );
     assert!(
         source.functions[0]

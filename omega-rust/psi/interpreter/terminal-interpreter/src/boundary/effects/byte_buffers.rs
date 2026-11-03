@@ -118,13 +118,12 @@ impl BoundaryArguments {
         let mut byte_sequences = RuntimeRows::new(account);
         let mut primitive_loans = RuntimeRows::new(account);
         for (parameter, loan) in parameters.iter().zip(self.primitive_loans) {
-            if let Some(loan) = loan {
-                if values.get(&parameter.place) != Some(&loan.referent)
+            if let Some(loan) = loan
+                && (values.get(&parameter.place) != Some(&loan.referent)
                     || loan.access != parameter.access
-                    || primitive_loans.insert(parameter.place, loan)?.is_some()
-                {
-                    return Err(malformed());
-                }
+                    || primitive_loans.insert(parameter.place, loan)?.is_some())
+            {
+                return Err(malformed());
             }
         }
         let mut element_views = RuntimeRows::new(account);
@@ -248,6 +247,22 @@ impl BoundaryArguments {
     ) -> Result<(), TerminalInterpretError> {
         self.storage_inputs
             .capture_reference_inputs(declaration, arguments, &self.values)
+    }
+
+    pub(crate) fn prepare_reference_result(
+        &mut self,
+        execution: &TerminalExecution,
+        declaration: &terminal_psi::BoundaryMachineDeclaration,
+        result: &terminal_psi::StructuralOperationResult,
+        selection: &super::storage_inputs::TerminalBoundaryReferenceSelection,
+    ) -> Result<crate::storage::reference::PreparedReference, TerminalInterpretError> {
+        self.storage_inputs.prepare_reference_result(
+            execution,
+            declaration,
+            result,
+            selection,
+            &mut self.local_identity_cursor,
+        )
     }
 
     /// A handler can reorder its slice, but cannot thereby retarget writeback.
@@ -780,9 +795,7 @@ impl TerminalExecution<'_> {
         parent.structural_type = parameter.structural_type;
         parent.qualifications = parameter.qualifications.clone();
         parent.projected_qualifications = parameter.projected_qualifications.clone();
-        parent
-            .path
-            .push(StructuralPathSegment::Field(identity.clone()));
+        parent.path.push(StructuralPathSegment::Field(identity));
 
         let binding = ByteSequenceBinding::MutableField {
             field: destination,
@@ -1028,9 +1041,7 @@ impl TerminalExecution<'_> {
         parent.structural_type = parameter.structural_type;
         parent.qualifications = parameter.qualifications.clone();
         parent.projected_qualifications = parameter.projected_qualifications.clone();
-        parent
-            .path
-            .push(StructuralPathSegment::Field(identity.clone()));
+        parent.path.push(StructuralPathSegment::Field(identity));
         let bytes = bytes.with_descriptor_home(parent.clone());
         Ok((parent, ByteSequenceBinding::Immutable(bytes)))
     }

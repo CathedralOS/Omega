@@ -495,7 +495,12 @@ impl<'program> StructuralJudge<'program> {
             // addresses, and IEEE floats share that coordinate, so an
             // exclusive loan retires the read only when it overlaps.
             // Source text is never its identity.
-            if value.observation_identity_key().is_none() {
+            // Reading a field through a pointer observes its contents now.
+            // The pointer's projection may have an identity, but it is not a
+            // snapshot of those contents and cannot carry their checked bounds.
+            if value.observation_identity_key().is_none()
+                || structural_terms::term_is_unobserved_descriptor(program, &value)
+            {
                 value = judge.capture_unknown_value(expression, scope)?;
             }
             if !receiver_changed {

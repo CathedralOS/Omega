@@ -2,7 +2,7 @@
 //! Terminal artifact. No reconstructed grants, provider policy, or source oracle.
 use terminal_runtime::{TerminalClockSnapshot, TerminalDomainExitDelegation, TerminalRuntimeRequest};
 use package_manager::operations::{LocalProjectPreparationOptions, prepare_local_project};
-use omega_build::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
+use orchestration::{PreparedLocalProjectNativeRequest, compile_prepared_local_project_for_native};
 use std::{fs, io::Cursor, path::PathBuf, time::Instant};
 use terminal_interpreter::{TerminalExecutionResult, TerminalExecutionStatus};
 

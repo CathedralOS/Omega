@@ -7,5 +7,5 @@ pub(super) fn envelope_identity(plan: &FixedViewCopyPlan, content: &[u8]) -> [u8
     let mut hasher = crate::digest_encoder::DomainDigestEncoder::new(ENVELOPE_DOMAIN);
     hasher.raw(&fixed_view_copy_identity(plan).bytes());
     hasher.raw(&crate::digest_encoder::content_identity(content));
-    hasher.finish().into()
+    hasher.finish()
 }

@@ -133,7 +133,7 @@ pub(super) fn validate_frame_root(
 
 /// The one roster entry the predicate admits. A second match, or none,
 /// contradicts the slot or function the caller is resolving.
-fn unique<'a, T>(entries: &'a [T], admits: impl Fn(&T) -> bool) -> Result<&'a T, Error> {
+fn unique<T>(entries: &[T], admits: impl Fn(&T) -> bool) -> Result<&T, Error> {
     let mut found = entries.iter().filter(|entry| admits(entry));
     let only = found.next().ok_or(Error::ArtifactMismatch)?;
     if found.next().is_some() {

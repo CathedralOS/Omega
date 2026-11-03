@@ -1542,7 +1542,8 @@ fn adapt(
                         .iter()
                         .filter(|declaration| declaration.id == *boundary);
                     if let (Some(declaration), None) = (declarations.next(), declarations.next())
-                        && !declaration.reference_outputs.is_empty()
+                        && (!declaration.reference_outputs.is_empty()
+                            || !declaration.result_reference_regions.is_empty())
                         && slot_kind != kernel::DescriptorSlotKind::AccessOrigins
                         && !(slot_kind == kernel::DescriptorSlotKind::References
                             && declaration.declaration.as_ref().is_some_and(|head| {
@@ -1558,6 +1559,12 @@ fn adapt(
                                 slot_kind,
                                 declaration,
                                 structural_arguments,
+                                match result {
+                                    abstract_operations::AbstractBoundaryResult::Structural(
+                                        value,
+                                    ) => Some(value),
+                                    _ => None,
+                                },
                                 &graph.place_types,
                             )?,
                         );

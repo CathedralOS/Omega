@@ -42,9 +42,9 @@ boundary trait WindowsConsoleIo {
 
 // Each selected transfer consumes its exact region. The skipped region stays
 // behind younger roots until normal death, including after condition mutation.
-data Token { value: u64; byte: i32; }
+data Token dropped by drop_token { value: u64; byte: i32; }
 data Pair<Value> { first: Value; second: Value; }
-machine Token::drop(token: &mut Token) reaches Console { Console::write_byte(token.byte); }
+machine drop_token(token: &mut Token) reaches Console { Console::write_byte(token.byte); }
 machine consume(token: Token) -> u64 reaches Console { token.value }
 
 machine partial_record(enabled: bool) -> bool reaches Console {
@@ -147,8 +147,8 @@ machine optional_record(enabled: bool, slot: ReceiptChoice, expected: u64) -> bo
 }
 
 // Old optional claims and newly established claims share the home, not identity.
-data Receipt [linear] { value: u64; }
-machine Receipt::drop(receipt: &mut Receipt) { receipt.value = 0; }
+data Receipt [linear] dropped by drop_receipt { value: u64; }
+machine drop_receipt(receipt: &mut Receipt) { receipt.value = 0; }
 machine consume_receipt(receipt: Receipt) -> u64 { receipt.value }
 machine linear_replacement(enabled: bool) -> bool {
     let mut pair: Pair<Receipt> = Pair {

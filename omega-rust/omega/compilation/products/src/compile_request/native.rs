@@ -25,8 +25,21 @@ use terminal_psi_to_abstract_operations::provider_admission::{
 /// against exact supplied rows.
 #[derive(Clone)]
 pub struct NativeProductRequest {
+    pub image: NativeImageDemand,
     pub private_entry_ram: Vec<terminal_installation::PrivateEntryRamInitialization>,
     pub terminal_authority_policy: TerminalAuthorityPolicy,
     pub terminal_authority_permission_policy: Option<TerminalAuthorityPermissionPolicy>,
     pub optimization_rollback: OptimizationRollback,
+}
+
+/// Where native production stops. `RuntimeAdmissionOnly` serves Terminal-only
+/// execution (`omega run --engine terminal`): the request passes the same
+/// Build, package, provider and entry admission as an image, then settles as
+/// a Terminal product carrying its admitted runtime provisions, with no
+/// object or image emitted.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum NativeImageDemand {
+    #[default]
+    Emit,
+    RuntimeAdmissionOnly,
 }

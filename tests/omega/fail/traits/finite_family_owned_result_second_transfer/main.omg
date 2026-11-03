@@ -1,7 +1,7 @@
 use omega::language::core::drop;
 
-data Token [linear] { value: u64 in Wrapping; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64 in Wrapping; }
+machine drop_token(token: &mut Token) {}
 domain Token::Issued;
 data Packet { token: Token in Token::Issued; marker: u32; }
 data Item { calls: u32 in Wrapping; }

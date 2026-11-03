@@ -7,7 +7,6 @@ use syntax_trees::expression::{
     BinaryOperator, ExpressionHandle, ExpressionNode, MatchFieldAction, TableBinaryExpression,
     UnaryOperator,
 };
-use syntax_trees::identifier::Identifier;
 use syntax_trees::statement::TableOutcomeProofSelector;
 use syntax_trees::statement::TransitionGuardNode;
 use tokens::{KeywordKind, PunctuationKind};

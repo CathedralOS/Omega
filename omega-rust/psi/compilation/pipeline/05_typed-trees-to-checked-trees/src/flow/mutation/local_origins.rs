@@ -420,7 +420,6 @@ pub(super) fn rebase_captured_storage_region(
             state_symbol,
             statement_index,
             place,
-            call_frames,
             descriptor_slot,
             references?,
         )
@@ -572,7 +571,6 @@ fn rebase_write_regions(
         state_symbol,
         statement_index,
         place,
-        call_frames,
         descriptor_slot,
         &origins,
     )
@@ -583,7 +581,6 @@ fn rebase_reachable_storage(
     state_symbol: SymbolHandle,
     statement_index: usize,
     place: CanonicalPlace,
-    call_frames: Option<&CallFrameResolver<'_>>,
     descriptor_slot: bool,
     origins: &[LocalWriteOrigin],
 ) -> Option<Vec<StorageRegion>> {
@@ -654,7 +651,6 @@ fn rebase_reachable_storage(
                             state_symbol,
                             statement_index,
                             owner,
-                            call_frames,
                             false,
                             origins,
                         )

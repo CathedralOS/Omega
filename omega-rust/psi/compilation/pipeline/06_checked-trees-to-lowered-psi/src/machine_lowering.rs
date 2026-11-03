@@ -199,8 +199,8 @@ pub fn lower_machine(
     Ok(lowered)
 }
 
-/// The exact source declaration designates this callable's cleanup role;
-/// merely being attached to the same type or receiving its loan is insufficient.
+/// A `dropped by` selection naming this exact callable designates its cleanup
+/// role; merely receiving a loan of the same type is insufficient.
 pub(crate) fn nominal_cleanup_subject(
     checked: &CheckedTrees,
     source: symbols::SymbolHandle,
@@ -240,17 +240,12 @@ fn nominal_cleanup_subject_from_types<'types>(
     else {
         return Ok(None);
     };
-    let machine = checked.machine(source).ok_or(LoweringError::Unsupported(
-        "cleanup declaration lost its exact source",
-    ))?;
     let data = checked
         .data_definition_by_symbol(owner)
         .ok_or(LoweringError::Unsupported(
             "cleanup declaration lost its exact owner",
         ))?;
-    let identity = if machine.attached_data_application.is_valid() {
-        checked.normalized_type_identity(machine.attached_data_application)
-    } else if let Some(subject) = selected_subject {
+    let identity = if let Some(subject) = selected_subject {
         checked.normalized_type_identity(subject)
     } else if let Some(application) = data.generic_instance {
         checked.normalized_type_identity(application)

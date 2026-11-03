@@ -1,8 +1,7 @@
 //! Execute the authored initialization/transport/extraction journey against
 //! one real supplied buffer. Its source checks the extracted value; handback
 //! checks the original allocation and untouched tail, not numeric geometry alone.
-#[path = "terminal_provision.rs"]
-mod terminal_provision;
+use super::terminal_provision;
 
 use access_plans::{
     AtomicCapability, BoundaryReach, ExternalCapability, PeerWritability, ResourceProfile,

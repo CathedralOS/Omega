@@ -1,11 +1,11 @@
-data Receipt [linear] { value: u64; }
-machine Receipt::drop(receipt: &mut Receipt) { receipt.value = 0; }
-data OptionalReceipt {
+data Receipt [linear] dropped by drop_receipt { value: u64; }
+machine drop_receipt(receipt: &mut Receipt) { receipt.value = 0; }
+data OptionalReceipt dropped by drop_optional_receipt {
     ready: bool;
     case Empty;
     case Held(receipt: Receipt);
 }
-machine OptionalReceipt::drop(owner: &mut OptionalReceipt)
+machine drop_optional_receipt(owner: &mut OptionalReceipt)
 requires owner.ready
 {}
 machine main() {

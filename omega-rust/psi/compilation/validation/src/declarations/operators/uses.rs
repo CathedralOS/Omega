@@ -192,24 +192,25 @@ fn collect_expression_operator_use(
                 .iter()
                 .enumerate()
             {
-                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern {
-                    if floating_subject && let Ok(ordinal) = u32::try_from(ordinal) {
-                        let source_arm = dispatch.arms.handle_at(ordinal);
-                        let mut equality = operator_use_fact(
-                            program,
-                            expression,
-                            origin,
-                            OperatorSpelling::Equal,
-                            &[
-                                subject_type,
-                                expression_type_reference_for_origin(program, pattern, origin),
-                            ],
-                            &mut sink.candidates,
-                        );
-                        equality.occurrence =
-                            checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm };
-                        sink.uses.append(equality);
-                    }
+                if let typed_trees::expression::MatchPattern::Value(pattern) = arm.pattern
+                    && floating_subject
+                    && let Ok(ordinal) = u32::try_from(ordinal)
+                {
+                    let source_arm = dispatch.arms.handle_at(ordinal);
+                    let mut equality = operator_use_fact(
+                        program,
+                        expression,
+                        origin,
+                        OperatorSpelling::Equal,
+                        &[
+                            subject_type,
+                            expression_type_reference_for_origin(program, pattern, origin),
+                        ],
+                        &mut sink.candidates,
+                    );
+                    equality.occurrence =
+                        checked_trees::CheckedOperatorOccurrence::MatchEquality { source_arm };
+                    sink.uses.append(equality);
                 }
                 for pattern in expression_table(program).match_pattern_operands(arm.pattern) {
                     collect_expression_operator_use(program, pattern, origin, sink);
@@ -394,12 +395,12 @@ pub(super) fn named_float_policy_adapter(
         })
 }
 
-/// Records a spelled binary use when spelled candidates match the left
-/// operand type. Root-only candidate sets resolve immediately (root spelled
-/// operators are the declared surface of the builtin operation). Any
-/// domain-owned candidate defers to the binding-site selection pass
-/// (`select_pending_domain_operator_meanings`), which reads declarations,
-/// mints, and signature `requires` but never flow facts.
+// Records a spelled binary use when spelled candidates match the left
+// operand type. Root-only candidate sets resolve immediately (root spelled
+// operators are the declared surface of the builtin operation). Any
+// domain-owned candidate defers to the binding-site selection pass
+// (`select_pending_domain_operator_meanings`), which reads declarations,
+// mints, and signature `requires` but never flow facts.
 
 /// Candidate count and arena span for a resolved spelling candidate set.
 fn checked_candidate_span(

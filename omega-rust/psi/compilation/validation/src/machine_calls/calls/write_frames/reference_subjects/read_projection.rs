@@ -97,11 +97,17 @@ fn capture_projection(
         cursor.enter_referee()?;
     }
     let mut cuts = Vec::new();
+    let mut dynamic_address = false;
     for position in 0..=source.segments.len() {
         if usage == ProjectionUse::Address && position == source.segments.len() {
             break;
         }
         while let Some(access) = cursor.reference_access() {
+            // An address may select an element of the final owned span.
+            // It cannot load an unknown pointer stored inside that element.
+            if dynamic_address {
+                return None;
+            }
             if !carrier_readable || (usage == ProjectionUse::Contents && !access.is_readable()) {
                 return None;
             }
@@ -120,7 +126,12 @@ fn capture_projection(
                 cursor.validate_fixed_window(*start, *end)?;
                 break;
             }
-            if !matches!(
+            if usage == ProjectionUse::Address && matches!(segment, PlaceSegment::Index { .. }) {
+                // Formation checks bounds and alignment. Keep the authored
+                // selector in its captured address; this supplies no value
+                // equality with an element observed at another occurrence.
+                dynamic_address = true;
+            } else if !matches!(
                 segment,
                 PlaceSegment::Field { .. }
                     | PlaceSegment::Case { .. }

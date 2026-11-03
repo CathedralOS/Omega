@@ -102,7 +102,7 @@ mode, cleanup disposition, or target rule, complete the entire source-to-native
 path in the same change rather than splitting work by compiler stage.
 
 Read the whole item's acceptance and verify its remaining gap with an optimized
-exact-source producer for the fixed recorded base. Reuse warm `build/gate-cli`
+exact-source producer for the fixed recorded base. Reuse warm `target/`
 artifacts with verified inputs; build only for changed producer inputs or a
 missing valid producer. Never use an unverified cached binary. Record the parent
 task and the exact requirement the next fact will discharge. Do not attach a task ID to an unrelated program after
@@ -426,6 +426,12 @@ the route with [main.rs](../../../omega-rust/omega/application/cli/src/main.rs) 
 orchestration visible at the crate entry and at subordinate multi-step owners,
 and verify affected test selectors and source readers. Stop when the named
 navigation problem is resolved.
+
+Before each build or test, state its decision, smallest meaningful scope,
+reusable matching evidence and expected time and resources. Inspect progress
+and record a reasoned decision when it overruns; don't blindly wait or restart.
+Reviewers rerun material evidence gaps, not every expensive check by default.
+Required CI and release gates still apply.
 
 Select checks from the affected behavior under
 [validation scope](../../../tools/testing.md#validation-scope). A bug fix needs a witnessed

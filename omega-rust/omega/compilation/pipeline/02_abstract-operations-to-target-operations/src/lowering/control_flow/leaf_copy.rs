@@ -106,18 +106,13 @@ pub(super) fn copy_extent(
     let (function, types, live, operations, provenance) = site.parts();
     let (endpoint, shape, byte_offset, indices) = match path {
         abstract_operations::StructuralCopyPath::Case(path) => {
-            let (endpoint, shape, offset) = crate::lowering::structural_layout::case_projection(
-                root_type,
-                path,
-                types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )?;
+            let (endpoint, shape, offset) =
+                crate::lowering::structural_layout::case_projection(root_type, path, types)?;
             (endpoint, shape, offset, Vec::new())
         }
         abstract_operations::StructuralCopyPath::Ordinary(path) if path.is_empty() => (
             root_type,
-            structural_shape(root_type, types, &mut BTreeMap::new(), &mut BTreeSet::new())?,
+            structural_shape(root_type, types)?,
             0,
             Vec::new(),
         ),
@@ -127,8 +122,6 @@ pub(super) fn copy_extent(
                 path,
                 result.structural_type,
                 types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
             )?
         }
     };
@@ -138,12 +131,7 @@ pub(super) fn copy_extent(
     let byte_carrier = endpoint != result.structural_type
         && byte_carrier_leaf_copy(types, root_type, path, result.structural_type);
     let shape = if byte_carrier {
-        crate::lowering::structural_layout::structural_shape(
-            result.structural_type,
-            types,
-            &mut BTreeMap::new(),
-            &mut BTreeSet::new(),
-        )?
+        crate::lowering::structural_layout::structural_shape(result.structural_type, types)?
     } else {
         shape
     };
@@ -235,7 +223,7 @@ fn byte_carrier_leaf_copy(
     let Some(parent) = types.subtree(root, prefix) else {
         return false;
     };
-    let Some(declaration) = types.get(&parent) else {
+    let Some(declaration) = types.get(parent) else {
         return false;
     };
     let StructuralTypeShape::FixedArray {

@@ -33,6 +33,7 @@ use super::{
     CheckFacts, CheckedScalarExpressionRole, CheckedUnitScalarResultBindingPlan,
     CheckedUnitStructuralPathSegment as PathSegment, PrimitiveType,
 };
+use crate::execution::terminal_unit::calls::ProjectedArgumentPath;
 use crate::execution::terminal_unit::control::LocalConstructionTrace;
 use crate::published::places::place_at;
 use checked_trees::{
@@ -414,7 +415,11 @@ fn place(
     // cell. Reuse the ordinary observation path to retain its containing
     // record, including stored descriptors, rather than substituting their
     // initializer's backing or requiring a parameter-shaped spelling.
-    let (reference, path) = projected_observed_path(
+    let ProjectedArgumentPath {
+        storage_type: reference,
+        path,
+        ..
+    } = projected_observed_path(
         program,
         machine.symbol,
         state.symbol,

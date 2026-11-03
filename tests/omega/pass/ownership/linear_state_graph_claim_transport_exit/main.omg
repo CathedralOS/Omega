@@ -9,11 +9,11 @@
 // exchanges two invocation names on a backedge without overwriting custody.
 use omega::language::core::drop;
 
-data Receipt [linear] { code: i32; }
+data Receipt [linear] dropped by drop_receipt { code: i32; }
 data Pair { left: Receipt; right: Receipt; }
 data Package { pair: Pair; spare: Receipt; }
 
-machine Receipt::drop(receipt: &mut Receipt) {}
+machine drop_receipt(receipt: &mut Receipt) {}
 
 machine make(code: i32) -> Receipt {
     let issued: Receipt = Receipt { code: code };

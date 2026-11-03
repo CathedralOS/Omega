@@ -419,7 +419,7 @@ fn collect_fields(
             }
             child
                 .path
-                .push(StructuralPathSegment::Field(field.identity.clone()));
+                .push(StructuralPathSegment::Field(field.identity));
             collect(
                 execution,
                 child_type,

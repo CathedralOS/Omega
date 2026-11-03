@@ -37,6 +37,7 @@ pub(super) mod normal_returns;
 mod resolution_inputs;
 mod resolution_queries;
 mod returned_fields;
+mod runtime_induction;
 pub(super) mod selected_contracts;
 mod storage_effects;
 mod traversal_inputs;
@@ -559,6 +560,7 @@ pub(super) struct StructuralJudge<'program> {
     // Active executed bodies bound ordinary calls as well as terminal transfers.
     // A recurrent call consumes its checked contract instead of unfolding again.
     body_invocations: Arc<Vec<SymbolHandle>>,
+    runtime_induction: Arc<runtime_induction::RuntimeInduction>,
     active_application: Option<Arc<resolution_queries::ApplicationResolution<'program>>>,
     completed_resolutions:
         Option<Arc<std::sync::Mutex<resolution_queries::CompletedResolutions<'program>>>>,
@@ -572,7 +574,7 @@ pub(super) struct StructuralJudge<'program> {
     // the program has no graph or this judge walks no runtime body.
     storage_version: Option<storage_effects::StorageVersion>,
     // Typed storage observations retain live values and detached entry snapshots.
-    stored_values: Arc<Vec<storage_effects::CapturedStorageValue>>,
+    stored_values: Arc<storage_effects::StoredValues>,
     pub(super) capture_sequence: usize,
     storage_write_sequence: usize,
     pub(super) normal_guarantees: Arc<Vec<(StructuralTerm, StructuralTerm)>>,
@@ -635,6 +637,7 @@ impl Clone for StructuralJudge<'_> {
             returned_field_owners: Arc::clone(&self.returned_field_owners),
             returned_field_trace: self.returned_field_trace.clone(),
             body_invocations: Arc::clone(&self.body_invocations),
+            runtime_induction: Arc::clone(&self.runtime_induction),
             active_application: self.active_application.clone(),
             completed_resolutions: self.completed_resolutions.clone(),
             resolution_observations: self.resolution_observations.clone(),
@@ -802,10 +805,12 @@ impl<'program> StructuralJudge<'program> {
         } else {
             let mut intersected = Vec::with_capacity(first.stored_values.len());
             for entry in first.stored_values.iter() {
-                if outcomes[1..]
-                    .iter()
-                    .all(|judge| judge.stored_values.contains(entry))
-                {
+                if outcomes[1..].iter().all(|judge| {
+                    judge
+                        .stored_values
+                        .values_at(&entry.coordinate)
+                        .any(|stored| stored == entry)
+                }) {
                     intersected.push(entry.clone());
                     continue;
                 }
@@ -819,11 +824,7 @@ impl<'program> StructuralJudge<'program> {
                 let mut matched_anchors = entry.current_anchors.clone();
                 let mut all_have_coord = true;
                 for judge in &outcomes[1..] {
-                    let Some(other) = judge
-                        .stored_values
-                        .iter()
-                        .find(|s| s.coordinate == entry.coordinate)
-                    else {
+                    let Some(other) = judge.stored_values.value_at(&entry.coordinate) else {
                         all_have_coord = false;
                         break;
                     };
@@ -899,7 +900,8 @@ impl<'program> StructuralJudge<'program> {
                     });
                 }
             }
-            rejoined.stored_values = Arc::new(intersected);
+            rejoined.stored_values =
+                Arc::new(storage_effects::StoredValues::from_values(intersected));
         }
         if exclude_result.is_none()
             && outcomes[1..].iter().all(|judge| {
@@ -1144,6 +1146,7 @@ impl<'program> StructuralJudge<'program> {
             returned_field_owners: Arc::new(Vec::new()),
             returned_field_trace: None,
             body_invocations: Arc::new(Vec::new()),
+            runtime_induction: Arc::new(runtime_induction::RuntimeInduction::default()),
             active_application: None,
             completed_resolutions: Some(Arc::new(std::sync::Mutex::new(Default::default()))),
             resolution_observations: None,
@@ -1151,7 +1154,7 @@ impl<'program> StructuralJudge<'program> {
             normal_content_guarantees: Arc::new(Vec::new()),
             invalidated_storage: Arc::new(Vec::new()),
             storage_version: None,
-            stored_values: Arc::new(Vec::new()),
+            stored_values: Arc::default(),
             capture_sequence: 0,
             storage_write_sequence: 0,
             normal_guarantees: Arc::new(Vec::new()),
@@ -1559,6 +1562,15 @@ impl<'program> StructuralJudge<'program> {
             return term;
         }
         for _ in 0..32 {
+            // A completed result's field contract names this exact snapshot.
+            // Rewriting its enclosing value to a call description first would
+            // discard the more precise, independently admitted field equation.
+            if matches!(term, StructuralTerm::Projection { .. })
+                && let Some((_, replacement)) = self.rewrites.find(&term)
+            {
+                term = replacement.clone();
+                continue;
+            }
             // Authenticate the original applied identity before the existing
             // canonical-result owner runs. Only the Application arm consumes
             // it, after current rewrites and public normal forms.
@@ -1920,11 +1932,8 @@ impl<'program> StructuralJudge<'program> {
             return None;
         }
         let program = self.program;
-        let Some((machine, state)) =
-            crate::machine_calls::calls::machine_state_by_symbol(program, target)
-        else {
-            return None;
-        };
+        let (machine, state) =
+            crate::machine_calls::calls::machine_state_by_symbol(program, target)?;
         if state.return_type != result_type {
             return None;
         }
@@ -2274,9 +2283,7 @@ impl<'program> StructuralJudge<'program> {
                             guard,
                         )
                     {
-                        let Some(comparison) = expression_table(program).binary_node(guard) else {
-                            return None;
-                        };
+                        let comparison = expression_table(program).binary_node(guard)?;
                         if !matches!(
                             comparison.operator,
                             BinaryOperator::Equal | BinaryOperator::CaseMembership
@@ -2817,20 +2824,15 @@ impl<'program> StructuralJudge<'program> {
                         .iter()
                         .map(|argument| child_term!(*argument))
                         .collect::<Option<Vec<_>>>()?;
-                    let Some(state) =
+                    let state =
                         crate::machine_calls::calls::signature_queries::unique_state_by_symbol(
                             program,
                             call.target_symbol,
-                        )
-                    else {
-                        return None;
-                    };
-                    let Some(data_symbol) = crate::value_custody::type_shapes::head_data_symbol(
+                        )?;
+                    let data_symbol = crate::value_custody::type_shapes::head_data_symbol(
                         program,
                         state.return_type,
-                    ) else {
-                        return None;
-                    };
+                    )?;
                     let data = crate::declarations::data_queries::data_definition_by_symbol(
                         program,
                         data_symbol,
@@ -2971,7 +2973,7 @@ impl<'program> StructuralJudge<'program> {
                 let realization = super::structural_terms::realized_requirement_state(call);
                 Some(StructuralTerm::Application {
                     result_type,
-                    target: realization.clone().unwrap_or_else(|| {
+                    target: realization.unwrap_or_else(|| {
                         selected_target.map_or_else(
                             || {
                                 super::structural_terms::structural_call_target(

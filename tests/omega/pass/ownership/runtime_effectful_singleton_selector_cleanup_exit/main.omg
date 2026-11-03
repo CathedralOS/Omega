@@ -1,6 +1,6 @@
 // Expected exit: 0. The singleton selector executes once while its guarantee proves cleanup disjointness.
-data Token { value: u64; }
-machine Token::drop(token: &mut Token) { token.value = 0; }
+data Token dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 machine select(count: &mut u64) -> u64 requires count < 2 ensures result == 1 { count = count + 1; 1 }
 
 machine main() crashes Trap {

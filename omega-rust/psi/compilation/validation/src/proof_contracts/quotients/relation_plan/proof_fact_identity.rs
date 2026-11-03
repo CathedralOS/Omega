@@ -243,7 +243,7 @@ impl ProofValueSubstitution {
             ),
             trace: array_trace(
                 rows.iter()
-                    .map(|row| array_trace(row.iter().map(|element| element_trace(element)))),
+                    .map(|row| array_trace(row.iter().map(&element_trace))),
             ),
         }
     }

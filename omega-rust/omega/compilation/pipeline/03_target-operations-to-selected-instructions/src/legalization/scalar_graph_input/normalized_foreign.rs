@@ -154,10 +154,9 @@ pub(in crate::legalization) fn validate_native_callback_roster(
                     TargetUnitOperation::NormalizedForeignCall { psi_operation, .. }
                         if *psi_operation == callback.terminal_operation
                 )
-            })? {
-                if row.replace(found).is_some() {
-                    return Err(LegalizationError::custody());
-                }
+            })? && row.replace(found).is_some()
+            {
+                return Err(LegalizationError::custody());
             }
         }
         let Some(TargetUnitOperation::NormalizedForeignCall { binding, .. }) = row else {
@@ -543,12 +542,8 @@ pub(in crate::legalization) fn structural_argument_at(
             let destination_shape = if descriptor {
                 // A view's loan still has referent storage custody, but its
                 // boundary operand is the descriptor value, not its address.
-                calling_conventions::classified_boundary_shape(
-                    projected_type,
-                    declarations,
-                    policy,
-                )
-                .map_err(|_| LegalizationError::custody())?
+                calling_conventions::classified_boundary_shape(projected_type, declarations, policy)
+                    .map_err(|_| LegalizationError::custody())?
             } else {
                 if !matches!(destination.locations.as_slice(),
                 [ValueLocation::Register { value_byte_offset: 0, byte_size, .. }]

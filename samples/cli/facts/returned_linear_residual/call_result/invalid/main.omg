@@ -2,8 +2,8 @@
 // Expected exit: 0
 const SEED_CODE: u64 = 8;
 data Seed [copy] { code: u64; }
-data Receipt [linear] { code: u64; }
-machine Receipt::drop(receipt: &mut Receipt)
+data Receipt [linear] dropped by drop_receipt { code: u64; }
+machine drop_receipt(receipt: &mut Receipt)
 requires receipt.code == 7
 {
     receipt.code = 0;

@@ -818,9 +818,7 @@ fn case_guard_proven_variant(
     condition: ExpressionHandle,
     receiver: ExpressionHandle,
 ) -> Option<SymbolHandle> {
-    let Some(binary) = program.expression_table.binary_node(condition) else {
-        return None;
-    };
+    let binary = program.expression_table.binary_node(condition)?;
     match binary.operator {
         BinaryOperator::And => case_guard_proven_variant(program, binary.left, receiver)
             .or_else(|| case_guard_proven_variant(program, binary.right, receiver)),

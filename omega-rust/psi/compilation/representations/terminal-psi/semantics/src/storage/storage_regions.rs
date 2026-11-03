@@ -64,7 +64,7 @@ pub fn projected_storage_region<'a>(
         && let StructuralTypeShape::Record { fields, .. } = &declaration.shape
         && let Some(field) = live_field_by_id(fields, field)
     {
-        region.push(StructuralPathSegment::Field(field.identity.clone()));
+        region.push(StructuralPathSegment::Field(field.identity));
     }
     StorageRegion {
         path: region,
@@ -110,7 +110,7 @@ pub fn canonical_field_storage_region<'a>(
                 let Some(field) = live_field_by_id(fields, *field) else {
                     return Vec::new();
                 };
-                region.push(StructuralPathSegment::Field(field.identity.clone()));
+                region.push(StructuralPathSegment::Field(field.identity));
             }
         }
     }

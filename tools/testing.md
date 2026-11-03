@@ -50,6 +50,19 @@ must be resolved before landing. Do not repeat broad suites to attribute one tes
 
 ### Merge validation budget
 
+For each proposed build or test, name the decision it answers, the affected
+behavior, and why applicable existing evidence is insufficient. Estimate time
+and resources, including compilation. Reuse evidence only when its revision,
+toolchain, configuration, relevant dependencies and consumers still apply;
+distinguish cold and warm observations. Retain command, inputs and outcome.
+
+If a run exceeds its budget, inspect progress, CPU activity, logs and blockers
+before deciding whether to continue, narrow or revise it. Record the decision
+and reason; do not blindly wait, restart or expand the suite. A justified slow
+run may continue. A budget is not an automatic timeout or a passing result.
+Reviewers rerun checks to resolve material evidence gaps, not every expensive
+build by default. Required CI and release gates remain mandatory.
+
 Before starting a build, record a short plan in the PR or claim: the behavior
 changed, the smallest checks that establish it, reusable observations, and the
 expected build plus execution time. Choose by affected behavior, not by a
@@ -1244,16 +1257,18 @@ for a historical 148-project tree; current selection comes from discovery, not
 that historical count.
 
 `tools/sample_native_gate.py` runs each sample's `omega update`, then builds
-and runs it. Without `--cli` it first builds an opt-level 1 CLI into
-`build/gate-cli/` (with `mbx`, or Cargo when `mbx` is absent) and measures
-that: package review of a std-using sample takes minutes with the
-unoptimized dev binary, and 31 projects took 66 s with the optimized CLI
-against 436 s with the dev build, with identical results. The build is
-incremental and leaves `target/debug/omega` alone. The shared
-`build/gate-cli/` caches that build across every gate in one checkout, but a
-run never executes the shared image: it copies the built binary aside under a
+and runs it. Without `--cli` it first builds the opt-level 1 CLI (with `mbx`,
+or Cargo when `mbx` is absent) in the checkout's own Cargo target directory
+(`target/`, or `CARGO_TARGET_DIR`) and measures that. Package review of a
+std-using sample takes minutes with an unoptimized binary: 31 projects took
+66 s with the optimized CLI against 436 s unoptimized, with identical results.
+The dev profile is opt-level 1, so the gate's build and a plain
+`cargo build -p omega` share every artifact, and a compiler the session already
+built costs the gate under a second. A separate gate directory used to compile
+the whole compiler a second time, 12 minutes cold on a 4-core cloud session.
+A run never executes the shared image: it copies the built binary aside under
 `build/gate-cli.lock` and runs the copy, so two gates can reuse and rebuild the
-shared directory at once without one holding an open image the other's build
+target directory at once without one holding an open image the other's build
 cannot replace (witnessed 2026-10-17: the second of two concurrent gates failed
 with `failed to remove file build/gate-cli/debug/omega.exe: Access is denied`).
 An explicit `--cli` older
@@ -1519,7 +1534,7 @@ speedup.
 
 [release_record.py](release/release_record.py) runs the
 [release matrix](../wiki/drafts/reference/rust_compiler_completion.md#release-matrix):
-the eight `RC-*` gates with their exact contract invocations on one host, and
+the six `RC-*` gates with their exact contract invocations on one host, and
 writes that lane's release record (`commit`, toolchain, host, commands,
 results, elapsed time, expected skips, direct-execution observation). `close`
 joins the four lanes' same-commit records into the release closure. It does

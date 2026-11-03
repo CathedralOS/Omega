@@ -41,7 +41,7 @@ fn prepare(
         artifact: Arc::clone(program.artifact()),
         source_records: program.source_records().to_vec().into(),
         source_preparation: Arc::new(source_preparation),
-        evaluator: build_evaluation::evaluate_terminal_calling_policy,
+        evaluator: build_settings::evaluate_terminal_calling_policy,
     }))
 }
 

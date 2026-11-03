@@ -1,4 +1,4 @@
-public trait Equality<T> { operator == related(left: T, right: T) -> bool; }
+public trait Equality<T> { machine == related(left: T, right: T) -> bool; }
 Always satisfies Equality<f64> {
     machine related(left: f64, right: f64) -> bool { true }
 }

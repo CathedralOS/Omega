@@ -65,7 +65,8 @@ pub use publication::{
     DynamicElfPublicationReceipt, ExecutableContainerDigest, ExecutableInstallationEvidenceDigest,
     ExecutablePublicationReceipt, NativePackageEvidenceDigest, NativePublicationCertificateDigest,
     NativePublicationEvidenceDigest, PackageComponentDigest, PreparedDynamicElfPublication,
-    PreparedExecutablePublication, executable_installation_evidence_digest,
+    PreparedExecutablePublication, executable_container_digest,
+    executable_installation_evidence_digest,
 };
 
 /// Single-error diagnostic for a failed `context` stage of native artifact work.

@@ -80,11 +80,12 @@ pub use references::reference_completion::{
 pub use references::reference_origins::{
     BorrowedResultLeaf, BorrowedResultLeafKind, ReferenceCallContract, ReferenceCallOrigin,
     ReferenceCallResult, ReferenceCallSource, ReferenceLeaf, ReferenceOriginBinding,
-    ReferenceResultMemberships, bind_reference_call_results, bind_reference_origin,
-    borrowed_result_leaves, captured_reference_origin_type, collection_element_type,
-    reference_call_preserved_memberships, reference_leaves, reference_origin_is_covered,
-    reference_origin_paths_may_overlap, reference_origin_type, reference_result_memberships_weaken,
-    reference_result_refines_regions, validate_descriptor_result_regions,
+    ReferenceResultMemberships, bind_public_reference_call_results, bind_reference_call_results,
+    bind_reference_origin, borrowed_result_leaves, captured_reference_origin_type,
+    collection_element_type, reference_call_preserved_memberships, reference_leaves,
+    reference_origin_is_covered, reference_origin_paths_may_overlap, reference_origin_type,
+    reference_result_memberships_weaken, reference_result_refines_regions,
+    validate_boundary_reference_regions, validate_descriptor_result_regions,
     validate_dynamic_reference_regions,
 };
 pub use references::reference_storage_geometry::{
@@ -135,7 +136,6 @@ pub use calls::call_composition::{
     fixed_collection_storage_window, fixed_element_array_extent, shared_boundary_buffer_capacity,
     stored_view_field_presentation, validate_call_composition_semantic_rows,
 };
-pub use calls::service_binding::{fused_service_field_carrier, fused_service_field_matches};
 pub use references::reference_views::{
     descriptor_geometry_matches, descriptor_reborrow_matches, descriptor_reborrow_shapes_match,
     descriptor_source_projection_accessible, descriptor_value_transfer_matches,
@@ -235,8 +235,7 @@ pub use structural::zeroed_structural::{
     EstablishedErasedStructuralField, ZeroedStructuralLeaf,
     zeroed_projected_byte_qualifications_hold, zeroed_structural_fields_satisfy,
     zeroed_structural_leaves, zeroed_structural_leaves_modulo_references,
-    zeroed_structural_leaves_with_established_erased_fields,
-    zeroed_structural_shape,
+    zeroed_structural_leaves_with_established_erased_fields, zeroed_structural_shape,
 };
 
 pub use descriptors::descriptor_lifetimes;

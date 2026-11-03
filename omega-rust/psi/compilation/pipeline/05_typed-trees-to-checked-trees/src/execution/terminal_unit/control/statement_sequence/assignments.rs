@@ -149,7 +149,7 @@ pub(super) fn plan(
             produced.binding_ordinal.checked_add(1)?,
             CheckedUnitStructuralArgumentPlan::structural_result(
                 produced.binding_ordinal,
-                produced.type_identity.clone(),
+                produced.type_identity,
                 CheckedStructuralAccess::Owned,
             ),
             trace,
@@ -390,9 +390,8 @@ fn installed_carrier(
     assignment: &typed_trees::statement::TableAssignment,
     produced: typed_trees::types::TypeReferenceHandle,
 ) -> typed_trees::types::TypeReferenceHandle {
-    let installed = validation::assignment_stored_value_type(program, machine, state, assignment)
-        .unwrap_or(produced);
-    installed
+    validation::assignment_stored_value_type(program, machine, state, assignment)
+        .unwrap_or(produced)
 }
 
 /// Inline byte fields and byte owner slots use their byte-storage layout;
@@ -454,7 +453,7 @@ fn completed_value_replacement(
         result.binding_ordinal.checked_add(1)?,
         CheckedUnitStructuralArgumentPlan::structural_result(
             result.binding_ordinal,
-            result.type_identity.clone(),
+            result.type_identity,
             CheckedStructuralAccess::Owned,
         ),
         trace,

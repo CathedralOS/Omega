@@ -1,2 +1,1 @@
-qualified call
-has no resolved callable declaration
+call `outer::helper` names a nested machine private to `outer`

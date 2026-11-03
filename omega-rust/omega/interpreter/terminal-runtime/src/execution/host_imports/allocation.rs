@@ -110,61 +110,6 @@ impl AllocationValues {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::AllocationValues;
-
-    #[test]
-    fn empty_ranges_choose_the_exact_allocation_not_its_neighbor() {
-        let mut values = AllocationValues::default();
-        let first = values.allocate(1, 16, 7);
-        let second = values.allocate(1, 16, 7);
-        assert_eq!(second, first + 16);
-        assert_eq!(values.backing_for_range(second, 0).unwrap().address, second);
-        let empty = values.allocate(0, 1, 7);
-        assert_eq!(values.backing_for_range(empty, 0).unwrap().address, empty);
-        assert!(values.backing_for_range(empty, 1).is_none());
-        assert!(values.backing_for_range(first + 1, 32).is_none());
-        assert!(values.backing_for_range(u64::MAX, 1).is_none());
-    }
-
-    #[test]
-    fn calloc_retains_exact_zeroed_backing() {
-        let mut values = AllocationValues::default();
-        let address = values.allocate(3, 8, 7);
-        assert_ne!(address, 0);
-        assert_eq!(address % 16, 0);
-        assert_eq!(values.allocations[0].length, 24);
-        assert_eq!(values.allocations[0].issuer, 7);
-        assert_eq!(values.allocations[0].backing.retire().unwrap(), vec![0; 24]);
-        assert!(values.release(address).is_err());
-    }
-
-    #[test]
-    fn free_invalidates_retained_handles_without_recycling_addresses() {
-        let mut values = AllocationValues::default();
-        let first = values.allocate(1, 16, 7);
-        let retained = values.allocations[0].backing.clone();
-        values.release(first).unwrap();
-        assert!(retained.retire().is_err());
-        assert!(values.release(first).is_err());
-        let second = values.allocate(1, 16, 7);
-        assert!(second >= first + 16);
-        assert!(values.release(second).is_ok());
-    }
-
-    #[test]
-    fn overflow_and_unknown_free_do_not_discard_other_allocations() {
-        let mut values = AllocationValues::default();
-        let address = values.allocate(1, 16, 7);
-        assert_eq!(values.allocate(u64::MAX, 2, 7), 0);
-        assert!(values.release(address + 1).is_err());
-        assert!(values.release(0).is_ok());
-        assert_eq!(values.allocations.len(), 1);
-        assert!(values.release(address).is_ok());
-    }
-}
-
 pub(super) struct AllocationImport {
     signature: TerminalImportSignature,
     operation: AllocationOperation,
@@ -184,6 +129,21 @@ impl AllocationImport {
             return Ok(None);
         };
         let signature = TerminalImportSignature::from(declaration);
+        // Exclusive captured storage uses the native adapter's authenticated
+        // endpoint result. It is not an owned virtual allocation address.
+        // Owned values remain in this model and owe its complete contract.
+        if matches!(operation, AllocationOperation::Initialize)
+            && declaration.parameter_order.first()
+                == Some(&terminal_psi::BoundaryParameterKind::Structural)
+            && signature
+                .structural_parameters
+                .first()
+                .is_some_and(|parameter| {
+                    parameter.access == terminal_psi::StructuralAccess::MutableBorrow
+                })
+        {
+            return Ok(None);
+        }
         let location = admission::validate(
             program,
             declaration,
@@ -215,8 +175,7 @@ impl TerminalEffectHandler for AllocationImport {
     ) -> terminal_interpreter::TerminalCallStorageRequirements<'_> {
         terminal_interpreter::TerminalCallStorageRequirements {
             original: false,
-            arguments: if matches!(self.location, admission::AddressLocation::OwnedArgument(_))
-            {
+            arguments: if matches!(self.location, admission::AddressLocation::OwnedArgument(_)) {
                 &[0]
             } else {
                 &[]
@@ -233,7 +192,7 @@ impl TerminalEffectHandler for AllocationImport {
         storage: &mut [TerminalBoundaryStorageBuffer],
     ) -> Result<TerminalEffectResult, TerminalEffectRejection> {
         let invalid = super::refusal("allocation operands differ from the admitted signature");
-        let call = super::call_operands(effect, &invalid)?;
+        let call = super::call_operands(effect, invalid)?;
         if *call.result != self.signature.result || !byte_buffers.is_empty() {
             return Err(invalid());
         }
@@ -290,46 +249,45 @@ impl TerminalEffectHandler for AllocationImport {
                 })
             }
             AllocationOperation::Release => {
-                let pointer = if let admission::AddressLocation::OwnedArgument(path) =
-                    &self.location
-                {
-                    let [TerminalBoundaryStorageBuffer::Structural(buffer)] = storage else {
-                        return Err(invalid());
+                let pointer =
+                    if let admission::AddressLocation::OwnedArgument(path) = &self.location {
+                        let [TerminalBoundaryStorageBuffer::Structural(buffer)] = storage else {
+                            return Err(invalid());
+                        };
+                        let [argument] = call.structural_arguments else {
+                            return Err(invalid());
+                        };
+                        let [cell] = buffer.values() else {
+                            return Err(invalid());
+                        };
+                        if !call.arguments.is_empty()
+                            || buffer.argument_index() != 0
+                            || buffer.access() != terminal_psi::StructuralAccess::Owned
+                            || buffer.structural_type() != argument.structural_type
+                            || cell.path != *path
+                        {
+                            return Err(invalid());
+                        }
+                        let TerminalStorageContents::Scalar {
+                            value,
+                            stored_scalar,
+                        } = cell.contents
+                        else {
+                            return Err(invalid());
+                        };
+                        if stored_scalar != semantic_vocabulary::ScalarType::Integer(address_type) {
+                            return Err(invalid());
+                        }
+                        value
+                    } else {
+                        let [pointer] = call.arguments else {
+                            return Err(invalid());
+                        };
+                        if !call.structural_arguments.is_empty() || !storage.is_empty() {
+                            return Err(invalid());
+                        }
+                        *pointer
                     };
-                    let [argument] = call.structural_arguments else {
-                        return Err(invalid());
-                    };
-                    let [cell] = buffer.values() else {
-                        return Err(invalid());
-                    };
-                    if !call.arguments.is_empty()
-                        || buffer.argument_index() != 0
-                        || buffer.access() != terminal_psi::StructuralAccess::Owned
-                        || buffer.structural_type() != argument.structural_type
-                        || cell.path != *path
-                    {
-                        return Err(invalid());
-                    }
-                    let TerminalStorageContents::Scalar {
-                        value,
-                        stored_scalar,
-                    } = cell.contents
-                    else {
-                        return Err(invalid());
-                    };
-                    if stored_scalar != semantic_vocabulary::ScalarType::Integer(address_type) {
-                        return Err(invalid());
-                    }
-                    value
-                } else {
-                    let [pointer] = call.arguments else {
-                        return Err(invalid());
-                    };
-                    if !call.structural_arguments.is_empty() || !storage.is_empty() {
-                        return Err(invalid());
-                    }
-                    *pointer
-                };
                 let TerminalScalarValue::Integer {
                     scalar_type,
                     value: IntegerValue::Unsigned(address),
@@ -357,8 +315,7 @@ impl TerminalEffectHandler for AllocationImport {
                 else {
                     return Err(invalid());
                 };
-                let signed =
-                    IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
+                let signed = IntegerType::new(IntegerSign::Signed, 32).map_err(|_| invalid())?;
                 let unsigned =
                     IntegerType::new(IntegerSign::Unsigned, 64).map_err(|_| invalid())?;
                 if *fill_type != signed || *length_type != unsigned {
@@ -416,5 +373,60 @@ impl TerminalEffectHandler for AllocationImport {
                 ))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AllocationValues;
+
+    #[test]
+    fn empty_ranges_choose_the_exact_allocation_not_its_neighbor() {
+        let mut values = AllocationValues::default();
+        let first = values.allocate(1, 16, 7);
+        let second = values.allocate(1, 16, 7);
+        assert_eq!(second, first + 16);
+        assert_eq!(values.backing_for_range(second, 0).unwrap().address, second);
+        let empty = values.allocate(0, 1, 7);
+        assert_eq!(values.backing_for_range(empty, 0).unwrap().address, empty);
+        assert!(values.backing_for_range(empty, 1).is_none());
+        assert!(values.backing_for_range(first + 1, 32).is_none());
+        assert!(values.backing_for_range(u64::MAX, 1).is_none());
+    }
+
+    #[test]
+    fn calloc_retains_exact_zeroed_backing() {
+        let mut values = AllocationValues::default();
+        let address = values.allocate(3, 8, 7);
+        assert_ne!(address, 0);
+        assert_eq!(address % 16, 0);
+        assert_eq!(values.allocations[0].length, 24);
+        assert_eq!(values.allocations[0].issuer, 7);
+        assert_eq!(values.allocations[0].backing.retire().unwrap(), vec![0; 24]);
+        assert!(values.release(address).is_err());
+    }
+
+    #[test]
+    fn free_invalidates_retained_handles_without_recycling_addresses() {
+        let mut values = AllocationValues::default();
+        let first = values.allocate(1, 16, 7);
+        let retained = values.allocations[0].backing.clone();
+        values.release(first).unwrap();
+        assert!(retained.retire().is_err());
+        assert!(values.release(first).is_err());
+        let second = values.allocate(1, 16, 7);
+        assert!(second >= first + 16);
+        assert!(values.release(second).is_ok());
+    }
+
+    #[test]
+    fn overflow_and_unknown_free_do_not_discard_other_allocations() {
+        let mut values = AllocationValues::default();
+        let address = values.allocate(1, 16, 7);
+        assert_eq!(values.allocate(u64::MAX, 2, 7), 0);
+        assert!(values.release(address + 1).is_err());
+        assert!(values.release(0).is_ok());
+        assert_eq!(values.allocations.len(), 1);
+        assert!(values.release(address).is_ok());
     }
 }

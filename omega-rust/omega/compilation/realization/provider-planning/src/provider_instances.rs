@@ -185,9 +185,10 @@ fn prepare_instance_declarations(
                     .map(|applications| {
                         applications
                             .into_iter()
-                            .map(|requirement| ProviderInstanceApplication {
+                            .map(|application| ProviderInstanceApplication {
+                                receiving_application: Ok(application.receiving_application),
                                 candidates: vec![Ok(ClosedProviderInstance {
-                                    requirement,
+                                    requirement: application.requirement,
                                     realization: template.to_owned(),
                                 })],
                             })
@@ -218,7 +219,10 @@ fn prepare_instance_declarations(
                                     candidate.map(|instance| render_instance(typed, instance))
                                 })
                                 .collect();
-                            projected.push(ProviderInstanceApplication { candidates });
+                            projected.push(ProviderInstanceApplication {
+                                receiving_application: application.receiving_application,
+                                candidates,
+                            });
                         }
                         projected
                     })

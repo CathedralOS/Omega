@@ -833,6 +833,17 @@ impl ExpressionTable {
                 let receiver = self.copy_optional_subtree(source, call.receiver, retain, copies);
                 let arguments = self.copy_expression_span(source, call.arguments, retain, copies);
                 let mut call = call;
+                // The nonempty-view obligation names the copied body's own view.
+                if let Some(request) = call.layout_query.as_mut()
+                    && request.nonempty_view.is_valid()
+                {
+                    request.nonempty_view = self.copy_subtree_with_occurrences(
+                        source,
+                        request.nonempty_view,
+                        retain,
+                        copies,
+                    );
+                }
                 call.visit_static_arguments_mut(|argument| {
                     *argument = match source {
                         CopySource::Own => self.copy_static_argument_from_self(argument),

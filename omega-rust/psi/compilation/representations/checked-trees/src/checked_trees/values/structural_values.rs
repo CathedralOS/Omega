@@ -483,10 +483,10 @@ impl CheckedStructuralValuePlans {
                     pending.push(*source)
                 }
                 CheckedStructuralValueKind::FixedArray { elements } => pending.extend(elements),
-                CheckedStructuralValueKind::Reference { source_value, .. } => {
-                    if source_value.is_valid() {
-                        pending.push(*source_value);
-                    }
+                CheckedStructuralValueKind::Reference { source_value, .. }
+                    if source_value.is_valid() =>
+                {
+                    pending.push(*source_value);
                 }
                 _ => {}
             }

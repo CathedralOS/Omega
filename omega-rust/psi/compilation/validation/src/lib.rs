@@ -72,7 +72,7 @@ pub use machine_calls::calls::{
     call_type_arguments, closed_requirement_dispatch_is_valid, machine_has_unit_result,
     named_conformance_target_requirement, nested_boundary_applications_compose,
     requirement_contract_signature, result_initializer_call_is_admitted, selected_call_arguments,
-    selected_requirement_signature, target_family_members,
+    selected_call_result_domain_matches, selected_requirement_signature, target_family_members,
     unit_result_initializer_call_is_admitted, unit_return_call_is_admitted,
     unit_statement_call_is_admitted,
 };
@@ -305,8 +305,8 @@ pub use crate::machine_calls::denotational_calls::{
 pub use crate::machine_calls::fact_call_projections::has_checked_denotational_call_identity;
 pub use crate::proof_contracts::slice_ranking::slice_tail_strictly_decreases;
 pub use crate::value_custody::cleanup::{
-    nominal_cleanup_machine_for_type, nominal_cleanup_owner, nominal_cleanup_target,
-    validate_reserved_cleanup_selections,
+    data_cleanup_machine, nominal_cleanup_machine_for_type, nominal_cleanup_owner,
+    nominal_cleanup_target, validate_reserved_cleanup_selections,
 };
 pub use crate::value_custody::content_conservation::{
     ContentBoundaryBodyRequirement, ContentConservationSourcePlan,
@@ -399,6 +399,7 @@ pub use proof_contracts::quotients::{
     ValidatedQuotientOperation, admit_checked_quotient_requests,
     checked_quotient_relation_identity, validate_quotient_formations,
 };
+pub use value_custody::constants::completed_integer_constant;
 pub use value_custody::expression_types::argument_matches_type_reference_handle as checked_argument_matches_type_reference;
 pub use value_custody::expression_types::bounded_byte_buffer_capacity;
 pub use value_custody::expression_types::match_subject_primitive_type;
@@ -477,9 +478,8 @@ pub use proof_contracts::arithmetic_domains::state_parameter_integer_interval;
 pub use proof_contracts::arithmetic_domains::validate_ordered_requirement_call_totality;
 pub use proof_contracts::arithmetic_domains::{OccurrenceIntegerBounds, occurrence_integer_bounds};
 pub use proof_contracts::arithmetic_domains::{
-    StoredIntegerReach, standing_integer_bounds, stored_integer_bounds,
-    stored_integer_source_projection, stored_integer_source_projections,
-    stored_integer_source_reach,
+    StoredIntegerReach, UnestablishedStoredEncoding, standing_integer_bounds,
+    stored_integer_bounds, stored_integer_source_projections, stored_integer_source_reach,
 };
 pub use proof_contracts::arithmetic_domains::{
     occurrence_integer_expression_bounds, occurrence_integer_expression_recipe,
@@ -571,9 +571,8 @@ pub(crate) use optimization::digest_encoder;
 pub use queries::expression_traversal;
 mod frozen_program;
 mod queries;
-pub use queries::layout_checking::{
-    LayoutCheckingContext, layout_checking_targets, pending_layout_geometry,
-};
+pub(crate) use queries::layout_checking::layout_checking_targets;
+pub use queries::layout_checking::{LayoutCheckingContext, pending_layout_geometry};
 mod machine_calls;
 mod program_validation;
 mod proof_contracts;
@@ -691,7 +690,7 @@ pub use value_custody::type_references::{
 };
 
 pub use value_custody::const_expressions::{
-    ImmutableConstRecordProjection, immutable_record_projection,
+    ConstProjectionStep, ImmutableConstProjection, fixed_array_geometry, immutable_const_projection,
 };
 
 // One produced-storage association serves checking and flow consumers.

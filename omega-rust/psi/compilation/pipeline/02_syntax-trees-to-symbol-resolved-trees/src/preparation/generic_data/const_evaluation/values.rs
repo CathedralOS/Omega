@@ -305,7 +305,7 @@ pub(in crate::preparation::generic_data) fn syntax_type_identity(
                 ..
             } => {
                 let argument_handles =
-                    syntax_type_references(&syntax).type_reference_handles(*arguments);
+                    syntax_type_references(syntax).type_reference_handles(*arguments);
                 if argument_handles.is_empty() {
                     // A synthesized instance's lookup spelling carries its full
                     // name in `base_name`.
@@ -754,10 +754,10 @@ fn same_carrier(
     // spelling or the `Named` instance spelling synthesis rewrote it to —
     // identifies the carrier by its selected template and closed argument
     // tuple, never by which spelling reached this comparison.
-    if syntax_type_references(&syntax)
+    if syntax_type_references(syntax)
         .generic_application_origin(declared)
         .is_valid()
-        || syntax_type_references(&syntax)
+        || syntax_type_references(syntax)
             .generic_application_origin(required)
             .is_valid()
     {
@@ -967,7 +967,7 @@ pub(crate) fn closed_fixed_array_length(
         FixedArrayLength::Literal(length) => Ok(*length),
         FixedArrayLength::ConstParameter(name) => {
             if let Some(argument) = substitution.get(name.as_str(syntax)) {
-                return syntax_type_references(&syntax)
+                return syntax_type_references(syntax)
                     .type_reference(*argument)
                     .as_named()
                     .ok_or_else(|| {
@@ -1021,7 +1021,7 @@ pub(crate) fn closed_fixed_array_length(
                 "array extent constant is not a nonnegative host-sized integer".to_owned()
             })
         }
-        FixedArrayLength::Expression(value) => syntax_type_references(&syntax)
+        FixedArrayLength::Expression(value) => syntax_type_references(syntax)
             .type_reference(*value)
             .as_named()
             .and_then(|value| value.as_str(syntax).parse::<usize>().ok())
@@ -1044,7 +1044,7 @@ fn validate_selected_const_type(
 ) -> Result<(), String> {
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
-    if let Some(name) = syntax_type_references(&syntax)
+    if let Some(name) = syntax_type_references(syntax)
         .type_reference(type_reference)
         .as_named()
         && let Some(argument) = substitution.get(name.as_str(syntax))
@@ -1060,7 +1060,7 @@ fn validate_selected_const_type(
     }
     // A rewritten `Named` instance spelling validates through its retained
     // authored application rather than the synthesized name.
-    let origin = syntax_type_references(&syntax).generic_application_origin(type_reference);
+    let origin = syntax_type_references(syntax).generic_application_origin(type_reference);
     if origin.is_valid() && origin != type_reference {
         return validate_selected_const_type(
             syntax,
@@ -1148,7 +1148,7 @@ fn validate_selected_const_type(
             // A closed application is eligible exactly when its selected
             // template is: parameters bind to the authored argument handles
             // and each member validates under those bindings.
-            let argument_handles = syntax_type_references(&syntax).type_reference_handles(*arguments);
+            let argument_handles = syntax_type_references(syntax).type_reference_handles(*arguments);
             if argument_handles.is_empty() {
                 // A synthesized instance's spelling selects the substituted
                 // declaration; its members are already closed.
@@ -1282,7 +1282,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
 ) -> Result<CanonicalConstNode, String> {
     // A carrier spelled as a bare parameter reselects the enclosing
     // application's already-closed argument handle.
-    if let Some(name) = syntax_type_references(&syntax)
+    if let Some(name) = syntax_type_references(syntax)
         .type_reference(expected_type)
         .as_named()
         && let Some(argument) = substitution.get(name.as_str(syntax))
@@ -1298,7 +1298,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
     }
     // A rewritten `Named` instance spelling canonicalizes through its
     // retained authored application rather than the synthesized name.
-    let origin = syntax_type_references(&syntax).generic_application_origin(expected_type);
+    let origin = syntax_type_references(syntax).generic_application_origin(expected_type);
     if origin.is_valid() && origin != expected_type {
         return canonicalize_const_expression_with_admission(
             syntax,
@@ -1436,7 +1436,7 @@ pub(in crate::preparation::generic_data) fn canonicalize_const_expression_with_a
             lifetime_arguments,
             arguments,
         } => {
-            let argument_handles = syntax_type_references(&syntax)
+            let argument_handles = syntax_type_references(syntax)
                 .type_reference_handles(*arguments)
                 .to_vec();
             if argument_handles.is_empty() {
@@ -1562,7 +1562,7 @@ fn substituted_type_label(
             selected_type_label(syntax, substitution[name.as_str(syntax)], selection)
         }
         TypeReferenceNode::Named(_)
-            if syntax_type_references(&syntax)
+            if syntax_type_references(syntax)
                 .generic_application_origin(reference)
                 .is_valid() =>
         {
@@ -1577,7 +1577,7 @@ fn substituted_type_label(
             arguments,
             ..
         } => {
-            let argument_handles = syntax_type_references(&syntax)
+            let argument_handles = syntax_type_references(syntax)
                 .type_reference_handles(*arguments)
                 .to_vec();
             if argument_handles.is_empty() {
@@ -1663,7 +1663,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                 }
             }
             if let Some(case_name) = &case_name {
-                let variant = syntax_items(&syntax)
+                let variant = syntax_items(syntax)
                     .data_members(definition.members)
                     .iter()
                     .find_map(|member| match member {
@@ -1677,7 +1677,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     .ok_or_else(|| {
                         format!("`{type_name}` has no case `{}`", case_name.as_str(syntax))
                     })?;
-                let declared_fields = syntax_items(&syntax)
+                let declared_fields = syntax_items(syntax)
                     .data_payload_fields(variant.payload)
                     .iter()
                     .collect::<Vec<_>>();
@@ -1707,7 +1707,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     fields,
                 })
             } else {
-                if syntax_items(&syntax)
+                if syntax_items(syntax)
                     .data_members(definition.members)
                     .iter()
                     .any(|member| matches!(member, DataMember::Variant(_)))
@@ -1716,7 +1716,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                         "`{type_name}` is case data; its const value must name one case"
                     ));
                 }
-                let declared_fields = syntax_items(&syntax)
+                let declared_fields = syntax_items(syntax)
                     .data_members(definition.members)
                     .iter()
                     .filter_map(|member| match member {
@@ -1767,7 +1767,7 @@ fn canonicalize_selected_data_const_expression_with_admission(
                     head.as_str(syntax)
                 ));
             }
-            let variant = syntax_items(&syntax)
+            let variant = syntax_items(syntax)
                 .data_members(definition.members)
                 .iter()
                 .find_map(|member| match member {

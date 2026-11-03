@@ -71,20 +71,21 @@ pub fn complete_calling_scalar_inputs(
         } else {
             &[]
         };
-        let conditions = build_time_evaluation::evaluate_scalar_applications(
-            &mut observations,
-            primary.target_name(),
-            demand,
-            meter,
-        )
-        .map_err(|error| format!("calling scalar conditions: {error}"))?;
         let address_model =
             target::TargetSemantics::close_address_model(profile).map(|model| ScalarAddressModel {
-                target: scope,
+                target: scope.clone(),
                 carrier: model.carrier(),
                 semantics_version: model.semantics_version(),
                 commitment: model.commitment(),
             });
+        let conditions = build_time_evaluation::evaluate_scalar_applications_with_address_model(
+            &mut observations,
+            primary.target_name(),
+            demand,
+            address_model.as_ref(),
+            meter,
+        )
+        .map_err(|error| format!("calling scalar conditions: {error}"))?;
         closure.close_scope(observations, conditions, Ok(address_model))?;
     }
     closure.finish()

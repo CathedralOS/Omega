@@ -457,9 +457,9 @@ impl<'a> Admission<'a> {
                                         &destination,
                                         &[],
                                     )
-                                    .map_err(
-                                        |()| "performed write has no exact encoded projection",
-                                    )?
+                                    .map_err(|validation::UnestablishedStoredEncoding| {
+                                        "performed write has no exact encoded projection"
+                                    })?
                                 {
                                     self.admit_write(handle, row, field, stored)?;
                                 }
@@ -632,7 +632,9 @@ impl<'a> Admission<'a> {
         source: &LocalWriteSource,
     ) -> Result<bool, &'static str> {
         let reach = validation::stored_integer_source_reach(self.program, state, source)
-            .map_err(|()| "effectful invocation has unknown encoded reach")?;
+            .map_err(|validation::UnestablishedStoredEncoding| {
+                "effectful invocation has unknown encoded reach"
+            })?;
         // Templates keep their semantic checks and every concrete physical
         // demand. A type parameter has no physical width until specialization;
         // it is not evidence that a concrete destination is unrestricted.

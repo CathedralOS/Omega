@@ -261,9 +261,7 @@ pub(crate) fn call_argument_substitution<'program>(
                         if expected != typed_trees::types::PrimitiveType::Bool {
                             return None;
                         }
-                        let Some((machine, state)) = owner else {
-                            return None;
-                        };
+                        let (machine, state) = owner?;
                         let observed = boolean_view_observation(
                             program,
                             operators,
@@ -540,26 +538,22 @@ fn boolean_view_observation(
             {
                 source = borrow.target;
             }
-            let Some(source_type) = program.primitive_type_reference(
+            let source_type = program.primitive_type_reference(
                 validation::expression_result_type_reference(program, machine, state, source)
                     .unwrap_or_default(),
-            ) else {
-                return None;
-            };
+            )?;
             if !source_type.is_fixed_integer() {
                 return None;
             }
-            let Some(lowered) = crate::values::lower_unit_scalar_argument(
+            let lowered = crate::values::lower_unit_scalar_argument(
                 program,
                 operators,
                 state,
                 before_statement,
                 source,
                 source_type,
-            ) else {
-                return None;
-            };
-            let Some(value) = crate::values::evaluate_checked_scalar(
+            )?;
+            let value = crate::values::evaluate_checked_scalar(
                 &lowered,
                 &mut crate::values::PlaceScalarValues {
                     program,
@@ -588,9 +582,7 @@ fn boolean_view_observation(
                         )
                     },
                 },
-            ) else {
-                return None;
-            };
+            )?;
             match value {
                 facts::ScalarValue::Integer(value)
                     if value == numerics::bignum::BigInt::from_u64(0) =>
@@ -620,7 +612,7 @@ fn boolean_view_observation(
         typed_trees::expression::ExpressionNode::Match(dispatch) => {
             let mut agreed = None;
             for arm in program.expression_table.match_arms(dispatch.arms) {
-                let Some(observed) = boolean_view_observation(
+                let observed = boolean_view_observation(
                     program,
                     operators,
                     semantic,
@@ -631,9 +623,7 @@ fn boolean_view_observation(
                     caller_symbols,
                     arm.value,
                     depth + 1,
-                ) else {
-                    return None;
-                };
+                )?;
                 if agreed.is_some_and(|known| known != observed) {
                     return None;
                 }
@@ -1239,10 +1229,18 @@ pub(crate) fn refine_published_crash_routes(
         arguments,
         exact_integer_casts,
     );
+    let mut intervals = crate::values::CapturedCallIntervals::new(
+        program,
+        operators,
+        semantic,
+        flow,
+        state_flow,
+        call_flow,
+        target_parameters,
+    );
     let mut surviving = Vec::new();
-    // Ordinary argument lists omit self. Keep formal positions aligned without
-    // inventing receiver-entry custody; a guard that reads self must still use
-    // the existing receiver-aware evidence paths.
+    // The checked guard's formal positions follow the authored argument order.
+    // Projected reads still need evidence for the exact field they observe.
     let mut ordinary_arguments = arguments.iter().copied();
     let operands = target_parameters
         .iter()
@@ -1285,6 +1283,16 @@ pub(crate) fn refine_published_crash_routes(
                                     )
                                 })
                                 .unwrap_or(false);
+                    if builtin_meaning
+                        && identity.scalar_expression().is_some_and(|guard| {
+                            intervals.as_mut().is_some_and(|intervals| {
+                                validation::selected_boolean_decision(guard, intervals)
+                                    == Some(false)
+                            })
+                        })
+                    {
+                        continue;
+                    }
                     if builtin_meaning
                         && crate::published::facts::operator_crashes::statement_entry_route_is_false(
                             program,

@@ -468,13 +468,13 @@ foundations, product reports and publication keep independent ownership.
 | Entrance | Responsibility |
 | --- | --- |
 | `omega/application/cli/src/main.rs` | Parse, route to the command's owner, display outcomes |
-| `omega/compilation/build/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
-| `omega/compilation/build/src/compile/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
-| `omega/compilation/build/src/compile/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
-| `omega/compilation/build/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
-| `omega/compilation/build/src/package/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
-| `omega/compilation/build/src/package/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
-| `omega/compilation/build/src/package/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |
+| `omega/build-system/orchestration/src/build.rs` | Request admission, Build lifecycle, requested products, required tests and publication |
+| `omega/build-system/orchestration/src/compile/build_execution.rs` | Dependency jobs and Build activation readiness; mandatory final join |
+| `omega/build-system/orchestration/src/compile/source_compilation.rs` | One-shot source consumers: prepare an opaque compiler invocation, execute Build, complete the requested products |
+| `omega/build-system/orchestration/src/build_session.rs` | Invocation compiler lifetime beside independently package-owned staging and aggregate sponsors |
+| `omega/build-system/orchestration/src/package/package_commands.rs` | Admitted install/update target-review work; complete findings returned to package-owned publication |
+| `omega/build-system/orchestration/src/package/package_review.rs` | Admitted review dependency passes, compiler calls and suspended-Build cache recovery, shared with audit |
+| `omega/build-system/orchestration/src/package/package_inspection.rs` | Read-only audit session lifetime and ordered target execution; package-owned pinned resolution and reporting |
 | `psi/compilation/psi-compiler/src/compiler.rs` | Source processing and checking through Terminal Psi |
 | `omega/compilation/compiler/src/compiler.rs` | Terminal plus explicit realization inputs through native emission |
 | Terminal interpreter entrance | Load or borrow code, execute, suspend, install admitted bindings, resume |
@@ -769,10 +769,10 @@ Native preparation first determines the work and scalar demand for the root and
 its components. The application completes that demand; native compilation consumes
 the same preparation and completed inputs. Native production has no interpreter
 dependency or evaluator callback, and cannot silently recompute a missing value.
-`compilation/build/src/compile/native_completion.rs` owns this lifecycle for standalone
+`build-system/orchestration/src/compile/native_completion.rs` owns this lifecycle for standalone
 and package products. Source compilation transfers an owned `PendingNativeProduct`
 after admission and Terminal preparation, releasing its checked source. The shared
-`build-evaluation` scalar operation also serves descriptive Check, inspection and
+`build-settings` scalar operation also serves descriptive Check, inspection and
 component publication; those stops do not acquire native execution obligations.
 Declaration-only Check publishes a rootless Terminal product when conditions need
 completion; a Check with no retained scalar obligations stops before publication.
@@ -1104,7 +1104,7 @@ source-aware producer, while lifetime partition normalization belongs to shared
 language semantics. The native compiler's transitive production dependencies
 are enforced by `python tools/check_native_boundary.py`, including optional,
 build and target-specific edges.
-[`omega/compilation/build-evaluation/`](omega/compilation/build-evaluation/README.md)
+[`omega/build-system/build-settings/`](omega/build-system/build-settings/README.md)
 owns Build admission, consent and execution; it is not a new pipeline phase.
 The shared package-input contracts live with the package system, not compiler
 orchestration.
@@ -1293,7 +1293,7 @@ Shared process and filesystem utilities remain under `omega/foundation/`.
 `terminal-interpreter` engines. `psi/compilation/build-time-evaluation/` admits execution
 and elaborates results into source and typed trees. Checked fixed-array-length
 jobs use the Terminal program/instance lifecycle. Build activations use the
-Terminal Build host in `omega/compilation/build-evaluation/`; there is no
+Terminal Build host in `omega/build-system/build-settings/`; there is no
 checked-tree Build execution entrypoint.
 `psi/compilation/psi-compiler/terminal-production/` owns the one checked-program
 lowering, optimization and publication sequence, below the source facade so

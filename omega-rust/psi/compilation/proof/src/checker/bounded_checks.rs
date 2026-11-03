@@ -50,6 +50,7 @@ use crate::obligations::{FloatRange, IntegerRange, ProofConstraint, RecipeRangeB
 use crate::typed_expressions::{expression_contains_call_node, expression_table};
 use diagnostics::Diagnostic;
 use numerics::bignum::BigInt;
+use semantic_vocabulary::ScalarConditionRole;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::state::state_by_symbol;
 use typed_trees::statement::StatementNode;
@@ -79,6 +80,7 @@ pub(crate) fn check_bounded_assignment<'program>(
     discharge_recipe_range(
         proof_plan,
         obligation.machine_symbol,
+        ScalarConditionRole::Prerequisite,
         obligation.constraints,
         guarded_integer_range_for_assignment_with_context(proof_plan, obligation, context),
         obligation.value,
@@ -304,6 +306,7 @@ pub(crate) fn check_bounded_initializer(
     discharge_recipe_range(
         proof_plan,
         obligation.owner.machine_symbol().unwrap_or_default(),
+        ScalarConditionRole::Prerequisite,
         obligation.constraints,
         integer_range_for_initializer(proof_plan, obligation),
         obligation.value,
@@ -379,9 +382,7 @@ pub(crate) fn check_bounded_initializer(
         diagnostics,
         float_range_for_initializer,
         cannot_prove_bounded_initializer_float,
-    ) {
-        return;
-    }
+    ) {}
 }
 
 pub(crate) fn check_bounded_state_return<'program>(
@@ -398,6 +399,7 @@ pub(crate) fn check_bounded_state_return<'program>(
     discharge_recipe_range(
         proof_plan,
         obligation.machine_symbol,
+        ScalarConditionRole::Result,
         obligation.constraints,
         integer_range_for_state_return(proof_plan, obligation),
         obligation.value,
@@ -460,9 +462,7 @@ pub(crate) fn check_bounded_state_return<'program>(
         diagnostics,
         float_range_for_return_value,
         cannot_prove_bounded_return_float,
-    ) {
-        return;
-    }
+    ) {}
 }
 
 pub(crate) fn check_bounded_call_argument(
@@ -478,6 +478,7 @@ pub(crate) fn check_bounded_call_argument(
     discharge_recipe_range(
         proof_plan,
         obligation.machine_symbol,
+        ScalarConditionRole::Prerequisite,
         obligation.constraints,
         integer_range_for_call_argument(proof_plan, obligation),
         obligation.argument,
@@ -615,9 +616,7 @@ pub(crate) fn check_bounded_call_argument(
         diagnostics,
         float_range_for_call_argument,
         cannot_prove_bounded_call_float,
-    ) {
-        return;
-    }
+    ) {}
 }
 
 pub(crate) fn check_bounded_transition_argument(
@@ -633,6 +632,7 @@ pub(crate) fn check_bounded_transition_argument(
     discharge_recipe_range(
         proof_plan,
         obligation.machine_symbol,
+        ScalarConditionRole::Prerequisite,
         obligation.constraints,
         Some(guarded_integer_range_for_transition_argument(
             proof_plan, obligation,
@@ -808,9 +808,7 @@ pub(crate) fn check_bounded_transition_argument(
         diagnostics,
         guarded_float_range_for_transition_argument,
         cannot_prove_bounded_transition_float,
-    ) {
-        return;
-    }
+    ) {}
 }
 
 /// Discharge one obligation's declared float range: a value range that
@@ -847,9 +845,12 @@ fn discharge_declared_float_range<O>(
 /// compared here, a recipe endpoint becomes a recorded comparison the target
 /// closure discharges against the closed value. A value without a bounded
 /// range has nothing to compare and refuses now.
+/// The caller records whether this comparison admits a use or checks a return;
+/// the endpoint recipe itself does not determine when the condition is owed.
 fn discharge_recipe_range(
     proof_plan: &ProofPlan,
     owner: symbols::SymbolHandle,
+    role: ScalarConditionRole,
     constraints: arena::HandleSpan<ProofConstraint>,
     value_range: Option<IntegerRange>,
     value: typed_trees::expression::ExpressionHandle,
@@ -886,6 +887,7 @@ fn discharge_recipe_range(
             RecipeRangeBound::Recipe { recipe, offset } => {
                 recipe_obligations.push(checked_trees::ConstantRecipeObligation::retain(
                     owner,
+                    role,
                     *recipe,
                     checked_trees::ConstantRecipeRequirement::AtMost(
                         value_range.minimum.sub(&BigInt::from_i64(*offset)),
@@ -910,6 +912,7 @@ fn discharge_recipe_range(
             RecipeRangeBound::Recipe { recipe, offset } => {
                 recipe_obligations.push(checked_trees::ConstantRecipeObligation::retain(
                     owner,
+                    role,
                     *recipe,
                     checked_trees::ConstantRecipeRequirement::AtLeast(
                         value_range.maximum.sub(&BigInt::from_i64(*offset)),

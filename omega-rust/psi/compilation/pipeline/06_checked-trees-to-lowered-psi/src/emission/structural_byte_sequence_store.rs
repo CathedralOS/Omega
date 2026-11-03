@@ -349,7 +349,7 @@ pub(crate) fn descriptor_value_type(
         });
     if types
         .iter()
-        .any(|declaration| declaration.identity == identities.intern(&IDENTITY))
+        .any(|declaration| declaration.identity == identities.intern(IDENTITY))
     {
         return unsupported("descriptor carrier identity changed shape");
     }

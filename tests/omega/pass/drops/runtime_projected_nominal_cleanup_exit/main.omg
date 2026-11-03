@@ -112,10 +112,10 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via exit_process_binding();
 
-data Token { ready: bool; byte: i32; }
+data Token dropped by drop_token { ready: bool; byte: i32; }
 data Pair { left: Token; right: Token; }
 
-machine Token::drop(token: &mut Token)
+machine drop_token(token: &mut Token)
 requires token.ready
 reaches Console
 {
@@ -158,12 +158,12 @@ machine Main::main(main: &mut Main) reaches Console {
 
 // A scalar-result consumer captures before reverse completed-owner cleanup.
 // Right C dies first; left parent P precedes its recursive children B then A.
-data TemporaryToken { byte: i32; }
-machine TemporaryToken::drop(token: &mut TemporaryToken) reaches Console {
+data TemporaryToken dropped by drop_temporary_token { byte: i32; }
+machine drop_temporary_token(token: &mut TemporaryToken) reaches Console {
     Console::write_byte(token.byte);
 }
-data TemporaryPair { first: TemporaryToken; second: TemporaryToken; }
-machine TemporaryPair::drop(pair: &mut TemporaryPair) reaches Console {
+data TemporaryPair dropped by drop_temporary_pair { first: TemporaryToken; second: TemporaryToken; }
+machine drop_temporary_pair(pair: &mut TemporaryPair) reaches Console {
     Console::write_byte(80);
 }
 machine make_temporary_pair(count: &mut u64) -> TemporaryPair
@@ -189,12 +189,12 @@ machine exercise_scalar_temporaries() reaches Console {
 
 // A Unit consumer observes the selected child before the complete anonymous
 // owner's parent-first, reverse-child cleanup. The sibling is still linear.
-data LoanReceipt [linear] { byte: i32; }
-machine LoanReceipt::drop(receipt: &mut LoanReceipt) reaches Console {
+data LoanReceipt [linear] dropped by drop_loan_receipt { byte: i32; }
+machine drop_loan_receipt(receipt: &mut LoanReceipt) reaches Console {
     Console::write_byte(receipt.byte);
 }
-data LoanPair { first: LoanReceipt; second: LoanReceipt; }
-machine LoanPair::drop(pair: &mut LoanPair) reaches Console {
+data LoanPair dropped by drop_loan_pair { first: LoanReceipt; second: LoanReceipt; }
+machine drop_loan_pair(pair: &mut LoanPair) reaches Console {
     Console::write_byte(80);
 }
 machine observe_loan(receipt: &LoanReceipt) reaches Console {

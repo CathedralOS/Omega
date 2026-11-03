@@ -72,18 +72,16 @@ impl<'program> StructuralJudge<'program> {
         if classification.is_proof_machine(program, callee)
             || call_has_mathematical_denotation(program, scope.0.symbol, call)
             || entry.symbol == scope.1.symbol
+            || self.has_runtime_induction(scope.1.symbol, expression, entry.symbol)
             || self.body_invocations.contains(&entry.symbol)
             || !is_subordinate_machine(program, self.machine_symbol, callee.symbol)
             || !body_can_be_observed(program, callee, &classification, true)
-            || !independent_call_application(
-                program,
-                self.machine_symbol,
-                callee.symbol,
-                typed_trees::references::StaticArgumentCall::Expression(expression, call),
-            )
         {
             return None;
         }
+        // Reading this body is not citing its contract. The active invocation
+        // guard above bounds unfolding; a recurrent normal return can acquire
+        // guarantees only through the separate exact-edge induction license.
         let subjects = self
             .frame_resolver()?
             .expression_entry_reference_subjects(

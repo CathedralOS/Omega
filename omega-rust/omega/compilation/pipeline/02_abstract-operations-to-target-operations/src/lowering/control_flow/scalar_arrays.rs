@@ -5,14 +5,14 @@ use super::aggregate_results::established_home;
 use crate::LoweringError;
 use abstract_operations::AbstractOperation;
 use calling_conventions::ValueShape;
+use calling_conventions::terminal_layout::StructuralLayouts;
 use semantic_vocabulary::{ScalarType, StructuralTypeId};
-use std::collections::BTreeMap;
 use target_operations::TargetUnitOperation;
-use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::StructuralTypeShape;
 
 pub(in crate::lowering) fn shape(
     structural_type: StructuralTypeId,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralLayouts<'_>,
 ) -> Result<(ScalarType, u64, ValueShape), LoweringError> {
     let invalid = || LoweringError::UnsupportedStructuralArray(structural_type);
     let mut current = structural_type;
@@ -20,7 +20,7 @@ pub(in crate::lowering) fn shape(
     let mut empty = false;
     let mut array = false;
     for _ in 0..types.len() {
-        match types.get(&current).ok_or_else(invalid)?.shape {
+        match types.get(current).ok_or_else(invalid)?.shape {
             StructuralTypeShape::FixedArray {
                 element,
                 length: terminal_psi::ArrayExtent::Literal(length),

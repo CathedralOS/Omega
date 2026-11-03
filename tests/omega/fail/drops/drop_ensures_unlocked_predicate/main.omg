@@ -8,11 +8,11 @@ data Mutex {
     locked: bool;
 }
 
-data MutexGuard {
+data MutexGuard dropped by drop_mutex_guard {
     mutex: i32;
 }
 
-machine MutexGuard::drop(mutex_guard: &mut MutexGuard)
+machine drop_mutex_guard(mutex_guard: &mut MutexGuard)
     ensures mutex_guard.mutex unlocked
 {
 }

@@ -48,7 +48,8 @@ pub(super) fn roster_at_expression(
         owner_name: loan.owner_name,
         kind: loan.kind,
         lineage: loan.lineage,
-        call_result: loan.call_result,
+        formation: loan.formation,
+        permission_sources: Vec::new(),
         owner_path: loan.owner_path,
         place: loan.place,
         retained_operand: loan.retained_operand,
@@ -118,7 +119,7 @@ pub(in crate::borrow) fn from_effects(
                         .collect(),
                     lineage: source.lineage.derived(),
                     kind: source.kind.clone(),
-                    call_result: true,
+                    formation: super::BorrowFormation::ReturnedDescriptor,
                 });
             }
         }
@@ -193,7 +194,7 @@ pub(in crate::borrow) fn from_effects(
                             checked_trees::BorrowLoanLineage::SuppliedOutput
                         },
                         kind: checked_trees::BorrowAccessKind::from(access),
-                        call_result: true,
+                        formation: super::BorrowFormation::ReturnedDescriptor,
                     });
                     continue;
                 }
@@ -218,7 +219,7 @@ pub(in crate::borrow) fn from_effects(
             let relevant = |candidate: &&super::RebasedBorrowPlace| {
                 source.lifetime_access.is_some() || candidate.lifetime_access.is_none()
             };
-            let complete_carrier = captured.iter().filter(relevant).next().is_some()
+            let complete_carrier = captured.iter().find(relevant).is_some()
                 && captured.iter().filter(relevant).all(|candidate| {
                     effect.sources.iter().any(|alternative| {
                         alternative.carrier_symbol == source.carrier_symbol
@@ -300,7 +301,7 @@ pub(in crate::borrow) fn from_effects(
                     kind: supplier
                         .and_then(|source| source.lifetime_access.clone())
                         .unwrap_or_else(|| checked_trees::BorrowAccessKind::from(source_access)),
-                    call_result: true,
+                    formation: super::BorrowFormation::ReturnedDescriptor,
                 });
             }
         }

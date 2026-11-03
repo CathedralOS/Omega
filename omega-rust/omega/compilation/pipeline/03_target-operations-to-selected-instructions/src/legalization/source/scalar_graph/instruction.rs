@@ -215,7 +215,7 @@ where
             AbstractOperation::FloatResultPolicy { format, policy, .. } => {
                 LegalizedScalarInstructionKind::FloatResultPolicy {
                     format: *format,
-                    policy: policy.clone(),
+                    policy: *policy,
                 }
             }
             AbstractOperation::ScalarRepresentationView {

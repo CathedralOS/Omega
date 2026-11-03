@@ -183,10 +183,9 @@ impl TerminalExecution<'_> {
             if aggregate.structural_type != referent {
                 return Err(malformed());
             }
-            aggregate.validate_against(
-                self.structural_declaration(referent)?,
-                |identity| self.structural_types().get(&identity),
-            )?;
+            aggregate.validate_against(self.structural_declaration(referent)?, |identity| {
+                self.structural_types().get(&identity)
+            })?;
         }
         // The host must supply every `&` field beneath the referent exactly
         // once; an unsupplied member would read back as an empty descriptor.
@@ -223,9 +222,11 @@ impl TerminalExecution<'_> {
                         self.structural_types().values(),
                         referent,
                     )
-                    .ok_or(TerminalInterpretError::UnsupportedSemanticVariant(
-                        "host referent's zeroed leaves cannot be materialized",
-                    ))?;
+                    .ok_or(
+                        TerminalInterpretError::UnsupportedSemanticVariant(
+                            "host referent's zeroed leaves cannot be materialized",
+                        ),
+                    )?;
                     self.materialize_zeroed_leaves(&view, &leaves)?;
                 }
             }
@@ -266,8 +267,7 @@ impl TerminalExecution<'_> {
     ) -> Result<(StructuralTypeId, StructuralAccess), TerminalInterpretError> {
         let mut current = referent;
         for segment in path {
-            let CanonicalStructuralPathSegment::Field(identity) = segment
-            else {
+            let CanonicalStructuralPathSegment::Field(identity) = segment else {
                 return Err(malformed());
             };
             let StructuralTypeShape::Record { fields, .. } =
@@ -1022,7 +1022,7 @@ impl TerminalExecution<'_> {
         let mut leaf = parent.clone();
         leaf.path = cell.parent.path.clone();
         leaf.path
-            .push(StructuralPathSegment::Field(member.identity.clone()));
+            .push(StructuralPathSegment::Field(member.identity));
         if let Some((storage, scalar_type)) = self.reference_byte_region_access(&parent, &leaf)? {
             self.store_primitive_storage(destination, storage, scalar_type, source)?;
             return Ok(OperationFlow::Advance);
@@ -1454,7 +1454,14 @@ impl TerminalExecution<'_> {
             }
         }
         if !copies_storage {
-            self.structural_values.remove(&value.place);
+            if let Some(retired) = self.structural_values.remove(&value.place) {
+                let origin = self
+                    .reference_referents
+                    .get(&StructuralRuntimePlace::from(&retired))
+                    .cloned();
+                self.retired_structural_homes
+                    .push((value.place, retired, origin));
+            }
             self.scalar_array_values.remove(&value.place);
             self.element_view_values.remove(&value.place);
             self.byte_sequence_values.remove(&value.place);
@@ -1784,7 +1791,9 @@ impl TerminalExecution<'_> {
             && result.multiplicity != StructuralMultiplicity::Unrestricted
             && !shared_descriptor
         {
-            return Err(TerminalInterpretError::AffineProjectionNotRepresentable);
+            return Err(TerminalInterpretError::AffineProjectionNotRepresentable {
+                context: "an affine case payload requires its owned frontier".into(),
+            });
         }
         if (result.multiplicity != StructuralMultiplicity::Unrestricted
             && !(result.multiplicity == StructuralMultiplicity::Affine && shared_descriptor))
@@ -2140,12 +2149,11 @@ impl TerminalExecution<'_> {
             let offset = index
                 .checked_add(usize::try_from(member.offset).map_err(|_| malformed())?)
                 .ok_or_else(malformed)?;
-            let size = usize::try_from(match member.scalar_type {
+            let size = usize::from(match member.scalar_type {
                 ScalarType::Boolean => 1u16,
                 ScalarType::Integer(integer) => integer.bits() / 8,
                 _ => return Err(malformed()),
-            })
-            .map_err(|_| malformed())?;
+            });
             let end = offset.checked_add(size).ok_or_else(malformed)?;
             let window = bytes.read_window(offset, end)?;
             let mut value = 0u128;
@@ -2362,7 +2370,7 @@ impl TerminalExecution<'_> {
             let mut leaf = structural_value.clone();
             leaf.path = cell.parent.path.clone();
             leaf.path
-                .push(StructuralPathSegment::Field(declaration.identity.clone()));
+                .push(StructuralPathSegment::Field(declaration.identity));
             if let Some((storage, logical_scalar)) =
                 self.reference_byte_region_access(&structural_value, &leaf)?
             {

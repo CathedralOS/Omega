@@ -29,11 +29,11 @@ pub(crate) use unreachable_private_machines::validate_unreachable_private_machin
 /// edge and target. Every family's replay admits its terminator through this
 /// one rule, so a jump that also cleans up or leaves toward another edge can
 /// never be read as the patch's own exit.
-pub(super) fn patched_jump_bindings<'node>(
-    node: &'node OptimizationNode,
+pub(super) fn patched_jump_bindings(
+    node: &OptimizationNode,
     edge: EdgeId,
     target: BlockId,
-) -> Result<&'node [ValueBinding], OptimizationUnitValidationError> {
+) -> Result<&[ValueBinding], OptimizationUnitValidationError> {
     let O::Jump {
         psi_edge,
         target: jump_target,

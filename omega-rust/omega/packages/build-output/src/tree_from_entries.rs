@@ -143,7 +143,7 @@ pub(crate) fn from_entries(
                         "build output exceeds its {MAX_STAGED_OUTPUT_UNIQUE_FILE_BYTES}-byte object ceiling"
                     )));
                 }
-                let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes).into();
+                let digest: [u8; 32] = crate::digest_encoder::content_identity(bytes);
                 if distinct_content.insert((digest, length)) {
                     unique_file_bytes = unique_file_bytes
                         .checked_add(length)

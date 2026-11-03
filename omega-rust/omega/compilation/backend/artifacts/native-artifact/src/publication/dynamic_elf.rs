@@ -122,7 +122,7 @@ fn dynamic_elf_installation_evidence_digest(
     digest.raw(text_validation_digest.as_bytes());
     let path = output_path.as_os_str().as_encoded_bytes();
     digest.u64(path.len() as u64);
-    digest.raw(&path);
+    digest.raw(path);
     digest.u64(container_byte_count as u64);
     digest.raw(container_digest.as_bytes());
     digest.finish()

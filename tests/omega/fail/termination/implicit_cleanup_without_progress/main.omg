@@ -3,8 +3,8 @@
 public boundary trait Wait {
     machine wait() reaches Wait;
 }
-data Token { value: u8; }
-machine Token::drop(token: &mut Token) reaches Wait {
+data Token dropped by drop_token { value: u8; }
+machine drop_token(token: &mut Token) reaches Wait {
     Wait::wait();
 }
 machine finish() terminates reaches Wait {

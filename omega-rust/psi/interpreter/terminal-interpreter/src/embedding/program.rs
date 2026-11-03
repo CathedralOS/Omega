@@ -637,7 +637,7 @@ impl<'artifact> TerminalProgram<'artifact> {
         self.program
             .boundary_machines()
             .get(&slot)
-            .is_some_and(|declaration| compiler_owns_boundary_execution(declaration))
+            .is_some_and(compiler_owns_boundary_execution)
     }
 
     /// Exact external requirement contract, independent of ordinary provider
@@ -879,7 +879,11 @@ impl<'artifact> TerminalProgram<'artifact> {
             }
             other => other,
         })?;
-        if let Some(request) = entry_results {
+        if let Some(request) = scalar_application {
+            execution
+                .request_scalar_entry_checks(request.admission.checks(), entry_results)
+                .map_err(TerminalArtifactInterpretError::Execution)?;
+        } else if let Some(request) = entry_results {
             execution
                 .request_entry_results(request)
                 .map_err(TerminalArtifactInterpretError::Execution)?;
@@ -920,8 +924,7 @@ pub struct TerminalInstantiation<'input> {
 
 #[derive(Clone, Copy)]
 pub struct TerminalScalarApplicationRequest<'input> {
-    pub application: semantic_vocabulary::ScalarApplicationId,
-    pub observations: &'input terminal_installation::ScalarApplicationObservations<'input>,
+    pub admission: &'input terminal_installation::AdmittedScalarEntry<'input, 'input>,
 }
 
 impl TerminalProgram<'_> {
@@ -975,7 +978,8 @@ impl TerminalProgram<'_> {
                 "scalar evaluation inputs differ from the exact artifact, entry, target or provider selections",
             )
         };
-        let observations = request.observations;
+        let observations = request.admission.observations();
+        let application = request.admission.application();
         let installation = installation.ok_or_else(reject)?;
         let expected_providers = TerminalRuntimeSupplies::from(observations.providers());
         if self.program.identity
@@ -988,11 +992,11 @@ impl TerminalProgram<'_> {
             || installation.assumed_bindings != expected_providers.assumed_bindings
             || installation.target_layouts.as_deref() != Some(observations.layouts())
             || observations
-                .entry(request.application)
+                .entry(application)
                 .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?
                 != self.program.resolve_entry(Some(installation))?
             || observations
-                .value(request.application)
+                .value(application)
                 .map_err(TerminalInterpretError::ScalarApplicationEvaluation)?
                 .is_some()
         {
@@ -1065,7 +1069,8 @@ mod private_entry_target_tests {
                 .execution_requirements_with_private_entry_ram(None, recipes)
                 .is_err()
         );
-        for name in ["macos_arm64"] {
+        {
+            let name = "macos_arm64";
             let other_machines =
                 terminal_installation::admit_target_machine_selections(artifact.view(), name);
             let other_layouts = terminal_installation::admit_target_layouts(

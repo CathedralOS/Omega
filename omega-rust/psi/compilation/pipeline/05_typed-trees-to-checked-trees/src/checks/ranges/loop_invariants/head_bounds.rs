@@ -141,9 +141,9 @@ pub(super) fn loop_head_relational_upper(
     }
 }
 
-/// The upper term and strictness in the unique positive arm from `source` to
-/// `head`. Continuation/convergent/unguarded/ambiguous edges fail closed, just
-/// as for the constant upper-bound candidate.
+// The upper term and strictness in the unique positive arm from `source` to
+// `head`. Continuation/convergent/unguarded/ambiguous edges fail closed, just
+// as for the constant upper-bound candidate.
 
 /// Scan `source`'s transitions for the head-bound edge and fold `parse`
 /// over its guard. More than one head edge, a continuation-to-head, or an

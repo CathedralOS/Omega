@@ -849,9 +849,7 @@ pub(super) fn adapt(
                             | StructuralTypeShape::Mixed { cases, .. } => cases,
                             _ => return None,
                         };
-                        if terminal_psi::find_structural_case(cases, *result_case).is_none() {
-                            return None;
-                        }
+                        terminal_psi::find_structural_case(cases, *result_case)?;
                         // The retained constructor tag proves that sibling-case
                         // payload slots do not exist in this value. Only those
                         // slots have no backing; an unresolved live field stays
@@ -1140,7 +1138,8 @@ pub(super) fn adapt(
                         .iter()
                         .filter(|declaration| declaration.id == *boundary);
                     if let (Some(declaration), None) = (declarations.next(), declarations.next())
-                        && !declaration.reference_outputs.is_empty()
+                        && (!declaration.reference_outputs.is_empty()
+                            || !declaration.result_reference_regions.is_empty())
                         && slot_kind != DescriptorSlotKind::AccessOrigins
                     {
                         graph.calls.insert(
@@ -1151,6 +1150,7 @@ pub(super) fn adapt(
                                 slot_kind,
                                 declaration,
                                 structural_arguments,
+                                result,
                                 &graph.place_types,
                             )?,
                         );

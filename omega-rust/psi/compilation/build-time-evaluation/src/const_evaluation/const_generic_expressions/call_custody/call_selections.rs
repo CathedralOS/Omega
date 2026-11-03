@@ -30,6 +30,21 @@ pub(super) fn call_custody_source(
         return Ok(source);
     }
     let symbol = program.symbols.get(target);
+    // Other logical calls can be generated from an authored binder. Its
+    // recorded origin identifies source custody; the exact call target remains
+    // separate and still owes ordinary invocation checks.
+    if matches!(
+        symbol.kind,
+        SymbolKind::Operator | SymbolKind::MachineParameter
+    ) || (symbol.kind == SymbolKind::State
+        && symbol.parent.is_valid()
+        && program.symbols.get(symbol.parent).kind == SymbolKind::Trait)
+    {
+        return program
+            .symbols
+            .symbol_provenance_source_span(target)
+            .ok_or_else(|| "constant logical call lost its exact authored provenance".into());
+    }
     if symbol.kind != SymbolKind::State
         || program.symbols.get(symbol.parent).kind != SymbolKind::Machine
     {

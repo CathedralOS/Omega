@@ -11,7 +11,7 @@ use crate::lowering::structural_type_lookup::StructuralTypeLookup;
 use abstract_operations::AbstractFunction;
 use abstract_operations::control_flow::address_joins::is_address_join;
 use calling_conventions::ValueShape;
-use semantic_vocabulary::{PlaceId, StructuralTypeId};
+use semantic_vocabulary::PlaceId;
 use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{
     TargetStructuralArgumentSource, TargetStructuralHomeOrigin, TargetStructuralHomeRequirement,
@@ -34,8 +34,6 @@ pub(in crate::lowering) fn resolve<'parameter>(
     address_joins: &BTreeSet<PlaceId>,
     block_views: &BTreeSet<PlaceId>,
     types: &StructuralTypeLookup<'_>,
-    shape_cache: &mut BTreeMap<StructuralTypeId, ValueShape>,
-    active: &mut BTreeSet<StructuralTypeId>,
 ) -> Result<StructuralArgumentRoot, LoweringError> {
     let unknown = || LoweringError::UnknownStructuralArgumentPlace {
         machine: function.machine,
@@ -48,12 +46,7 @@ pub(in crate::lowering) fn resolve<'parameter>(
         let declaration = function.structural_parameter(place).ok_or_else(unknown)?;
         return Ok(StructuralArgumentRoot {
             declaration: declaration.clone(),
-            backing_shape: structural_shape(
-                declaration.structural_type,
-                types,
-                shape_cache,
-                active,
-            )?,
+            backing_shape: structural_shape(declaration.structural_type, types)?,
             source: parameter.placement.clone().into(),
         });
     }
@@ -91,18 +84,13 @@ pub(in crate::lowering) fn resolve<'parameter>(
             })
             .ok_or_else(unknown)?;
         if address_joins.contains(&place)
-            && !is_address_join(declaration, |identity| types.get(&identity).copied())
+            && !is_address_join(declaration, |identity| types.get(identity).copied())
         {
             return Err(unknown());
         }
         return Ok(StructuralArgumentRoot {
             declaration: declaration.clone(),
-            backing_shape: structural_shape(
-                declaration.structural_type,
-                types,
-                shape_cache,
-                active,
-            )?,
+            backing_shape: structural_shape(declaration.structural_type, types)?,
             source: TargetStructuralArgumentSource::BlockParameter { block, place },
         });
     }

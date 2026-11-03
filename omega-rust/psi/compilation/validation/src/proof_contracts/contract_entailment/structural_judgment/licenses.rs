@@ -475,10 +475,10 @@ fn judged_carrier(
 /// distributivity. Ring and semiring licensing both build the inventory
 /// before applying their own carrier-closure tests.
 #[allow(clippy::type_complexity)]
-fn algebraic_law_slots<'program>(
-    program: &'program dyn crate::CheckingInput,
+fn algebraic_law_slots(
+    program: &dyn crate::CheckingInput,
 ) -> Vec<(
-    &'program TraitDefinition,
+    &TraitDefinition,
     Vec<(String, String)>,
     Vec<(String, String)>,
     Vec<(String, String, String)>,

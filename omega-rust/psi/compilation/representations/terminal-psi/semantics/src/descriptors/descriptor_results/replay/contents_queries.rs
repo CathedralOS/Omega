@@ -2,7 +2,7 @@
 //! Reads and writes share the same exhaustive typed traversal. Incoming contents
 //! stay symbolic until a caller supplies backing; unresolved candidates cannot
 //! be discarded just because another candidate has a usable address.
-use super::replay::{DescriptorReadDepth, Origin, State, Value};
+use super::engine::{DescriptorReadDepth, Origin, State, Value};
 use super::*;
 use crate::descriptors::descriptor_lifetimes::descriptor_location;
 
@@ -25,6 +25,30 @@ impl Replay<'_> {
     ) -> Value {
         let _read = depth.enter()?;
         query.validate(self.types, *machine.place_types.get(&query.root)?)?;
+        // Access provenance can cross a reference without supplying a physical
+        // address. Retain both completed formations and symbolic ingress tokens:
+        // an edge inside a helper cannot resolve its callers yet. Admission
+        // later substitutes every caller and requires actual formations; an
+        // incoming token is not itself backing authority. Unresolved pointer
+        // contents still use the invalidation checks below.
+        if self.slot_kind == DescriptorSlotKind::AccessOrigins {
+            if state.contents_path_invalidated(query) {
+                return None;
+            }
+            if let Some(location) = query.exact_location()
+                && let Some(origins) = self.read_with_depth(machine, state, &location, depth)
+                && origins.iter().all(|origin| {
+                    matches!(
+                        origin,
+                        Origin::Incoming(_)
+                            | Origin::IncomingContents(_, _)
+                            | Origin::Backing(DescriptorCallOrigin::AccessFormation { .. })
+                    )
+                })
+            {
+                return Some(origins);
+            }
+        }
         if self.slot_kind.tracks_references()
             && let Some(location) = query.exact_location()
             && let Some(location) = self.canonical_storage(machine, state, &location)
@@ -34,6 +58,11 @@ impl Replay<'_> {
             // This reads payload only; contents_targets still owns storage
             // destinations and must never mistake this pointer for its slot.
             return value.clone();
+        }
+        // Target resolution tolerates a vacant leaf so a store can refill it;
+        // a read of that leaf has no value to report.
+        if state.contents_path_invalidated(query) {
+            return None;
         }
         let mut origins = BTreeSet::new();
         for target in self.contents_targets_with_depth(machine, state, query, depth)? {
@@ -78,7 +107,7 @@ impl Replay<'_> {
         // This is the current queried carrier, before any pointer identity is
         // translated into an entry-family namespace. A real invalidation of
         // an ancestor cannot be bypassed by taking the contents-query route.
-        if state.contents_path_invalidated(query) {
+        if state.contents_address_invalidated(query) {
             return None;
         }
         self.contents_targets_at(

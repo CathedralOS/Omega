@@ -5,10 +5,10 @@
 use crate::LoweringError;
 use crate::lowering::structural_layout::structural_sum_layout;
 use crate::lowering::structural_type_lookup::StructuralTypeLookup;
+use calling_conventions::terminal_layout::StructuralLayouts;
 use semantic_vocabulary::{OperationId, StructuralTypeId};
-use std::collections::{BTreeMap, BTreeSet};
 use target_operations::{TargetStructuralHomeLayout, TargetStructuralHomeRequirement};
-use terminal_psi::{StructuralTypeDeclaration, StructuralTypeShape};
+use terminal_psi::StructuralTypeShape;
 use terminal_semantics::{canonical_static_projection, view_descriptor_parameter};
 
 /// Resolve a consumed value from its live storage, independent of whether a
@@ -105,22 +105,17 @@ pub(super) fn value_input(
 
 fn sum_layout(
     structural_type: StructuralTypeId,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralLayouts<'_>,
 ) -> Result<calling_conventions::ConventionalSumLayout, LoweringError> {
     let invalid = || LoweringError::UnsupportedStructuralSum(structural_type);
-    let declaration = types.get(&structural_type).ok_or_else(invalid)?;
+    let declaration = types.get(structural_type).ok_or_else(invalid)?;
     if !matches!(
         declaration.shape,
         terminal_psi::sum_or_mixed_shape_pattern!()
     ) {
         return Err(invalid());
     }
-    structural_sum_layout(
-        structural_type,
-        types,
-        &mut BTreeMap::new(),
-        &mut BTreeSet::new(),
-    )
+    structural_sum_layout(structural_type, types)
 }
 
 /// A block arrival establishes its own home under its exact declaration. It is
@@ -168,11 +163,11 @@ pub(in crate::lowering) fn result_home_layout(
 /// with those operations; a layout alone grants no transfer or borrow rights.
 pub(super) fn value_home_layout(
     structural_type: StructuralTypeId,
-    types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
+    types: &StructuralLayouts<'_>,
 ) -> Result<TargetStructuralHomeLayout, LoweringError> {
     if matches!(
         types
-            .get(&structural_type)
+            .get(structural_type)
             .map(|declaration| &declaration.shape),
         Some(
             terminal_psi::record_or_fixed_array_shape_pattern!()
@@ -186,12 +181,7 @@ pub(super) fn value_home_layout(
         // leaves. Array construction still checks its element operations, while
         // parameter and call-result homes retain existing owned record arrays.
         return Ok(TargetStructuralHomeLayout::Aggregate(
-            crate::lowering::structural_layout::structural_shape(
-                structural_type,
-                types,
-                &mut BTreeMap::new(),
-                &mut BTreeSet::new(),
-            )?,
+            crate::lowering::structural_layout::structural_shape(structural_type, types)?,
         ));
     }
     Ok(TargetStructuralHomeLayout::Sum(sum_layout(

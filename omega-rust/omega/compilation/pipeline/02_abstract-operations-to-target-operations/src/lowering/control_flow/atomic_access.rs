@@ -179,7 +179,7 @@ pub(super) fn lower(
             return Err(LoweringError::unsupported_control_flow(function.machine));
         }
         let layout = types
-            .get(&outcome.structural_type)
+            .get(outcome.structural_type)
             .and_then(|row| target_operations::conventional_atomic_once_layout(row, integer))
             .ok_or(LoweringError::unsupported_control_flow(function.machine))?;
         let home = target_operations::TargetStructuralHomeRequirement {

@@ -91,7 +91,7 @@ pub fn terminal_authority_permission_policy_with_rows(
     rows.sort_by(|left, right| {
         left.service_schema()
             .as_bytes()
-            .cmp(&right.service_schema().as_bytes())
+            .cmp(right.service_schema().as_bytes())
             .then_with(|| {
                 identities
                     .text(left.requirement_identity())

@@ -59,11 +59,31 @@ impl CurrentScalarValues<'_> {
         expression: ExpressionHandle,
         arguments: &[ExpressionHandle],
     ) -> Option<ScopedArithmeticExpression> {
-        let captured = self.capture_parameter_goal(
+        self.bind_integer_expression_formals(
             callee,
             state,
             expression,
             self.program.state_parameters(state),
+            arguments,
+        )
+    }
+
+    /// The same capture over an explicit subset of the declaring state's
+    /// formals. A formal left out of the roster stays unbound, so a recipe
+    /// that reads it fails to capture rather than reading another value.
+    pub(crate) fn bind_integer_expression_formals(
+        &self,
+        callee: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        arguments: &[ExpressionHandle],
+    ) -> Option<ScopedArithmeticExpression> {
+        let captured = self.capture_parameter_goal(
+            callee,
+            state,
+            expression,
+            parameters,
             arguments,
             &[],
             true,
@@ -457,11 +477,7 @@ impl CurrentScalarValues<'_> {
                     });
                 }
                 for field in self.captured_scalar_fields(*argument, 0) {
-                    fields.push(ScalarField::for_owner(
-                        self.program,
-                        parameter.symbol,
-                        field,
-                    ));
+                    fields.push(ScalarField::for_owner(parameter.symbol, field));
                 }
                 for field in self.captured_field_lengths(*argument, 0) {
                     lengths.push(Length {
@@ -483,7 +499,7 @@ impl CurrentScalarValues<'_> {
                 value: self.capture(self.program, self.machine, self.state, *argument),
                 alternatives: Vec::new(),
                 immutable_coordinate: false,
-                read_dependencies: Some(Vec::new()),
+                unwritable: false,
             });
         }
         formals.extend(machine_values.iter().map(|(symbol, value)| Binding {
@@ -492,7 +508,7 @@ impl CurrentScalarValues<'_> {
             value: Some(value.clone()),
             alternatives: Vec::new(),
             immutable_coordinate: true,
-            read_dependencies: Some(Vec::new()),
+            unwritable: true,
         }));
         let occurrence = self.occurrence_at(self.program, callee, state, &lengths);
         if !form_operations && !admitted(occurrence, expression, &formals, &fields, 0) {

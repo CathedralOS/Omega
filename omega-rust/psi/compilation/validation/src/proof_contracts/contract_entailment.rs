@@ -405,9 +405,7 @@ pub(crate) fn validate_machine_contract_entailment<'program>(
     let ensures_terms: Vec<Option<(StructuralTerm, StructuralTerm)>> = ensures
         .iter()
         .map(|fact| {
-            let Some(binary) = expression_table(program).binary_node(*fact) else {
-                return None;
-            };
+            let binary = expression_table(program).binary_node(*fact)?;
             let entry = program.machine_states(machine).first()?;
             let parameters = program.state_parameters(entry);
             if binary.operator != BinaryOperator::Equal

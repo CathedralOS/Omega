@@ -118,7 +118,10 @@ pub(super) fn replaces_binding(
         caller_aliases::CallerWriteSite::Statement(statement),
     )?;
     let target = FrameSourcePlace::from_expression(program, assignment.target);
-    if !target.segments.is_empty() || program.symbols.get(target.root).kind != SymbolKind::Local {
+    if !target.root.is_valid()
+        || !target.segments.is_empty()
+        || program.symbols.get(target.root).kind != SymbolKind::Local
+    {
         return Some(false);
     }
     let reference = source_root_type(program, state, index, target.root)?;
@@ -729,6 +732,20 @@ pub(super) fn backing_origins(
     )?;
     let mut captured = Vec::new();
     for origin in origins {
+        if let Some((_, referent)) = origin.source.result_home() {
+            // A provider's returned reference retains its completed invocation
+            // instead of a caller declaration. Its admitted referent validates
+            // owned selectors; its type cannot supply an inner pointer load.
+            if !origin.source.builtin_coordinates
+                || !origin.source.recasts.is_empty()
+                || origin.source.representation.is_some()
+            {
+                return None;
+            }
+            validate_referent_projection(program, referent, &origin.source.segments, &[])?;
+            push_unique_origin(&mut captured, origin);
+            continue;
+        }
         if (!origin.source.root.is_valid() && !origin.source.is_static())
             || !origin.source.builtin_coordinates
         {
@@ -820,7 +837,7 @@ fn declared_initializer_origins(
         expression = formation.source;
     }
     expression = expression_table(program).peeled_expression_handle(expression);
-    if let Some(_) = expression_table(program).call_node(expression) {
+    if expression_table(program).call_node(expression).is_some() {
         let (state, _, index) = caller_aliases::caller_statement_owner(
             program,
             machine,
@@ -1133,12 +1150,12 @@ pub(super) fn validate_referent_projection(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     segments: &[PlaceSegment],
-    bindings: &super::type_instantiation::TypeBindings,
+    bindings: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<()> {
     let mut cursor = stored_origins::StorageProjectionCursor::with_bindings(
         program,
         reference,
-        bindings.clone(),
+        bindings.to_vec(),
     );
     for segment in segments {
         cursor.advance(segment)?;

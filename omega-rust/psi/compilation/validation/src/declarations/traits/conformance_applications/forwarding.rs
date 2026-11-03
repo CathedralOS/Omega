@@ -216,8 +216,10 @@ mod tests {
                 builder.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Required"));
             let other_trait =
                 builder.insert_root(SymbolKind::Trait, SymbolNameRef::Static("Other"));
-            let mut program = TypedTrees::default();
-            program.symbols = builder.finish();
+            let mut program = TypedTrees {
+                symbols: builder.finish(),
+                ..Default::default()
+            };
             let promised = GenericConformanceBound {
                 binder,
                 binder_name: Identifier::generated("Policy"),
@@ -274,8 +276,10 @@ mod tests {
                 .unwrap_err()
                 .contains("already selected")
             );
-            let mut missing = TypedTrees::default();
-            missing.symbols = program.symbols.clone();
+            let missing = TypedTrees {
+                symbols: program.symbols.clone(),
+                ..Default::default()
+            };
             assert!(
                 validate_forwarded_argument(&missing, &promised, &selected, |_| panic!(
                     "a missing promise must refuse first"

@@ -1,7 +1,7 @@
 // Expected exit: 0
 // Earlier emitted sibling calls cannot consume this exit's incoming homes.
-data Token { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 machine identity(token: Token) -> Token { token }
 machine inspect(token: Token) -> u64 { token.value }
 machine choose(outer: bool, inner: bool) -> Token {

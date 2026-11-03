@@ -415,12 +415,16 @@ execution: a generated application can still exhaust its evaluator or
 diverge, and that failure is never a compiler DCOUT case. The producer's
 execution storage is bounded by the
 [execution-storage audit](implementation/boundary/execution_storage.md), and
-its cumulative pair allocation is settled by the
+its cumulative pair allocation is that audit's
+[remaining obligation](implementation/boundary/execution_storage.md#remaining-obligation):
+no general bound shows that every admitted composition fits the selected
+3,422,453,760-pair arena. The
 [measured worst-shape
-study](../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment),
-which projects 417,063,339 pairs at admitted extents, below the selected
-3,422,453,760-pair arena, so an admitted compile does not end in a raw Gamma
-heap failure. The compiler-owned DCOUT outcomes are exactly the resource and
+study](../../tests/delta/resource-boundary/README.md#measured-worst-shape-pair-containment)
+projects 417,063,339 pairs at admitted extents, below that arena. This
+supports the selected provision, but until the general proof closes it does
+not establish that an admitted compile never ends in a raw Gamma heap
+failure. The compiler-owned DCOUT outcomes are exactly the resource and
 internal tables above; an underlying evaluator failure is never substituted
 for one of them. These judgments do not close the Delta edge or establish
 complete Delta conformance. The former concatenative-Gamma implementation is

@@ -5,7 +5,6 @@
 //! and initializer completion. Layout plans installed by evaluation must be
 //! visible to the second query pass, never a reused first-pass view.
 
-use crate::build_time_evaluation::expression_table;
 use crate::{
     LayoutQueryProvider, PreCheckEvaluation, SelectedBuildTimeOperators,
     SelectedBuildTimeTargetBody,
@@ -61,6 +60,7 @@ impl<Layouts: LayoutQueryProvider> SelectedConstantEvaluationRequest<'_, Layouts
 mod tests {
     use super::*;
     use crate::LayoutQueryMeasurements;
+    use crate::build_time_evaluation::expression_table;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use typed_trees::expression::{DataLayoutQueryRequest, ExpressionNode};
 

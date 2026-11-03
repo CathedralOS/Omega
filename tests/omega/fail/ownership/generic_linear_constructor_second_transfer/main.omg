@@ -1,7 +1,7 @@
 use omega::language::core::drop;
 
-data Token<Payload> [linear] { payload: Payload; }
-machine Token::drop(token: &mut Token<Payload>) {}
+data Token<Payload> [linear] dropped by drop_token<Payload> { payload: Payload; }
+machine drop_token<Payload>(token: &mut Token<Payload>) {}
 
 machine make<Payload>(payload: Payload) -> Token<Payload> {
     Token { payload: payload }
