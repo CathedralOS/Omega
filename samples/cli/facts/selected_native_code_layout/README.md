@@ -124,7 +124,7 @@ remain unchanged and it supplies no passing execution coverage.
   separate from source-level copy permission. Copies retain their metadata
   storage; the snapshot control checks an ordinary copied region after return.
 - **Composition:** calls, fields, joins and nested machines carry the same
-  value. Both match arms have distinct observed paths. The target requirement
+  value. Both match arms carry distinct path markers. The target requirement
   uses explicit Build selection without publishing private facts to callers.
 - **Soundness:** late metadata stays unavailable to same-product semantic
   evaluation. Selection, lifetime and shared-write controls retain their
