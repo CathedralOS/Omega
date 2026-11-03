@@ -25,7 +25,14 @@ impl Captures<'_> {
     ) -> Option<Vec<CheckedReturnedReferencePlan>> {
         let target = crate::call_target_state(self.program, call.target_symbol)?;
         let frames = crate::CallFrameResolver::new(self.program)?;
-        let transports = frames.reference_result_transports(target.symbol)?;
+        let Some(transports) = frames.reference_result_transports(target.symbol) else {
+            eprintln!(
+                "corpus_runner: returned-reference composition has no complete callee relation: {} {:?}",
+                self.program.symbols.name(target.symbol),
+                target.symbol,
+            );
+            return None;
+        };
         let mut relative = Vec::new();
         for transport in transports {
             match transport {
