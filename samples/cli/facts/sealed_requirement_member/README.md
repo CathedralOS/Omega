@@ -68,8 +68,24 @@ nine sample programs in native and Terminal execution on Linux x86-64. All nine
 invalid projects reject as intended. Its target fixture pair also checks and
 rejects as intended, and the positive runs with exit 0 in both engines:
 [baseline run 41546993119](https://github.com/CathedralOS/Omega/actions/runs/41546993119).
-These observations establish the old source's behavior. The migration's focused
-validation is pending. No compiler defect or repair is claimed by that baseline.
+These observations establish the old source's behavior.
+
+The [migration run 41549454869](https://github.com/CathedralOS/Omega/actions/runs/41549454869),
+source `d93716f3312454d024e4585ec999bcfe347f5c4e`, accepts all nine positive
+fixtures and executes them with native and Terminal exit 0. All nine positive
+sample projects also run successfully. Its eight unchanged invalid programs
+reach their intended missing-range refusals.
+
+Review then restored both supplier calls in the call-result invalid program.
+[Run 41552699446](https://github.com/CathedralOS/Omega/actions/runs/41552699446),
+source `6adf3a04cbb0e8592a922c2205e4085109a2d08a`, checks that corrected fixture
+and its sample. Both reject because `supply(b)` cannot establish the required
+right-input range. The compiler, library, gate tools and all other program
+inputs are unchanged between the two sources; the verified CLI executable
+hashes also match. Records retain the source each run actually used.
+
+Together these observations cover all nine positives and all nine current
+invalid controls. No compiler repair is part of this source migration.
 
 This row does not close either parent task. Other target-prefixed sources and
 old reference rows whose callee does not already satisfy the requirement remain

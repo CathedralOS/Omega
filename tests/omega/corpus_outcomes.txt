@@ -2800,8 +2800,25 @@ fail/facts/saved_observation_snapshot_indexed_handback_target_body_rejected reje
 	cannot prove ensures contract for exit from preserve at statement 2: holder.items[kept_index] == 7 && holder.items[changed] == value
 fail/facts/saved_observation_snapshot_indexed_handback_whole_replacement_rejected rejected 4684ms expected @755b31d334ff
 	cannot prove ensures contract for exit from preserve at statement 1: holder.items[kept] == 7 && holder.items[changed] == value
-fail/facts/sealed_requirement_member_through_field_rejected rejected 5427ms expected @911f6617ba9e
-	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0 from probe: 0 <= operands.right && operands.right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sealed_requirement_member_through_call_result_rejected rejected 6233ms expected @6adf3a04cbb0
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2661 from probe: 0 <= supply(b) && supply(b) <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sealed_requirement_member_through_const_name_rejected rejected 7663ms expected @d93716f33124
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2659 from probe: 0 <= a && a <= 50 (needs fact `0 <= left && left <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2659 from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sealed_requirement_member_through_field_rejected rejected 7899ms expected @d93716f33124
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2661 from probe: 0 <= operands.right && operands.right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sealed_requirement_member_through_local_rejected rejected 8222ms expected @d93716f33124
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2660 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sealed_requirement_member_through_match_join_rejected rejected 8125ms expected @d93716f33124
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2663 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sealed_requirement_member_through_other_machine_rejected rejected 8141ms expected @d93716f33124
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2662 from forward: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sealed_requirement_member_through_other_state_rejected rejected 8091ms expected @d93716f33124
+	cannot prove requires contract for call step from probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sealed_requirement_member_through_parameter_rejected rejected 8055ms expected @d93716f33124
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2658 from probe: 0 <= right && right <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/sealed_requirement_member_through_target_body_rejected rejected 6825ms expected @d93716f33124
+	cannot prove requires contract for call apply$specialized$abaf361fafff1d4e$0$2663 from HostedProbe::probe: 0 <= b && b <= 50 (needs fact `0 <= right && right <= 50` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `probe`
 fail/facts/skipped_short_circuit_call_through_call_result_rejected rejected 13474ms expected @91458311fe6a+wt
 	cannot prove requires contract for call untouched from main: counter == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/skipped_short_circuit_call_through_const_name_rejected rejected 8879ms expected @91458311fe6a+wt
@@ -10609,7 +10626,15 @@ pass/facts/scoped_scalar_initializer_through_other_machine_exit checked 3486ms c
 pass/facts/scoped_scalar_initializer_through_other_state_exit checked 3663ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/scoped_scalar_initializer_through_parameter_exit checked 3377ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/scoped_scalar_initializer_through_target_body_exit checked 5455ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
-pass/facts/sealed_requirement_member_through_field_exit checked 8442ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/sealed_requirement_member_through_call_result_exit checked 12409ms check-target:macos_arm64 @d93716f33124
+pass/facts/sealed_requirement_member_through_const_name_exit checked 12627ms check-target:macos_arm64 @d93716f33124
+pass/facts/sealed_requirement_member_through_field_exit checked 10569ms check-target:macos_arm64 @d93716f33124
+pass/facts/sealed_requirement_member_through_local_exit checked 10358ms check-target:macos_arm64 @d93716f33124
+pass/facts/sealed_requirement_member_through_match_join_exit checked 10518ms check-target:macos_arm64 @d93716f33124
+pass/facts/sealed_requirement_member_through_other_machine_exit checked 10514ms check-target:macos_arm64 @d93716f33124
+pass/facts/sealed_requirement_member_through_other_state_exit checked 10449ms check-target:macos_arm64 @d93716f33124
+pass/facts/sealed_requirement_member_through_parameter_exit checked 10383ms check-target:macos_arm64 @d93716f33124
+pass/facts/sealed_requirement_member_through_target_body_exit checked 13087ms check-target:macos_arm64 @d93716f33124
 pass/facts/selected_crash_formal_through_call_result_exit checked 10292ms check-target:macos_arm64 @feef96dc297d
 pass/facts/selected_crash_formal_through_const_name_exit checked 10373ms check-target:macos_arm64 @feef96dc297d
 pass/facts/selected_crash_formal_through_field_exit checked 11267ms check-target:macos_arm64 @feef96dc297d
