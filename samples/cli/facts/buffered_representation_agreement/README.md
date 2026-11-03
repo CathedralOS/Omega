@@ -43,14 +43,20 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [latest completed compiler check](https://github.com/CathedralOS/Omega/actions/runs/41570174453)
-still rejects the writer's byte and returned-length promises, leaving later
-round-trip promises unproved. Both returned-reference positives check, and four
-stale-storage controls reject correctly. The [constant-call checks](https://github.com/CathedralOS/Omega/actions/runs/41573401092)
-now execute four independent method, binder, application and lifetime programs
-with native/Terminal exit zero; wrong-binder and wrong-region controls reject
-correctly. The buffered constant reaches the remaining proof failures. Result
-fields, joins and selected bodies still fail their preservation promises.
+The [latest completed check](https://github.com/CathedralOS/Omega/actions/runs/41585411293)
+at `ae886e15eabdd5d0616929cad41be5fb8aa0474b` proves the inner encoder and its
+first forwarding function. The local and constant programs each retain 13 proof
+refusals, beginning with `Writer::encode_sufficient`'s byte and length guarantee.
+The field program also cannot prove that its returned field is the incoming
+Result. Both independent returned-reference controls execute with native/Terminal
+exit zero. All four stale-storage controls, the wrong-value control and both
+invalid-construction controls reject correctly. The decoder twins include their
+intended rejection but still have unrelated writer failures, so they do not yet
+establish this row's acceptance.
+
+The [constant-call checks](https://github.com/CathedralOS/Omega/actions/runs/41573401092)
+execute four independent method, binder, application and lifetime programs with
+native/Terminal exit zero; wrong-binder and wrong-region controls reject.
 The full standard Representation interface, reflection adapters, other hosts
 and the Omega-written producer also remain parent work.
 
