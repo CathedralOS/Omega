@@ -40,7 +40,9 @@ impl StorageVersion {
 }
 
 impl<'program> StructuralJudge<'program> {
-    pub(super) fn storage_graph(&self) -> Option<&'program FlowControlFacts> {
+    pub(in crate::proof_contracts::contract_entailment::structural_judgment) fn storage_graph(
+        &self,
+    ) -> Option<&'program FlowControlFacts> {
         self.program.storage_graph()
     }
 
