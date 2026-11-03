@@ -1,6 +1,6 @@
 // A later guarantee about mutable storage cannot describe an earlier selector.
-data Token { value: u64; }
-machine Token::drop(token: &mut Token) { token.value = 0; }
+data Token dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 machine replacement(position: &mut u64) -> Token ensures position == 1 {
     position = 1;
     Token { value: 19 }

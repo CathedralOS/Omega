@@ -1,8 +1,8 @@
-// The reserved owner-attached cleanup hook is compiler-selected. Naming it as
+// The reserved `dropped by` cleanup hook is compiler-selected. Naming it as
 // a static-machine argument is still an authored selection and must reject.
-data Resource { value: i32; }
+data Resource dropped by drop_resource { value: i32; }
 
-machine Resource::drop() {}
+machine drop_resource() {}
 
 machine accept<machine Selected>()
 requires machine Selected(value: &mut Resource);
@@ -10,5 +10,5 @@ requires machine Selected(value: &mut Resource);
 }
 
 machine misuse() {
-    accept<Resource::drop>();
+    accept<drop_resource>();
 }

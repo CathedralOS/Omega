@@ -23,16 +23,16 @@ boundary trait WindowsConsoleIo {
     terminates;
 }
 
-data Room { count: u32 in Wrapping; }
-machine Room::drop(room: &mut Room)
+data Room dropped by drop_room { count: u32 in Wrapping; }
+machine drop_room(room: &mut Room)
 requires room.count == 10
 reaches Console
 {
  Console::write_byte(68);
  room.count = 99;
 }
-data Tag { byte: i32; }
-machine Tag::drop(tag: &mut Tag) reaches Console { Console::write_byte(tag.byte); }
+data Tag dropped by drop_tag { byte: i32; }
+machine drop_tag(tag: &mut Tag) reaches Console { Console::write_byte(tag.byte); }
 machine scope(mut room: Room, mut tag: Tag)
 requires room.count == 10
 reaches Console crashes Trap {

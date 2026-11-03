@@ -50,24 +50,44 @@ ensures result <= 37
 machine pure_observer() -> u64 reaches
 ensures result <= 37
 { ordinary<quiet>(37) }
-linux_x86_64 machine evaluate() -> u64 reaches Console {
-    let result: u64 = TraversalCode::traverse<quiet>(37);
-    37 - result
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
 }
-linux_arm64 machine evaluate() -> u64 reaches Console {
-    let result: u64 = TraversalCode::traverse<quiet>(37);
-    37 - result
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-macos_arm64 machine evaluate() -> u64 reaches Console {
-    let result: u64 = TraversalCode::traverse<quiet>(37);
-    37 - result
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
 }
-windows_x86_64 machine evaluate() -> u64 reaches Console {
-    let result: u64 = TraversalCode::traverse<quiet>(37);
-    37 - result
+boundary trait SelectedEvaluate {
+    machine evaluate() -> u64 reaches Console, SelectedBodyCheck invokes SelectedBodyCheck crashes Trap;
 }
-machine main() reaches Console crashes Trap {
-    let margin: u64 = evaluate();
+X86Evaluate satisfies SelectedEvaluate {
+    machine evaluate() -> u64 reaches Console, SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        let result: u64 = TraversalCode::traverse<quiet>(37);
+        37 - result
+    }
+}
+ArmEvaluate satisfies SelectedEvaluate {
+    machine evaluate() -> u64 reaches Console, SelectedBodyCheck invokes SelectedBodyCheck crashes Trap
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        let result: u64 = TraversalCode::traverse<quiet>(37);
+        37 - result
+    }
+}
+machine main() reaches Console, SelectedBodyCheck crashes Trap {
+    let margin: u64 = SelectedEvaluate::evaluate();
     let sibling: u64 = TraversalCode::traverse<second>(37);
     let pure: u64 = pure_observer();
     let declared: u64 = ordinary<console_step>(37);
@@ -78,4 +98,12 @@ machine main() reaches Console crashes Trap {
     }
     machine done() {}
     machine bad() { crash Trap; }
+}
+machine x86_entry() reaches Console, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() reaches Console, SelectedBodyCheck crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
 }

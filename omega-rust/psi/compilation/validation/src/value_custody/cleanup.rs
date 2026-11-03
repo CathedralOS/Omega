@@ -4,16 +4,14 @@
 //! select control-flow destinations, not another invocation of the hook.
 
 use crate::frozen_program::expression_table;
-use crate::value_custody::type_references::substituted_identity;
 use diagnostics::Diagnostic;
 use language_semantics::declaration_selection::AuthoredDeclarationSelectionOccurrenceId;
 use language_semantics::{
-    MachineSupplyMode, Multiplicity, ReferenceAccess, TerminationGuarantee, TerminationInterface,
+    MachineSupplyMode, Multiplicity, TerminationGuarantee, TerminationInterface,
 };
 use std::collections::BTreeSet;
 use std::sync::OnceLock;
 use symbols::SymbolHandle;
-use symbols::SymbolKeyMap;
 use symbols::SymbolKind;
 use typed_trees::data::DataMember;
 use typed_trees::expression::ExpressionNode;
@@ -240,11 +238,6 @@ fn data_graph_requires_nominal_drop(
     if data.cleanup_selection.is_some() {
         return true;
     }
-    if program.machines().iter().any(|machine| {
-        machine.name.as_str().ends_with("::drop") && machine.attached_data_symbol == data.symbol
-    }) {
-        return true;
-    }
     // An erased member stays semantically present but owns no runtime
     // representation, so it can never produce runtime cleanup even when its
     // type would otherwise require a nominal drop.
@@ -289,20 +282,26 @@ pub(crate) fn validate_cleanup_machine_declarations(
             diagnostics.push(diagnostic);
         }
     }
-    for machine in program
-        .machines()
-        .iter()
-        .filter(|machine| is_reserved_cleanup(program, machine))
-    {
-        validate_cleanup_machine(program, machine, diagnostics);
+    for machine in program.machines() {
+        if retired_attached_cleanup(program, machine) {
+            let owner = machine.attached_data.as_deref().unwrap_or("Data");
+            diagnostics.push(Diagnostic::error(format!(
+                "`machine {}` attaches cleanup to data `{owner}`, which is retired: data owns no cleanup machines; \
+                 declare an independent static machine taking `&mut {owner}` and select it with \
+                 `data {owner} dropped by <machine>`",
+                machine.name
+            )));
+        } else if is_reserved_cleanup(program, machine) {
+            validate_cleanup_machine(program, machine, diagnostics);
+        }
     }
 }
 
-/// Reject authored access to the one compiler-selected cleanup hook attached
-/// to a nominal owner. Automatic edge cleanup is deliberately absent from the
+/// Reject authored access to a cleanup hook that a `dropped by` selection
+/// names. Automatic edge cleanup is deliberately absent from the
 /// authored-selection ledger, so matching an exact retained declaration here
 /// cannot reject compiler-planned cleanup. Spelling is never sufficient: an
-/// unattached ordinary machine named `drop` remains callable.
+/// unselected ordinary machine named `drop` remains callable.
 pub(crate) fn collect_reserved_cleanup_selection_diagnostics(
     program: &dyn crate::CheckingInput,
     diagnostics: &mut Vec<Diagnostic>,
@@ -389,21 +388,28 @@ pub fn validate_reserved_cleanup_selections(
     crate::program_validation::finish_strict_diagnostics(diagnostics)
 }
 
-/// A `drop` machine attached to known data: the compiler selects it and
-/// source may not.
+/// A machine selected by `dropped by`: the compiler invokes it and source may
+/// not. A machine named `drop` gains no cleanup role from its spelling.
 pub(crate) fn is_reserved_cleanup(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
-    let owner = machine.attached_data_symbol;
     super::cleanup_selection::is_selected_machine(program, machine.symbol)
-        || machine.attached_data.is_some()
-            && owner.is_valid()
-            && machine.name.as_str().rsplit("::").next() == Some("drop")
-            && crate::declarations::data_queries::data_definition_by_symbol(program, owner)
-                .is_some()
+}
+
+/// `machine Data::drop` attached cleanup to a data declaration. Data is not a
+/// machine owner; cleanup is selected by `dropped by` on a domain.
+fn retired_attached_cleanup(program: &dyn crate::CheckingInput, machine: &Machine) -> bool {
+    machine.attached_data.is_some()
+        && machine.attached_data_symbol.is_valid()
+        && machine.name.as_str().rsplit("::").next() == Some("drop")
+        && crate::declarations::data_queries::data_definition_by_symbol(
+            program,
+            machine.attached_data_symbol,
+        )
+        .is_some()
 }
 
 /// Recover the owner-designated cleanup role from an exact checked declaration.
 /// Specialization keeps the template's reserved role and the instance's owner;
-/// an attached borrowed method or a similarly named free function gains none.
+/// a machine no `dropped by` selection names gains none, whatever its name.
 /// Declaration validation separately enforces the full owner and hook contract.
 pub fn nominal_cleanup_owner(
     program: &dyn crate::CheckingInput,
@@ -454,102 +460,48 @@ fn nominal_cleanup_owner_walk(
         let template = program.machine_specialization(declaration.symbol)?.template;
         declaration = program.machine(template)?;
     }
-    super::cleanup_selection::owner_for_machine(program, declaration.symbol).or_else(|| {
-        machine
-            .attached_data_symbol
-            .is_valid()
-            .then_some(machine.attached_data_symbol)
-    })
+    super::cleanup_selection::owner_for_machine(program, declaration.symbol)
 }
 
-/// Bind an owner-designated hook to the actual receiver application. Source
-/// fields and regions keep their namespace; the executable declaration may
-/// belong to a closed carrier derived from that exact owner. Carrier identity
-/// alone never licenses a different nominal's hook. Source admission checks
-/// every selected body's contract, including ordinary empty Unit bodies.
+/// The hook selected by `dropped by` for the exact owned subject, including
+/// default-domain, named-domain and inherited selections. A carrier without
+/// a selection has no executable cleanup hook. A generic signature reaches its
+/// subject through the open selection; `substitutions` close that subject, and
+/// the closed instance's executable is the hook that runs.
 pub fn nominal_cleanup_machine_for_type<'program>(
     program: &'program dyn crate::CheckingInput,
     reference: TypeReferenceHandle,
     substitutions: &[(SymbolHandle, TypeReferenceHandle)],
 ) -> Option<&'program Machine> {
-    if let Ok(Some(selection)) = super::cleanup_selection::selected_application(program, reference)
+    let selection = super::cleanup_selection::selected_application(program, reference)
+        .ok()
+        .flatten()?;
+    if !selection.executable.is_valid()
+        && let Some(instance) = super::cleanup_selection::closed_instance(
+            program,
+            selection,
+            super::type_references::substituted_identity(
+                program,
+                super::places::peel_declared_constraints(program, reference),
+                substitutions,
+            ),
+        )
     {
-        return super::cleanup_selection::machine_for_selection(program, selection);
+        return Some(instance);
     }
-    let reference = crate::peel_declared_constraints(program, reference);
-    let owner = match program.type_reference_table.type_reference(reference) {
-        TypeReferenceNode::Named { symbol, .. } => *symbol,
-        TypeReferenceNode::Generic { base_symbol, .. } => *base_symbol,
-        _ => return None,
-    };
-    let identity = substituted_identity(program, reference, substitutions);
-    let mut selected = None;
-    let Some(candidates) = nominal_cleanup_candidates(program).get(&owner).cloned() else {
-        return None;
-    };
-    for candidate in candidates {
-        let Some(machine) = program.machine(candidate) else {
-            continue;
-        };
-        let Some(state) = program.machine_states(machine).first() else {
-            continue;
-        };
-        let [receiver] = program.state_parameters(state) else {
-            continue;
-        };
-        let Some(shell) = crate::reference_shell(program, receiver.type_reference) else {
-            continue;
-        };
-        if program.normalized_type_identity(shell.referee) != identity {
-            continue;
-        }
-        if selected.is_some() {
-            return None;
-        }
-        selected = Some(machine);
-    }
-    selected
+    super::cleanup_selection::machine_for_selection(program, selection)
 }
 
-/// Effective owner -> cleanup machine symbols, computed once per program.
-/// A machine qualifies for `owner` when its own cleanup owner is `owner`, or
-/// when that owner's origin specializes the generic `owner` base.
-fn nominal_cleanup_candidates(
+/// The hook a data declaration's default domain selects with `dropped by`.
+pub fn data_cleanup_machine(
     program: &dyn crate::CheckingInput,
-) -> std::sync::Arc<SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>>> {
-    crate::frozen_program::frozen_memo(
-        program,
-        |memos| &memos.nominal_cleanup_machine_index,
-        || {
-            let mut index: SymbolKeyMap<symbols::SymbolHandle, Vec<symbols::SymbolHandle>> =
-                Default::default();
-            for machine in program.machines() {
-                // Independent hooks are authorized by an exact owned
-                // qualification. They are never ambient candidates for every
-                // occurrence of the same carrier.
-                if !machine.attached_data_symbol.is_valid() {
-                    continue;
-                }
-                let Some(candidate_owner) = nominal_cleanup_owner(program, machine.symbol) else {
-                    continue;
-                };
-                index
-                    .entry(candidate_owner)
-                    .or_default()
-                    .push(machine.symbol);
-                if let Some(origin) = program
-                    .unique_data_definition_by_symbol(candidate_owner)
-                    .and_then(|data| data.generic_instance)
-                    && let TypeReferenceNode::Generic { base_symbol, .. } =
-                        program.type_reference_table.type_reference(origin)
-                    && *base_symbol != candidate_owner
-                {
-                    index.entry(*base_symbol).or_default().push(machine.symbol);
-                }
-            }
-            index
-        },
-    )
+    data: SymbolHandle,
+) -> Option<&Machine> {
+    let selection = program
+        .unique_data_definition_by_symbol(data)?
+        .cleanup_selection
+        .as_ref()?;
+    super::cleanup_selection::machine_for_selection(program, selection)
 }
 
 /// The first reserved cleanup machine, in program order, that
@@ -590,38 +542,6 @@ fn validate_cleanup_machine(
         )));
         return;
     };
-    if !super::cleanup_selection::is_selected_machine(program, machine.symbol) {
-        let attached_symbol = machine.attached_data_symbol;
-        let parameters = program.state_parameters(entry);
-        // The shape is one exclusive loan of the machine's own data and nothing
-        // else. Owner applications keep the declaration's entire telescope in its
-        // original positions; a specialization or permuted region list cannot
-        // designate the universal cleanup role of the template.
-        let shape_is_exact = matches!(parameters, [owner]
-    if owner.is_mutable
-        && !owner.is_const
-            && mutable_reference_targets(program, owner.type_reference, attached_symbol));
-        if !shape_is_exact {
-            diagnostics.push(Diagnostic::error(format!(
-                "cleanup machine `{}` must take exactly one exclusive loan of its own data \
-             and no other parameters, as `drop(value: &mut {})`",
-                machine.name,
-                machine
-                    .attached_data
-                    .as_ref()
-                    .map(|name| name.as_str())
-                    .unwrap_or("Data")
-            )));
-        }
-        if !machine.lifetime_parameters.is_empty()
-            || !program.machine_type_parameters(machine).is_empty()
-        {
-            diagnostics.push(Diagnostic::error(format!(
-                "cleanup machine `{}` may not declare method-local lifetime or type parameters",
-                machine.name
-            )));
-        }
-    }
     if entry.return_type.is_valid()
         && !matches!(
             program
@@ -664,77 +584,6 @@ fn validate_cleanup_machine(
     }
 }
 
-fn mutable_reference_targets(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    attached_symbol: symbols::SymbolHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            mutable_reference_targets(program, *base_type, attached_symbol)
-        }
-        TypeReferenceNode::Reference {
-            referee,
-            access: ReferenceAccess::Mutable,
-            ..
-        } => owner_type_matches(program, *referee, attached_symbol),
-        _ => false,
-    }
-}
-
-/// Match the nominal owner and its identity application, not just its spelling
-/// or generic head. Declaration binders are implicit inputs of the owner hook;
-/// method-local binders remain forbidden. Regions keep their erased binder
-/// coordinates while type, value and callable operands use resolved symbols.
-fn owner_type_matches(
-    program: &dyn crate::CheckingInput,
-    type_reference: TypeReferenceHandle,
-    attached_symbol: symbols::SymbolHandle,
-) -> bool {
-    match program.type_reference_table.type_reference(type_reference) {
-        TypeReferenceNode::Constrained { base_type, .. } => {
-            owner_type_matches(program, *base_type, attached_symbol)
-        }
-        TypeReferenceNode::Named { symbol, .. } => {
-            attached_symbol.is_valid() && *symbol == attached_symbol
-        }
-        TypeReferenceNode::Generic {
-            base_symbol,
-            lifetime_arguments,
-            arguments,
-            ..
-        } => {
-            let Some(owner) = program.data_definition_by_symbol(attached_symbol) else {
-                return false;
-            };
-            let parameters = program.data_type_parameters(owner);
-            let arguments = program
-                .type_reference_table
-                .type_reference_handles(*arguments);
-            *base_symbol == attached_symbol
-                && lifetime_arguments == &owner.lifetime_parameters
-                && arguments.len() == parameters.len()
-                && arguments
-                    .iter()
-                    .zip(parameters)
-                    .all(|(argument, parameter)| {
-                        match program.type_reference_table.type_reference(*argument) {
-                            TypeReferenceNode::Named { symbol, .. } => *symbol == parameter.symbol,
-                            TypeReferenceNode::ConstExpression(expression)
-                                if parameter.kind.is_const_or_value() =>
-                            {
-                                expression_table(program)
-                                    .name_path_node(*expression)
-                                    .is_some_and(|name| name.symbol == parameter.symbol)
-                            }
-                            _ => false,
-                        }
-                    })
-        }
-        _ => false,
-    }
-}
-
 /// A consuming delivery must expose the same cleanup interface as its owned
 /// operand. An explicit predicate cast changes displayed membership, but is
 /// not authority to discard a selected disposition. Until an erased interface
@@ -753,14 +602,25 @@ pub(crate) fn validate_cleanup_delivery(
     while let ExpressionNode::Cast(cast) = expression_table(program).expression(value) {
         value = cast.value;
     }
-    let Some(source) =
+    let Some(source_type) =
         super::expression_types::expression_result_type_reference(program, machine, state, value)
     else {
         return;
     };
-    let Ok(Some(source)) = super::cleanup_selection::selected_application(program, source) else {
+    let Ok(Some(source)) = super::cleanup_selection::selected_application(program, source_type)
+    else {
         return;
     };
+    // Storing through `&mut T` or lending to `&T` delivers into the referee;
+    // the reference itself carries no cleanup interface to compare.
+    let target = crate::reference_shell(program, target).map_or(target, |shell| shell.referee);
+    // The selection is a function of the region-erased type. Reaching the
+    // same type through a generic signature or an elided region names the
+    // same cleanup even when the two references find different (authored or
+    // specialized) copies of its application.
+    if program.normalized_type_identity(source_type) == program.normalized_type_identity(target) {
+        return;
+    }
     match super::cleanup_selection::selected_application(program, target) {
         Ok(Some(target)) if super::cleanup_selection::same_application(program, source, target) => {},
         Err(diagnostic) => diagnostics.push(diagnostic),

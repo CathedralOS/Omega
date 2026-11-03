@@ -53,7 +53,6 @@ pub(crate) fn build_flow_facts(
     service_reaches: &flow_effects::ServiceReachInferencePlan,
     scalar_expressions: &checked_trees::CheckedScalarExpressionPlans,
     operators: &checked_trees::CheckedOperatorFacts,
-    exact_integer_casts: &[validation::ExactIntegerCastFact],
     state_mutation_summary_cache: &StateMutationSummaryCache,
     shared_call_frames: Option<&validation::CallFrameResolver<'_>>,
 ) -> FlowFacts {
@@ -103,7 +102,6 @@ pub(crate) fn build_flow_facts(
             &baseline,
             scalar_expressions,
             operators,
-            exact_integer_casts,
             call_frames,
             state_mutation_summary_cache,
             shared_tables.clone(),

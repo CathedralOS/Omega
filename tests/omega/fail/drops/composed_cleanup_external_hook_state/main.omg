@@ -1,6 +1,6 @@
-data Token { value: u64; }
+data Token dropped by drop_token { value: u64; }
 
-machine Token::drop(token: &mut Token) {
+machine drop_token(token: &mut Token) {
     transition { _ -> finish(token) }
     machine finish(token: &mut Token) { token.value = 0; }
 }
@@ -8,5 +8,5 @@ machine Token::drop(token: &mut Token) {
 machine main() {
     let mut token: Token = Token { value: 7 };
     // Only transitions inside the executing hook may select its own states.
-    transition { _ -> Token::drop::finish(&mut token) }
+    transition { _ -> drop_token::finish(&mut token) }
 }

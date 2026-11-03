@@ -1,5 +1,5 @@
 // A one-member boundary trait requirement with a consuming contract, supplied
-// by a selected external sink. `Receipt` declares no `Receipt::drop` plan, so
+// by a selected external sink. `Receipt` selects no `dropped by` cleanup, so
 // only the requirement call can retire a receipt's claim. The obligation
 // reaches the requirement through transition arms that are alternatives, a
 // local forwarded into a later state, and projected record members; each call

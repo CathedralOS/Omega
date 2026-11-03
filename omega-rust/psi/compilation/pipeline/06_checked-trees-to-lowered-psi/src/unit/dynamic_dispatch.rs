@@ -533,82 +533,18 @@ fn lower_slot(
         _ => return unsupported("nonstructural dynamic result carries claims"),
     };
     result_claim_paths.sort();
-    let mut result_reference_regions = Vec::new();
-    for reference in &plan.result_reference_sources {
-        if matches!(
-            reference.source.root,
-            checked_trees::CheckedReferenceOriginRoot::Parameter { .. }
-        ) && reference.source.extent != semantic_vocabulary::ReferenceOriginExtent::WithinRegion
-        {
-            return unsupported("dynamic result contract contains a private precise origin");
-        }
-        let terminal_psi::BoundaryMachineResult::Structural(result) = &result else {
-            return unsupported("nonstructural dynamic result carries reference origins");
-        };
-        let (origin, root_type) =
-            match reference.source.root {
-                checked_trees::CheckedReferenceOriginRoot::Parameter { index } => {
-                    let formal = structural_parameters.get(index as usize).ok_or(
-                        LoweringError::Unsupported("dynamic result region has no structural input"),
-                    )?;
-                    (
-                        terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
-                            argument_index: index,
-                        },
-                        if reference.source.entry_reference_hops == 0 {
-                            ProjectionRoot::Published(formal.structural_type)
-                        } else {
-                            ProjectionRoot::BorrowedEntry {
-                                published: formal.structural_type,
-                                access: formal.access,
-                                reference_hops: reference.source.entry_reference_hops,
-                            }
-                        },
-                    )
-                }
-                checked_trees::CheckedReferenceOriginRoot::Invocation { carrier_type } => {
-                    let carrier_type = lookup_type_id(type_ids, &carrier_type)?;
-                    (
-                        terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type },
-                        {
-                            if reference.source.entry_reference_hops != 0 {
-                                return unsupported(
-                                    "dynamic invocation origin cannot erase a formal entry",
-                                );
-                            }
-                            ProjectionRoot::Published(carrier_type)
-                        },
-                    )
-                }
-            };
-        let source_path =
-            crate::expression_preparation::bindings::structural_paths::lower_reference_origin_path(
-                identities,
-                checked,
-                &reference.source.path,
-                root_type,
-                terminal_access(reference.source.access),
-                structural_types,
-            )?
-            .into_iter()
-            .map(|projection| match projection {
-                terminal_psi::ReferenceOriginProjection::Exact(segment) => Ok(segment),
-                terminal_psi::ReferenceOriginProjection::Element => unsupported(
-                    "dynamic result input region requires an exact supplying descriptor",
-                ),
-            })
-            .collect::<Result<Vec<_>, LoweringError>>()?;
-        result_reference_regions.push(terminal_psi::TerminalDynamicReferenceRegion {
-            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
-                identities, &reference.path, result.structural_type, structural_types,
-            )?,
-            origin,
-            source_path,
-            access: terminal_access(reference.source.access),
-        });
-    }
-    result_reference_regions.sort();
-    result_reference_regions.dedup();
+    let result_reference_regions = lower_result_reference_regions(
+        identities,
+        checked,
+        &plan.result_reference_sources,
+        &result,
+        &structural_parameters
+            .iter()
+            .map(|p| (p.structural_type, p.access))
+            .collect::<Vec<_>>(),
+        type_ids,
+        structural_types,
+    )?;
     Ok(TerminalDynamicSlot {
         slot,
         declaring_trait_identity: identities
@@ -699,4 +635,101 @@ fn realizes_slot(
 
 fn unsupported<T>(reason: &'static str) -> Result<T, LoweringError> {
     Err(LoweringError::Unsupported(reason))
+}
+
+/// Mechanically publish the checked public region relation for either a
+/// static boundary or a dynamic requirement. Input regions choose no address.
+pub(super) fn lower_result_reference_regions(
+    identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+    checked: &CheckedTrees,
+    sources: &[checked_trees::CheckedReturnedReferencePlan],
+    result: &terminal_psi::BoundaryMachineResult,
+    parameters: &[(
+        semantic_vocabulary::StructuralTypeId,
+        terminal_psi::StructuralAccess,
+    )],
+    type_ids: &[(
+        typed_trees::type_identity::TypeIdentityId,
+        semantic_vocabulary::StructuralTypeId,
+    )],
+    structural_types: &[terminal_psi::StructuralTypeDeclaration],
+) -> Result<Vec<terminal_psi::TerminalDynamicReferenceRegion>, LoweringError> {
+    let mut result_reference_regions = Vec::new();
+    for reference in sources {
+        if matches!(
+            reference.source.root,
+            checked_trees::CheckedReferenceOriginRoot::Parameter { .. }
+        ) && reference.source.extent != semantic_vocabulary::ReferenceOriginExtent::WithinRegion
+        {
+            return unsupported("public result contract contains a private precise origin");
+        }
+        let terminal_psi::BoundaryMachineResult::Structural(result) = result else {
+            return unsupported("nonstructural public result carries reference origins");
+        };
+        let (origin, root_type) = match reference.source.root {
+            checked_trees::CheckedReferenceOriginRoot::Parameter { index } => {
+                let formal = parameters
+                    .get(index as usize)
+                    .ok_or(LoweringError::Unsupported(
+                        "public result region has no structural input",
+                    ))?;
+                (
+                    terminal_psi::TerminalDynamicReferenceOrigin::Parameter {
+                        argument_index: index,
+                    },
+                    if reference.source.entry_reference_hops == 0 {
+                        ProjectionRoot::Published(formal.0)
+                    } else {
+                        ProjectionRoot::BorrowedEntry {
+                            published: formal.0,
+                            access: formal.1,
+                            reference_hops: reference.source.entry_reference_hops,
+                        }
+                    },
+                )
+            }
+            checked_trees::CheckedReferenceOriginRoot::Invocation { carrier_type } => {
+                let carrier_type = lookup_type_id(type_ids, &carrier_type)?;
+                (
+                    terminal_psi::TerminalDynamicReferenceOrigin::Invocation { carrier_type },
+                    {
+                        if reference.source.entry_reference_hops != 0 {
+                            return unsupported(
+                                "public invocation origin cannot erase a formal entry",
+                            );
+                        }
+                        ProjectionRoot::Published(carrier_type)
+                    },
+                )
+            }
+        };
+        let source_path =
+            crate::expression_preparation::bindings::structural_paths::lower_reference_origin_path(
+                identities,
+                checked,
+                &reference.source.path,
+                root_type,
+                terminal_access(reference.source.access),
+                structural_types,
+            )?
+            .into_iter()
+            .map(|projection| match projection {
+                terminal_psi::ReferenceOriginProjection::Exact(segment) => Ok(segment),
+                terminal_psi::ReferenceOriginProjection::Element => {
+                    unsupported("public result input region requires an exact supplying descriptor")
+                }
+            })
+            .collect::<Result<Vec<_>, LoweringError>>()?;
+        result_reference_regions.push(terminal_psi::TerminalDynamicReferenceRegion {
+            path: crate::expression_preparation::bindings::structural_paths::lower_static_argument_path(
+                identities, &reference.path, result.structural_type, structural_types,
+            )?,
+            origin,
+            source_path,
+            access: terminal_access(reference.source.access),
+        });
+    }
+    result_reference_regions.sort();
+    result_reference_regions.dedup();
+    Ok(result_reference_regions)
 }

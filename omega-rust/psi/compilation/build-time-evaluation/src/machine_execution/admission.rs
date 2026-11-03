@@ -151,7 +151,8 @@ pub struct BuildTimeAdmissionPlan {
     selected_operators: Vec<crate::SelectedBuildTimeBinaryOperator>,
     selected_provider_bodies: Vec<crate::SelectedBuildTimeProviderBody>,
     selected_execution: Option<TypedTrees>,
-    selected_machine_bodies: Vec<crate::SelectedBuildTimeMachineBody>,
+    checked_selected_closures:
+        std::cell::RefCell<Vec<(SymbolHandle, Result<std::rc::Rc<CheckedTrees>, String>)>>,
     pub(crate) accounting: EvaluationAccounting,
     checked_closures: std::cell::RefCell<
         Vec<(
@@ -255,7 +256,7 @@ impl BuildTimeAdmissionPlan {
             selected_operators: Vec::new(),
             selected_provider_bodies: Vec::new(),
             selected_execution: None,
-            selected_machine_bodies: Vec::new(),
+            checked_selected_closures: std::cell::RefCell::new(Vec::new()),
             accounting: Default::default(),
             checked_closures: Default::default(),
         }
@@ -337,41 +338,6 @@ impl BuildTimeAdmissionPlan {
         .map_or(Ok(()), Err)
     }
 
-    /// The realization owner supplies exact retained bodies, without giving
-    /// target knowledge to Psi. Rewrite the shared closure edges once so all
-    /// admission axes and execution follow the same checked declarations.
-    pub fn with_selected_machine_bodies(
-        mut self,
-        program: &TypedTrees,
-        selections: &[crate::SelectedBuildTimeMachineBody],
-    ) -> Result<Self, String> {
-        if !self.selected_machine_bodies.is_empty() {
-            return Err("build-time family-body selections are already settled".to_owned());
-        }
-        crate::SelectedBuildTimeMachineBody::validate_all(program, selections)?;
-        for edge in &mut self.call_edges {
-            let target = if edge.target_machine_symbol.is_valid() {
-                edge.target_machine_symbol
-            } else {
-                // Unmeasured terminal recursion keeps a machine-symbol edge
-                // in the state lane; it requires the same body selection.
-                edge.target_state_symbol
-            };
-            if let Some(selected) = selections.iter().find(|selected| selected.family == target) {
-                edge.target_machine_symbol = selected.body;
-                if let Some(entry) = program
-                    .machine(selected.body)
-                    .and_then(|machine| program.machine_states(machine).first())
-                {
-                    edge.target_state_symbol = entry.symbol;
-                }
-            }
-        }
-        self.selected_machine_bodies = selections.to_vec();
-        self.checked_closures.borrow_mut().clear();
-        Ok(self)
-    }
-
     /// The machines in `root`'s call-edge closure, root first: the floor
     /// summarizes exactly the closure the shared walk admits.
     fn closure_machine_symbols(
@@ -419,7 +385,7 @@ impl BuildTimeAdmissionPlan {
         program: &TypedTrees,
         bodies: &[crate::SelectedBuildTimeProviderBody],
     ) -> Result<Self, String> {
-        if !self.selected_provider_bodies.is_empty() || !self.selected_machine_bodies.is_empty() {
+        if !self.selected_provider_bodies.is_empty() {
             return Err("build-time execution bodies are already settled".to_owned());
         }
         if let Some(execution) = super::selected_operators::prepare_selected_execution(
@@ -437,6 +403,7 @@ impl BuildTimeAdmissionPlan {
         }
         self.selected_provider_bodies = bodies.to_vec();
         self.checked_closures.borrow_mut().clear();
+        self.checked_selected_closures.borrow_mut().clear();
         Ok(self)
     }
 
@@ -467,6 +434,7 @@ impl BuildTimeAdmissionPlan {
         self.selected_operators =
             super::selected_operators::retain_specialized_operators(program, operators)?;
         self.checked_closures.borrow_mut().clear();
+        self.checked_selected_closures.borrow_mut().clear();
         Ok(self)
     }
 
@@ -608,7 +576,6 @@ impl BuildTimeAdmissionPlan {
         // before selecting the portion that the checked closure consumes.
         crate::validate_selected_operators(program, &self.selected_operators)?;
         crate::validate_selected_provider_bodies(program, &self.selected_provider_bodies)?;
-        crate::SelectedBuildTimeMachineBody::validate_all(program, &self.selected_machine_bodies)?;
         let program_key = (
             std::ptr::from_ref(program) as usize,
             program.machines().len(),
@@ -656,16 +623,6 @@ impl BuildTimeAdmissionPlan {
                 })
                 .cloned()
                 .collect::<Vec<_>>();
-            // Keep a surviving family or body edge so a partial projection
-            // refuses below instead of silently dropping its selected meaning.
-            let machine_bodies = self
-                .selected_machine_bodies
-                .iter()
-                .filter(|row| {
-                    execution.machine(row.family).is_some() || execution.machine(row.body).is_some()
-                })
-                .copied()
-                .collect::<Vec<_>>();
             let provider_bodies = self
                 .selected_provider_bodies
                 .iter()
@@ -679,8 +636,7 @@ impl BuildTimeAdmissionPlan {
                 .collect::<Vec<_>>();
             let admission = Self::infer(execution, self.selection_authority.clone())
                 .with_selected_operators(execution, &operators)?
-                .with_selected_provider_bodies(execution, &provider_bodies)?
-                .with_selected_machine_bodies(execution, &machine_bodies)?;
+                .with_selected_provider_bodies(execution, &provider_bodies)?;
             Ok(std::rc::Rc::new((checked, admission)))
         })();
         self.checked_closures
@@ -689,6 +645,77 @@ impl BuildTimeAdmissionPlan {
         let pair = computed?;
         concrete_invocation::require_complete_invocation_conditions(&pair.0, machine_symbol)?;
         Ok(pair)
+    }
+
+    /// Check recursion with the storage history of the bodies that will run.
+    /// Early callers obtain ordinary checking only when the walk reaches a cycle.
+    fn checked_recursive_component(
+        &self,
+        input: BuildTimeProgram<'_>,
+        root: SymbolHandle,
+    ) -> Result<Vec<SymbolHandle>, String> {
+        fn members(
+            checked: &CheckedTrees,
+            root: SymbolHandle,
+        ) -> Result<Vec<SymbolHandle>, String> {
+            concrete_invocation::require_complete_invocation_conditions(checked, root)?;
+            let machine = checked
+                .typed
+                .machine(root)
+                .ok_or("checked recursive execution lost its requested machine")?;
+            Ok(
+                typed_trees_to_checked_trees::infer_checked_recursive_machine_terminations(
+                    checked,
+                    root,
+                    machine.states,
+                )
+                .into_iter()
+                .filter_map(|member| {
+                    checked
+                        .typed
+                        .machine(member.machine)
+                        .filter(|machine| machine.states == member.body)
+                        .map(|machine| machine.symbol)
+                })
+                .collect(),
+            )
+        }
+        if let Some(execution) = self.selected_execution.as_ref() {
+            let cached = self
+                .checked_selected_closures
+                .borrow()
+                .iter()
+                .find(|(symbol, _)| *symbol == root)
+                .map(|(_, result)| result.clone());
+            let checked = match cached {
+                Some(result) => result?,
+                None => {
+                    // Rewritten calls need their own checking. Source flow facts
+                    // cannot describe the selected bodies' writes or calls.
+                    let admission = Self::infer(execution, self.selection_authority.clone());
+                    let domain = PreparedEvaluationInputs::domain_for_admission(
+                        execution,
+                        &admission,
+                        &[root],
+                        &[],
+                    );
+                    let result = concrete_invocation::checked_demanded_closure(&domain, execution)
+                        .map(std::rc::Rc::new);
+                    self.checked_selected_closures
+                        .borrow_mut()
+                        .push((root, result.clone()));
+                    result?
+                }
+            };
+            return members(&checked, root);
+        }
+        match input {
+            BuildTimeProgram::Checked(checked) => members(checked, root),
+            BuildTimeProgram::Typed(program) => {
+                let pair = self.checked_closure_admission(program, root)?;
+                members(&pair.0, root)
+            }
+        }
     }
 
     fn require_checked_invocation_floor(
@@ -816,7 +843,6 @@ impl BuildTimeAdmissionPlan {
         let program = input.typed();
         crate::validate_selected_operators(program, &self.selected_operators)?;
         crate::validate_selected_provider_bodies(program, &self.selected_provider_bodies)?;
-        crate::SelectedBuildTimeMachineBody::validate_all(program, &self.selected_machine_bodies)?;
         // The ordinary inference may stop at a bodyless family contract. Its
         // selected body's complete summaries remain independently mandatory;
         // never grant purity merely by redirecting the executable edge.
@@ -859,11 +885,17 @@ impl BuildTimeAdmissionPlan {
         let execution_machine = execution.machine_by_symbol(machine.symbol).ok_or_else(|| {
             "selected build-time execution lost its exact source machine".to_owned()
         })?;
+        let execution_input: &dyn validation::CheckingInput = match self.selected_execution.as_ref()
+        {
+            Some(execution) => execution,
+            None => input.checking_input(),
+        };
         let closure_violation = checked_closure_violation(
             &self.call_edges,
-            execution,
+            execution_input,
             execution_machine,
             discharge_authored_requires,
+            &|symbol| self.checked_recursive_component(input, symbol),
         );
         let selection_violation = selection_authority_violation(
             &self.call_edges,
@@ -914,7 +946,6 @@ impl BuildTimeAdmissionPlan {
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(program),
                 BuildMachineEvaluationRequest {
-                    machine_bodies: &self.selected_machine_bodies,
                     ..BuildMachineEvaluationRequest::named(machine_name, arguments)
                 },
             )
@@ -944,7 +975,6 @@ impl BuildTimeAdmissionPlan {
             .evaluate(
                 checked_interpreter::BuildMachineProgram::Typed(program),
                 BuildMachineEvaluationRequest {
-                    machine_bodies: &self.selected_machine_bodies,
                     ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
                 },
             )
@@ -1051,7 +1081,6 @@ impl BuildTimeAdmissionPlan {
                 checked_interpreter::BuildMachineProgram::Typed(program),
                 BuildMachineEvaluationRequest {
                     operators: &self.selected_operators,
-                    machine_bodies: &self.selected_machine_bodies,
                     ..BuildMachineEvaluationRequest::symbol(machine.symbol, arguments)
                 },
             )
@@ -1183,7 +1212,6 @@ impl BuildTimeAdmissionPlan {
                         checked_interpreter::BuildMachineProgram::Checked(checked),
                         BuildMachineEvaluationRequest {
                             operators: &self.selected_operators,
-                            machine_bodies: &self.selected_machine_bodies,
                             ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
                         },
                     )
@@ -1230,7 +1258,6 @@ impl BuildTimeAdmissionPlan {
                 checked_interpreter::BuildMachineProgram::Checked(checked),
                 BuildMachineEvaluationRequest {
                     operators: &admission.selected_operators,
-                    machine_bodies: &admission.selected_machine_bodies,
                     ..BuildMachineEvaluationRequest::symbol(machine_symbol, arguments)
                 },
             )

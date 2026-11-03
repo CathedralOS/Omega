@@ -3,13 +3,13 @@ use omega::language::core::content;
 use omega::language::core::drop;
 use omega_language_std::console;
 data Slot { }
-data Capacity [linear] { serial: u64; }
+data Capacity [linear] dropped by drop_capacity { serial: u64; }
 domain Capacity::Held;
 machine Held::content(capacity: &Capacity) -> CountedQuantity<Slot>
 satisfies Content<Capacity, CountedQuantity<Slot>>::project {
  CountedQuantity { magnitude: Nat::Succ { prev: Nat::Zero } }
 }
-machine Capacity::drop(capacity: &mut Capacity) { }
+machine drop_capacity(capacity: &mut Capacity) { }
 data Outcome {
  case Accepted(capacity: Capacity in Capacity::Held);
  case Rejected(capacity: Capacity in Capacity::Held);

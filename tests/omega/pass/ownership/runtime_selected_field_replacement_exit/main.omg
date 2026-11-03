@@ -1,8 +1,8 @@
 // Expected exit: 0. A selected field moves through the shared completion owner.
 use omega::language::core::drop;
-data Token [linear] { value: u64; }
+data Token [linear] dropped by drop_token { value: u64; }
 data Envelope { token: Token; }
-machine Token::drop(token: &mut Token) {}
+machine drop_token(token: &mut Token) {}
 machine valid(enabled: bool) -> Token {
     let mut home: Envelope = Envelope { token: match enabled {
         true -> Token { value: 1 },

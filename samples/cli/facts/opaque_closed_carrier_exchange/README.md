@@ -201,7 +201,7 @@ All nine places and all nine independent places report `native exit 0` and
 `interp exit: 0`; the eighteen cleanup twins reject at checking with
 `contains independently invoked nominal cleanup` and `v1 carriers must be inert
 storage`. Each positive differs from its twin only by the added
-`AddressWord::drop` obligation. All eighteen fixtures carry macOS ARM64 native
+`drop_address_word` obligation. All eighteen fixtures carry macOS ARM64 native
 rows (`built ... exit:0`) in `tests/omega/corpus_native_macos_arm64.txt` and
 interpreter-agreement rows (`built ... exit:0 interpreter-exit:0
 interpreter:agrees`) in `tests/omega/corpus_both_macos_arm64.txt`, recorded at

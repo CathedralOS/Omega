@@ -10,10 +10,10 @@ data CountedQuantity<Unit> {
 trait Content<Owner, A> {
     machine project(subject: &Owner) -> A;
 }
-data Region [linear] {
+data Region [linear] dropped by drop_region {
     length: u64;
 }
-machine Region::drop(region: &mut Region) { }
+machine drop_region(region: &mut Region) { }
 data Scratch {
     marker: u64;
 }

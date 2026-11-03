@@ -4,11 +4,11 @@
 // obligation; the receiving state owns it and lets it die. Move-into-target on a
 // transition edge type-checks cleanly (moves are implicit in the ownership lane).
 
-data Guard {
+data Guard dropped by drop_guard {
     handle: i32;
 }
 
-machine Guard::drop(guard: &mut Guard) {
+machine drop_guard(guard: &mut Guard) {
 }
 
 machine main() {

@@ -14,8 +14,8 @@ satisfies Scheduler::advance
     value
 }
 
-public data Inventory [linear] { value: i32; }
-machine Inventory::drop(inventory: &mut Inventory) {}
+public data Inventory [linear] dropped by drop_inventory { value: i32; }
+machine drop_inventory(inventory: &mut Inventory) {}
 machine Inventory::forward(inventory: Inventory) -> Inventory { inventory }
 machine observe(value: &i32) -> bool { value == 40 }
 machine replace(value: &mut i32) { value = 47; }

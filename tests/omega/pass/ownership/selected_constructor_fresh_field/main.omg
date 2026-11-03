@@ -1,7 +1,7 @@
 // Expected exit: 0
 use omega::language::core::drop;
-data Token [linear] { value: u64; }
-machine Token::drop(token: &mut Token) {}
+data Token [linear] dropped by drop_token { value: u64; }
+machine drop_token(token: &mut Token) {}
 data Holder { token: Token; }
 data Pair { left: Token; right: Token; }
 data Wrapped { pair: Pair; }

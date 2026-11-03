@@ -1,7 +1,7 @@
 // The selector is mutable storage, but its value is unchanged between the
 // opening move and repair. Mutation after closing the window creates no debt.
-data Token { byte: i32; }
-machine Token::drop(token: &mut Token) { token.byte = 0; }
+data Token dropped by drop_token { byte: i32; }
+machine drop_token(token: &mut Token) { token.byte = 0; }
 machine reset(index: &mut u64) { index = 0; }
 
 machine rotate(tokens: &mut [Token], initial: u64)

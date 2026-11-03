@@ -33,15 +33,22 @@ pub(super) fn index_blocks(
     function: &PsiOptimizationFunction,
 ) -> Result<BTreeMap<BlockId, &optimization_unit::OptimizationBlock>, OptimizationUnitValidationError>
 {
-    let mut blocks = BTreeMap::new();
-    for block in &function.blocks {
-        if blocks.insert(block.id, block).is_some() {
-            return Err(OptimizationUnitValidationError::DuplicateBlock {
-                machine: function.machine,
-                block: block.id,
-            });
-        }
+    // Strict order is what lets `PsiOptimizationFunction::block` binary search.
+    if let Some(pair) = function
+        .blocks
+        .windows(2)
+        .find(|pair| pair[0].id >= pair[1].id)
+    {
+        return Err(OptimizationUnitValidationError::UnorderedBlock {
+            machine: function.machine,
+            block: pair[1].id,
+        });
     }
+    let blocks = function
+        .blocks
+        .iter()
+        .map(|block| (block.id, block))
+        .collect::<BTreeMap<_, _>>();
     if !blocks.contains_key(&function.entry) {
         return Err(OptimizationUnitValidationError::MissingEntryBlock {
             machine: function.machine,

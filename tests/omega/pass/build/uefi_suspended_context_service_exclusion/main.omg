@@ -30,7 +30,7 @@ invokes ProgramStorageEntry
     ProgramStorageEntry::enter(image, storage);
 }
 
-data KernelState { phase: u64; }
+data KernelState dropped by drop_kernel_state { phase: u64; }
 
 public boundary trait CleanupAudit {
     machine finish() reaches terminates;
@@ -40,7 +40,7 @@ QuietAudit satisfies CleanupAudit {
     machine finish() {}
 }
 
-machine KernelState::drop(context: &mut KernelState) reaches CleanupAudit {
+machine drop_kernel_state(context: &mut KernelState) reaches CleanupAudit {
     CleanupAudit::finish();
 }
 

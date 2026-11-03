@@ -154,17 +154,24 @@ pub struct PsiOptimizationUnit {
 impl PsiOptimizationUnit {
     /// The optimization function for `machine`, when the unit carries it.
     pub fn function(&self, machine: MachineId) -> Option<&PsiOptimizationFunction> {
-        self.functions
-            .iter()
-            .find(|function| function.machine == machine)
+        self.function_index(machine)
+            .map(|index| &self.functions[index])
     }
 
     /// The optimization function for `machine` for replay mutation, when the
     /// unit carries it.
     pub fn function_mut(&mut self, machine: MachineId) -> Option<&mut PsiOptimizationFunction> {
+        self.function_index(machine)
+            .map(|index| &mut self.functions[index])
+    }
+
+    /// The position of `machine`'s function. Functions are strictly increasing
+    /// by machine, checked at construction and by unit validation; pruning
+    /// removes rows, so machine IDs are not positions.
+    pub fn function_index(&self, machine: MachineId) -> Option<usize> {
         self.functions
-            .iter_mut()
-            .find(|function| function.machine == machine)
+            .binary_search_by_key(&machine, |function| function.machine)
+            .ok()
     }
 
     /// The boundary machine keyed `id`, when the unit declares it.

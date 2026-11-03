@@ -1,10 +1,10 @@
 // Expected exit: 0
 // Owned payload-bearing and empty cases share one authored return arm;
 // the unread payload's hook runs once after the selected call completes.
-data Receipt<'storage> { destination: &'storage mut u64; }
+data Receipt<'storage> dropped by drop_receipt<'storage> { destination: &'storage mut u64; }
 data Choice<'storage> { case Stop; case First(receipt: Receipt<'storage>); case Second; }
 data Packet { value: u64; }
-machine Receipt::drop(receipt: &mut Receipt<'storage>) {
+machine drop_receipt<'storage>(receipt: &mut Receipt<'storage>) {
     record_cleanup(receipt.destination);
 }
 machine record_cleanup(destination: &mut u64) {

@@ -1,5 +1,5 @@
 // Chapter 17: a resource-owning type defines cleanup
-// through the reserved `drop` machine shape. `Guard::drop(guard: &mut Guard)` is the
+// through the reserved `drop` machine shape. `drop_guard(guard: &mut Guard)` is the
 // teardown obligation; when a `Guard` local stops being live the compiler is
 // responsible for the structural cleanup. Defining the drop machine and letting
 // an owned local die at end of state type-checks cleanly.
@@ -7,7 +7,7 @@
 // A non-empty `drop` body is an ordinary Unit machine body: a source-ordered
 // list of ordinary calls to attached helpers runs at the cleanup edge.
 
-data Guard {
+data Guard dropped by drop_guard {
     handle: i32;
 }
 
@@ -21,7 +21,7 @@ machine Teardown::unlock() {
 machine Teardown::flush() {
 }
 
-machine Guard::drop(guard: &mut Guard) {
+machine drop_guard(guard: &mut Guard) {
     Teardown::unlock();
     Teardown::flush();
 }

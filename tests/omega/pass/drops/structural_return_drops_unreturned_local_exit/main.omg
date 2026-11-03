@@ -109,8 +109,8 @@ windows_x86_64 machine ConsoleNativeProvider::exit_process(return_code: i32)
     satisfies Console::exit_process
     via exit_process_binding();
 
-data Token { first: bool; }
-machine Token::drop(token: &mut Token) reaches Console {
+data Token dropped by drop_token { first: bool; }
+machine drop_token(token: &mut Token) reaches Console {
     transition token.first {
         true -> first()
         false -> second()

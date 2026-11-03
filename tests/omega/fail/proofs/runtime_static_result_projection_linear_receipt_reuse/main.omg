@@ -2,8 +2,8 @@ use omega::language::core::drop;
 use omega::language::core::nat;
 use omega_language_std::console;
 
-data Receipt [linear] { code: u64; }
-machine Receipt::drop(receipt: &mut Receipt) {}
+data Receipt [linear] dropped by drop_receipt { code: u64; }
+machine drop_receipt(receipt: &mut Receipt) {}
 
 data Observation { value: Nat; other: Nat; }
 

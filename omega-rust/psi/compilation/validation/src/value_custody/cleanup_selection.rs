@@ -10,7 +10,9 @@ use diagnostics::Diagnostic;
 use symbols::SymbolHandle;
 use typed_trees::domain::CleanupSelection;
 use typed_trees::static_applications::{StaticMachineBinding, StaticMachineBindingValue};
-use typed_trees::type_identity::{IndexIdentityArgument, normalized_index_identity};
+use typed_trees::type_identity::{
+    IndexIdentityArgument, TypeIdentityId, normalized_index_identity,
+};
 use typed_trees::types::{TypeConstraintNode, TypeReferenceHandle, TypeReferenceNode};
 
 fn declarations(program: &dyn CheckingInput) -> impl Iterator<Item = &CleanupSelection> {
@@ -37,6 +39,46 @@ pub(super) fn machine_for_selection<'program>(
     } else {
         target(program, selection)
     })
+}
+
+/// An open selection names a hook template. Each closed subject it covers has
+/// its own materialized instance, whose receiver is that exact carrier.
+/// `subject` is the carrier identity beneath any declared constraints. Two
+/// distinct instances for one carrier are not a choice this query makes: it
+/// answers `None`, and the caller keeps the open template.
+pub(super) fn closed_instance<'program>(
+    program: &'program dyn CheckingInput,
+    open: &CleanupSelection,
+    subject: typed_trees::type_identity::NormalizedTypeIdentity,
+) -> Option<&'program typed_trees::machine::Machine> {
+    let template = target(program, open);
+    let mut found: Option<&typed_trees::machine::Machine> = None;
+    for selection in declarations(program).filter(|selection| {
+        selection.executable.is_valid() && target(program, selection) == template
+    }) {
+        let Some(machine) = program.machine(selection.executable) else {
+            continue;
+        };
+        let Some(receiver) =
+            program.machine_states(machine).first().and_then(|entry| {
+                match program.state_parameters(entry) {
+                    [receiver] => crate::reference_shell(program, receiver.type_reference),
+                    _ => None,
+                }
+            })
+        else {
+            continue;
+        };
+        let receiver = super::places::peel_declared_constraints(program, receiver.referee);
+        if substituted_identity(program, receiver, &[]) != subject {
+            continue;
+        }
+        if found.is_some_and(|previous| previous.symbol != machine.symbol) {
+            return None;
+        }
+        found = Some(machine);
+    }
+    found
 }
 
 pub(super) fn selected_application<'program>(
@@ -87,11 +129,32 @@ fn binding_identity(program: &dyn CheckingInput, binding: &StaticMachineBinding)
     normalized_index_identity(program, argument, &[])
 }
 
+/// Regions are erased from type identity and from the executable a selection
+/// names, so two applications that differ only in region arguments run the same
+/// cleanup; whether the hook may borrow the value is ordinary loan checking.
+fn same_binding_value(
+    program: &dyn CheckingInput,
+    left: &StaticMachineBinding,
+    right: &StaticMachineBinding,
+) -> bool {
+    if let (StaticMachineBindingValue::Type(left), StaticMachineBindingValue::Type(right)) =
+        (&left.value, &right.value)
+    {
+        return program.normalized_type_identity(*left) == program.normalized_type_identity(*right);
+    }
+    binding_identity(program, left)
+        .zip(binding_identity(program, right))
+        .is_some_and(|(left, right)| left == right)
+}
+
 pub(super) fn same_application(
     program: &dyn CheckingInput,
     left: &CleanupSelection,
     right: &CleanupSelection,
 ) -> bool {
+    if left.application == right.application {
+        return true;
+    }
     let left_application = expression_table(program).static_machine_application(left.application);
     let right_application = expression_table(program).static_machine_application(right.application);
     if left_application.registration_operation != right_application.registration_operation {
@@ -118,37 +181,12 @@ pub(super) fn same_application(
             .zip(right_bindings)
             .all(|(left, right)| {
                 left.parameter == right.parameter
-                    && (left.value == right.value
-                        || binding_identity(program, left)
-                            .zip(binding_identity(program, right))
-                            .is_some_and(|(left, right)| left == right))
+                    && (left.value == right.value || same_binding_value(program, left, right))
             })
     {
         return false;
     }
-    let left_lifetimes =
-        expression_table(program).static_machine_application_lifetimes(left.application);
-    let right_lifetimes =
-        expression_table(program).static_machine_application_lifetimes(right.application);
-    left_application.lifetime_binding_declaration == right_application.lifetime_binding_declaration
-        && left_lifetimes.len() == right_lifetimes.len()
-        && left_lifetimes
-            .iter()
-            .zip(right_lifetimes)
-            .all(|(left, right)| {
-                left.parameter == right.parameter
-                    && typed_trees::type_identity::lifetime_parameter_identity(
-                        program,
-                        left_application.lexical_owner,
-                        left.argument.as_str(),
-                    )
-                    .zip(typed_trees::type_identity::lifetime_parameter_identity(
-                        program,
-                        right_application.lexical_owner,
-                        right.argument.as_str(),
-                    ))
-                    .is_some_and(|(left, right)| left == right)
-            })
+    true
 }
 
 fn visit_type<'program>(
@@ -251,22 +289,56 @@ fn visit_domain<'program>(
 }
 
 /// Executable instances have exact subjects. An open generic template may
-/// serve several carriers; it has no distinguished first owner.
+/// serve several carriers; it has no distinguished first owner. Every selection
+/// naming the machine must close the same carrier identity.
 pub(super) fn owner_for_machine(
     program: &dyn CheckingInput,
     machine: SymbolHandle,
 ) -> Option<SymbolHandle> {
-    let mut owner = None;
+    // The owner, its carrier identity, and whether the selection's subject
+    // named that closed definition itself.
+    let mut owner: Option<(SymbolHandle, TypeIdentityId, bool)> = None;
     for selection in declarations(program).filter(|selection| {
         selection.executable == machine || target(program, selection) == machine
     }) {
-        let data = program.closed_data_definition(selection.subject)?;
-        if owner.is_some_and(|previous| previous != data.symbol) {
-            return None;
-        }
-        owner = Some(data.symbol);
+        let identity = program.normalized_type_identity(selection.subject);
+        // A specialized instance's own selection may name its subject with
+        // elided regions; the declaring instance is then its owner.
+        let (data, exact) = match program.closed_data_definition(selection.subject) {
+            Some(data) => (data.symbol, true),
+            None => (
+                program
+                    .unique_data_definition_by_symbol(
+                        expression_table(program)
+                            .static_machine_application(selection.application)
+                            .lexical_owner,
+                    )?
+                    .symbol,
+                false,
+            ),
+        };
+        owner = match owner {
+            None => Some((data, identity, exact)),
+            Some((previous, previous_identity, previous_exact))
+                if previous == data && previous_identity == identity =>
+            {
+                Some((data, identity, previous_exact || exact))
+            }
+            // Both selections close the same carrier: the definition its
+            // subject names exactly is the owner of that carrier.
+            Some((previous, previous_identity, previous_exact))
+                if previous_identity == identity && previous_exact != exact =>
+            {
+                Some(if exact {
+                    (data, identity, true)
+                } else {
+                    (previous, identity, true)
+                })
+            }
+            Some(_) => return None,
+        };
     }
-    owner
+    owner.map(|(symbol, ..)| symbol)
 }
 
 /// The exact closed subject of the selections this executable instance
@@ -337,7 +409,10 @@ pub(super) fn validate_declaration_owners(
                 })
                 .collect::<Vec<_>>();
             let actual = substituted_identity(program, shell.referee, &substitutions);
-            Some(actual == program.normalized_type_identity(selection.subject))
+            Some(
+                actual == program.normalized_type_identity(selection.subject)
+                    && receiver_regions_match(program, selection, shell.referee),
+            )
         });
         if shape != Some(true) {
             let mut diagnostic = Diagnostic::error(format!(
@@ -350,6 +425,57 @@ pub(super) fn validate_declaration_owners(
                 diagnostic = diagnostic.with_source_span(authored.source_span());
             }
             diagnostics.push(diagnostic);
+        }
+    }
+}
+
+/// Type identity erases regions, so compare them separately: the receiver's
+/// region arguments, renamed through the application's lifetime bindings,
+/// must be the subject's own region arguments in order. An application that
+/// binds no lifetimes leaves the hook's regions to ordinary inference.
+fn receiver_regions_match(
+    program: &dyn CheckingInput,
+    selection: &CleanupSelection,
+    receiver: TypeReferenceHandle,
+) -> bool {
+    let bindings =
+        expression_table(program).static_machine_application_lifetimes(selection.application);
+    if bindings.is_empty() {
+        return true;
+    }
+    // A data default domain names its subject by the bare declaration, and a
+    // specialized instance elides its regions; either way they are the
+    // declaration's own binders.
+    let subject = region_arguments(program, selection.subject)
+        .filter(|regions| !regions.is_empty())
+        .or_else(|| {
+            program
+                .closed_data_definition(selection.subject)
+                .map(|data| data.lifetime_parameters.as_slice())
+        });
+    let (Some(receiver), Some(subject)) = (region_arguments(program, receiver), subject) else {
+        return true;
+    };
+    receiver.len() == subject.len()
+        && receiver.iter().zip(subject).all(|(authored, owned)| {
+            bindings
+                .iter()
+                .find(|binding| binding.parameter.as_str() == authored.as_str())
+                .is_some_and(|binding| binding.argument.as_str() == owned.as_str())
+        })
+}
+
+fn region_arguments(
+    program: &dyn CheckingInput,
+    mut reference: TypeReferenceHandle,
+) -> Option<&[typed_trees::name::Identifier]> {
+    loop {
+        match program.type_reference_table.type_reference(reference) {
+            TypeReferenceNode::Constrained { base_type, .. } => reference = *base_type,
+            TypeReferenceNode::Generic {
+                lifetime_arguments, ..
+            } => return Some(lifetime_arguments),
+            _ => return None,
         }
     }
 }

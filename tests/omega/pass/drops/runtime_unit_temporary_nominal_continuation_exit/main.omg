@@ -1,7 +1,7 @@
-data Token { value: u64; }
+data Token dropped by drop_token { value: u64; }
 data Group { first: Token; second: Token; third: Token; }
 
-machine Token::drop(token: &mut Token) { token.value = 0; }
+machine drop_token(token: &mut Token) { token.value = 0; }
 
 machine make_group(counter: &mut u64) -> Group {
     counter = ((counter as u64 in Wrapping) + 1) as u64;

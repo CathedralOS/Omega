@@ -3,7 +3,7 @@
   "entry": "main.omg",
   "rejection_contains": [
     "cannot prove automatic cleanup requires",
-    "Room::drop",
+    "drop_room",
     "room.count == 10"
   ]
 }

@@ -50,6 +50,7 @@ fn unit() -> PsiOptimizationUnit {
         scalar_domain_requirements: Vec::new(),
         scalar_requires: Vec::new(),
         scalar_ensures: Vec::new(),
+        result_reference_regions: Vec::new(),
         reference_outputs: Vec::new(),
         program_local_root_introductions: Vec::new(),
         content_guarantees: Vec::new(),

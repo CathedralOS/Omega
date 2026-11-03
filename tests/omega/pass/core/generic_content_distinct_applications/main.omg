@@ -4,8 +4,8 @@ use omega::language::core::drop;
 data Units {}
 const FirstExpected: u64 = 29;
 const SecondExpected: u64 = 30;
-data Region [linear] { amount: u64; marker: u64; }
-machine Region::drop(region: &mut Region) {}
+data Region [linear] dropped by drop_region { amount: u64; marker: u64; }
+machine drop_region(region: &mut Region) {}
 domain Region::Owned;
 machine Owned::content(region: &Region) -> CountedQuantity<Units>
 satisfies Content<Region, CountedQuantity<Units>>::project {

@@ -36,7 +36,7 @@ omega run --both samples/cli/facts/free_entry_local_state/other_machine/main.omg
 omega run --both samples/cli/facts/free_entry_local_state/target_body/main.omg
 ```
 
-The exit code 0 discriminates the cleanup. The tally starts at 0. `Mark::drop` requires code 7 and writes that code into the tally. The following transition accepts only `tally.total == 7`. A skipped hook leaves 0, and the `bad` state crashes.
+The exit code 0 discriminates the cleanup. The tally starts at 0. `drop_mark` requires code 7 and writes that code into the tally. The following transition accepts only `tally.total == 7`. A skipped hook leaves 0, and the `bad` state crashes.
 
 ### Historical Linux observations
 

@@ -4,10 +4,10 @@
 use omega::language::core::content;
 use omega::language::core::drop;
 data Units {}
-data Ticket { value: u64; }
-machine Ticket::drop(ticket: &mut Ticket) {}
+data Ticket dropped by drop_ticket { value: u64; }
+machine drop_ticket(ticket: &mut Ticket) {}
 data Box<T> { value: T; }
-data Envelope [linear] {
+data Envelope [linear] dropped by drop_envelope {
     quantity: u64;
     case Occupied(storage: Box<Ticket>);
     case Empty;
@@ -23,7 +23,7 @@ ensures Accounted::content(old(&whole)) == Accounted::content(&result) {
     Envelope::Empty { quantity: whole.quantity }
 }
 
-machine Envelope::drop(value: &mut Envelope) {}
+machine drop_envelope(value: &mut Envelope) {}
 machine main() crashes Trap {
     let whole: Envelope in Accounted = Envelope::Empty { quantity: 19 };
     let renewed: Envelope in Accounted = renew_empty(whole);

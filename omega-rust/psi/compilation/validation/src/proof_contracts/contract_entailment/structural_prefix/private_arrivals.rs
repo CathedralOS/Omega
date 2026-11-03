@@ -187,7 +187,7 @@ where
         let mut eligible = members
             .iter_mut()
             .filter(|member| {
-                super::super::structural_case_arms::prefix_site_is_reachable(
+                super::super::structural_case_arms::prefix_site_is_reachable_from_entry(
                     program, root_entry, &**member,
                 )
             })
@@ -265,7 +265,7 @@ fn observe_frontier(
         let Some(root_entry) = program.machine_states(arrival_root).first() else {
             return false;
         };
-        if !super::super::structural_case_arms::prefix_site_is_reachable(
+        if !super::super::structural_case_arms::prefix_site_is_reachable_from_entry(
             program, root_entry, &observer,
         ) {
             continue;
@@ -340,13 +340,12 @@ impl StructuralPrefixVisitor for ArrivalRequirement<'_> {
         self.requirement.unresolved(machine);
     }
     fn stops_at_machine(&self, machine: SymbolHandle) -> bool {
-        // Closure checked every direct/escaping private use. Opaque calls in
-        // unrelated bodies cannot name this private occurrence; re-entry into
-        // an enclosing root is covered by that root's independent invocation.
-        // Ordinary completion still observes their actual writes and values.
-        let boundary = self.boundaries.contains(&machine);
-        (!boundary && !self.closed.bodies.contains(&machine))
-            || (machine != self.root && boundary)
+        // Each independent entry is checked from arbitrary inputs under its
+        // own requirements. A call back to it starts another invocation; do
+        // not unfold it with values from the invocation currently being checked.
+        // Calls outside this helper's closed callers cannot add an arrival.
+        self.boundaries.contains(&machine)
+            || !self.closed.bodies.contains(&machine)
             || self.requirement.stops_at_machine(machine)
     }
     fn observe<'program>(&mut self, observation: PrefixObservation<'_, 'program>) {

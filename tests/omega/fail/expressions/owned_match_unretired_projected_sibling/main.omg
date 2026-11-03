@@ -1,12 +1,12 @@
 // Expected rejection: the untouched linear sibling still owes its own cleanup.
 data Counter { touched: bool; }
-data Token [linear] { code: u64; }
-data Guard { output: &mut Counter; }
+data Token [linear] dropped by drop_token { code: u64; }
+data Guard dropped by drop_guard { output: &mut Counter; }
 data Triple { first: Token; second: Token; third: Guard; fourth: Token; }
 data Duo { left: Token; right: Token; }
-machine Token::drop(token: &mut Token) requires token.code == 0 {}
+machine drop_token(token: &mut Token) requires token.code == 0 {}
 machine retire(token: Token) requires token.code == 0 {}
-machine Guard::drop(guard: &mut Guard) { guard.output.touched = !guard.output.touched; }
+machine drop_guard(guard: &mut Guard) { guard.output.touched = !guard.output.touched; }
 machine finish(mut pair: Duo, choose: bool) -> bool {
     let observed: bool = (choose && pair.left.code == 7 && pair.right.code == 11)
         || (!choose && pair.left.code == 11 && pair.right.code == 7);

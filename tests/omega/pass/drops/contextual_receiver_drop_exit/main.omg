@@ -37,8 +37,8 @@ boundary trait WindowsConsoleIo {
     terminates;
 }
 
-data Main { byte: i32; }
-machine Main::drop(main: &mut Main) reaches Console {
+data Main dropped by drop_main { byte: i32; }
+machine drop_main(main: &mut Main) reaches Console {
     Console::write_byte(main.byte);
 }
 machine Main::main(main: &mut Main) reaches Console {

@@ -1,8 +1,8 @@
 // Expected exit: 0. Arithmetic endpoints retain the original captured values.
 use omega::language::core::content;
 use omega::language::core::drop;
-data Region [linear] { base: u64; length: u64; }
-machine Region::drop(region: &mut Region) {}
+data Region [linear] dropped by drop_region { base: u64; length: u64; }
+machine drop_region(region: &mut Region) {}
 domain Region::Owned;
 machine Owned::content(region: &Region) -> IntervalSet<Nat>
 satisfies Content<Region, IntervalSet<Nat>>::project {
