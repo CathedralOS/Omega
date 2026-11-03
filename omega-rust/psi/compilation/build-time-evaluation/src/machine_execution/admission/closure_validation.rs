@@ -5,9 +5,7 @@ use symbols::{SymbolHandle, SymbolKind};
 use typed_trees::TypedTrees;
 use typed_trees::machine::Machine;
 use typed_trees::signature::{SignatureContract, StateSignature};
-use typed_trees_to_checked_trees::{
-    infer_checked_recursive_machine_terminations, infer_machine_termination_summary,
-};
+use typed_trees_to_checked_trees::infer_machine_termination_summary;
 
 /// `discharge_authored_requires` records ordinary contract checking of either
 /// the concrete invocation at snapshot arguments or the internal call sites
@@ -16,16 +14,18 @@ use typed_trees_to_checked_trees::{
 /// carriers, and the other floor obligations keep applying unchanged.
 pub(super) fn checked_closure_violation(
     call_edges: &[BuildTimeCallEdge],
-    program: &TypedTrees,
+    input: &dyn validation::CheckingInput,
     root: &Machine,
     discharge_authored_requires: bool,
+    recursive_component: &dyn Fn(SymbolHandle) -> Result<Vec<SymbolHandle>, String>,
 ) -> Option<String> {
     machine_termination_violation(
         call_edges,
-        program,
+        input,
         root.symbol,
         &mut ClosureWalk::default(),
         discharge_authored_requires,
+        recursive_component,
     )
 }
 
@@ -194,16 +194,18 @@ struct ClosureWalk {
     completed: Vec<SymbolHandle>,
     active: Vec<SymbolHandle>,
     path: Vec<String>,
-    recursive_terminations: Vec<checked_trees::CheckedRuntimeRankMember>,
+    recursive_terminations: Vec<SymbolHandle>,
 }
 
 fn machine_termination_violation(
     call_edges: &[BuildTimeCallEdge],
-    program: &TypedTrees,
+    input: &dyn validation::CheckingInput,
     machine_symbol: SymbolHandle,
     walk: &mut ClosureWalk,
     discharge_authored_requires: bool,
+    recursive_component: &dyn Fn(SymbolHandle) -> Result<Vec<SymbolHandle>, String>,
 ) -> Option<String> {
+    let program = input.typed_program();
     if walk.completed.contains(&machine_symbol) {
         return None;
     }
@@ -226,33 +228,14 @@ fn machine_termination_violation(
         // Query the complete demanded component and retain all its exact body
         // judgments. Another component owes its own query; an unproved one
         // refuses immediately, so only successful components need caching.
-        let matches_body = |member: &checked_trees::CheckedRuntimeRankMember| {
-            member.machine == machine_symbol && member.body == machine.states
-        };
-        if !walk.recursive_terminations.iter().any(matches_body) {
-            phase_profile::count("compile_time.admission.recursive_component_queries", 1);
-            phase_profile::checkpoint(
-                "before build-time recursive component judgment",
-                "compile_time.admission.recursive_component_queries",
-            );
-            let query = phase_profile::guard("compile_time.admission.recursive_component");
-            // This owner receives bare typed execution. Borrow it immutably
-            // for the complete component judgment so its numeric and call-frame
-            // subqueries share the checker's existing invocation-owned memos.
-            let context = validation::CheckingContext::new(program);
-            walk.recursive_terminations
-                .extend(infer_checked_recursive_machine_terminations(
-                    &context,
-                    machine_symbol,
-                    machine.states,
-                ));
-            drop(query);
-            phase_profile::checkpoint(
-                "after build-time recursive component judgment",
-                "compile_time.admission.recursive_component",
-            );
+        if !walk.recursive_terminations.contains(&machine_symbol) {
+            let _query = phase_profile::guard("compile_time.admission.recursive_component");
+            match recursive_component(machine_symbol) {
+                Ok(members) => walk.recursive_terminations.extend(members),
+                Err(reason) => return Some(reason),
+            }
         }
-        let measured = walk.recursive_terminations.iter().any(matches_body);
+        let measured = walk.recursive_terminations.contains(&machine_symbol);
         if !measured {
             let violation = format!(
                 "recursive machine-call cycle has no ordinary termination proof along `{}`",
@@ -277,7 +260,7 @@ fn machine_termination_violation(
     let locally_terminates = target_snapshot
         || (machine.supply_mode == MachineSupplyMode::CheckedBody
             && matches!(
-                infer_machine_termination_summary(program, machine_symbol),
+                infer_machine_termination_summary(input, machine_symbol),
                 Some(TerminationGuarantee::Terminates { .. })
             ));
     if !locally_terminates {
@@ -312,10 +295,11 @@ fn machine_termination_violation(
         if let Some(target_machine_symbol) = call.target_machine(program) {
             if let Some(violation) = machine_termination_violation(
                 call_edges,
-                program,
+                input,
                 target_machine_symbol,
                 walk,
                 discharge_authored_requires,
+                recursive_component,
             ) {
                 walk.active
                     .retain(|active_symbol| *active_symbol != machine_symbol);

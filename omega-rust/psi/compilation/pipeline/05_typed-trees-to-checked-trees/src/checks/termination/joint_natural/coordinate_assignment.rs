@@ -43,20 +43,15 @@ fn search(
                 if edge.source >= chosen.len() || edge.destination >= chosen.len() {
                     return true;
                 }
-                let source = &candidates[edge.source][chosen[edge.source]];
-                let destination = &candidates[edge.destination][chosen[edge.destination]];
-                let compared = compare(program, machines, edge, source, destination, order);
-                if std::env::var_os("OMEGA_TRACE_RECURSIVE_ADMISSION").is_some() {
-                    eprintln!(
-                        "rank edge {}:{} -> {}:{} result={:?}",
-                        machines[edge.source].name,
-                        source.subject.position(),
-                        machines[edge.destination].name,
-                        destination.subject.position(),
-                        compared
-                    );
-                }
-                compared.is_some()
+                compare(
+                    program,
+                    machines,
+                    edge,
+                    &candidates[edge.source][chosen[edge.source]],
+                    &candidates[edge.destination][chosen[edge.destination]],
+                    order,
+                )
+                .is_some()
             }) {
                 search(program, machines, candidates, edges, order, chosen, result);
             }
