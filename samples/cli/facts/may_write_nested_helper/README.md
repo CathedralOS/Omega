@@ -109,7 +109,13 @@ of the PR evidence. That archive preserves the observed source and its earlier p
 further missing-initializer lookup in the reference-choice walk. A guard now
 retains an unknown choice for a declaration-only reference; new controls declare
 and assign that reference before returning it, or reject its use before a store.
-This follow-up still needs a public-compiler probe and complete validation.
+Run [41565055825](https://github.com/CathedralOS/Omega/actions/runs/41565055825)
+confirmed that the valid declared-then-assigned reference still lost the untouched
+bound. The original local case passed both engines, and all four invalid controls
+rejected for their intended obligations. The next repair records the assigned
+reference's choice before replacing the old binding; writes through a reference
+keep its choice, while exposed or ambiguous replacements remain unknown.
+Complete current-source validation is pending.
 
 The dynamic-return adjunct reproduced its exact descriptor-reconstruction refusal
 on the frozen baseline in

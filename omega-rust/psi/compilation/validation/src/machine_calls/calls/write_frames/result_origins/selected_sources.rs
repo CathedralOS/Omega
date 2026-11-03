@@ -37,8 +37,19 @@ impl ResultSelection {
         program: &dyn crate::CheckingInput,
         state: &State,
         statement: &StatementNode,
+        reachability: &mut ResultReachability,
     ) {
+        self.capture_reference_assignment(program, state, statement, reachability);
         self.values.finish_statement(program, state, statement);
+    }
+
+    fn capture_reference_assignment(
+        &mut self,
+        program: &dyn crate::CheckingInput,
+        state: &State,
+        statement: &StatementNode,
+        reachability: &mut ResultReachability,
+    ) {
         let StatementNode::Assignment(assignment) = statement else {
             return;
         };
@@ -46,23 +57,32 @@ impl ResultSelection {
         else {
             return;
         };
-        if let Some((_, captured)) = self
+        let Some(position) = self
             .captured_results
-            .iter_mut()
-            .find(|(symbol, _)| *symbol == target.symbol)
-            && program
-                .machine_holding_state(state.symbol)
-                .and_then(|machine| {
-                    super::super::reference_subjects::replaces_reference_binding(
-                        program, machine, statement,
-                    )
-                })
-                != Some(false)
-        {
-            // Descriptor replacement retires the choice. A scalar store through
-            // the captured reference changes its referent, not that descriptor.
-            *captured = None;
+            .iter()
+            .position(|(symbol, _)| *symbol == target.symbol)
+        else {
+            return;
+        };
+        let replacement = program
+            .machine_holding_state(state.symbol)
+            .and_then(|machine| {
+                super::super::reference_subjects::replaces_reference_binding(
+                    program, machine, statement,
+                )
+            });
+        if replacement == Some(false) {
+            // A store through the reference keeps its descriptor's choice.
+            return;
         }
+        // Remember which input the assigned reference selected. Evaluate that
+        // choice using the old binding and Boolean values, then install it.
+        // Exposure or an ambiguous store keeps the binding's result unknown.
+        let selected = (replacement == Some(true)
+            && !binding_is_exclusively_exposed(program, state, target.symbol))
+        .then(|| contributed_parameters(program, state, self, reachability, assignment.value))
+        .flatten();
+        self.captured_results[position].1 = selected;
     }
 }
 
@@ -227,7 +247,9 @@ fn reachable_value_parameters_body(
         .admitted_execution_statements(state.statement_nodes)
     {
         match statement {
-            StatementNode::Assignment(_) => current.finish_statement(program, state, statement),
+            StatementNode::Assignment(_) => {
+                current.finish_statement(program, state, statement, reachability)
+            }
             StatementNode::LocalData(local)
                 if type_reference_is_reference(program, local.type_reference) =>
             {
@@ -247,7 +269,9 @@ fn reachable_value_parameters_body(
                     .flatten();
                 current.captured_results.push((local.symbol, result));
             }
-            StatementNode::LocalData(_) => current.finish_statement(program, state, statement),
+            StatementNode::LocalData(_) => {
+                current.finish_statement(program, state, statement, reachability)
+            }
             StatementNode::Transition(transition) => {
                 let truth = match transition.guard {
                     TransitionGuardNode::Always => BoolTruth::True,
