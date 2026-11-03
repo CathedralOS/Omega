@@ -6437,76 +6437,42 @@ pass/facts/boundary_zero_origin_through_other_machine_exit checked 4323ms check-
 pass/facts/boundary_zero_origin_through_other_state_exit checked 3952ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/boundary_zero_origin_through_parameter_exit checked 3871ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/boundary_zero_origin_through_target_body_exit checked 38605ms check-target:macos_arm64 @b9580c0cab21+wt
-pass/facts/bounded_activation_claim_split_through_call_result_exit rejected 3802ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_claim_split_through_const_name_exit rejected 3400ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main::established", reason: "completed arrival has no established block", gap: None })
-pass/facts/bounded_activation_claim_split_through_field_exit rejected 7305ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation(\\"an owned activation claim cannot transfer to another activation or provider\\")))", exceeded_provision: None, source_span: None, resolved_location: None }]
-pass/facts/bounded_activation_claim_split_through_local_exit rejected 6715ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main::established", reason: "completed arrival has no established block", gap: None })
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: \\"main::established\\", reason: \\"completed arrival has no established block\\", gap: None })", exceeded_provision: None, source_span: None, resolved_location: None }]
-pass/facts/bounded_activation_claim_split_through_match_join_exit incomplete 2809ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/facts/bounded_activation_claim_split_through_call_result_exit checked 24392ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_const_name_exit checked 24309ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_field_exit checked 26720ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_local_exit checked 28894ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_match_join_exit incomplete 9553ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e86e80cdccf0
 	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion carrier retirement order); in state `main::entry`
-pass/facts/bounded_activation_claim_split_through_other_machine_exit rejected 4235ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main::established", reason: "completed arrival has no established block", gap: None })
-pass/facts/bounded_activation_claim_split_through_other_state_exit rejected 4888ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main::established", reason: "completed arrival has no established block", gap: None })
-pass/facts/bounded_activation_claim_split_through_parameter_exit rejected 4087ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "exercise::established", reason: "completed arrival has no established block", gap: None })
-pass/facts/bounded_activation_claim_split_through_target_body_exit rejected 3795ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_cleanup_crossing_exit rejected 9791ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_cleanup_pure_exit rejected 12834ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_computed_bound_exit rejected 3510ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_extent_composition_exit rejected 3703ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_field_transport_exit rejected 3329ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_generic_bound_exit rejected 4527ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_main_exit rejected 3391ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_multiple_bounds_exit rejected 8246ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation(\\"an owned activation claim cannot transfer to another activation or provider\\")))", exceeded_provision: None, source_span: None, resolved_location: None }]
-pass/facts/bounded_activation_named_attempt_exit incomplete 3618ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/facts/bounded_activation_claim_split_through_other_machine_exit checked 11786ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_other_state_exit checked 12067ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_parameter_exit checked 11770ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_claim_split_through_target_body_exit checked 12827ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_cleanup_crossing_exit checked 12793ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_cleanup_pure_exit checked 21176ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_computed_bound_exit checked 20695ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_extent_composition_exit checked 12955ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_field_transport_exit checked 12981ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_generic_bound_exit checked 12425ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_main_exit checked 11790ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_multiple_bounds_exit checked 25395ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @e86e80cdccf0
+pass/facts/bounded_activation_named_attempt_exit incomplete 9250ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e86e80cdccf0
 	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion carrier retirement order); in state `main::entry`
-pass/facts/bounded_activation_named_bound_exit rejected 4118ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_nested_lifo_exit rejected 4275ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_page_bound_exit rejected 3664ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_parameter_committed_exit rejected 4842ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_call_result_exit rejected 3502ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_const_name_exit rejected 2985ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_field_exit rejected 3590ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_local_exit rejected 3705ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_match_join_exit incomplete 3087ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+pass/facts/bounded_activation_named_bound_exit checked 13109ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_nested_lifo_exit checked 13555ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_page_bound_exit checked 13960ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_parameter_committed_exit checked 14511ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_call_result_exit checked 14067ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_const_name_exit checked 12690ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_field_exit checked 12800ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_local_exit checked 13376ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_match_join_exit incomplete 10508ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @e86e80cdccf0
 	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion carrier retirement order); in state `main::entry`
-pass/facts/bounded_activation_through_other_machine_exit rejected 3871ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_other_state_exit rejected 4097ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_parameter_exit rejected 3593ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_through_target_body_exit rejected 3468ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_unsigned_max_request_exit rejected 3387ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-pass/facts/bounded_activation_zero_bound_exit rejected 7536ms check-target:macos_arm64 terminal-inspections:failed regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-	inspection main production: [Diagnostic { severity: Error, message: "terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation(\\"an owned activation claim cannot transfer to another activation or provider\\")))", exceeded_provision: None, source_span: None, resolved_location: None }]
+pass/facts/bounded_activation_through_other_machine_exit checked 12723ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_other_state_exit checked 12517ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_parameter_exit checked 12534ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_through_target_body_exit checked 12625ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_unsigned_max_request_exit checked 11309ms check-target:macos_arm64 @e86e80cdccf0
+pass/facts/bounded_activation_zero_bound_exit checked 24494ms check-target:macos_arm64 terminal-runtime.main:unrequested terminal-inspections:match @e86e80cdccf0
 pass/facts/bounded_products_through_call_result_exit checked 3372ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/bounded_products_through_const_name_exit checked 3383ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/bounded_products_through_field_exit checked 6772ms check-target:macos_arm64 @911f6617ba9e
@@ -21366,81 +21332,74 @@ fail/facts/boundary_zero_origin_through_parameter_changed rejected 2654ms expect
 	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/boundary_zero_origin_through_target_body_changed rejected 32168ms expected @b9580c0cab21+wt
 	cannot prove requires contract for call transport from main: request.internal == 0 (needs fact `request.internal == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/bounded_activation_claim_split_through_call_result_rejected rejected 3801ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_const_name_rejected rejected 3475ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_field_rejected rejected 3528ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_local_rejected rejected 3108ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_match_join_rejected incomplete 2975ms unexpected @ccdb99ca2214
+fail/facts/bounded_activation_claim_split_through_call_result_rejected rejected 10118ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_const_name_rejected rejected 10603ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_field_rejected rejected 10181ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_local_rejected rejected 10165ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_match_join_rejected incomplete 9543ms unexpected @e86e80cdccf0
 	`main` has no executable body: this compiler does not lower a state of it yet (statement sequence: completion carrier retirement order); in state `main::entry`
-fail/facts/bounded_activation_claim_split_through_other_machine_rejected rejected 3940ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Lowering(InvalidUnitMachinePlan { machine: "main::established", reason: "completed arrival has no established block", gap: None })
-fail/facts/bounded_activation_claim_split_through_other_state_rejected rejected 3799ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_parameter_rejected rejected 3970ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_claim_split_through_target_body_rejected rejected 3962ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_escape_rejected rejected 3057ms expected @ccdb99ca2214
-	activation claim cannot escape its owning activation through return from escape state escape::entry at statement 2
-	linear state-call result claim in main::entry at statement 0 has no unique conserved claim mapping; return a path-aligned source place or publish an explicit outcome mapping; join candidate in machine `main` state `entry` statement 0 call 0 to `entry`: callee return frontier correspondence is unavailable; return state `entry` statement 3 TransitionTarget: outgoing edge has no completed value capture
-fail/facts/bounded_activation_extent_composition_rejected rejected 3642ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_release_order_rejected rejected 3998ms unexpected @ccdb99ca2214
-	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
-fail/facts/bounded_activation_stale_loan_rejected rejected 3321ms expected @ccdb99ca2214
+fail/facts/bounded_activation_claim_split_through_other_machine_rejected rejected 11462ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_other_state_rejected rejected 9884ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_parameter_rejected rejected 10520ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_claim_split_through_target_body_rejected rejected 11291ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claim split does not cover its parent")))
+fail/facts/bounded_activation_escape_rejected rejected 8722ms expected @e86e80cdccf0
+	activation claim cannot escape its owning activation through return from escape state escape::entry at statement 1
+fail/facts/bounded_activation_extent_composition_rejected rejected 10863ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation co-live bound leaves closed stack demand open")))
+fail/facts/bounded_activation_release_order_rejected rejected 11501ms expected @e86e80cdccf0
+	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("activation claims must release in reverse establishment order in their owning activation")))
+fail/facts/bounded_activation_stale_loan_rejected rejected 9010ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
 	state `release` receives `owner` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
 	statement 2 reads `owner` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 3)
-fail/facts/bounded_activation_through_call_result_rejected rejected 2851ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_call_result_rejected rejected 8389ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_const_name_rejected rejected 2819ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_const_name_rejected rejected 8321ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_field_rejected rejected 2500ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_field_rejected rejected 8719ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `holder.claim` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `holder.claim` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_local_rejected rejected 3655ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_local_rejected rejected 8902ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_match_join_rejected rejected 2780ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_match_join_rejected rejected 8278ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_other_machine_rejected rejected 3732ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_other_machine_rejected rejected 9769ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_other_state_rejected rejected 2653ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_other_state_rejected rejected 8612ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_parameter_rejected rejected 2474ms expected @ccdb99ca2214
+fail/facts/bounded_activation_through_parameter_rejected rejected 8731ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_through_target_body_rejected rejected 3190ms expected @ccdb99ca2214
-	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
+fail/facts/bounded_activation_through_target_body_rejected rejected 10513ms expected @e86e80cdccf0
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives an owned value while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	state `release` receives `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
 	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-	statement 3 reads `live` while local borrow `bytes` is still active (borrowed at statement 1; its last use is at statement 4)
-fail/facts/bounded_activation_wrong_activation_rejected rejected 4237ms expected @ccdb99ca2214
+fail/facts/bounded_activation_wrong_activation_rejected rejected 9882ms expected @e86e80cdccf0
 	terminal-artifact production failed: Artifact(Semantic(MalformedStructuralFoundation("an owned activation claim cannot transfer to another activation or provider")))
 fail/facts/bounded_products_through_call_result_rejected rejected 1505ms expected @ccdb99ca2214
 	exact arithmetic in machine `mul` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`). Here the operand `supply(..)` is a value-machine call whose return range is unproven -- annotate its return type with a range or domain (e.g. `-> u64 in Wrapping`).
