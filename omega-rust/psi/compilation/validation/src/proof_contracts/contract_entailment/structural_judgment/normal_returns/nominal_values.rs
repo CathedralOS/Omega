@@ -133,7 +133,18 @@ impl StructuralJudge<'_> {
     ) -> StructuralTerm {
         let mut observed = value.clone();
         for _ in 0..self.completed_nominal_values.len() {
-            let (root, path) = match &observed {
+            // Owned field observations keep a typed shell around their saved
+            // projection. Read that projection before looking up its producer;
+            // reference and shared-borrow shells retain their existing fence.
+            let owned = super::super::super::structural_terms::owned_observation_type(
+                self.program,
+                &observed,
+            );
+            let subject = match (&observed, owned) {
+                (StructuralTerm::ObservedValue { value, .. }, Some(_)) => value.as_ref(),
+                _ => &observed,
+            };
+            let (root, path) = match subject {
                 StructuralTerm::Projection { subject, path } => (&**subject, Some(path)),
                 value => (value, None),
             };
@@ -141,10 +152,45 @@ impl StructuralJudge<'_> {
                 .completed_nominal_values
                 .iter()
                 .rev()
-                .find(|capture| &capture.value == root)
+                .find(|capture| capture.value.same_resolution_payload(root))
             else {
                 break;
             };
+            if let Some(owned) = owned {
+                // The shell must name this producer's actual projected type.
+                // A receiving annotation cannot select a different saved field
+                // or complete application merely because both are owned data.
+                let projected = if let Some(path) = path {
+                    let names = path.split('.').collect::<Vec<_>>();
+                    let paths =
+                        super::super::super::completed_values::owned_term_field_paths_in_scope(
+                            self.program,
+                            self,
+                            capture.reference,
+                            &super::super::super::structural_terms::owned_projection_observation(
+                                self.program,
+                                capture.reference,
+                                capture.value.clone(),
+                            ),
+                            &names,
+                        );
+                    let [path] = paths.as_slice() else {
+                        return observed;
+                    };
+                    crate::project_type_reference_from_segments(
+                        self.program,
+                        capture.reference,
+                        path,
+                    )
+                } else {
+                    Some(capture.reference)
+                };
+                if !projected.is_some_and(|projected| {
+                    crate::declared_carriers_match(self.program, owned, projected)
+                }) {
+                    return observed;
+                }
+            }
             let mut source = capture.observed_value.clone();
             if let Some(path) = path {
                 // Typed projection consumes authenticated inline observations

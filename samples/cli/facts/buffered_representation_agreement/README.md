@@ -43,13 +43,13 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [current source check](https://github.com/CathedralOS/Omega/actions/runs/41706602598)
-at `10e13c58527a01caf604b7e5a6b45b470020fa28` preserves the encoder's byte
-promises, restoration-entry capacity requirement and correct field-loan
-transport. Local, field and constant each still have six restoration proof
-failures. The trace recovers the standalone tag byte but lacks entry identities
-for bytes 1 and 2. Known byte facts are also dropped when an owned Frame carrying
-its buffer enters another call.
+The [current source check](https://github.com/CathedralOS/Omega/actions/runs/41711139618)
+at `db73492ca95bb72e18d97f70c20724ddb7b1505d` retains entry byte identities,
+all three caller byte facts through owned Frame arguments, and both public
+decoder field equations. Field formation remains correct. Local, field and
+constant still have six restoration proof failures. The next missing join is
+lookup through the typed owned observation around the newly packed Request's
+value field; it fails to reconnect that field to the saved decoder result.
 
 Four extra reference controls have demonstrated pre-existing failures:
 [fresh checks of pinned main7fc](https://github.com/CathedralOS/Omega/actions/runs/41707158340)
