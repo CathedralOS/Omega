@@ -106,6 +106,10 @@ harness = false
 name = "terminal_decode_once"
 path = "tests/terminal_decode_once.rs"
 
+[[test]]
+name = "retained_layout_match"
+path = "tests/retained_layout_match.rs"
+
 # Checked source helpers retain access-view backing across ordinary invocations.
 [[test]]
 name = "access_view_calls"
