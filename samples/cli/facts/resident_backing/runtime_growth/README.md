@@ -19,8 +19,8 @@ It composes runtime split/merge, read/write views, recursive result contracts,
 and real allocation rather than adding a new compiler operation for vectors.
 
 The local vector operations expose the compiler path. They are not the
-completed generic library Vec migration; generic element cleanup and moving
-these operations into the reusable library remain the parent outcome's work.
+completed generic library Vec migration. The [library consumer](../library_growth/README.md)
+uses the reusable u32 implementation; generic element cleanup remains open.
 
 Allocation publishes the nonempty extent's position against the allocator's
 original capacity. A mutable allocation changes the remaining count and tail,
