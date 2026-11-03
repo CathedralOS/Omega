@@ -96,9 +96,6 @@ pub(super) fn lending_sources(
         &mut parents,
     );
     if !complete || suppliers.is_empty() {
-        if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-            report_source_refusal(program, facts, state, lending, lending_path);
-        }
         return Err("the saved descriptor has no complete checked borrowing source");
     }
     if !argument_grant {
@@ -742,80 +739,4 @@ fn is_independent_return(
                 && validation::call_target_entry_symbol(program, call.target_symbol)
                     == validation::call_target_entry_symbol(program, target)
         })
-}
-
-fn report_source_refusal(
-    program: &dyn validation::CheckingInput,
-    facts: &CheckFacts,
-    state: &FlowStateFact,
-    source: Handle<FlowOperandFact>,
-    projection: &[facts::PlaceSegment],
-) {
-    let mut pending = vec![(source, projection.to_vec())];
-    let mut visited = Vec::new();
-    while let Some((source, projection)) = pending.pop() {
-        if !facts.flow.control.operands.is_valid(source)
-            || visited.contains(&(source, projection.clone()))
-        {
-            continue;
-        }
-        visited.push((source, projection.clone()));
-        let capture = facts.flow.control.operands.get(source);
-        let frozen = match frozen_reference_leaf(program, &facts.flow.control, source, &projection)
-        {
-            FrozenReferenceSelection::Unavailable => "unavailable",
-            FrozenReferenceSelection::NotFrozen => "ordinary",
-            FrozenReferenceSelection::ThroughReference => "crossing",
-            FrozenReferenceSelection::Endpoint { .. } => "frozen endpoint",
-        };
-        eprintln!(
-            "CHECKSITE projected-source capture={:?} expression={:?} statement={} type={:?} completion={:?} path={:?} frozen={} constraints={:?}",
-            source,
-            capture.expression,
-            capture.statement_index,
-            capture.type_reference,
-            capture.completion,
-            projection,
-            frozen,
-            facts
-                .flow
-                .borrow_loan_constraints(capture.constraints)
-                .collect::<Vec<_>>()
-        );
-        if let Some((_, borrow_state)) = facts
-            .borrow
-            .first_state_borrow(state.machine_symbol, state.state_symbol)
-        {
-            for (loan, row) in facts
-                .borrow
-                .state_loans(borrow_state)
-                .filter(|(_, row)| row.formation_expression == capture.expression)
-            {
-                eprintln!(
-                    "CHECKSITE projected-source formation={:?} statement={} path={:?} lineage={:?} origin={:?} independent={}",
-                    loan,
-                    row.statement_index,
-                    row.formation_owner_path
-                        .map(|path| facts.borrow.owner_segments.span_or_empty(path)),
-                    row.lineage,
-                    facts
-                        .borrow
-                        .incoming_references
-                        .is_valid(row.incoming_reference)
-                        .then(|| facts.borrow.incoming_references.get(row.incoming_reference)),
-                    is_independent_return(program, facts, state, loan, row, capture)
-                );
-            }
-        }
-        if let Some(previous) = validation::completed_storage::predecessors_in_control(
-            program,
-            &facts.flow.control,
-            source,
-            &projection,
-            validation::completed_storage::StoredObservation::Binding,
-            Some((state.state_symbol, state.statements)),
-        ) {
-            pending.extend(previous);
-        }
-    }
 }
