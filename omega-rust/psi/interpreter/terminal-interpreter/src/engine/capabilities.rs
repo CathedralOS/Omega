@@ -546,7 +546,14 @@ mod tests {
             parameters: Vec::new(),
             parameter_order: Vec::new(),
             structural_parameters: Vec::new(),
-            structural_places: Vec::new(),
+            structural_places: if selected_origins > 0 {
+                vec![terminal_psi::StructuralPlaceDeclaration {
+                    id: PlaceId::new(1).unwrap(),
+                    kind: semantic_vocabulary::StructuralPlaceKind::Result,
+                }]
+            } else {
+                Vec::new()
+            },
             entry_claims: Vec::new(),
             block_entry_claims: Vec::new(),
             loan_completions: Vec::new(),
@@ -567,6 +574,34 @@ mod tests {
     fn program() -> AdmittedTerminalProgram<'static> {
         let entry = MachineId::new(1).unwrap();
         let mut module = TerminalModule::for_entry(entry);
+        // Returned places still need their carrier declarations when this
+        // graph-only fixture walks the storage used by a reached return.
+        let declaration = |id, shape| terminal_psi::StructuralTypeDeclaration {
+            quotient_carrier: None,
+            id: StructuralTypeId::new(id).unwrap(),
+            identity: terminal_psi::TerminalIdentityIndex(0),
+            owns_linear_claim: false,
+            copyable: false,
+            no_code_affine_cleanup: true,
+            descriptor_cleanup: true,
+            shape,
+            scalar_restriction: None,
+        };
+        module.structural_types = vec![
+            declaration(
+                1,
+                terminal_psi::StructuralTypeShape::Reference {
+                    referent: StructuralTypeId::new(2).unwrap(),
+                    access: StructuralAccess::MutableBorrow,
+                },
+            ),
+            declaration(
+                2,
+                terminal_psi::StructuralTypeShape::PrimitiveScalar(
+                    semantic_vocabulary::ScalarType::Boolean,
+                ),
+            ),
+        ];
         module.machines.push(machine(0, Vec::new()));
         let identity = terminal_codec::terminal_psi_identity(&module).unwrap();
         let mut program = AdmittedTerminalProgram {
