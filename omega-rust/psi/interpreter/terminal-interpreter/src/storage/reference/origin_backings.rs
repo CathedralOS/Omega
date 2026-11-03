@@ -77,9 +77,18 @@ impl TerminalExecution<'_> {
                 })
                 .collect::<Result<Vec<_>, _>>()?;
             if !prefix.is_empty() {
-                let Some(projected) =
-                    self.resolve_origin_projection(&selected, &prefix, backing.access)?
-                else {
+                let projected = match (captured_bytes, prefix.as_slice()) {
+                    (Some(binding), [StructuralPathSegment::FixedIndex(index)]) => self
+                        .resolve_captured_byte_origin(
+                            &selected,
+                            binding,
+                            actual,
+                            backing.access,
+                            Some(*index),
+                        )?,
+                    _ => self.resolve_origin_projection(&selected, &prefix, backing.access)?,
+                };
+                let Some(projected) = projected else {
                     return Ok(None);
                 };
                 selected = projected;
@@ -96,6 +105,7 @@ impl TerminalExecution<'_> {
                             binding,
                             actual,
                             backing.access,
+                            None,
                         );
                     }
                     return self.resolve_region_return(
@@ -152,8 +162,13 @@ impl TerminalExecution<'_> {
                 continue;
             }
             if let Some(binding) = captured_bytes {
-                let Some(projected) =
-                    self.resolve_captured_byte_origin(&selected, binding, actual, backing.access)?
+                let Some(projected) = self.resolve_captured_byte_origin(
+                    &selected,
+                    binding,
+                    actual,
+                    backing.access,
+                    None,
+                )?
                 else {
                     return Ok(None);
                 };
@@ -197,6 +212,7 @@ impl TerminalExecution<'_> {
         binding: &crate::storage::byte_sequences::binding::ByteSequenceBinding,
         actual: &ReferenceReferent,
         access: StructuralAccess,
+        expected_index: Option<u64>,
     ) -> Result<Option<ResolvedStructuralProjection>, TerminalInterpretError> {
         if !access_covers(binding.access(), access) {
             return Ok(None);
@@ -233,6 +249,9 @@ impl TerminalExecution<'_> {
             }
             _ => return Ok(None),
         };
+        if expected_index.is_some_and(|expected| expected != index) {
+            return Ok(None);
+        }
         let path = [StructuralPathSegment::FixedIndex(index)];
         let Some(structural_type) = terminal_semantics::primitive_projection_declaration(
             self.structural_types().values(),
