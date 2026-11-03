@@ -111,8 +111,21 @@ impl CarriedPredicate {
 }
 
 impl QualifiedInput {
-    fn subject_key(&self) -> SubjectKey {
-        self.subject.group_key()
+    /// One integer per storage place, folded from the root's and segments'
+    /// integer keys: equal subjects get equal keys. Distinct places may share
+    /// a key, so `same_subject` still decides every match.
+    fn subject_key(&self) -> u64 {
+        let mix =
+            |key: u64, part: u64| (key.rotate_left(5) ^ part).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+        let (variant, index, generation) = self.subject.group_key();
+        let root = mix(
+            u64::from(variant),
+            (u64::from(index) << 32) | u64::from(generation),
+        );
+        self.segments.iter().fold(root, |key, segment| {
+            let (variant, first, second) = segment.order_key();
+            mix(mix(mix(key, u64::from(variant)), first), second)
+        })
     }
 
     fn same_subject(&self, other: &Self) -> bool {
@@ -128,13 +141,10 @@ impl QualifiedInput {
     }
 }
 
-/// The storage root's group key: every equal subject shares it.
-type SubjectKey = (u8, u32, u32);
-
-/// Scratch positions group a batch by its storage root without reordering
+/// Scratch positions group a batch by its storage place without reordering
 /// published evidence. Keys only narrow comparisons: the ordinary
 /// subject/evidence checks still decide every match, including shared keys.
-fn subject_positions(inputs: &[QualifiedInput]) -> Vec<(SubjectKey, usize)> {
+fn subject_positions(inputs: &[QualifiedInput]) -> Vec<(u64, usize)> {
     let mut positions: Vec<_> = inputs
         .iter()
         .enumerate()
@@ -144,10 +154,7 @@ fn subject_positions(inputs: &[QualifiedInput]) -> Vec<(SubjectKey, usize)> {
     positions
 }
 
-fn matching_positions(
-    positions: &[(SubjectKey, usize)],
-    key: SubjectKey,
-) -> &[(SubjectKey, usize)] {
+fn matching_positions(positions: &[(u64, usize)], key: u64) -> &[(u64, usize)] {
     let start = positions.partition_point(|(candidate, _)| *candidate < key);
     let end = positions.partition_point(|(candidate, _)| *candidate <= key);
     &positions[start..end]

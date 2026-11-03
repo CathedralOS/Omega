@@ -127,6 +127,26 @@ impl PlaceRoot {
     );
 }
 
+impl PlaceSegment {
+    /// An integer identity: two segments have equal keys exactly when they are
+    /// equal, so segment paths can be sorted and searched without hashing.
+    pub fn order_key(&self) -> (u8, u64, u64) {
+        let handle = |index: u32, generation: u32| (u64::from(index) << 32) | u64::from(generation);
+        match self {
+            Self::Field { symbol } => (0, handle(symbol.arena_index(), symbol.generation()), 0),
+            Self::Case { variant } => (1, handle(variant.arena_index(), variant.generation()), 0),
+            Self::FixedIndex { index } => (2, *index as u64, 0),
+            Self::FixedRange { start, end } => (3, *start as u64, *end as u64),
+            Self::OpaqueRange => (4, 0, 0),
+            Self::Index { expression } => (
+                5,
+                handle(expression.arena_index(), expression.generation()),
+                0,
+            ),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, compiler_storage::Record)]
 pub enum PlaceSegment {
     Field {
