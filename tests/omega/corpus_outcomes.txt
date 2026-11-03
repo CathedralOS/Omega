@@ -188,6 +188,9 @@ fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch reject
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/domains/inherited_requirement_issuer_wrong_owner rejected 2295ms expected @f2c75870ebaf+wt
+	construction value is not proven in domain `Ticket::Issued` in make state `entry` at statement 0; a construction value must establish the domain's predicates and any required provenance
+	cannot prove default-domain field requirement for return from make, state entry, at statement 0: Ticket requires Ticket::Issued
 fail/drops/retired_attached_drop rejected 2739ms expected @ee4dbb4b2d56
 	`machine Token::drop` attaches cleanup to data `Token`, which is retired: data owns no cleanup machines; declare an independent static machine taking `&mut Token` and select it with `data Token dropped by <machine>`
 fail/effects/opaque_leaf_inherited_reach_exceeds_ceiling rejected 1453ms @409a3e82132d+wt
@@ -3498,6 +3501,10 @@ fail/recast/pending_layout_view_mutable_escape_preserves_source_padding rejected
 	construction of `Decoded` field `value`: mutable recast target escape has no complete source-storage handback; target padding is not initialized field storage
 fail/recast/u64_open_upper_bound_is_not_signed_ceiling rejected 559ms expected @70ba9ee572b42c4d7f6ffe7d3051217e0906221c
 	machine `Main::main` state `main`: shared aggregate aliases require identical layout geometry and source leaf facts implying every target leaf fact; the source and target `Narrow` are not representation-compatible
+fail/references/rebound_local_reference_drops_referent_bound rejected 3383ms expected @292918dbcd2d
+	exact arithmetic in machine `observe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/references/rebound_parameter_reference_drops_referent_bound rejected 3546ms expected @292918dbcd2d
+	exact arithmetic in machine `observe` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/reflection/schema_borrowed_facade_const rejected 2810ms expected @63af67b94f91
 	constant initializer: build-time result of machine `@const-argument-0` is not ConstEvaluable: result.storage contains Text; borrowed or dynamically sized text cannot cross the semantic const boundary
 fail/reflection/schema_runtime_operand rejected 1193ms expected @6b1e6a51ea70
@@ -3551,6 +3558,19 @@ fail/traits/dyn_suspending_borrowed_parameter_precondition rejected 1636ms expec
 	cannot prove requires contract for call dyn Read::current from main: cell.value == 100 (needs fact `cell.value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/traits/dyn_suspending_unit_call_precondition rejected 14418ms expected @cb2bb7751cae+wt
 	cannot prove requires contract for call dyn DeferredUnit::check from main: 99 == 100 (needs fact `value == 100` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/traits/inherited_nominal_requirement_conflicting_parents rejected 178ms expected @f2c75870ebaf+wt
+	authored declaration typing could not extend its retained source: Lowering(Diagnostic { severity: Error, message: "inherited nominal requirement has no unique declaring trait application", exceeded_provision: None, source_span: None, resolved_location: None })
+fail/traits/inherited_nominal_requirement_overload rejected 629ms expected @f2c75870ebaf+wt
+	declaring trait `Base` overloads requirement `value`; this is a source-compatibility break for signature-free requirement references
+	nominal machine parameter `Handler` requirement `Derived::value` does not resolve to one exact trait requirement; signature-free references reject overloads
+fail/traits/inherited_nominal_requirement_refinement_missing rejected 1711ms expected @f2c75870ebaf+wt
+	machine `forward` publishes service reach `<none>` but its checked body reaches undeclared service `External`
+fail/traits/inherited_nominal_requirement_wrong_application rejected 471ms expected @f2c75870ebaf+wt
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
+fail/traits/inherited_nominal_requirement_wrong_owner rejected 479ms expected @f2c75870ebaf+wt
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [], provider [], caller [], contextual demand true, operand mismatch unresolved source correspondence
+	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [], provider [], caller [], contextual demand true, operand mismatch unresolved source correspondence
 fail/traits/public_method_callback_prefix_missing rejected 930ms expected @b852a38544d0
 	static method application requires its complete invocation telescope for `NeedsMachine::choose` (found 0, expected 2)
 fail/traits/public_method_callback_prefix_wrong_contract rejected 886ms expected @b852a38544d0
@@ -5726,6 +5746,7 @@ pass/domains/inactive_impossible_payload_exit rejected 1343ms check-target:macos
 pass/domains/indexed_domain_fact checked 2396ms @ad7c6890a897+wt
 pass/domains/indexed_domain_known_disjoint_call_exit checked 1764ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.linux_arm64:0 terminal-target-artifact:unchanged terminal-targets:match @f1058703209f+wt
 pass/domains/indexed_membership_follows_completed_values checked 3035ms check-target:macos_arm64 @ccdb99ca2214
+pass/domains/inherited_requirement_issuer_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/domains/intersected_qualifiers checked 3265ms @ccdb99ca2214
 pass/domains/issued_indexed_subject_predicate checked 2311ms @ccdb99ca2214
 pass/domains/linear_qualification_nested_move checked 15239ms check-target:macos_arm64 @ee4dbb4b2d56
@@ -14405,6 +14426,7 @@ pass/recast/write_footprint/inline checked 3690ms check-target:macos_arm64 @ccdb
 pass/recast/write_footprint/local checked 3384ms check-target:macos_arm64 @ccdb99ca2214
 pass/recast/write_footprint/state checked 3336ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/mutable_loan_member_read_initializes_local_exit checked 13571ms check-target:macos_arm64 @ccdb99ca2214
+pass/references/rebound_local_reference_follows_new_referent_exit checked 10745ms check-target:macos_arm64 @292918dbcd2d
 pass/references/runtime_shared_ref_param_guard_exit checked 19666ms check-target:macos_arm64 @ccdb99ca2214
 pass/references/selected_record_loan_disjoint_fields_exit checked 12565ms check-target:macos_arm64 @ccdb99ca2214
 pass/reflection/schema_query_scalar_const checked 32268ms check-target:macos_arm64 @63af67b94f91
@@ -15182,6 +15204,10 @@ pass/traits/implementation_argument_category_collision checked 11458ms check-tar
 pass/traits/implementation_argument_mixed_telescope checked 2274ms @ccdb99ca2214
 pass/traits/implementation_argument_region_mapping checked 2453ms @ccdb99ca2214
 pass/traits/implementation_value_mapped_region_identity checked 5981ms check-target:macos_arm64 @68b6f6ba6c2f
+pass/traits/inherited_nominal_requirement_application_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_diamond_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_exit checked 3248ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_refinement_exit checked 3251ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_region_application_identity_exit checked 12686ms check-target:macos_arm64 @0f36ecb1ab02
 pass/traits/named_contract_arithmetic_refinement checked 3221ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/nominal_generic_reference_forwarding_exit checked 13096ms check-target:macos_arm64 @ccdb99ca2214
@@ -36020,7 +36046,8 @@ fail/text/borrowed_bounded_byte_invariant_write rejected 12137ms unexpected @ccd
 	cannot prove requires contract for call write from write: bytes in [u8; N]::Ascii (invalidated by prior mutation of bytes[0]; bytes is part of [u8; N]::Ascii) in state `entry`
 fail/text/borrowed_byte_snapshot_missing_predicate rejected 5081ms expected @911f6617ba9e
 	cannot prove requires contract for call snapshot from copy: text in [u8]::SnapshotUtf8 in state `entry`
-fail/text/borrowed_byte_snapshot_reseated_descriptor checked 5116ms @911f6617ba9e
+fail/text/borrowed_byte_snapshot_reseated_descriptor rejected 7358ms expected regressed-from:checked @eacf2cdc1c30
+	cannot prove requires contract for call snapshot from copy: other.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `observed.len <= 16`
 fail/text/borrowed_byte_snapshot_unbounded rejected 3887ms expected @911f6617ba9e
 	cannot prove requires contract for call snapshot from copy: text.len <= 16 (needs fact `text.len <= 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/text/bounded_carrier_growth_overflow_rejected rejected 32263ms expected @911f6617ba9e
