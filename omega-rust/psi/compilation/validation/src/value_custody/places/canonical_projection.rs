@@ -714,6 +714,11 @@ pub(super) fn cast_preserves_place(
                     else {
                         return false;
                     };
+                    // A cast between references re-views the same referent;
+                    // where it points is a storage question, never a new value.
+                    if crate::reference_shell(program, operand).is_some() {
+                        return false;
+                    }
                     crate::field_domains::domain_constraint_identities(program, operand)
                         .into_iter()
                         .any(|(symbol, identity)| {
