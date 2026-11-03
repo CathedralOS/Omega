@@ -156,42 +156,46 @@ requires output.len >= 3u64
     }
 }
 
-// Runtime preservation is also observed through weak conversion requirements.
-// This path has no equality promise that could justify its own verdict.
+// The weak interface runs the same complete round trip without publishing its
+// equality promise. Runtime checks must inspect the actual returned request.
+RoundTrip<'buffer> satisfies TryFrom<Request<'buffer>, Request<'buffer>, Failure<'buffer>> {
+    machine try_from(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>> {
+        transition request.output.len >= 3u64 {
+            true -> perform(request)
+            false -> Result::Err { error: Failure { output: request.output, reason: Reason::Exhausted } }
+        }
+        machine perform(request: Request<'buffer>) -> Result<Request<'buffer>, Failure<'buffer>>
+        requires request.output.len >= 3u64
+        { selected_round_trip<FirstAgreement<'buffer>>(request) }
+    }
+}
+
 machine observe_weak<'buffer>(output: &'buffer mut [u8], expected: Pair) -> bool
 requires output.len >= 3u64
 {
-    let encoded: Result<Frame<'buffer>, Failure<'buffer>> =
-        convert<Request<'buffer>, Frame<'buffer>, Failure<'buffer>, Writer<'buffer>>(
+    let capacity: u64 = output.len;
+    let answer: Result<Request<'buffer>, Failure<'buffer>> =
+        convert<Request<'buffer>, Request<'buffer>, Failure<'buffer>, RoundTrip<'buffer>>(
             Request { value: expected, output: output });
-    transition encoded {
+    transition answer {
         Result::Err { error as failure } -> false
-        Result::Ok { value as frame } -> check_extent(frame, expected)
+        Result::Ok { value as restored } -> check_extent(restored, expected, capacity)
     }
-    machine check_extent(frame: Frame<'buffer>, expected: Pair) -> bool {
-        transition frame.output.len >= 3u64 {
-            true -> read(frame, expected)
+    machine check_extent(restored: Request<'buffer>, expected: Pair, capacity: u64) -> bool {
+        transition restored.output.len >= 3u64 {
+            true -> inspect(restored, expected, capacity)
             false -> false
         }
     }
-    machine read(frame: Frame<'buffer>, expected: Pair) -> bool
-    requires frame.output.len >= 3u64
+    machine inspect(restored: Request<'buffer>, expected: Pair, capacity: u64) -> bool
+    requires restored.output.len >= 3u64
     {
-        let decoded: Result<Pair, Reason> =
-            read_frame(&frame);
-        transition decoded {
-            Result::Err { error as reason } -> false
-            Result::Ok { value as value } -> inspect(frame, value, expected)
-        }
-    }
-    machine inspect(frame: Frame<'buffer>, value: Pair, expected: Pair) -> bool
-    requires frame.output.len >= 3u64
-    {
-        let preserved: bool = value.first == expected.first && value.last == expected.last;
-        let bytes: bool = frame.output[0u64] == 165u8
-            && frame.output[1u64] == expected.first && frame.output[2u64] == expected.last;
-        frame.output[0u64] = 167u8;
-        preserved && bytes
+        let preserved: bool = restored.value.first == expected.first && restored.value.last == expected.last;
+        let bytes: bool = restored.output[0u64] == 165u8
+            && restored.output[1u64] == expected.first && restored.output[2u64] == expected.last;
+        let same_extent: bool = restored.output.len == capacity;
+        restored.output[0u64] = 167u8;
+        preserved && bytes && same_extent
     }
 }
 
