@@ -230,7 +230,6 @@ pub(super) fn propagate_statement_transfers(
     context_transport::transport(
         program,
         semantic,
-        build,
         &write,
         completed_source_type,
         stable_value_target,
@@ -511,7 +510,6 @@ pub(super) fn publish_statement_contexts(
 #[allow(clippy::too_many_arguments)]
 fn retain_qualification_correspondence(
     program: &dyn ::validation::CheckingInput,
-    build: &mut FlowBuildContext,
     semantic: &mut FactPlan,
     source_fact: facts::FactHandle,
     destination_fact: facts::FactHandle,
@@ -535,7 +533,6 @@ fn retain_qualification_correspondence(
         || !exact_statement_owner(program, machine_symbol, state_symbol)
         || !exact_structural_symbol_place(
             program,
-            build,
             semantic,
             source_place,
             machine_symbol,
@@ -544,7 +541,6 @@ fn retain_qualification_correspondence(
         )
         || !exact_structural_symbol_place(
             program,
-            build,
             semantic,
             source_occurrence_place,
             machine_symbol,
@@ -553,7 +549,6 @@ fn retain_qualification_correspondence(
         )
         || !exact_structural_symbol_place(
             program,
-            build,
             semantic,
             destination_place,
             machine_symbol,
@@ -636,7 +631,6 @@ fn exact_evidence_source(
 
 fn exact_structural_symbol_place(
     program: &dyn ::validation::CheckingInput,
-    build: &mut FlowBuildContext,
     semantic: &FactPlan,
     handle: PlaceHandle,
     machine_symbol: SymbolHandle,
@@ -656,24 +650,13 @@ fn exact_structural_symbol_place(
     let Some(segments) = semantic.place_segments.span(place.segments) else {
         return false;
     };
-    let Some(mut current) = *build
-        .correspondence_root_types
-        .entry((
-            machine_symbol,
-            state_symbol,
-            formation_statement_index,
-            root,
-        ))
-        .or_insert_with(|| {
-            correspondence_root_type_reference(
-                program,
-                machine_symbol,
-                state_symbol,
-                formation_statement_index,
-                root,
-            )
-        })
-    else {
+    let Some(mut current) = correspondence_root_type_reference(
+        program,
+        machine_symbol,
+        state_symbol,
+        formation_statement_index,
+        root,
+    ) else {
         return false;
     };
     let mut selected_variant = None;

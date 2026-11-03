@@ -540,10 +540,7 @@ pub(super) fn rebase_contexts(
             })
             .collect()
     } else {
-        build
-            .entry_origin_chain_at(program, machine, state)
-            .as_ref()
-            .clone()
+        build.entry_origin_chain_at(program, machine, state)
     };
     let mut rebased = HandleSpan::empty();
     let mut parameter_origins = HandleSpan::empty();

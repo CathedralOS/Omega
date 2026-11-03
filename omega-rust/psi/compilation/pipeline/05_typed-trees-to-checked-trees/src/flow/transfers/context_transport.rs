@@ -13,7 +13,6 @@ use crate::flow::canonical_places_agree;
 pub(super) fn transport(
     program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
-    build: &mut FlowBuildContext,
     write: &super::write_target::StatementWrite,
     completed_source: Option<typed_trees::types::TypeReferenceHandle>,
     stable_value_target: bool,
@@ -171,7 +170,6 @@ pub(super) fn transport(
             {
                 retain_qualification_correspondence(
                     program,
-                    build,
                     semantic,
                     source_fact,
                     fact,
