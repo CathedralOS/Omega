@@ -145,6 +145,9 @@ fn occurrences(
     Vec<(ValueTypeOwner, ExpressionHandle)>,
     identity_context::ConstructorPeers,
 ) {
+    // Contract owner queries share one index while this scan only reads the trees.
+    // Drop it with this function before result-type preparation mutates them.
+    let contract_input = validation::CheckingContext::new(program);
     let mut occurrences = Vec::new();
     let mut peers = identity_context::ConstructorPeers::new();
     for machine in program.machines() {
@@ -161,7 +164,7 @@ fn occurrences(
             for contract in contracts.iter().chain(program.state_contracts(state)) {
                 for fact in program.proof_facts.span_or_empty(contract.facts) {
                     identity_context::append(
-                        program,
+                        &contract_input,
                         ValueTypeOwner::State {
                             machine: machine.symbol,
                             state: state.symbol,
@@ -209,7 +212,7 @@ fn occurrences(
                 declarations.len() - 1
             });
         for fact in program.proof_facts.span_or_empty(contract.facts) {
-            identity_context::append(program, owner, fact, &mut peers);
+            identity_context::append(&contract_input, owner, fact, &mut peers);
             validation::append_fact_expression_roots(program, fact, &mut declarations[position].1);
         }
     }
