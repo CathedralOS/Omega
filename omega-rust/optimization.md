@@ -62,10 +62,11 @@ a rewrite the question cannot carry verbatim refuses, leaving the complete
 closure as authored until proof-context transport lets the question move
 with it — and propositions, proof projections, suspension frontiers, ranking
 evidence, and recorded source-call joins keep the exact identities they name.
-In the post-Terminal stage, proof-check elision removes a check only when canonical goal replay resolves
-its proposition to the kernel's Truth; checked divides without a goal-free
-form, certificate-reserved obligations, and non-scalar-leaf proof bearers
-keep their checks. The
+In the post-Terminal stage, proof-check elision removes a check only through a
+cataloged exact scalar identity (such as identity, divide-by-one,
+multiply-by-zero, self subtraction, or remainder by one) applied to an
+operation that carries an accepted obligation fact; an operation that matches
+no cataloged identity, or carries no accepted obligation, keeps its check. The
 execution record survives canonical Terminal encoding and independent decoding.
 
 The [post-Terminal abstract phase](omega/compilation/pipeline/01_abstract-operations-to-abstract-operations/src/abstract_optimization.rs)
