@@ -63,6 +63,9 @@ fail/build/terminal_calling_policy_unrelated_constant rejected 42791ms expected 
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 5
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
+fail/calls/nested_machine_duplicate_helper_overload rejected 2717ms expected @11bdd2fe41ff+wt
+	duplicate named machine overload `outer::helper` with parameter signature `parameter(mutable(no),const(no),named(name(u64)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
+	machine `outer` state `entry`: value call `helper(..)` does not resolve to a callable machine entry or requirement. Internal states are transition destinations, not ordinary callees. Check the name.
 fail/calls/runtime_guarded_reference_return_nested_local_escape rejected 4129ms expected @c79bb8268163+wt
 	machine `failed` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 fail/capabilities/recursive_synchronous_invocations rejected 2175ms expected @2fc408782574
@@ -17439,7 +17442,7 @@ fail/calls/copied_nominal_argument_precedes_field_repair rejected 755ms expected
 	machine `main` state `entry` statement 1: reading `gauge.level` crosses an open default-domain invariant window before data `Gauge` is established: the zeroed representation is not yet a `Gauge` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/calls/discarded_call_result rejected 813ms expected @ccdb99ca2214
 	call to `roll` discards its non-unit `bool` result; consume the value or discard it explicitly with `_ = roll(...);`
-fail/calls/duplicate_named_machine_overload_rejected rejected 688ms expected @ccdb99ca2214
+fail/calls/duplicate_named_machine_overload_rejected rejected 2716ms expected @11bdd2fe41ff+wt
 	duplicate named machine overload `add` with parameter signature `parameter(mutable(no),const(no),named(name(u32))),parameter(mutable(no),const(no),named(name(u32)))` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 fail/calls/effectful_result_outside_captured_requirement rejected 1566ms expected @ccdb99ca2214
 	cannot prove requires contract for call accept from main: produce(21, mut counter) <= 20 (needs fact `value <= 20` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -33111,7 +33114,7 @@ fail/modules/continued_domain_membership rejected 2981ms expected @ccdb99ca2214
 fail/modules/duplicate_data_keeps_guard_facts rejected 517ms expected @ccdb99ca2214
 	duplicate data `Zed`
 	duplicate data `Zed`
-fail/modules/duplicate_imported_machine_overload_rejected rejected 953ms expected @ccdb99ca2214
+fail/modules/duplicate_imported_machine_overload_rejected rejected 2688ms expected @11bdd2fe41ff+wt
 	duplicate named machine overload `seed` with parameter signature `` and result dispatch set `<empty>`; predicate-only result refinements do not distinguish overloads
 	call `seed` has an invalid argument correspondence: call has no retained parameter telescope
 fail/modules/external_boundary_private_signature rejected 1054ms expected @ccdb99ca2214
