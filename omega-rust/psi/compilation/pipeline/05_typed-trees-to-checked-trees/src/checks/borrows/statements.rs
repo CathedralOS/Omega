@@ -209,7 +209,7 @@ pub(super) fn check_statement_borrows<'p>(
                     .flow
                     .control
                     .value_observations
-                    .is_valid(value.descriptor_read)
+                    .is_valid(value.descriptor_permission.loaded_read())
                 {
                     continue;
                 }
@@ -217,7 +217,7 @@ pub(super) fn check_statement_borrows<'p>(
                     .flow
                     .control
                     .value_observations
-                    .get(value.descriptor_read)
+                    .get(value.descriptor_permission.loaded_read())
                     .constraints
             } else {
                 statement.entry_constraints
@@ -469,18 +469,19 @@ pub(super) fn check_statement_borrows<'p>(
                                                         .control
                                                         .operands
                                                         .get(activation.formation_value);
-                                                    facts
+                                                    facts.flow.control.value_observations.is_valid(
+                                                        capture.descriptor_permission.loaded_read(),
+                                                    ) && facts
                                                         .flow
                                                         .control
                                                         .value_observations
-                                                        .is_valid(capture.descriptor_read)
-                                                        && facts
-                                                            .flow
-                                                            .control
-                                                            .value_observations
-                                                            .get(capture.descriptor_read)
-                                                            .evaluation
-                                                            == occurrence.evaluation
+                                                        .get(
+                                                            capture
+                                                                .descriptor_permission
+                                                                .loaded_read(),
+                                                        )
+                                                        .evaluation
+                                                        == occurrence.evaluation
                                                 }
                                         }))
                         },

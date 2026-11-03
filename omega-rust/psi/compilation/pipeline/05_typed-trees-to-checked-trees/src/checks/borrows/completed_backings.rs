@@ -253,8 +253,37 @@ impl Resolver<'_> {
             }
             _ => {}
         }
-        if path.is_empty() && operand.descriptor_loan.is_valid() {
-            let handle = operand.descriptor_loan;
+        if path.is_empty()
+            && matches!(
+                operand.descriptor_permission,
+                checked_trees::FlowDescriptorPermission::SuppliedOutput { .. }
+            )
+        {
+            let handle = crate::borrow::supplied_outputs::captured_permission(
+                self.program,
+                &self.facts.borrow,
+                &self.facts.flow,
+                operand,
+            )?;
+            let loan = self.facts.borrow.loans.get(handle);
+            return Ok(BackingFrontier::borrowed(vec![ResolvedAlias {
+                place: CapturedPlace {
+                    incoming_reference: loan.incoming_reference,
+                    incoming_owner_path: self
+                        .facts
+                        .borrow
+                        .access_segments
+                        .span(loan.incoming_owner_path)
+                        .ok_or("the produced output lost its incoming path")?
+                        .to_vec(),
+                    root: loan.root,
+                    segments: self.facts.borrow.loan_segments(loan).to_vec(),
+                },
+                lineage: vec![handle],
+            }]));
+        }
+        if path.is_empty() && operand.descriptor_permission.loaded_loan().is_valid() {
+            let handle = operand.descriptor_permission.loaded_loan();
             let (_, owner) = self
                 .facts
                 .borrow
@@ -316,14 +345,19 @@ impl Resolver<'_> {
                 .ok_or("the loaded descriptor has no completed activation")?;
             if activations.next().is_some()
                 || !control.operands.is_valid(activation.formation_value)
-                || !control.value_observations.is_valid(operand.descriptor_read)
+                || !control
+                    .value_observations
+                    .is_valid(operand.descriptor_permission.loaded_read())
             {
                 return Err("the loaded descriptor has an ambiguous activation or source read");
             }
             let formed = control.operands.get(activation.formation_value);
-            let read = control.value_observations.get(operand.descriptor_read);
-            if formed.descriptor_loan != handle
-                || formed.descriptor_read != operand.descriptor_read
+            let read = control
+                .value_observations
+                .get(operand.descriptor_permission.loaded_read());
+            if formed.descriptor_permission.loaded_loan() != handle
+                || formed.descriptor_permission.loaded_read()
+                    != operand.descriptor_permission.loaded_read()
                 || formed.expression != operand.expression
                 || formed.state_symbol != operand.state_symbol
                 || formed.statement_index != operand.statement_index

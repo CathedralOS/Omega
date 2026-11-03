@@ -83,7 +83,7 @@ impl Execution<'_, '_, '_> {
         if resources.next().is_some() {
             return;
         }
-        if capture.descriptor_loan.is_valid()
+        if capture.descriptor_permission != checked_trees::FlowDescriptorPermission::Unavailable
             || !matches!(
                 capture.completion,
                 checked_trees::FlowOperandCompletion::Observation
@@ -193,8 +193,8 @@ impl Execution<'_, '_, '_> {
         }
         // A prepared row is not an entry hypothesis. Only the real completed
         // value carries its lifetime; an unavailable source keeps refusing.
-        capture.descriptor_loan = handle;
-        capture.descriptor_read = read;
+        capture.descriptor_permission =
+            checked_trees::FlowDescriptorPermission::Loaded { loan: handle, read };
         capture.referents = self.append_referent_places(&[validation::CanonicalPlace {
             root: loan.root,
             segments: Vec::new(),

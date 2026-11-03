@@ -1241,8 +1241,7 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         self.filter_captured_sources(&changed, &mut captured_contexts, &mut captured_constraints);
         let retention = self.retention_from_referents(referents);
         checked_trees::FlowOperandFact {
-            descriptor_loan: Handle::invalid(),
-            descriptor_read: Handle::invalid(),
+            descriptor_permission: Default::default(),
             expression,
             state_symbol: self.state.symbol,
             statement_index: self.statement_index,

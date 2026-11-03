@@ -39,6 +39,7 @@ mod loans;
 mod owner_geometry;
 mod roots;
 mod state;
+pub(crate) mod supplied_outputs;
 mod tracker;
 pub(crate) use validation::borrow_contracts as view_link;
 

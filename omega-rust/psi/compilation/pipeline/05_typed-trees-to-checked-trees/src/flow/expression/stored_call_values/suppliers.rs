@@ -486,8 +486,44 @@ impl Execution<'_, '_, '_> {
                     } else {
                         Handle::invalid()
                     };
+                    if supplies_output
+                        && !descriptor_loan.is_valid()
+                        && std::env::var_os("OMEGA_STRUCT_TRACE").is_some()
+                    {
+                        eprintln!(
+                            "STRUCT supplied-descriptor-binding-refused known={known} type={reference:?} origins={origins:?} completed={:?}",
+                            call.completed_reference_loans
+                                .handles()
+                                .filter_map(|handle| {
+                                    let loan = self.borrow.loans.get(handle);
+                                    (loan.lineage
+                                        == checked_trees::BorrowLoanLineage::SuppliedOutput)
+                                        .then(|| {
+                                            let incoming = self
+                                                .borrow
+                                                .incoming_references
+                                                .get(loan.incoming_reference);
+                                            (
+                                                handle,
+                                                incoming.origin,
+                                                incoming.carrier_type,
+                                                self.borrow
+                                                    .owner_segments
+                                                    .span_or_empty(incoming.owner_path),
+                                            )
+                                        })
+                                })
+                                .collect::<Vec<_>>()
+                        );
+                    }
                     let value = self.context.control.operands.insert(FlowOperandFact {
-                        descriptor_loan,
+                        descriptor_permission: if descriptor_loan.is_valid() {
+                            checked_trees::FlowDescriptorPermission::SuppliedOutput {
+                                loan: descriptor_loan,
+                            }
+                        } else {
+                            Default::default()
+                        },
                         type_reference: reference,
                         state_symbol: self.state.symbol,
                         statement_index: self.statement_index,

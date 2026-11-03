@@ -16,34 +16,7 @@ pub(in crate::checks::borrows) use debts::{
     HeldInput, has_resource as has_debt_resource, output_windows, windows as debt_windows,
 };
 
-/// The namespace is established only by this exact call's normal exit.
-/// Later uses separately require a current holder or a captured descendant.
-pub(super) fn normal_call(
-    borrow: &BorrowFacts,
-    flow: &FlowFacts,
-    loan: arena::Handle<checked_trees::BorrowLoanFact>,
-) -> Option<arena::Handle<checked_trees::FlowCallFact>> {
-    let source = borrow.supplied_output_call(loan)?;
-    let invocation = borrow.calls.get(source);
-    let incoming = borrow
-        .incoming_references
-        .get(borrow.loans.get(loan).incoming_reference);
-    let state = flow
-        .control
-        .unique_state(incoming.machine_symbol, incoming.state_symbol)?;
-    let mut calls = state.calls.handles().filter(|handle| {
-        let actual = flow.control.calls.get(*handle);
-        actual.statement_index == invocation.statement_index
-            && actual.call_ordinal == invocation.call_ordinal
-            && actual.target_symbol == invocation.target_symbol
-            && actual.authored_expression == invocation.authored_expression
-            && flow
-                .borrow_loan_constraints(actual.exit_constraints)
-                .any(|live| live == loan)
-    });
-    let actual = calls.next()?;
-    calls.next().is_none().then_some(actual)
-}
+pub(super) use crate::borrow::supplied_outputs::normal_call;
 
 pub(super) fn validate_normal_output_completions(
     borrow: &BorrowFacts,

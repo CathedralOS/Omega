@@ -462,72 +462,55 @@ fn collect_completed_output(
     access: &checked_trees::BorrowAccessKind,
     output: &mut Vec<PermissionSupplier>,
 ) -> Option<bool> {
-    let loan = capture.descriptor_loan;
-    if !facts.borrow.loans.is_valid(loan)
-        || facts.borrow.loans.get(loan).lineage != checked_trees::BorrowLoanLineage::SuppliedOutput
-    {
+    if !matches!(
+        capture.descriptor_permission,
+        checked_trees::FlowDescriptorPermission::SuppliedOutput { .. }
+    ) {
         return None;
     }
-    let complete = (|| {
+    let complete = (|| -> Result<PermissionSupplier, &'static str> {
         if !projection.is_empty() || capture.state_symbol != state.state_symbol {
-            return None;
+            return Err("the output permission does not describe this whole captured leaf");
         }
-        let call = super::supplied_permissions::normal_call(&facts.borrow, &facts.flow, loan)?;
-        let invocation = facts.flow.control.calls.get(call);
-        if capture.statement_index != invocation.statement_index
-            || capture.storage_snapshot != invocation.invocation_storage
-        {
-            return None;
-        }
-        let mut resources = facts
-            .borrow
-            .supplied_output_resources
-            .iter()
-            .filter(|(_, resource)| resource.loan == loan);
-        let (_, resource) = resources.next()?;
-        if resources.next().is_some()
-            || resource.call != call
-            || resource.machine_symbol != state.machine_symbol
-            || resource.state_symbol != state.state_symbol
-        {
-            return None;
-        }
+        let loan = crate::borrow::supplied_outputs::captured_permission(
+            program,
+            &facts.borrow,
+            &facts.flow,
+            capture,
+        )?;
         let row = facts.borrow.loans.get(loan);
-        if resource.identity != row.incoming_reference
+        let incoming = facts.borrow.incoming_references.get(row.incoming_reference);
+        if incoming.machine_symbol != state.machine_symbol
             || row.kind.direct_reborrow_effect(access).is_none()
         {
-            return None;
+            return Err("the output permission cannot lend this state or access");
         }
-        let incoming = facts.borrow.incoming_references.get(resource.identity);
-        let path = owner_place_segments(facts.borrow.owner_segments.span(incoming.owner_path)?);
-        let supplied =
-            validation::project_type_reference_from_segments(program, incoming.carrier_type, &path)
-                .and_then(|reference| validation::reference_shell(program, reference))?;
-        let presented = validation::reference_shell(program, capture.type_reference)?;
-        if supplied.access != presented.access
-            || !validation::storage_origin_types_match(program, supplied.referee, presented.referee)
-        {
-            return None;
-        }
-        Some(PermissionSupplier {
+        Ok(PermissionSupplier {
             source: CheckedCallBorrowLoanSource::StoredLoan { loan },
             backing: checked_trees::CapturedPlace {
                 incoming_reference: row.incoming_reference,
                 incoming_owner_path: facts
                     .borrow
                     .access_segments
-                    .span(row.incoming_owner_path)?
+                    .span(row.incoming_owner_path)
+                    .ok_or("the output permission lost its incoming path")?
                     .to_vec(),
                 root: row.root,
                 segments: facts.borrow.loan_segments(row).to_vec(),
             },
         })
     })();
-    Some(if let Some(supplier) = complete {
-        output.push(supplier);
-        true
-    } else {
-        false
+    Some(match complete {
+        Ok(supplier) => {
+            output.push(supplier);
+            true
+        }
+        Err(reason) => {
+            if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+                eprintln!("STRUCT supplied-descriptor-permission-refused {reason}");
+            }
+            false
+        }
     })
 }
 
