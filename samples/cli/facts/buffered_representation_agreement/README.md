@@ -43,18 +43,17 @@ through their respective places before consumption. Forwarding promises preserve
 the incoming Result; they never require equality to the expected Pair. Their
 compiler proofs, native/Terminal observations and intended reject diagnostics
 remain pending, so the nine-place row stays open.
-The [latest completed check](https://github.com/CathedralOS/Omega/actions/runs/41662428112)
-at `60c23acf75f87e8bc338eac8af854d3b0bcea9b8` proves the writer's complete byte
-and length guarantee, the reader's input contract and field forwarding. Local
-and constant retain eight proof refusals beginning with frame restoration;
-the field consumer also lacks two transported facts. Eight control programs
-execute with native/Terminal exit zero, including saved data identity with a
-mutable buffer. Stale-storage, wrong-value, invalid-construction, executable
-floating equality and descriptor-identity controls reject correctly. The
-independent-index control rejects the missing bounds earlier in contract
-formation; its expected diagnostic has been updated and awaits a confirming run.
-The decoder twins still have unrelated restoration failures, so they do not yet
-establish this row's acceptance.
+The [latest completed check](https://github.com/CathedralOS/Omega/actions/runs/41672891758)
+at `8aaf1be33d3dc60142f48ebfa586a7a4d1d339e8` retains the writer's complete
+byte/length guarantee, reader input contract and field forwarding. The field
+consumer now refers to the original returned payload, but local and constant
+still have eight proof refusals and field has ten. No buffered witness executes.
+Eleven controls return zero in both engines. The selected-equality control
+rejects the intended missing case requirement, and the corrected independent
+index expectation matches. One case-domain control rejects the correct false
+construction condition but has an outdated diagnostic expectation; that
+expectation is corrected and awaits confirmation. Decoder twins still include
+unrelated restoration failures, so they do not establish this row's acceptance.
 
 The [constant-call checks](https://github.com/CathedralOS/Omega/actions/runs/41573401092)
 execute four independent method, binder, application and lifetime programs with
@@ -77,7 +76,7 @@ reject their controls as authored:
 | Value identity and lifetime | The input pair keeps its saved value, and the returned buffer permits a write visible to the caller. The frame borrow has a separate lifetime from its buffer. |
 | Composition | The public round-trip promise justifies the consuming call directly. Each place carries the completed Result before that call. |
 | Ownership and proof boundaries | Reading borrows the frame while its owner keeps the mutable buffer. Only owned snapshots leave constant evaluation. The corrupt decoder must fail its field promise. |
-| Checked source to Terminal Psi | Both engines must run the complete operation once, preserve the borrowed storage and return the authored result. No Terminal execution has passed yet. |
+| Checked source to Terminal Psi | Both engines must run the complete operation once, preserve the borrowed storage and return the authored result. No buffered witness has passed Terminal execution yet. |
 | Build selection, layout and calls | All four hosted entries are bound. The selected-body place checks which implementation ran, and neighboring fields and bytes detect misplaced storage or arguments. |
 | Instructions, registers and frames | Native execution must preserve both pair fields and the returned buffer across the nested and selected calls. This remains unverified. |
 | Encoding and native image | The emitted program must execute and agree with Terminal Psi. Other-host observations remain open. |
