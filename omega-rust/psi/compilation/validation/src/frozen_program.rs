@@ -214,6 +214,10 @@ impl CheckingInput for typed_trees::FrozenTypedTrees {
 }
 
 impl CheckingInput for checked_trees::CheckedTrees {
+    fn storage_graph(&self) -> Option<&checked_trees::FlowControlFacts> {
+        Some(&self.facts.flow.control)
+    }
+
     fn retained_borrow_custodies(&self) -> &[checked_trees::RetainedBorrowCustodyFact] {
         &self.facts.qualifications.content.retained_borrow_custodies
     }

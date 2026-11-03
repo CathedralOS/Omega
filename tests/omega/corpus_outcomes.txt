@@ -85,6 +85,8 @@ fail/cases/constructor_subject_range_unproved rejected 619ms expected @03bcba3fe
 	data `ByteRead` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/cases/constructor_subject_range_unsigned_to_signed_unproved rejected 1007ms expected @95750e8d2f8d
 	Exact integer cast in machine `make` state `entry` from `u64` to `i64` is not provably representable; constrain the source with a range or dominating guard, or use a named Wrapping, Saturating, or Trapping conversion.
+fail/comptime/const_recursive_counter_survives_unrelated_writes rejected 609ms expected @dafa99045a79+wt
+	fixed-array length `[u8; extent()]`: const evaluation of `extent` failed: machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/constants/target_layout_derived_ground_guarantee_reject rejected 1261ms expected @d6c89b306726
 	cannot prove ensures contract for exit from incorrect at statement 1: result >= 5
 fail/contracts/assignment_destination_cannot_use_rhs_call_guarantee rejected 7105ms expected @8f7188b97d7a
@@ -4784,6 +4786,7 @@ pass/compile_time/const_overload_nested_dependency_exit checked 4023ms check-tar
 pass/compile_time/const_overload_selected_dependency_exit checked 3628ms check-target:macos_arm64 @ccdb99ca2214
 pass/components/independent_same_spelling_packages checked 9944ms check-target:macos_arm64 @230151eef4fe
 pass/comptime/const_joint_ranked_call_component checked 2290ms check-target:macos_arm64 @6416b0fdfbe3
+pass/comptime/const_recursive_counter_survives_unrelated_writes checked 3764ms check-target:macos_arm64 @dafa99045a79+wt
 pass/comptime/provider_boundary_range_endpoint_exit rejected 32220ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	native artifact native artifact lowering failed: TargetFamily("native provider declaration roster differs from the complete selected plans")
 pass/comptime/range_endpoint_requires_discharge_exit checked 16565ms check-target:macos_arm64 @ccdb99ca2214
