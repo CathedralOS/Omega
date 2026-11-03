@@ -323,52 +323,7 @@ lets static callable requirements bind fresh per-invocation lifetimes, and the
 [static machine binder categories](wiki/spec/language/generics.md#static-machine-binder-categories)
 cover machine binders; neither covers evidence binders on a requirement.
 
-### 7. What represents a runtime-sized collection of owned, non-copy elements?
-
-The customer is an ordinary allocator-backed `Vec<T>` for parsed game objects,
-Squalr records and Cathedral resources. Its capacity is chosen at runtime; each
-live element may owe cleanup or contain linear authority. Growth must move those
-elements, not duplicate their bytes or forget their obligations. Release must
-account for every element before returning vacant backing.
-
-The current library has runtime-sized `u32` storage, and the
-[generic resident-move witness](samples/cli/facts/resident_backing/generic_move/README.md)
-now exercises moving and cleaning up one non-copy element. The missing contract
-is how an ordinary library collects a runtime number of those ownership claims
-into one buffer, then takes them apart through checked operations.
-
-Contracts checked:
-
-- [Allocation](wiki/spec/resources/allocation.md) places strategies in ordinary
-  checked packages over caller-supplied backing, not compiler-owned allocators.
-- [Resident custody](wiki/spec/resources/access.md) gives `Resident<P, T>` one
-  complete live `T`, forbids weakening it to `Vacant`, and explicitly rejects
-  ordinary resident split/merge or an inferred multi-object algebra.
-- [Runtime-index storage](wiki/spec/language/generics.md#runtime-index-identity-and-storage)
-  permits runtime-capacity owners with backing, but keeps inline array extents
-  static. A borrowed slice lends established elements; it does not own them.
-- [Content conservation](wiki/spec/resources/content_custody.md) supplies interval
-  and quantity algebras. Neither accounts for arbitrary element values and their
-  individual cleanup obligations; new authority-bearing algebras need compiler
-  support. `AccessCustody` instead matches the declared fields of one value.
-- [Deferred recast establishment](wiki/spec/layouts/recasts.md#deferred-establishment-on-exclusive-storage-casts)
-  permits initialization inside an exclusive loan, but does not let an unfinished
-  target escape or turn a borrowed window into an owned collection.
-
-Proposal: add a general resident-sequence storage contract over existing backing,
-with explicit initialized extent/count. Element insertion transfers owned `T`
-into it; removal transfers `T` out; remaining elements stay owned; vacancy requires
-complete removal or cleanup. Vec growth policy, allocation and iteration remain
-ordinary library machines. The exact source carrier and lifecycle operations need
-settlement; no new spelling or primitive is approved by this question.
-
-Alternative: require this to be built entirely from existing checked library
-mechanisms. That needs an identified runtime-sized ownership carrier and its
-composition/decomposition rule, not just a byte count or a result annotation.
-A fixed-capacity ladder, trusted byte-copy adapter, or assumption that `len == 0`
-alone proves vacancy would not meet the customer or the existing custody rules.
-
-### 8. Is derived ex falso part of the certificate fragment?
+### 7. Is derived ex falso part of the certificate fragment?
 
 Two accepted passages disagree about whether a `Falsehood` premise may close an
 arbitrary goal. [Classicality](wiki/spec/proofs/classicality.md) (lines 68-70)
@@ -415,7 +370,7 @@ the bounded conversion and says false is not inferred from a search failure,
 without saying whether a false denotation may be strengthened by a conjunct.
 None says which passage governs.
 
-### 9. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
+### 8. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
 
 [Epsilon's grammar](bootstrap/4_epsilon/LANGUAGE.md) (lines 128-139) lets an
 arm's continuation be `"return" expression?`, and lets the next arm's pattern
