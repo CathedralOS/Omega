@@ -44,9 +44,10 @@ impl Execution<'_, '_, '_> {
                 inputs = selected;
                 validation::ReferenceSlotContract::CheckedBody { machine, state }
             } else {
-                // A selector this state received may be any fitting
-                // implementation; the closed roster covers only selectors the
-                // program forms. Validation's loan formation uses the same rule.
+                // Without a selection proved in this state, a selector that
+                // may come from outside the program keeps the requirement's
+                // declared outputs; validation's loan formation, which has no
+                // selection step, applies the same rule to every such call.
                 let effects = self.context.call_frames.and_then(|frames| {
                     match frames.received_selector_stored_reference_effects(self.state, slot.symbol)
                     {

@@ -59,30 +59,60 @@ pub(in crate::machine_calls::calls::write_frames) fn relative_effects(
     )
 }
 
-/// Whether a selector of this slot's interface can reach the calling state
-/// through its inputs. Such a selector is an unknown selection: its body must
-/// hold for every fitting implementation, not only those this program forms.
-/// Types the walk cannot classify count as possible carriers.
+/// Whether this dynamic call's selector may be one the program never forms,
+/// so the closed realization roster does not bound it. A selector received
+/// through the calling state's inputs may be any fitting implementation, and
+/// so may one obtained by dispatching on any received selector, whatever its
+/// interface. A boundary requirement that can return or write a selector of
+/// this interface admits outside implementations everywhere: provider
+/// selection supplies no coercion evidence (dynamic_dispatch.md, source
+/// eligibility). Types the walk cannot classify count as possible carriers.
 pub(in crate::machine_calls::calls::write_frames) fn caller_may_receive_selector(
     program: &dyn crate::CheckingInput,
     caller: &typed_trees::state::State,
     slot: &DynamicSlotSignature,
 ) -> bool {
     let mut visiting = Vec::new();
-    program.state_parameters(caller).iter().any(|parameter| {
-        type_may_carry_selector(
-            program,
-            parameter.type_reference,
-            slot.interface_identity,
-            &mut visiting,
-        )
-    })
+    let received = program.state_parameters(caller).iter().any(|parameter| {
+        type_may_carry_selector(program, parameter.type_reference, None, &mut visiting)
+    });
+    received || boundary_may_supply_selector(program, slot.interface_identity)
+}
+
+fn boundary_may_supply_selector(
+    program: &dyn crate::CheckingInput,
+    interface: typed_trees::type_identity::TypeIdentityId,
+) -> bool {
+    let mut visiting = Vec::new();
+    program
+        .traits()
+        .iter()
+        .filter(|definition| definition.is_boundary)
+        .flat_map(|definition| program.trait_machine_signatures(definition))
+        .any(|signature| {
+            type_may_carry_selector(
+                program,
+                signature.return_type,
+                Some(interface),
+                &mut visiting,
+            ) || program
+                .state_signature_parameters(signature)
+                .iter()
+                .any(|parameter| {
+                    type_may_carry_selector(
+                        program,
+                        parameter.type_reference,
+                        Some(interface),
+                        &mut visiting,
+                    )
+                })
+        })
 }
 
 fn type_may_carry_selector(
     program: &dyn crate::CheckingInput,
     type_reference: typed_trees::types::TypeReferenceHandle,
-    interface: typed_trees::type_identity::TypeIdentityId,
+    interface: Option<typed_trees::type_identity::TypeIdentityId>,
     visiting: &mut Vec<SymbolHandle>,
 ) -> bool {
     use typed_trees::types::TypeReferenceNode;
@@ -102,9 +132,9 @@ fn type_may_carry_selector(
         | TypeReferenceNode::Slice { element_type } => {
             type_may_carry_selector(program, *element_type, interface, visiting)
         }
-        TypeReferenceNode::DynamicTrait { .. } => {
-            program.normalized_type_identity(type_reference) == interface
-        }
+        // `None` asks for any selector; `Some` for one exact interface.
+        TypeReferenceNode::DynamicTrait { .. } => interface
+            .is_none_or(|interface| program.normalized_type_identity(type_reference) == interface),
         // A named primitive scalar holds no selector; `dyn` is itself
         // classified as the primitive `Selector`, so it is matched above.
         TypeReferenceNode::Named { .. } if table.primitive_type(type_reference).is_some() => false,
@@ -128,7 +158,7 @@ fn type_may_carry_selector(
 fn data_may_carry_selector(
     program: &dyn crate::CheckingInput,
     symbol: SymbolHandle,
-    interface: typed_trees::type_identity::TypeIdentityId,
+    interface: Option<typed_trees::type_identity::TypeIdentityId>,
     visiting: &mut Vec<SymbolHandle>,
 ) -> bool {
     if visiting.contains(&symbol) {

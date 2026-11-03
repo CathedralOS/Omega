@@ -310,11 +310,12 @@ impl<'program> CallFrameResolver<'program> {
         })
     }
 
-    /// The slot relation of a dynamic call whose selector the calling state may
-    /// have received: the requirement's declared outputs, with lifetime debts
-    /// only (dynamic_dispatch.md: an unknown selection retains the requirement
-    /// ceiling). `None` when the caller cannot receive such a selector, so the
-    /// closed roster below covers every selector it can hold.
+    /// The slot relation of a dynamic call whose selector may be one the
+    /// program never forms: the requirement's declared outputs, with lifetime
+    /// debts only (dynamic_dispatch.md: an unknown selection retains the
+    /// requirement ceiling). `None` when every selector the calling state can
+    /// hold comes from the program's own coercions, which the closed roster
+    /// below covers.
     pub fn received_selector_stored_reference_effects(
         &self,
         caller: &State,
