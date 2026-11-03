@@ -83,7 +83,7 @@ wire_record! {
         slot_identity: Text,
         layout_subject_identity: Text,
         callback_requirement_identity: Text,
-        offset: U64,
+        placements: List<Placement>,
     }
     Selection: PrivateCallbackSlotSelection {
         declaration_identity: Text,

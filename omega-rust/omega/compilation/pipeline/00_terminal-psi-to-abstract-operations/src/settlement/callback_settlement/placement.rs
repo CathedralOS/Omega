@@ -258,7 +258,9 @@ fn private_materialization(
             }
             PrivateCallbackDestinationApplication::Field {
                 root: destination,
-                byte_offset: layout.field_offset(registrar.target)?,
+                placements: calling_conventions::PrivateCallbackPlacements::new(
+                    &layout.field_placements(registrar.target)?,
+                ),
             }
         }
     };

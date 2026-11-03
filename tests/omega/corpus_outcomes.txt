@@ -96,6 +96,10 @@ fail/build/terminal_calling_policy_rejected_normal rejected 12265ms expected @09
 	calling policy rejected the boundary: normal Terminal rejection
 fail/build/terminal_calling_policy_unrelated_constant rejected 42791ms expected @48b63d6be857
 	constant checking: scalar predicate is false: requires contract for call bounded from main state entry statement 5
+fail/calls/attached_parameter_overload_bound rejected 1438ms expected @72079e22578e+wt
+	machine `start` state `entry` value call to `Selector::choose` violates required fact `N == 37`: the instantiated fact is structurally false (`36 == 37`)
+fail/calls/attached_parameter_overload_wrong_argument rejected 1149ms expected @72079e22578e+wt
+	argument `value` for state `choose` expects `u64`, got `bool`
 fail/calls/completed_narrowing_result_case_bounds rejected 544ms @33b180036351
 	data `ByteRead` case `Byte` literal cannot prove the case constraint: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/calls/nested_machine_duplicate_helper_overload rejected 2717ms expected @11bdd2fe41ff+wt
@@ -3430,6 +3434,12 @@ fail/layouts/local_access_declaration_shadows_core_view rejected 648ms expected 
 	generic data `Access` expected 0 arguments but got 2
 	data `AccessPlan` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 	duplicate data `Access`
+fail/layouts/private_callback_fragments_container_outside rejected 45373ms expected @72079e22578e+wt
+	symbolic field `private callback` writes outside the 16-byte materialization
+fail/layouts/private_callback_fragments_destination_overlap rejected 45351ms expected @72079e22578e+wt
+	private callback fragments overlap in destination storage
+fail/layouts/private_callback_fragments_incomplete_source rejected 44218ms expected @72079e22578e+wt
+	private callback fragments do not cover the complete target pointer
 fail/machines/cyclic_private_arrival_maximum_rejected rejected 383ms expected @f58fe154c6f3
 	exact arithmetic in machine `pair` state `entry` terminal call operands may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `right` state `entry` terminal call operands may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
@@ -4533,6 +4543,8 @@ pass/build/unit_statement_preserves_prefix checked 3413ms check-target:macos_arm
 pass/calling/calling_count_boundaries_exit checked 21112ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/ambient_receiver_scalar_return_exit checked 17047ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/attached_context_terminal_machine_call_exit checked 3589ms check-target:macos_arm64 @ccdb99ca2214
+pass/calls/attached_parameter_overload_bound checked 4280ms check-target:macos_arm64 @72079e22578e+wt
+pass/calls/attached_parameter_overload_exit checked 3417ms check-target:macos_arm64 @72079e22578e+wt
 pass/calls/attached_terminal_machine_call_exit checked 3161ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/borrowed_case_dispatch_member_leaf_reads checked 15524ms check-target:macos_arm64 @ccdb99ca2214
 pass/calls/borrowed_float_argument_scalar_result_exit checked 19277ms check-target:macos_arm64 @ccdb99ca2214
@@ -12978,6 +12990,7 @@ pass/layouts/placed_view_call_custody checked 11861ms terminal-inspections:match
 pass/layouts/placed_view_source_access_exit checked 3837ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_data_layout_queries checked 3615ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_layout_constant_composition_exit checked 4656ms check-target:macos_arm64 @ccdb99ca2214
+pass/layouts/private_callback_descriptor_fragments_exit checked 59018ms check-target:macos_arm64 @72079e22578e+wt
 pass/layouts/private_callback_slot_demand_compile checked 1678ms @2ba727eefb59+wt
 pass/layouts/private_callback_slot_standalone_source checked 1047ms @2ba727eefb59+wt
 pass/layouts/private_callback_slot_untaken_compile checked 1058ms @2ba727eefb59+wt
