@@ -3004,6 +3004,18 @@ fn transfer_return_custody(
         };
         let admitted = declared(&leaf.root);
         if !admitted && !descriptor_backing::matches_return(&leaf.backing, &declared) {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                eprintln!(
+                    "CHECKSITE returned-reference-contract machine={:?} source={:?} path={:?} referent={:?} roots={:?} backing={:?} allowed={:?}",
+                    function.machine,
+                    source,
+                    path,
+                    leaf.referent,
+                    leaf.root,
+                    leaf.backing,
+                    mapping.sources
+                );
+            }
             return Err(invalid());
         }
         if custody
