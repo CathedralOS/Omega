@@ -8,11 +8,9 @@ not choose a type or an index.
 
 The owning tasks are **STRUCTURAL-GENERIC-MATCHING** and
 **BUILD-OWNED-TARGET-SELECTION** in [TASKS.md](../../../../TASKS.md).
-This folder contains the direct call and three existing ways to produce its
-input: a [forwarded result](forwarded_result/README.md),
-[mixed explicit arguments](mixed_binders/README.md), and a
-[checked constant call](typed_const_argument/README.md).
-Their facts and consuming operations stay separate and unchanged.
+The canonical nine places below carry this fact. Computed array sizes in named
+constants and trait arguments also have focused regression programs under
+`tests/omega/{pass,fail}/generics`; they do not add another sample row.
 
 ## Places
 
@@ -68,42 +66,37 @@ Positive and negative nine-place fixtures are pinned under
 The [structural inference contract](../../../../wiki/spec/language/generics.md#structural-type-equations-and-inference)
 requires exact declaration-backed structure before ordinary compatibility.
 
-## Current migration qualification
+## Current validation
 
-The original sources are fixed at `1f7bad99b8c86066daf01e4915538cb6d65a1d20`.
-The inventory includes all 94 projects across the four productions, with
-86 existing matching corpus fixtures. Four root positive/twin pairs have no
-separate corpus pin. Prior runtime observations remain historical; none is
-relabeled as execution of the current migration.
+Main deliberately retired the duplicate forwarded-result, mixed-argument and
+typed-constant sample trees in PRs #1841 and #1844. This change preserves those
+deletions. Their frozen programs and prior observations remain historical
+source evidence, including the [original snapshot](https://github.com/CathedralOS/Omega/tree/f846bcc27a2c428c000906b377582ade6cd13249/samples/cli/facts/inferred_array_equation_call).
+They are not current tracked acceptance.
 
-The original Linux baseline at `83e3d72bad8bd79a17111831811aaf3b975af8ab`
-was incomplete. It produced 36 native/Terminal zero agreements in the corpus and
-40 in ordinary projects, but refused the valid typed-constant `const_name`
-program before execution. Its type contains the unevaluated call `extent()`;
-the compiler incorrectly treated that call as a completed non-integer argument.
-Several invalid projects also carried stale diagnostic wording. These failures
-remain recorded rather than being counted as passing controls.
+The repair also addresses a real constant-evaluation failure. A valid named
+constant with `IndexedPacket<[u8; 2], extent()>` was rejected because the compiler
+treated its unfinished size call as a completed non-integer value. Later checks
+also missed computed arguments in `satisfies` clauses. The compiler now retains
+those computations, resolves them in their enclosing declaration, and checks
+the evaluated arguments against the same parameter types and conditions as
+other applications.
 
-The first focused repair at `3233d55f3e63407b334adeda6c5e80dec323dbe8`
-passed Rust checking and executed the local and field programs at zero in both
-engines. The named constant still refused at a later literal-only argument
-check, and the migrated requirement header retained an unsolved array equation.
-The next repair prepares pending type inputs before private name resolution
-and gives requirement headers the same type-input traversal as ordinary bodies.
-The next focused run at `78cdef20d39f467e3deef289a2677ee1384b4dda`
-executed local, field and target at zero in both engines, but the named constant
-still refused and the new satisfaction application lacked a normalized argument.
-Further source repair and full qualification remain pending.
+The retained regression programs cover the [original named constant](../../../../tests/omega/pass/generics/inferred_equation_typed_const_const_name_exit/main.omg)
+and its [conflicting-size twin](../../../../tests/omega/fail/generics/inferred_equation_typed_const_const_name_conflict/main.omg).
+One [focused positive](../../../../tests/omega/pass/generics/inferred_equation_computed_satisfaction_exit/main.omg)
+also combines an evaluated packet type, a computed satisfaction argument and a
+value-qualified constant. Its [Boolean twin](../../../../tests/omega/fail/generics/inferred_equation_computed_satisfaction_non_integer/main.omg)
+changes only the size computation's result type and value. The [invalid-value control](../../../../tests/omega/fail/generics/inferred_equation_mixed_destination_invalid_value/main.omg)
+changes only the ready constant from 7 to 8, so preserving an unfinished type
+cannot suppress a condition on a completed value. These three projects use six
+new source/Build files altogether.
 
-The migration aligns the remaining target-prefixed twins, replaces the typed
-constant production's four identical bodies with one ordinary implementation,
-and gives its reject pins matching Build companions. It does not change any
-fact, capacity, selected constant body or consuming operation. Supplementary
-checks cover non-integer calls, computed satisfaction arguments, and a ready
-value predicate beside an unfinished array type; they do not
-replace any original project. The complete current selection has 99 ordinary
-projects and 91 corpus fixtures. All four matching-host results remain required.
-Run records retain each actual producer, program revision, host and outcome.
+Validation of the merged source is still pending. Earlier failed runs retain
+their actual compiler and program revisions; no old result is relabeled as a
+new-head execution. The canonical row and relevant regressions still need actual
+native and Terminal Psi agreement on all four matching hosts, with their
+intended controls enforced.
 
 The parent tasks remain open. Open generic schemas, retained extensions, late
 receivers, other binder combinations, named lifetimes and selected computed

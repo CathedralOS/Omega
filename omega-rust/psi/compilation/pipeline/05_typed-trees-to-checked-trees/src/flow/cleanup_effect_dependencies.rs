@@ -492,9 +492,6 @@ fn visit_owner(
     has_erased_obligations: &mut bool,
     inactive_case: &InactiveCase<'_>,
 ) -> Option<()> {
-    let symbol = program
-        .machine_by_symbol(symbol)
-        .map_or(symbol, |machine| machine.attached_data_symbol);
     let Some(data) = applied_owner(program, reference, symbol) else {
         return match program.symbols.get(symbol).kind {
             symbols::SymbolKind::BuiltinType => Some(()),
@@ -811,9 +808,6 @@ fn select_type(
         }
         _ => return None,
     };
-    let symbol = program
-        .machine_by_symbol(symbol)
-        .map_or(symbol, |machine| machine.attached_data_symbol);
     let data = applied_owner(program, reference, symbol)?;
     let members = program.data_members(data);
     let (field, suffix) = match path[0] {

@@ -1,2 +1,0 @@
-cannot prove requires contract for call extended
-buffer.len >= 1024

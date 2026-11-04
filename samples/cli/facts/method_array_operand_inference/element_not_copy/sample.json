@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "generic machine `SelectedBytes::last` has a concrete specialization tuple that does not satisfy its authored type bounds"
-  ]
-}

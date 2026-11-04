@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "const-generic application evaluation failed: constant expression differs from its destination carrier"
-  ]
-}

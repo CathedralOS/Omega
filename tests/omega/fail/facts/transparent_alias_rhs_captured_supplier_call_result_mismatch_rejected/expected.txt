@@ -1,2 +1,0 @@
-argument `value` for state `forward` expects `[u8; 5]`
-declared place carrier `array(named(name(u8)),literal(4))`

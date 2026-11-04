@@ -368,17 +368,13 @@ impl Builder<'_, '_> {
         subslice_expression(self.program, expression)?;
         let machine = self.program.machine_by_symbol(self.machine)?;
         let state = self.program.state_by_symbol(self.state)?;
-        let parameters = if machine.attached_data.is_some() {
-            calls::ambient_self_scalar_signature(self.program, state)?.0
-        } else {
-            calls::free_structural_scalar_signature(
-                self.program,
-                &mut ShapeCollector::new(self.program),
-                state,
-                &[],
-            )?
-            .0
-        };
+        let parameters = calls::free_structural_scalar_signature(
+            self.program,
+            &mut ShapeCollector::new(self.program),
+            state,
+            &[],
+        )?
+        .0;
         let site = match self
             .program
             .statement_table

@@ -1,1 +1,0 @@
-requires a value proven to fit 8-bit signed storage

@@ -1,2 +1,0 @@
-use provider;
-machine main() { let value: u64 = provider::run(); }

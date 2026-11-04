@@ -36,8 +36,6 @@ pub struct CheckedComposedUnitControlMachinePlan {
     /// sibling that keeps the measured value. Every other edge into a ranked
     /// state strictly decreases the rank.
     pub preserving_rank_edges: Vec<CheckedRankEdgeCoordinate>,
-    /// Free helpers have no attachment; attached bodies retain their authored owner.
-    pub attachment_type_identity: Option<TypeIdentityId>,
     pub body_qualifications: Vec<SemanticDomainId>,
     pub contract_report_fingerprint: u64,
     pub contract_commitment: crate::MachineContractCommitment,

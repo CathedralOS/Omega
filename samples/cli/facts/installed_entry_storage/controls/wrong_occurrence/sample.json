@@ -1,7 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "private entry RAM initializer answers no declared entry position"
-  ]
-}

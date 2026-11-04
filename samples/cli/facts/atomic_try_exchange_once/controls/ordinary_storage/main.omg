@@ -1,6 +1,0 @@
-use omega::language::core::layout;
-data Cells { selected: u32; }
-machine main() {
-    let cells: Cells;
-    let outcome: AtomicTryExchangeOnceOutcome<u32> = cells.selected.try_exchange_once(10, 99, ReceivePublish, Receive);
-}

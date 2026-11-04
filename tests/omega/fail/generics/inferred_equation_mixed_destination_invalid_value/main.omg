@@ -12,8 +12,12 @@ requires Length == [u8; Capacity]
 { Capacity }
 data Envelope<Value [copy]> [copy] { value: Value; }
 machine forward<Value [copy]>(value: Value) -> Envelope<Value> { Envelope { value: value } }
+trait SizedHook<const Count: u64> { machine read(items: [u8; Count]) -> u64; }
+machine consume(items: [u8; 2]) -> u64 satisfies SizedHook<extent()>::read {
+    capacity(items)
+}
 machine main() crashes Trap {
-    let observed: u64 = capacity(forward(ITEMS).value.items);
+    let observed: u64 = consume(forward(ITEMS).value.items);
     transition observed == 2 && READY.value == 7 { true -> done() _ -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }

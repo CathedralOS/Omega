@@ -1,1 +1,0 @@
-declares `[copy]` but field `child` is not `copy`

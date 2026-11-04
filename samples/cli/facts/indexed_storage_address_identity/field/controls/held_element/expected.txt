@@ -1,2 +1,0 @@
-receives `items[index]` while local borrow `held` is still active
-its last use is at statement

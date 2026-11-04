@@ -82,6 +82,10 @@ pub(super) fn seed_value_vs_value_endpoints(
     ) {
         return;
     }
+    if let Some(arm_value) = validation::match_result_unique_arm(program, guard, true) {
+        seed_value_vs_value_endpoints(program, machine, state, facts, arm_value);
+        return;
+    }
     let Some(binary) = program.expression_table.binary_node(guard) else {
         return;
     };
@@ -177,6 +181,11 @@ pub(super) fn seed_guard_facts(
     // `!guard` holding is `guard` refuted.
     if let Some(operand) = negated_operand(program, guard) {
         seed_negated_guard_facts(program, machine, state, facts, operand);
+        return;
+    }
+
+    if let Some(arm_value) = validation::match_result_unique_arm(program, guard, true) {
+        seed_guard_facts(program, machine, state, facts, arm_value);
         return;
     }
 
@@ -581,6 +590,10 @@ pub(super) fn seed_negated_guard_facts(
     // Refuting `!guard` establishes `guard`.
     if let Some(operand) = negated_operand(program, guard) {
         seed_guard_facts(program, machine, state, facts, operand);
+        return;
+    }
+    if let Some(arm_value) = validation::match_result_unique_arm(program, guard, false) {
+        seed_negated_guard_facts(program, machine, state, facts, arm_value);
         return;
     }
     let Some(binary) = program.expression_table.binary_node(guard) else {

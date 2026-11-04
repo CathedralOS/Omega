@@ -20,6 +20,17 @@ be proved before the call to `width_range`. An entry predicate cannot stand
 for current storage while the window is open. No caller guard supplies the
 restored relation.
 
+A second production of the same restoration judgment follows it.
+`both_widths` lends the Range interval to `restored_width` and then to
+`upper_width`, and returns the first width only when both agree (79 otherwise).
+`upper_width` saves only the upper endpoint, writes `hi = 0` and restores it,
+then calls `width_range`. It never reads `lo`. The restored predicate must take
+the lower endpoint from current storage: no recorded write touched it since the
+borrow's entry, so its current version is the entry value. The Range tag reaches
+`upper_width` through `restored_width`'s complete write frame, which writes only
+payload fields. A collateral write to `lo` would change the agreed width and make
+`main()` trap.
+
 The bound, values, subtraction and exit oracle are unchanged. The two Bundles
 exercise signed/Boolean payloads and Range/Empty results: 42/true/4 versus
 -7/false/6, then -13/false/77 versus 23/true/77. Both match-join choices run.
@@ -62,6 +73,11 @@ four ordinary named implementations through its entry roots.
 - **Soundness:** ceiling twins, the [missing type equation](controls/missing_type_equation/main.omg),
   [other bound](controls/other_default_argument/main.omg), [stale write](controls/stale_write/main.omg)
   and [stale snapshot](controls/stale_snapshot_restore/main.omg) controls reject.
+  A lower endpoint overwritten inside the window through an
+  [alias](controls/alias_sibling_restore/main.omg) or a
+  [recast view](controls/recast_sibling_restore/main.omg) formed before it
+  also rejects at state exit: an untouched entry cell needs no overlapping
+  write exposure.
   The last changes the lower endpoint to 31: restoring the saved upper 21
   cannot borrow the old ordered relation. Unknown tags/fields supply no proof.
 - **Psi 06–08:** source proof discharges restoration and scalar consumption
@@ -97,6 +113,34 @@ those original identities rather than relabeling them as a later checkpoint.
 The focused corpus check observes 11 positives and 19 intended rejects; its
 `--both` leg executes the 11 positives with native/Terminal exit 0. This includes
 literal case restoration, ordinary record snapshots and write-only boundaries.
+
+The untouched-sibling production was red at fixed base
+`4f87c9e08b1a7217960f7f69c440a9d2f09d278d` (shared optimized CLI SHA-256
+`0a78edae3c9f54eaf0e365c3e9b42758ad641ba008619914ab64180f0235adae`): the
+restoring store in `upper_width` left the window open, reported as
+`data Interval<32>'s default domain is still FALSE at a call`. The stored
+predicate judgment rebuilt the Range subject only from captured field
+observations, and `lo` had none. The repair reads an entry formal's untouched
+cell as its entry projection under the same write-exposure rule that already
+admits declaration reads after disjoint stores; a written sibling still uses its
+stored current value, so the stale-snapshot control keeps rejecting at state
+exit. With the repaired optimized CLI (SHA-256
+`f01f31fb00ade02a521fb1920129f2ac5b75b185e998726d3b9aaf6c0b005ded`, base plus
+the owning PR's checking patch) all nine places return native and Terminal exit
+0 on `macos_x86_64`, the host of this run; each place now also binds that host's
+entry. The nine twins report the ceiling refusal at both `width_range` calls.
+A focused 204-fixture corpus subset (restoration, window, case-payload and
+recast rows) moves only by load-induced timeouts against the same subset run
+with the base runner; the 9 positive pins execute with exit 0 in both engines.
+After rebasing onto main `8d8506a6bca`, the repaired producer (CLI SHA-256
+`6b3ec882092a7e6ec3d6dc11895e41e7a2aa393e836a7e04a5e07a8f7ec9c074`) still checks the
+untouched-sibling witness, but every place, including main's unchanged sources
+run by main's own producer, now fails Terminal lowering with
+`InvalidUnitDomainPredicate` for `Ordered<32>` ("lowered domain predicate is not
+closed over its subject"). That regression entered main after `4f87c9e08b1` and
+is not yet bisected; the runtime evidence above is from the fixed base.
+Callee-restored tag postconditions, caller field reads after such a call,
+joined restoring stores and mutable payload recasts remain open in the parent.
 
 Existing guard-effects, literal restoration, named coverage, zero, invalid-case
 and stale-type controls remain under [controls/](controls/). The parent retains

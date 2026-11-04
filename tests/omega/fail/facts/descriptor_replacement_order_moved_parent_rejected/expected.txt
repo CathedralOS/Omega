@@ -1,2 +1,0 @@
-cannot store into
-assign a whole value to

@@ -1170,8 +1170,6 @@ pub struct CheckedUnitEffectMachinePlan {
     pub structural_result: Option<CheckedUnitStructuralReturnPlan>,
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
-    /// Exact attached data carrier, or `None` for an ordinary free machine.
-    pub attachment_type_identity: Option<TypeIdentityId>,
     pub structural_parameters: Vec<CheckedUnitStructuralParameterPlan>,
     /// Primitive parameters in authored order after removing structural
     /// parameters into their independent custody namespace.
@@ -1212,7 +1210,6 @@ pub struct CheckedUnitCallableEntry<'plan> {
     pub machine: SymbolHandle,
     pub state: SymbolHandle,
     pub returns_unit: bool,
-    pub attachment_type_identity: Option<TypeIdentityId>,
     pub structural_parameters: &'plan [CheckedUnitStructuralParameterPlan],
     pub scalar_parameters: &'plan [CheckedStructuralScalarParameterPlan],
     pub erased_scalar_parameters: &'plan [CheckedStructuralScalarParameterPlan],
@@ -1228,7 +1225,6 @@ impl CheckedUnitEffectMachinePlan {
             machine: self.machine,
             state: self.state,
             returns_unit: self.result == super::CheckedControlResultPlan::Unit,
-            attachment_type_identity: self.attachment_type_identity,
             structural_parameters: &self.structural_parameters,
             scalar_parameters: &self.scalar_parameters,
             erased_scalar_parameters: &self.erased_scalar_parameters,
@@ -1257,7 +1253,6 @@ impl CheckedComposedUnitControlMachinePlan {
             machine: self.machine,
             state: state.state,
             returns_unit: matches!(self.result, super::CheckedControlResultPlan::Unit),
-            attachment_type_identity: self.attachment_type_identity,
             structural_parameters: &state.structural_parameters,
             scalar_parameters: &state.scalar_parameters,
             erased_scalar_parameters: &state.erased_scalar_parameters,

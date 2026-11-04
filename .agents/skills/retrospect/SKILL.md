@@ -100,6 +100,13 @@ revisit conditions. Keep weak hypotheses separate from supported findings. If no
 pattern warrants action, say so.
 
 The report lives in the conversation or the user-requested report file.
-Verified design rationale goes to its existing owner in code when an authorized
-change needs it. Follow [AGENTS.md](../../../AGENTS.md) for repository
-ownership, validation, and landing.
+When recurring agent failure modes or poor decision tradeoffs along the
+compiler-completion path ([rust_compiler_completion.md](../../../wiki/drafts/reference/rust_compiler_completion.md))
+are confirmed by evidence, update the common framing in
+[AGENTS.md](../../../AGENTS.md#decision-making-framing-for-compiler-completion),
+the step-by-step workflow in [advance](../advance/SKILL.md), and the audit
+checklist in [coordinator-review](../coordinator-review/SKILL.md) (keeping the
+platform swarm skills thin so they only describe platform mechanics and point
+to `/advance`). Verified design rationale goes to its existing owner in code when
+an authorized change needs it. Follow [AGENTS.md](../../../AGENTS.md) for
+repository ownership, validation, and landing.

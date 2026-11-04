@@ -995,11 +995,6 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
         &mut structural_places,
     )?;
     structural_places.sort_by_key(|place| place.id);
-    let attachment = plan
-        .attachment_type_identity
-        .as_ref()
-        .map(|identity| lookup_type_id(&catalogs.type_ids, identity))
-        .transpose()?;
     crate::emission::claim_bindings::seal_block_entry_claims(&mut block_entry_claims)?;
     let mut machine = TerminalMachine {
         assembly_target_requirement: checked
@@ -1016,7 +1011,7 @@ pub(in crate::unit::attached_unit::composed_control) fn emit(
             &catalogs.service_ids,
         )?,
         id: terminal_machine,
-        attachment,
+        attachment: None,
         declaration: None,
         nominal_cleanup_subject: None,
         parameters: scalar_parameters,

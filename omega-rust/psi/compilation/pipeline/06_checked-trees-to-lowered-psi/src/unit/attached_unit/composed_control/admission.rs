@@ -8,17 +8,6 @@ use crate::unit::attached_unit::admission::retain_call_boundaries;
 use crate::unit::attached_unit::bodies::UnitPlans;
 use crate::unit::attached_unit::call_closure::BoundaryIdentity;
 
-/// A composed graph does not lower an attachment yet; this route refuses the
-/// machine rather than drop it.
-pub(super) fn reject_attachment(
-    plan: &checked_trees::CheckedComposedUnitControlMachinePlan,
-) -> Result<(), LoweringError> {
-    if plan.attachment_type_identity.is_some() {
-        return unsupported("composed Unit graph does not lower an attachment");
-    }
-    Ok(())
-}
-
 /// Collect the boundaries the given states' calls name, and refuse an
 /// operation the composed emitter has no route for.
 pub(super) fn admit_calls<'a>(

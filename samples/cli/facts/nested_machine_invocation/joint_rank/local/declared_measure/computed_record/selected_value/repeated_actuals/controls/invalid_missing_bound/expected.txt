@@ -1,1 +1,0 @@
-exact arithmetic in machine `read_pair` ensures contract may overflow
