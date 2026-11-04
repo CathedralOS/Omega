@@ -16,14 +16,14 @@ Their facts and consuming operations stay separate and unchanged.
 
 ## Places
 
-| Place | Positive Program | Fact-sensitive Reject Twin | Carrier / Transport Mechanism |
+| Place | Positive program | Reject twin | What the program carries |
 | --- | --- | --- | --- |
 | root | [`main.omg`](main.omg) | [`invalid/main.omg`](invalid/main.omg) | canonical root witness passing `[u8; 2]` actual directly to `capacity` |
 | local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) | declared `[u8; 2]` array copied to local variable before `capacity` call |
 | field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) | `[u8; 2]` array stored in and projected from `Holder::items` nominal field |
 | parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) | declared ordinary `[u8; 2]` parameter passed to `capacity` |
 | call_result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) | declared `[u8; 2]` array return value from helper function |
-| match_join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | both match arms return `[u8; 2]`; joined array passed to `capacity` |
+| match_join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) | selected `[u8; 2]` passed to `capacity`, then its first byte is checked as 7 or 19 |
 | const_name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) | declared array constant `BASE: [u8; 2]` passed to `capacity` |
 | other_state | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) | state arrival parameter `step(items: [u8; 2])` forwards to `capacity` |
 | other_machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) | forwarding machine routes `[u8; 2]` array to `capacity` |
@@ -76,12 +76,34 @@ The inventory includes all 94 projects across the four productions, with
 separate corpus pin. Prior runtime observations remain historical; none is
 relabeled as execution of the current migration.
 
-The current baseline and migration qualification are pending. Run records retain
-the actual optimized producer, program revision, host and engine outcomes.
+The original Linux baseline at `83e3d72bad8bd79a17111831811aaf3b975af8ab`
+was incomplete. It produced 36 native/Terminal zero agreements in the corpus and
+40 in ordinary projects, but refused the valid typed-constant `const_name`
+program before execution. Its type contains the unevaluated call `extent()`;
+the compiler incorrectly treated that call as a completed non-integer argument.
+Several invalid projects also carried stale diagnostic wording. These failures
+remain recorded rather than being counted as passing controls.
+
+The first focused repair at `3233d55f3e63407b334adeda6c5e80dec323dbe8`
+passed Rust checking and executed the local and field programs at zero in both
+engines. The named constant still refused at a later literal-only argument
+check, and the migrated requirement header retained an unsolved array equation.
+The next repair prepares pending type inputs before private name resolution
+and gives requirement headers the same type-input traversal as ordinary bodies.
+The next focused run at `78cdef20d39f467e3deef289a2677ee1384b4dda`
+executed local, field and target at zero in both engines, but the named constant
+still refused and the new satisfaction application lacked a normalized argument.
+Further source repair and full qualification remain pending.
+
 The migration aligns the remaining target-prefixed twins, replaces the typed
 constant production's four identical bodies with one ordinary implementation,
 and gives its reject pins matching Build companions. It does not change any
-fact, capacity, selected constant body or consuming operation.
+fact, capacity, selected constant body or consuming operation. Supplementary
+checks cover non-integer calls, computed satisfaction arguments, and a ready
+value predicate beside an unfinished array type; they do not
+replace any original project. The complete current selection has 99 ordinary
+projects and 91 corpus fixtures. All four matching-host results remain required.
+Run records retain each actual producer, program revision, host and outcome.
 
 The parent tasks remain open. Open generic schemas, retained extensions, late
 receivers, other binder combinations, named lifetimes and selected computed
