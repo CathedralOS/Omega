@@ -9,7 +9,9 @@ use symbols::SymbolHandle;
 use typed_trees::expression::{ExpressionHandle, ExpressionNode};
 use typed_trees::machine::Machine;
 use typed_trees::state::State;
-use typed_trees::statement::StatementNode;
+use typed_trees::statement::{
+    StatementNode, TransitionExit, TransitionGuardNode, TransitionTargetNode,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::proof_contracts::quotients) struct ImmutableAliasFallthroughRoot {
@@ -50,18 +52,17 @@ pub(in crate::proof_contracts::quotients) fn fallthrough_result_root(
     program: &dyn crate::CheckingInput,
     state: &State,
 ) -> Option<ImmutableAliasFallthroughRoot> {
+    // A completing value is a transition whose target is that value. It is
+    // the same result root as a trailing expression: the sealed request's
+    // representative operation and theorem application stay on the call.
     let direct = program
         .statement_table
         .statements(state.statement_nodes)
         .last()
         .and_then(|statement| {
-            let expression = statement.as_expression()?;
-            matches!(
-                expression_table(program).expression(*expression),
-                ExpressionNode::Call(call) if call.quotient_operation.is_some()
-            )
-            .then_some(ImmutableAliasFallthroughRoot {
-                request_expression: *expression,
+            let expression = result_expression(program, statement)?;
+            is_quotient_request(program, expression).then_some(ImmutableAliasFallthroughRoot {
+                request_expression: expression,
                 alias_count: 0,
             })
         });
@@ -69,8 +70,9 @@ pub(in crate::proof_contracts::quotients) fn fallthrough_result_root(
 }
 
 /// Recognize only the straight-line immutable alias form of one unchanged
-/// state-fallthrough result. This deliberately excludes transitions,
-/// assignments, side statements, mutable locals, and type drift.
+/// state-fallthrough result. The final name may be a trailing expression or
+/// the state's completing value. Named transfers, assignments, side
+/// statements, mutable locals, and type drift stay excluded.
 pub(in crate::proof_contracts::quotients) fn immutable_alias_fallthrough_root(
     program: &dyn crate::CheckingInput,
     state: &State,
@@ -79,10 +81,9 @@ pub(in crate::proof_contracts::quotients) fn immutable_alias_fallthrough_root(
         return None;
     }
     let statements = program.statement_table.statements(state.statement_nodes);
-    let (StatementNode::Expression(result), prefix) = statements.split_last()? else {
-        return None;
-    };
-    let mut expected_symbol = exact_local_name_symbol(program, *result)?;
+    let (result, prefix) = statements.split_last()?;
+    let result = result_expression(program, result)?;
+    let mut expected_symbol = exact_local_name_symbol(program, result)?;
     let mut seen = Vec::new();
     for (position, statement) in prefix.iter().enumerate().rev() {
         let local = statement.as_local_data()?;
@@ -116,7 +117,8 @@ pub(in crate::proof_contracts::quotients) fn immutable_alias_fallthrough_root(
 }
 
 /// Prove that the already-normalized fallthrough root exhausts normal result
-/// exits only for one exact, transition-free state. This says nothing about
+/// exits for one exact state. A completing-value transition is that result;
+/// every other transition leaves coverage incomplete. This says nothing about
 /// effects, termination, contract correspondence, or executable admission.
 pub(in crate::proof_contracts::quotients) fn complete_single_state_result_flow(
     program: &dyn crate::CheckingInput,
@@ -148,11 +150,7 @@ pub(in crate::proof_contracts::quotients) fn complete_single_state_result_flow(
     if states.len() != 1
         || states[0].symbol != state.symbol
         || fallthrough_result_root(program, state) != Some(root)
-        || program
-            .statement_table
-            .statements(state.statement_nodes)
-            .iter()
-            .any(|statement| matches!(statement, StatementNode::Transition(_)))
+        || has_disqualifying_transition(program, state)
     {
         return None;
     }
@@ -188,11 +186,7 @@ pub(in crate::proof_contracts::quotients) fn complete_state_forwarding_result_fl
     if states.len() < 2
         || typed_trees::state::state_by_symbol(states, result_state.symbol) != Some(result_state)
         || fallthrough_result_root(program, result_state) != Some(root)
-        || program
-            .statement_table
-            .statements(result_state.statement_nodes)
-            .iter()
-            .any(|statement| matches!(statement, StatementNode::Transition(_)))
+        || has_disqualifying_transition(program, result_state)
     {
         return None;
     }
@@ -284,6 +278,53 @@ pub(in crate::proof_contracts::quotients) fn complete_result_flow(
             complete_state_forwarding_result_flow(program, machine, result_state, root)
                 .map(CompleteResultFlow::Forwarded)
         })
+}
+
+/// The expression a statement contributes as the state's normal result.
+///
+/// A trailing expression and an unconditional completing-value transition
+/// publish the same value. Named transfers, guards, continuations, and
+/// patterned arms are not that result.
+fn result_expression(
+    program: &dyn crate::CheckingInput,
+    statement: &StatementNode,
+) -> Option<ExpressionHandle> {
+    if let Some(expression) = statement.as_expression() {
+        return Some(*expression);
+    }
+    let StatementNode::Transition(transition) = statement else {
+        return None;
+    };
+    if transition.guard != TransitionGuardNode::Always
+        || transition.exit != TransitionExit::Ordinary
+        || transition.continuation.is_valid()
+        || !transition.patterns.is_empty()
+    {
+        return None;
+    }
+    match program.statement_table.transition_target(transition.target) {
+        TransitionTargetNode::Value(expression) if expression.is_valid() => Some(*expression),
+        _ => None,
+    }
+}
+
+fn is_quotient_request(program: &dyn crate::CheckingInput, expression: ExpressionHandle) -> bool {
+    matches!(
+        expression_table(program).expression(expression),
+        ExpressionNode::Call(call) if call.quotient_operation.is_some()
+    )
+}
+
+/// A completing-value transition is the result edge. Every other transition
+/// — a guard, a named transfer, a continuation, or a patterned arm — leaves
+/// normal-result coverage incomplete.
+fn has_disqualifying_transition(program: &dyn crate::CheckingInput, state: &State) -> bool {
+    let statements = program.statement_table.statements(state.statement_nodes);
+    let last = statements.len().saturating_sub(1);
+    statements.iter().enumerate().any(|(index, statement)| {
+        matches!(statement, StatementNode::Transition(_))
+            && (index != last || result_expression(program, statement).is_none())
+    })
 }
 
 fn exact_local_name_symbol(
