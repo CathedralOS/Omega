@@ -490,6 +490,8 @@ pub struct CheckedDirectBorrowRestorationObligation {
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedBorrowResourceRetention {
     pub lexical_weakening: Handle<crate::FlowBorrowWeakeningFact>,
+    /// Includes descriptors a completed call installed; those carry custody
+    /// without a local loan and have no activation or weakening rows.
     pub holders: HandleSpan<Handle<BorrowLoanFact>>,
     pub final_weakening: Handle<crate::FlowBorrowWeakeningFact>,
 }
