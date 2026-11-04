@@ -168,6 +168,22 @@ fn declaration_intrinsic_has_no_signature(
     }
 }
 
+/// A declaration intrinsic with no parameter list does not replace a caller
+/// reference descriptor. A signature, including a public-contract fallback,
+/// still classifies slots. An unknown call with no signature stays incomplete.
+fn declaration_intrinsic_without_parameters(
+    program: &dyn crate::CheckingInput,
+    call_site: super::caller_aliases::CallerWriteSite<'_>,
+    trace_refusal: &impl Fn(&str),
+    phase: &str,
+) -> Option<SlotRelationTransfer> {
+    if declaration_intrinsic_has_no_signature(program, call_site) {
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
+    trace_refusal(phase);
+    None
+}
+
 fn invocation_reference_effects(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -243,23 +259,6 @@ fn invocation_reference_effects(
         trace_refusal("argument-capture-correspondence");
         return None;
     }
-    // Inline assembly is an unnameable builtin. It has no machine parameter
-    // list, and its operands are instruction registers rather than caller
-    // reference descriptors. A missing signature is a complete empty slot
-    // relation: the instruction does not replace a descriptor the caller owns.
-    if program
-        .symbols
-        .builtin_function_for_symbol(target)
-        .is_some_and(|function| function.is_asm_intrinsic())
-    {
-        return Some(SlotRelationTransfer::complete(Vec::new()));
-    }
-    // Provider selection and the other declaration intrinsics are authored
-    // calls with no executable parameter list. They name declarations; they
-    // do not replace a reference descriptor the caller owns.
-    if declaration_intrinsic_has_no_signature(program, call_site) {
-        return Some(SlotRelationTransfer::complete(Vec::new()));
-    }
     // The occurrence's applied logical contract owns caller-visible access.
     // A private body's open telescope or availability cannot turn a known
     // empty writable slot frontier into an unknown descriptor mutation.
@@ -267,12 +266,17 @@ fn invocation_reference_effects(
         super::caller_aliases::CallerWriteSite::Call(call)
             if !call_expression.is_valid() && call.target_symbol == target =>
         {
-            crate::CallSite::Statement(call)
-                .parameters(program, machine.symbol)
-                .or_else(|| {
-                    trace_refusal("statement-parameters");
-                    None
-                })?
+            match crate::CallSite::Statement(call).parameters(program, machine.symbol) {
+                Some(parameters) => parameters,
+                None => {
+                    return declaration_intrinsic_without_parameters(
+                        program,
+                        call_site,
+                        &trace_refusal,
+                        "statement-parameters",
+                    );
+                }
+            }
         }
         super::caller_aliases::CallerWriteSite::Expression(expression)
             if expression == call_expression =>
@@ -281,7 +285,7 @@ fn invocation_reference_effects(
             if call.target_symbol != target {
                 return None;
             }
-            crate::CallSite::Expression { expression, call }
+            match (crate::CallSite::Expression { expression, call })
                 .parameters(program, machine.symbol)
                 .or_else(|| {
                     // The applied logical signature can be absent while the
@@ -292,11 +296,17 @@ fn invocation_reference_effects(
                     let (_, signature) =
                         program.trait_machine_signature(dispatch.contract_symbol())?;
                     Some(program.state_signature_parameters(signature))
-                })
-                .or_else(|| {
-                    trace_refusal("expression-parameters");
-                    None
-                })?
+                }) {
+                Some(parameters) => parameters,
+                None => {
+                    return declaration_intrinsic_without_parameters(
+                        program,
+                        call_site,
+                        &trace_refusal,
+                        "expression-parameters",
+                    );
+                }
+            }
         }
         _ => return None,
     };
