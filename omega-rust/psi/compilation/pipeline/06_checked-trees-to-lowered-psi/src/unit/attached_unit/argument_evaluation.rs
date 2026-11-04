@@ -449,6 +449,7 @@ impl Evaluation {
     /// Resolve a completed value's storage and selected subtree. Retirement
     /// and replacement share this identity join. Result registries differ
     /// between ordinary and graph bodies; the caller supplies its registry.
+    #[track_caller]
     pub(crate) fn value_storage(
         &self,
         source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
@@ -456,6 +457,7 @@ impl Evaluation {
         mut result: impl FnMut(u32) -> Result<StructuralValueStorage, LoweringError>,
     ) -> Result<StructuralValueStorage, LoweringError> {
         use checked_trees::CheckedUnitStructuralArgumentSourcePlan;
+        let caller = std::panic::Location::caller();
         let storage = match *source {
             CheckedUnitStructuralArgumentSourcePlan::CapturedStorage {
                 selection,
@@ -505,7 +507,8 @@ impl Evaluation {
                     || {
                         if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                             eprintln!(
-                                "CHECKSITE value-storage-missing source={source:?} local_count={} local_roots={:?}",
+                                "CHECKSITE value-storage-missing source={source:?} caller={} local_count={} local_roots={:?}",
+                                caller,
                                 self.structural_locals.len(),
                                 self.structural_locals.iter().take(16).map(|local| local.root).collect::<Vec<_>>(),
                             );
@@ -530,6 +533,7 @@ impl Evaluation {
     /// Checked cleanup can outlive the source frontier that established an
     /// anonymous producer. Its conditional schedule names that exact producer;
     /// only its completed geometry is needed here, never sibling permissions.
+    #[track_caller]
     pub(crate) fn cleanup_value_storage(
         &self,
         source: &checked_trees::CheckedUnitStructuralArgumentSourcePlan,
@@ -995,10 +999,12 @@ impl Evaluation {
 
     /// Remove a retired physical occurrence from current source and transport
     /// rosters. Historical declarations and shared type geometry stay intact.
+    #[track_caller]
     pub(crate) fn retire_structural_home(&mut self, place: PlaceId) {
         if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
             eprintln!(
-                "CHECKSITE structural-home-retired place={place:?} local_roots={:?}",
+                "CHECKSITE structural-home-retired place={place:?} caller={} local_roots={:?}",
+                std::panic::Location::caller(),
                 self.structural_locals
                     .iter()
                     .filter(|local| local.argument.place == place)
