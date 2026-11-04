@@ -33,14 +33,14 @@ float variants, were retired in [#1841](https://github.com/CathedralOS/Omega/pul
 Their producer-bound observations remain historical evidence in the source
 history; they do not qualify the current Build configuration repair.
 
-**Establishment.** The observation is the read `items[0]` of the literal `[7, 1]`. Where that read is in another machine or target body, the callee requires `items[0] == 7` and the caller proves it from the literal. The consuming `agree` requires the saved value still equal the live element and 7. The exclusive loan does not establish the fact; the read does.
+- **Establishment.** The observation is the read `items[0]` of the literal `[7, 1]`. Where that read is in another machine or target body, the callee requires `items[0] == 7` and the caller proves it from the literal. The consuming `agree` requires the saved value still equal the live element and 7. The exclusive loan does not establish the fact; the read does.
 - **Identity and invalidation.** The complete non-writing call preserves the exact observed element. The twin's actual store overlaps that element and invalidates equality with its saved value. Disjoint actual writes remain covered by the choice rows.
 - **Composition.** The nine places carry that same sentence. Parameter, call result, other machine, and target body pass the saved value or the array through a contract that names the element. Field, match join, const name, and a nested machine keep the read in the lending state. The positive and reject twins differ only by the store in `expose`.
 - **Soundness.** The loan is ordinary exclusive access. No mathematical binding is executed. Proof retirement follows actual write footprints; no frame grants borrow authority.
 - **Checked-to-Terminal Psi.** The positive places execute in the Terminal Psi interpreter and agree with native execution. The reject twins fail checking, so they have no Terminal Psi product.
 - **Later realization.** Each positive binds `ProgramEntry` for `windows_x86_64`, `linux_x86_64`, `macos_arm64`, and `linux_arm64`. Current native/Terminal execution evidence is host-specific; bindings alone do not establish execution on the other hosts.
 
-This row covers complete non-writing frames over saved array-element observations, with actual overlapping-write twins. This row does not close the rest of `STATE-LOCAL-VALUE-FRONTIER`.
+These array-element observations and overlapping-write twins do not close the rest of `STATE-LOCAL-VALUE-FRONTIER`.
 
 ## Build-owned target-body migration
 
