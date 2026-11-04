@@ -1,7 +1,6 @@
-//! Close argument values independently of whether their declaration was typed
-//! in this cohort or retained by an earlier package. The declaration's exact
-//! telescope supplies the carrier; shared const admission checks formation and
-//! complete value constraints before any source recipe is replaced.
+//! Check constant arguments against their declaration's parameter types and
+//! conditions before replacing a source computation. The same checks apply to
+//! new declarations and those retained from an earlier package.
 
 use diagnostics::Diagnostic;
 use language_semantics::const_value::{CanonicalConstValue, DecodedCanonicalConstValue};
@@ -44,9 +43,9 @@ pub(super) fn normalize(program: &mut TypedTrees, frontier: usize) -> Result<(),
             ))
         })
         .collect::<Vec<_>>();
-    // Declaration-owned applications have the same receiving telescope as
-    // Generic type nodes. Their argument occurrences still own source recipes;
-    // header storage does not make a raw ConstExpression a canonical actual.
+    // Applications declared on a type or machine need the same argument checks
+    // as generic type nodes. Storing a computation in a declaration header
+    // does not turn it into a completed constant.
     applications.extend(program.conformances().iter().map(|declaration| {
         (
             declaration.trait_symbol,
