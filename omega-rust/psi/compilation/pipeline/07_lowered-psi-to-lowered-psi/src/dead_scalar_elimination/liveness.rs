@@ -167,8 +167,8 @@ fn inputs(operation: &O, values: &mut Vec<ValueId>) -> bool {
             committed_at: committed,
             ..
         } => values.push(*committed),
-        O::ActivateTaskRegister { selector, .. } => values.push(*selector),
-        O::ReadTaskRegister { .. } => {}
+        O::ActivateTaskRegister { selector, .. } | O::ReloadSegmentDescriptors { selector, .. } => values.push(*selector),
+        O::ReadTaskRegister { .. } | O::ReadSegmentSelector { .. } => {}
         O::RegisterAccess { event, .. } => values.extend(event.inputs()),
         // This pass never removes structural storage. A primitive read has no
         // scalar operand, but remains an observation even when its result dies.

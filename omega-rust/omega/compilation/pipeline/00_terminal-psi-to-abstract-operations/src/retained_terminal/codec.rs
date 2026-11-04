@@ -21,7 +21,7 @@ use value::{RecordError, RecordLimits, RecordReader, RecordValue, RecordWriter, 
 
 // Saved native inputs now recognize typed descriptor-table operations.
 // Older records must be rebuilt before decoding.
-const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI16";
+const RECORD_SCHEMA: &[u8; 8] = b"OMGNTI17";
 const RECORD_SCHEMA_FAMILY: &[u8; 6] = b"OMGNTI";
 const SUPERSEDED_RECORD_SCHEMA: &str = "retained native derivation inputs use a superseded record \
     schema; rebuild the component to retain them again";
@@ -41,6 +41,7 @@ mod tests {
             b"OMGNTI13",
             b"OMGNTI14",
             b"OMGNTI15",
+            b"OMGNTI16",
         ] {
             let mut input =
                 RecordReader::new(bytes, RecordLimits::default()).expect("bounded old schema");
@@ -64,7 +65,7 @@ mod tests {
     #[test]
     fn newer_record_schema_is_not_called_superseded() {
         let mut input =
-            RecordReader::new(b"OMGNTI17", RecordLimits::default()).expect("bounded new schema");
+            RecordReader::new(b"OMGNTI18", RecordLimits::default()).expect("bounded new schema");
         let Err(error) = DerivationInputs::read(&mut input) else {
             panic!("newer record schema accepted");
         };

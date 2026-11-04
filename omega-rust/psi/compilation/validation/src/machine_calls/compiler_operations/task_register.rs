@@ -2,16 +2,20 @@
 //! The generic declaration is checked before its executable application closes
 //! the table extent; neither a matching name nor an arbitrary service suffices.
 
+use super::descriptor_declarations::{
+    array_loan, boundary_state, extent_matches_application, fixed_array_length,
+    machine_control_service, plain_primitive,
+};
 use crate::CheckingInput;
-use language_core::task_register::{TASK_REGISTER_CORE_SOURCE, TaskRegisterOperation};
-use language_semantics::{MachineSupplyMode, ReferenceAccess, ServiceReachId};
+use language_core::descriptor_tables::DescriptorTableOperation;
+use language_semantics::{ReferenceAccess, ServiceReachId};
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 use typed_trees::machine::Machine;
-use typed_trees::types::{FixedArrayLength, PrimitiveType, TypeReferenceHandle, TypeReferenceNode};
+use typed_trees::types::PrimitiveType;
 
 #[derive(Clone, Copy)]
-pub enum TaskRegisterDeclaration {
+pub(super) enum TaskRegisterDeclaration {
     Activate {
         extent: SymbolHandle,
         service: ServiceReachId,
@@ -22,14 +26,14 @@ pub enum TaskRegisterDeclaration {
 }
 
 impl TaskRegisterDeclaration {
-    pub const fn service(self) -> ServiceReachId {
+    pub(super) const fn service(self) -> ServiceReachId {
         match self {
             Self::Activate { service, .. } | Self::Selector { service } => service,
         }
     }
 }
 
-pub fn task_register_declaration(
+pub(super) fn task_register_declaration(
     program: &dyn CheckingInput,
     machine: &Machine,
 ) -> Result<Option<TaskRegisterDeclaration>, &'static str> {
@@ -37,7 +41,7 @@ pub fn task_register_declaration(
         .machine_specialization(machine.symbol)
         .map_or(machine.symbol, |application| application.template);
     if program.symbol_toolchain_relative_path(original)
-        != Some(std::path::Path::new(TASK_REGISTER_CORE_SOURCE))
+        != Some(std::path::Path::new("task_register.omg"))
     {
         return Ok(None);
     }
@@ -132,10 +136,10 @@ pub fn task_register_declaration(
 }
 
 /// Executable lowering consumes a closed application of the checked declaration.
-pub fn task_register_operation(
+pub(super) fn task_register_operation(
     program: &dyn CheckingInput,
     machine: &Machine,
-) -> Result<Option<(TaskRegisterOperation, ServiceReachId)>, &'static str> {
+) -> Result<Option<(DescriptorTableOperation, ServiceReachId)>, &'static str> {
     let Some(contract) = task_register_declaration(program, machine)? else {
         return Ok(None);
     };
@@ -148,7 +152,7 @@ pub fn task_register_operation(
             {
                 return Err("task-register read application changed its signature");
             }
-            TaskRegisterOperation::Selector
+            DescriptorTableOperation::ReadTask
         }
         TaskRegisterDeclaration::Activate { extent, .. } => {
             let application = program
@@ -205,165 +209,10 @@ pub fn task_register_operation(
                     "task-register application requires 2..8192 GDT words, 104 task bytes, ten scratch bytes, u16 selector and byte result",
                 );
             }
-            TaskRegisterOperation::Activate {
+            DescriptorTableOperation::ActivateTask {
                 entries: entries as u16,
             }
         }
     };
     Ok(Some((operation, contract.service())))
-}
-
-fn boundary_state<'a>(
-    program: &'a dyn CheckingInput,
-    machine: &'a Machine,
-) -> Result<&'a typed_trees::state::State, &'static str> {
-    if machine.body_is_present
-        || machine.supply_mode != MachineSupplyMode::Boundary
-        || machine.suspends
-        || machine.blocks
-        || !machine.lifetime_parameters.is_empty()
-        || !machine.contracts.is_empty()
-        || !machine.invokes.is_empty()
-        || machine.spelling.is_some()
-        || !program.machine_trait_conformances(machine).is_empty()
-        || machine.target.is_some()
-        || machine.authored_target.is_some()
-        || machine.target_family_interface
-        || !machine.conformance_bounds.is_empty()
-        || machine.purpose != typed_trees::machine::MachinePurpose::Runtime
-        || !machine.owned_data.is_empty()
-        || machine.admitted_same_stack_bytes != 0
-        || machine.service_reach_is_installation_bound
-        || (program.machine_specialization(machine.symbol).is_none() && machine.is_public)
-    {
-        return Err("task-register primitive requires its private bodyless core declaration");
-    }
-    let [state] = program.machine_states(machine) else {
-        return Err("task-register declaration must have one entry signature");
-    };
-    if !state.contracts.is_empty() {
-        return Err("task-register primitive must not add entry contracts");
-    }
-    if program
-        .state_parameters(state)
-        .iter()
-        .any(|parameter| parameter.is_const || parameter.relevance.is_erased())
-    {
-        return Err("task-register primitive must retain every runtime operand");
-    }
-    Ok(state)
-}
-
-fn machine_control_service(
-    program: &dyn CheckingInput,
-    machine: &Machine,
-) -> Result<ServiceReachId, &'static str> {
-    let [service] = program
-        .service_reach_rows
-        .services(machine.service_reach_row)
-    else {
-        return Err("task-register primitive must reach exactly MachineControl");
-    };
-    let definition = program
-        .service_reaches
-        .definition(*service)
-        .ok_or("task-register MachineControl service has no declaration")?;
-    if program.symbol_toolchain_relative_path(definition.symbol)
-        != Some(std::path::Path::new("assembly.omg"))
-        || program
-            .normalized_hermetic_symbol_identity(definition.symbol)
-            .ok()
-            .as_deref()
-            != Some("toolchain::MachineControl")
-    {
-        return Err("task-register primitive must reach the exact core MachineControl service");
-    }
-    Ok(*service)
-}
-
-fn plain_primitive(
-    program: &dyn CheckingInput,
-    reference: TypeReferenceHandle,
-    primitive: PrimitiveType,
-) -> bool {
-    let TypeReferenceNode::Named { symbol, .. } =
-        program.type_reference_table.type_reference(reference)
-    else {
-        return false;
-    };
-    let expected = match primitive {
-        PrimitiveType::U8 => symbols::BuiltinTypeAtom::U8,
-        PrimitiveType::U16 => symbols::BuiltinTypeAtom::U16,
-        PrimitiveType::U64 => symbols::BuiltinTypeAtom::U64,
-        _ => return false,
-    };
-    program.symbols.builtin_type_atom(*symbol) == Some(expected)
-}
-
-fn array_loan(
-    program: &dyn CheckingInput,
-    reference: TypeReferenceHandle,
-    access: ReferenceAccess,
-    element: PrimitiveType,
-) -> Result<(TypeReferenceHandle, &FixedArrayLength), &'static str> {
-    let TypeReferenceNode::Reference {
-        referee,
-        access: actual,
-        ..
-    } = program.type_reference_table.type_reference(reference)
-    else {
-        return Err("task-register storage must be an ordinary reference");
-    };
-    let TypeReferenceNode::FixedArray {
-        element_type,
-        length,
-    } = program.type_reference_table.type_reference(*referee)
-    else {
-        return Err("task-register storage must be an unqualified fixed array");
-    };
-    if *actual != access || !plain_primitive(program, *element_type, element) {
-        return Err("task-register storage has different element or access authority");
-    }
-    Ok((*referee, length))
-}
-fn fixed_array_length(
-    program: &dyn CheckingInput,
-    reference: TypeReferenceHandle,
-    access: ReferenceAccess,
-    element: PrimitiveType,
-) -> Result<usize, &'static str> {
-    let (array, _) = array_loan(program, reference, access, element)?;
-    program
-        .closed_fixed_array_length(array)
-        .ok_or("task-register storage extent is not closed")
-}
-
-// First specialization may reuse the template symbol. Compare the current
-// extent with its retained argument instead of assuming the template stayed open.
-fn extent_matches_application(
-    program: &dyn CheckingInput,
-    machine: &Machine,
-    extent: SymbolHandle,
-    length: &FixedArrayLength,
-) -> Result<bool, &'static str> {
-    let substitution = if let Some(application) = program.machine_specialization(machine.symbol) {
-        let Some(typed_trees::static_applications::StaticMachineBindingValue::Const(actual)) =
-            program.specialization_binding(application, extent)
-        else {
-            return Err("task-register extent has no exact retained const argument");
-        };
-        Some((extent, *actual))
-    } else {
-        None
-    };
-    let expected = FixedArrayLength::ConstParameter {
-        symbol: extent,
-        name: Default::default(),
-    };
-    let expected = program.fixed_array_length_identity_with_simultaneous_substitutions(
-        &expected,
-        substitution.as_slice(),
-    );
-    let actual = program.fixed_array_length_identity(length, &[], &[]);
-    Ok(expected.is_some() && expected == actual)
 }

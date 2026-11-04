@@ -240,6 +240,9 @@ machine_semantic_kinds! {
     { fixed InvokeNoNormal },
     { fixed TaskRegisterActivate },
     { fixed TaskRegisterRead },
+    { fixed CodeSegmentReload },
+    { fixed DataSegmentReload },
+    { fixed SegmentSelectorRead },
     {
         /// One `Trapping` primitive at one carrier: the exact result, or an
         /// in-function architectural trap when the policy predicate holds.
@@ -319,6 +322,9 @@ pub enum MachineAlternativeFamily {
     GlobalDescriptorTableStore,
     TaskRegisterActivate,
     TaskRegisterRead,
+    CodeSegmentReload,
+    DataSegmentReload,
+    SegmentSelectorRead,
     ControlRegisterRead,
     ControlRegisterWrite,
     PortWrite,
@@ -439,6 +445,9 @@ impl From<MachineSemanticKind> for MachineAlternativeFamily {
             MachineSemanticKind::GlobalDescriptorTableStore => Self::GlobalDescriptorTableStore,
             MachineSemanticKind::TaskRegisterActivate => Self::TaskRegisterActivate,
             MachineSemanticKind::TaskRegisterRead => Self::TaskRegisterRead,
+            MachineSemanticKind::CodeSegmentReload => Self::CodeSegmentReload,
+            MachineSemanticKind::DataSegmentReload => Self::DataSegmentReload,
+            MachineSemanticKind::SegmentSelectorRead => Self::SegmentSelectorRead,
             MachineSemanticKind::ControlRegisterRead => Self::ControlRegisterRead,
             MachineSemanticKind::ControlRegisterWrite => Self::ControlRegisterWrite,
             MachineSemanticKind::PortRegisterRead => Self::PortRegisterRead,
@@ -636,6 +645,8 @@ pub enum MachineMemoryEffect {
     HostedWriteByteV1,
     /// Checked GDTR association, scratch write and conditional locked TSS descriptor update.
     TaskRegisterActivationV1,
+    /// Snapshot GDTR, inspect the borrowed descriptor and conditionally set its accessed bit.
+    SegmentDescriptorReloadV1,
     WritePointerV1,
     NoneV1,
     ReadPointerV1,
@@ -905,6 +916,16 @@ pub enum MachineEncodedMemoryEffect {
         table_pointer_operand: u16,
         table_byte_count_operand: u16,
         task_pointer_operand: u16,
+        selector_operand: u16,
+        scratch_pointer_operand: u16,
+        stack_pointer: RegisterViewId,
+    },
+    /// Reads an eight-byte descriptor and conditionally sets its accessed bit.
+    /// The ten-byte GDTR snapshot is caller-owned scratch. The sealed code
+    /// continuation uses sixteen stack bytes; data reload uses eight for flags.
+    SegmentDescriptorReloadV1 {
+        table_pointer_operand: u16,
+        table_byte_count_operand: u16,
         selector_operand: u16,
         scratch_pointer_operand: u16,
         stack_pointer: RegisterViewId,

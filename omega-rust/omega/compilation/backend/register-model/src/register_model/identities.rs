@@ -61,7 +61,7 @@ identity!(
 );
 identity!(
     TargetRegisterEnvironmentIdentity,
-    b"omega.target-register-environment-identity.v29\0"
+    b"omega.target-register-environment-identity.v30\0"
 );
 
 pub(crate) fn physical_register_model_identity(
@@ -186,6 +186,9 @@ pub fn target_register_environment_identity(
         selected_keys.global_descriptor_table,
         selected_keys.task_register_activate,
         selected_keys.task_register_read,
+        selected_keys.code_segment_reload,
+        selected_keys.data_segment_reload,
+        selected_keys.segment_selector_read,
         selected_keys.control_register_read,
         selected_keys.control_register_write,
         selected_keys.port_register_read,

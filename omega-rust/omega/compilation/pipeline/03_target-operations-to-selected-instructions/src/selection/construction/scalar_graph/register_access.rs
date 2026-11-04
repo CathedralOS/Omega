@@ -19,7 +19,9 @@ pub(super) fn emit(
     let key = match operation {
         RegisterOperation::GlobalDescriptorTable(_)
         | RegisterOperation::TaskRegisterActivate
-        | RegisterOperation::TaskRegisterRead => {
+        | RegisterOperation::TaskRegisterRead
+        | RegisterOperation::SegmentReload(_)
+        | RegisterOperation::SegmentRead(_) => {
             return Err(SelectedInstructionError::custody());
         }
         RegisterOperation::SystemRead(terminal_psi::SystemRegister::Control(_)) => {

@@ -42,18 +42,18 @@ const WRITE_SEMANTICS_OFFSET: usize = 573;
 fn post_allocation_codec_pins_current_schema_at_empty_boundaries() {
     use sha2::Digest;
     // Pin both encodings so a coordinated codec/identity change remains visible.
-    // The task-register vocabulary advances identity v23 and wire version 24.
+    // The segment-selector vocabulary advances identity v24 and wire version 25.
     let identities = [
-        "2eef73e3b460ee5195009d5a08313e69311a5b0d0524b44a15784b3050b211e5",
-        "3baff94f5eca55c7da8a08f9996313151cb0a4e740285128ce11b8120347b8d1",
-        "eca43dd2b90e057da591039dff4bc4a4a351d87e33ad6f4e5212271d296cb0ee",
-        "b55f852f91fcc0028f590aa8b0be3e43fb978585fa2d2ef6ddfa2985e0b8a191",
+        "cd6c834757e1c9473067d94d58fe530377219da6827eda97657ef658adcf0f2b",
+        "2b3f6cd8c1efd65df566ff9a69519b142f17d85f0a0dabc9db6d14f47804f8c1",
+        "40350e523c6f8891f4a0c418f00df83dbdc28247fdb7437ec86f226209604210",
+        "ec8b2b79ab348a2c9658c4b449b48324277aafbff38894f9ff6406e85c28bbfe",
     ];
     let wire_digests = [
-        "ddaa2fda33c4d3495ba5bc258fdb6041bd9efe16855cbae99934b259f447d58e",
-        "8531ecfad06fd25d4f7d79b39411a7db7ebc4cafb1fa817144ace4bd1e7bd935",
-        "da141fc3ec2fe12a9d35e36c7d7922a6c4e4df8a63d4675bad1b60f2717b905a",
-        "d2bc28de17ea3841a13a21d39f6c2fbb58c51a330c6f6db76cf67940ad1d31aa",
+        "29903ae691de4f328bf02554a50deeab50674055af8d99dd27515879df92231d",
+        "d24fc1bc79ca352a613b06ed21caeeb99a5c1b7cc8dd2fc4b36abd528dd0b600",
+        "dd79e06e1d7404825c8f1db3fd3909590f449df7fe3421c4de0e0bbeec0ddf7c",
+        "a1aa3c69f28fda2d0ed0f980cc7d04db9bd1cd97b9768f4a9f8a020fd46d4947",
     ];
     let measured = (0..4)
         .map(|variant| {

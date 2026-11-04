@@ -1,4 +1,4 @@
-//! Retained task instructions must keep the storage and scalar types checked by source.
+//! Retained descriptor instructions must keep the storage and scalar types checked by source.
 use super::target_family_tests::{identity_table, unit_machine};
 use crate::{decode_module, encode_module};
 use semantic_vocabulary::{
@@ -178,4 +178,96 @@ fn task_register_receiving_rejects_forged_operands_and_result() {
     let mut selector = task_module();
     selector.machines[0].parameters[0].scalar_type = unsigned(32);
     assert!(refusal(&selector).contains("u16 selector"));
+}
+
+fn segment_module(kind: SegmentReload) -> TerminalModule {
+    let mut module = task_module();
+    let operations = &mut module.machines[0].blocks[0].operations;
+    let OperationKind::ActivateTaskRegister {
+        service,
+        entries,
+        gdt,
+        selector,
+        scratch,
+        ..
+    } = operations[0].kind.clone()
+    else {
+        unreachable!()
+    };
+    operations[0].kind = OperationKind::ReloadSegmentDescriptors {
+        service,
+        entries,
+        gdt,
+        selector,
+        scratch,
+        kind,
+    };
+    operations[1].kind = OperationKind::ReadSegmentSelector {
+        service,
+        register: SegmentRegister::Code,
+    };
+    module
+}
+
+#[test]
+fn segment_operations_round_trip_with_exact_loans_and_selectors() {
+    for kind in [SegmentReload::Code, SegmentReload::Data] {
+        for register in [
+            SegmentRegister::Code,
+            SegmentRegister::Data,
+            SegmentRegister::Extra,
+            SegmentRegister::Stack,
+            SegmentRegister::Fs,
+            SegmentRegister::Gs,
+        ] {
+            let mut module = segment_module(kind);
+            if let OperationKind::ReadSegmentSelector {
+                register: selected, ..
+            } = &mut module.machines[0].blocks[0].operations[1].kind
+            {
+                *selected = register;
+            }
+            assert_eq!(
+                decode_module(&encode_module(&module).unwrap()).unwrap(),
+                module
+            );
+        }
+    }
+}
+
+#[test]
+fn segment_receiving_rejects_lost_table_scratch_selector_and_result_obligations() {
+    for kind in [SegmentReload::Code, SegmentReload::Data] {
+        let mut shared = segment_module(kind);
+        if let OperationKind::ReloadSegmentDescriptors { gdt, .. } =
+            &mut shared.machines[0].blocks[0].operations[0].kind
+        {
+            gdt.access = StructuralAccess::SharedBorrow;
+        }
+        assert!(refusal(&shared).contains("mutable GDT"));
+        let mut extent = segment_module(kind);
+        if let OperationKind::ReloadSegmentDescriptors { entries, .. } =
+            &mut extent.machines[0].blocks[0].operations[0].kind
+        {
+            *entries = 6;
+        }
+        assert!(refusal(&extent).contains("exact unqualified"));
+        let mut scratch = segment_module(kind);
+        scratch.structural_types[2].shape =
+            StructuralTypeShape::ByteSequence(ByteSequenceCarrier::BoundedView {
+                capacity: 9,
+                access: Some(StructuralAccess::MutableBorrow),
+            });
+        assert!(refusal(&scratch).contains("exact unqualified"));
+        let mut selector = segment_module(kind);
+        selector.machines[0].parameters[0].scalar_type = unsigned(32);
+        assert!(refusal(&selector).contains("u16 selector"));
+        let mut result = segment_module(kind);
+        if let OperationResult::Scalar(result) =
+            &mut result.machines[0].blocks[0].operations[1].result
+        {
+            result.scalar_type = unsigned(8);
+        }
+        assert!(refusal(&result).contains("exact unsigned result"));
+    }
 }

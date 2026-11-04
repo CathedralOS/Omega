@@ -1,4 +1,4 @@
-//! Task instructions consume the same completed borrows as ordinary calls.
+//! Descriptor instructions consume the same completed borrows as ordinary calls.
 
 use super::{CallInputs, OperationFrame};
 use crate::unit::{
@@ -6,14 +6,14 @@ use crate::unit::{
     terminal_scalar_type, value_id,
 };
 use checked_trees::CheckedUnitCallPlan;
-use language_core::task_register::TaskRegisterOperation;
+use language_core::descriptor_tables::DescriptorTableOperation;
 
 impl OperationFrame<'_, '_> {
-    pub(super) fn task_register(
+    pub(super) fn descriptor_table(
         &mut self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
         call: &CheckedUnitCallPlan,
-        action: TaskRegisterOperation,
+        action: DescriptorTableOperation,
         service: language_semantics::ServiceReachId,
         result_type: typed_trees::types::PrimitiveType,
         inputs: &CallInputs<'_>,
@@ -31,7 +31,7 @@ impl OperationFrame<'_, '_> {
             inputs.completed_structural_arguments,
         )?;
         let service = lookup_service_id(self.service_ids, service)?;
-        let kind = crate::emission::operation_emission::task_register::operation_kind(
+        let kind = crate::emission::operation_emission::descriptor_tables::operation_kind(
             action,
             service,
             inputs.evaluated_scalar_arguments.unwrap_or_default(),

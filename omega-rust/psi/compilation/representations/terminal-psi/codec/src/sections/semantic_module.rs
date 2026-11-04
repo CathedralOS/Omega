@@ -160,7 +160,7 @@ pub(crate) const MAGIC: &[u8; 8] = b"PSITERM\0";
 // Marker 240 keeps the binder-selected calling owner for inherited callbacks.
 // Marker 242 combines occupied-owner placement and borrowed descriptor instructions.
 // The two earlier 241 layouts are incompatible.
-pub(crate) const FORMAT_MARKER: u16 = 243;
+pub(crate) const FORMAT_MARKER: u16 = 244;
 
 pub(crate) const FINGERPRINT_DOMAIN: &[u8] = b"psi-terminal-semantic-fingerprint\0";
 
@@ -319,4 +319,4 @@ mod normal_qualification_tests;
 mod global_descriptor_table_tests;
 
 #[cfg(test)]
-mod task_register_tests;
+mod descriptor_operation_tests;

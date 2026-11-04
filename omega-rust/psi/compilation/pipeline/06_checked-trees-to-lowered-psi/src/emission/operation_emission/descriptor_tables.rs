@@ -1,24 +1,24 @@
-//! Emit task-register instructions after their ordinary call operands complete.
+//! Emit descriptor instructions after their ordinary call operands complete.
 
 use super::buffer::{OperationBuffer, SourceCallCoordinate};
 use super::calls::{CallEmissionContext, PreparedStructuralArgument};
 use super::expressions::{LoweredDirectExpression, emit_direct_expression};
 use crate::shared::lowering_error::LoweringError;
 use crate::shared::terminal_identities::{lookup_service_id, mint_with, value_id};
-use language_core::task_register::TaskRegisterOperation;
+use language_core::descriptor_tables::DescriptorTableOperation;
 use semantic_vocabulary::{QualifiedScalarType, ServiceId, ValueId};
 use terminal_psi::{
     Operation, OperationKind, OperationResult, StructuralArgument, ValueDeclaration,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct LoweredTaskRegisterBinding {
+pub(crate) struct LoweredDescriptorTableBinding {
     pub(crate) source_coordinate: SourceCallCoordinate,
     pub(crate) loan_completions: Vec<crate::emission::loan_completions::PreparedLoanCompletion>,
     pub(crate) source_site: checked_trees::NominalMachineUseSite,
     pub(crate) target_machine: symbols::SymbolHandle,
     pub(crate) result_type: QualifiedScalarType,
-    pub(crate) operation: TaskRegisterOperation,
+    pub(crate) operation: DescriptorTableOperation,
     pub(crate) service: language_semantics::ServiceReachId,
     pub(crate) arguments: Vec<LoweredDirectExpression>,
     pub(crate) structural_arguments: Vec<PreparedStructuralArgument>,
@@ -26,18 +26,18 @@ pub(crate) struct LoweredTaskRegisterBinding {
 
 /// Both statement and expression calls consume the same checked operand roster.
 pub(crate) fn operation_kind(
-    action: TaskRegisterOperation,
+    action: DescriptorTableOperation,
     service: ServiceId,
     arguments: &[ValueDeclaration],
     storage: Vec<StructuralArgument>,
 ) -> Result<OperationKind, LoweringError> {
     let missing = |operand: &str| {
         LoweringError::InvalidDeclarationIdentity(format!(
-            "checked task-register instruction lost its {operand} operand"
+            "checked descriptor instruction lost its {operand} operand"
         ))
     };
     Ok(match action {
-        TaskRegisterOperation::Activate { entries } => {
+        DescriptorTableOperation::ActivateTask { entries } => {
             let selector = arguments.first().ok_or_else(|| missing("selector"))?.id;
             let mut storage = storage.into_iter();
             OperationKind::ActivateTaskRegister {
@@ -49,12 +49,27 @@ pub(crate) fn operation_kind(
                 scratch: storage.next().ok_or_else(|| missing("scratch"))?,
             }
         }
-        TaskRegisterOperation::Selector => OperationKind::ReadTaskRegister { service },
+        DescriptorTableOperation::ReadTask => OperationKind::ReadTaskRegister { service },
+        DescriptorTableOperation::ReloadSegments { entries, kind } => {
+            let selector = arguments.first().ok_or_else(|| missing("selector"))?.id;
+            let mut storage = storage.into_iter();
+            OperationKind::ReloadSegmentDescriptors {
+                service,
+                entries,
+                kind,
+                selector,
+                gdt: storage.next().ok_or_else(|| missing("GDT"))?,
+                scratch: storage.next().ok_or_else(|| missing("scratch"))?,
+            }
+        }
+        DescriptorTableOperation::ReadSegment { register } => {
+            OperationKind::ReadSegmentSelector { service, register }
+        }
     })
 }
 
 pub(super) fn emit(
-    call: &LoweredTaskRegisterBinding,
+    call: &LoweredDescriptorTableBinding,
     parameters: &[ValueDeclaration],
     frontier: &lowered_psi::LoweredSourceFrontierBindings,
     next_value_identity: &mut u64,
@@ -87,7 +102,7 @@ pub(super) fn emit(
     let result = mint_with(
         next_value_identity,
         value_id,
-        "task-register result identity overflow",
+        "descriptor result identity overflow",
     )?;
     let operation = operations.allocate();
     operations.record_source_call(
