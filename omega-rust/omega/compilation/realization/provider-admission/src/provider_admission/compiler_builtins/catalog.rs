@@ -186,6 +186,8 @@ fn compiler_builtin_execution(
         numerics::literals::FloatFormat::F64 => semantic_vocabulary::IeeeFloatFormat::Binary64,
     };
     let (operation, format) = match identity {
+        CompilerIntrinsicExecutionIdentity::TaskRegisterActivate
+        | CompilerIntrinsicExecutionIdentity::TaskRegisterRead => return None,
         CompilerIntrinsicExecutionIdentity::AccessLifecycle(operation) => {
             return Some(CompilerBuiltinExecution::AccessLifecycle {
                 boundary,

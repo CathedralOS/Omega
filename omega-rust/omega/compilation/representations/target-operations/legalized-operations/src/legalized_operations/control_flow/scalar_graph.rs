@@ -183,6 +183,15 @@ impl LegalizedScalarInstruction {
             | LegalizedScalarInstructionKind::PrimitiveLocalStore { value, .. } => {
                 visit(value.value)
             }
+            LegalizedScalarInstructionKind::ActivateTaskRegister {
+                selector, indices, ..
+            } => {
+                visit(*selector);
+                for index in indices.iter().flatten() {
+                    visit(index.operand.value);
+                }
+            }
+            LegalizedScalarInstructionKind::ReadTaskRegister { .. } => {}
             LegalizedScalarInstructionKind::ByteSequenceLength { indices, .. }
             | LegalizedScalarInstructionKind::ElementViewLength { indices, .. }
             | LegalizedScalarInstructionKind::GlobalDescriptorTable { indices, .. }
@@ -460,6 +469,18 @@ pub enum LegalizedScalarInstructionKind {
         source: semantic_vocabulary::PlaceId,
         path: Vec<terminal_psi::StructuralPathSegment>,
         indices: Vec<LegalizedRuntimeIndexOperand>,
+    },
+    ActivateTaskRegister {
+        service: semantic_vocabulary::ServiceId,
+        entries: u16,
+        gdt: terminal_psi::StructuralArgument,
+        task_state: terminal_psi::StructuralArgument,
+        selector: ValueId,
+        scratch: terminal_psi::StructuralArgument,
+        indices: [Vec<LegalizedRuntimeIndexOperand>; 3],
+    },
+    ReadTaskRegister {
+        service: semantic_vocabulary::ServiceId,
     },
     GlobalDescriptorTable {
         service: semantic_vocabulary::ServiceId,
@@ -1104,6 +1125,8 @@ impl LegalizedScalarInstructionKind {
             | Self::SelectImplementation { .. }
             | Self::FloatResultPolicy { .. }
             | Self::PortWrite { .. }
+            | Self::ActivateTaskRegister { .. }
+            | Self::ReadTaskRegister { .. }
             | Self::GlobalDescriptorTable { .. }
             | Self::RegisterAccess { .. }
             | Self::AtomicFence { .. }

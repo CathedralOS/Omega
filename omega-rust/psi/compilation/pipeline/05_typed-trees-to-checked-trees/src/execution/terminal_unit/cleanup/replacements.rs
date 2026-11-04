@@ -26,11 +26,10 @@ pub(super) fn actions(
     facts: &CheckFacts,
     targets: &[CheckedUnitCallableEntry<'_>],
     shapes: &mut ShapeCollector<'_>,
-    machine: SymbolHandle,
     state: SymbolHandle,
     parameters: &[CheckedUnitStructuralParameterPlan],
     operation: &CheckedUnitEffectOperationPlan,
-) -> Option<super::temporary_actions::SelectedActions> {
+) -> Result<super::temporary_actions::SelectedActions, &'static str> {
     (|| {
         let CheckedUnitEffectOperationPlan::ContinuationCleanup {
             boundary:
@@ -43,24 +42,30 @@ pub(super) fn actions(
             ..
         } = operation
         else {
-            return None;
+            return Err("continuation cleanup boundary is not a replacement");
         };
+        let machine = super::owning_cleanup_machine(program, state);
         let source = &destination.source;
         let root = match *source {
             CheckedUnitStructuralArgumentSourcePlan::StructuralLocal { symbol } => {
                 PlaceRoot::Symbol(symbol)
             }
             CheckedUnitStructuralArgumentSourcePlan::Parameter { parameter_index } => {
-                let parameter = parameters.get(parameter_index as usize)?;
-                let declaration = program.state_by_symbol(state)?;
+                let parameter = parameters
+                    .get(parameter_index as usize)
+                    .ok_or("replacement parameter index exceeds its catalog")?;
+                let declaration = program
+                    .state_by_symbol(state)
+                    .ok_or("replacement state has no declaration")?;
                 PlaceRoot::Symbol(
                     program
                         .state_parameters(declaration)
-                        .get(parameter.position as usize)?
+                        .get(parameter.position as usize)
+                        .ok_or("replacement parameter position exceeds its declaration")?
                         .symbol,
                 )
             }
-            _ => return None,
+            _ => return Err("replacement destination root is not a local or parameter"),
         };
         let displaced = old_value.source != *source;
         let replaced_place = match program.state_by_symbol(state).and_then(|declaration| {
@@ -146,14 +151,21 @@ pub(super) fn actions(
             })
             .flatten();
         let carrier_discard = if let Some(carrier) = carrier_death {
-            let declaration = shapes.types.get(&destination.type_identity)?;
+            let declaration = shapes
+                .types
+                .get(&destination.type_identity)
+                .ok_or("replacement carrier has no shape declaration")?;
             let reference = validation::canonical_place_type_reference(
                 program,
                 state,
                 *statement_index as usize,
-                replaced_place.as_ref()?,
-            )?;
-            let shell = validation::reference_shell(program, reference)?;
+                replaced_place
+                    .as_ref()
+                    .ok_or("replacement carrier names no replaced place")?,
+            )
+            .ok_or("replacement carrier place has no type reference")?;
+            let shell = validation::reference_shell(program, reference)
+                .ok_or("replacement carrier reference has no shell")?;
             // Custody retains the qualified source type; executable shapes name
             // storage. Rejoin both through this exact assigned declaration, never
             // by treating equal layouts as authority to retire another descriptor.
@@ -198,7 +210,7 @@ pub(super) fn actions(
                 || !declaration.descriptor_cleanup
                 || old_value.type_identity != destination.type_identity
             {
-                return None;
+                return Err("replacement carrier descriptor cannot be discarded");
             }
             Some(CheckedNormalCleanupAction::Discard(
                 checked_trees::CheckedUnitPartialAffineDiscardPlan {
@@ -239,7 +251,8 @@ pub(super) fn actions(
                     .flow
                     .ownership
                     .segments
-                    .span(disposition.path)?
+                    .span(disposition.path)
+                    .ok_or("replacement disposition path span missing")?
                     .to_vec(),
             };
             // The death of exactly the assigned place is the old value this store
@@ -263,7 +276,8 @@ pub(super) fn actions(
                     &place,
                     None,
                     None,
-                )?
+                )
+                .ok_or("replacement death place has no projected argument path")?
                 .path
             };
             // A death can cover the replaced place or an enclosing value. Keep
@@ -281,7 +295,7 @@ pub(super) fn actions(
                 // Owned replacements clean in place; borrowing cannot manufacture an
                 // absent displaced value before this static continuation is chosen.
                 if displaced {
-                    return None;
+                    return Err("displaced old value already has a selected disposition");
                 }
                 let mut region = super::actions::selected_region(
                     program,
@@ -290,7 +304,8 @@ pub(super) fn actions(
                     disposition_handle,
                     source.clone(),
                     replaced.then_some(destination.path.as_slice()),
-                )?;
+                )
+                .ok_or("replacement selected region cannot be formed")?;
                 if destination.path.starts_with(&region.path) {
                     region = destination.clone();
                 }
@@ -304,8 +319,7 @@ pub(super) fn actions(
                 disposition_handle,
                 source.clone(),
                 replaced.then_some(destination.path.as_slice()),
-            )
-            .ok()?;
+            )?;
             // A completed empty complement still authenticates this old home.
             // Missing disposition evidence remains different from zero actions.
             selected_disposition = true;
@@ -313,7 +327,9 @@ pub(super) fn actions(
                 let action_path = match &action {
                     CheckedNormalCleanupAction::Discard(action) => &action.path,
                     CheckedNormalCleanupAction::InvokeNominal(action) => &action.path,
-                    CheckedNormalCleanupAction::RetireHome { .. } => return None,
+                    CheckedNormalCleanupAction::RetireHome { .. } => {
+                        return Err("replacement cannot retire a home at its destination")
+                    }
                 };
                 if !action_path.starts_with(&destination.path) {
                     if !destination.path.starts_with(action_path) {
@@ -323,7 +339,7 @@ pub(super) fn actions(
                     // it. An enclosing hook observes the whole value and cannot
                     // run piecewise.
                     let CheckedNormalCleanupAction::Discard(_) = action else {
-                        return None;
+                        return Err("enclosing replacement action is not a discard");
                     };
                     action = CheckedNormalCleanupAction::Discard(
                         checked_trees::CheckedUnitPartialAffineDiscardPlan {
@@ -348,7 +364,8 @@ pub(super) fn actions(
                             condition.path = shapes.cleanup_control.paths.insert_many(path);
                             Some(condition)
                         })
-                        .collect::<Option<Vec<_>>>()?;
+                        .collect::<Option<Vec<_>>>()
+                        .ok_or("replacement condition path escapes its destination")?;
                     let case_conditions = shapes.cleanup_control.conditions.insert_many(conditions);
                     let (source, path) = match &mut action {
                         CheckedNormalCleanupAction::Discard(action) => {
@@ -359,9 +376,14 @@ pub(super) fn actions(
                             action.case_conditions = case_conditions;
                             (&mut action.source, &mut action.path)
                         }
-                        CheckedNormalCleanupAction::RetireHome { .. } => return None,
+                        CheckedNormalCleanupAction::RetireHome { .. } => {
+                            return Err("displaced replacement cannot retire a home")
+                        }
                     };
-                    *path = path.strip_prefix(destination.path.as_slice())?.to_vec();
+                    *path = path
+                        .strip_prefix(destination.path.as_slice())
+                        .ok_or("displaced action path escapes its destination")?
+                        .to_vec();
                     *source = old_value.source.clone();
                 }
                 actions.push(action);
@@ -379,7 +401,7 @@ pub(super) fn actions(
         // An occupied affine value cannot silently become a raw discard when its
         // source death is absent. The producer must supply that occurrence first.
         if actions.is_empty() && !selected_disposition {
-            return None;
+            return Err("replacement selected no cleanup actions and no disposition");
         }
         if selected_regions
             .iter()
@@ -394,7 +416,8 @@ pub(super) fn actions(
                 root,
                 &mut actions,
                 &old_value.source,
-            )?;
+            )
+            .ok_or("replacement action order cannot merge its destinations")?;
         }
         // The authenticated replacement join distinguishes the displaced value's
         // home from the retained containing record. A root rebind also ends its old
@@ -408,7 +431,7 @@ pub(super) fn actions(
                 },
             );
         }
-        Some(super::temporary_actions::SelectedActions {
+        Ok(super::temporary_actions::SelectedActions {
             actions,
             selected_regions,
         })

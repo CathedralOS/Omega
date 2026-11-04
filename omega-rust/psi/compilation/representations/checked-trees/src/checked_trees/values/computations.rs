@@ -729,6 +729,13 @@ pub enum CheckedScalarCallee {
         /// arguments. Its value completes before every ordinary operand.
         authority_value: super::structural_values::CheckedStructuralValueHandle,
     },
+    /// A checked CPU operation whose arguments use the ordinary call schedule.
+    TaskRegister {
+        machine: SymbolHandle,
+        state: SymbolHandle,
+        operation: language_core::task_register::TaskRegisterOperation,
+        service: language_semantics::ServiceReachId,
+    },
     /// A requirement invoked through a runtime implementation selector
     /// (`Trait::member(selector, data...)`). `selector` is evaluated before
     /// the data operands and is never one of the call's `arguments`.
@@ -751,7 +758,9 @@ impl CheckedScalarCallee {
             Self::Boundary {
                 authority_value, ..
             } => *authority_value,
-            Self::Body { .. } | Self::Dynamic { .. } => Default::default(),
+            Self::Body { .. } | Self::TaskRegister { .. } | Self::Dynamic { .. } => {
+                Default::default()
+            }
         }
     }
 
@@ -759,9 +768,9 @@ impl CheckedScalarCallee {
     /// A dynamic callee selects its executable at runtime and names none.
     pub fn static_target(&self) -> Option<(SymbolHandle, SymbolHandle)> {
         match self {
-            Self::Body { machine, state } | Self::Boundary { machine, state, .. } => {
-                Some((*machine, *state))
-            }
+            Self::Body { machine, state }
+            | Self::Boundary { machine, state, .. }
+            | Self::TaskRegister { machine, state, .. } => Some((*machine, *state)),
             Self::Dynamic { .. } => None,
         }
     }
@@ -771,7 +780,9 @@ impl CheckedScalarCallee {
     /// retained call fact's resolved target.
     pub fn called_signature(&self) -> SymbolHandle {
         match self {
-            Self::Body { state, .. } | Self::Boundary { state, .. } => *state,
+            Self::Body { state, .. }
+            | Self::Boundary { state, .. }
+            | Self::TaskRegister { state, .. } => *state,
             Self::Dynamic { slot, .. } => *slot,
         }
     }
@@ -780,7 +791,7 @@ impl CheckedScalarCallee {
     pub fn selector(&self) -> Option<CheckedScalarComputationHandle> {
         match self {
             Self::Dynamic { selector, .. } => Some(*selector),
-            Self::Body { .. } | Self::Boundary { .. } => None,
+            Self::Body { .. } | Self::Boundary { .. } | Self::TaskRegister { .. } => None,
         }
     }
 }

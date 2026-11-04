@@ -42,17 +42,17 @@ requires count >= 1 requires count <= 16 requires window.len == count {
     machine filled() { }
 }
 machine Main::main(main: &mut Main) reaches Console {
-    transition { _ -> probability(main, 0) }
+    transition { _ -> block probability(main, 0) }
     machine probability(main: &mut Main, field: u64) requires field < 10 {
         let read: LineReadResult = block Console::read_line(&mut main.line);
         transition read {
-            LineReadResult::LineComplete { count } -> probability_line(main, field, count)
+            LineReadResult::LineComplete { count } -> block probability_line(main, field, count)
             _ -> invalid(main)
         }
     }
     machine probability_line(main: &mut Main, field: u64, count: u64) requires field < 10 {
         transition count == 8 && main.line[7] == 10 {
-            true -> digits(main, field, 0, 0)
+            true -> block digits(main, field, 0, 0)
             false -> invalid(main)
         }
     }
@@ -60,63 +60,63 @@ machine Main::main(main: &mut Main) reaches Console {
     requires field < 10 requires index < 7 requires value <= 1000000 {
         let character: u8 = main.line[index];
         transition character >= 48 && character <= 57 {
-            true -> accumulate(main, field, index, value, character)
+            true -> block accumulate(main, field, index, value, character)
             false -> invalid(main)
         }
     }
     machine accumulate(main: &mut Main, field: u64, index: u64, value: u64, character: u8)
     requires field < 10 requires index < 7 requires value <= 1000000 requires character >= 48 requires character <= 57 {
         let next: u64 = value * 10 + ((character as u64) - 48);
-        transition next <= 1000000 { true -> accumulated(main, field, index, next) false -> invalid(main) }
+        transition next <= 1000000 { true -> block accumulated(main, field, index, next) false -> invalid(main) }
     }
     machine accumulated(main: &mut Main, field: u64, index: u64, value: u64)
     requires field < 10 requires index < 7 requires value <= 1000000 {
-        transition index < 6 { true -> digits(main, field, index + 1, value) false -> store(main, field, value) }
+        transition index < 6 { true -> block digits(main, field, index + 1, value) false -> block store(main, field, value) }
     }
     machine store(main: &mut Main, field: u64, value: u64) requires field < 10 requires value <= 1000000 {
         main.model.units[field] = value;
         main.model.probabilities[field] = F64::from_i64(value as i64) / 1000000.0;
-        transition field < 9 { true -> probability(main, field + 1) false -> distributions(main, 0) }
+        transition field < 9 { true -> block probability(main, field + 1) false -> block distributions(main, 0) }
     }
     machine distributions(main: &mut Main, row: u64) requires row < 5 {
         transition main.model.units[2 * row] <= 1000000 && main.model.units[2 * row + 1] <= 1000000 {
-            true -> bounded_distribution(main, row)
+            true -> block bounded_distribution(main, row)
             false -> invalid(main)
         }
     }
     machine bounded_distribution(main: &mut Main, row: u64) requires row < 5
     requires main.model.units[2 * row] <= 1000000 requires main.model.units[2 * row + 1] <= 1000000 {
         transition main.model.units[2 * row] + main.model.units[2 * row + 1] == 1000000 {
-            true -> distribution_valid(main, row)
+            true -> block distribution_valid(main, row)
             false -> invalid(main)
         }
     }
     machine distribution_valid(main: &mut Main, row: u64) requires row < 5 {
-        transition row < 4 { true -> distributions(main, row + 1) false -> observations(main) }
+        transition row < 4 { true -> block distributions(main, row + 1) false -> block observations(main) }
     }
     machine observations(main: &mut Main) {
         let read: LineReadResult = block Console::read_line(&mut main.line);
         transition read {
-            LineReadResult::LineComplete { count } -> observation_line(main, count)
+            LineReadResult::LineComplete { count } -> block observation_line(main, count)
             _ -> invalid(main)
         }
     }
     machine observation_line(main: &mut Main, count: u64) {
-        transition count >= 2 && count <= 17 { true -> observation_length(main, count) false -> invalid(main) }
+        transition count >= 2 && count <= 17 { true -> block observation_length(main, count) false -> invalid(main) }
     }
     machine observation_length(main: &mut Main, count: u64) requires count >= 2 requires count <= 17 {
         main.model.count = count - 1;
-        transition main.line[count - 1] == 10 { true -> symbols(main, 0) false -> invalid(main) }
+        transition main.line[count - 1] == 10 { true -> block symbols(main, 0) false -> invalid(main) }
     }
     machine symbols(main: &mut Main, index: u64) requires index < 16 {
-        transition main.line[index] >= 48 && main.line[index] <= 49 { true -> symbol(main, index) false -> invalid(main) }
+        transition main.line[index] >= 48 && main.line[index] <= 49 { true -> block symbol(main, index) false -> invalid(main) }
     }
     machine symbol(main: &mut Main, index: u64) requires index < 16 requires main.line[index] >= 48 requires main.line[index] <= 49 {
         main.model.observations[index] = (main.line[index] as u64) - 48;
-        transition index + 1 < main.model.count { true -> more_symbols(main, index) false -> end_input(main) }
+        transition index + 1 < main.model.count { true -> block more_symbols(main, index) false -> block end_input(main) }
     }
     machine more_symbols(main: &mut Main, index: u64) requires index < 16 {
-        transition index < 15 { true -> symbols(main, index + 1) false -> invalid(main) }
+        transition index < 15 { true -> block symbols(main, index + 1) false -> invalid(main) }
     }
     machine end_input(main: &mut Main) {
         let read: LineReadResult = block Console::read_line(&mut main.line);

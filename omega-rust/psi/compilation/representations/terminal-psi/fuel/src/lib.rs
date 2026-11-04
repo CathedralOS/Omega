@@ -122,7 +122,9 @@ impl TerminalFuelSchedule {
             | OperationKind::TrappingInteger { .. }
             | OperationKind::FloatResultPolicy { .. }
             | OperationKind::StorageAddress { .. }
-            | OperationKind::GlobalDescriptorTable { .. } => 1,
+            | OperationKind::GlobalDescriptorTable { .. }
+            | OperationKind::ActivateTaskRegister { .. }
+            | OperationKind::ReadTaskRegister { .. } => 1,
         }
     }
 

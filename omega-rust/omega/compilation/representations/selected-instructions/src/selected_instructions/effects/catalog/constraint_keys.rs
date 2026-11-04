@@ -164,6 +164,8 @@ impl SelectedConstraintKeys {
             MachineSemanticKind::PortWrite => return self.rows.port_write,
             MachineSemanticKind::SystemRegisterRead => return self.rows.system_register_read,
             MachineSemanticKind::SystemRegisterWrite => return self.rows.system_register_write,
+            MachineSemanticKind::TaskRegisterActivate => return self.rows.task_register_activate,
+            MachineSemanticKind::TaskRegisterRead => return self.rows.task_register_read,
             MachineSemanticKind::GlobalDescriptorTableLoad
             | MachineSemanticKind::GlobalDescriptorTableStore => {
                 return self.rows.global_descriptor_table;

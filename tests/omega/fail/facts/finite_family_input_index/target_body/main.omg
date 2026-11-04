@@ -19,11 +19,49 @@ machine check(item: Indexed<16>) crashes Trap {
     transition item.value == 7 { true -> done() false -> bad() }
     machine done() {} machine bad() { crash Trap; }
 }
-linux_x86_64 machine relay(selected: dyn Family, width: u32) -> Indexed<16> requires width == 16 || width == 32 { create(selected, width) }
-linux_arm64 machine relay(selected: dyn Family, width: u32) -> Indexed<16> requires width == 16 || width == 32 { create(selected, width) }
-macos_arm64 machine relay(selected: dyn Family, width: u32) -> Indexed<16> requires width == 16 || width == 32 { create(selected, width) }
-windows_x86_64 machine relay(selected: dyn Family, width: u32) -> Indexed<16> requires width == 16 || width == 32 { create(selected, width) }
+boundary trait SelectedBodyCheck {
+    machine require_tag(tag: u64) reaches crashes Trap;
+}
+X86BodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 17u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+ArmBodyCheck satisfies SelectedBodyCheck {
+    machine require_tag(tag: u64) crashes Trap {
+        transition tag == 29u64 { true -> done() false -> wrong() }
+        machine done() {}
+        machine wrong() { crash Trap; }
+    }
+}
+boundary trait SelectedRelay {
+    machine relay(selected: dyn Family, width: u32) -> Indexed<16> reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires width == 16 || width == 32;
+}
+X86Relay satisfies SelectedRelay {
+    machine relay(selected: dyn Family, width: u32) -> Indexed<16> reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires width == 16 || width == 32
+    {
+        SelectedBodyCheck::require_tag(17u64);
+        create(selected, width)
+    }
+}
+ArmRelay satisfies SelectedRelay {
+    machine relay(selected: dyn Family, width: u32) -> Indexed<16> reaches SelectedBodyCheck invokes SelectedBodyCheck crashes Trap requires width == 16 || width == 32
+    {
+        SelectedBodyCheck::require_tag(29u64);
+        create(selected, width)
+    }
+}
 machine transport(selected: dyn Family, width: u32) crashes Trap
 requires width == 16 || width == 32
-{ check(relay(selected, width)); }
+{ check(SelectedRelay::relay(selected, width)); }
 machine main() crashes Trap { transport(Selected as dyn Family, 16); transport(Other as dyn Family, 32); }
+machine x86_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(17u64);
+    main();
+}
+machine arm_entry() crashes Trap {
+    SelectedBodyCheck::require_tag(29u64);
+    main();
+}

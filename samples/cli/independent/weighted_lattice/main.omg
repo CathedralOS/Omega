@@ -24,12 +24,12 @@ machine main() reaches Console {
     transition sites >= 49 && sites <= 56 && activity >= 49 && activity <= 51
         && bond >= 49 && bond <= 51 && (topology == 111 || topology == 114)
         && (ending == 10 || ending == -1) && (topology != 114 || sites >= 51) {
-        true -> valid(sites, activity, bond, topology, ending)
+        true -> block valid(sites, activity, bond, topology, ending)
         false -> invalid()
     }
     machine valid(sites: i32, activity: i32, bond: i32, topology: i32, ending: i32) {
         transition ending == 10 {
-            true -> trailing(sites, activity, bond, topology)
+            true -> block trailing(sites, activity, bond, topology)
             false -> calculate(sites, activity, bond, topology)
         }
     }
