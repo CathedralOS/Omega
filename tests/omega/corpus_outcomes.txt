@@ -3427,16 +3427,16 @@ fail/facts/typed_reflection_mutation_completion_unit_value_rejected rejected 135
 	machine `maybe` state `entry`: `entry(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 	machine `maybe` state `entry`: `done(..)` does not return a value but is used in a VALUE position; Unit cannot supply a scalar operand or local
 	machine `maybe` state `entry` transition returns a value, but the state declares no result; a terminal arm is `_ -> {}`
-fail/facts/typed_run_nested_borrowed rejected 1326ms expected @dedc78621564
+fail/facts/typed_run_nested_borrowed rejected 1229ms expected @9a26074461a7
 	callable `Carrier::unwrap` returns content-bearing custody `Token::Owned` sourced only from borrowed parameter `envelope` through a structural field; retained-after-return authority requires a consumed owned input
-fail/facts/typed_run_nested_duplicate rejected 5667ms expected @dedc78621564
+fail/facts/typed_run_nested_duplicate rejected 6075ms expected @9a26074461a7
 	callable `Carrier::duplicate` has a structural content result without an exact conservation equation covering its owned qualified output paths from consumed inputs of the same qualification; result annotations and equal content algebras do not establish partitioned authority
-fail/facts/typed_run_nested_two_inputs rejected 5588ms expected @dedc78621564
+fail/facts/typed_run_nested_two_inputs rejected 5266ms expected @9a26074461a7
 	cannot establish call-result qualification `Token::Owned` in `steal`, state `entry` (statement 0, call 0): the invocation does not transfer exactly one established input claim for this domain
-fail/facts/typed_run_singleton_count rejected 10026ms expected @dedc78621564
+fail/facts/typed_run_singleton_count rejected 10409ms expected @9a26074461a7
 	cannot prove requires contract for call extract_cell from extract: current.count == 1 (needs fact `run.count == 1` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call extract_cell from extract: current in toolchain:product::Live<type:named(name(nominal\\(package-owner\\(32:f818c4a9a734d433b61fd54db6090aa9de5ac8dceb973b38b562995e075b2a55\\)\\,path\\(WordPlacement\\)\\))),type:named(name(nominal\\(package-owner\\(32:f818c4a9a734d433b61fd54db6090aa9de5ac8dceb973b38b562995e075b2a55\\)\\,path\\(Word\\)\\)))> (invalidated by prior mutation of current.count; current is part of Live) in state `entry`
-fail/facts/typed_run_singleton_double_drop rejected 8728ms expected @dedc78621564
+fail/facts/typed_run_singleton_double_drop rejected 9014ms expected @9a26074461a7
 	cannot use `value` in machine `finish` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/unsigned_byte_to_signed_case_domain_through_call_result_rejected rejected 12666ms expected @46cdd6b85b82+wt
 	data `ByteParcel` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
@@ -11944,9 +11944,9 @@ pass/facts/typed_reflection_mutation_completion_other_state_exit checked 7915ms 
 pass/facts/typed_reflection_mutation_completion_parameter_exit checked 7517ms check-target:macos_arm64 @f0eff27c64cd
 pass/facts/typed_reflection_mutation_completion_shared_generic_exit checked 7226ms check-target:macos_arm64 @f0eff27c64cd
 pass/facts/typed_reflection_mutation_completion_target_body_exit checked 9156ms check-target:macos_arm64 @f0eff27c64cd
-pass/facts/typed_run_nested_owned checked 9759ms @dedc78621564
-pass/facts/typed_run_singleton checked 18885ms check-target:macos_arm64 @dedc78621564
-pass/facts/typed_run_singleton_rejection checked 16179ms check-target:macos_arm64 @dedc78621564
+pass/facts/typed_run_nested_owned checked 6936ms @9a26074461a7
+pass/facts/typed_run_singleton checked 16389ms check-target:macos_arm64 @9a26074461a7
+pass/facts/typed_run_singleton_rejection checked 15738ms check-target:macos_arm64 @9a26074461a7
 pass/facts/unannotated_direct_boundary_call_through_call_result_exit checked 6521ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_const_name_exit checked 6552ms check-target:macos_arm64 @d68d95fa82f8
 pass/facts/unannotated_direct_boundary_call_through_field_exit checked 6444ms check-target:macos_arm64 @d68d95fa82f8
