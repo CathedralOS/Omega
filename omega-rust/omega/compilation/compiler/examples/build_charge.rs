@@ -2615,6 +2615,7 @@ fn anonymous_build_completes_before_product() {
             None => identity = Some(artifact.view().identity()),
         }
     }
+    build_sequence::print_execution_counts("anonymous Build after both target products");
     assert_eq!(counters::build_execution_count() - before, 1);
     println!("anonymous_build_executed_once_before_two_portable_products");
 }
