@@ -29,29 +29,29 @@ machine Main::main(main: &mut Main) reaches Console {
     Console::write_line("print_squares: the squares 1..9 printed as 3-digit decimal text");
     main.out = "XXX";
     main.k = 1;
-    transition { _ -> outer(main) }
+    transition { _ -> block outer(main) }
 
     machine outer(main: &mut Main) {
-        transition main.k <= 9 { true -> compute_sq(main) _ -> finish(main) }
+        transition main.k <= 9 { true -> block compute_sq(main) _ -> block finish(main) }
     }
     machine compute_sq(main: &mut Main) {
         main.sq = main.k * main.k;
         main.place = 100;
         main.p = 0;
-        transition { _ -> itoa_loop(main) }
+        transition { _ -> block itoa_loop(main) }
     }
     // `place` reaches 0 only after the third digit; the guard states that
     // nonzero divisor for `digit_div`'s Wrapping division.
     machine itoa_loop(main: &mut Main) {
-        transition main.p < 3 && main.place != 0 { true -> digit_div(main) _ -> print_row(main) }
+        transition main.p < 3 && main.place != 0 { true -> block digit_div(main) _ -> block print_row(main) }
     }
     machine digit_div(main: &mut Main) {
         main.d = main.sq / main.place;
-        transition { _ -> digit_mod(main) }
+        transition { _ -> block digit_mod(main) }
     }
     machine digit_mod(main: &mut Main) {
         main.d = main.d % 10;
-        transition { _ -> digit_write(main) }
+        transition { _ -> block digit_write(main) }
     }
     machine digit_write(main: &mut Main) {
         main.ch = main.d + 48;
@@ -59,12 +59,12 @@ machine Main::main(main: &mut Main) reaches Console {
         main.out[main.p] = main.byte as u8;
         main.place = main.place / 10;
         main.p = main.p + 1;
-        transition { _ -> itoa_loop(main) }
+        transition { _ -> block itoa_loop(main) }
     }
     machine print_row(main: &mut Main) {
         Console::write_line(main.out);
         main.k = main.k + 1;
-        transition { _ -> outer(main) }
+        transition { _ -> block outer(main) }
     }
 
     machine finish(main: &mut Main) {

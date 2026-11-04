@@ -30,10 +30,14 @@ use typed_trees::types::{PrimitiveType, TypeReferenceHandle};
 
 /// Discharge the authored coercion at an unchanged cast or its derived call.
 /// The target is an obligation, never a premise about the operand.
+/// `occurrence` is that cast or call; when local bounds fall short, a private
+/// nested machine's operand is proved on every closed arrival instead.
+#[allow(clippy::too_many_arguments)]
 pub(crate) fn validate_exact_float_coercion(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
     state: &State,
+    occurrence: typed_trees::expression::ExpressionHandle,
     operand: typed_trees::expression::ExpressionHandle,
     target: TypeReferenceHandle,
     environment: &crate::proof_contracts::arithmetic_domains::ValueEnvironment,
@@ -91,6 +95,22 @@ pub(crate) fn validate_exact_float_coercion(
     let Some(proven) = proven else {
         return true;
     };
+    let source_reference =
+        super::expression_result_type_reference(program, machine, state, operand);
+    let proven = proven
+        || (matches!(source, PrimitiveType::F32 | PrimitiveType::F64)
+            && source_reference.is_some_and(|reference| {
+                crate::proof_contracts::contract_entailment::exact_float_integer_cast_fits_at_occurrence(
+                    program, machine, state, occurrence, reference, target,
+                )
+            }))
+        || (source.is_fixed_integer()
+            && matches!(target, PrimitiveType::F32 | PrimitiveType::F64)
+            && source_reference.is_some_and(|reference| {
+                crate::proof_contracts::contract_entailment::exact_integer_float_cast_fits_at_occurrence(
+                    program, machine, state, occurrence, reference, target,
+                )
+            }));
     if !proven {
         let message = if matches!(source, PrimitiveType::F32 | PrimitiveType::F64) {
             format!(
