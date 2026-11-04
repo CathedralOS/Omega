@@ -60,7 +60,7 @@ fail/borrows/suspension_saved_reference_view_write_only_cannot_read_rejected rej
 	machine `main` state `entry` local `reference` may read, but the source supplies only write-only authority
 fail/boundary/requirement_case_precondition_unproved rejected 13880ms expected @57a69f8b8ad1
 	cannot prove requires contract for call fill from main: chosen == constructor:78:package:0f4fb3c3aaa826e755e2f71895ab48a8976b5b928cf24c7833be8a4f629a45dd::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/boundary/requirement_float_precondition_unproved rejected 37636ms expected @b4b6d6e60f89
+fail/boundary/requirement_float_precondition_unproved rejected 19505ms expected @55902b88f129
 	cannot prove requires contract for call observe from main: 7.25 == 7.0 (needs fact `value == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected @3a020eca642a
 	the compiler-owned Build activation cannot be replaced as a whole value
@@ -4477,7 +4477,7 @@ pass/boundary/named_target_foreign_provider_exit checked 3648ms check-target:mac
 pass/boundary/native_provider_unoffered_read checked 3963ms check-target:linux_x86_64 @ccdb99ca2214
 pass/boundary/nested_projected_structural_crash_formal_exit checked 3354ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/requirement_case_precondition_exit checked 23311ms check-target:macos_arm64 @57a69f8b8ad1
-pass/boundary/requirement_float_precondition_exit checked 14068ms check-target:macos_arm64 @d3310460c781
+pass/boundary/requirement_float_precondition_exit checked 24648ms check-target:macos_arm64 @55902b88f129
 pass/boundary/static_foreign_scalar_result_locals_exit checked 17698ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/static_opaque_qualifier_exit checked 4171ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/acquired_generator_completed_output_set checked 15684ms check-target:macos_arm64 published:files/companion.txt,files/generated.omg @ccdb99ca2214
@@ -7842,7 +7842,7 @@ pass/facts/dynamic_float_alias_through_match_join_exit checked 7139ms check-targ
 pass/facts/dynamic_float_alias_through_other_machine_exit checked 6958ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_float_alias_through_other_state_exit checked 6473ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/dynamic_float_alias_through_parameter_exit checked 5988ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/dynamic_float_alias_through_target_body_exit checked 40514ms check-target:macos_arm64 @b4b6d6e60f89
+pass/facts/dynamic_float_alias_through_target_body_exit checked 24663ms check-target:macos_arm64 @55902b88f129
 pass/facts/dynamic_float_input_alias_through_call_result_exit checked 8818ms check-target:macos_arm64 @da76dcbec7ab
 pass/facts/dynamic_float_input_alias_through_const_name_exit checked 8817ms check-target:macos_arm64 @da76dcbec7ab
 pass/facts/dynamic_float_input_alias_through_field_exit checked 8859ms check-target:macos_arm64 @da76dcbec7ab
@@ -7871,7 +7871,7 @@ pass/facts/dynamic_float_refinement_through_match_join_exit checked 17417ms chec
 pass/facts/dynamic_float_refinement_through_other_machine_exit checked 18369ms check-target:macos_arm64 @95f6bd2b4430
 pass/facts/dynamic_float_refinement_through_other_state_exit checked 21305ms check-target:macos_arm64 @95f6bd2b4430
 pass/facts/dynamic_float_refinement_through_parameter_exit checked 24066ms check-target:macos_arm64 @95f6bd2b4430
-pass/facts/dynamic_float_refinement_through_target_body_exit checked 33611ms check-target:macos_arm64 @b4b6d6e60f89
+pass/facts/dynamic_float_refinement_through_target_body_exit checked 24713ms check-target:macos_arm64 @55902b88f129
 pass/facts/dynamic_selected_reach_through_call_result_exit checked 57079ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/dynamic_selected_reach_through_const_name_exit checked 44777ms check-target:macos_arm64 @863cdf432f5d+wt
 pass/facts/dynamic_selected_reach_through_field_exit checked 45426ms check-target:macos_arm64 @863cdf432f5d+wt
@@ -7989,7 +7989,7 @@ pass/facts/finite_family_const_roster/match_join checked 10143ms check-target:ma
 pass/facts/finite_family_const_roster/other_machine checked 10227ms check-target:macos_arm64 @74bbe3c7f0f1
 pass/facts/finite_family_const_roster/other_state checked 10239ms check-target:macos_arm64 @74bbe3c7f0f1
 pass/facts/finite_family_const_roster/parameter checked 10224ms check-target:macos_arm64 @74bbe3c7f0f1
-pass/facts/finite_family_const_roster/target_body checked 21965ms check-target:macos_arm64 @b4b6d6e60f89
+pass/facts/finite_family_const_roster/target_body checked 17712ms check-target:macos_arm64 @55902b88f129
 pass/facts/finite_family_exclusive_result/call_result checked 7369ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/const_name checked 7497ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/field checked 6585ms check-target:macos_arm64 @05a6f6af37ec+wt
@@ -8007,7 +8007,7 @@ pass/facts/finite_family_input_index/match_join checked 12431ms check-target:mac
 pass/facts/finite_family_input_index/other_machine checked 13990ms check-target:macos_arm64 @7b6988120e7e
 pass/facts/finite_family_input_index/other_state checked 12316ms check-target:macos_arm64 @7b6988120e7e
 pass/facts/finite_family_input_index/parameter checked 12868ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/target_body checked 21952ms check-target:macos_arm64 @b4b6d6e60f89
+pass/facts/finite_family_input_index/target_body checked 17736ms check-target:macos_arm64 @55902b88f129
 pass/facts/finite_family_returned_descriptor/call_result checked 8090ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_returned_descriptor/const_name checked 8868ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_returned_descriptor/field checked 6737ms check-target:macos_arm64 @05a6f6af37ec+wt
@@ -23798,7 +23798,7 @@ fail/facts/dynamic_float_alias_through_other_state_outside_interval rejected 386
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
 fail/facts/dynamic_float_alias_through_parameter_outside_interval rejected 4154ms expected @ccdb99ca2214
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
-fail/facts/dynamic_float_alias_through_target_body_outside_interval rejected 20466ms expected @b4b6d6e60f89
+fail/facts/dynamic_float_alias_through_target_body_outside_interval rejected 16330ms expected @55902b88f129
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures public_interval(result, 0.0, 0.5)`; callers of the requirement assume it
 fail/facts/dynamic_float_refinement_through_call_result_outside_interval rejected 11011ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
@@ -23816,7 +23816,7 @@ fail/facts/dynamic_float_refinement_through_other_state_outside_interval rejecte
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
 fail/facts/dynamic_float_refinement_through_parameter_outside_interval rejected 13824ms expected @95f6bd2b4430
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
-fail/facts/dynamic_float_refinement_through_target_body_outside_interval rejected 19495ms expected @b4b6d6e60f89
+fail/facts/dynamic_float_refinement_through_target_body_outside_interval rejected 16330ms expected @55902b88f129
 	machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`; callers of the requirement assume it
 fail/facts/dynamic_trait_dispatch_through_call_result_rejected rejected 5012ms expected @281c0d530cb7
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: b >= 40 && b <= 40 (needs fact `right >= 40 && right <= 40` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -24031,7 +24031,7 @@ fail/facts/finite_family_const_roster/parameter rejected 1839ms expected @74bbe3
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
 fail/facts/finite_family_const_roster/runtime_const rejected 887ms expected @74bbe3c7f0f1
 	callable expression argument does not name a const or value declaration
-fail/facts/finite_family_const_roster/target_body rejected 3625ms expected @b4b6d6e60f89
+fail/facts/finite_family_const_roster/target_body rejected 2816ms expected @55902b88f129
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
 fail/facts/finite_family_exclusive_result/call_result rejected 8489ms expected @05a6f6af37ec+wt
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -24112,7 +24112,7 @@ fail/facts/finite_family_input_index/other_state rejected 11782ms expected @7b69
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/facts/finite_family_input_index/parameter rejected 16530ms expected @7b6988120e7e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/target_body rejected 14395ms expected @b4b6d6e60f89
+fail/facts/finite_family_input_index/target_body rejected 9606ms expected @55902b88f129
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
 fail/facts/finite_family_input_index/wrong_provider rejected 7226ms expected @7b6988120e7e
 	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
