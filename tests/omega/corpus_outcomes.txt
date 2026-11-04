@@ -6507,43 +6507,24 @@ fail/facts/case_match_payload_loan_through_target_body_rejected rejected 1115ms 
 	mutable argument `<saved subject #2:1>` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `<saved subject #3:1>` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 	mutable argument `<saved subject #4:1>` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
-fail/facts/case_payload_exclusive_loan_through_call_result_rejected rejected 4814ms expected @ccdb99ca2214
+fail/facts/case_payload_exclusive_loan_through_call_result_rejected rejected 4157ms expected @5ec3b07d751a
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/case_payload_exclusive_loan_through_const_name_rejected rejected 2784ms expected @ccdb99ca2214
+fail/facts/case_payload_exclusive_loan_through_const_name_rejected rejected 3455ms expected @5ec3b07d751a
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/case_payload_exclusive_loan_through_field_rejected rejected 4074ms expected @ccdb99ca2214
+fail/facts/case_payload_exclusive_loan_through_field_rejected rejected 3641ms expected @5ec3b07d751a
 	statement 3 mutates `pair.chosen` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
-fail/facts/case_payload_exclusive_loan_through_local_rejected rejected 2822ms expected @ccdb99ca2214
+	statement 3 mutates `pair.chosen` while local borrow `selected` is still active (borrowed at statement 2; its last use is at statement 5)
+fail/facts/case_payload_exclusive_loan_through_local_rejected rejected 3406ms expected @5ec3b07d751a
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/case_payload_exclusive_loan_through_match_join_rejected rejected 2548ms expected @ccdb99ca2214
+fail/facts/case_payload_exclusive_loan_through_match_join_rejected rejected 3520ms expected @5ec3b07d751a
 	statement 4 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 3; its last use is at statement 6)
-fail/facts/case_payload_exclusive_loan_through_other_machine_rejected rejected 2969ms expected @ccdb99ca2214
+fail/facts/case_payload_exclusive_loan_through_other_machine_rejected rejected 3487ms expected @5ec3b07d751a
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 3: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_payload_exclusive_loan_through_other_state_rejected rejected 2562ms expected @ccdb99ca2214
+fail/facts/case_payload_exclusive_loan_through_other_state_rejected rejected 3496ms expected @5ec3b07d751a
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3)
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 3: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-fail/facts/case_payload_exclusive_loan_through_parameter_rejected rejected 3050ms expected @ccdb99ca2214
+fail/facts/case_payload_exclusive_loan_through_parameter_rejected rejected 3500ms expected @5ec3b07d751a
 	statement 1 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 0; its last use is at statement 3 and it is released at state exit)
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 3: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_payload_exclusive_loan_through_target_body_rejected rejected 18078ms expected @57a69f8b8ad1
+fail/facts/case_payload_exclusive_loan_through_target_body_rejected rejected 3492ms expected @5ec3b07d751a
 	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 	statement 2 mutates `chosen` while local borrow `selected` is still active (borrowed at statement 1; its last use is at statement 4 and it is released at state exit)
 fail/facts/case_payload_stored_loan_through_call_result_rejected rejected 3301ms expected @ccdb99ca2214
@@ -19767,8 +19748,7 @@ pass/borrows/runtime_captured_window_effectful_selector_exit rejected 2948ms che
 	state `unchanged` receives `windows[1].values` without an exact retained backing for its loan: the stored descriptor has no retained loan occurrence
 pass/borrows/runtime_carrier_reference_reselection_exit checked 72576ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/runtime_carrier_reference_store_exit checked 16825ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_case_byte_field_length_cleanup_exit rejected 2847ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `receive` state `entry` statement 2: cannot prove selected case for payload access `__transition_subject#30.view.bytes`: captured source `envelope::Held.view.bytes` has no live case evidence
+pass/borrows/runtime_case_byte_field_length_cleanup_exit checked 5515ms check-target:macos_arm64 @5ec3b07d751a
 pass/borrows/runtime_case_descriptor_retirement_exit checked 3804ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_case_payload_partial_transfer_exit checked 3500ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_case_reference_mixed_state_returns_exit checked 3246ms check-target:macos_arm64 @ccdb99ca2214
@@ -21112,8 +21092,7 @@ pass/control_flow/runtime_loop_patterns_exit checked 11002ms check-target:macos_
 pass/control_flow/runtime_mutable_bounded_byte_formatter_exit checked 19847ms check-target:macos_arm64 @61d32e24eb90
 pass/control_flow/runtime_namespace_local_state_loan checked 3983ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_narrow_signed_case_payload_state_guard_exit checked 3567ms check-target:macos_arm64 @ccdb99ca2214
-pass/control_flow/runtime_nested_case_pattern_guard_meet_exit rejected 3072ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `observe` state `entry` statement 2: cannot prove selected case for payload access `token.count`: captured source `token::Integer.count` has no live case evidence
+pass/control_flow/runtime_nested_case_pattern_guard_meet_exit checked 5551ms check-target:macos_arm64 @5ec3b07d751a
 pass/control_flow/runtime_nested_index_dispatch_evaluation_order_exit checked 11600ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_nonentry_state_local_loan_forwarded_exit checked 16526ms check-target:macos_arm64 @ccdb99ca2214
 pass/control_flow/runtime_nonentry_state_local_loan_held_at_return_exit checked 14618ms check-target:macos_arm64 @ccdb99ca2214
@@ -22316,35 +22295,15 @@ pass/facts/case_match_payload_loan_through_other_machine_exit checked 3439ms che
 pass/facts/case_match_payload_loan_through_other_state_exit checked 3754ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_match_payload_loan_through_parameter_exit checked 4265ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_match_payload_loan_through_target_body_exit checked 3455ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_exclusive_loan_through_call_result_exit checked 3428ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_exclusive_loan_through_const_name_exit checked 3051ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_exclusive_loan_through_field_exit checked 3395ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_exclusive_loan_through_local_exit checked 3343ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_exclusive_loan_through_match_join_exit checked 3985ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/case_payload_exclusive_loan_through_other_machine_exit rejected 2524ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/case_payload_exclusive_loan_through_other_state_exit rejected 2837ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-pass/facts/case_payload_exclusive_loan_through_parameter_exit rejected 2346ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value`: captured source `other::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	machine `apply` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	cannot prove requires contract for call choose from apply: visits == 0 (needs fact `counter == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-pass/facts/case_payload_exclusive_loan_through_target_body_exit checked 36082ms check-target:macos_arm64 @57a69f8b8ad1
+pass/facts/case_payload_exclusive_loan_through_call_result_exit checked 4813ms check-target:macos_arm64 @5ec3b07d751a
+pass/facts/case_payload_exclusive_loan_through_const_name_exit checked 5299ms check-target:macos_arm64 @5ec3b07d751a
+pass/facts/case_payload_exclusive_loan_through_field_exit checked 5555ms check-target:macos_arm64 @5ec3b07d751a
+pass/facts/case_payload_exclusive_loan_through_local_exit checked 5035ms check-target:macos_arm64 @5ec3b07d751a
+pass/facts/case_payload_exclusive_loan_through_match_join_exit checked 5463ms check-target:macos_arm64 @5ec3b07d751a
+pass/facts/case_payload_exclusive_loan_through_other_machine_exit checked 5508ms check-target:macos_arm64 @5ec3b07d751a
+pass/facts/case_payload_exclusive_loan_through_other_state_exit checked 5484ms check-target:macos_arm64 @5ec3b07d751a
+pass/facts/case_payload_exclusive_loan_through_parameter_exit checked 5437ms check-target:macos_arm64 @5ec3b07d751a
+pass/facts/case_payload_exclusive_loan_through_target_body_exit checked 5628ms check-target:macos_arm64 @5ec3b07d751a
 pass/facts/case_payload_layout_geometry_through_call_result_exit checked 3658ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_payload_layout_geometry_through_const_name_exit checked 4241ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/case_payload_layout_geometry_through_field_exit checked 3727ms check-target:macos_arm64 @ccdb99ca2214
@@ -22871,19 +22830,7 @@ pass/facts/descriptor_payload_exclusive_loan_through_field_exit checked 3466ms c
 pass/facts/descriptor_payload_exclusive_loan_through_local_exit checked 3628ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_payload_exclusive_loan_through_match_join_exit checked 3727ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_payload_exclusive_loan_through_other_machine_exit checked 3431ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/descriptor_payload_exclusive_loan_through_other_state_exit rejected 3000ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `chosen.value[..]`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `chosen.value[..]`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value[..]`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `other.value[..]`: captured source `other::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `other.value[..]`: captured source `other::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value[..]`: captured source `other::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 1: cannot prove selected case for payload access `selected[0]`: captured source `chosen::Present.value[0]` has no live case evidence
-	machine `pick` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 2: cannot prove selected case for payload access `selected[0]`: captured source `chosen::Present.value[0]` has no live case evidence
+pass/facts/descriptor_payload_exclusive_loan_through_other_state_exit checked 5566ms check-target:macos_arm64 @5ec3b07d751a
 pass/facts/descriptor_payload_exclusive_loan_through_parameter_exit checked 3330ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_payload_exclusive_loan_through_target_body_exit checked 28120ms check-target:macos_arm64 @57a69f8b8ad1
 pass/facts/descriptor_range_exclusive_loan_through_call_result_exit checked 3728ms check-target:macos_arm64 @ccdb99ca2214
@@ -22892,19 +22839,7 @@ pass/facts/descriptor_range_exclusive_loan_through_field_exit checked 3411ms che
 pass/facts/descriptor_range_exclusive_loan_through_local_exit checked 3512ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_range_exclusive_loan_through_match_join_exit checked 4173ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_range_exclusive_loan_through_other_machine_exit checked 3538ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/descriptor_range_exclusive_loan_through_other_state_exit rejected 3073ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `chosen.value`: captured source `chosen::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `chosen.value[0..2]`: captured source `chosen::Present.value[0..2]` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `chosen.value[0..2]`: captured source `chosen::Present.value[0..2]` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `&mut chosen.value[0..2]`: captured source `chosen::Present.value[0..2]` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `other.value`: captured source `other::Present.value` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `other.value[2..4]`: captured source `other::Present.value[2..4]` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `other.value[2..4]`: captured source `other::Present.value[2..4]` has no live case evidence
-	machine `pick` state `entry` statement 0: cannot prove selected case for payload access `&mut other.value[2..4]`: captured source `other::Present.value[2..4]` has no live case evidence
-	machine `pick` state `entry` statement 1: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value[0..2]` has no live case evidence
-	machine `pick` state `entry` statement 1: cannot prove selected case for payload access `selected[0]`: captured source `chosen::Present.value[0]` has no live case evidence
-	machine `pick` state `entry` statement 2: cannot prove selected case for payload access `selected`: captured source `chosen::Present.value[0..2]` has no live case evidence
-	machine `pick` state `entry` statement 2: cannot prove selected case for payload access `selected[0]`: captured source `chosen::Present.value[0]` has no live case evidence
+pass/facts/descriptor_range_exclusive_loan_through_other_state_exit checked 5548ms check-target:macos_arm64 @5ec3b07d751a
 pass/facts/descriptor_range_exclusive_loan_through_parameter_exit checked 3378ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/descriptor_range_exclusive_loan_through_target_body_exit checked 18052ms check-target:macos_arm64 @57a69f8b8ad1
 pass/facts/descriptor_replacement_order_through_call_result_exit checked 3717ms check-target:macos_arm64 @ccdb99ca2214
