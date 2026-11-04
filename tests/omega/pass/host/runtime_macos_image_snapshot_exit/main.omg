@@ -4,7 +4,7 @@
 use omega_language_std::console;
 use omega::language::core::layout;
 use omega_language_std::macos_image;
-use omega_language_std::targets::macos_arm64::macos_gui_impl;
+use omega_language_std::macos_gui;
 
 public data DataRange {
     location: i64;
@@ -107,15 +107,15 @@ machine inspect(image: u64) -> bool invokes ImageReadback {
     }
 }
 
-machine main() reaches Console invokes Console invokes ImageReadback invokes MacosImageData invokes MacosImageObjects {
-    let space: u64 = cg_color_space_rgb();
+machine main() reaches Console invokes Console invokes CoreGraphics invokes ImageReadback invokes MacosImageData invokes MacosImageObjects {
+    let space: u64 = CoreGraphics::color_space_rgb();
     let image: u64 = snapshot(space);
     transition image != 0 {
         true -> configure(image, space)
         _ -> failed_creation(space)
     }
     machine failed_creation(space: u64) {
-        cg_color_space_release(space);
+        CoreGraphics::color_space_release(space);
         failed();
     }
     machine configure(image: u64, space: u64) {
@@ -124,7 +124,7 @@ machine main() reaches Console invokes Console invokes ImageReadback invokes Mac
         let configured: u64 = MacosImageObjects::create(3, 2, 8, 32, 12,
             space, 0x2006, provider, 0, true, 3);
         MacosImageObjects::release_image(image);
-        cg_color_space_release(space);
+        CoreGraphics::color_space_release(space);
         transition configured != 0 {
             true -> inspect_image(configured)
             _ -> failed()

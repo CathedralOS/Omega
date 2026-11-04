@@ -244,7 +244,7 @@ fn length(bytes: &mut &[u8]) -> Result<usize, &'static str> {
 
 fn validate_definition(schema: &ClosedConformanceSchema) -> Result<(), &'static str> {
     let mut bytes = schema.definition.as_slice();
-    let domain = b"omega.requirement-schema.v2\0";
+    let domain = b"omega.requirement-schema.v3\0";
     if take(&mut bytes, domain.len())? != domain {
         return Err("conformance schema has an unknown definition domain");
     }
