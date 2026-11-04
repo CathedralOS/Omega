@@ -27558,6 +27558,7 @@ pass/dependent/zeroed_record_member_sum_elision checked 17842ms check-target:mac
 pass/domains/applied_generic_carrier checked 8134ms check-target:macos_arm64 @b74b1a5036b8+wt
 pass/domains/bitwise_live_membership_exit checked 3306ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/bodyless_owner_establishment checked 1909ms @0cea3356c5b0+wt
+pass/domains/borrow_of_cast_exit checked 16279ms check-target:macos_arm64 @c15929193d39+wt
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 2705ms @ccdb99ca2214
 pass/domains/call_requires_domain_intersection_preserved checked 2438ms @ccdb99ca2214
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 2290ms @ccdb99ca2214
