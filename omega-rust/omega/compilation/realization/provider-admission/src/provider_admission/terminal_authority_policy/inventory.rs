@@ -11,7 +11,7 @@ use symbols::BuiltinFunction;
 
 // The builtin owner already publishes its closed count. Preserve the exact
 // non-builtin roster check without mirroring every catalog addition here.
-pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 480 + BuiltinFunction::COUNT as u32;
+pub(super) const CLOSED_POLICY_ROW_COUNT: u32 = 488 + BuiltinFunction::COUNT as u32;
 const FLOAT_FORMATS: [FloatFormat; 2] = [FloatFormat::F32, FloatFormat::F64];
 const ARITHMETIC_DOMAINS: [ArithmeticDomain; 4] = [
     ArithmeticDomain::Exact,
@@ -34,6 +34,24 @@ pub(super) fn closed_policy_mechanisms() -> Vec<CompilerIntrinsicExecutionIdenti
     mechanisms.push(CompilerIntrinsicExecutionIdentity::ProgramStorageEntry);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::TaskRegisterActivate);
     mechanisms.push(CompilerIntrinsicExecutionIdentity::TaskRegisterRead);
+    mechanisms.extend(
+        [
+            terminal_psi::SegmentReload::Code,
+            terminal_psi::SegmentReload::Data,
+        ]
+        .map(CompilerIntrinsicExecutionIdentity::SegmentReload),
+    );
+    mechanisms.extend(
+        [
+            terminal_psi::SegmentRegister::Code,
+            terminal_psi::SegmentRegister::Data,
+            terminal_psi::SegmentRegister::Extra,
+            terminal_psi::SegmentRegister::Stack,
+            terminal_psi::SegmentRegister::Fs,
+            terminal_psi::SegmentRegister::Gs,
+        ]
+        .map(CompilerIntrinsicExecutionIdentity::SegmentRead),
+    );
     mechanisms.extend(
         [
             terminal_psi::TerminalAccessLifecycleOperation::Initialize,

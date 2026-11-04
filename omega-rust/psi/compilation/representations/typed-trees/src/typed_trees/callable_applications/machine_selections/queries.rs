@@ -2,7 +2,7 @@
 //! Reuse authenticates operands, not just a source handle or a display name.
 
 use super::super::{AppliedCallableOwner, AppliedMachineCallable};
-use crate::type_identity::applied_type_identity;
+use crate::type_identity::{IndexIdentityArgument, applied_index_identity, applied_type_identity};
 use crate::{
     TypedTrees, signature,
     static_applications::{
@@ -185,11 +185,11 @@ impl TypedTrees {
                                     (
                                         StaticMachineBindingValue::Type(left),
                                         StaticMachineBindingValue::Type(right),
-                                    )
-                                    | (
+                                    ) => self.same_callable_operand(*left, *right, owner),
+                                    (
                                         StaticMachineBindingValue::Const(left),
                                         StaticMachineBindingValue::Const(right),
-                                    ) => self.same_callable_operand(*left, *right, owner),
+                                    ) => self.same_callable_index(*left, *right, owner),
                                     _ => previous.value == current.value,
                                 }
                         })
@@ -197,10 +197,55 @@ impl TypedTrees {
                     && operands.iter().zip(caller_substitutions).all(
                         |(operand, (parameter, actual))| {
                             operand.parameter == *parameter
-                                && self.same_callable_operand(operand.actual, *actual, owner)
+                                && self.same_caller_operand(
+                                    *parameter,
+                                    operand.actual,
+                                    *actual,
+                                    owner,
+                                )
                         },
                     )
             })
+    }
+
+    fn same_caller_operand(
+        &self,
+        parameter: SymbolHandle,
+        left: TypeReferenceHandle,
+        right: TypeReferenceHandle,
+        owner: SymbolHandle,
+    ) -> bool {
+        // Closing a requirement can replace a const expression with its value.
+        // The declared binder decides whether these are values or types; equal
+        // storage carriers cannot substitute for equal constant arguments.
+        let Some(parameter) = self.data_type_parameter_by_symbol(parameter) else {
+            return false;
+        };
+        match parameter.kind {
+            crate::data::TypeParameterKind::Type => self.same_callable_operand(left, right, owner),
+            crate::data::TypeParameterKind::Const { .. }
+            | crate::data::TypeParameterKind::Value { .. } => {
+                self.same_callable_index(left, right, owner)
+            }
+            _ => false,
+        }
+    }
+
+    fn same_callable_index(
+        &self,
+        left: TypeReferenceHandle,
+        right: TypeReferenceHandle,
+        owner: SymbolHandle,
+    ) -> bool {
+        left == right
+            || applied_index_identity(self, IndexIdentityArgument::TypeReference(left), owner, &[])
+                .zip(applied_index_identity(
+                    self,
+                    IndexIdentityArgument::TypeReference(right),
+                    owner,
+                    &[],
+                ))
+                .is_some_and(|(left, right)| left == right)
     }
 
     fn same_callable_operand(

@@ -60,6 +60,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -197,6 +198,9 @@ COMMIT = re.compile(r"^[0-9a-f]{40}$")
 TARGET_NAME = re.compile(r"^[a-z][a-z0-9_]*$")
 # Captured output is evidence, not a log store: keep the tail bounded.
 OUTPUT_TAIL_BYTES = 64 * 1024
+# A quiet command still has to show that it is alive. Corpus progress is
+# every 200 fixtures, and cargo can sit inside one crate longer than that.
+HEARTBEAT_SECONDS = 30
 
 
 # `Doc-tests <crate>` precedes each crate's doc-test harness output; ignored
@@ -394,39 +398,93 @@ def kill_process_tree(process):
         pass
 
 
-def run_command(command, selected_runner, timeout=None, log_path=None):
+def run_command(command, selected_runner, timeout=None, log_path=None,
+                heartbeat_seconds=None):
     """Run one command and keep its evidence; never raise on its failure.
 
     stdout and stderr share one pipe so the stored tail keeps the runners'
     chronological order (a doc-test header before its results, the final
-    summary last). A timeout or a command that cannot start is recorded with
+    summary last). Each line is also shown as it arrives. A command that
+    stays quiet past the heartbeat interval reports how long it has been
+    running and the last line it did print, so a long gate does not look
+    frozen. A timeout or a command that cannot start is recorded with
     `exit: null` and its reason, which leaves the gate open.
     """
+    if heartbeat_seconds is None:
+        heartbeat_seconds = HEARTBEAT_SECONDS
     argv = resolve_command(command, selected_runner)
     started = time.monotonic()
     exit_code = None
     incomplete = None
+    collected = []
+    process = None
     try:
-        with subprocess.Popen(
+        process = subprocess.Popen(
             argv, cwd=ROOT, stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             encoding="utf-8", errors="replace",
             start_new_session=(os.name != "nt"),
             env={**os.environ, **NAMED_SKIP_ENVIRONMENT, **SWEEP_ENVIRONMENT},
-        ) as process:
+        )
+        last_output_at = started
+        last_status = ""
+        state = threading.Lock()
+
+        def consume():
+            nonlocal last_output_at, last_status
             try:
-                stdout, _ = process.communicate(timeout=timeout)
-                exit_code = process.returncode
-                output = output_text(stdout)
-            except subprocess.TimeoutExpired:
+                for line in process.stdout:
+                    collected.append(line)
+                    status = line.strip()
+                    with state:
+                        last_output_at = time.monotonic()
+                        if status:
+                            last_status = status[:240]
+                    sys.stderr.write("    | " + line)
+                    if not line.endswith("\n"):
+                        sys.stderr.write("\n")
+                    sys.stderr.flush()
+            except OSError as error:
+                collected.append("release_record: read failed: {}\n".format(error))
+
+        reader = threading.Thread(target=consume, name="release-record",
+                                  daemon=True)
+        reader.start()
+        while reader.is_alive():
+            reader.join(heartbeat_seconds)
+            now = time.monotonic()
+            if timeout is not None and now - started > timeout:
                 # The contract: a timeout leaves the row open; it is not a pass.
                 kill_process_tree(process)
-                stdout, _ = process.communicate()
-                output = output_text(stdout)
+                reader.join(5)
                 incomplete = "timeout after {:g} s".format(timeout)
+                break
+            with state:
+                quiet = now - last_output_at
+                status = last_status
+            if reader.is_alive() and quiet >= heartbeat_seconds:
+                message = "    still running, {:.0f}s".format(now - started)
+                if status:
+                    message += "; last: {}".format(status)
+                print(message, file=sys.stderr, flush=True)
+                with state:
+                    last_output_at = time.monotonic()
+        if incomplete is None and process.poll() is None and not reader.is_alive():
+            kill_process_tree(process)
+        if incomplete is None:
+            exit_code = process.wait()
+        else:
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                exit_code = None
+        output = "".join(collected)
     except OSError as error:
         output = ""
         incomplete = "could not start: {}".format(error)
+    finally:
+        if process is not None and process.stdout is not None:
+            process.stdout.close()
     elapsed_ms = (time.monotonic() - started) * 1000.0
     log = None
     if log_path is not None:

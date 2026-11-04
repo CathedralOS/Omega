@@ -223,6 +223,9 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             global_descriptor_table: None,
             task_register_activate: None,
             task_register_read: None,
+            code_segment_reload: None,
+            data_segment_reload: None,
+            segment_selector_read: None,
             control_register_read: None,
             control_register_write: None,
             port_register_read: None,
@@ -242,8 +245,7 @@ pub fn aarch64_selected_constraint_keys(target: NativeTarget) -> Option<Selected
             atomic_store: Some(crate::AARCH64_ATOMIC_STORE),
             atomic_update: (target == NativeTarget::macos_arm64())
                 .then_some(crate::AARCH64_ATOMIC_UPDATE),
-            atomic_bitwise_update: (target == NativeTarget::macos_arm64())
-                .then_some(crate::AARCH64_ATOMIC_UPDATE),
+            atomic_bitwise_update: Some(crate::AARCH64_ATOMIC_BITWISE_UPDATE),
             atomic_compare_exchange: (target == NativeTarget::macos_arm64())
                 .then_some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE),
             atomic_compare_exchange_once: Some(crate::AARCH64_ATOMIC_COMPARE_EXCHANGE_ONCE),
@@ -528,6 +530,9 @@ fn encoded_effects(semantic: MachineSemanticKind) -> MachineEncodedEffects {
         | MachineSemanticKind::GlobalDescriptorTableStore
         | MachineSemanticKind::TaskRegisterActivate
         | MachineSemanticKind::TaskRegisterRead
+        | MachineSemanticKind::CodeSegmentReload
+        | MachineSemanticKind::DataSegmentReload
+        | MachineSemanticKind::SegmentSelectorRead
         | MachineSemanticKind::ControlRegisterWrite
         | MachineSemanticKind::PortWrite => unreachable!("x86 port I/O has no AArch64 constraint"),
         MachineSemanticKind::SystemRegisterRead => {

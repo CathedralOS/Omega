@@ -3904,6 +3904,7 @@ pass/generics/applied_data_argument_store_receipt checked 4511ms @7c0518fd7afd+w
 pass/generics/borrowed_applied_field_static_selection_exit built 5548ms exit:0 @d1fa4738e67a+wt
 pass/generics/closed_generic_local_field_observation_exit built 1759ms exit:0 @c9b4ecc7551a
 pass/generics/closed_indexed_quantity built 12715ms @4ffed225fc45+wt
+pass/generics/closed_requirement_const_callback_exit built 3434ms exit:0 @734fbbb78c51+wt
 pass/generics/closed_sum_case_membership checked 191ms
 pass/generics/const_data_param checked 166ms
 pass/generics/core_slice_for_each built 1151ms exit:0 @114906953e11+wt
@@ -4268,6 +4269,7 @@ pass/progress/provider_receiver_progress_installation built 5451ms @4ffed225fc45
 pass/proofs/accepted_axiom_cited_exit built 528ms exit:70
 pass/proofs/accumulator_guarantee_exit built 588ms exit:70
 pass/proofs/axiom_citation checked 9691ms @5041ef1af684+wt
+pass/proofs/borrowed_boolean_policy_exit built 2469ms exit:0 @2fc6c92b94ac+wt
 pass/proofs/captured_scalar_field_observations built 13279ms exit:0 @f22c0e54a812
 pass/proofs/case_call_premises checked 190ms
 pass/proofs/cauchy_predicates_compile rejected 376ms @6c75d91f0312
