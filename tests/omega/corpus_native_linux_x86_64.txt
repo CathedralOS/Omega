@@ -1708,6 +1708,7 @@ pass/domains/executable_domain_membership_expression_exit incomplete 6790ms regr
 	`Main::main` has no executable body: this compiler does not lower a statement of it yet (statement sequence: local data); in state `Main::main::main`, statement 2
 pass/domains/executable_domain_membership_union_guard_exit built 6508ms exit:241 @a92f16431042
 pass/domains/explicit_domain_erasure checked 1755ms @0cea3356c5b0+wt
+pass/domains/float_conversion_qualification_transport_exit built 12129ms exit:0 @30013776d577
 pass/domains/guard_predicate_establishes_domain checked 1699ms @a92f16431042
 pass/domains/inactive_impossible_payload_exit built 1884ms exit:0 @a92f16431042
 pass/domains/indexed_domain_fact checked 1921ms @ad7c6890a897+wt
@@ -1723,6 +1724,7 @@ pass/domains/match_domain_results checked 2607ms @a92f16431042
 pass/domains/match_join_alias_domain_transfer checked 1877ms @a92f16431042
 pass/domains/module_domain_narrow_import_spelling checked 1835ms @a92f16431042
 pass/domains/moved_payload_uses_current_membership_exit built 1864ms exit:0 @a92f16431042
+pass/domains/mutable_domain_parameter_exit built 6233ms exit:0 @18fc751d0060+wt
 pass/domains/named_const_subject_binding built 14496ms exit:3 @9947836a76ba
 pass/domains/named_subject_capacity_identity_exit built 7062ms exit:70 @a92f16431042
 pass/domains/policy_plan_shapes checked 1908ms @a92f16431042
