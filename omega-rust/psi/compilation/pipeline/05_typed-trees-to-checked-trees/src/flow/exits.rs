@@ -17,8 +17,8 @@ use symbols::SymbolHandle;
 
 mod guards;
 pub(super) use guards::{
-    append_byte_predicate_context, append_comparison_bounds_context, append_match_pattern_context,
-    append_predicate_context,
+    append_comparison_bounds_context, append_entry_byte_predicate_context,
+    append_match_pattern_context, append_predicate_context,
 };
 
 /// The parameter origins one exit retained, in roster order. Every contract

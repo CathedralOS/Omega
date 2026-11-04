@@ -832,8 +832,11 @@ pub(in crate::flow) fn append_predicate_context(
             build,
             state_symbol,
             observation_statement_index,
+            statement_index,
             expression,
             point,
+            entry_writes,
+            entry_unknown_write,
             FactOrigin::TransitionGuard,
             active_contexts,
             active_constraints,
@@ -1122,17 +1125,10 @@ fn match_input_has_builtin_meaning(
     }
 }
 
-/// Mint a `pred(place)` byte-predicate fact at the operand's places: the
-/// operand of a unary byte-predicate probe is a byte carrier, and a positive
-/// probe verdict is whole-carrier evidence (`FactPayload::BytePredicate`'s own
-/// semantics). The one operation every mint site shares — transition guards
-/// carrying the taken arm, and state/machine `requires` clauses materializing
-/// their entry assumptions — so the predicate is consumed identically
-/// wherever it is proved. Arm tests arrive as `pred(..) == true` (peeled by
-/// the same conjunct walk the bounds minter uses); `pred(..) == false`
-/// contributes nothing, a refused probe is not a positive class.
+/// Entry contracts assume a predicate on their formal operand. This logical
+/// premise has no executed probe or completed descriptor load to recover.
 #[allow(clippy::too_many_arguments)]
-pub(in crate::flow) fn append_byte_predicate_context(
+pub(in crate::flow) fn append_entry_byte_predicate_context(
     program: &dyn ::validation::CheckingInput,
     semantic: &mut FactPlan,
     build: &mut FlowBuildContext,
@@ -1167,6 +1163,116 @@ pub(in crate::flow) fn append_byte_predicate_context(
             active_contexts,
             active_constraints,
         );
+    }
+}
+
+/// A true runtime verdict describes the exact value the probe read. Retain
+/// its selected descriptor namespace and content dependencies only across a
+/// complete write interval; the saved Boolean alone cannot certify new bytes.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::flow) fn append_byte_predicate_context(
+    program: &dyn ::validation::CheckingInput,
+    semantic: &mut FactPlan,
+    build: &mut FlowBuildContext,
+    state_symbol: SymbolHandle,
+    observation_statement_index: usize,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    point: ProgramPoint,
+    entry_writes: HandleSpan<checked_trees::FlowOperandReferent>,
+    entry_unknown_write: bool,
+    origin: FactOrigin,
+    active_contexts: &mut HandleSpan<FlowSemanticContextRef>,
+    active_constraints: &mut HandleSpan<FlowConstraintRef>,
+) {
+    let mut conjuncts = Vec::new();
+    append_true_arm_conjuncts(program, expression, &mut conjuncts);
+    for conjunct in conjuncts {
+        let Some((predicate, operand)) =
+            typed_trees::byte_predicates::byte_predicate_call(program, conjunct)
+        else {
+            continue;
+        };
+        let observed = match super::super::observations::byte_contents_observation(
+            program,
+            build,
+            state_symbol,
+            observation_statement_index,
+            conjunct,
+            operand,
+        ) {
+            Ok(observed) => observed,
+            Err(reason) => {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    eprintln!(
+                        "CHECKSITE byte-observation-refused expression={conjunct:?} state={state_symbol:?} statement={observation_statement_index} reason={reason}"
+                    );
+                }
+                continue;
+            }
+        };
+        let statements =
+            appended_span_since(&build.control.statements, build.state_statements_start);
+        let first = ContentObservationPoint {
+            state: state_symbol,
+            statement: observation_statement_index,
+            writes: observed.origin_writes,
+            unknown_write: observed.origin_unknown_write,
+        };
+        let second = ContentObservationPoint {
+            state: state_symbol,
+            statement: statement_index,
+            writes: entry_writes,
+            unknown_write: entry_unknown_write,
+        };
+        if std::iter::once(&observed.subject)
+            .chain(&observed.dependencies)
+            .any(|place| {
+                !contents_observation_survives(
+                    program,
+                    &build.control,
+                    statements,
+                    first,
+                    second,
+                    place,
+                    contents_overlap,
+                )
+            })
+        {
+            continue;
+        }
+        let place = append_place(semantic, observed.subject.root, &observed.subject.segments);
+        let dependencies = observed
+            .dependencies
+            .iter()
+            .map(|dependency| {
+                FactPlace::Place(append_place(
+                    semantic,
+                    dependency.root,
+                    &dependency.segments,
+                ))
+            })
+            .collect::<Vec<_>>();
+        let context = crate::published::semantic::facts::append_observation_context(
+            semantic,
+            Fact {
+                place: FactPlace::Place(place),
+                point,
+                origin,
+                evidence: QualificationEvidence::default(),
+                payload: FactPayload::BytePredicate { predicate },
+            },
+            &dependencies,
+        );
+        if observed.descriptor.is_valid() {
+            build.control.descriptor_context_observations.append(
+                checked_trees::FlowDescriptorContextObservation {
+                    context,
+                    observation: observed.descriptor,
+                },
+            );
+        }
+        retain_semantic_context(build, active_contexts, active_constraints, context);
     }
 }
 

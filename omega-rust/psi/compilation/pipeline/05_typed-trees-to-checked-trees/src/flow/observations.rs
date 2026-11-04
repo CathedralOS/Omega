@@ -72,7 +72,7 @@ pub(crate) fn completed_dispatch_extraction(
     completed.then_some(extraction)
 }
 
-pub(super) struct CaseObservation {
+pub(super) struct ContentsObservation {
     pub(super) subject: CanonicalPlace,
     pub(super) descriptor: Handle<FlowValueObservationFact>,
     /// A selected descriptor namespace depends on its exact current binding
@@ -82,19 +82,26 @@ pub(super) struct CaseObservation {
     pub(super) origin_unknown_write: bool,
 }
 
-pub(super) fn case_observation(
-    program: &dyn CheckingInput,
-    build: &mut FlowBuildContext<'_>,
+fn completed_observation_receiver<'flow>(
+    build: &'flow FlowBuildContext<'_>,
     state: SymbolHandle,
     statement_index: usize,
     expression: ExpressionHandle,
     subject: ExpressionHandle,
-) -> Option<CaseObservation> {
+) -> Result<
+    (
+        Handle<FlowValueObservationFact>,
+        &'flow FlowValueObservationFact,
+        &'flow checked_trees::FlowOperandFact,
+    ),
+    &'static str,
+> {
     let statements = appended_span_since(&build.control.statements, build.state_statements_start);
     let mut matching = build
         .control
         .statements
-        .span_or_empty(statements)
+        .span(statements)
+        .ok_or("the observation has no complete statement roster")?
         .iter()
         .filter(|statement| statement.statement_index == statement_index)
         .flat_map(|statement| {
@@ -104,18 +111,40 @@ pub(super) fn case_observation(
                 .span_or_empty(statement.value_observations)
         })
         .filter(|observation| observation.expression == expression);
-    let observation = matching.next()?;
-    if matching.next().is_some() || !build.control.operands.is_valid(observation.receiver) {
-        return None;
+    let observation = matching
+        .next()
+        .ok_or("the expression has no completed value observation")?;
+    if matching.next().is_some() {
+        return Err("the expression has multiple completed observations at this source occurrence");
     }
-    let descriptor = build.control.value_observations.handle_of(observation)?;
-    let receiver = *build.control.operands.get(observation.receiver);
+    if !build.control.operands.is_valid(observation.receiver) {
+        return Err("the observation has no retained operand");
+    }
+    let receiver = build.control.operands.get(observation.receiver);
     if receiver.state_symbol != state
         || receiver.statement_index != statement_index
         || receiver.expression != subject
     {
-        return None;
+        return Err("the retained operand belongs to a different source occurrence");
     }
+    let handle = build
+        .control
+        .value_observations
+        .handle_of(observation)
+        .ok_or("the completed observation has no retained identity")?;
+    Ok((handle, observation, receiver))
+}
+
+pub(super) fn case_observation(
+    program: &dyn CheckingInput,
+    build: &mut FlowBuildContext<'_>,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    subject: ExpressionHandle,
+) -> Option<ContentsObservation> {
+    let (descriptor, observation, receiver) =
+        completed_observation_receiver(build, state, statement_index, expression, subject).ok()?;
     let referents = build.control.operand_referents.span(receiver.referents)?;
     let canonical = |referent: &FlowOperandReferent| {
         Some(CanonicalPlace {
@@ -171,8 +200,84 @@ pub(super) fn case_observation(
             return None;
         }
     }
-    Some(CaseObservation {
+    Some(ContentsObservation {
         subject: place,
+        descriptor,
+        dependencies,
+        origin_writes: observation.origin_writes,
+        origin_unknown_write: observation.origin_unknown_write,
+    })
+}
+
+/// A probe describes its completed operand, not the address of a variable
+/// containing a view. A selected descriptor keeps one proof namespace and
+/// depends on every possible backing; it establishes no predicate for all of
+/// those backings independently. Owned operands use the common captured-value
+/// projection, including detached copies and computed values.
+pub(super) fn byte_contents_observation(
+    program: &dyn CheckingInput,
+    build: &FlowBuildContext<'_>,
+    state: SymbolHandle,
+    statement_index: usize,
+    expression: ExpressionHandle,
+    subject: ExpressionHandle,
+) -> Result<ContentsObservation, &'static str> {
+    let (descriptor, observation, receiver) =
+        completed_observation_receiver(build, state, statement_index, expression, subject)?;
+    let (subject, dependencies, descriptor) =
+        if super::operand_binds_live_view(program, receiver.type_reference) {
+            let (_, namespace) = descriptors::descriptor_capture(program, &build.control, receiver)
+                .ok_or("the probe operand has no complete readable descriptor capture")?;
+            let mut dependencies = Vec::new();
+            for referent in build
+                .control
+                .operand_referents
+                .span(receiver.referents)
+                .ok_or("the probe operand has no complete backing roster")?
+            {
+                if !referent.root.is_valid() {
+                    return Err("the probe operand has an unknown backing");
+                }
+                crate::shared::collections::push_unique(
+                    &mut dependencies,
+                    CanonicalPlace {
+                        root: referent.root,
+                        segments: build
+                            .control
+                            .operand_referent_segments
+                            .span(referent.segments)
+                            .ok_or("a probe backing has an incomplete path")?
+                            .to_vec(),
+                    },
+                );
+            }
+            if dependencies.is_empty() {
+                return Err("the probe operand has no backing");
+            }
+            (namespace, dependencies, descriptor)
+        } else {
+            let places = super::operand_values::captured_places(
+                program,
+                &build.control,
+                receiver,
+                receiver.type_reference,
+                &super::LiteralExpressionProjection {
+                    expression: receiver.expression,
+                    remaining: Vec::new(),
+                },
+            )
+            .ok_or("the probe operand has no complete captured value projection")?;
+            let [place] = places.as_slice() else {
+                return Err("the probe operand has no single completed value place");
+            };
+            (
+                place.projected.clone(),
+                vec![place.storage.clone()],
+                Handle::invalid(),
+            )
+        };
+    Ok(ContentsObservation {
+        subject,
         descriptor,
         dependencies,
         origin_writes: observation.origin_writes,

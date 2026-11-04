@@ -1892,6 +1892,21 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // them would manufacture second evaluation occurrences and
                 // make retained-loan correspondence ambiguous.
                 *evaluated_inputs = completed.operands;
+                if typed_trees::byte_predicates::byte_predicate_call(self.program, expression)
+                    .is_some()
+                    && let [operand] = self.context.control.operands.span(completed.operands)?
+                {
+                    // Keep the descriptor or owned value this probe actually
+                    // read. Its Boolean result does not describe a later load
+                    // from the same source variable.
+                    self.retain_value_observation(
+                        expression,
+                        completed.operands.start(),
+                        operand.referents,
+                        *contexts,
+                        *constraints,
+                    );
+                }
                 // A callee that returns one constructor installs that case on
                 // this call expression. The binding transport then keeps the
                 // tag; the call is not replayed at the payload projection.
