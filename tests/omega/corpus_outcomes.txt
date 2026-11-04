@@ -200,6 +200,26 @@ fail/dependent/declaration_predicate_requires_unproved rejected 951ms expected @
 fail/dependent/runtime_index_forwarded_to_inferred_region_callee_mismatch rejected 4053ms expected @68b6f6ba6c2f
 	machine `forward` state `entry` cannot prove runtime index subject equality at statement 0; an indexed value retains its captured index
 	machine `main` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
+fail/domains/carrier_exact_data_predicate rejected 561ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_domain_predicate rejected 549ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_ensures_result rejected 604ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_indexed_application rejected 602ms expected @288072bee333
+	domain membership `AtMost` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_nominal rejected 596ms expected @288072bee333
+	domain membership `Meters::Short` expects subject carrier `Meters`, got `Feet`
+fail/domains/carrier_exact_signedness rejected 598ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `i16`
+fail/domains/carrier_exact_specialized_generic rejected 1054ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_suffixed_literal rejected 590ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_trait_contract rejected 596ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/domains/carrier_exact_unrelated_declaration rejected 625ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
 fail/domains/case_payload_widened_call_result_rejected rejected 5280ms expected @03bcba3fe16d
 	data `ByteRead` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
 fail/domains/float_conversion_qualification_wrong_domain_rejected rejected 9740ms expected @30013776d577
@@ -741,6 +761,24 @@ fail/facts/dependency_type_qualified_call_through_parameter_rejected rejected 48
 fail/facts/dependency_type_qualified_call_through_target_body_rejected rejected 6611ms expected @900e2e7ae6af
 	cannot prove requires contract for call describe from X86Observe::observe: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`
 	cannot prove requires contract for call describe from ArmObserve::observe: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`
+fail/facts/domain_carrier_identity_through_call_result_rejected rejected 686ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_const_name_rejected rejected 626ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_field_rejected rejected 602ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_local_rejected rejected 674ms expected @288072bee333
+	executable domain test `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_match_join_rejected rejected 677ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_other_machine_rejected rejected 672ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_other_state_rejected rejected 603ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_parameter_rejected rejected 589ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
+fail/facts/domain_carrier_identity_through_target_body_rejected rejected 617ms expected @288072bee333
+	domain membership `u16::Small` expects subject carrier `u16`, got `u8`
 fail/facts/domain_predicate_call_through_call_result_rejected rejected 1895ms expected @8515a99cf21b+wt
 	cannot prove initializer of `direct` in main is in domain `bool::Held`; an annotation cannot establish routed qualification
 fail/facts/domain_predicate_call_through_const_name_rejected rejected 1684ms expected @8515a99cf21b+wt
@@ -5768,6 +5806,8 @@ pass/domains/captured_predicate_readonly_call_exit checked 3825ms check-target:m
 pass/domains/carried_indexed_payload_qualification checked 2653ms check-target:macos_arm64 @f68e855c45d4+wt
 pass/domains/carried_nested_payload_qualification checked 2606ms check-target:macos_arm64 @4f49785bc6c0+wt
 pass/domains/carried_runtime_index_payload_qualification checked 2760ms check-target:macos_arm64 @f68e855c45d4+wt
+pass/domains/carrier_exact_converted_contract checked 7591ms @288072bee333
+pass/domains/carrier_exact_same_carrier_exit checked 8941ms check-target:macos_arm64 @288072bee333
 pass/domains/case_payload_call_restore_exit checked 11230ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/case_payload_guarded_domain_exit checked 3726ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/case_payload_predicate_domain_member_exit checked 16634ms check-target:macos_arm64 @ccdb99ca2214
@@ -7669,6 +7709,15 @@ pass/facts/disjoint_windows_through_other_machine_exit checked 3439ms check-targ
 pass/facts/disjoint_windows_through_other_state_exit checked 3864ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/disjoint_windows_through_parameter_exit checked 3937ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/disjoint_windows_through_target_body_exit checked 4516ms check-target:macos_arm64 terminal-target.linux_arm64:0 terminal-target.linux_x86_64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target.windows_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
+pass/facts/domain_carrier_identity_through_call_result_exit checked 7666ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_const_name_exit checked 7856ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_field_exit checked 8137ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_local_exit checked 7829ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_match_join_exit checked 7608ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_other_machine_exit checked 7914ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_other_state_exit checked 7862ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_parameter_exit checked 9302ms check-target:macos_arm64 @288072bee333
+pass/facts/domain_carrier_identity_through_target_body_exit checked 7837ms check-target:macos_arm64 @288072bee333
 pass/facts/domain_geometry_conserved_result_exit checked 18858ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/domain_geometry_projected_conserved_result_exit checked 16678ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/facts/domain_geometry_through_call_result_exit checked 4114ms check-target:macos_arm64 @ccdb99ca2214
