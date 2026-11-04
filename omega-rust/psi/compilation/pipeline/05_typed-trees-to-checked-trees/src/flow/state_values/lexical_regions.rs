@@ -173,11 +173,10 @@ pub(in crate::flow) fn record<'plans>(
             ));
         }
     }
-    // A closed private entry has no other predecessor. Joining an
-    // unauthenticated call would pin its scalars and cases to unknown.
-    if !authenticated && !nested_or_extracted {
-        return;
-    }
+    // A reached call that fails authentication is still a predecessor. Its
+    // scalars join as unknown and its case edge stays empty, so a case
+    // remains only when every reached caller carries it. Skipping the edge
+    // would leave another caller's cases in force.
     let arguments: Vec<_> = captured.iter().map(|value| value.expression).collect();
     let cases = if authenticated {
         super::capture_argument_cases(
