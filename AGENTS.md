@@ -977,6 +977,18 @@ not a completed launch preflight.
   reactive wakeups (subagent messages and background task completion events)
   resume execution. Periodic timers (`schedule`, cron, `send_later`, or sleep
   loops) burn coordinator context and tokens without advancing work.
+- **Mandatory coordinator diff review before landing ([coordinator-review](.agents/skills/coordinator-review/SKILL.md)).**
+  When a coordinator session controls threads, subagents, sub-sessions, or
+  cloud sessions, workers push their validated branch to a draft pull request
+  (`gh pr create --draft`) and report `candidate_ready` to the coordinator;
+  workers under a coordinator never mark a PR ready (`gh pr ready`) or run
+  `tools/landing.py land` / `gh pr merge` themselves. Only the coordinator marks
+  a PR ready and lands it after auditing the full `git diff` against the
+  5-point checklist in [coordinator-review](.agents/skills/coordinator-review/SKILL.md)
+  (fail-closed soundness and sibling-field isolation, general semantic mechanism
+  across all stages, `corpus_outcomes.txt` diff with zero `pass/` rows recorded
+  as `rejected` and zero `fail/` rows recorded as `unexpected`, unweakened
+  9-place witnesses and reject twins, and algorithmic/ratchet discipline).
 - Dot-created Omega cloud sessions and their native workers default to
   **GPT 6.1 Sol, medium reasoning** (`gpt-6.1-sol`, `medium`), unless the user
   specifies another model or effort. Select them through the runtime's exposed
