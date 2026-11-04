@@ -4,6 +4,7 @@
 //! and closes its writes over the canonical storage paths and live local names
 //! used by fact consumers. It never publishes prefix writes as call writes.
 
+use super::isolation::local_storage_is_caller_isolated;
 pub use super::place_paths::{RecastSource, ReferenceViewFormation};
 use super::stored_origins::{StoredLocalOrigins, expand_write_paths, place_suffix};
 use super::{
@@ -1081,7 +1082,7 @@ fn preceding_isolated_locals(
         .iter()
         .filter_map(|statement| match statement {
             StatementNode::LocalData(local)
-                if type_is_caller_isolated_local(program, local.type_reference) =>
+                if local_storage_is_caller_isolated(program, local.type_reference) =>
             {
                 Some(local.name.as_str().to_owned())
             }
