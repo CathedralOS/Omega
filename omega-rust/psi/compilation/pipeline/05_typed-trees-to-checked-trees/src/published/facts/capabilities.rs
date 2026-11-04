@@ -25,7 +25,7 @@ use flow_effects::{
     CapabilityFlowFact, CapabilityFlowKind, CapabilityFlowPlan, ServiceReachInferencePlan,
 };
 use language_core::is_self_receiver;
-use std::collections::BTreeMap;
+use std::collections::HashMap;
 use symbols::SymbolHandle;
 use typed_trees::expression::ExpressionNode;
 use typed_trees::machine::Machine;
@@ -197,14 +197,14 @@ pub(crate) fn build_capability_facts(
 // contribute a matching fact or a duplicate.
 struct CapabilityFlowBuilder {
     rows: Arena<CapabilityFlowFact>,
-    states: BTreeMap<SymbolHandle, Vec<Handle<CapabilityFlowFact>>>,
+    states: HashMap<SymbolHandle, Vec<Handle<CapabilityFlowFact>>>,
 }
 
 impl CapabilityFlowBuilder {
     fn new(capacity: usize) -> Self {
         Self {
             rows: Arena::with_capacity(capacity),
-            states: BTreeMap::new(),
+            states: HashMap::new(),
         }
     }
 
