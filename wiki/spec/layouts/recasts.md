@@ -42,6 +42,12 @@ established mutable view requires both implications. Every value writable throug
 the target must leave the source valid when the loan ends. Equal byte counts alone do not
 establish either judgment.
 
+The source includes [the lender's declared local or field domains](../language/dependent_values.md#lent-storage-retains-its-declared-domains),
+not just its unqualified carrier. Erasing a domain from the displayed borrowed
+type cannot erase those handback obligations. A helper receiving the weaker view
+must have an applicable checked contract that lets its caller discharge them;
+entry-only predicate expiration is not permission to return invalid source storage.
+
 Raw bytes do not establish typed predicates or stronger foreign validity.
 Mutable raw-byte views require existing total-write or checked fit evidence.
 Established typed views may retain or weaken facts according to the judgment.

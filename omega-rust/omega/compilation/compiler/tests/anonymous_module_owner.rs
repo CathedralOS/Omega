@@ -251,6 +251,7 @@ fn anonymous_owner_consumer_runs_nine_places_and_rejects_namespace_substitution(
         let reloaded = CanonicalTerminalArtifact::from_bytes(&artifact.to_bytes())
             .expect("consumer artifact reload");
         let observation = terminal_runtime::execute(terminal_runtime::TerminalRuntimeRequest {
+            native_image: None,
             entry: None,
             filesystem: Default::default(),
             native_services: Default::default(),
