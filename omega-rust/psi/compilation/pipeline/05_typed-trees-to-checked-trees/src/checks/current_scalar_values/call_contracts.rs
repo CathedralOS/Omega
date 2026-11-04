@@ -131,10 +131,20 @@ impl CurrentScalarValues<'_> {
         arguments: &[ExpressionHandle],
         site: CallSite<'_>,
     ) -> bool {
-        let Some(machine_values) = self.machine_value_bindings(callee, site) else {
+        let trace = std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some()
+            && std::env::var("OMEGA_TRACE_CALLER")
+                .is_ok_and(|name| self.machine.name.as_str() == name);
+        let machine_values = self.machine_value_bindings(callee, site);
+        if trace {
+            eprintln!(
+                "STATICCALL caller={} target={} coordinates={machine_values:?}",
+                self.machine.name, callee.name
+            );
+        }
+        let Some(machine_values) = machine_values else {
             return false;
         };
-        let Some(captured) = self.capture_parameter_goal(
+        let captured = self.capture_parameter_goal(
             callee,
             state,
             expression,
@@ -143,7 +153,17 @@ impl CurrentScalarValues<'_> {
             &machine_values,
             &[],
             false,
-        ) else {
+        );
+        if trace {
+            eprintln!(
+                "STATICCALL caller={} target={} goal={:?} hypotheses={:?}",
+                self.machine.name,
+                callee.name,
+                captured.as_ref().map(|captured| &captured.goal),
+                self.hypotheses
+            );
+        }
+        let Some(captured) = captured else {
             return false;
         };
         if self.proves(self.program, self.machine, &captured.goal) {
