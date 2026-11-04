@@ -106,52 +106,7 @@ publication, without defining the expression's form.
 `samples/cli/facts/open_index_distributivity` pins the expansion with its reject
 twins.
 
-### 2. How is a bare `return` in a transition arm delimited from the next arm's pattern in Epsilon?
-
-[Epsilon's grammar](bootstrap/4_epsilon/LANGUAGE.md) (lines 128-139) lets an
-arm's continuation be `"return" expression?`, and lets the next arm's pattern
-start with an integer literal, `true`, `false`, or `IDENT "::" IDENT`
-(lines 131-134), which are also valid expression starts (lines 163-164).
-Nothing in the grammar or in section 8 (machines, states, and transitions)
-says whether `-> return` followed by `3 -> ...` returns `3` or returns nothing
-and begins a new arm. The evaluator resolves it with a lookahead probe
-(`bootstrap/4_epsilon/implementation_notes.md`, lines 30-31): a `return` is
-bare when the next token is `}` or end of source, or when the tokens ahead
-form a `pattern ->` prefix. The independent refinement model reproduces that
-probe instead of deriving the read from the contract
-(`tests/epsilon/refinement/README.md`, lines 24-27; `model.py`,
-`return_is_bare`).
-
-The customer is the conformance obligation in LANGUAGE.md (lines 818-826,
-item 5): direct checked evaluator refinement with mutations needs a model
-derived from the written language. While the disambiguation is unwritten the
-model and the evaluator share one unverified decision, and a parse that depends
-on the following arm cannot be checked against the contract. The admitted
-Epsilon sources, including D under `bootstrap/5_omega/`, are parsed under the
-current probe; a rule that changes how any admitted source parses changes that
-identity chain.
-
-Option A, write the probe as the rule: a `return` continuation carries an
-expression unless the following tokens form a complete `pattern ->` prefix or
-the arm list ends. This ratifies the current evaluator, keeps every admitted
-source unchanged, and makes the model's probe contract-derived. The probe then
-has to be specified exactly: which token sequences count as `pattern ->`, and
-what happens when an expression itself could start with such a sequence.
-
-Option B, an explicit delimiter: terminate a `return` continuation (for
-example `return expression ;` and `return ;`) or forbid an expression after
-`return` in a non-final arm, so no lookahead past the arm is needed. This is a
-grammar change that migrates every Epsilon source including D and re-admits
-their identities; the former translator-era corpus is not authoritative.
-
-Contracts checked: the grammar (lines 119-139, 160-166) and section 8 of
-LANGUAGE.md state no rule; `EVALUATOR_ENTRY.md` and `EVALUATOR_PROFILE.md`
-define observations and resources, not parsing;
-[edge contracts](bootstrap/CONTRACT.md) require refinement independence but do
-not fix Epsilon's grammar; `implementation_notes.md` describes the probe as
-implementation, not as a language rule.
-
-### 3. Is a layout used only inside unselected library code a Psi obligation under every target?
+### 2. Is a layout used only inside unselected library code a Psi obligation under every target?
 
 A fixed-representation use (`LayoutStorage`, `CLayout`) inside a body that no
 Build row selects and no entry reaches is laid out today by Psi's build-time
@@ -236,75 +191,7 @@ Contracts checked, and why they do not decide it:
   110-113 follow provider bodies "under each applicable target" and reject a bad
   target-family member "even when deployment requests another target".
 
-### 4. Must a domain membership's candidate have the domain's carrier?
-
-A `u8` value is accepted as a member of a `u16`-carrier domain in every form
-tried. With `domain u16::Small requires self <= 10;`, each of these checks:
-
-- `machine guarded() -> u16 requires 7u8 in Small { 3 }`, where `u8` appears
-  nowhere else in the program;
-- the same program with an unrelated `machine unrelated(value: u8) -> u8`, so
-  the `u8` carrier is otherwise present;
-- `machine guarded(value: u8) -> u16 requires value in Small { 3 }`, with no
-  literal at all.
-
-Observed on hosted compiler-pilot runs 41656219861 and 41657251758 (checking
-only, branch `work/wave3-membership-probe` over main `f2c75870eb`). The probes
-were written to test a compiler degrade path (a suffixed literal whose width
-row is missing); the outcome is the same with and without that row, so the
-acceptance comes from the membership rule itself.
-
-Option A, carrier-exact membership: `candidate in D` requires the candidate's
-carrier to equal the carrier named by `D`'s `Carrier::` prefix, and a
-cross-carrier `in` rejects; an explicit exact conversion is needed first. A
-heuristic scan of the 68,463 `.omg` files found no `requires` membership whose
-parameter's declared integer type differs from its domain's carrier (91
-integer-carrier domains), and none among qualified parameters (`x: uN in D`)
-whose type differs from the domain's carrier, so the known migration cost is
-small; the scan did not cover memberships on locals, fields or literal
-candidates.
-
-Option B, membership by exact value: `candidate in D` substitutes the
-candidate's exact mathematical value for `self`, across widths, as fixed-integer
-comparison already does. This is today's behavior.
-
-Contracts checked, and why they do not decide it:
-- [Domains, declaration and membership](wiki/spec/language/domains.md#declaration-and-membership):
-  "`Player::` determines the domain's carrier", and membership "substitutes that
-  exact candidate for `self`". It does not say whether the candidate must have
-  that carrier.
-- [Domains, refinement and executable membership](wiki/spec/language/domains.md#refinement-and-executable-membership):
-  "Domains classify values within the carrier's ordinary validity", and
-  "Establishing membership requires all carrier, predicate, and provenance
-  obligations". Whether a "carrier obligation" means the candidate has the
-  carrier's type, or only that its value is valid in that carrier, is the open
-  point.
-- [Domains, exact coercion and erasure](wiki/spec/language/domains.md#exact-coercion-and-erasure):
-  "Exact widening and proved representable narrowing are carrier coercions",
-  and a predicate-free qualification needs "carrier compatibility". This is the
-  explicit conversion Option A would require before a cross-carrier `in`; it
-  does not say a bare `in` needs one.
-- [Terminal Psi calls and outcomes](wiki/spec/terminal-psi/calls_and_outcomes.md):
-  a qualification change "strictly adds same-carrier membership". This governs
-  qualification-change edges, not a bare `in` proposition, though it leans
-  toward Option A.
-- [Numeric values, literal landing](wiki/spec/language/numeric_values.md#literal-landing-and-destinations):
-  "A suffixed integer or float literal retains its chosen carrier ... An
-  incompatible destination rejects". It does not say whether a membership
-  candidate is a destination.
-- [Numeric values, integer equality and order](wiki/spec/language/numeric_values.md#integer-equality-and-order):
-  "Builtin fixed-integer comparisons use exact mathematical integer values"
-  across width and signedness (`mixed-integer-comparison`), which supports
-  reading `self <= 10` across carriers. The same section says this "adds
-  neither implicit arithmetic widening nor conversion at assignments,
-  arguments, or returns"; a membership candidate is none of those positions.
-- Qualification `value: T in D` "requires the exact named domain `D`"
-  (domains.md, declaration and membership), which constrains the qualified
-  type, not a bare `in` proposition.
-- No clause in `state_contracts.md`, `generics.md` or elsewhere in
-  `wiki/spec` states a carrier rule for `in` propositions.
-
-### 5. Which input accepts an independent component's assumptions, and how is an accepted assumption spelled?
+### 3. Which input accepts an independent component's assumptions, and how is an accepted assumption spelled?
 
 A verified component description can bind assumptions about its environment,
 such as an immediate port-space write, by digest. The specification requires
