@@ -67,46 +67,7 @@ it instantiates. A reviewer verifies those citations before the framing.
 
 ## Open questions
 
-### 1. Is the expanded sum of products the canonical form of an open index under a declared distributivity law?
-
-[Licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-says distributivity requires its law, that changing the canonical form is an
-explicit language compatibility event, and that index normalizer version 3
-retains the exact selected provider. Version 3 sorted operands under
-commutativity and flattened under associativity, and ignored a declared
-distributivity law. The compiler now applies a declared left-distributivity law
-by expanding `x * (y + z)` to `x * y + x * z` once per summand, flattening and
-sorting the result under the addition's own laws, and expanding a nested sum in
-the same way. It keeps `normalizer_version: 3` and caps an expansion at 64
-summands, keeping the unexpanded form beyond. A trait that declares
-distributivity in both directions (a distributive lattice) expands in neither.
-Which expressions are identified depends only on the laws a conformance
-licenses; this question settles the representative text, the version label and
-the cap.
-
-Option A, expansion is canonical and the version advances to 4: amend the
-sentence naming version 3 and record the compatibility event.
-
-Option B, expansion is canonical and the version stays 3: no recorded form
-changes, because an expression's form moves only when its trait declares a
-distributivity law, which no normalizer consulted until now, and the library's
-only such trait (`CommutativeSemiring`) has no index customer.
-
-Option C, another representative (factoring, or a polynomial with explicit
-coefficients): every form the implementation produces under the law changes.
-
-Contracts checked: [licensed normalization](wiki/spec/proofs/contracts.md#licensed-normalization)
-fixes the licensing and the version provenance but names no representative.
-`source/library/core/algebra.omg` describes the proof engine's tier-2
-normalizer as expanding a capped natural-coefficient polynomial form; that is
-commentary on the proof side, not a rule for index identity. [Domains](wiki/spec/language/domains.md)
-says computed open indices retain a normalized expression and that exact
-operation and law identities survive generic substitution and interface
-publication, without defining the expression's form.
-`samples/cli/facts/open_index_distributivity` pins the expansion with its reject
-twins.
-
-### 2. Is a layout used only inside unselected library code a Psi obligation under every target?
+### 1. Is a layout used only inside unselected library code a Psi obligation under every target?
 
 A fixed-representation use (`LayoutStorage`, `CLayout`) inside a body that no
 Build row selects and no entry reaches is laid out today by Psi's build-time
@@ -191,7 +152,7 @@ Contracts checked, and why they do not decide it:
   110-113 follow provider bodies "under each applicable target" and reject a bad
   target-family member "even when deployment requests another target".
 
-### 4. Must a lent local's domain qualification hold again when the borrow returns?
+### 2. Must a lent local's domain qualification hold again when the borrow returns?
 
 A local binding can carry a domain qualification, for example
 `let mut bytes: [u8; 2] in Ascii = "ab";`. When it is lent through

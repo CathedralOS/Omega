@@ -428,18 +428,38 @@ retired-syntax deletions to completion.
     rejection of unsafe Exact intermediates, conditional or foreign laws, and
     unproved literal connections. Prove these cases through nine-place fact
     witnesses, fact-sensitive reject twins, and their pinned corpus fixtures.
-  - Apply the eventual [distributivity representative decision](OWNER_QUESTIONS.md#1-is-the-expanded-sum-of-products-the-canonical-form-of-an-open-index-under-a-declared-distributivity-law).
-    Identity-law ratification does not choose that representative or a new
-    expansion limit. Internal normalizer provenance and rebuilding unreleased
-    development artifacts are implementation bookkeeping, not a legacy support
-    requirement.
+  - Implement [bounded canonical index normalization](wiki/spec/proofs/contracts.md#bounded-canonical-index-normalization)
+    and its shared published encoding independently of storage representation.
+    Repair `(A * (B + C)) * D` against `A * ((B + C) * D)` under associative,
+    noncommutative multiplication and left distributivity: merge the full
+    same-authority chain before expansion, rather than normalizing its inner
+    product into a sum first. Preserve partial law sets and prohibit invented
+    numeral identities such as `N + N == 2 * N` without additional evidence.
+  - Decide the 64-summand measure from the canonical pre-expansion form, retain
+    coherent unexpanded fallback and cutoff evidence, and diagnose the measure
+    and limit only when compatibility remains unresolved. Cover 63/64/65-term
+    boundaries, regrouping and operand-order variants, identity removal, and
+    the `S * (X + Y)` budget edge when `S` has 65 summands. Establish fixed-law
+    determinism/idempotence and below-budget preservation of identifications
+    under added valid laws, with the named mutual-distributivity exception.
+    Supply a correctness argument and focused property tests, not only the
+    counterexample repair.
+  - Carry checked generic compatibility evidence through exact specialization
+    substitutions without repeating the proof, and evaluate fully closed
+    selected index operations to canonical values under ordinary admission.
+    Pin direct theorem guarantees as a compatibility escape route, preserve
+    independent call/formation/target checks, and compare canonical identity
+    encoding across producer implementations. Record internal provenance
+    updates and rebuild development artifacts as needed; add no local
+    canonical-budget override syntax or legacy-normalizer support requirement.
   - Migrate top-level library/corpus/embedded declarations off the `operator`
     introducer ([retirement inventory](wiki/drafts/audits/operator_introducer_retirement_inventory.md))
     and remove legacy parser/IR consumers and undifferentiated
     `MachineSupplyMode::Boundary`.
   Acceptance: `tests/omega/pass/expressions/declared_operator_match_result/`
   (exit 70), `samples/cli/facts/{body_bearing_comparison,generic_comparison_body,projection_call_premise,abstract_signature_call,static_evidence_premise}`,
-  and new fixtures for generic/stateful bodies, private helpers, qualifiers,
+  `samples/cli/facts/open_index_distributivity` and its necessary additional
+  productions, and new fixtures for generic/stateful bodies, private helpers, qualifiers,
   ordered operands, and receiver/result loans pass `omega run --both` on every
   host, while missing bodies, duplicate shapes, unproved laws, and missing
   premises reject.
