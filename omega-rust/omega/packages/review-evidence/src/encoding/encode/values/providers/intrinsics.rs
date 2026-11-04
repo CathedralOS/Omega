@@ -8,6 +8,12 @@ pub(crate) fn encode_compiler_intrinsic_execution(
     execution: &PackageReviewCompilerIntrinsicExecution,
 ) -> Result<(), PackageReviewEncodingError> {
     match execution {
+        PackageReviewCompilerIntrinsicExecution::TaskRegisterActivate => {
+            encoder.tag("task_register_activate", 12)
+        }
+        PackageReviewCompilerIntrinsicExecution::TaskRegisterRead => {
+            encoder.tag("task_register_read", 13)
+        }
         PackageReviewCompilerIntrinsicExecution::AccessLifecycle(operation) => {
             encoder.tag("access_lifecycle", 11);
             encoder.field("operation", |encoder| {
