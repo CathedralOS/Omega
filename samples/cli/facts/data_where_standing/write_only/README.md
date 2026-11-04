@@ -4,7 +4,11 @@ Each program saves `&write counter` in a local reference before passing
 it to `fill`. This exercises the same loan-location record as the mutable scalar
 reference production while retaining write-only access. These programs already
 check on optimized baseline source `2713116252386e98ce5e87961aca764f8760b217`;
-execution with the changed planner is pending.
+all nine now run with native and Terminal exits of zero on macOS ARM64 using
+optimized producer `cd5340c6d0348e868e34d68ee85f250c431f79ba`. Their eighteen
+controls reject for the intended reason. The
+[saved-reference report](../../../../../wiki/drafts/measurements/saved_field_reference_calls.md)
+records this execution separately from the earlier direct-call results.
 
 A helper can temporarily put a record outside its declared bounds while updating
 it. These programs set a field to 61 when the record requires at most 60, then

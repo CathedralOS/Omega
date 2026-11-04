@@ -76,13 +76,21 @@ reject before the later constant-publication check and do not establish that
 later check. Type arguments must be ready before constant publication;
 termination proofs still belong to the function body.
 
-Current baseline evidence uses optimized source
+The frozen baseline uses optimized source
 `2713116252386e98ce5e87961aca764f8760b217`. Eight saved-reference places fail while
 producing executable compiler output with "computed borrow lost its established
-local"; the const-name place already checks. The first loan-record repair passed scoped Rust checking and lint, but optimized
-source `d6448cfae742e9142043bacd0a2be6a3891820b6` still fails those eight places.
-Constructing the later reborrow used a separate path that skipped the saved loan.
-The current change routes reference construction through the shared loan lookup;
-fresh compiler and native/Terminal qualification are pending. All programs declare the four hosted entry bindings; execution on
-other hosts remains unverified. The parent migration and GUI qualification
-remain open or deferred as documented.
+local"; the const-name place already checks. The first loan-record repair,
+`d6448cfae742e9142043bacd0a2be6a3891820b6`, still failed those eight places because
+constructing another reference skipped the saved loan.
+
+Optimized producer `cd5340c6d0348e868e34d68ee85f250c431f79ba` runs all nine current
+positives with native and Terminal exits of zero on macOS ARM64. Their eighteen
+controls reject for the intended missing-bound or unfinished-restoration reason.
+The [saved-reference report](../../../../../wiki/drafts/measurements/saved_field_reference_calls.md)
+records the source, producer and evidence, including the later removal of a
+redundant lowering check. The checked producer already records the reference
+crossing that lowering consumes.
+
+All programs declare the four hosted entry bindings; other-host execution is
+unverified. The parent migration remains open, and GUI qualification remains
+deferred as requested.
