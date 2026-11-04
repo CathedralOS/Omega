@@ -5,19 +5,35 @@ Parent: `ATOMIC-MEMORY-MODEL`. One exact-cell observing
 `Exchanged`, or `Uncommitted(observed)` result without changing its location,
 operands, ordering or observation identity.
 
-The unchanged [local witness](local/main.omg) attempts expected 10 → replacement
+The current Linux ARM64 gap is recorded at source
+`b53634abd0c42b8d175d5d99ddf32010845f14c7` in
+[run 41759507931](https://github.com/CathedralOS/Omega/actions/runs/41759507931).
+All nine standard positives passed source checking, and all nine twins rejected
+their invalid failure ordering. Each native/Terminal attempt then stopped during
+instruction selection because the target had no admitted atomic form. Neither
+engine ran, and the ordinary-project stage did not run. The optimized producer
+and frozen source/oracles are retained with that baseline.
+
+The repair under validation preserves the observed resident and the actual
+commit result separately. Baseline ARM uses one exclusive load and at most one
+exclusive store, with no retry loop or LSE feature assumption. Its failed store
+must produce `Uncommitted`, rather than infer success from a matching value.
+Fresh repaired-source outcomes remain pending.
+
+The [local witness](local/main.omg) attempts expected 10 → replacement
 99 at resident 10 and checks that sibling storage stays 17. Its expected-9
 attempt must return `Mismatched(10)` without writing. A legitimate uncommitted
 attempt must carry observed 10 and leave both cells unchanged. Serial execution
 and bounded x86 CMPXCHG / admitted ARM LSE CAS need not produce spurious failure;
 these programs never invent one.
 
-Fresh baseline `53cd2938437a29356a48d6eaf29f14de07a4bb99`, optimized Rust
+Historical baseline `53cd2938437a29356a48d6eaf29f14de07a4bb99`, optimized Rust
 producer (level 3), Linux x86-64: `omega run --both local/main.omg` exited 200
 because neither `compare_exchange_once` call resolved. Neither engine ran.
 The frozen source SHA-256 is
 `feb3b6a54389d3bdd0312936e908a89284ee63db337ed1d00310f71183027636`.
-Both engines exit 0 on all six positive programs with the integrated optimized producer.
+The original note records both engines exiting 0 on the six original positive
+programs with its integrated producer; those observations remain historical.
 
 | Place / Program | Witness (`main.omg`) | Reject twin (`invalid/main.omg`) | Distinct mechanism exercised |
 | --- | --- | --- | --- |

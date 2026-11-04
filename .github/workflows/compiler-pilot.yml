@@ -98,6 +98,9 @@ jobs:
           restore-keys: |
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
             ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
+      # Temporary focused qualification for this atomic repair; removed before landing.
+      - name: Check atomic instruction encodings and their register contracts
+        run: cargo test --locked -p isa-aarch64 -p isa-x86_64 atomic -- --nocapture
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
