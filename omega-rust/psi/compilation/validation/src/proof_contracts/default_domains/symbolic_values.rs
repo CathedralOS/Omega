@@ -45,6 +45,9 @@ pub(super) fn literal_value(
 ) -> Option<LiteralValue> {
     match expression_table(program).expression(expression) {
         ExpressionNode::Integer(value) => value.decimal_value_i128().map(LiteralValue::Integer),
+        // `bool` storage is the set {0, 1}. A literal store through that
+        // representation restores a byte field's numeric domain.
+        ExpressionNode::Boolean(value) => Some(LiteralValue::Integer(i128::from(value))),
         ExpressionNode::Float(value) => {
             use numerics::float_semantics::{FloatFormat, FloatSemantics};
             Some(match value.landing()? {
