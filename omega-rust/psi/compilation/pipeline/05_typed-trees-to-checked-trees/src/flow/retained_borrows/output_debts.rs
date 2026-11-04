@@ -150,38 +150,47 @@ pub(in crate::flow) fn sources(
             }
             let mut restored = RetainedSources::default();
             for supplier in sources {
-                for input in crate::borrow::lifetime_contract::retained_inputs(
+                for alternatives in crate::borrow::lifetime_contract::retained_inputs(
                     program, borrow, control, supplier,
                 )? {
-                    match input {
-                        crate::borrow::lifetime_contract::RetainedLifetimeInput::Value {
-                            operand,
-                            path,
-                            bound,
-                        } => {
-                            if !control.operands.is_valid(operand) {
-                                return None;
-                            }
-                            restored.append(super::captured_sources(
-                                program,
-                                borrow,
-                                control,
-                                control.operands.get(operand),
+                    let mut common: Option<RetainedSources> = None;
+                    for input in alternatives {
+                        let supplied = match input {
+                            crate::borrow::lifetime_contract::RetainedLifetimeInput::Value {
+                                operand,
                                 path,
                                 bound,
-                                stable_name,
-                            )?);
-                        }
-                        crate::borrow::lifetime_contract::RetainedLifetimeInput::Incoming {
-                            bound,
-                        } => {
-                            if crate::checks::contracts::exclusive_referent_type(program, bound)
-                                .is_valid()
-                            {
-                                return None;
+                            } => {
+                                if !control.operands.is_valid(operand) {
+                                    return None;
+                                }
+                                super::captured_sources(
+                                    program,
+                                    borrow,
+                                    control,
+                                    control.operands.get(operand),
+                                    path,
+                                    bound,
+                                    stable_name,
+                                )?
                             }
+                            crate::borrow::lifetime_contract::RetainedLifetimeInput::Incoming {
+                                bound,
+                            } => {
+                                if crate::checks::contracts::exclusive_referent_type(program, bound)
+                                    .is_valid()
+                                {
+                                    return None;
+                                }
+                                RetainedSources::default()
+                            }
+                        };
+                        match &mut common {
+                            Some(common) => common.meet(&supplied),
+                            None => common = Some(supplied),
                         }
                     }
+                    restored.append(common?);
                 }
             }
             restored.borrows.retain(|returned| {

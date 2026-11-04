@@ -194,6 +194,22 @@ pub(super) fn plan(
                             )
                             .and_then(|reference| validation::reference_shell(program, reference))
                             .ok_or("stored input's incoming identity is not a reference")?;
+                            let expected = validation::project_type_reference_from_segments(
+                                program,
+                                source_type,
+                                &leaf,
+                            )
+                            .and_then(|reference| validation::reference_shell(program, reference))
+                            .ok_or("stored input's declared leaf is not a reference")?;
+                            if !validation::storage_origin_types_match(
+                                program,
+                                reference.referee,
+                                expected.referee,
+                            ) {
+                                return Err(
+                                    "stored input's incoming descriptor has another referent type",
+                                );
+                            }
                             if reference.access != ReferenceAccess::Mutable
                                 && reference.access != reference_access(&access)
                             {

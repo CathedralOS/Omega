@@ -194,6 +194,18 @@ pub enum FlowOperandStoredSource {
     },
 }
 
+impl Default for FlowOperandStoredSource {
+    fn default() -> Self {
+        Self::Value {
+            path: HandleSpan::empty(),
+            operand: Handle::invalid(),
+            reference: Handle::invalid(),
+            projection: HandleSpan::empty(),
+            slot: None,
+        }
+    }
+}
+
 /// Nonspatial input obligations of one admitted parameter-output generation.
 /// Descriptor invalidation cannot turn this into a pointer association. The
 /// borrowing ledger must independently select this exact generation at release.

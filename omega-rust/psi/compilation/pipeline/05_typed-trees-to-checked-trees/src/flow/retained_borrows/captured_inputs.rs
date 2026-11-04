@@ -225,42 +225,51 @@ pub(in crate::flow) fn captured_sources(
                 Some(span) => control.operand_retained_suppliers.span(span)?,
                 None => &[],
             } {
-                for input in crate::borrow::lifetime_contract::retained_inputs(
+                for alternatives in crate::borrow::lifetime_contract::retained_inputs(
                     program, borrow, control, source,
                 )? {
-                    match input {
-                        crate::borrow::lifetime_contract::RetainedLifetimeInput::Value {
-                            operand,
-                            path,
-                            bound,
-                        } => {
-                            if !control.operands.is_valid(operand) {
-                                return None;
-                            }
-                            result.append(visit(
-                                program,
-                                borrow,
-                                control,
-                                control.operands.get(operand),
+                    let mut common: Option<RetainedSources> = None;
+                    for input in alternatives {
+                        let supplied = match input {
+                            crate::borrow::lifetime_contract::RetainedLifetimeInput::Value {
+                                operand,
                                 path,
                                 bound,
-                                stable_name,
-                                active,
-                            )?);
-                        }
-                        crate::borrow::lifetime_contract::RetainedLifetimeInput::Incoming {
-                            bound,
-                        } => {
-                            // Entry descriptors retain the caller's obligation.
-                            // This handback query cannot discharge an exclusive
-                            // duty without a completed owned source occurrence.
-                            if crate::checks::contracts::exclusive_referent_type(program, bound)
-                                .is_valid()
-                            {
-                                return None;
+                            } => {
+                                if !control.operands.is_valid(operand) {
+                                    return None;
+                                }
+                                visit(
+                                    program,
+                                    borrow,
+                                    control,
+                                    control.operands.get(operand),
+                                    path,
+                                    bound,
+                                    stable_name,
+                                    active,
+                                )?
                             }
+                            crate::borrow::lifetime_contract::RetainedLifetimeInput::Incoming {
+                                bound,
+                            } => {
+                                // Entry descriptors retain the caller's obligation.
+                                // This handback query cannot discharge an exclusive
+                                // duty without a completed owned source occurrence.
+                                if crate::checks::contracts::exclusive_referent_type(program, bound)
+                                    .is_valid()
+                                {
+                                    return None;
+                                }
+                                RetainedSources::default()
+                            }
+                        };
+                        match &mut common {
+                            Some(common) => common.meet(&supplied),
+                            None => common = Some(supplied),
                         }
                     }
+                    result.append(common?);
                 }
             }
             // Exact permission suppliers select an ordinary declared reference

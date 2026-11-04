@@ -315,24 +315,26 @@ pub(crate) enum RetainedLifetimeInput<'a> {
     },
 }
 
-/// Read the full saved edge without flattening its alternatives into separate
-/// declarations or substituting an enclosing pointer for a stored descriptor.
+/// A saved field can hold either of several references. Keep those possible
+/// occupants together: returning access requires the same duty on every arm,
+/// while lifetime retention conservatively holds every possible input.
+/// Separate groups are simultaneous declared leaves, not alternative occupants.
 pub(crate) fn retained_inputs<'a>(
     program: &dyn validation::CheckingInput,
     borrow: &checked_trees::BorrowFacts,
     control: &'a FlowControlFacts,
     supplier: &FlowOperandRetainedSupplier,
-) -> Option<Vec<RetainedLifetimeInput<'a>>> {
+) -> Option<Vec<Vec<RetainedLifetimeInput<'a>>>> {
     let bound = source_type(program, borrow, control, supplier)?;
     let contract = supplier.contract?;
     if contract.source == ViewReturnInputSource::Referent {
-        return Some(vec![RetainedLifetimeInput::Value {
+        return Some(vec![vec![RetainedLifetimeInput::Value {
             operand: supplier.operand,
             path: control.operand_retained_paths.span(supplier.projection)?,
             bound,
-        }]);
+        }]]);
     }
-    let mut inputs = Vec::new();
+    let mut inputs: Vec<(Vec<facts::PlaceSegment>, Vec<RetainedLifetimeInput<'a>>)> = Vec::new();
     for member in control
         .operand_stored_sources
         .span(contract.stored_sources)?
@@ -346,7 +348,7 @@ pub(crate) fn retained_inputs<'a>(
             control.operand_retained_paths.span(*path)?,
         )?;
         let bound = validation::project_type_reference_from_segments(program, bound, &path)?;
-        inputs.push(match *member {
+        let input = match *member {
             FlowOperandStoredSource::Value {
                 operand,
                 projection,
@@ -357,9 +359,14 @@ pub(crate) fn retained_inputs<'a>(
                 bound,
             },
             FlowOperandStoredSource::Incoming { .. } => RetainedLifetimeInput::Incoming { bound },
-        });
+        };
+        if let Some((_, group)) = inputs.iter_mut().find(|(candidate, _)| *candidate == path) {
+            group.push(input);
+        } else {
+            inputs.push((path, vec![input]));
+        }
     }
-    (!inputs.is_empty()).then_some(inputs)
+    (!inputs.is_empty()).then(|| inputs.into_iter().map(|(_, group)| group).collect())
 }
 
 fn same_path(
