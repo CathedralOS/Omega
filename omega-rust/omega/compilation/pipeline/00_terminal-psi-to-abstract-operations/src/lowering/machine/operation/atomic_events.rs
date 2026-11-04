@@ -162,7 +162,15 @@ pub(super) fn lower(
         [reaching @ (Reaching::Initial | Reaching::Atomic(_) | Reaching::Effect(_))] => {
             Ok(**reaching)
         }
-        _ => Err(LoweringError::UnsupportedAtomicCoherence(operation.id)),
+        _ => {
+            if std::env::var_os("OMEGA_ATOMIC_COHERENCE_TRACE").is_some() {
+                eprintln!(
+                    "corpus_runner: ATOMIC_COHERENCE operation={:?} reaching={:?} parameters={:?}",
+                    operation.id, fact, machine.structural_parameters
+                );
+            }
+            Err(LoweringError::UnsupportedAtomicCoherence(operation.id))
+        }
     };
     // One retained residency edge carries both coherence claims: whichever
     // roster admits it, the edge answers the same reaching fact.
@@ -420,14 +428,17 @@ fn latest_write(
         | OperationKind::StructuralByteSequenceFieldLength { .. }
         | OperationKind::StructuralByteSequenceFieldRead { .. } => {}
         _ => {
-            let lends_root = operation
-                .kind
-                .structural_projections()
-                .iter()
-                .any(|projection| {
-                    projection.root == *root || may_alias(projection.root, projection.path)
-                });
+            let projections = operation.kind.structural_projections();
+            let lends_root = projections.iter().any(|projection| {
+                projection.root == *root || may_alias(projection.root, projection.path)
+            });
             if lends_root {
+                if std::env::var_os("OMEGA_ATOMIC_COHERENCE_TRACE").is_some() {
+                    eprintln!(
+                        "corpus_runner: ATOMIC_COHERENCE effect={:?} kind={:?} location={:?} projections={:?}",
+                        operation.id, operation.kind, location, projections
+                    );
+                }
                 return Some(Reaching::Effect(operation.id));
             }
         }
