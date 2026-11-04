@@ -630,6 +630,14 @@ fn reaching_store_values<'capture>(
     let mut values = Vec::new();
     for selected in captures {
         let stored = flow.control.operands.get(selected.capture);
+        // A saved record can have a different prepared member handle from
+        // the field named by the call's formal type. Select the same declared
+        // member in that stored value before following its captured child.
+        let selected_path = validation::corresponding_place_projection(
+            program,
+            selected.reference,
+            &selected.projection,
+        )?;
         // Zero formation has no evaluated RHS. Its establishment belongs to
         // the observed storage, not an invalid completed producer. Every
         // predecessor must support the requested detached copy.
@@ -638,7 +646,7 @@ fn reaching_store_values<'capture>(
             || !validation::project_type_reference_from_segments(
                 program,
                 selected.reference,
-                &selected.projection,
+                &selected_path,
             )
             .is_some_and(|projected| {
                 let selected_descriptor = operand_binds_live_view(program, projected);
@@ -667,7 +675,7 @@ fn reaching_store_values<'capture>(
             state,
             CapturedOperand::recorded(&flow.control, selected.capture)?,
             selected.reference,
-            &selected.projection,
+            &selected_path,
         )?);
     }
     Some(values)
