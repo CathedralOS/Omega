@@ -15,8 +15,8 @@ use abstract_operations::{
     AbstractAtomicFenceOrdering, AbstractAtomicReadModifyWrite, AtomicResidencyEdge,
 };
 use language_core::atomic::{
-    AtomicCompareExchangeOutcomeIdentity, AtomicObservingCompareExchangeOperation,
-    AtomicObservingCompareExchangeResultShape, MemoryOrdering,
+    AtomicCompareExchangeAttemptAxis, AtomicCompareExchangeObservationAxis,
+    AtomicCompareExchangeOutcomeIdentity, MemoryOrdering,
 };
 
 pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
@@ -122,13 +122,13 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             // The custody identity is deliberately redundant with the
             // event kind; encode all three axes so a non-canonical
             // substitution changes the operation identity.
-            bytes.u8(match custody.operation {
-                AtomicObservingCompareExchangeOperation::Decisive => 1,
-                AtomicObservingCompareExchangeOperation::SingleAttempt => 2,
+            bytes.u8(match custody.attempt {
+                AtomicCompareExchangeAttemptAxis::Decisive => 1,
+                AtomicCompareExchangeAttemptAxis::SingleAttempt => 2,
             });
-            bytes.u8(match custody.result_shape {
-                AtomicObservingCompareExchangeResultShape::ExchangedOrMismatchedObserved => 1,
-                AtomicObservingCompareExchangeResultShape::ExchangedOrMismatchedOrUncommittedObserved => 2,
+            bytes.u8(match custody.observation {
+                AtomicCompareExchangeObservationAxis::Observing => 1,
+                AtomicCompareExchangeObservationAxis::NonObserving => 2,
             });
             bytes.u8(match custody.outcome_identity {
                 AtomicCompareExchangeOutcomeIdentity::AtomicCompareExchangeOutcome => 1,

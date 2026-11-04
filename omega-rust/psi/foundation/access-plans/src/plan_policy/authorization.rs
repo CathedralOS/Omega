@@ -80,6 +80,9 @@ pub(crate) fn authorize_descriptor(
         AccessOperation::Atomic(AtomicAccessOperation::CompareExchangeOnce { .. }) => {
             descriptor.permissions.atomic.compare_exchange_once
         }
+        AccessOperation::Atomic(AtomicAccessOperation::TryExchangeOnce { .. }) => {
+            descriptor.permissions.atomic.try_exchange_once
+        }
     };
     if borrow_permits && permission_admits {
         Ok(())

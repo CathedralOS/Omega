@@ -6244,6 +6244,41 @@ fail/facts/atomic_operand_carrier_once_suffixed_literal_rejected rejected 2798ms
 	literal `7` is suffixed `u64` but lands in a `u32` place -- a width suffix chooses the literal's type at the spelling, so it must agree with the destination's declared type (drop the suffix or fix one side)
 fail/facts/atomic_operand_carrier_once_target_body_rejected rejected 3840ms expected @89c92b530e12
 	store in machine `HostedExchangeBody::perform` state `perform` assignment implicitly converts `u64` to `u32`; a typed value keeps its type and arithmetic policy -- spell the conversion with `as` (for example `expr as u32`)
+fail/facts/atomic_try_exchange_once/call_result rejected 1016ms expected @0410c70e4d00
+	machine `attempt` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/atomic_try_exchange_once/const_name rejected 857ms expected @0410c70e4d00
+	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+	machine `mismatch` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/atomic_try_exchange_once/controls/discarded_result rejected 848ms expected @0410c70e4d00
+	machine `discard_attempt` state `entry` local `unused` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/atomic_try_exchange_once/controls/wide rejected 1152ms expected @0410c70e4d00
+	machine `attempt64` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/atomic_try_exchange_once/duplicate_result rejected 1317ms unexpected @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+fail/facts/atomic_try_exchange_once/failure_ordering rejected 229ms expected @0410c70e4d00
+	tests/omega/fail/facts/atomic_try_exchange_once/failure_ordering/main.omg:1:1: atomic compare_exchange failure ordering `GlobalOrder` is invalid for success ordering `NoOrdering`; failure cannot publish or be stronger than success
+fail/facts/atomic_try_exchange_once/field rejected 1256ms expected @0410c70e4d00
+	machine `probe` state `entry` local `raw` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+	machine `mismatch` state `entry` local `raw` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/atomic_try_exchange_once/local rejected 1159ms expected @0410c70e4d00
+	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+	machine `mismatch` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/atomic_try_exchange_once/match_join rejected 1279ms expected @0410c70e4d00
+	machine `probe` state `entry` local `raw` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+	machine `mismatch` state `entry` local `raw` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/atomic_try_exchange_once/ordinary_storage rejected 1179ms expected @0410c70e4d00
+	machine `main` state `entry` local `outcome` requires dedicated atomic storage for its single attempt
+fail/facts/atomic_try_exchange_once/other_machine rejected 1119ms expected @0410c70e4d00
+	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/atomic_try_exchange_once/other_state rejected 977ms expected @0410c70e4d00
+	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/atomic_try_exchange_once/parameter rejected 1110ms expected @0410c70e4d00
+	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+	machine `mismatch` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/atomic_try_exchange_once/target_body rejected 931ms expected @0410c70e4d00
+	machine `SingleAttempt::attempt` state `attempt` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
+fail/facts/atomic_try_exchange_once/wrong_resident rejected 635ms expected @0410c70e4d00
+	machine `main` state `entry` local `outcome` requires the sealed AtomicTryExchangeOnceOutcome with the exact resident type
 fail/facts/body_bearing_comparison_case_fields_rejected rejected 5720ms expected @ccdb99ca2214
 	cannot prove requires contract for call hold from check: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/body_bearing_comparison_default_fields_rejected rejected 5554ms expected @ccdb99ca2214
@@ -27549,6 +27584,7 @@ pass/dependent/zeroed_record_member_sum_elision checked 17842ms check-target:mac
 pass/domains/applied_generic_carrier checked 8134ms check-target:macos_arm64 @b74b1a5036b8+wt
 pass/domains/bitwise_live_membership_exit checked 3306ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/bodyless_owner_establishment checked 1909ms @0cea3356c5b0+wt
+pass/domains/borrow_of_cast_exit checked 16279ms check-target:macos_arm64 @c15929193d39+wt
 pass/domains/bounded_byte_domain_beside_toolchain_leaf checked 2705ms @ccdb99ca2214
 pass/domains/call_requires_domain_intersection_preserved checked 2438ms @ccdb99ca2214
 pass/domains/call_requires_scalar_member_expression_from_domain_fact checked 2290ms @ccdb99ca2214
@@ -28282,6 +28318,30 @@ pass/facts/atomic_operand_carrier_once_other_machine_exit checked 11605ms check-
 pass/facts/atomic_operand_carrier_once_other_state_exit checked 14591ms check-target:macos_arm64 @89c92b530e12
 pass/facts/atomic_operand_carrier_once_parameter_exit checked 14856ms check-target:macos_arm64 @89c92b530e12
 pass/facts/atomic_operand_carrier_once_target_body_exit checked 18160ms check-target:macos_arm64 @89c92b530e12
+pass/facts/atomic_try_exchange_once/call_result rejected 1075ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/const_name rejected 1052ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/controls/discarded_result rejected 1155ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/controls/wide rejected 1155ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/field rejected 1052ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/local rejected 1203ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/match_join rejected 1157ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/ordinary_name rejected 1021ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/other_machine rejected 941ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/other_state rejected 918ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/parameter rejected 1188ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/target_body rejected 1018ms check-target:macos_arm64 @0410c70e4d00
+	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
 pass/facts/body_bearing_comparison_case_fields_exit checked 11592ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_default_fields_exit checked 12954ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_ordered_field_calls_exit checked 14845ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
