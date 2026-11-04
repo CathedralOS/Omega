@@ -34,7 +34,7 @@
   "source_only": false,
   "samples": [],
   "cli_fixtures": [
-    "pass/facts/data_where_standing_nested_borrowed_field_local",
-    "pass/facts/data_where_standing_nested_borrowed_field_incoming_snapshot"
+    "samples/cli/facts/data_where_standing/borrowed_field/nested/local",
+    "samples/cli/facts/data_where_standing/borrowed_field/nested/controls/incoming_snapshot"
   ]
 }
