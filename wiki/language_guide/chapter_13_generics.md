@@ -402,6 +402,45 @@ cannot erase an Exact overflow obligation on an authored intermediate.
 See [literal-linked index identities](../spec/proofs/contracts.md#literal-linked-index-identities)
 for operation direction, formation, and bounded expansion rules.
 
+### Distributivity and bounded work
+
+Under a selected algebra that proves distributivity, a generic library can
+identify these applications by normalization toward sums of products:
+
+```text
+Buffer<A * (B + C)>
+Buffer<A*B + A*C>
+```
+
+Reordering still needs commutativity, regrouping needs associativity, and the
+authored operations must be well-formed. Resolve the operand types and exact
+operation contracts before using a law; layout and native target realization
+come later. The compiler keeps complete associative chains coherent before
+expanding them. An internal repetition count does not establish an authored
+literal's algebraic meaning: `N + N` need not identify with `2 * N`.
+
+Expansion can multiply the number of terms even in a short type expression.
+The canonical policy permits at most 64 resulting summands per product
+expansion, decided from the simplified pre-expansion form. This limits symbolic
+checking work, not the magnitude of an index or runtime arithmetic. Beyond it,
+retain the product unexpanded; using the well-formed indexed type alone need
+not fail. If compatibility cannot otherwise be proved because expansion was
+cut off, the diagnostic reports the measure and limit, not inequality.
+
+An ordinary theorem can apply distributivity with a large expression as one
+operand without expanding that operand. Its checked guarantee or an already
+established exact equality can discharge the compatibility obligation. Keeping
+the same index formulation across APIs can also avoid expansion. No local
+canonical-budget override syntax is needed. A compatibility proof established
+generically is carried into its specialized uses, not rediscovered there;
+fully closed indices still evaluate under the concrete selected implementation.
+
+The named mutual-distributivity exception expands neither direction when two
+operations distribute over each other. Different selected law sets therefore
+do not have an unconditional monotonicity promise. The complete rules and
+published identity requirements are in
+[bounded canonical index normalization](../spec/proofs/contracts.md#bounded-canonical-index-normalization).
+
 ## Machine Parameters
 
 A static parameter can select a machine declaration:

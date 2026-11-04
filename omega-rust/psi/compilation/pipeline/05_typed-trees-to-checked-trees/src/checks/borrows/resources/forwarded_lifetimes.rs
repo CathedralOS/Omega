@@ -75,15 +75,19 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                 continue;
             };
             let mut holders = vec![loan];
+            // Each holder's own end, used when it supplies a later copy.
+            let mut holder_ends = vec![lexical];
             let mut cursor = 0;
             let mut final_weakening = lexical;
             while cursor < holders.len() {
                 let supplier = holders[cursor];
+                let supplier_end_handle = holder_ends[cursor];
+                let supplier_end = facts
+                    .flow
+                    .borrow_lifetimes
+                    .weakenings
+                    .get(supplier_end_handle);
                 cursor += 1;
-                let (_, supplier_end) =
-                    exact_loan_lifecycle_rows(&facts.borrow, &facts.flow, flow_state, supplier)
-                        .map_err(|error| vec![error])?;
-                let supplier_end = facts.flow.borrow_lifetimes.weakenings.get(supplier_end);
                 let Some(transferred) = transfers
                     .get(supplier.arena_index() as usize)
                     .filter(|row| row.loan == supplier)
@@ -92,6 +96,22 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                 };
                 for candidate in transferred.holders.iter().copied() {
                     if holders.contains(&candidate) {
+                        continue;
+                    }
+                    // A descriptor a completed call installed carries custody
+                    // without minting a local loan, so it has no lifecycle rows
+                    // (reference_custody.rs). Its slot's own loan covers the
+                    // slot; keep walking through it to its later copies, which
+                    // live no longer than the supplier that reached it.
+                    if facts
+                        .borrow
+                        .loans
+                        .get(candidate)
+                        .established_by_call
+                        .is_valid()
+                    {
+                        holder_ends.push(supplier_end_handle);
+                        holders.push(candidate);
                         continue;
                     }
                     let (activation, weakening) = exact_loan_lifecycle_rows(
@@ -116,6 +136,7 @@ pub(super) fn plan(facts: &mut CheckFacts) -> Result<Vec<LoanRetention>, Vec<Dia
                     {
                         final_weakening = weakening;
                     }
+                    holder_ends.push(weakening);
                     holders.push(candidate);
                 }
             }
