@@ -253,8 +253,23 @@ fn append_borrowed(
     parents: &mut Arena<Handle<BorrowLoanFact>>,
     resources: &mut Vec<InputResourceDraft>,
 ) -> Result<(), &'static str> {
-    let (suppliers, captured_parents) =
-        permission_sources::lending_sources(program, facts, state, call, operand, path, &access)?;
+    // A selected value may be an actual of an earlier helper. Its own call
+    // supplies the access; the later installer cannot lend it a second time.
+    let original = if stored.is_valid() {
+        crate::checks::borrows::formation_captures::actual_invocation(facts, state, operand)?
+    } else {
+        None
+    };
+    let lending_call = original.unwrap_or(call);
+    let (suppliers, captured_parents) = permission_sources::lending_sources(
+        program,
+        facts,
+        state,
+        lending_call,
+        operand,
+        path,
+        &access,
+    )?;
     if suppliers.is_empty() {
         return Err("completed input has no selected lending permission");
     }

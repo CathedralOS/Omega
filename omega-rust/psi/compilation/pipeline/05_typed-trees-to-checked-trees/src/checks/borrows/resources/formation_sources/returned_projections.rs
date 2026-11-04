@@ -2,7 +2,7 @@
 //! The checked normal-return relation identifies the completed source; its
 //! borrowing permission, presentation and lifetime remain separate obligations.
 
-use super::super::formation_captures::formation_capture;
+use super::super::super::formation_captures::formation_capture;
 use super::{nearest_parents, refusal};
 use arena::Handle;
 use checked_trees::{

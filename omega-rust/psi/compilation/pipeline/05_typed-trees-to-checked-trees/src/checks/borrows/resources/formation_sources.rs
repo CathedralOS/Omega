@@ -5,7 +5,7 @@
 
 mod returned_projections;
 
-use super::formation_captures::{descriptor_capture, formation_capture};
+use super::super::formation_captures::{descriptor_capture, formation_capture};
 
 use arena::Handle;
 use checked_trees::{BorrowLoanFact, BorrowLoanLineage, CheckFacts};

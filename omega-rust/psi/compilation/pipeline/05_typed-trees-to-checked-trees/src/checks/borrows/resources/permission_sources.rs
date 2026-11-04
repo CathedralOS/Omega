@@ -33,7 +33,7 @@ pub(super) fn lending_sources(
     projection: &[facts::PlaceSegment],
     access: &checked_trees::BorrowAccessKind,
 ) -> Result<(Vec<PermissionSupplier>, Arena<Handle<BorrowLoanFact>>), &'static str> {
-    use super::formation_captures::{AddressReceiver, address_receiver, formation_capture};
+    use super::super::formation_captures::{AddressReceiver, address_receiver, formation_capture};
     let capture = facts.flow.control.operands.get(source);
     let mut lending = source;
     let mut lending_path = projection.to_vec();
@@ -347,6 +347,7 @@ pub(super) fn collect(
                     facts,
                     state,
                     call,
+                    source,
                     capture,
                     output_access,
                     retained_by_store,
@@ -438,6 +439,7 @@ pub(super) fn collect(
             facts,
             state,
             call,
+            source,
             capture,
             output_access,
             retained_by_store,
@@ -799,22 +801,62 @@ fn collect_invocation_accesses(
     facts: &CheckFacts,
     state: &FlowStateFact,
     call: Handle<FlowCallFact>,
+    source: Handle<FlowOperandFact>,
     capture: &FlowOperandFact,
-    _output_access: &checked_trees::BorrowAccessKind,
+    output_access: &checked_trees::BorrowAccessKind,
     retained_by_store: bool,
     output: &mut Vec<PermissionSupplier>,
     parents: &mut Arena<Handle<BorrowLoanFact>>,
 ) -> InvocationAccessCoverage {
+    let unavailable = |reason| {
+        if std::env::var_os("OMEGA_STRUCT_TRACE").is_some() {
+            eprintln!(
+                "STRUCT captured-call-access-refused source={source:?} call={call:?} expression={:?} reason={reason}",
+                capture.expression
+            );
+        }
+        InvocationAccessCoverage::Unavailable
+    };
+    let call = if retained_by_store {
+        match super::super::formation_captures::actual_invocation(facts, state, source) {
+            Ok(Some(original)) => original,
+            Ok(None) => call,
+            Err(reason) => return unavailable(reason),
+        }
+    } else {
+        call
+    };
     if !facts.flow.control.calls.is_valid(call) {
         return InvocationAccessCoverage::Absent;
     }
+    let Some(presentation) = validation::reference_shell(program, capture.type_reference) else {
+        return InvocationAccessCoverage::Absent;
+    };
+    if checked_trees::BorrowAccessKind::from(presentation.access)
+        .direct_reborrow_effect(output_access)
+        .is_none()
+    {
+        return unavailable(
+            "the captured descriptor's presented access cannot supply this request",
+        );
+    }
+    let formation =
+        match super::super::formation_captures::reference_formation(program, facts, source) {
+            Ok(formation) => formation,
+            Err(reason) => return unavailable(reason),
+        };
+    let target_expression = formation
+        .as_ref()
+        .map(|formation| facts.flow.control.operands.get(formation.target).expression);
     let invocation = facts.flow.control.calls.get(call);
     let accesses = invocation
         .accesses
         .handles()
         .filter(|access| {
             let access = facts.borrow.argument_accesses.get(*access);
-            access.expression == capture.expression
+            (access.expression == capture.expression
+                || Some(access.expression) == target_expression)
+                && access.kind.direct_reborrow_effect(output_access).is_some()
                 && (retained_by_store || access.end_before_access.is_none())
         })
         .collect::<Vec<_>>();
@@ -824,19 +866,36 @@ fn collect_invocation_accesses(
     let before = output.len();
     for access in accesses {
         let row = facts.borrow.argument_accesses.get(access);
-        let Some(backings) = retained_places(
-            program,
-            facts,
-            state,
-            capture.statement_index,
-            capture.constraints,
-            checked_trees::CapturedPlace {
-                root: row.root,
-                segments: facts.borrow.access_segments(row).to_vec(),
-                ..Default::default()
-            },
-            &mut Vec::new(),
-        ) else {
+        let backings = if let Some(formation) = &formation {
+            match super::super::access_sources::stored_address(
+                program,
+                facts,
+                state,
+                formation.target,
+                formation.storage,
+            ) {
+                Ok(backings) => Some(backings),
+                Err(reason) => {
+                    output.truncate(before);
+                    return unavailable(reason);
+                }
+            }
+        } else {
+            retained_places(
+                program,
+                facts,
+                state,
+                capture.statement_index,
+                capture.constraints,
+                checked_trees::CapturedPlace {
+                    root: row.root,
+                    segments: facts.borrow.access_segments(row).to_vec(),
+                    ..Default::default()
+                },
+                &mut Vec::new(),
+            )
+        };
+        let Some(backings) = backings else {
             output.truncate(before);
             return InvocationAccessCoverage::Unavailable;
         };

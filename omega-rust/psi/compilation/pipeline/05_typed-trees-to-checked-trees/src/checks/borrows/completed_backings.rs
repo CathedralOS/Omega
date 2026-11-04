@@ -616,28 +616,31 @@ impl Resolver<'_> {
                 forwarded_inputs,
             );
         }
-        let source =
-            coordinate.ok_or("the completed descriptor has no source storage coordinate")?;
-        let mut place = CapturedPlace {
-            root: source.root,
-            segments: source.segments,
-            ..Default::default()
-        };
-        place.segments.extend_from_slice(path);
         if matches!(
             self.program.expression_table.expression(operand.expression),
             ExpressionNode::Borrow(_)
         ) {
-            super::access_sources::resolve_captured_all(
+            if !path.is_empty() {
+                let frontier = validation::completed_storage::reference_sources_at_path(
+                    self.program,
+                    control,
+                    capture,
+                    path,
+                    operand.storage_snapshot,
+                );
+                return self.stored_frontier(frontier, operand, ancestors, forwarded_inputs);
+            }
+            let formation =
+                super::formation_captures::reference_formation(self.program, self.facts, capture)?
+                    .ok_or("the completed borrow has no exact formation receiver")?;
+            super::access_sources::stored_address(
                 self.program,
                 self.facts,
                 self.state,
-                operand.statement_index,
-                operand.constraints,
-                place,
+                formation.target,
+                formation.storage,
             )
             .map(BackingFrontier::borrowed)
-            .ok_or("the completed borrow has no retained source authority")
         } else {
             Err("the computed descriptor has no retained authority producer")
         }

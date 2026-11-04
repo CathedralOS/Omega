@@ -7,7 +7,6 @@
 
 pub(in crate::checks::borrows) mod call_operands;
 mod disposition_events;
-mod formation_captures;
 mod formation_sources;
 mod forwarded_lifetimes;
 mod lifecycle;
