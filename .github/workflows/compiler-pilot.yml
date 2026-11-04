@@ -101,9 +101,6 @@ jobs:
       - name: Check the exact integration candidate
         id: compiler-check
         run: cargo check --locked -p omega
-      # Temporary focused qualification for this atomic repair; removed before landing.
-      - name: Check atomic instruction encodings and their register contracts
-        run: cargo test --locked -p isa-aarch64 -p isa-x86_64 atomic -- --nocapture
       - name: Optional executable observations
         if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
         env:
@@ -111,8 +108,6 @@ jobs:
           OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
           OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
           OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-          OMEGA_ATOMIC_COHERENCE_TRACE: '1'
-          OMEGA_COMPILER_CHECK_SITES: '1'
         run: python tools/ci/compiler_pilot.py
       - name: Report actual producer and fixture observations
         if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
