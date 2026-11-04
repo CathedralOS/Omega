@@ -1,2 +1,0 @@
-machine argument `bounded_matches` for `choose` does not refine `Callback`
-requires facts are not a conservative refinement

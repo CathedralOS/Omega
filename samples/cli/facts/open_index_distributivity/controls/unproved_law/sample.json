@@ -1,8 +1,0 @@
-{
-  "role": "intended-invalid",
-  "entry": "main.omg",
-  "rejection_contains": [
-    "machine `times_index_distribute` realizes `IndexSemiring::distribute`",
-    "which the requirement does not imply"
-  ]
-}

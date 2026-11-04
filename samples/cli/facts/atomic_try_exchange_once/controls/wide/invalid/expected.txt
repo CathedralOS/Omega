@@ -1,1 +1,0 @@
-requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
