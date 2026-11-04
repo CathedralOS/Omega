@@ -418,6 +418,9 @@ where
                 place: *place,
                 structural_type: structural_type.clone(),
             },
+            AbstractOperation::GlobalDescriptorTable { .. } => {
+                storage_instructions::project_global_descriptor_table(node, optimized, unit)?
+            }
             AbstractOperation::StorageAddress { .. } => {
                 storage_instructions::project_storage_address(node, optimized, unit)?
             }

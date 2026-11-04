@@ -157,6 +157,35 @@ That predicate-fact rule does not authorize dropping a governed subject's access
 policy. Forgetting the displayed domain or invalidating a flow predicate cannot
 create a reader/writer grant; retained restrictions follow their governed lifetime.
 
+#### Lent storage retains its declared domains
+
+Named clarification: `lender-domain-restoration`, ratified 2026-11-03.
+
+A local declared `value: T in D` has the same restoration obligation for `D`
+as a stored field declared with that qualification. Lending it does not turn
+that obligation into an expiring input fact. A mutable loan, including a view
+whose displayed type omits `D`, retains the original storage's obligations.
+Writes may open the ordinary invariant window; the required predicates must be
+re-established at its consumption fences and before the loan returns that
+storage as valid to its owner. A call cannot silently change the local's declared
+qualification or make invalid storage usable under its old type.
+
+An additional input qualification instead describes a fact supplied for a
+particular call. If the original storage does not itself owe that qualification,
+the input fact may expire unless the contract promises it afterward. Thus an
+entry-qualified helper may be valid for an unqualified lender but inadmissible
+for a lender whose declared domain its post-state fails to restore. Checking the
+call and loan handback must retain that distinction; the formal's spelling alone
+cannot decide which obligations the owner owes.
+
+For example, a library-defined `Ascii` domain over a byte array with a predicate
+excluding 255 must be restored when a declared `in Ascii` local is lent and
+returned. No encoding name is compiler-known. A predicate-free domain has no
+predicate debt, but its establishment provenance, access policy, custody and
+carry restrictions still apply. An unrestricted empty tag promises no hidden
+invariant; protocols relying on restricted witnesses or mutations must declare
+the corresponding routes and access policy. Erasure cannot bypass them.
+
 ### Collection invariants
 
 For `per-element-array-bounds`, use an ordinary pure, total, terminating

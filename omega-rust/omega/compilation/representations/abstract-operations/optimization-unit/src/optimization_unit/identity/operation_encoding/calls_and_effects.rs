@@ -117,6 +117,21 @@ pub(super) fn encode(bytes: &mut CanonicalBytes, operation: &AbstractOperation) 
             bytes.u16(*port);
             bytes.u8(*value);
         }
+        O::GlobalDescriptorTable {
+            psi_operation,
+            service,
+            operation,
+            source,
+        } => {
+            bytes.u8(243);
+            bytes.id(*psi_operation);
+            bytes.id(*service);
+            bytes.u8(match operation {
+                terminal_psi::GlobalDescriptorTableOperation::Store => 0,
+                terminal_psi::GlobalDescriptorTableOperation::Load => 1,
+            });
+            encode_structural_argument(bytes, source);
+        }
         O::RegisterAccess {
             psi_operation,
             service,

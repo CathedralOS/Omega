@@ -12,31 +12,22 @@ pub(crate) use numeric_operands::validate_anonymous_bitwise;
 pub use numeric_operands::validate_anonymous_numeric_formation;
 pub(super) use numeric_operands::validate_numeric_tree_destination;
 
-/// F2b -- float DESTINATION stamping (ch5 two-phase constants, the float
-/// half): an UNSUFFIXED float literal initializing a declared `f32`/`f64`
-/// place lands that format ON ITS VALUE. A wholly anonymous literal-arithmetic
-/// tree is first evaluated as an exact rational and then replaced by one
-/// landed literal, so every downstream reader -- native store, guard compare,
-/// argument materialization, AND the interpreter -- consumes the same single
-/// rounding. A nonconstant tree lands each complete anonymous operand subtree
-/// once; its typed operations retain their own format semantics.
-/// Authored operators retain their nodes and choose operand formats from their
-/// signatures; the result destination is not authority to fold or stamp them.
-/// Without this landing pass an anonymous literal at an f32 place takes the
-/// transitional f64-then-narrow route (double rounding; the
-/// 8388609.499999999999999 witness lands on the wrong side of the tie).
+/// Assign anonymous float values the format required by their destinations.
+/// A wholly anonymous arithmetic expression rounds once to its f32/f64
+/// destination. Native code, comparisons and the interpreter then read that
+/// same prepared value. Rounding through f64 before narrowing to f32 can put
+/// 8388609.499999999999999 on the wrong side of a tie.
 ///
-/// Declared storage, call arguments, and returned values supply destinations.
-/// Suffix agreement is checked at storage/return sites and by the resolved
-/// call validators. Already-landed (suffixed) literals are untouched: their landing
-/// was chosen at the spelling, and the suffix-vs-destination check owns any
-/// disagreement. Comparisons against a typed result, including a call or
-/// computed operand, likewise land the opposite literal tree to that value's
-/// format in every statement position. Declaration-owned named binders retain
-/// their own scope. A callable contract's `result` root uses the exact return
-/// type of its owning state, operator, or trait requirement. Runs on the
-/// still-mutable typed tree BEFORE validation, so every downstream consumer
-/// sees one stamped tree.
+/// Storage types, call parameters, return types and typed comparison operands
+/// supply the destination. Callable contracts use their exact parameter and
+/// result declarations, including inline members. Explicit literal suffixes
+/// keep their authored format; the ordinary formation checks diagnose a
+/// disagreement with the destination.
+///
+/// Selected authored operators use their own parameter formats. A result
+/// destination cannot authorize folding their operations. This pass collects
+/// destinations from one immutable view, then changes the typed tree before
+/// validation so all later consumers see the same rounded values.
 pub fn land_float_literal_destinations(typed: &mut TypedTrees) {
     use numerics::literals::FloatFormat;
 
@@ -143,11 +134,7 @@ pub fn land_float_literal_destinations(typed: &mut TypedTrees) {
     }
 
     for machine in program.machines() {
-        if let Some(entry) = program
-            .machine_states(machine)
-            .iter()
-            .find(|state| state.name.as_str() == "entry")
-        {
+        if let Some(entry) = program.machine_states(machine).first() {
             collect_result_contract_float_pairs(
                 program,
                 program.machine_contracts(machine),

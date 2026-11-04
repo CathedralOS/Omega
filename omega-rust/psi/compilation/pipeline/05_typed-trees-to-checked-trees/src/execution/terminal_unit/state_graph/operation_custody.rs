@@ -97,7 +97,8 @@ pub(super) fn admit(
             // reach: no structural custody crosses the selected edge.
             OperationPlan::AtomicFence { .. }
             | OperationPlan::AtomicAccess(_)
-            | OperationPlan::RegisterAccess { .. } => {}
+            | OperationPlan::RegisterAccess { .. }
+                | OperationPlan::GlobalDescriptorTable { .. } => {}
             // The window pair the sequencer itself joined — a move-out
             // binding the disaccess field value and the exact restoration
             // into the opened hole — carries no new custody across the

@@ -687,3 +687,140 @@ fn place_structural_type(machine: &TerminalMachine, place: PlaceId) -> Option<St
         }
     })
 }
+
+/// Hardware stores arbitrary bits, so only an accessible ten-byte array is admitted.
+pub(super) fn validate_global_descriptor_table(
+    module: &TerminalModule,
+    machine: &TerminalMachine,
+    operation: &Operation,
+) -> Result<(), CodecError> {
+    let OperationKind::GlobalDescriptorTable {
+        service,
+        operation: action,
+        source,
+    } = &operation.kind
+    else {
+        return malformed("descriptor-table validator received another operation");
+    };
+    let writes = *action == terminal_psi::GlobalDescriptorTableOperation::Store;
+    let access_matches = if writes {
+        matches!(
+            source.access,
+            StructuralAccess::MutableBorrow | StructuralAccess::WriteOnlyBorrow
+        )
+    } else {
+        matches!(
+            source.access,
+            StructuralAccess::SharedBorrow | StructuralAccess::MutableBorrow
+        )
+    };
+    if operation.result != OperationResult::Unit
+        || !super::has_service(module, *service)
+        || !access_matches
+    {
+        return malformed(
+            "descriptor-table operation requires Unit, service authority, and the declared byte borrow",
+        );
+    }
+    let root = structural_place_type(machine, source.place).ok_or(
+        CodecError::MalformedStructuralFoundation(
+            "descriptor-table operand has no declared storage",
+        ),
+    )?;
+    let preserves = |whole: &[_], projected: &[_]| {
+        !writes || structural_memberships_disjoint_from_write(whole, projected, &source.path)
+    };
+    let (multiplicity, access) = if let Some(parameter) = arrival_parameter(machine, source.place) {
+        if !preserves(
+            &parameter.qualifications,
+            &parameter.projected_qualifications,
+        ) {
+            return malformed(
+                "descriptor-table store cannot preserve a predicate on the overwritten bytes",
+            );
+        }
+        (parameter.multiplicity, parameter.access)
+    } else {
+        let result = machine
+            .operations()
+            .filter_map(|row| row.result.structural())
+            .find(|result| result.place == source.place && result.structural_type == root)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "descriptor-table operand has no retained producer",
+            ))?;
+        if !preserves(&result.qualifications, &result.projected_qualifications)
+            || (writes && !result.claims.is_empty())
+        {
+            return malformed(
+                "descriptor-table store cannot overwrite retained content obligations",
+            );
+        }
+        (result.multiplicity, StructuralAccess::Owned)
+    };
+    if writes
+        && !store_preserves_content(
+            module.structural_types.iter(),
+            module.structural_domains.iter(),
+            &module.identities,
+            root,
+            source.place,
+            machine.content_entry_claims.iter(),
+            &source.path,
+        )
+    {
+        return malformed("descriptor-table store changes conserved content");
+    }
+    if !terminal_semantics::descriptor_source_projection_accessible(
+        module.structural_types.iter(),
+        root,
+        multiplicity,
+        access,
+        &source.path,
+        source.access,
+    ) {
+        return malformed("descriptor-table byte borrow exceeds its source access");
+    }
+    if writes
+        && runtime_structural_field(module.structural_types.iter(), root, &source.path)
+            .is_some_and(|field| !field.field_type.byte_predicates().is_empty())
+    {
+        return malformed("descriptor-table store cannot preserve a predicate on its byte field");
+    }
+    let selected = validate_structural_path(module, root, &source.path)?;
+    let declaration =
+        module
+            .structural_type(selected)
+            .ok_or(CodecError::MalformedStructuralFoundation(
+                "descriptor-table byte array declaration is absent",
+            ))?;
+    let plain = |declaration: &terminal_psi::StructuralTypeDeclaration| {
+        declaration.quotient_carrier.is_none()
+            && declaration.scalar_restriction.is_none()
+            && !declaration.owns_linear_claim
+    };
+    let exact_bytes = plain(declaration)
+        && match &declaration.shape {
+            StructuralTypeShape::ByteSequence(
+                ByteSequenceCarrier::BoundedOwned { capacity: 10 }
+                | ByteSequenceCarrier::BoundedView { capacity: 10, .. },
+            ) => true,
+            StructuralTypeShape::FixedArray {
+                element,
+                length: terminal_psi::ArrayExtent::Literal(10),
+            } => module.structural_type(*element).is_some_and(|element| {
+                plain(element)
+                    && matches!(
+                        element.shape,
+                        StructuralTypeShape::PrimitiveScalar(ScalarType::Integer(integer))
+                            if !integer.is_address()
+                                && integer.bits() == 8
+                                && integer.sign() == IntegerSign::Unsigned
+                    )
+            }),
+            _ => false,
+        };
+    if !exact_bytes {
+        return malformed("descriptor-table operand must be an exact unqualified ten-byte array");
+    }
+    Ok(())
+}

@@ -261,7 +261,7 @@ pub fn emit_component_exports<'input>(
         }
         let entry_bridge = image_emission::create_callable_entry_transport(
             &body,
-            &application.plan.plan().call,
+            application.plan.plan(),
             &ordinals,
         )
         .map_err(|error| realization_error("component entry ABI", error))?;

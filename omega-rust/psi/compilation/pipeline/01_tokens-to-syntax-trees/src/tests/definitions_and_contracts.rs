@@ -79,6 +79,53 @@ fn parses_domain_definition_surface() {
 }
 
 #[test]
+fn parses_domain_on_applied_carrier_without_mixing_domain_arguments() {
+    let source = "domain<T, const N: u64> Buffer<Pair<T, u32>, N>::Live<T>;";
+    let parsed = super::parse_source(source, "applied carrier domain should parse");
+    let domain = super::root_domain(&parsed, "domain");
+    assert_eq!(domain.name.as_str(&parsed), "Live");
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = parsed.type_references.type_reference(domain.target_type)
+    else {
+        panic!("domain carrier must retain its type application");
+    };
+    assert_eq!(base_name.as_str(&parsed), "Buffer");
+    let carrier_arguments = parsed.type_references.type_reference_handles(*arguments);
+    assert_eq!(carrier_arguments.len(), 2);
+    let TypeReferenceNode::Generic {
+        base_name,
+        arguments,
+        ..
+    } = parsed.type_references.type_reference(carrier_arguments[0])
+    else {
+        panic!("nested carrier argument must retain its application");
+    };
+    assert_eq!(base_name.as_str(&parsed), "Pair");
+    assert_eq!(
+        parsed
+            .type_references
+            .type_reference_handles(*arguments)
+            .len(),
+        2
+    );
+    assert!(matches!(
+        parsed.type_references.type_reference(carrier_arguments[1]),
+        TypeReferenceNode::Named(name) if name.as_str(&parsed) == "N"
+    ));
+    let domain_arguments = parsed
+        .type_references
+        .type_reference_handles(domain.index_arguments);
+    assert_eq!(domain_arguments.len(), 1);
+    assert!(matches!(
+        parsed.type_references.type_reference(domain_arguments[0]),
+        TypeReferenceNode::Named(name) if name.as_str(&parsed) == "T"
+    ));
+}
+
+#[test]
 fn parses_domain_requires_and_requirement_routes_independently() {
     let source = r#"
         domain Reservation::Confirmed

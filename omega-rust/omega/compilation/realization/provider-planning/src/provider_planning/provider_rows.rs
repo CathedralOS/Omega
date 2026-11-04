@@ -259,10 +259,11 @@ fn capture_direct_declarations(
                 .machines()
                 .iter()
                 .find(|machine| {
-                    typed
-                        .machine_trait_conformances(machine)
-                        .iter()
-                        .any(|edge| edge.requirement_symbol == origin.requirement)
+                    !machine.body_is_present
+                        && typed
+                            .machine_trait_conformances(machine)
+                            .iter()
+                            .any(|edge| edge.requirement_symbol == origin.requirement)
                         && crate::target_machines::realizes_machine(
                             context,
                             machine,

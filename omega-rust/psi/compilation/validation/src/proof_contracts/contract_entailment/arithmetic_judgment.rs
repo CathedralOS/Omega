@@ -34,7 +34,7 @@ mod captured_calls;
 mod mathematical_terms;
 mod strict_bindings;
 impl<'program> Engine<'program> {
-    /// Prepare pure queries only after the invocation has finalized its facts.
+    /// Prepare pure queries over one fact snapshot, unchanged while borrowed.
     pub(super) fn lower_bound_queries(&self) -> LowerBoundQueries<'_, 'program> {
         LowerBoundQueries::prepared(self)
     }
