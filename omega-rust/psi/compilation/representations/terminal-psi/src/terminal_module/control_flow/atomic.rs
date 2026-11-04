@@ -32,8 +32,9 @@
 //!   one literal element), and one relevant scalar field. An atomic event
 //!   joins one location's modification order, so a runtime-selected element
 //!   (which names no single location) is refused by verification rather than
-//!   carried. A bounded-integer field is refused too: an event cannot carry
-//!   the range obligation a store into it owes.
+//!   carried. A modifying event on a bounded-integer field additionally keeps
+//!   its checked resident-establishment obligation; a result shape does not
+//!   justify storing an out-of-range replacement.
 //! - The ordering fields are the source-admitted proof-static orderings;
 //!   [`AtomicAccessEvent::ordering_is_legal`] replays the source legality
 //!   matrix so a load cannot publish, a store cannot receive, and a

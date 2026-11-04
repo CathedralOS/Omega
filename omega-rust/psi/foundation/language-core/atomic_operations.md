@@ -1,7 +1,7 @@
 # Atomic vocabulary and downstream admission
 
 Contract: [concurrency and atomic observation](../../../../wiki/spec/language/concurrency.md).
-[atomic.rs](src/atomic/mod.rs) owns the shared normalized atomic ordering vocabulary.
+[atomic vocabulary](src/atomic/mod.rs) owns the shared normalized atomic ordering vocabulary.
 The [access-plan owner](../access-plans/README.md) separately validates placed
 permissions, resident custody, and specialized requests.
 
@@ -37,8 +37,9 @@ the plan as one Terminal `AtomicAccess` on a record's scalar field, the
 location a scalar field store names (terminal-psi `control_flow/atomic.rs`).
 The codec, independent verifier (`validation/atomic_access.rs`) and
 interpreter consume that event; the verifier refuses illegal orderings,
-runtime-selected locations, bounded fields, mistyped operands or results, and
-events on ordinary scalar storage.
+runtime-selected locations, bounded writes without their checked resident
+establishment obligation, mistyped operands or results, and events on ordinary
+scalar storage.
 `StructuralFieldType::Atomic` retains dedicated-cell identity separately from
 its scalar carrier. Shared loans authorize these events, not ordinary stores
 or non-atomic snapshots. Atomic fields do not expose a plain scalar reference.
