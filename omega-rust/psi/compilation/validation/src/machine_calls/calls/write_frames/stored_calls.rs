@@ -64,6 +64,7 @@ use super::stored_origins::{self, StoredLocalOrigins, StoredWriteOrigin};
 use super::{FrameInference, Machine, SymbolHandle, TableCall, TopLevelSymbols};
 use facts::PlaceSegment;
 use typed_trees::expression::ExpressionHandle;
+use typed_trees::references::StaticArgumentCall;
 use typed_trees::signature::StateParameter;
 use typed_trees::state::State;
 use typed_trees::statement::{StatementNode, TransitionExit};
@@ -199,19 +200,11 @@ fn invocation_reference_effects(
         trace_refusal("argument-capture-correspondence");
         return None;
     }
-    // The occurrence's applied logical contract owns caller-visible access.
-    // A private body's open telescope or availability cannot turn a known
-    // empty writable slot frontier into an unknown descriptor mutation.
-    let parameters = match call_site {
+    let selected_call = match call_site {
         super::caller_aliases::CallerWriteSite::Call(call)
             if !call_expression.is_valid() && call.target_symbol == target =>
         {
-            crate::CallSite::Statement(call)
-                .parameters(program, machine.symbol)
-                .or_else(|| {
-                    trace_refusal("statement-parameters");
-                    None
-                })?
+            StaticArgumentCall::Statement(call)
         }
         super::caller_aliases::CallerWriteSite::Expression(expression)
             if expression == call_expression =>
@@ -220,15 +213,31 @@ fn invocation_reference_effects(
             if call.target_symbol != target {
                 return None;
             }
-            crate::CallSite::Expression { expression, call }
-                .parameters(program, machine.symbol)
-                .or_else(|| {
-                    trace_refusal("expression-parameters");
-                    None
-                })?
+            StaticArgumentCall::Expression(expression, call)
         }
         _ => return None,
     };
+    // A checked compiler operation can record declarations without replacing
+    // any caller-held references. Its arguments have already completed above;
+    // only this invocation contributes the known empty slot relation.
+    if crate::compiler_operations::call_preserves_reference_slots(program, selected_call) {
+        return Some(SlotRelationTransfer::complete(Vec::new()));
+    }
+    // The occurrence's applied logical contract owns caller-visible access.
+    // A private body's open telescope or availability cannot turn a known
+    // empty writable slot frontier into an unknown descriptor mutation.
+    let parameters = match selected_call {
+        StaticArgumentCall::Statement(call) => {
+            crate::CallSite::Statement(call).parameters(program, machine.symbol)
+        }
+        StaticArgumentCall::Expression(expression, call) => {
+            crate::CallSite::Expression { expression, call }.parameters(program, machine.symbol)
+        }
+    }
+    .or_else(|| {
+        trace_refusal("call-parameters");
+        None
+    })?;
     if parameters.len() != captures.len() {
         trace_refusal("parameter-capture-correspondence");
         return None;
