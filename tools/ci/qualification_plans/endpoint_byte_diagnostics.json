@@ -37,10 +37,8 @@
     "cache_key": "compiler-regression-Linux-X64-930ad300ab5b66029346c7ae14a6d49284f61cbeba994e9d242c180ccf948756-e0eb38a3dfc80fe1bf9312f8b3406188d90b7097"
   },
   "fixtures": [
-    "pass/slices/saved_byte_predicate_operand_disjoint_exit",
-    "pass/slices/diagnostic_saved_byte_operand_length_only",
-    "pass/slices/diagnostic_saved_byte_operand_class_only",
-    "pass/slices/diagnostic_saved_byte_operand_without_call"
+    "pass/slices/diagnostic_saved_byte_operand_direct_guard",
+    "pass/slices/diagnostic_saved_byte_operand_direct_guard_without_call"
   ],
   "source_only": true,
   "samples": [],
