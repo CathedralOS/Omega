@@ -1,10 +1,10 @@
 // Expected exit: 0
-boundary trait ExactRead {
+public boundary trait ExactRead {
     machine read(value: u8) -> u8
     reaches
     ensures result == value;
 }
-boundary trait SecondRead {
+public boundary trait SecondRead {
     machine observe(value: u8) -> u8
     reaches
     ensures result == value;
