@@ -218,18 +218,13 @@ pub(crate) fn evaluate(
     // retain their authored values and pending custody; a provisional zero
     // must never become an input to an unrelated structural equation.
     let mut probe = syntax.clone();
-    crate::syntax_probes::defer_pending_const_qualifications(
+    crate::syntax_probes::retain_pending_const_inputs(
         &mut probe,
         &arguments
             .iter()
             .map(|(argument, _, _)| *argument)
             .collect::<Vec<_>>(),
     );
-    for (argument, _, _) in &arguments {
-        probe
-            .type_references
-            .retain_pending_const_argument_uses(*argument);
-    }
     let declaration_frontier = probe.root_item_handles().len();
     let owners = pending
         .iter()

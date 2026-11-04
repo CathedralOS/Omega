@@ -219,18 +219,13 @@ fn evaluate_application_group(
     // their authored pending indices until their own evaluation settles; no
     // provisional index may discharge a structural equation or select layout.
     let mut probe = syntax.clone();
-    crate::syntax_probes::defer_pending_const_qualifications(
+    crate::syntax_probes::retain_pending_const_inputs(
         &mut probe,
         &application_destinations
             .iter()
             .map(|(argument, ..)| *argument)
             .collect::<Vec<_>>(),
     );
-    for (type_reference, ..) in &application_destinations {
-        probe
-            .type_references
-            .retain_pending_const_argument_uses(*type_reference);
-    }
     let declaration_frontier = probe.root_item_handles().len();
     let owners = application_destinations
         .iter()

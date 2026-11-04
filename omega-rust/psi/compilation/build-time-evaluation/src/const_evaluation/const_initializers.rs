@@ -283,8 +283,6 @@ pub(crate) fn evaluate(
     // while its index still depends on another initializer. Keep its actual
     // value and carrier in this private forest, but defer that qualification
     // just as the later typed probes do for provisional indices.
-    let mut selection_syntax = syntax.clone();
-    super::const_qualifications::defer_unproved(&mut selection_syntax);
     let selection_arguments =
         syntax_trees_to_symbol_resolved_trees::pre_resolution::closed_data_const_argument_expressions(
             &mut syntax,
@@ -292,7 +290,11 @@ pub(crate) fn evaluate(
             bindings.to_vec(),
             context.retained_base(), context.declaration_syntax,
         )?;
-    crate::syntax_probes::defer_pending_const_qualifications(
+    // Discovery may append type inputs. Clone afterward so the private
+    // selection retains those exact argument handles and their owners.
+    let mut selection_syntax = syntax.clone();
+    super::const_qualifications::defer_unproved(&mut selection_syntax);
+    crate::syntax_probes::retain_pending_const_inputs(
         &mut selection_syntax,
         &selection_arguments
             .iter()

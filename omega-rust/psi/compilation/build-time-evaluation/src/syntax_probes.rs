@@ -11,11 +11,11 @@ pub(crate) use evaluation::{
     prepare_call_free_probe_typing, prepare_evaluation, prepare_owned_probe_evaluation,
 };
 
-/// A provisional index supplies a carrier, not membership in the indexed domain.
-/// Remove only affected constant qualifications in this private probe forest.
-/// The authoritative declarations keep every constraint and are checked after
-/// their real indices materialize; no probe qualification is exported as proof.
-pub(crate) fn defer_pending_const_qualifications(
+/// Retain unfinished arguments on their exact uses in a private probe.
+/// Their carriers can be checked, but their values and dependent qualifications
+/// still need evaluation. The original declarations keep every constraint for
+/// final checking; this temporary preparation establishes no qualification.
+pub(crate) fn retain_pending_const_inputs(
     probe: &mut syntax_trees::SyntaxTrees,
     arguments: &[syntax_trees::types::TypeReferenceHandle],
 ) {
@@ -24,6 +24,11 @@ pub(crate) fn defer_pending_const_qualifications(
 
     if arguments.is_empty() {
         return;
+    }
+    for &argument in arguments {
+        probe
+            .type_references
+            .retain_pending_const_argument_uses(argument);
     }
     for item in probe.root_item_handles().to_vec() {
         let Item::Const(mut definition) = probe.root_item(item).clone() else {
