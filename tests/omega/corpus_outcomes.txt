@@ -100,6 +100,17 @@ fail/build/retained_behavior_selected_trap rejected 1408ms expected @a0939f4833e
 	1 authored behavior exclusion(s) could not be satisfied
 	behavior exclusion violated: crash cause Trap is reachable in machine `Trapping::check` (Terminal machine 3) at crash terminator in block 3
 	the selected composition retains crash cause Trap through machine `Trapping::check` (Terminal machine 3) declared here
+fail/build/task_register_invalidates_descriptor rejected 51782ms expected @030ac31225e6+wt
+	cannot prove requires contract for call consume_unchanged from exercise: buffers.table[3] == old_descriptor (needs fact `value == old` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/build/task_register_missing_machine_control rejected 40841ms expected @030ac31225e6+wt
+	machine `exercise` publishes service reach `TaskRegisterControl` but its checked body reaches undeclared service `MachineControl`
+fail/build/task_register_shared_gdt rejected 36368ms expected @030ac31225e6+wt
+	argument `gdt` for state `activate` is declared `&mut` (`&mut [u64; 5]`), but the caller lends only immutable access -- pass `&mut ...` or forward a `&mut` binding
+fail/build/task_register_wrong_tss_extent rejected 29283ms expected @030ac31225e6+wt
+	argument `task_state` for state `activate` expects `&[u8; 104]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(104)))`, declared place carrier `array(named(name(u8)),literal(103))`
+	argument `task_state` for state `activate` expects `&[u8; 104]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(104)))`, declared place carrier `array(named(name(u8)),literal(103))`
+	argument `task_state` for state `activate` expects `&[u8; 104]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(104)))`, declared place carrier `array(named(name(u8)),literal(103))`
+	argument `task_state` for state `activate` expects `&[u8; 104]`, got `member access`; expected carrier `ref(array(named(name(u8)),literal(104)))`, declared place carrier `array(named(name(u8)),literal(103))`
 fail/build/terminal_calling_policy_invalid_rejection rejected 8431ms expected @d2937c3afdf3
 	construction of `CallingPolicyRejection` field `reason` is not proven in domain `[u8]::Utf8` in main state `entry` at statement 1; a construction value must establish the domain's predicates and any required provenance
 fail/build/terminal_calling_policy_rejected_normal rejected 12265ms expected @09bb8258f924
@@ -4742,6 +4753,7 @@ pass/build/sibling_module_service_exclusion_exit checked 4008ms check-target:mac
 pass/build/sibling_module_slot_family_rows_exit rejected 16789ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	selected provider requirement `named-callable(path(gate::Gate::open),parameters(),result-dispatch())` has duplicate canonical realizations
 pass/build/static_assumed_binding_spelling_exit checked 3772ms check-target:macos_arm64 @ccdb99ca2214
+pass/build/task_register_activation checked 97163ms check-target:linux_x86_64 @030ac31225e6+wt
 pass/build/terminal_calling_policy_execution checked 78393ms check-target:macos_arm64 terminal-runtime.retained_plan:match terminal-inspections:match @4b50ded92ae9
 pass/build/terminal_nested_input_contents checked 6990ms check-target:macos_arm64 terminal-runtime.inspect:unrequested terminal-runtime.inspect_second:unrequested terminal-runtime.inspect_erased:unrequested terminal-runtime.inspect_reference:unrequested terminal-inspections:match @38f862ee379f
 pass/build/terminal_private_callback_calling checked 79138ms check-target:macos_arm64 callback-body-controls:match terminal-inspections:match @f8fd5ea66130

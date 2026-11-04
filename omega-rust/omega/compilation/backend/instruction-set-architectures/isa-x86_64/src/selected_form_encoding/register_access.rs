@@ -10,6 +10,8 @@
 //! They have no temporary stack footprint, unlike the flags snapshot, and
 //! MachineControl admission never grants custody of translated storage.
 
+mod task_register;
+
 use super::{
     ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError as Error,
     X86_64SelectedFormFootprint,
@@ -37,6 +39,8 @@ pub(crate) fn semantic(operation: Operation) -> Option<Semantic> {
         Operation::GlobalDescriptorTable(DescriptorOperation::Store) => {
             Semantic::GlobalDescriptorTableStore
         }
+        Operation::TaskRegisterActivate => Semantic::TaskRegisterActivate,
+        Operation::TaskRegisterRead => Semantic::TaskRegisterRead,
         Operation::PortRead => Semantic::PortRegisterRead,
         Operation::PortWrite => Semantic::PortRegisterWrite,
         Operation::ModelSpecificRead => Semantic::ModelSpecificRead,
@@ -70,6 +74,8 @@ pub(crate) fn operation(semantic: Semantic) -> Option<Operation> {
         Semantic::GlobalDescriptorTableStore => {
             Operation::GlobalDescriptorTable(DescriptorOperation::Store)
         }
+        Semantic::TaskRegisterActivate => Operation::TaskRegisterActivate,
+        Semantic::TaskRegisterRead => Operation::TaskRegisterRead,
         Semantic::PortRegisterRead => Operation::PortRead,
         Semantic::PortRegisterWrite => Operation::PortWrite,
         Semantic::ModelSpecificRead => Operation::ModelSpecificRead,
@@ -94,6 +100,7 @@ fn scratch(operation: Operation) -> &'static [&'static str] {
         Operation::SystemRead(SystemRegister::Control(_)) => &["r10", "r15"],
         Operation::SystemWrite(SystemRegister::Control(_)) => &["rax", "r10", "r11", "r15"],
         Operation::GlobalDescriptorTable(_) => &["r10"],
+        Operation::TaskRegisterActivate => &["r9", "r10", "r11", "rflags"],
         Operation::PortRead => &["rax", "rdx", "r10"],
         Operation::SystemRead(SystemRegister::Rflags)
         | Operation::SystemWrite(SystemRegister::Rflags) => &["r10", "r15"],
@@ -154,6 +161,25 @@ pub(crate) fn effects(operation: Operation) -> MachineEncodedEffects {
             byte_count: 8,
         };
     }
+    if operation == Operation::TaskRegisterActivate {
+        let stack_pointer = physical
+            .view_named("rsp")
+            .expect("canonical stack pointer")
+            .id;
+        encoded.implicit_unit_uses = units_of(&["rsp", "rflags"]);
+        encoded.memory = MachineEncodedMemoryEffect::TaskRegisterActivationV1 {
+            table_pointer_operand: 0,
+            task_pointer_operand: 1,
+            selector_operand: 2,
+            scratch_pointer_operand: 3,
+            table_byte_count_operand: 4,
+            stack_pointer,
+        };
+        encoded.stack = MachineEncodedStackEffect::TemporaryBytesV1 {
+            stack_pointer,
+            byte_count: 8,
+        };
+    }
     match operation {
         Operation::GlobalDescriptorTable(DescriptorOperation::Load) => {
             encoded.memory = MachineEncodedMemoryEffect::ReadPointerV1 {
@@ -195,6 +221,8 @@ pub(crate) fn declaration(
                 | Operation::SystemWrite(SystemRegister::Rflags)
         ) {
             MachineMemoryEffect::TemporaryStackStorageV1
+        } else if operation == Operation::TaskRegisterActivate {
+            MachineMemoryEffect::TaskRegisterActivationV1
         } else if operation == Operation::GlobalDescriptorTable(DescriptorOperation::Load) {
             MachineMemoryEffect::ReadPointerV1
         } else if operation == Operation::GlobalDescriptorTable(DescriptorOperation::Store) {
@@ -211,7 +239,14 @@ pub(crate) fn declaration(
         ) {
             MachineSizeKnowledge::ExactBytes(1)
         } else {
-            crate::encoder_resolved(1, Some(40))
+            crate::encoder_resolved(
+                1,
+                Some(if operation == Operation::TaskRegisterActivate {
+                    512
+                } else {
+                    40
+                }),
+            )
         },
         effects(operation),
     )
@@ -233,6 +268,12 @@ fn swap_bytes(bytes: &mut Vec<u8>, register: u8, wide: bool) {
 }
 
 pub(crate) fn encode(operation: Operation, registers: &[u8]) -> Result<Vec<u8>, Error> {
+    if matches!(
+        operation,
+        Operation::TaskRegisterActivate | Operation::TaskRegisterRead
+    ) {
+        return task_register::encode(operation, registers);
+    }
     if let Operation::MemoryFence(kind) = operation {
         if !registers.is_empty() {
             return Err(Error::OperandCountMismatch);
@@ -579,6 +620,13 @@ fn decode(bytes: &[u8]) -> Option<Vec<Decoded>> {
 // hardware result have separate identities. Aliased input operands therefore
 // retain the exact same value instead of inventing independent source words.
 fn validate_bits(operation: Operation, registers: &[u8], bytes: &[u8]) -> Option<()> {
+    if matches!(
+        operation,
+        Operation::TaskRegisterActivate | Operation::TaskRegisterRead
+    ) {
+        return task_register::validate(operation, registers, bytes);
+    }
+
     if let Operation::GlobalDescriptorTable(direction) = operation {
         let [pointer] = registers else {
             return None;
@@ -809,13 +857,7 @@ pub(crate) fn footprint(
     operands: &[RegisterViewId],
 ) -> X86_64SelectedFormFootprint {
     X86_64SelectedFormFootprint {
-        register_reads: if operation.input_carriers().is_empty() {
-            vec![]
-        } else if operation.produces_value() {
-            vec![operands[0]]
-        } else {
-            operands.to_vec()
-        },
+        register_reads: operands[..operation.input_carriers().len()].to_vec(),
         register_writes: if operation.produces_value() {
             vec![operands[operation.input_carriers().len()]]
         } else {
@@ -823,7 +865,9 @@ pub(crate) fn footprint(
         },
         writes_rflags: matches!(
             operation,
-            Operation::SystemWrite(SystemRegister::Rflags) | Operation::InterruptControl(_)
+            Operation::SystemWrite(SystemRegister::Rflags)
+                | Operation::InterruptControl(_)
+                | Operation::TaskRegisterActivate
         ),
         encoded: effects(operation),
     }

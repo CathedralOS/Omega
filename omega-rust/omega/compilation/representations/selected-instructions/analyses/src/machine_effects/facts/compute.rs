@@ -130,6 +130,8 @@ fn terminal_selected_keys(
             control_register_read: keys.control_register_read,
             control_register_write: keys.control_register_write,
             global_descriptor_table: keys.global_descriptor_table,
+            task_register_activate: keys.task_register_activate,
+            task_register_read: keys.task_register_read,
             port_register_read: keys.port_register_read,
             port_register_write: keys.port_register_write,
             model_specific_read: keys.model_specific_read,
@@ -341,6 +343,12 @@ pub fn machine_semantic_kind(kind: SelectedInstructionKind) -> MachineSemanticKi
     match kind {
         SelectedInstructionKind::InvokeNoNormal { .. } => MachineSemanticKind::InvokeNoNormal,
         SelectedInstructionKind::RegisterAccess { operation } => match operation {
+            selected_instructions::RegisterOperation::TaskRegisterActivate => {
+                MachineSemanticKind::TaskRegisterActivate
+            }
+            selected_instructions::RegisterOperation::TaskRegisterRead => {
+                MachineSemanticKind::TaskRegisterRead
+            }
             selected_instructions::RegisterOperation::GlobalDescriptorTable(
                 selected_instructions::GlobalDescriptorTableOperation::Store,
             ) => MachineSemanticKind::GlobalDescriptorTableStore,

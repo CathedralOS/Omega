@@ -69,3 +69,19 @@ This closed CPU test injects no asynchronous interrupts, single stepping or
 hardware breakpoints during the temporary load. It does not reload segment
 registers or activate a TSS/IDT/timer. The interrupt oracle above retains its
 separate complete interrupted-state checks.
+
+## Activate a retained task-state segment
+
+The [task-register witness](../../tests/omega/pass/build/task_register_activation/README.md)
+uses the same ordinary-call export path. Extract its `CallReturn` entry and run
+`--oracle task-register-call`. The harness owns the GDT and task-state bytes
+until shutdown. The Omega body performs the activation and all selector reads;
+the harness independently checks the resulting TR and complete descriptor.
+
+An alternate table contains an otherwise valid descriptor, so the wrong-table
+control specifically tests the association with the CPU's current GDTR. A
+mismatched task-state buffer, code slot, outside selector and already-busy
+repetition must also refuse. Eight ordinary calls produce `B........P` and
+exit33. The first activates and the other seven verify refusal of the busy
+entry. `--corrupt-neighbor` must report failure using the same compiled payload.
+No timer interrupt or acknowledgement is created by this test.

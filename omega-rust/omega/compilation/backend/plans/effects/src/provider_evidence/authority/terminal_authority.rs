@@ -14,6 +14,10 @@ pub enum CompilerIntrinsicExecutionIdentity {
     /// selected for one canonical supported host target. The complete provider
     /// plan and target catalog retain its OS-specific realization identity.
     HostedExitProcessI32,
+    /// Activate an associated task-state descriptor through retained storage loans.
+    TaskRegisterActivate,
+    /// Read the CPU task-register selector.
+    TaskRegisterRead,
     /// Exact toolchain-owned `Console::write_byte(i32) -> Unit` execution
     /// selected for one canonical supported host target. The complete provider
     /// plan and target catalog retain its OS-specific realization identity.
@@ -124,6 +128,8 @@ impl CompilerIntrinsicExecutionIdentity {
         use symbols::BuiltinFunction as B;
         use terminal_psi::{RegisterOperation as O, SystemRegister as R};
         let function = match operation {
+            O::TaskRegisterActivate => return Some(Self::TaskRegisterActivate),
+            O::TaskRegisterRead => return Some(Self::TaskRegisterRead),
             O::ProcessorHalt => B::AsmHlt,
             O::MemoryFence(kind) => match kind {
                 terminal_psi::MemoryFenceKind::Load => B::AsmLoadFence,
@@ -216,6 +222,8 @@ pub fn compiler_intrinsic_execution_identity_bytes(
 ) -> Vec<u8> {
     let mut bytes = vec![0_u8; 8];
     match identity {
+        CompilerIntrinsicExecutionIdentity::TaskRegisterActivate => bytes[0] = 12,
+        CompilerIntrinsicExecutionIdentity::TaskRegisterRead => bytes[0] = 13,
         CompilerIntrinsicExecutionIdentity::HostedExitProcessI32 => bytes[0] = 0,
         CompilerIntrinsicExecutionIdentity::HostedWriteByteI32 => bytes[0] = 5,
         CompilerIntrinsicExecutionIdentity::HostedReadByte => bytes[0] = 6,
