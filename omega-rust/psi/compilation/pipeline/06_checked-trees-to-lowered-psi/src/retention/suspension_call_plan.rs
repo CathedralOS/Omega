@@ -473,7 +473,7 @@ fn retain_loan_graph(
                     };
                     let call = checked.facts.flow.control.calls.get(output.call);
                     let parameters =
-                        validation::call_target_parameters(&checked.typed, call.target_symbol)
+                        validation::call_target_parameters(checked, call.target_symbol)
                             .ok_or(LoweringError::Unsupported(
                                 "suspension output call has no formal telescope",
                             ))?;
