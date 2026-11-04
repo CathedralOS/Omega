@@ -1,6 +1,7 @@
-//! Resolve completed pointer backing separately from descriptor-slot storage.
-//! Every source alternative retains its actual completion or call-entry cut;
-//! enclosing authority footprints are never narrowed without typed coordinates.
+//! Keep the data reached by a pointer separate from the field storing it.
+//! Resolve every possible source at its recorded read or call-entry snapshot.
+//! A recast may identify only an enclosing storage region; keep that whole
+//! region unless checked field/index coordinates identify a smaller projection.
 use arena::Handle;
 use checked_trees::{
     CapturedPlace, CheckFacts, FlowOperandFact, FlowStateFact, IncomingReferenceOrigin,
@@ -54,79 +55,10 @@ pub(super) fn incoming_backing(
     state: &FlowStateFact,
     identity: Handle<checked_trees::IncomingReferenceIdentity>,
 ) -> Result<IncomingLoad, &'static str> {
-    if !facts.borrow.incoming_references.is_valid(identity) {
-        return Err("the loaded pointer has no checked incoming identity");
-    }
-    let incoming = facts.borrow.incoming_references.get(identity);
-    let IncomingReferenceOrigin::DescriptorLoad { expression } = incoming.origin else {
-        return Err("the incoming pointer has no completed descriptor-load source");
-    };
-    if incoming.machine_symbol != state.machine_symbol
-        || incoming.state_symbol != state.state_symbol
-    {
-        return Err("the descriptor load belongs to another invocation");
-    }
-    let control = &facts.flow.control;
-    let mut activations = facts
-        .flow
-        .borrow_lifetimes
-        .activations
-        .span_or_empty(state.borrow_activations)
-        .iter()
-        .filter(|activation| {
-            if !facts.borrow.loans.is_valid(activation.loan) {
-                return false;
-            }
-            let loan = facts.borrow.loans.get(activation.loan);
-            loan.incoming_reference == identity
-                && loan.storage_owner == PlaceRoot::Expression(expression)
-                && loan.formation_expression == expression
-        });
-    let activation = activations
-        .next()
-        .ok_or("the incoming pointer has no actual load activation")?;
-    if activations.next().is_some() || !control.operands.is_valid(activation.formation_value) {
-        return Err("the incoming pointer has no unique completed load");
-    }
-    let capture = control.operands.get(activation.formation_value);
-    if capture.descriptor_loan != activation.loan
-        || capture.expression != expression
-        || capture.state_symbol != state.state_symbol
-        || !control.value_observations.is_valid(capture.descriptor_read)
-        || !control.operands.is_valid(capture.backing)
-    {
-        return Err("the descriptor activation lost its completed source association");
-    }
-    let read = control.value_observations.get(capture.descriptor_read);
-    if read.expression != expression || read.receiver != capture.backing || read.places.is_empty() {
-        return Err("the descriptor activation has no authenticated source read");
-    }
-    let receiver = control.operands.get(capture.backing);
-    let source = crate::published::places::place_at(
-        program,
-        state.state_symbol,
-        capture.statement_index,
-        expression,
-    )
-    .ok_or("the completed descriptor read has no exact source slot")?;
-    let parent = crate::published::places::place_at(
-        program,
-        state.state_symbol,
-        receiver.statement_index,
-        receiver.expression,
-    )
-    .ok_or("the completed descriptor read has no exact receiver slot")?;
-    if source.root != parent.root || !source.segments.starts_with(&parent.segments) {
-        return Err("the completed descriptor read does not project its actual receiver");
-    }
-    let selected = validation::completed_storage::reference_sources_at_path(
-        program,
-        control,
-        capture.backing,
-        &source.segments[parent.segments.len()..],
-        capture.storage_snapshot,
-    );
-    let mut pending = vec![selected];
+    let load = validation::reference_result_custody::completed_descriptor_load(
+        program, facts, state, identity,
+    )?;
+    let mut pending = vec![load.sources];
     let mut output = Vec::new();
     while let Some(source) = pending.pop() {
         match source {
@@ -151,7 +83,7 @@ pub(super) fn incoming_backing(
         return Err("the descriptor load has no incoming source alternatives");
     }
     Ok(IncomingLoad {
-        capture: activation.formation_value,
+        capture: load.capture,
         sources: output,
     })
 }
@@ -390,8 +322,8 @@ pub(super) fn collect_backings(
     Ok(())
 }
 
-/// Stop before the final field's descriptor: a slot replacement writes the
-/// carrier's bytes, whereas the backing query above follows the pointer value.
+/// Locate the field being overwritten without following its stored pointer.
+/// Replacing the pointer changes that field's bytes, not the data it pointed to.
 pub(super) fn actual_storage(
     program: &dyn validation::CheckingInput,
     facts: &CheckFacts,
@@ -414,8 +346,8 @@ pub(super) fn actual_storage(
             crossing = length;
         }
     }
-    // The outer actual pointer is already captured. Inner slots instead use
-    // the call-entry storage, after every later actual's effects have run.
+    // The outer pointer was captured when this argument was evaluated.
+    // Resolve fields behind it at call entry, after all arguments have finished.
     let mut backings = Vec::new();
     if crossing == 0 {
         collect_backings(

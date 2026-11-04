@@ -34,5 +34,17 @@ the saved reference and the pointer-field store; returning the reference also
 loses its declared storage lifetime. These are unfinished implementation repairs.
 Neither engine ran for these positives.
 
+Optimized producer `20fd129907b31f1ce92280ee5f22a50c0d17e867` gets past those
+borrow and lifetime refusals. The positive now stops while planning the order
+for retiring replaced pointer fields in main. Both invalid controls retain
+their intended refusal. The program and runtime oracles remain unchanged;
+neither engine has run this positive.
+
 Fresh native/Terminal execution and the extended nine-place row remain required;
 this control alone does not complete the fact.
+
+Producer `6baea78fce36d968924dbd557d5b26650f902251` still stops while scheduling
+cleanup of the replaced pointer fields. The retained trace identifies final
+stored-reference records without their exact call predecessors, including the
+path where a short-circuit skips a call. This remains an execution failure;
+no native or Terminal exit is claimed for this control.

@@ -747,10 +747,10 @@ pub enum BorrowLoanOwnerSegment {
     DynamicIndex,
 }
 
-/// A body needs this captured incoming pointer to coexist with an exclusive
-/// input-storage access. Ordinary callers discharge or propagate the relation;
-/// an externally selected entry must establish it without caller actuals.
-/// This is an outstanding requirement, never a disjointness certificate.
+/// The body needs proof that a write cannot conflict with its saved pointer.
+/// Ordinary callers must prove this from their actual arguments or pass the
+/// requirement to their own callers. A selected external entry must establish
+/// it without caller arguments. Recording the requirement leaves that proof due.
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct BorrowIncomingCompatibilityRequirement {
     pub machine_symbol: SymbolHandle,

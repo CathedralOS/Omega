@@ -466,10 +466,10 @@ pub(super) fn scoped_carried_lifetimes(
     )
 }
 
-/// Preserve the complete physical input frontier even when following further
-/// pointers would require an infinite or unresolved inventory. Additional
-/// sources are published only as one complete expansion; exact body admission
-/// still rejects a returned source absent from the retained relation.
+/// A recursive input can still return a reference described by its finite
+/// input list. Add deeper pointer sources only when all can be resolved;
+/// otherwise keep the original complete list unchanged. Body checking still
+/// rejects a returned reference with no source in that retained list.
 fn collect_frontier(
     program: &dyn crate::CheckingInput,
     reference: TypeReferenceHandle,

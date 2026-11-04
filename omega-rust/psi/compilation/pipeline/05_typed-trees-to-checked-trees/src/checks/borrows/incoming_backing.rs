@@ -1,9 +1,7 @@
-//! A saved incoming pointer may survive replacement of its former slot.
-//!
-//! Its opaque identity does not prove compatibility with an exclusive write.
-//! Keep the original completed load and discharge that relation at every
-//! ordinary caller, using the caller's captured pointer and storage. A caller
-//! with unchanged incoming contents propagates the same obligation outward.
+//! A helper may keep a saved pointer after overwriting the field it came from.
+//! Prove that the write cannot touch storage protected by the saved reference,
+//! using each caller's actual pointers and write destination. If the caller
+//! also needs its caller to prove this, carry the same exact requirement outward.
 
 use arena::Handle;
 use checked_trees::{

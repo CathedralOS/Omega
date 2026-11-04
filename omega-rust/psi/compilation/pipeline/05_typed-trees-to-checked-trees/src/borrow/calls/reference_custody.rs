@@ -21,17 +21,30 @@ pub(in crate::borrow) fn append_reference_custody(
     loans: &mut arena::HandleSpan<BorrowLoanFact>,
     history: &mut Vec<StateLoanTracker>,
     incoming: &[StateLoanTracker],
-) -> Result<(), diagnostics::Diagnostic> {
+) -> Result<Option<Vec<StateLoanTracker>>, diagnostics::Diagnostic> {
     let Some(schedule) = frames
         .and_then(|frames| frames.stored_reference_call_contexts(machine, state, statement_index))
     else {
-        return Ok(());
+        return Ok(None);
     };
+    let schedule_len = schedule.len();
     let mut contexts: Vec<Option<Vec<StateLoanTracker>>> = Vec::new();
     let mut published_calls = Vec::new();
-    for context in schedule {
+    for (position, context) in schedule.into_iter().enumerate() {
         use validation::StoredReferenceCallContext;
         let current = match context {
+            StoredReferenceCallContext::StatementCompletion { entry } => {
+                if position + 1 != schedule_len {
+                    return Err(diagnostics::Diagnostic::error(
+                        "normal reference-slot completion precedes another context",
+                    ));
+                }
+                return contexts.get_mut(entry).map(Option::take).ok_or_else(|| {
+                    diagnostics::Diagnostic::error(
+                        "normal reference-slot completion names an unavailable predecessor",
+                    )
+                });
+            }
             StoredReferenceCallContext::Entry if contexts.is_empty() => Some(incoming.to_vec()),
             StoredReferenceCallContext::Entry => {
                 return Err(diagnostics::Diagnostic::error(
@@ -160,7 +173,9 @@ pub(in crate::borrow) fn append_reference_custody(
         };
         contexts.push(current);
     }
-    Ok(())
+    Err(diagnostics::Diagnostic::error(
+        "normal reference-slot schedule has no statement completion",
+    ))
 }
 
 /// A definite transferred slot replaces exactly the descriptor occurrences

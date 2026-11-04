@@ -16,6 +16,7 @@
 mod descriptor_sources;
 mod incoming_origins;
 mod invocation_returns;
+mod loaded_origins;
 mod presence;
 
 use super::{
@@ -646,6 +647,22 @@ impl Captures<'_> {
         // A lifetime dependency cannot provide its address or cover a peer.
         if loan.lineage == checked_trees::BorrowLoanLineage::LifetimeDependency {
             return None;
+        }
+        if self
+            .facts
+            .borrow
+            .incoming_references
+            .is_valid(loan.incoming_reference)
+            && matches!(
+                self.facts
+                    .borrow
+                    .incoming_references
+                    .get(loan.incoming_reference)
+                    .origin,
+                IncomingReferenceOrigin::DescriptorLoad { .. }
+            )
+        {
+            return self.loaded_descriptor_origins(state, loan, leaf, segments);
         }
         if loan.incoming_reference.is_valid()
             && self

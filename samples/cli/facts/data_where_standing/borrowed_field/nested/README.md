@@ -2,7 +2,8 @@
 
 A helper saves a reference to a number, then replaces the pointer field it came
 from. The saved reference must still name the original number and keep its known
-bound, so adding 70 remains safe. The changed programs still reject at borrow and lifetime checks; execution is pending.
+bound, so adding 70 remains safe. The compiler still cannot finish cleanup for
+replaced pointer fields.
 
 Counter.value <= 60 makes exact i32 70 + value representable without a per-call bound.
 
@@ -36,8 +37,8 @@ passes through `Holder` in the selected place before the same addition.
 
 Each twin removes only SourceCounter's default predicate. Counter keeps its
 predicate, so the returned record's construction must reject when its input no
-longer supplies the bound. Public capture and consuming bodies owe their
-obligations independently of main's literals. Entries replace the incoming
+longer supplies the bound. The public `capture` and consuming helpers prove
+these bounds from their own input contracts. Entries replace the incoming
 holder pointers in both directions, from 60 to -17 and from -17 to 60. The
 returned Counters must still produce 130 and 53 through the original transports.
 Entries verify unchanged source and output neighbors, backing scalars, holder
@@ -101,13 +102,28 @@ incompatible historical package locks; those setup outcomes remain separate.
 Replays in fresh projects containing the identical authored files establish the
 nine constructor refusals without changing or deleting those historical locks.
 
-Optimized producer `b52ca03df8a90543384f55a5e7416a8ee8903e1e` now proves
-the saved read's arithmetic and the output-record predicates. The positives
-still reject because the compiler cannot establish that the pointer-field store
-is compatible with the saved reference, and returning that reference loses its
-declared storage lifetime. The identity control reaches its intended missing
-equality; all nine predicate-removal twins reject their intended construction.
-These source-checking results do not establish runtime behavior.
+Optimized producer `20fd129907b31f1ce92280ee5f22a50c0d17e867` proves the
+arithmetic and construction bounds and accepts the saved references' loans and
+lifetimes. The nine places still cannot describe, for execution, where each
+saved pointer in the returned `Counter` originally came from. The discovery
+control separately cannot schedule cleanup of replaced pointer values when
+`main` finishes. No engine ran for those ten positives.
+
+All 27 selected invalid controls reject for their intended reason. The actual
+write-destination control and the two earlier pointer controls produce native
+and Terminal exits 0/0. The recursive-record neighbor also executes 0/0. These
+results are progress, not acceptance of the nine changed places. The new alias
+control's corpus row was compile-only because it lacked exit-oracle files;
+its authored sample supplies the observed 0/0. The pin now requires both exits
+explicitly on the next qualification.
+
+Optimized producer `6baea78fce36d968924dbd557d5b26650f902251` also prepares
+where the returned saved references came from. All nine places now reach the
+same cleanup failure as the discovery control. Their final statement can call
+helpers on several paths, and some final stored-reference records lack the exact
+call information needed to schedule cleanup. No engine ran for those ten
+positives. All 27 invalid controls still reject as intended; the alias control
+now also produces native and Terminal exits 0/0 through its corpus pin.
 
 The current row still requires every positive to produce native and Terminal
 exit 0, each sole-predicate twin to retain its Counter-construction refusal,

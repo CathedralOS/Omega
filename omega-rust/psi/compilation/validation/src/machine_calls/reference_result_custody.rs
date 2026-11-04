@@ -42,6 +42,8 @@ pub use stored_carrier_sources::{StoredCarrierSource, stored_carrier_sources};
 mod call_reception;
 pub use call_reception::{RecordCallReception, record_call_reception};
 mod captured_returns;
+mod completed_loads;
+pub use completed_loads::{CompletedDescriptorLoad, completed_descriptor_load};
 #[cfg(test)]
 mod declared_frontier_tests;
 mod declared_returns;
