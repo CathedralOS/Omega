@@ -2,7 +2,7 @@
 
 The existing corpus owner creates and verifies the bundle. This caller makes
 its shallow checkout complete above the published prerequisite, then copies
-the verified bytes into the pilot's already uploaded artifact directory.
+the verified bytes into the pilot artifact directory covered by its existing upload.
 """
 
 import json
