@@ -430,6 +430,8 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                         trace,
                     )?,
                 );
+                trace.phase("structural value: retained call schedule");
+                trace.statement(Some(result.statement_index));
                 output.push(checked_trees::CheckedStructuralValueCall::with_operands(
                     value,
                     checked_trees::CheckedOperandSequence::new(preparation),
@@ -566,6 +568,8 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             | checked_trees::CheckedStructuralValueKind::Place(_) => {}
         }
     }
+    trace.phase("structural value: completion");
+    trace.statement(Some(plans.nodes.get(root).statement_index));
     let completion = plans.completion_with(root, &output, &|value| {
         subject_completions
             .iter()

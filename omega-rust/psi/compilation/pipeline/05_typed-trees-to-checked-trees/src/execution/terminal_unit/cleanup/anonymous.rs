@@ -138,9 +138,6 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         shapes,
     )?;
 
-    // Binding ordinals name producers in this operation sequence. Embedded
-    // value calls have private ordinal namespaces; their releases and discard
-    // flags cannot complete a carrier owned by this sequence.
     // Capture recognition preserves ancestry; it is not evidence that this
     // carrier has already ended. The descriptor owner above has checked input
     // retention and bound the exact loan group. Publish its selected physical
@@ -155,43 +152,38 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         else {
             return None;
         };
-        if operations.iter().any(|operation| {
-            matches!(operation, OperationPlan::ReleaseReference {
+        if operations
+            .iter()
+            .flat_map(OperationPlan::with_value_calls)
+            .any(|operation| {
+                matches!(operation, OperationPlan::ReleaseReference {
                 source: released, path, defer_to_exit: false, ..
             } if released == source && path.is_empty())
-        }) {
+            })
+        {
             continue;
         }
         // Every carrier has a producer, but direct reference/view formation
         // has no automatic result-discard flag. Its explicit release is the
         // entire disposition; only producers with an automatic death need it
         // withdrawn here.
-        let mut producers = operations.iter().enumerate().filter(|(_, operation)| {
-            operation
-                .structural_result_binding()
-                .is_some_and(|binding| binding.binding_ordinal == *binding_ordinal)
-        });
-        let (producer, first) = producers.next()?;
-        if let Some((second_index, second)) = producers.next() {
-            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
-                eprintln!(
-                    "CHECKSITE normal-completion-duplicate-producer machine={} state={} call={:?} ordinal={} first_index={} first={:?} second_index={} second={:?} results={:?} invocation={:?}",
-                    machine.name,
-                    state.name,
-                    coordinate,
-                    binding_ordinal,
-                    producer,
-                    first,
-                    second_index,
-                    second,
-                    results,
-                    invocation,
-                );
+        {
+            let mut producers = operations
+                .iter()
+                .flat_map(OperationPlan::with_value_calls)
+                .filter_map(OperationPlan::structural_result_binding)
+                .filter(|binding| binding.binding_ordinal == *binding_ordinal);
+            producers.next()?;
+            if producers.next().is_some() {
+                return None;
             }
-            return None;
         }
-        if let Some((_, discard)) = operations[producer].discardable_structural_result_mut() {
-            *discard = false;
+        for operation in operations.iter_mut() {
+            if let Some((_, discard)) =
+                operation.discardable_structural_result_by_ordinal_mut(*binding_ordinal)
+            {
+                *discard = false;
+            }
         }
         selected_descriptors.push(completion);
     }
@@ -221,6 +213,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
         },
     );
     if dying.is_empty() {
+        completion_phase("normal completion: finished");
         return Some(completions);
     }
 
@@ -342,6 +335,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             // exit release can stand in for this exact completed home.
             if operations
                 .iter()
+                .flat_map(OperationPlan::with_value_calls)
                 .chain(completions.iter())
                 .any(|operation| {
                     matches!(operation, OperationPlan::ReleaseReference {
@@ -353,11 +347,13 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             }
             completion_phase("normal completion: owner producer lookup");
             {
-                // The results roster and the cleanup source use this sequence's
-                // bindings. Require its one exact producer before changing the
-                // disposition; nested schedules own their own completion.
+                // Binding identities span the whole value evaluation. A nested
+                // argument owns the same disposition as a flat producer; keep
+                // the exact-once check over that complete inventory before
+                // asking its existing ordinal owner to change the flag.
                 let mut producers = operations
                     .iter()
+                    .flat_map(OperationPlan::with_value_calls)
                     .filter_map(OperationPlan::discardable_structural_result)
                     .filter(|(produced, _)| produced.binding_ordinal == result.binding_ordinal);
                 let (produced, _) = producers.next()?;
@@ -367,9 +363,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
                 }
             }
             let (_, discard_on_return) = operations.iter_mut().find_map(|operation| {
-                operation
-                    .discardable_structural_result_mut()
-                    .filter(|(produced, _)| produced.binding_ordinal == result.binding_ordinal)
+                operation.discardable_structural_result_by_ordinal_mut(result.binding_ordinal)
             })?;
             // Scheduling metadata is not custody. A selected contextual death
             // remains authoritative even without an automatic return discard.
@@ -381,7 +375,7 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             SourcePlan::StructuralExpression { expression }
         };
         completion_phase("normal completion: owner prior continuation");
-        if operations.iter().any(|operation| matches!(operation,
+        if operations.iter().flat_map(OperationPlan::with_value_calls).any(|operation| matches!(operation,
             OperationPlan::ContinuationCleanup { cleanup_actions, .. }
                 if cleanup_actions.iter().any(|action| action.source() == &source && action.path().is_empty())))
         { return None; }
@@ -403,5 +397,6 @@ pub(in crate::execution::terminal_unit) fn normal_call_completion(
             cleanup_actions,
         });
     }
+    completion_phase("normal completion: finished");
     Some(completions)
 }
