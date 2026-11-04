@@ -513,6 +513,9 @@ narrows realization only.
     progress, intrinsic review and deferred array/const-generic recipes)
     from typed/checked records to canonical Terminal Psi
     plus target Build rows.
+  - Make selected provider binding take an owner-checked view, so
+    `bind_selected_provider_plan_facts` cannot run before
+    `require_prepared_owner`; no test covers that order now.
   - Resolve a Build provider plan's schema text to the Terminal catalog's
     schema identity handle once at the stage-00 join (provider-selection
     boundary_review `requirement_binds`), so
@@ -1987,6 +1990,11 @@ defines the complete product bar.
   - Replace the opaque `ExportSurface.identity` string with the export's
     requirement identity so a demanded import is checked against the offered
     export (needed by the [topology](wiki/spec/packages/topology.md) demand/supply join).
+  - Have provider settlement publish component export calling applications so
+    component completion (`compiler/src/product_execution/component.rs`
+    `prepare_exported_calling_applications`) stops re-deriving them; over every
+    selected provider that derivation refuses `FilesystemService::create` on
+    `tests/omega/pass/providers/phantom_local_calling_applications`.
   Acceptance: a two-package `Independent` build and an installed-image customer
   execute crossing calls, placement-independent invocation, new-era routing, and
   old-era drain on matching hosts, while omitted/duplicate assumptions,
