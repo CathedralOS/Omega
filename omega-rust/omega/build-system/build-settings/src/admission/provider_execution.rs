@@ -81,12 +81,22 @@ impl BuildProviderPlans {
         let demanded = demand
             .imports
             .iter()
-            .filter_map(|slot| {
-                terminal_psi::find_boundary_machine(&module.boundary_machines, *slot)
-                    .and_then(|boundary| module.identities.text(boundary.identity))
+            .map(|slot| {
+                let boundary =
+                    terminal_psi::find_boundary_machine(&module.boundary_machines, *slot)
+                        .ok_or_else(|| {
+                            failure(format!("Build import {slot:?} has no boundary declaration"))
+                        })?;
+                module
+                    .identities
+                    .text(boundary.identity)
+                    .filter(|identity| !identity.is_empty())
                     .map(str::to_owned)
+                    .ok_or_else(|| {
+                        failure(format!("Build import {slot:?} has no callable identity"))
+                    })
             })
-            .collect();
+            .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
         // Build has no admitted host/device review identities. Numeric rows
         // close their own sealed meaning through the exact external catalog;
         // a demanded nonnumeric intrinsic remains explicitly unsettled.

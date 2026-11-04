@@ -24,17 +24,29 @@ pub fn validate_retained_external_provider_owners(
     declarations: &[backend_plan::TerminalTargetProviderPlan],
 ) -> Result<(), String> {
     backend_plan::require_selected_provider_declarations(selected, declarations)?;
-    let retained = module
+    let mut retained = module
         .boundary_machines
         .iter()
-        .filter_map(|boundary| module.identities.text(boundary.identity))
-        .chain(
+        .map(|boundary| {
             module
-                .boundary_application_demands
-                .iter()
-                .map(|demand| demand.requirement().overload()),
-        )
-        .collect::<std::collections::BTreeSet<_>>();
+                .identities
+                .text(boundary.identity)
+                .filter(|identity| !identity.is_empty())
+                .ok_or_else(|| {
+                    format!(
+                        "retained Terminal boundary {:?} has no callable identity",
+                        boundary.id,
+                    )
+                })
+        })
+        .collect::<Result<std::collections::BTreeSet<_>, _>>()?;
+    for demand in &module.boundary_application_demands {
+        let identity = demand.requirement().overload();
+        if identity.is_empty() {
+            return Err("retained boundary application has no callable identity".into());
+        }
+        retained.insert(identity);
+    }
     validate_provider_owners(
         &module.external_providers,
         &module.identities,
