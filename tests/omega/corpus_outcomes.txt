@@ -22575,6 +22575,10 @@ fail/proofs/bag_view_false_twin rejected 848ms unexpected @ccdb99ca2214
 	machine `reverse_append` ensures contract proof fact `reverse(append(s, t)) == append(reverse(t), reverse(s))` speaks about proof-only `Seq`, which no entailment tier judges yet -- accepting it would certify an unproven structural claim. Spell the fact over integer measures, or cite a checked theorem establishing it (wiki/spec/proofs/contracts.md#citation-and-induction)
 fail/proofs/boolean_return_uses_executed_assembly_order rejected 2762ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand from main: choose() == false (needs fact `value == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/borrowed_boolean_policy_changed_storage rejected 2026ms expected @2fc6c92b94ac+wt
+	cannot prove requires contract for call use_value from checked: value.value == 37 (needs fact `value.value == 37` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/proofs/borrowed_boolean_policy_wrong_validator rejected 2012ms expected @2fc6c92b94ac+wt
+	cannot prove ensures contract for exit from check at statement 0: accepts(result, value)
 fail/proofs/call_argument_snapshot_precedes_write rejected 1836ms expected @ccdb99ca2214
 	cannot prove requires contract for call demand from invalid: snapshot.value == 0 (needs fact `value == 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/case_call_wrong_subject rejected 801ms expected @ccdb99ca2214
@@ -35225,6 +35229,7 @@ pass/proofs/applied_operator_const_requires checked 2430ms @ccdb99ca2214
 pass/proofs/axiom_citation rejected 2541ms regressed-from:checked @ccdb99ca2214
 	machine `body` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
 pass/proofs/boolean_return_assembly_shape checked 2390ms @ccdb99ca2214
+pass/proofs/borrowed_boolean_policy_exit checked 2706ms check-target:macos_arm64 @2fc6c92b94ac+wt
 pass/proofs/borrowed_descriptor_bound_local_result_exit rejected 2334ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
 	cannot prove ensures contract for exit from retain at statement 0: result <= used
 	cannot prove ensures contract for exit from filter_partition at statement 2: partition.used <= partition.entries.len

@@ -277,22 +277,15 @@ impl StructuralJudge<'_> {
                     None => None,
                 }
             }
-            _ if matches!(
-                predicate.semantic_value(),
-                StructuralTerm::MathematicalBinary { .. } | StructuralTerm::ScalarBinary { .. }
-            ) =>
-            {
-                // Completed call guarantees may relate mathematical embeddings
-                // of fields with distinct source type handles. The observed
-                // predicate owner composes those equations in one value frame.
-                // Keep the original operations for its formation checks; a
-                // selected callable stays an application, never a builtin law.
+            _ => {
+                // An admitted call and an inline Boolean operation share this
+                // judgment. Keep the original term so operand formation and
+                // storage observations remain attached during normalization.
                 match self.judge_observed_predicate(predicate, 0) {
                     StructuralJudgment::Unknown => None,
                     judgment => Some(judgment),
                 }
             }
-            _ => None,
         }
     }
 

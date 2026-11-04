@@ -4269,6 +4269,7 @@ pass/progress/provider_receiver_progress_installation built 5451ms @4ffed225fc45
 pass/proofs/accepted_axiom_cited_exit built 528ms exit:70
 pass/proofs/accumulator_guarantee_exit built 588ms exit:70
 pass/proofs/axiom_citation checked 9691ms @5041ef1af684+wt
+pass/proofs/borrowed_boolean_policy_exit built 2469ms exit:0 @2fc6c92b94ac+wt
 pass/proofs/captured_scalar_field_observations built 13279ms exit:0 @f22c0e54a812
 pass/proofs/case_call_premises checked 190ms
 pass/proofs/cauchy_predicates_compile rejected 376ms @6c75d91f0312
