@@ -36,7 +36,7 @@ ensures result >= 100
     FieldReader::read<width>(selected, prefix, input)
 }
 boundary trait SelectedRead {
-    machine read(packet: Packet, width: u32) -> u64
+    machine read(packet: Packet, width: u32) -> u64 reaches
     requires width == 16 || width == 32
     ensures result >= 100;
 }
