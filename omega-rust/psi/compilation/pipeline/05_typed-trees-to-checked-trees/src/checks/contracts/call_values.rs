@@ -478,6 +478,22 @@ pub(super) fn membership_evidence(
     let Some(place) = requirement.place.as_place() else {
         return Some(MembershipEvidence::default());
     };
+    // The bytes of `&(x as T)` stay in `x`, so the place below still finds
+    // `x`'s facts. The lent value itself lost any meaning `T` omits, and a
+    // requirement on that meaning has no evidence.
+    if actual.path.is_empty()
+        && let Some(argument) = actual.argument
+        && let Some((_, _, domain_symbol, semantic_domain)) =
+            requirement.payload.domain_membership()
+        && validation::field_domains::expression_erases_membership(
+            program,
+            argument,
+            domain_symbol,
+            semantic_domain,
+        )
+    {
+        return Some(MembershipEvidence::default());
+    }
     let Some(required) = crate::flow::canonical_place_from_semantic_place(
         program,
         &facts.semantic,
