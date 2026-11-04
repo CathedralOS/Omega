@@ -21,6 +21,7 @@ remain in the frozen baseline evidence.
 
 Owning task: **ATOMIC-MEMORY-MODEL**. See the [parent](../README.md) for complete
 qualification and the remaining concurrent and refinement obligations. All nine
-places and their establishment twins have actual current observations on each of the four
-matching hosts. The parent records the measured compiler/program sources,
+places and their establishment twins have actual observations on each of the four
+matching hosts. The integrated Linux replay uses d322; the other hosts retain
+their actual earlier compiler and program identities. The parent records those sources,
 supplemental limits and remaining acceptance.

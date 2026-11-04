@@ -11,13 +11,45 @@ an already valid resident, so a helper allowing masks through 127 still keeps
 the standing ceiling 100. The shared numeric bound calculation previously lost
 that ceiling while rounding to a common bit prefix. Those programs remain as
 positive [resident-bound productions](resident_bound/README.md), each with its
-own store-127 establishment twin. The kernel keeps both known bits and the
+own store-127 establishment twin. The bound calculation keeps both known bits and the
 admitted unsigned numeric ceilings; no atomic-specific proof rule is added.
 
 The match programs run both choices and observe an independent initialized
 marker. Taking the same arm twice cannot satisfy the exit oracle. The selected
 target pins now match the ordinary-provider samples and their explicit Build
 rows; the previous prefixed pins are retained in the baseline snapshot.
+
+## Integrated publication validation
+
+At exact compiler source `d322ce056e15b7519ec54018b8e6963b99e5957c`,
+[the Linux row replay](https://github.com/CathedralOS/Omega/actions/runs/41818931334)
+checks all eighteen positives and rejects all eighteen establishment twins for
+their intended store obligation. All eighteen fact programs execute at zero in
+both engines. The Boolean and single-attempt neighbors also agree at zero;
+the width-sensitive program agrees at its authored exit 70.
+[The same compiler’s seed](https://github.com/CathedralOS/Omega/actions/runs/41815967062)
+observes all 37 ordinary projects: nineteen zero agreements and eighteen intended
+refusals. Both optimized binaries are authenticated before and after the replay;
+no second compiler build or changed case limit is involved.
+
+The integration changes how calls preserve returned bounds and how branches are
+planned, so this complete Linux row was rerun. The atomic instructions and their
+checks retain their meaning. The other three hosts keep their actual earlier
+491/8679/417a observations described below, with independent review of the
+unchanged physical behavior and equivalent queries. No execution of the current
+artifact format on those hosts is claimed by this integration.
+
+Two earlier supplemental Linux legs remain actual timeouts: standalone width
+checking and a non-atomic byte-field snapshot execution. Their failed summaries
+and positive oracles remain unchanged. The width program has actual successful
+BOTH observations, including the integrated replay; that does not relabel the
+separate timeout. Two numeric proof failures reproduce on the fixed pre-repair
+compiler and likewise remain open. Concurrent contention, forced retry, formal
+memory-model axioms, target-refinement proofs and the broader
+**ATOMIC-MEMORY-MODEL** acceptance are not closed by this row.
+
+<details>
+<summary>Earlier exact sources, controls and retained measurements</summary>
 
 The frozen [Linux ARM64 baseline](https://github.com/CathedralOS/Omega/actions/runs/41778920756)
 uses `4637c6da3b4843292581b9b04f7c39b43675a75e`, whose tree equals published
@@ -73,7 +105,7 @@ rows and sorting of facts that case observations never consume. They preserve
 all authority and evidence checks. No speed ratio or general performance
 closure is claimed.
 
-Both Linux jobs remain failed: standalone width checking times out, and an
+The earlier full and isolated Linux jobs remain failed: standalone width checking times out, and an
 additional non-atomic byte-field snapshot execution times out. Neither is
 recorded as passed. The width's actual current BOTH result already compiles and
 runs that unchanged program. The snapshot has Source success; the changed
@@ -94,6 +126,8 @@ program, Build or oracle bytes. Executions keep the actual sources above; no
 execution at a later documentation or main commit is inferred. The source
 archives on PR #1795 retain those revisions through squash and branch cleanup.
 
+</details>
+
 | Place | Positive | Reject twin |
 | --- | --- | --- |
 | Local | [program](local/main.omg) | [invalid](local/invalid/main.omg) |
@@ -107,8 +141,8 @@ archives on PR #1795 retain those revisions through squash and branch cleanup.
 | Target body | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
 Transport uses ordinary propositions under [domains](../../../../wiki/spec/language/domains.md):
-field invariants use `where`, parameter bounds use `requires`, and returned
-snapshots use `ensures result <= 100`. Receiving locals remain bare `u32`.
+record contracts retain the resident ceiling, parameters use `requires`, and
+returned snapshots use `ensures result <= 100`. Receiving locals remain bare `u32`.
 The owning machine's guarantee applies at its nested machine's normal exit;
 nested signatures declare only arrival requirements. No caller guard or named
 replacement domain re-establishes the fact.
