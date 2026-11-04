@@ -1228,6 +1228,39 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
         }
         if releases.is_empty() {
             if !pending.is_empty() {
+                if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                    for (_, operation, storage_loans) in &pending {
+                        let OperationPlan::ReleaseReference {
+                            source: SourcePlan::StructuralResult { binding_ordinal },
+                            loans,
+                            ..
+                        } = operation
+                        else {
+                            continue;
+                        };
+                        let Some((result, owner)) = results
+                            .iter()
+                            .find(|(result, _)| result.binding_ordinal == *binding_ordinal)
+                        else {
+                            continue;
+                        };
+                        eprintln!(
+                            "CHECKSITE completion-retirement-blocked machine={machine:?} state={state:?} binding={binding_ordinal} owner={owner:?} carrier_children_retired={} storage_loans={storage_loans:?} descriptor_loans={loans:?}",
+                            retirement.carrier_children_retired(result),
+                        );
+                    }
+                    if let Some(Some(borrowing)) = unique_borrow_state(facts, machine, state)
+                        && let Some(resources) = facts.borrow.statement_resource_loans(borrowing)
+                    {
+                        for (handle, loan) in resources {
+                            eprintln!(
+                                "CHECKSITE completion-retirement-holder loan={handle:?} retired={} occurrence={loan:?} weakening={:?}",
+                                retirement.holder_retired(handle),
+                                loan_weakening(facts, machine, state, handle),
+                            );
+                        }
+                    }
+                }
                 return None;
             }
             break;

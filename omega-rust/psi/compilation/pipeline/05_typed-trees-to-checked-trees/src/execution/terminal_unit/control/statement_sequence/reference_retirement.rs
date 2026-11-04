@@ -912,16 +912,20 @@ impl Retirement<'_> {
         // the old descriptor as their supplier. The old occurrence settles
         // only when every such receiving occurrence has settled too; a lexical
         // weakening or a coincident storage path alone cannot establish this.
+        // The checked call roster also includes final-expression calls, whose
+        // executable computations are outside the body operation list.
         if let Some(weakening) = loan_weakening(self.facts, self.machine, self.state.symbol, handle)
             && weakening.reason == FlowBorrowWeakeningReason::LocalReassigned
             && let FlowInvalidationSource::Statement { statement_index } = weakening.source
             && let Ok(statement_index) = u32::try_from(statement_index)
-            && self
-                .operations
-                .iter()
-                .flat_map(CheckedUnitEffectOperationPlan::with_value_calls)
-                .filter_map(CheckedUnitEffectOperationPlan::call)
-                .any(|call| call.coordinate.statement_index == statement_index)
+            && unique_borrow_state(self.facts, self.machine, self.state.symbol)
+                .flatten()
+                .and_then(|state| self.facts.borrow.calls.span(state.calls))
+                .is_some_and(|calls| {
+                    calls
+                        .iter()
+                        .any(|call| call.statement_index == statement_index as usize)
+                })
             && self.call_receivers_retired(handle, statement_index, true, active)
         {
             return true;
@@ -947,7 +951,19 @@ impl Retirement<'_> {
                     .any(|(_, group)| self.facts.borrow.loans_contain(*group, handle))
             })
         });
-        if holder.is_none() && !stored {
+        // A completed call can replace a descriptor in an existing home.
+        // The new occurrence has the call's formation, not the statement that
+        // materialized that home. Recognizing the home does not settle the
+        // occurrence: transfers or exact exit cleanup below still must do so.
+        let mut earlier_homes = self.results.iter().filter(|(binding, root)| {
+            *root == loan.storage_owner
+                && *root == PlaceRoot::Symbol(loan.owner_symbol)
+                && self
+                    .order
+                    .precedes(binding.statement_index as usize, loan.statement_index)
+        });
+        let materialized_home = earlier_homes.next().is_some() && earlier_homes.next().is_none();
+        if holder.is_none() && !stored && !materialized_home {
             // A captured place alias without an emitted descriptor ends at
             // checked weakening for every borrow access. Unknown and replaced
             // holders remain live; descendants are checked separately.
