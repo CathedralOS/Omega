@@ -82,7 +82,11 @@ pub(crate) fn validate_transition_target_node(
         // Whole terminal invocations use the ordinary expression call route.
         // Retain their result-agreement diagnostic after normalization; a
         // conversion or enclosing value expression keeps its own type owner.
+        // A sealed quotient request completes as the quotient result. The
+        // representative entry is only the flow-occurrence key, so its
+        // declared result is not this state's completion.
         if let Some(call) = program.expression_table.call_node(*expression)
+            && call.quotient_operation.is_none()
             && let Some((owner, state)) =
                 resolved_transition_target_state(program, crate::call_target_symbol(program, call))
             && owner.symbol != current_machine.symbol
