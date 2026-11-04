@@ -20,6 +20,17 @@ impl TypedTrees {
         lexical_owner: SymbolHandle,
         call: &crate::expression::TableCallExpression,
     ) -> Option<&signature::StateSignature> {
+        self.resolve_requirement_call_signature(lexical_owner, call)
+            .ok()
+    }
+
+    /// The same logical view with the reason its exact source cannot supply it.
+    /// Optional queries above keep their existing refusal behavior.
+    pub fn resolve_requirement_call_signature(
+        &self,
+        lexical_owner: SymbolHandle,
+        call: &crate::expression::TableCallExpression,
+    ) -> Result<&signature::StateSignature, &'static str> {
         self.requirement_invocation_signature(
             lexical_owner,
             call.target_symbol,
@@ -27,7 +38,7 @@ impl TypedTrees {
             call.requirement_application,
             call.authored_machine_application,
         )
-        .or_else(|| self.named_conformance_call_signature(call))
+        .or_else(|reason| self.named_conformance_call_signature(call).ok_or(reason))
     }
 
     /// Statement calls select the same complete public logical view as an
@@ -45,6 +56,7 @@ impl TypedTrees {
             Default::default(),
             call.authored_machine_application,
         )
+        .ok()
     }
 
     fn requirement_invocation_signature(
@@ -54,7 +66,7 @@ impl TypedTrees {
         dispatch: Option<&crate::typed_trees::StaticRequirementDispatch>,
         requirement_application: crate::types::TypeReferenceHandle,
         authored_application: crate::static_applications::StaticMachineApplicationHandle,
-    ) -> Option<&signature::StateSignature> {
+    ) -> Result<&signature::StateSignature, &'static str> {
         let target = dispatch.map_or(target, |dispatch| dispatch.contract_symbol());
         if let Some(closed) = self.closed_requirement_application(target) {
             // Closing the member's shape does not erase its source evidence
@@ -78,7 +90,7 @@ impl TypedTrees {
                         visited.push(owner);
                         if let Some(bound) = self
                             .evidence_bound_requirement(owner, binder, target)
-                            .ok()?
+                            .map_err(|_| "closed public view has unresolved source evidence")?
                         {
                             if bound
                                 .application
@@ -93,7 +105,7 @@ impl TypedTrees {
                             ) && signature.type_parameters.is_empty()
                                 && signature.lifetime_parameters.is_empty()
                             {
-                                return Some(signature);
+                                return Ok(signature);
                             }
                             break;
                         }
@@ -102,13 +114,14 @@ impl TypedTrees {
                 }
             }
             if requirement_application.is_valid() {
-                let scope =
-                    self.applied_requirement_scope(lexical_owner, requirement_application)?;
+                let scope = self
+                    .applied_requirement_scope(lexical_owner, requirement_application)
+                    .ok_or("closed public view has no exact source application scope")?;
                 if !self.requirement_application_matches_scope(target, &scope) {
-                    return None;
+                    return Err("closed public view does not match its source application");
                 }
             }
-            return Some(closed.signature);
+            return Ok(closed.signature);
         }
         if let Some(signature) =
             self.applied_callable_signatures
@@ -131,7 +144,7 @@ impl TypedTrees {
                     .then_some(&prepared.signature)
                 })
         {
-            return Some(signature);
+            return Ok(signature);
         }
         let outer = self.requirement_outer_signature(
             lexical_owner,
@@ -139,7 +152,9 @@ impl TypedTrees {
             dispatch,
             requirement_application,
         )?;
-        (dispatch.is_none() || outer.type_parameters.is_empty()).then_some(outer)
+        (dispatch.is_none() || outer.type_parameters.is_empty())
+            .then_some(outer)
+            .ok_or("selected public view still has an unbound member telescope")
     }
 
     fn requirement_outer_signature(
@@ -148,7 +163,7 @@ impl TypedTrees {
         target: SymbolHandle,
         dispatch: Option<&crate::typed_trees::StaticRequirementDispatch>,
         requirement_application: crate::types::TypeReferenceHandle,
-    ) -> Option<&signature::StateSignature> {
+    ) -> Result<&signature::StateSignature, &'static str> {
         // A source evidence child is not the declaring trait's state symbol.
         // Rejoin its exact authored bound before reading the prepared public
         // view, including when its caller-owned type operands remain symbolic.
@@ -162,7 +177,7 @@ impl TypedTrees {
             visited.push(owner);
             if let Some(bound) = self
                 .evidence_bound_requirement(owner, binder, target)
-                .ok()?
+                .map_err(|_| "public view has unresolved source evidence")?
             {
                 break Some(bound);
             }
@@ -171,10 +186,12 @@ impl TypedTrees {
         if let Some(bound) = bound {
             if requirement_application.is_valid() {
                 let written = self
-                    .applied_requirement_scope(lexical_owner, requirement_application)?
-                    .declaring_scope(self, bound.application.declaration.symbol)?;
+                    .applied_requirement_scope(lexical_owner, requirement_application)
+                    .ok_or("evidence public view has no exact written application scope")?
+                    .declaring_scope(self, bound.application.declaration.symbol)
+                    .ok_or("evidence public view has no declaring trait scope")?;
                 if !bound.application.same_application(self, &written) {
-                    return None;
+                    return Err("evidence public view disagrees with its written application");
                 }
             }
             return self
@@ -183,9 +200,12 @@ impl TypedTrees {
                     (bound.application.substitutions.is_empty()
                         && bound.application.declaration.lifetime_parameters.is_empty())
                     .then_some(bound.signature)
-                });
+                })
+                .ok_or("evidence public view has no prepared applied signature");
         }
-        let (declaration, signature) = self.trait_machine_signature(target)?;
+        let (declaration, signature) = self
+            .trait_machine_signature(target)
+            .ok_or("public view has no source requirement declaration")?;
         if let Some(dispatch) = dispatch {
             // A map qualifier supplies an independent outer telescope even
             // inside an open generic body. Its exact retained selection, not
@@ -199,28 +219,36 @@ impl TypedTrees {
                 dispatch.application_commitment,
             );
             let [application] = applications.as_slice() else {
-                return None;
+                return Err("selected public view has no unique supplying map application");
             };
             let scope = application
                 .trait_scope
-                .scope(self)?
-                .declaring_scope(self, declaration.symbol)?;
+                .scope(self)
+                .ok_or("selected public view has no retained trait scope")?
+                .declaring_scope(self, declaration.symbol)
+                .ok_or("selected public view has no declaring trait scope")?;
             return self
                 .applied_callable_signature(&scope, signature.symbol)
                 .or_else(|| {
                     (scope.substitutions.is_empty()
                         && scope.declaration.lifetime_parameters.is_empty())
                     .then_some(signature)
-                });
+                })
+                .ok_or("selected public view has no prepared applied signature");
         }
         if requirement_application.is_valid() {
             let scope = self
-                .applied_requirement_scope(lexical_owner, requirement_application)?
-                .declaring_scope(self, declaration.symbol)?;
-            return self.applied_callable_signature(&scope, signature.symbol);
+                .applied_requirement_scope(lexical_owner, requirement_application)
+                .ok_or("public view has no exact written application scope")?
+                .declaring_scope(self, declaration.symbol)
+                .ok_or("public view has no declaring trait scope")?;
+            return self
+                .applied_callable_signature(&scope, signature.symbol)
+                .ok_or("public view has no prepared applied signature");
         }
         (declaration.type_parameters.is_empty() && declaration.lifetime_parameters.is_empty())
             .then_some(signature)
+            .ok_or("public view has no complete outer application")
     }
 
     /// Prepare the remaining member telescope in this source invocation.

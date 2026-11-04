@@ -299,7 +299,17 @@ pub(crate) fn validate(
             })?
             .1;
         validate_authored_custody(&probe, owner, declaration)
-            .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+            .map_err(|reason| {
+                super::failure(
+                    declaration.initializer_source_span,
+                    format!(
+                        "authored call custody for declaration {:?}, roots {:?}/{:?}, probe {owner:?}: {reason}",
+                        declaration.symbol,
+                        declaration.authored_initializer,
+                        declaration.materialized_initializer,
+                    ),
+                )
+            })?;
     }
     // Rejoin supplied execution only after authenticating authored custody.
     // Selected providers then enter the same actual call closure as settlement.
@@ -336,7 +346,17 @@ pub(crate) fn validate(
         let dependencies = checked
             .calls_for_symbol(owner)
             .and_then(|calls| calls.validate_custody(declaration))
-            .map_err(|reason| super::failure(declaration.initializer_source_span, reason))?;
+            .map_err(|reason| {
+                super::failure(
+                    declaration.initializer_source_span,
+                    format!(
+                        "realized call custody for declaration {:?}, roots {:?}/{:?}, probe {owner:?}: {reason}",
+                        declaration.symbol,
+                        declaration.authored_initializer,
+                        declaration.materialized_initializer,
+                    ),
+                )
+            })?;
         for dependency in &dependencies {
             let owner = program
                 .const_declarations()
@@ -601,7 +621,14 @@ fn validate_anonymous_float(
         return Err("floating constant lost its receiving expression state".into());
     };
     let dependencies =
-        validate_retained_initializer_call_custody(&probe, machine, state, declaration)?;
+        validate_retained_initializer_call_custody(&probe, machine, state, declaration).map_err(
+            |reason| {
+                format!(
+                    "floating call custody for declaration {:?}, roots {original:?}/{materialized:?}, probe {owner:?}: {reason}",
+                    declaration.symbol,
+                )
+            },
+        )?;
     validate_float_value(
         &probe,
         declaration,

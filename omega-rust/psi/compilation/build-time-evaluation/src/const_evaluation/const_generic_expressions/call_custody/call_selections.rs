@@ -298,7 +298,12 @@ pub(super) fn logical_requirement_matches(
         // through this call's complete selected application rather than trying
         // to recover the supplying implementation from its rewritten receiver.
         let (_, signature) = validation::resolve_requirement_contract(program, lexical_owner, site)
-            .map_err(|reason| format!("constant selected requirement is not admitted: {reason}"))?;
+            .map_err(|reason| {
+                format!(
+                    "constant selected requirement is not admitted: {}",
+                    logical_requirement_refusal(program, owner, lexical_owner, site, reason)
+                )
+            })?;
         let template = program
             .closed_requirement_application(signature.symbol)
             .map_or(signature.symbol, |application| application.template);
@@ -316,8 +321,14 @@ pub(super) fn logical_requirement_matches(
         return Ok(false);
     };
     let (selected_trait, selected_signature) =
-        validation::resolve_requirement_contract(program, lexical_owner, site)
-            .map_err(|reason| format!("constant evidence requirement is not admitted: {reason}"))?;
+        validation::resolve_requirement_contract(program, lexical_owner, site).map_err(
+            |reason| {
+                format!(
+                    "constant evidence requirement is not admitted: {}",
+                    logical_requirement_refusal(program, owner, lexical_owner, site, reason)
+                )
+            },
+        )?;
     let template = program
         .closed_requirement_application(selected_signature.symbol)
         .map_or(selected_signature.symbol, |application| {
@@ -400,4 +411,21 @@ pub(super) fn logical_requirement_matches(
                 .then_some(requirement.signature)
         });
     Ok(expected == Some(selected_signature))
+}
+
+fn logical_requirement_refusal(
+    program: &TypedTrees,
+    owner: SymbolHandle,
+    lexical_owner: SymbolHandle,
+    site: &CallSite<'_>,
+    reason: &'static str,
+) -> String {
+    let context = format!("execution owner {owner:?}, source owner {lexical_owner:?}");
+    if reason == "selected call has no exact applied public signature"
+        && let CallSite::Expression { expression, call } = site
+        && let Err(unavailable) = program.resolve_requirement_call_signature(lexical_owner, call)
+    {
+        return format!("{reason}; {context}, expression {expression:?}: {unavailable}");
+    }
+    format!("{reason}; {context}")
 }
