@@ -389,6 +389,7 @@ pub(super) fn returned_value_loans(
                             owner_path: Vec::new(),
                             source_path: Vec::new(),
                             source_type: parameter.type_reference,
+                            source_reference_hops: 0,
                             parameter_index,
                             kind,
                         }]
@@ -427,15 +428,16 @@ pub(super) fn statement_borrow_loans(
     loan_trackers: &[StateLoanTracker],
     call_frames: Option<&validation::CallFrameResolver<'_>>,
     replacement: Option<&CarrierReplacement>,
+    completed_references: Option<&[StateLoanTracker]>,
 ) -> Result<Vec<StatementBorrowLoan>, &'static str> {
     let mut loans = stored_calls::loans(
         program,
-        state,
         machine_symbol,
         statement,
         call_frames,
         loan_trackers,
-    );
+        completed_references,
+    )?;
     // These rows describe the statement's final receiving slots, not every
     // intermediate descriptor generation. The enclosing store overwrites RHS
     // slot effects only within its captured subtree. Independently captured

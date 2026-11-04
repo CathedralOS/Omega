@@ -947,6 +947,7 @@ impl<'program> StructuralJudge<'program> {
         remaining: &mut usize,
     ) -> Option<Vec<Vec<Comparison>>> {
         *remaining = remaining.checked_sub(1)?;
+        let original_predicate = predicate;
         let predicate = predicate.semantic_value();
         let truth = super::value_predicates::boolean_term(holds);
         if *predicate == truth {
@@ -1014,7 +1015,30 @@ impl<'program> StructuralJudge<'program> {
             alternatives.extend(right);
             return Some(alternatives);
         }
-        let (operator, left, right) = self.integer_comparison(predicate, observations)?;
+        let (operator, left, right) = match self.project_integer_comparison(predicate, observations)
+        {
+            IntegerComparisonProjection::Comparison(comparison) => comparison,
+            IntegerComparisonProjection::UnavailableOperand => return None,
+            IntegerComparisonProjection::NotInteger => {
+                // A branch can already have fixed this completed Boolean leaf.
+                // Preserve the enclosing relation and every integer operation:
+                // resolving the whole premise would erase it via its own truth.
+                if super::super::structural_terms::term_is_unobserved_descriptor(
+                    self.program,
+                    original_predicate,
+                ) {
+                    return None;
+                }
+                let observed = super::value_predicates::boolean_value(
+                    &self.integer_projection_value(original_predicate.clone()),
+                )?;
+                return Some(if observed == holds {
+                    vec![Vec::new()]
+                } else {
+                    Vec::new()
+                });
+            }
+        };
         Some(vec![vec![(
             if holds {
                 operator

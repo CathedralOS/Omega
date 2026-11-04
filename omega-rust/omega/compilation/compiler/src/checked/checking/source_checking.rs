@@ -31,7 +31,9 @@ pub(crate) fn check_product_source(
     let build = &computed_build_config.config;
     let symbol_sources = typed.symbols.source_map();
     let layout_scopes = layout_target_scopes(&typed, build)?;
+    let external_roots = build.program_roots();
     let source_admission = psi_compiler::SourceAdmission {
+        external_roots: &external_roots,
         layout_scopes: &layout_scopes,
         layout_selection_authority: package_inputs.map(|inputs| {
             Arc::new(inputs.clone()) as Arc<dyn build_time_evaluation::BuildTimeSelectionAuthority>

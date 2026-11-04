@@ -411,7 +411,10 @@ impl<'program> CallFrameResolver<'program> {
                 .iter()
                 .any(|expression| expression_has_calls(self.program, *expression))
         {
-            return Some(vec![super::stored_calls::StoredReferenceCallContext::Entry]);
+            return Some(vec![
+                super::stored_calls::StoredReferenceCallContext::Entry,
+                super::stored_calls::StoredReferenceCallContext::StatementCompletion { entry: 0 },
+            ]);
         }
         let prefix = super::state_write_walk::collected_prefix_at(
             &self.caches.state_write_shared_collections,
