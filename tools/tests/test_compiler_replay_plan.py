@@ -148,6 +148,25 @@ class ReplayPlanTests(unittest.TestCase):
             self.assertEqual(arguments["cli_fixtures"], ("ordinary",))
             self.assertIs(arguments["producer"], retained)
 
+    def test_cargo_unit_output_runner_is_authenticated_by_its_original_digest(self):
+        plan = self.plan()
+        output = self.root / "output"
+        output.mkdir()
+        cache = self.root / "target/debug"
+        cache.mkdir(parents=True)
+        (cache / "omega").write_bytes(self.binary)
+        runner = cache / "build/compiler/75d244958a7c5dee/out/corpus_runner"
+        runner.parent.mkdir(parents=True)
+        runner.write_bytes(self.binary)
+        other = cache / "build/compiler/0000000000000000/out/corpus_runner"
+        other.parent.mkdir(parents=True)
+        other.write_bytes(b"unrelated runner")
+        with patch.dict(os.environ, CARGO_TARGET_DIR=str(self.root / "target")):
+            paths, profiles = replay.materialize(self.root, output, plan, self.profile)
+        manifest = json.loads((paths["runner"].parent / "cache-inputs.json").read_text())
+        self.assertEqual(manifest["runner"]["path"], str(runner))
+        self.assertEqual(profiles["runner"]["sha256"], self.identity["sha256"])
+
     def test_missing_retained_cache_stays_red_without_a_build_fallback(self):
         plan = self.plan()
         with patch.object(pilot, "ROOT", self.root), \

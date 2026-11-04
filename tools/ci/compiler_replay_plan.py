@@ -147,13 +147,14 @@ def materialize(root, output, plan, profile_query):
             continue
         candidates = [cache / "debug" / (filename + suffix)]
         if kind == "runner":
-            # Cargo test keeps the runner in deps with its build hash. The
-            # receipt's digest, not the newest filename, selects its bytes.
+            # Cargo test uses either a hashed deps name or a unit output home.
+            # The receipt's digest, not the newest filename, selects its bytes.
             candidates.extend(sorted(path for path in (cache / "debug/deps").glob("corpus_runner-*")
                                      if re.fullmatch(r"corpus_runner-[0-9a-f]+" + re.escape(suffix), path.name)))
+            candidates.extend(sorted((cache / "debug/build").glob("*/*/out/" + filename + suffix)))
         candidates = [path for path in candidates if path.is_file() and not path.is_symlink()]
         require(candidates,
-                "retained compiler cache output is missing; no rebuild was attempted")
+                f"retained {kind} cache output is missing; no rebuild was attempted")
         matching = [path for path in candidates if file_digest(path) == identity["sha256"]]
         require(matching,
                 "cached executable differs from the original retained producer; no rebuild was attempted")
