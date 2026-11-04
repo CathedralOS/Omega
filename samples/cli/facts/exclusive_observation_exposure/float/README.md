@@ -48,11 +48,11 @@ program checks the live fields after consuming the saved fact. Identical-result
 conditionals in the other helpers are removed without assuming that an
 unconstrained `other` float is finite.
 
-The requirements established by the programs are:
+The programs check the following requirements:
 
 - Construction and entry contracts establish the exact value 7.0. The known
-  complete empty frame preserves it; an unknown frame would retain its write
-  ceiling.
+  complete empty write summary preserves it. Unknown write summaries retain
+  their separate acceptance.
 - The saved float is a snapshot of the original field value. A write to the live
   field invalidates their equality while leaving the snapshot's value intact.
 - Calls substitute the actual field, both match arms retain the same saved
@@ -66,6 +66,54 @@ The requirements established by the programs are:
   branch choices and final exit-zero result, and agree with Terminal execution.
   Every positive and the root bind all four hosted targets.
 
+The compiler used to reject the saved equality inside the selected
+implementation. Checking that implementation retained two declarations of the
+same toolchain float operation, and the comparison checker required exactly one
+local declaration. It now accepts those copies only when their complete,
+authenticated operation contracts agree. Float format, source ownership, operand
+meaning and storage versions retain their existing checks. Ordinary authored
+operator selection is unchanged.
+
+The current observations use optimized compiler source
+`967c651da77a7584799c8c663b0a4c542c9d7eb6`:
+
+| Host | Focused run | Status |
+| --- | --- | --- |
+| Linux x86-64 | [41799623238](https://github.com/CathedralOS/Omega/actions/runs/41799623238) | Complete and audited |
+| Linux ARM64 | [41798660299](https://github.com/CathedralOS/Omega/actions/runs/41798660299) | Complete and audited |
+| Windows x86-64 | [41799629779](https://github.com/CathedralOS/Omega/actions/runs/41799629779) | Complete and audited |
+| macOS ARM64 | [41799626458](https://github.com/CathedralOS/Omega/actions/runs/41799626458) | Complete and audited |
+
+Each host checked ten positives and ten intended refusals. The ten
+corpus positives and ten ordinary projects each ran with native and Terminal
+exit 0. Ten ordinary invalid projects reached their intended refusals, and the
+root also ran with both exits at 0. The standard nine places and the retained
+root account for those ten positives. Each audit verifies 140 frozen authored
+inputs and 316 distinct authored/copied input hashes against the actual compiler
+source; the root's ordinary CLI report contains 245 copied input hashes.
+
+The [earlier run at source 01d36a](https://github.com/CathedralOS/Omega/actions/runs/41789435329)
+retains the selected implementation's actual refusal. A separate unchanged-source
+diagnostic reproduced it without the helper call, isolating the float-operation
+lookup from mutation handling. Independent source review accepted the migration
+at `01d36a` and the repair at `967c65`. The final records and documentation reuse those exact compiler and program
+bytes. This documentation revision itself has no inferred execution.
+
+Supplemental [checks on the repaired compiler](https://github.com/CathedralOS/Omega/actions/runs/41801509493)
+accept the equality-premise example and retain four intended NaN/lookalike
+refusals. The private-projection control stops at an earlier proof error both
+before and after this repair; its intended privacy check remains unverified.
+Its program, oracle, false summaries and existing golden rows are preserved.
+Three migrated twins now name different callers or statement positions in their
+actual diagnostics. Their earlier complete record blocks remain in the source
+archive, while the current rows record only the newly observed messages. Every
+unrelated row, comment and diagnostic remains unchanged.
+The source archive on PR #1799 retains both measured revisions through squash
+and branch cleanup. No execution at a later documentation or main commit is
+inferred from these results.
+
+The following baseline is historical and does not qualify the changed source.
+
 The unchanged baseline at published source `9566f10e0d29` was measured with its
 authenticated optimized Linux ARM64 producer in
 [run 41784485616](https://github.com/CathedralOS/Omega/actions/runs/41784485616):
@@ -77,6 +125,4 @@ assignment, so `summary.passed` remains false even though the workflow and all
 five observed stages completed. The raw reports and that limitation remain in
 `build/exclusive-float-selected-20261104/baseline-9566`.
 
-This source migration, the added standard local path and the observable match
-still need focused checking, matching-host execution and independent review.
 The broader parent requirements remain open.
