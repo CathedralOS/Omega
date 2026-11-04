@@ -343,8 +343,8 @@ fail/facts/array_element_default_domain/signed_floor rejected 1661ms expected @8
 	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
 fail/facts/array_element_default_domain/target_body rejected 2055ms expected @89d5d2d7655c
 	cannot prove ensures contract for exit from observe at statement 1: result >= 0 && result <= 16
-fail/facts/array_element_default_domain/writeback rejected 909ms expected @89d5d2d7655c
-	data `Tallies`'s default domain is still FALSE at state exit: the invariant window opened on `tallies` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/facts/array_element_default_domain/writeback rejected 2601ms expected @f78c2623a68c
+	cannot complete return from machine `replace_and_increment` state `entry`: this write left the `requires` facts of `tallies` (data `Tallies`) unproved; restore them first
 fail/facts/array_element_default_domain/zero_owner rejected 1211ms expected @89d5d2d7655c
 	machine `main` state `entry` statement 1: reading `tallies.<whole value>` crosses an open default-domain invariant window before data `Tallies` is established: the zeroed representation is not yet a `Tallies` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/facts/atomic_bounded_resident/prior_guarantee_is_not_zero rejected 3272ms expected @cff664f7a5bb+wt
@@ -479,8 +479,8 @@ fail/facts/case_predicate_missing_type_equation_rejected rejected 296ms expected
 	machine `pick` state `entry` return value expects `T`, but the value is delivered as `bool`
 fail/facts/case_predicate_other_default_argument_rejected rejected 1696ms expected @a7b775a62345
 	cannot prove requires contract for call width_range from invalid: <saved subject #1:1>.lo <= <saved subject #1:1>.hi && <saved subject #1:1>.hi <= 32 (needs fact `lo <= hi && hi <= 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/case_predicate_stale_snapshot_restore_rejected rejected 498ms expected @8fce926f9735
-	data `Interval<32>`'s default domain is still FALSE at state exit: the invariant window opened on `span` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/facts/case_predicate_stale_snapshot_restore_rejected rejected 2303ms expected @f78c2623a68c
+	cannot complete return from machine `restore` state `entry`: this write left the `requires` facts of `span` (data `Interval<32>`) unproved; restore them first
 fail/facts/case_type_equation_recovery_through_call_result_rejected rejected 3011ms expected @0402685c2f27+wt
 	machine `extract` state `entry` return value expects `T`, but the value is delivered as `bool`
 	match arms produce incompatible values
@@ -630,6 +630,8 @@ fail/facts/darwin_stat_abi/record_through_parameter_rejected rejected 25781ms ex
 fail/facts/darwin_stat_abi/record_through_target_body_rejected rejected 51346ms expected @f19844409a95
 	machine `verify` state `entry` local `transported` expects `LayoutStorage<DarwinStatRecord, OtherPolicy>`, but the value is delivered as `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`
 	argument `value` for state `entry` expects `LayoutStorage<DarwinStatRecord, CAbiPolicy<DarwinStatRecord>>`, got `named value`
+fail/facts/data_where_standing_atomic_resident_violation rejected 639ms expected @f78c2623a68c
+	machine `overwrite` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
 fail/facts/data_where_standing_borrowed_field_array_call_result rejected 5151ms expected @c934a3b70574
 	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_borrowed_field_array_const_name rejected 5299ms expected @c934a3b70574
@@ -680,6 +682,10 @@ fail/facts/data_where_standing_borrowed_field_unbounded_match_arm_rejected rejec
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_borrowed_field_wrong_field_rejected rejected 1121ms expected @e96e52e3f616
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_mutable_premature_use rejected 2106ms expected @f78c2623a68c
+	cannot complete a call at statement 2 in machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_mutable_snapshot_bound rejected 2832ms expected @f78c2623a68c
+	cannot prove requires contract for call require_bound from fill: saved <= 60 (needs fact `value <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/data_where_standing_nested_borrowed_field_call_result rejected 2100ms expected @d3679195288a
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_nested_borrowed_field_const_name rejected 1975ms expected @d3679195288a
@@ -708,41 +714,96 @@ fail/facts/data_where_standing_nested_borrowed_field_suspended_descriptor_slot r
 fail/facts/data_where_standing_nested_borrowed_field_target_body rejected 2143ms expected @d3679195288a
 	exact arithmetic in machine `X86Compute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmCompute::compute` state `compute` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_call_result rejected 2244ms expected @bfee8ea078a6
+fail/facts/data_where_standing_recast_owner_restoration rejected 2451ms expected @f78c2623a68c
+	cannot complete return from machine `replace` state `entry`: this write left the `requires` facts of `outer` (data `Outer`) unproved; restore them first
+fail/facts/data_where_standing_shared_record_replacement rejected 2115ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_shared_record_with_array rejected 2108ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_write_only_call_result rejected 2467ms expected @f78c2623a68c
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_const_name rejected 3366ms expected @bfee8ea078a6
+fail/facts/data_where_standing_write_only_call_result_unrestored_window rejected 2560ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_write_only_const_name rejected 2687ms expected @f78c2623a68c
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_enclosing_array_violation rejected 2199ms expected @bfee8ea078a6
-	data `Envelope`'s default domain is still FALSE at state exit: the invariant window opened on `envelope` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/facts/data_where_standing_write_only_enclosing_owner_violation rejected 2198ms expected @bfee8ea078a6
-	data `Envelope`'s default domain is still FALSE at state exit: the invariant window opened on `envelope` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/facts/data_where_standing_write_only_field rejected 2225ms expected @bfee8ea078a6
+fail/facts/data_where_standing_write_only_const_name_unrestored_window rejected 294ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_write_only_enclosing_array_violation rejected 2262ms expected @f78c2623a68c
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `envelope` (data `Envelope`) unproved; restore them first
+fail/facts/data_where_standing_write_only_enclosing_owner_violation rejected 2161ms expected @f78c2623a68c
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `envelope` (data `Envelope`) unproved; restore them first
+fail/facts/data_where_standing_write_only_field rejected 7493ms expected @f78c2623a68c
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_forbidden_read rejected 2255ms expected @bfee8ea078a6
+fail/facts/data_where_standing_write_only_field_unrestored_window rejected 9110ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_write_only_forbidden_read rejected 644ms expected @f78c2623a68c
 	machine `fill` state `entry` reads field `peer` from write-only parameter `counter`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
-fail/facts/data_where_standing_write_only_invalid_store rejected 10378ms expected @46cdd6b85b82+wt
-	machine `fill` state `entry` assignment stores a value not provably within its data's `requires` facts: every read trusts them (indexes, exact arithmetic), so the stored value must be proven to honor them. Narrow the value with a dominating guard or a requires coupling
-fail/facts/data_where_standing_write_only_local rejected 2280ms expected @bfee8ea078a6
+fail/facts/data_where_standing_write_only_invalid_store rejected 3777ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_write_only_local rejected 1817ms expected @f78c2623a68c
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_match_join rejected 2265ms expected @bfee8ea078a6
+fail/facts/data_where_standing_write_only_local_unrestored_window rejected 6348ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_write_only_match_join rejected 1635ms expected @f78c2623a68c
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_other_machine rejected 2238ms expected @bfee8ea078a6
+fail/facts/data_where_standing_write_only_match_join_unrestored_window rejected 8795ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_write_only_other_machine rejected 4251ms expected @f78c2623a68c
 	exact arithmetic in machine `add` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_other_state rejected 2233ms expected @bfee8ea078a6
+fail/facts/data_where_standing_write_only_other_machine_unrestored_window rejected 3003ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_write_only_other_state rejected 2110ms expected @f78c2623a68c
 	exact arithmetic in machine `next` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_outer_owner_violation rejected 2204ms expected @bfee8ea078a6
-	data `Outer`'s default domain is still FALSE at state exit: the invariant window opened on `outer` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/facts/data_where_standing_write_only_parameter rejected 2222ms expected @bfee8ea078a6
+fail/facts/data_where_standing_write_only_other_state_unrestored_window rejected 3632ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_write_only_outer_owner_violation rejected 4764ms expected @f78c2623a68c
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `outer` (data `Outer`) unproved; restore them first
+fail/facts/data_where_standing_write_only_parameter rejected 1820ms expected @f78c2623a68c
 	exact arithmetic in machine `compute` state `entry` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/data_where_standing_write_only_recast_owner_violation rejected 2242ms expected @bfee8ea078a6
-	data `Outer`'s default domain is still FALSE at state exit: the invariant window opened on `outer` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/facts/data_where_standing_write_only_relational_debt rejected 2250ms expected @bfee8ea078a6
-	data `Counter`'s default domain is still FALSE at state exit: the invariant window opened on `counter` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/facts/data_where_standing_write_only_target_body rejected 2109ms expected @bfee8ea078a6
+fail/facts/data_where_standing_write_only_parameter_unrestored_window rejected 2206ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_write_only_recast_owner_violation rejected 3169ms expected @f78c2623a68c
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `outer` (data `Outer`) unproved; restore them first
+fail/facts/data_where_standing_write_only_relational_debt rejected 2428ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/data_where_standing_write_only_target_body rejected 1959ms expected @f78c2623a68c
 	exact arithmetic in machine `X86Compute::compute` state `compute` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `ArmCompute::compute` state `compute` return value may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/default_domain_mathematical_coupling_rejected rejected 4046ms expected @2cfbda3635e2+wt
-	data `Budget`'s default domain is still FALSE at state exit: the invariant window opened on `budget` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/facts/data_where_standing_write_only_target_body_unrestored_window rejected 12290ms expected @f78c2623a68c
+	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
+fail/facts/default_domain_field_write_through_call_result_rejected rejected 12294ms expected @f78c2623a68c
+	machine `main` state `entry` statement 3: the next whole-value read of `span` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 4 in machine `main` state `entry`: this write left the `requires` facts of `span` (data `Interval`) unproved; restore them first
+fail/facts/default_domain_field_write_through_const_name_rejected rejected 4088ms expected @f78c2623a68c
+	machine `main` state `entry` statement 3: the next whole-value read of `span` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 4 in machine `main` state `entry`: this write left the `requires` facts of `span` (data `Interval`) unproved; restore them first
+fail/facts/default_domain_field_write_through_field_rejected rejected 2123ms expected @f78c2623a68c
+	machine `main` state `entry` statement 3: the next whole-value read of `holder.span` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 4 in machine `main` state `entry`: this write left the `requires` facts of `holder.span` (data `Interval`) unproved; restore them first
+fail/facts/default_domain_field_write_through_local_rejected rejected 1899ms expected @f78c2623a68c
+	machine `main` state `entry` statement 3: the next whole-value read of `span` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 4 in machine `main` state `entry`: this write left the `requires` facts of `span` (data `Interval`) unproved; restore them first
+fail/facts/default_domain_field_write_through_match_join_rejected rejected 1806ms expected @f78c2623a68c
+	machine `joined` state `entry` statement 4: the next whole-value read of `narrow` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 6 in machine `joined` state `entry`: this write left the `requires` facts of `narrow` (data `Interval`) unproved; restore them first
+fail/facts/default_domain_field_write_through_other_machine_rejected rejected 9763ms expected @f78c2623a68c
+	machine `revise` state `entry` statement 2: the next whole-value read of `held` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete return from machine `revise` state `entry`: this write left the `requires` facts of `held` (data `Interval`) unproved; restore them first
+fail/facts/default_domain_field_write_through_other_state_rejected rejected 10174ms expected @f78c2623a68c
+	machine `revise` state `entry` statement 3: the next whole-value read of `span` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 4 in machine `revise` state `entry`: this write left the `requires` facts of `span` (data `Interval`) unproved; restore them first
+fail/facts/default_domain_field_write_through_parameter_rejected rejected 10183ms expected @f78c2623a68c
+	machine `revise` state `entry` statement 2: the next whole-value read of `held` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 4 in machine `revise` state `entry`: this write left the `requires` facts of `held` (data `Interval`) unproved; restore them first
+	machine `revise` state `entry` statement 2: the next whole-value read of `held` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 4 in machine `revise` state `entry`: this write left the `requires` facts of `held` (data `Interval`) unproved; restore them first
+fail/facts/default_domain_field_write_through_target_body_rejected rejected 2324ms expected @f78c2623a68c
+	machine `X86Probe::exercise` state `exercise` statement 4: the next whole-value read of `span` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 5 in machine `X86Probe::exercise` state `exercise`: this write left the `requires` facts of `span` (data `Interval`) unproved; restore them first
+	machine `ArmProbe::exercise` state `exercise` statement 4: the next whole-value read of `span` occurs inside an OPEN invariant window: a prior write left data `Interval`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
+	cannot complete a call at statement 5 in machine `ArmProbe::exercise` state `exercise`: this write left the `requires` facts of `span` (data `Interval`) unproved; restore them first
+fail/facts/default_domain_mathematical_coupling_rejected rejected 2194ms expected @f78c2623a68c
+	cannot complete return from machine `consume` state `entry`: this write left the `requires` facts of `budget` (data `Budget`) unproved; restore them first
 fail/facts/dependency_type_qualified_call_by_value_rejected rejected 6236ms expected @900e2e7ae6af
 	cannot prove requires contract for call describe from main: left.value > 0 (needs fact `left.value > 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 	cannot prove requires contract for call hold from main: total == 260 (needs fact `total == 260` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -2761,15 +2822,16 @@ fail/facts/recast_parent_restoration_argument_snapshot_rejected rejected 710ms e
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_case_backing_overlap_rejected rejected 3289ms expected @8fce926f9735
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_changed_end_rejected rejected 804ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_changed_end_rejected rejected 2213ms expected @f78c2623a68c
+	cannot complete return from machine `inspect` state `entry`: this write left the `requires` facts of `pair` (data `Pair`) unproved; restore them first
 fail/facts/recast_parent_restoration_completion_order_rejected rejected 6007ms expected @21213f5ea3d3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_dirty_forward_rejected rejected 800ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at a call: the invariant window opened on `pair` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_dirty_forward_rejected rejected 7115ms expected @271311625238
+	cannot complete a call at statement 5 in machine `inspect` state `entry`: this write left the `requires` facts of `pair` (data `Pair`) unproved; restore them first
+	cannot complete return from machine `inspect` state `entry`: this write left the `requires` facts of `pair` (data `Pair`) unproved; restore them first
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_forwarding_marker_rejected rejected 843ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_forwarding_marker_rejected rejected 7681ms expected @271311625238
+	cannot complete return from machine `inspect` state `entry`: this write left the `requires` facts of `pair` (data `Pair`) unproved; restore them first
 fail/facts/recast_parent_restoration_through_call_result_rejected rejected 802ms expected @0a3a759c64e3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_through_const_name_rejected rejected 955ms expected @0a3a759c64e3
@@ -2788,8 +2850,8 @@ fail/facts/recast_parent_restoration_through_parameter_rejected rejected 869ms e
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/recast_parent_restoration_through_target_body_rejected rejected 1542ms expected @0a3a759c64e3
 	machine `inspect` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/recast_parent_restoration_unrestored_rejected rejected 917ms expected @8fce926f9735
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `pair` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/facts/recast_parent_restoration_unrestored_rejected rejected 3574ms expected @f78c2623a68c
+	cannot complete return from machine `inspect` state `entry`: this write left the `requires` facts of `pair` (data `Pair`) unproved; restore them first
 fail/facts/recorded_build_role/call_result rejected 7895ms expected @1a41b8e686ed
 	failed to resolve tests/omega/fail/facts/recorded_build_role/call_result/my_library/values.omg: captured entry is absent: my_library
 fail/facts/recorded_build_role/const_name rejected 3143ms expected @1a41b8e686ed
@@ -2913,8 +2975,8 @@ fail/facts/resident_backing_const_name_missing_vacancy rejected 5911ms expected 
 fail/facts/resident_backing_field_missing_vacancy rejected 23260ms expected @e7c12b127bc8+wt
 	cannot prove requires contract for call partition from allocated: vacant in Extent::Vacant in state `entry`
 	cannot prove initializer of `vacant` in allocated is in domain `Extent::Vacant`; an annotation cannot establish routed qualification
-fail/facts/resident_backing_field_unrestored rejected 17423ms expected @e7c12b127bc8+wt
-	data `Held`'s default domain is still FALSE at state exit: the invariant window opened on `held` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/facts/resident_backing_field_unrestored rejected 10615ms expected @f78c2623a68c
+	cannot complete return from machine `restore_record` state `entry`: this write left the `requires` facts of `held` (data `Held`) unproved; restore them first
 fail/facts/resident_backing_generic_move_double_consume rejected 19887ms expected @7051a9e0e500+wt
 	cannot use `value` in machine `finish` state `entry` (statement 2) after `value` was transferred or consumed at statement 1: it holds no value; read what is needed before the transfer or assign a whole value to `value` first
 fail/facts/resident_backing_generic_move_wrong_index rejected 20983ms expected @7051a9e0e500+wt
@@ -3732,7 +3794,7 @@ pass/arithmetic/anonymous_rational_arguments checked 2836ms @ccdb99ca2214
 pass/arithmetic/anonymous_rational_integer_landing checked 2687ms @ccdb99ca2214
 pass/arithmetic/bitwise_singleton_signed_and_unsigned_exit checked 4270ms check-target:macos_arm64 terminal-target.windows_x86_64:0 terminal-target.linux_x86_64:0 terminal-target.linux_arm64:0 terminal-target.macos_arm64:0 terminal-target.macos_x86_64:0 terminal-target-artifact:unchanged terminal-targets:match @ccdb99ca2214
 pass/arithmetic/bounded_assignment checked 2443ms @ccdb99ca2214
-pass/arithmetic/call_argument_snapshot_survives_write_exit checked 3615ms check-target:macos_arm64 @ccdb99ca2214
+pass/arithmetic/call_argument_snapshot_survives_write_exit checked 4159ms check-target:macos_arm64 @f78c2623a68c
 pass/arithmetic/call_surviving_return_exit checked 19450ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/carrier_endpoint_exclusion_exit checked 3609ms check-target:linux_x86_64 @ccdb99ca2214
 pass/arithmetic/chained_const_binder_scale_exit checked 4021ms check-target:macos_arm64 @ccdb99ca2214
@@ -3848,7 +3910,7 @@ pass/arithmetic/runtime_trapping_mutable_local_traps checked 17171ms check-targe
 pass/arithmetic/runtime_trapping_overflow_traps checked 16881ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_trapping_shift_count_traps checked 15918ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_u64_guarded_cap_store_exit checked 80214ms check-target:macos_arm64 @911f6617ba9e
-pass/arithmetic/runtime_unbounded_zero_product_exit checked 4356ms check-target:macos_arm64 @ccdb99ca2214
+pass/arithmetic/runtime_unbounded_zero_product_exit checked 3640ms check-target:macos_arm64 @f78c2623a68c
 pass/arithmetic/runtime_unit_terminal_guarded_cast_exit checked 4132ms check-target:macos_arm64 @ccdb99ca2214
 pass/arithmetic/runtime_widened_result_predicates_exit checked 80791ms check-target:macos_arm64 @911f6617ba9e
 pass/arithmetic/runtime_wrapping_mutable_local_exit checked 17550ms check-target:macos_arm64 @ccdb99ca2214
@@ -4188,7 +4250,7 @@ pass/borrows/runtime_anonymous_operand_backing_cleanup_exit checked 3739ms check
 pass/borrows/runtime_array_primitive_reference_capture_exit checked 3282ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_assignment_rhs_carrier_replacement_exit checked 3998ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_boundary_range_view_exit checked 3925ms check-target:macos_arm64 @ccdb99ca2214
-pass/borrows/runtime_bounded_and_shared_field_loans_exit checked 5220ms check-target:macos_arm64 @8fce926f9735
+pass/borrows/runtime_bounded_and_shared_field_loans_exit checked 4189ms check-target:macos_arm64 @f78c2623a68c
 pass/borrows/runtime_byte_case_partial_cleanup_exit checked 15472ms check-target:macos_arm64 @3139db74cf0d
 pass/borrows/runtime_byte_view_element_loan_exit checked 16192ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/runtime_byte_view_element_reference_calls_exit checked 3807ms check-target:macos_arm64 @ccdb99ca2214
@@ -5956,7 +6018,7 @@ pass/domains/scalar_field_membership_snapshot checked 3604ms check-target:macos_
 pass/domains/semantic_cast_guard_chain_mint checked 2515ms @ccdb99ca2214
 pass/domains/semicolon_predicate_presence_exit checked 3423ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/slice_domain_validator checked 16637ms check-target:macos_arm64 @ccdb99ca2214
-pass/domains/tag_alias_retains_receiving_predicate_exit checked 3085ms check-target:macos_arm64 @ccdb99ca2214
+pass/domains/tag_alias_retains_receiving_predicate_exit checked 4873ms check-target:macos_arm64 @f78c2623a68c
 pass/domains/tagged_scalar_reference_carriers_exit checked 3724ms check-target:macos_arm64 @ccdb99ca2214
 pass/domains/target_generic_issuer_forwarding_exit checked 5833ms check-target:macos_arm64 terminal-inspections:match @95750e8d2f8d
 pass/domains/threaded_subject_keeps_established_domains checked 12907ms check-target:macos_arm64 @ccdb99ca2214
@@ -7573,15 +7635,17 @@ pass/facts/data_where_standing_borrowed_field_through_target_body_exit checked 6
 pass/facts/data_where_standing_const_coupled_const checked 5446ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_const_nested_const checked 6944ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_mutable_recast_direct_exit checked 6949ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_mutable_recast_through_call_result_exit checked 6860ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_mutable_recast_through_const_name_exit checked 5143ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_mutable_recast_through_field_exit checked 5079ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_mutable_recast_through_local_exit checked 6424ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_mutable_recast_through_match_join_exit checked 5663ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_mutable_recast_through_other_machine_exit checked 5111ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_mutable_recast_through_other_state_exit checked 5029ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_mutable_recast_through_parameter_exit checked 4880ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_mutable_recast_through_target_body_exit checked 4214ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/data_where_standing_mutable_recast_through_call_result_exit checked 4190ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_recast_through_const_name_exit checked 3902ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_recast_through_field_exit checked 3872ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_recast_through_local_exit checked 3300ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_recast_through_match_join_exit checked 11078ms check-target:macos_arm64 @271311625238
+pass/facts/data_where_standing_mutable_recast_through_other_machine_exit checked 3800ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_recast_through_other_state_exit checked 3882ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_recast_through_parameter_exit checked 3842ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_recast_through_target_body_exit checked 3271ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_restoration checked 3284ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_restoration_snapshot checked 3689ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_nested_borrowed_field_call_result checked 10646ms check-target:macos_arm64 @d3679195288a
 pass/facts/data_where_standing_nested_borrowed_field_const_name checked 10606ms check-target:macos_arm64 @d3679195288a
 pass/facts/data_where_standing_nested_borrowed_field_descriptor_snapshot checked 8757ms check-target:macos_arm64 @d3679195288a
@@ -7593,6 +7657,7 @@ pass/facts/data_where_standing_nested_borrowed_field_other_machine checked 8692m
 pass/facts/data_where_standing_nested_borrowed_field_other_state checked 8758ms check-target:macos_arm64 @d3679195288a
 pass/facts/data_where_standing_nested_borrowed_field_parameter checked 8852ms check-target:macos_arm64 @d3679195288a
 pass/facts/data_where_standing_nested_borrowed_field_target_body checked 8922ms check-target:macos_arm64 @d3679195288a
+pass/facts/data_where_standing_owned_whole_replacement_child_restoration checked 3306ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_predicate_helper_alias_exit checked 5396ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_literal_exit checked 5347ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_through_call_result_exit checked 5256ms check-target:macos_arm64 @911f6617ba9e
@@ -7604,7 +7669,10 @@ pass/facts/data_where_standing_predicate_helper_through_other_machine_exit check
 pass/facts/data_where_standing_predicate_helper_through_other_state_exit checked 5095ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_through_parameter_exit checked 6149ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_predicate_helper_through_target_body_exit checked 5014ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/data_where_standing_recast_owner_restoration checked 3244ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_root_exit checked 6116ms check-target:macos_arm64 @911f6617ba9e
+pass/facts/data_where_standing_shared_record_replacement checked 3701ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_shared_record_with_array checked 3856ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_through_call_result_exit checked 5198ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_through_const_name_exit checked 7191ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_through_field_exit checked 6921ms check-target:macos_arm64 @911f6617ba9e
@@ -7614,18 +7682,22 @@ pass/facts/data_where_standing_through_other_machine_exit checked 6842ms check-t
 pass/facts/data_where_standing_through_other_state_exit checked 5470ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_through_parameter_exit checked 5373ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_through_target_body_exit checked 5527ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_write_only_call_result checked 5168ms check-target:macos_arm64 @bfee8ea078a6
-pass/facts/data_where_standing_write_only_const_name checked 5313ms check-target:macos_arm64 @bfee8ea078a6
-pass/facts/data_where_standing_write_only_direct_field checked 5286ms check-target:macos_arm64 @bfee8ea078a6
-pass/facts/data_where_standing_write_only_field checked 5129ms check-target:macos_arm64 @bfee8ea078a6
-pass/facts/data_where_standing_write_only_local checked 5102ms check-target:macos_arm64 @bfee8ea078a6
-pass/facts/data_where_standing_write_only_match_join checked 5067ms check-target:macos_arm64 @bfee8ea078a6
-pass/facts/data_where_standing_write_only_other_machine checked 5065ms check-target:macos_arm64 @bfee8ea078a6
-pass/facts/data_where_standing_write_only_other_state checked 5085ms check-target:macos_arm64 @bfee8ea078a6
-pass/facts/data_where_standing_write_only_parameter checked 5083ms check-target:macos_arm64 @bfee8ea078a6
-pass/facts/data_where_standing_write_only_predicate_helper checked 5116ms check-target:macos_arm64 @bfee8ea078a6
-pass/facts/data_where_standing_write_only_relational_window checked 5887ms check-target:macos_arm64 @bfee8ea078a6
-pass/facts/data_where_standing_write_only_target_body checked 4943ms check-target:macos_arm64 @bfee8ea078a6
+pass/facts/data_where_standing_untouched_child_restoration checked 3509ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_call_result checked 3668ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_const_name checked 3822ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_direct_field checked 3254ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_field checked 3852ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_local checked 3288ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_match_join checked 3337ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_other_machine checked 3367ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_other_state checked 4087ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_parameter checked 3344ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_predicate_helper checked 3269ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_relational_window checked 3877ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_restoration checked 3686ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_target_body checked 3218ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_untouched_child_restoration checked 3342ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_write_only_whole_replacement_child_restoration checked 3966ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/default_domain_mathematical_coupling_exit checked 16581ms check-target:macos_arm64 @2cfbda3635e2+wt
 pass/facts/dependency_type_qualified_call_by_value_exit checked 9091ms check-target:macos_arm64 @900e2e7ae6af
 pass/facts/dependency_type_qualified_call_operator_token_exit checked 7746ms check-target:macos_arm64 @900e2e7ae6af
@@ -13123,7 +13195,7 @@ pass/layouts/retained_layout_initializer_alias_exit checked 3892ms check-target:
 pass/layouts/retained_layout_predicate_decisions_exit checked 3801ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_accessor_with_linear_owner_exit rejected 40404ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @ee4dbb4b2d56
 	placed scalar native access requires captured RAM or a checked resident formation on every entry-relative origin; a formal or host pointer is not backing authority (machine MachineId(11), operation OperationId(102), boundary BoundaryMachineId(3), arguments [StructuralArgument { place: PlaceId(175), path: [], access: SharedBorrow }])
-pass/layouts/runtime_callee_integer_at_fitting_write_exit checked 2990ms check-target:macos_arm64 @ccdb99ca2214
+pass/layouts/runtime_callee_integer_at_fitting_write_exit checked 6230ms check-target:macos_arm64 @f78c2623a68c
 pass/layouts/runtime_callee_owned_local_origins_exit checked 3580ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_captured_encoded_reference_replacement_exit checked 3045ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/runtime_constant_layout_contract_exit checked 1297ms check-target:macos_arm64 @8b519ca647cd+wt
@@ -15432,8 +15504,8 @@ fail/arithmetic/lifetime_provider_slice_count_cast_requires_fit rejected 968ms e
 fail/arithmetic/match_constructor_divisor_requires_nonzero rejected 1083ms expected @ccdb99ca2214
 	partial exact division in construction of `QuotientBox` field `value`: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
 	partial exact division in machine `make` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
-fail/arithmetic/match_subject_write_changes_operand_version rejected 904ms expected @ccdb99ca2214
-	exact arithmetic in machine `invalid` state `entry` terminal expression may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/match_subject_write_changes_operand_version rejected 3086ms expected @f78c2623a68c
+	exact arithmetic in machine `invalid` state `entry` return value may overflow `u32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u32 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/mixed_signed_exclusion_has_no_sign rejected 2306ms expected @ccdb99ca2214
 	cannot prove requires contract for call nonnegative from check: value >= 0 (needs fact `value >= 0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/arithmetic/modulo_by_zero_rejected rejected 13459ms expected @ccdb99ca2214
@@ -15554,8 +15626,8 @@ fail/arithmetic/zero_increment_unproved_index rejected 1985ms expected @ccdb99ca
 	cannot prove index `position` is within length 3 in select::entry
 fail/arithmetic/zero_product_operand_division_rejected rejected 665ms expected @ccdb99ca2214
 	partial exact division in machine `product` state `entry` terminal expression: the divisor must be proven nonzero; discharge every definedness condition with independently accepted prior facts
-fail/arithmetic/zero_product_operand_overflow_rejected rejected 720ms expected @ccdb99ca2214
-	exact arithmetic in machine `product` state `entry` terminal expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
+fail/arithmetic/zero_product_operand_overflow_rejected rejected 3030ms expected @f78c2623a68c
+	exact arithmetic in machine `product` state `entry` return value may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/arithmetic/zii_range_excludes_zero_rejected rejected 1005ms expected @911f6617ba9e
 	machine `main` state `entry` statement 1: reading `divisor.value` crosses an open default-domain invariant window before data `Divisor` is established: the zeroed representation is not yet a `Divisor` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/arrays/borrowed_array_call_argument_wrong_extent rejected 763ms expected @ccdb99ca2214
@@ -16040,7 +16112,7 @@ fail/borrow/returned_write_destination_readable_access rejected 756ms expected @
 	machine `widen` state `entry` observes write-only referent through a selected value; `&write` permits replacement or exact `&write` forwarding, never observation
 	machine `widen` state `entry` return value may read, but the source supplies only write-only authority
 	machine `widen` state `entry` terminal expression expects `&i32`, got `call expression`
-fail/borrow/scalar_field_declared_range_requires_handback rejected 878ms expected @911f6617ba9e
+fail/borrow/scalar_field_declared_range_requires_handback rejected 1256ms expected @f78c2623a68c
 	machine `test` cannot lend restricted field `position` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/borrow/scalar_field_local_loan_requires_handback rejected 226ms expected @8fce926f9735
 	machine `test` cannot lend restricted field `position` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
@@ -19102,8 +19174,8 @@ fail/dependent/borrowed_coupled_invalid_zero rejected 2006ms expected @911f6617b
 	data `Coupled` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/dependent/borrowed_coupled_unrestored_count rejected 1945ms expected @911f6617ba9e
 	data `Coupled`'s default domain is still FALSE at state exit: the invariant window opened on `record` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/dependent/case_where_payload_write_exit_open rejected 433ms expected @72e837cecddf
-	data `Interval`'s default domain is still FALSE at a call: the invariant window opened on `main.interval` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/dependent/case_where_payload_write_exit_open rejected 3014ms expected @f78c2623a68c
+	cannot complete a call at statement 3 in machine `Main::main` state `main`: this write left the `requires` facts of `main.interval` (data `Interval`) unproved; restore them first
 fail/dependent/case_where_sibling_payload_scope rejected 697ms expected @ccdb99ca2214
 	cannot form specification operator `>=` in data `Pair` case `B` predicate: no exact selected meaning
 	data `Pair` case `B` constraint names `x`, which is not in scope: a case `requires` fact may read the case's payload bindings, common fields and lexically available contract names (a sibling case's payload is never in scope)
@@ -19121,18 +19193,18 @@ fail/dependent/cited_cell_result_exceeds_guarantee rejected 2487ms expected @ccd
 fail/dependent/closed_case_projection_checks_sibling_arithmetic rejected 775ms expected @ccdb99ca2214
 	exact arithmetic in construction of `Interval` field `sibling` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `Main::main` state `main` local `__transition_subject#13` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/dependent/collection_predicate_caller_store_before_call_rejected rejected 1140ms expected @911f6617ba9e
+fail/dependent/collection_predicate_caller_store_before_call_rejected rejected 3839ms expected @f78c2623a68c
 	machine `Main::main` state `main` statement 1: reading `context` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Main`
 	machine `Main::main` state `main` statement 1: the next whole-value read of `context` occurs inside an OPEN invariant window: a prior write left data `Grid`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	data `Grid`'s default domain is still FALSE at a call: the invariant window opened on `context.grid` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/dependent/collection_predicate_element_store_violates_rejected rejected 1317ms expected @911f6617ba9e
-	data `Grid`'s default domain is still FALSE at state exit: the invariant window opened on `context.grid` must close first -- restore the `requires` facts before this consumption point (ch11)
+	cannot complete a call at statement 2 in machine `Main::main` state `main`: this write left the `requires` facts of `context.grid` (data `Grid`) unproved; restore them first
+fail/dependent/collection_predicate_element_store_violates_rejected rejected 3453ms expected @f78c2623a68c
+	cannot complete return from machine `Main::seed` state `seed`: this write left the `requires` facts of `context.grid` (data `Grid`) unproved; restore them first
 fail/dependent/collection_predicate_helper_theorem_false_rejected rejected 4604ms expected @911f6617ba9e
 	cannot prove ensures contract for exit from cell_is_set at statement 0: cells[index] >= 1
 fail/dependent/collection_predicate_requirement_unconstrained_rejected rejected 3972ms expected @ccdb99ca2214
 	cannot prove requires contract for call first from Main::main: cells_valid(cells) == true (needs fact `cells_valid(cells) == true` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/dependent/collection_predicate_unbounded_element_store_rejected rejected 1056ms expected @911f6617ba9e
-	data `Grid`'s default domain is still FALSE at state exit: the invariant window opened on `context.grid` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/dependent/collection_predicate_unbounded_element_store_rejected rejected 3384ms expected @f78c2623a68c
+	cannot complete return from machine `store_unbounded` state `entry`: this write left the `requires` facts of `context.grid` (data `Grid`) unproved; restore them first
 fail/dependent/collection_predicate_uncited_sum_rejected rejected 1293ms expected @911f6617ba9e
 	exact arithmetic in machine `Main::sum` state `sum` assignment may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/dependent/collection_predicate_zero_violating_read_rejected rejected 1549ms expected @911f6617ba9e
@@ -19147,29 +19219,29 @@ fail/dependent/data_requires_empty_clause rejected 8ms expected @ccdb99ca2214
 	tests/omega/fail/dependent/data_requires_empty_clause/main.omg:1:23: expected expression
 fail/dependent/data_requires_future_formation rejected 226ms expected @5c5c178f82c7
 	cannot prove requires contract for specification call `guarded` in data `Invalid` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
-fail/dependent/data_requires_invalid_store rejected 624ms expected @ccdb99ca2214
-	data `Bounded<10>`'s default domain is still FALSE at state exit: the invariant window opened on `target` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/dependent/data_requires_invalid_store rejected 2269ms expected @f78c2623a68c
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `target` (data `Bounded<10>`) unproved; restore them first
 fail/dependent/data_requires_lower_bound rejected 727ms expected @ccdb99ca2214
 	data `Bounded<10>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/dependent/data_requires_self_formation rejected 197ms expected @5c5c178f82c7
 	cannot prove requires contract for specification call `guarded` in data `Invalid` default-domain predicate: establish its selected precondition in an independently formed prior requires fact
 fail/dependent/data_requires_upper_bound rejected 1032ms expected @ccdb99ca2214
 	data `Bounded<10>` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
-fail/dependent/data_where_call_frame_invalidates_written_valuation_rejected rejected 995ms expected @911f6617ba9e
-	data `Pair`'s default domain is still FALSE at state exit: the invariant window opened on `main.pair` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/dependent/data_where_invariant_window_unclosed_rejected rejected 836ms expected @911f6617ba9e
-	data `Main`'s default domain is still FALSE at a call: the invariant window opened on `main` must close first -- restore the `requires` facts before this consumption point (ch11)
-	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `main` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/dependent/data_where_call_frame_invalidates_written_valuation_rejected rejected 2150ms expected @f78c2623a68c
+	cannot complete return from machine `update` state `entry`: this write left the `requires` facts of `main.pair` (data `Pair`) unproved; restore them first
+fail/dependent/data_where_invariant_window_unclosed_rejected rejected 2620ms expected @f78c2623a68c
+	cannot complete a call at statement 2 in machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
 fail/dependent/data_where_literal_violates rejected 20770ms expected @911f6617ba9e
 	data `Player` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/dependent/data_where_live_borrow_pins_witness_rejected rejected 1140ms unexpected @911f6617ba9e
 	machine `Main::main` cannot lend restricted field `start` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/dependent/data_where_param_write_unproven rejected 19599ms expected @911f6617ba9e
-	data `Tally`'s default domain is still FALSE at state exit: the invariant window opened on `target` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/dependent/data_where_param_write_unproven rejected 67495ms expected @f78c2623a68c
+	cannot complete return from machine `corrupt` state `entry`: this write left the `requires` facts of `target` (data `Tally`) unproved; restore them first
 fail/dependent/data_where_read_before_establish rejected 1640ms expected @911f6617ba9e
 	machine `entry_start` state `entry` statement 1: reading `entry_storage.<whole value>` crosses an open default-domain invariant window before data `Main` is established: the zeroed representation is not yet a `Main` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
-fail/dependent/data_where_two_data_parameters_have_no_data_binding rejected 1143ms expected @911f6617ba9e
-	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `first` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/dependent/data_where_two_data_parameters_have_no_data_binding rejected 2189ms expected @f78c2623a68c
+	cannot complete return from machine `Main::ambiguous` state `ambiguous`: this write left the `requires` facts of `first` (data `Main`) unproved; restore them first
 fail/dependent/data_where_whole_read_during_window_rejected rejected 1074ms expected @911f6617ba9e
 	machine `Map::leak` state `leak` statement 1: reading `map` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Map`
 	machine `Map::leak` state `leak` statement 1: the next whole-value read of `map` occurs inside an OPEN invariant window: a prior write left data `Map`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
@@ -19177,9 +19249,9 @@ fail/dependent/dependent_arg_unrelated_rejected rejected 46687ms expected @911f6
 	cannot prove requires contract for call read from Main::main: main.j <= main.count (needs fact `i <= main.count` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/dependent/dependent_forward_after_write_rejected rejected 46052ms expected @911f6617ba9e
 	cannot prove requires contract for call deeper from read: i <= main.count (needs fact `k <= main.count` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/dependent/dependent_range_on_field_rejected rejected 31768ms expected @911f6617ba9e
-	data `Main`'s default domain is still FALSE at a call: the invariant window opened on `main` must close first -- restore the `requires` facts before this consumption point (ch11)
-	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `main` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/dependent/dependent_range_on_field_rejected rejected 68810ms expected @f78c2623a68c
+	cannot complete a call at statement 3 in machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
+	cannot complete return from machine `Main::main` state `main`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
 fail/dependent/dynamic_record_replacement_preserves_unknown_debt rejected 1076ms expected @911f6617ba9e
 	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `debt.cells[0]` must close first -- restore the `requires` facts before this consumption point (ch11)
 	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `stale.cells[0]` must close first -- restore the `requires` facts before this consumption point (ch11)
@@ -19212,12 +19284,12 @@ fail/dependent/relational_loop_invariant_reassigned_index_rejected rejected 836m
 	exact arithmetic in machine `loop_` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/dependent/requires_call_unproven_rejected rejected 11537ms expected @ccdb99ca2214
 	cannot prove requires contract for call helper from Main::main: main.a <= main.b (needs fact `main.a <= main.b` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
-fail/dependent/reserved_child_keeps_parent_invariant rejected 1573ms expected @911f6617ba9e
+fail/dependent/reserved_child_keeps_parent_invariant rejected 2159ms expected @f78c2623a68c
 	machine `main` state `entry` statement 3: reading `holder.<whole value>` crosses an open default-domain invariant window before data `Coupled<Token>` is established: the zeroed representation is not yet a `Coupled<Token>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 	machine `invalidated` state `entry` statement 3: the next whole-value read of `established` occurs inside an OPEN invariant window: a prior write left data `Coupled<Token>`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
 	machine `invalidated` state `entry` statement 3: reading `established.<whole value>` inside an OPEN invariant window: a prior write left data `Coupled<Token>`'s default domain FALSE -- restore the facts before this consumption point (ch11)
 	machine `invalidated` state `entry` statement 3: the next whole-value read of `established` occurs inside an OPEN invariant window: a prior write left data `Coupled<Token>`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	data `Coupled<Token>`'s default domain is still FALSE at a call: the invariant window opened on `established` must close first -- restore the `requires` facts before this consumption point (ch11)
+	cannot complete a call at statement 4 in machine `invalidated` state `entry`: this write left the `requires` facts of `established` (data `Coupled<Token>`) unproved; restore them first
 fail/dependent/reserved_generic_container_missing_sibling rejected 694ms expected @ccdb99ca2214
 	machine `main` state `entry` statement 2: reading `pair.<whole value>` crosses an open default-domain invariant window before data `Pair<Token>` is established: the zeroed representation is not yet a `Pair<Token>` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/dependent/state_arrival_byte_predicate_unproven_rejected rejected 1544ms expected @ccdb99ca2214
@@ -19844,7 +19916,7 @@ fail/domains/structural_qualification_transition_other_domain rejected 616ms une
 fail/domains/structural_qualification_transition_routed rejected 2193ms expected @ccdb99ca2214
 	cannot prove requires contract for call later from main: t in Token::Issued in state `entry`
 	`as ... in Token::Issued` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
-fail/domains/tag_alias_keeps_receiving_predicate rejected 891ms expected @ccdb99ca2214
+fail/domains/tag_alias_keeps_receiving_predicate rejected 646ms expected @f78c2623a68c
 	cannot prove assignment value `0` satisfies bounded target `cell.value` in `write.entry`; expected 1..=4294967295
 fail/domains/target_issuer_no_self_assumption rejected 2265ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from issue: value in i64::Classified in state `entry`
@@ -20196,8 +20268,8 @@ fail/expressions/match_fractional_result rejected 766ms expected @ccdb99ca2214
 	anonymous operand `7/2` is not an integer in machine `choose` state `entry` terminal expression; type an operand before division if integer division was intended
 fail/expressions/match_mixed_result_domains rejected 657ms expected @ccdb99ca2214
 	match arms produce incompatible values
-fail/expressions/match_operand_anonymous_operation_overflow rejected 619ms expected @ccdb99ca2214
-	exact arithmetic in machine `sum` state `entry` terminal expression may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
+fail/expressions/match_operand_anonymous_operation_overflow rejected 3075ms expected @f78c2623a68c
+	exact arithmetic in machine `sum` state `entry` return value may overflow `u8`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u8 in Wrapping`/`Saturating`/`Trapping`).
 fail/expressions/match_owned_source_consumed_in_arm rejected 1823ms expected @ccdb99ca2214
 	owned value may have been transferred by an earlier match; it cannot be used here
 fail/expressions/match_owned_unqualified_result_rejected rejected 892ms expected @ccdb99ca2214
@@ -23313,24 +23385,26 @@ fail/facts/data_where_standing_mutable_recast_qualified_constant_rejected reject
 fail/facts/data_where_standing_mutable_recast_stronger_rejected rejected 1706ms expected @911f6617ba9e
 	cannot establish assignment invariants: source storage interpretation is unavailable
 	machine `compute` state `entry`: recast target `Counter` is not a scalar primitive or an eligible fixed aggregate over a byte region or typed aggregate place; deeper shapes land with the byte-view rung
-fail/facts/data_where_standing_mutable_recast_through_call_result_rejected rejected 1763ms expected @911f6617ba9e
-	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
-fail/facts/data_where_standing_mutable_recast_through_const_name_rejected rejected 2525ms expected @911f6617ba9e
-	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
-fail/facts/data_where_standing_mutable_recast_through_field_rejected rejected 1867ms expected @911f6617ba9e
-	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
-fail/facts/data_where_standing_mutable_recast_through_local_rejected rejected 1863ms expected @911f6617ba9e
-	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
-fail/facts/data_where_standing_mutable_recast_through_match_join_rejected rejected 3032ms expected @911f6617ba9e
-	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
-fail/facts/data_where_standing_mutable_recast_through_other_machine_rejected rejected 3017ms expected @911f6617ba9e
-	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
-fail/facts/data_where_standing_mutable_recast_through_other_state_rejected rejected 1832ms expected @911f6617ba9e
-	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
-fail/facts/data_where_standing_mutable_recast_through_parameter_rejected rejected 1748ms expected @911f6617ba9e
-	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
-fail/facts/data_where_standing_mutable_recast_through_target_body_rejected rejected 1705ms expected @911f6617ba9e
-	machine `compute` state `entry`: mutable aggregate aliases require identical layout geometry and leaf fact implication in BOTH directions; the source and target `Counter` are not representation-compatible
+fail/facts/data_where_standing_mutable_recast_through_call_result_rejected rejected 1174ms expected @f78c2623a68c
+	argument `view` for state `forward::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/data_where_standing_mutable_recast_through_const_name_rejected rejected 2833ms expected @f78c2623a68c
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_mutable_recast_through_field_rejected rejected 666ms expected @f78c2623a68c
+	construction of `Holder` field `view`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/data_where_standing_mutable_recast_through_local_rejected rejected 2414ms expected @f78c2623a68c
+	exact arithmetic in machine `compute` state `entry` local `total` may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
+fail/facts/data_where_standing_mutable_recast_through_match_join_rejected rejected 2923ms expected @271311625238
+	value operand: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+	value operand: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+	argument `view` for state `forward::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/data_where_standing_mutable_recast_through_other_machine_rejected rejected 671ms expected @f78c2623a68c
+	argument `counter` for state `relay::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/data_where_standing_mutable_recast_through_other_state_rejected rejected 663ms expected @f78c2623a68c
+	argument `counter` for state `inspect::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/data_where_standing_mutable_recast_through_parameter_rejected rejected 655ms expected @f78c2623a68c
+	argument `counter` for state `inspect::entry`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
+fail/facts/data_where_standing_mutable_recast_through_target_body_rejected rejected 659ms expected @f78c2623a68c
+	argument `counter` for state `inspect`: unestablished recast target `Counter`; prove its predicate over current storage before consuming a valid value
 fail/facts/data_where_standing_predicate_helper_alias_invalid_rejected rejected 2147ms expected @ccdb99ca2214
 	exact arithmetic in machine `compute` state `entry` terminal expression may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/data_where_standing_predicate_helper_literal_invalid_rejected rejected 2116ms expected @911f6617ba9e
@@ -27386,9 +27460,8 @@ fail/facts/nested_machine_wrapping_index_const_name_rejected rejected 3163ms exp
 	cannot prove index `window.index` is within length 512 in read::entry
 fail/facts/nested_machine_wrapping_index_crossing_band_rejected rejected 2509ms expected @ccdb99ca2214
 	cannot prove index `window.index` is within length 512 in read::entry
-fail/facts/nested_machine_wrapping_index_exact_child_formation_rejected rejected 951ms expected @ccdb99ca2214
+fail/facts/nested_machine_wrapping_index_exact_child_formation_rejected rejected 684ms expected @f78c2623a68c
 	exact arithmetic in machine `probe` state `entry` cast expression may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-	exact arithmetic in machine `probe` state `entry` assignment may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/nested_machine_wrapping_index_field_rejected rejected 2756ms expected @ccdb99ca2214
 	cannot prove index `window.index` is within length 512 in read::entry
 fail/facts/nested_machine_wrapping_index_local_rejected rejected 2579ms expected @ccdb99ca2214
@@ -31304,7 +31377,7 @@ fail/facts/unsigned_exact_addition_bound_through_const_name_rejected rejected 11
 	exact arithmetic in machine `probe` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_exact_addition_bound_through_field_rejected rejected 1447ms expected @ccdb99ca2214
 	exact arithmetic in machine `compute_field` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
-fail/facts/unsigned_exact_addition_bound_through_local_rejected rejected 1910ms expected @ccdb99ca2214
+fail/facts/unsigned_exact_addition_bound_through_local_rejected rejected 3220ms expected @f78c2623a68c
 	exact arithmetic in machine `compute_local` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
 fail/facts/unsigned_exact_addition_bound_through_match_join_rejected rejected 1222ms expected @ccdb99ca2214
 	exact arithmetic in machine `compute_join` state `entry` local `headroom` may overflow `u64`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`u64 in Wrapping`/`Saturating`/`Trapping`).
@@ -31721,8 +31794,8 @@ fail/float/constructed_ieee_stale rejected 2507ms expected @911f6617ba9e
 	data `Reading` literal violates the default domain: a `requires` fact evaluates FALSE at this construction (ch12: construction is the gate)
 fail/float/constructed_ieee_unknown_nan rejected 2504ms expected @911f6617ba9e
 	data `Reflexive` literal cannot prove the default domain: a `requires` fact is not established by the values observed at this construction -- establish the required bounds before constructing the value
-fail/float/constructed_ieee_write_invalidates rejected 2524ms expected @911f6617ba9e
-	data `Reading`'s default domain is still FALSE at a call: the invariant window opened on `reading` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/float/constructed_ieee_write_invalidates rejected 4487ms expected @f78c2623a68c
+	cannot complete a call at statement 2 in machine `probe` state `entry`: this write left the `requires` facts of `reading` (data `Reading`) unproved; restore them first
 fail/float/constructed_ieee_write_only rejected 2259ms expected @911f6617ba9e
 	machine `probe` state `entry` reads field `value` from write-only parameter `reading`; an eligible record-field path may be replaced as an assignment target, but write-only projection never grants observation
 fail/float/digit_separator_format_mismatch_rejected rejected 2299ms expected @ccdb99ca2214
@@ -31758,8 +31831,8 @@ fail/float/exclusive_float_range_endpoint_rejected rejected 4538ms expected @ccd
 	cannot prove requires contract for call accept from Main::main: 1.5 >= 0.0 && 1.5 < 1.5 (needs fact `value >= 0.0 && value < 1.5` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/float/false_ieee_ordered_guards_admit_nan rejected 2261ms unexpected @ccdb99ca2214
 	machine `convert` state `entry`: value call `I32.from_f64(..)` does not resolve to a callable machine entry or requirement. Check the receiver and method names.
-fail/float/field_range_conversion_after_invalid_write rejected 2402ms expected @911f6617ba9e
-	data `Sample`'s default domain is still FALSE at a call: the invariant window opened on `sample` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/float/field_range_conversion_after_invalid_write rejected 4985ms expected @f78c2623a68c
+	cannot complete a call at statement 2 in machine `convert` state `entry`: this write left the `requires` facts of `sample` (data `Sample`) unproved; restore them first
 fail/float/finite_constructor_requires_operand_proof rejected 1976ms expected @ccdb99ca2214
 	cannot prove initializer `value` satisfies `finite` for the bounded value of machine `make` state `entry` constructor field `amount`
 fail/float/finite_result_requires_proof rejected 2170ms expected @ccdb99ca2214
@@ -31774,8 +31847,8 @@ fail/float/float_detached_recast_copy_completion rejected 5339ms expected @ccdb9
 	call from `probe` to `forward` at statement 5 call 0 has an uncovered Trap crash route; publish a same-cause route whose guard covers this invocation
 fail/float/float_guard_missing_upper_bound rejected 4071ms expected @ccdb99ca2214
 	cannot prove requires contract for call admit from open_upper: difference >= 0.5 && difference <= 8.0 (needs fact `difference >= 0.5 && difference <= 8.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/float/float_range_field_store_outside_range rejected 6503ms expected @46cdd6b85b82+wt
-	data `Ratio`'s default domain is still FALSE at state exit: the invariant window opened on `built` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/float/float_range_field_store_outside_range rejected 3609ms expected @f78c2623a68c
+	cannot complete return from machine `main` state `entry`: this write left the `requires` facts of `built` (data `Ratio`) unproved; restore them first
 fail/float/float_selected_comparison_authority rejected 11960ms expected @c2cfe5f3dece+wt
 	cannot prove requires contract for call require_one from probe: entry(1.0) == 1.0 (needs fact `value == 1.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/float/float_semantics_lookalike_grants_no_primitive rejected 109ms expected @ccdb99ca2214
@@ -32894,7 +32967,7 @@ fail/layouts/authored_placed_accessor_requires_realization rejected 644ms expect
 	bodyless boundary symbol `read` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
 fail/layouts/callee_integer_at_forwarded_write_requires_fit rejected 2212ms expected @ccdb99ca2214
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
-fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 2392ms expected @ccdb99ca2214
+fail/layouts/callee_integer_at_intermediate_write_requires_fit rejected 4056ms expected @f78c2623a68c
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
 fail/layouts/callee_integer_at_multi_origin_reference_requires_fit rejected 2038ms expected @ccdb99ca2214
 	IntegerAt call in Main::main requires every performed value to fit its physical storage: performed integer value is not proven to fit
@@ -34748,8 +34821,8 @@ fail/range/funnel_guard_one_edge_unguarded rejected 13167ms expected @ccdb99ca22
 	cannot prove requires contract for call push from other: main.sp >= 0 && main.sp < 16 (needs fact `main.sp >= 0 && main.sp < 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/range/guarded_copy_stale_after_write rejected 10865ms expected @ccdb99ca2214
 	cannot prove requires contract for call store from stale: w >= 0 && w <= 9 (needs fact `v >= 0 && v <= 9` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/range/guarded_runtime_index_collection_write rejected 959ms expected @89d5d2d7655c
-	data `Main`'s default domain is still FALSE at state exit: the invariant window opened on `main` must close first -- restore the `requires` facts before this consumption point (ch11)
+fail/range/guarded_runtime_index_collection_write rejected 2165ms expected @f78c2623a68c
+	cannot complete return from machine `interpose` state `entry`: this write left the `requires` facts of `main` (data `Main`) unproved; restore them first
 fail/range/indexed_field_range_runtime_write_rejected rejected 35221ms unexpected @46cdd6b85b82+wt
 	retained requirement tuple lost its exact source call application: call `get_class` in `macos_window_create` binds declaration Handle { arena_index: 5545, generation: 1 }, but its retained targets are [(Handle { arena_index: 5545, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 	retained requirement tuple lost its exact source call application: call `register_selector` in `macos_window_create` binds declaration Handle { arena_index: 5546, generation: 1 }, but its retained targets are [(Handle { arena_index: 5546, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
@@ -34785,16 +34858,16 @@ fail/range/indexed_field_range_runtime_write_rejected rejected 35221ms unexpecte
 	retained requirement tuple lost its exact source call application: call `register_selector` in `macos_window_create` binds declaration Handle { arena_index: 5546, generation: 1 }, but its retained targets are [(Handle { arena_index: 5546, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 	retained requirement tuple lost its exact source call application: call `register_selector` in `macos_window_create` binds declaration Handle { arena_index: 5546, generation: 1 }, but its retained targets are [(Handle { arena_index: 5546, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
 	retained requirement tuple lost its exact source call application: call `register_selector` in `macos_window_create` binds declaration Handle { arena_index: 5546, generation: 1 }, but its retained targets are [(Handle { arena_index: 5546, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
-fail/range/indexed_field_window_different_positions rejected 748ms expected @911f6617ba9e
-	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `grid.cells[*]` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/range/indexed_field_window_inherited_debt rejected 743ms expected @911f6617ba9e
+fail/range/indexed_field_window_different_positions rejected 3476ms expected @f78c2623a68c
+	cannot complete return from machine `Grid::main` state `main`: this write left the `requires` facts of `grid.cells[*]` (data `Cell`) unproved; restore them first
+fail/range/indexed_field_window_inherited_debt rejected 2288ms expected @f78c2623a68c
 	machine `Grid::main` state `main` statement 2: reading `grid` crosses an open default-domain invariant window before its declared qualification is established: the zeroed representation is not yet a value of `&mut Grid`
 	machine `Grid::main` state `main` statement 2: the next whole-value read of `grid` occurs inside an OPEN invariant window: a prior write left data `Cell`'s default domain FALSE -- restore the facts before copying or exposing the value (ch11)
-	data `Cell`'s default domain is still FALSE at a call: the invariant window opened on `grid.cells[*]` must close first -- restore the `requires` facts before this consumption point (ch11)
-	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `grid.cells[*]` must close first -- restore the `requires` facts before this consumption point (ch11)
-fail/range/indexed_field_window_overlapping_concrete_debt rejected 779ms expected @911f6617ba9e
-	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `grid.cells[0]` must close first -- restore the `requires` facts before this consumption point (ch11)
-	data `Cell`'s default domain is still FALSE at state exit: the invariant window opened on `grid.cells[*]` must close first -- restore the `requires` facts before this consumption point (ch11)
+	cannot complete a call at statement 3 in machine `Grid::main` state `main`: this write left the `requires` facts of `grid.cells[*]` (data `Cell`) unproved; restore them first
+	cannot complete return from machine `finish` state `entry`: this write left the `requires` facts of `grid.cells[*]` (data `Cell`) unproved; restore them first
+fail/range/indexed_field_window_overlapping_concrete_debt rejected 2073ms expected @f78c2623a68c
+	cannot complete return from machine `Grid::main` state `main`: this write left the `requires` facts of `grid.cells[0]` (data `Cell`) unproved; restore them first
+	cannot complete return from machine `Grid::main` state `main`: this write left the `requires` facts of `grid.cells[*]` (data `Cell`) unproved; restore them first
 fail/range/nested_array_element_view_out_of_bounds rejected 2128ms expected @ccdb99ca2214
 	cannot prove index `2` is within length 2
 fail/range/refined_element_view_outside_field_domain rejected 6297ms expected @46cdd6b85b82+wt
