@@ -1765,7 +1765,7 @@ pass/domains/routed_record_capture_before_sibling_mutation checked 1515ms @a92f1
 pass/domains/routed_selected_copy_exit built 2459ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/routed_selected_replacement_exit built 2920ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/runtime_case_constructor_child_memberships_exit built 3650ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
-pass/domains/runtime_computed_qualification_exit built 11964ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/domains/runtime_computed_qualification_exit built 15338ms exit:0 interpreter-exit:0 interpreter:agrees @469d71d218e2
 pass/domains/runtime_constructor_ensured_membership_exit built 3607ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/runtime_generic_exact_issuer_exit built 7771ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/domains/runtime_nested_record_membership_transport_exit built 7280ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
@@ -5779,6 +5779,7 @@ pass/float/ordinary_numeric_helper_edges_exit built 20989ms exit:70 interpreter-
 pass/float/owned_local_computed_float_store_exit built 13956ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/float/primitive_comparison_sealed_scope_exit built 6452ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/primitive_storage_predicate_keeps_ieee_meaning built 9502ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/float/private_arrival_exact_integer_coercion_exit built 15420ms exit:0 interpreter-exit:0 interpreter:agrees @469d71d218e2
 pass/float/public_boolean_result_contract_import_exit rejected 6718ms interpreter:unchecked @a92f16431042
 	cannot prove ensures contract for exit from finite at statement 0: result == F32.is_finite(value)
 	cannot prove ensures contract for exit from finite_f64 at statement 0: result == F64.is_finite(value)
@@ -5810,7 +5811,7 @@ pass/float/runtime_classification_result_categories_exit built 8368ms exit:0 int
 pass/float/runtime_coercion_future_policy_exit built 16416ms exit:0 interpreter-exit:0 interpreter:agrees @6fbf73342bf2
 pass/float/runtime_exact_format_narrowing_exit built 5553ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/runtime_exact_integer_coercion_exit built 15377ms exit:0 interpreter-exit:0 interpreter:agrees @18fc751d0060+wt
-pass/float/runtime_exact_integer_to_float_coercion_exit built 7127ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
+pass/float/runtime_exact_integer_to_float_coercion_exit built 13146ms exit:0 interpreter-exit:0 interpreter:agrees @469d71d218e2
 pass/float/runtime_finite_record_invariant_window_exit built 7219ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/runtime_float_call_same_carrier_cast_exit built 6937ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/float/runtime_float_digit_separators_exit built 6976ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
