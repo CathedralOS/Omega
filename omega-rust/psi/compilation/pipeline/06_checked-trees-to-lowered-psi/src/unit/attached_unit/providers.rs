@@ -16,13 +16,10 @@
 //! an unreachable member must not lose its conformance at this boundary.
 //! Omega projects these exact callable IDs onto an execution scope before
 //! installing providers; family membership itself grants no installation.
-//! Named implementation rows alone supply whole-trait provider identities. A
-//! realization's exact satisfaction edge proves its contract, but its qualifier
-//! (a namespace or data declaration) is not another provider. Inferring that
-//! extra candidate used to reject namespace-qualified realizations and invented
-//! data-owned candidates beside otherwise valid named maps. Exact top-level
-//! requirements and operators retain their checked satisfaction edges instead;
-//! their attached owner groups leaf suppliers, never a whole-trait conformance.
+//! Checking records the declaration owning each exact requirement/body relation.
+//! Named map members can add independent exact edges without acquiring a data
+//! owner. The emitted catalog consumes that checked relation; a namespace or
+//! matching signature cannot invent another provider beside it.
 
 use super::bodies::UnitPlans;
 use super::operation_frame::BoundaryParameters;
@@ -33,9 +30,7 @@ use super::{
     unique_unit_boundary, unsupported,
 };
 use crate::expression_preparation::computation_graph::boundary_targets;
-use checked_trees::machine::Machine;
 
-mod named;
 mod selection_coordinates;
 
 /// Publish the obligation side independently of body/candidate discovery.
@@ -172,64 +167,6 @@ enum CatalogRequirement<'a> {
     },
     TopLevel(&'a checked_trees::machine::Machine),
     Operator(&'a typed_trees::operator::OperatorDefinition),
-}
-
-fn provider_identities(
-    checked: &CheckedTrees,
-    machine: &Machine,
-    requirement: CatalogRequirement<'_>,
-) -> Result<Vec<(symbols::SymbolHandle, String)>, LoweringError> {
-    if matches!(requirement, CatalogRequirement::Trait { .. }) {
-        return named::provider_identities(checked, machine, requirement);
-    }
-    let supplies = checked
-        .typed
-        .machine_trait_conformances(machine)
-        .iter()
-        .any(|conformance| {
-            if conformance.external_binding.is_some() {
-                return false;
-            }
-            match requirement {
-                CatalogRequirement::TopLevel(declaration) => {
-                    (conformance.symbol == declaration.symbol
-                        && conformance.requirement_symbol == declaration.symbol)
-                        || checked
-                            .facts
-                            .provider_closed_requirements
-                            .iter()
-                            .any(|row| {
-                                row.provider == machine.symbol
-                                    && row.selecting_declaration == machine.symbol
-                                    && row.template == conformance.symbol
-                                    && row.closed_requirement == declaration.symbol
-                            })
-                }
-                CatalogRequirement::Operator(operator) => conformance.requirement_symbol
-                    == operator.symbol
-                    && typed_trees::operator::resolve_satisfied_boundary_operator_for_conformance(
-                        &checked.typed,
-                        machine,
-                        conformance,
-                    )
-                    .is_some_and(|resolved| resolved.symbol == operator.symbol),
-                CatalogRequirement::Trait { .. } => unreachable!(),
-            }
-        });
-    if !supplies {
-        return Ok(Vec::new());
-    }
-    let owner = machine.attached_data_symbol;
-    if !owner.is_valid() {
-        return unsupported("exact leaf supplier has no attached declaration owner");
-    }
-    let identity = checked
-        .typed
-        .attached_data_path(machine)
-        .ok_or(LoweringError::Unsupported(
-            "exact leaf supplier has no attached owner identity",
-        ))?;
-    Ok(vec![(owner, identity)])
 }
 
 pub(super) fn checked_unit_provider_candidates(
@@ -410,15 +347,24 @@ fn boundary_candidates(
     if !requirement_identity.is_valid() {
         return unsupported("Unit boundary requirement has an empty overload identity");
     }
-    for machine in
-        checked.typed.machines().iter().filter(|machine| {
-            machine.supply_mode == language_semantics::MachineSupplyMode::CheckedBody
-        })
+    for (_, published) in checked
+        .facts
+        .provider_instance_publication
+        .candidates
+        .iter()
+        .filter(|(_, published)| published.boundary == boundary_symbol)
     {
-        let providers = provider_identities(checked, machine, requirement)?;
-        if providers.is_empty() {
-            continue;
-        }
+        let declaration = published
+            .declaration
+            .as_ref()
+            .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.clone()))?;
+        let machine =
+            checked
+                .typed
+                .machine(published.candidate)
+                .ok_or(LoweringError::Unsupported(
+                    "checked provider candidate lost its exact machine",
+                ))?;
         // Every result shape is served by the candidate's ordinary callable
         // body; this match only rejoins the body's result to the
         // requirement's.
@@ -476,7 +422,8 @@ fn boundary_candidates(
                 }
             }
         }
-        for (provider, provider_identity) in providers {
+        {
+            let provider = declaration.provider;
             if !provider.is_valid() {
                 return unsupported("provider candidate has no exact declaration owner");
             }
@@ -487,7 +434,8 @@ fn boundary_candidates(
                 requirement_identity,
                 // The selected declaration owns provider identity; the body
                 // may be an independently owned named-map realization.
-                provider_identity,
+                provider_identity: checked.typed.symbols.display_path(provider, "::"),
+                receiving: declaration.receiving,
                 // Provider selection compares semantic overload identities;
                 // diagnostic display paths cannot distinguish those overloads.
                 candidate_identity: checked.typed.machine_callable_identity(machine),

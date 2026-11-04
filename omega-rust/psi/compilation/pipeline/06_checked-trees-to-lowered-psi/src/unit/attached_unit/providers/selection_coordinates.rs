@@ -18,41 +18,11 @@ pub(super) fn intern_receiving_application(
     checked: &CheckedTrees,
     candidate: &CheckedUnitProviderCandidate,
 ) -> Result<(TerminalIdentityIndex, Vec<TerminalIdentityIndex>), LoweringError> {
-    let typed = &checked.typed;
-    let Some(application) = typed.closed_requirement_application(candidate.boundary) else {
-        return Ok((TerminalIdentityIndex::default(), Vec::new()));
-    };
-    let selecting_declaration = if typed.conformance_by_symbol(candidate.provider).is_some() {
-        candidate.provider
-    } else {
-        // Direct machine satisfaction is exported under its attached data
-        // owner, but its checked satisfaction row belongs to the exact body.
-        candidate.candidate
-    };
-    let mut rows = checked
-        .facts
-        .provider_closed_requirements
-        .iter()
-        .filter(|row| {
-            row.provider == candidate.candidate
-                && row.selecting_declaration == selecting_declaration
-                && row.template == application.template
-                && row.closed_requirement == candidate.boundary
-                && row.receiving_application == application.trait_application_identity
-        });
-    let row = rows.next().ok_or(LoweringError::Unsupported(
-        "provider candidate lost its checked receiving application",
-    ))?;
-    if rows.next().is_some() {
-        return Err(LoweringError::Unsupported(
-            "provider candidate has multiple checked receiving associations",
-        ));
-    }
-    let publication = &checked.facts.provider_instance_publication;
-    let receiving = publication
-        .receiving(row)
-        .map_err(|reason| LoweringError::InvalidBoundaryApplication(reason.to_owned()))?;
-    intern_receiving_description(identities, publication, receiving)
+    intern_prepared_receiving_application(
+        identities,
+        &checked.facts.provider_instance_publication,
+        candidate.receiving,
+    )
 }
 
 /// Both an emitted candidate and the independent obligation roster consume

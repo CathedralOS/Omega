@@ -12,6 +12,8 @@ use checked_trees::{
 use symbols::SymbolHandle;
 use typed_trees::type_identity::CallableIdentityId;
 
+mod candidates;
+
 pub(crate) fn retain(checked: &mut CheckedTrees) {
     let typed = &checked.typed;
     let mut publication = CheckedProviderInstancePublication::default();
@@ -24,11 +26,8 @@ pub(crate) fn retain(checked: &mut CheckedTrees) {
                 description,
             });
         if typed
-            .conformance_by_symbol(association.selecting_declaration)
+            .trait_machine_signature(association.template)
             .is_none()
-            || typed
-                .trait_machine_signature(association.template)
-                .is_none()
             || typed
                 .closed_requirement_application(association.closed_requirement)
                 .is_none()
@@ -87,6 +86,7 @@ pub(crate) fn retain(checked: &mut CheckedTrees) {
                 });
         }
     }
+    candidates::retain(checked, &mut publication);
     checked.facts.provider_instance_publication = publication;
 }
 
@@ -136,7 +136,7 @@ fn named(
     Ok(CheckedProviderInstanceDeclaration {
         template_identity: typed.trait_requirement_callable_identity(owner, signature),
         package: typed.symbols.symbol_package_identity(association.template),
-        selecting_declaration: association.selecting_declaration,
+        selecting_declaration: candidates::provider_declaration(typed, association)?,
         source_candidate_identity,
         requirement_identity: requirement,
         candidate_identity,

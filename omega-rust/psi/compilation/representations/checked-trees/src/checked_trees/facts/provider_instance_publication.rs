@@ -9,6 +9,31 @@ use arena::{Arena, Handle, HandleSpan};
 use symbols::SymbolHandle;
 use typed_trees::type_identity::CallableIdentityId;
 
+/// One admitted body/requirement relation. The public provider declaration may
+/// differ from the machine that owns its explicit satisfaction clause.
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedProviderCandidate {
+    pub boundary: SymbolHandle,
+    pub candidate: SymbolHandle,
+    pub declaration: Result<CheckedProviderCandidateDeclaration, String>,
+}
+
+impl Default for CheckedProviderCandidate {
+    fn default() -> Self {
+        Self {
+            boundary: SymbolHandle::default(),
+            candidate: SymbolHandle::default(),
+            declaration: Err("missing checked provider candidate".into()),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
+pub struct CheckedProviderCandidateDeclaration {
+    pub provider: SymbolHandle,
+    pub receiving: Handle<CheckedProviderReceivingApplication>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProviderInstanceRequirement {
     pub template: SymbolHandle,
@@ -65,6 +90,7 @@ pub struct CheckedProviderReceivingDescription {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, compiler_storage::Record)]
 pub struct CheckedProviderInstancePublication {
+    pub candidates: Arena<CheckedProviderCandidate>,
     pub requirements: Arena<CheckedProviderInstanceRequirement>,
     pub receivers: Arena<CheckedProviderReceivingApplication>,
     pub regions: Arena<String>,
