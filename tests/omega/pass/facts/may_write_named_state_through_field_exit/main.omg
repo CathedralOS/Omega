@@ -35,7 +35,8 @@ machine main() crashes Trap {
     let items: [u8; 4] = [4, 7, 8, 9];
     let zero: u64 in Wrapping = 0;
     let marker: u64 in Wrapping = add(overwrite(relay(&mut bounds.chosen, &mut bounds.other, true)), zero);
-    transition (marker as u64) == 1 && bounds.chosen == 9 && items[bounds.other] == 7 {
+    let indexed: u8 = items[bounds.other];
+    transition (marker as u64) == 1 && bounds.chosen == 9 && indexed == 7 {
         true -> done()
         _ -> bad()
     }

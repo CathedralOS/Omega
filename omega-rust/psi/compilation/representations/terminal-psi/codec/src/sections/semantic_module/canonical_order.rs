@@ -60,6 +60,7 @@ pub(crate) fn validate_canonical_order(module: &TerminalModule) -> Result<(), Co
             ));
         }
         if application.requirement.is_empty()
+            || application.calling_owner_application.is_empty()
             || application.published_contract == [0; 32]
             || application.body.contract == [0; 32]
         {

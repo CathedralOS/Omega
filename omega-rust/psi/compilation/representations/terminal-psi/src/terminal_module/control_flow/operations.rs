@@ -308,6 +308,13 @@ pub enum OperationKind {
     StorageAddress {
         source: StructuralArgument,
     },
+    /// Read or write exactly ten descriptor bytes through an existing loan.
+    /// The numeric base within those bytes grants no storage authority.
+    GlobalDescriptorTable {
+        service: ServiceId,
+        operation: language_core::inline_assembly::AsmGlobalDescriptorTableOperation,
+        source: StructuralArgument,
+    },
     /// Interpret initialized storage through one exact retained placement.
     /// The result's reference referee selects the catalog; neither an offset
     /// nor a caller-supplied profile can establish this interpretation.
@@ -1256,7 +1263,9 @@ impl OperationKind {
             }
             // Runtime selectors were mapped through the shared source path
             // inventory above; placement contributes no scalar operands.
-            Self::EstablishAccessReference { .. } | Self::StorageAddress { .. } => {}
+            Self::EstablishAccessReference { .. }
+            | Self::StorageAddress { .. }
+            | Self::GlobalDescriptorTable { .. } => {}
             Self::EstablishByteSequenceConcatenation { left, right, .. } => {
                 left.remap_length(map);
                 right.remap_length(map);

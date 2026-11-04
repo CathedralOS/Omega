@@ -9,7 +9,7 @@ use super::super::stored_values::append_preserved_binding;
 use super::super::stored_values::append_store;
 use super::super::stored_values::join;
 use super::{Execution, InvocationSite};
-use arena::Handle;
+use arena::{Handle, HandleSpan};
 use checked_trees::{BorrowCallFact, FlowOperandFact, FlowStorageSnapshot};
 use validation::CanonicalPlace;
 
@@ -30,7 +30,7 @@ impl Execution<'_, '_, '_> {
         &mut self,
         site: InvocationSite,
         call: &BorrowCallFact,
-        inputs: &[FlowOperandFact],
+        inputs: HandleSpan<FlowOperandFact>,
         binding_writes: Option<&[CanonicalPlace]>,
     ) -> Vec<CallStore> {
         // State jumps have an arrival owner. This inventory describes normal
@@ -44,11 +44,18 @@ impl Execution<'_, '_, '_> {
                 inputs = selected;
                 validation::ReferenceSlotContract::CheckedBody { machine, state }
             } else {
-                let Some(effects) = self
-                    .context
-                    .call_frames
-                    .and_then(|frames| frames.dynamic_stored_reference_effects(slot.symbol))
-                else {
+                // Without a selection proved in this state, a selector that
+                // may come from outside the program keeps the requirement's
+                // declared outputs; validation's loan formation, which has no
+                // selection step, applies the same rule to every such call.
+                let effects = self.context.call_frames.and_then(|frames| {
+                    match frames.received_selector_stored_reference_effects(self.state, slot.symbol)
+                    {
+                        Some(declared) => declared,
+                        None => frames.dynamic_stored_reference_effects(slot.symbol),
+                    }
+                });
+                let Some(effects) = effects else {
                     return Vec::new();
                 };
                 validation::ReferenceSlotContract::Opaque {
@@ -86,8 +93,12 @@ impl Execution<'_, '_, '_> {
                 {
                     return Vec::new();
                 }
-                let Some(indices) = self.captured_argument_indices(parameters, inputs.iter())
-                else {
+                let Some(indices) = self.captured_argument_indices(
+                    parameters,
+                    inputs
+                        .handles()
+                        .map(|handle| self.context.control.operands.get(handle)),
+                ) else {
                     return Vec::new();
                 };
                 let Some(effects) = self

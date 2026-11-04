@@ -46,6 +46,7 @@ mod state_paths;
 mod state_write_walk;
 mod stored_calls;
 mod stored_origins;
+mod summary_windows;
 // Terminal machine invocations compose call summaries, not state-graph edges.
 mod terminal_calls;
 mod transition_equations;
@@ -169,6 +170,26 @@ fn known_call_written_paths_for_parts(
     inference: &mut FrameInference,
     argument_origins: Option<&[Option<Vec<FramePlaceOrigin>>]>,
 ) -> Option<Vec<String>> {
+    if let Some(operation) =
+        crate::machine_calls::compiler_operations::global_descriptor_table_operation(
+            program,
+            target_symbol,
+        )
+    {
+        if arguments.len() != 1 {
+            return None;
+        }
+        return match operation {
+            language_core::inline_assembly::AsmGlobalDescriptorTableOperation::Load => {
+                Some(Vec::new())
+            }
+            language_core::inline_assembly::AsmGlobalDescriptorTableOperation::Store => {
+                let origins = argument_origins?.first()?.as_ref()?;
+                (!origins.is_empty())
+                    .then(|| origins.iter().map(|origin| origin.path.clone()).collect())
+            }
+        };
+    }
     if crate::activation_accessor_has_empty_write_frame(program, target_symbol)
         || crate::access_borrow_has_empty_write_frame(program, target_symbol)
     {

@@ -66,7 +66,7 @@ mod structural_array;
 mod structural_local;
 mod zero_fill;
 mod zeroed;
-pub(super) use primitive_locals::read;
+pub(super) use primitive_locals::{global_descriptor_table, read};
 mod encoded_scalar;
 mod fragmented_scalar;
 pub(super) mod runtime_address;

@@ -3,6 +3,7 @@ use super::*;
 use crate::data_layout_queries::{FieldLayout, TypeLayout, TypeLayoutDescriptor};
 use calling_conventions::{LayoutPlanId, callback_layout_slot_id, callback_requirement_id};
 use language_semantics::callback_declarations::PrivateCallbackSlotSelection;
+use layout_plans::LayoutPlacementReport;
 fn identity(index: u32, size: usize, policy: bool) -> TargetClosedDataLayoutIdentity {
     TargetClosedDataLayoutIdentity {
         data_symbol: SymbolHandle::from_arena_index(index),
@@ -32,7 +33,9 @@ fn fixture(depth: usize) -> PrivateCallbackLayout {
         layout: owner.layout,
         slot: callback_layout_slot_id(owner.layout, "fixture::Slot"),
         requirement: callback_requirement_id("fixture::Procedure::call"),
-        offset: 8,
+        placements: calling_conventions::PrivateCallbackPlacements::new(&[
+            LayoutPlacementReport::At { offset: 8 },
+        ]),
         byte_size: 8,
         alignment: 8,
     };
@@ -85,7 +88,12 @@ fn direct_natural_and_deep_inline_paths_preserve_exact_geometry() {
             .validate(&destination(&layout), NativeTarget::windows_x64())
             .unwrap();
         assert_eq!(layout.inline_fields().unwrap().len(), depth);
-        assert_eq!(layout.composed_offset(), 8 * (depth + 1));
+        assert_eq!(
+            layout.composed_placements(),
+            &[LayoutPlacementReport::At {
+                offset: u64::try_from(8 * (depth + 1)).unwrap(),
+            }]
+        );
     }
 }
 #[test]
@@ -94,7 +102,10 @@ fn path_mutations_do_not_retarget_a_private_slot() {
     let base = fixture(3);
     let expected = destination(&base);
     let mut changed = base.clone();
-    changed.terminal_slot.offset += 8;
+    changed.terminal_slot.placements =
+        calling_conventions::PrivateCallbackPlacements::new(&[LayoutPlacementReport::At {
+            offset: 16,
+        }]);
     assert!(changed.validate(&expected, target).is_err());
     let mut changed = base.clone();
     changed.terminal_slot.slot = calling_conventions::LayoutSlotId::new(991).unwrap();

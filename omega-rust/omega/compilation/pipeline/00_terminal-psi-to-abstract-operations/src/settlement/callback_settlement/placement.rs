@@ -73,6 +73,7 @@ pub fn settle_native_callback_placements(
         let inbound = calling_application(
             calling,
             &module.calling_abi_identity(inbound_boundary)?,
+            Some(&application.calling_owner_application),
             None,
         )?;
         if inbound.dispatch_only_parameter_count != 0 {
@@ -89,7 +90,7 @@ pub fn settle_native_callback_placements(
             .ok_or(
                 "callback registrar lost its independently selected exact calling application",
             )?;
-        let registrar = calling_application(calling, &registrar_abi, Some(selected_calling))?;
+        let registrar = calling_application(calling, &registrar_abi, None, Some(selected_calling))?;
         let inbound_telescope =
             TerminalCallingTelescope::for_application(module, inbound_boundary, inbound)?;
         let registrar_telescope =
@@ -124,10 +125,13 @@ pub fn settle_native_callback_placements(
 fn calling_application<'plans>(
     calling: &'plans [BoundaryCallingApplication],
     abi: &semantic_vocabulary::CallingAbiIdentity,
+    calling_owner: Option<&str>,
     expected: Option<&effects::provider_plan::ServiceCallingPlan>,
 ) -> Result<&'plans BoundaryCallingApplication, String> {
     let mut matching = calling.iter().filter(|application| {
         &application.abi == abi
+            && calling_owner
+                .is_none_or(|owner| application.calling_owner_application.as_deref() == Some(owner))
             && expected
                 .is_none_or(|expected| application.commitment == expected.commitment.as_bytes())
     });
@@ -258,7 +262,9 @@ fn private_materialization(
             }
             PrivateCallbackDestinationApplication::Field {
                 root: destination,
-                byte_offset: layout.field_offset(registrar.target)?,
+                placements: calling_conventions::PrivateCallbackPlacements::new(
+                    &layout.field_placements(registrar.target)?,
+                ),
             }
         }
     };

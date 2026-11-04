@@ -7,6 +7,7 @@ use typed_trees::references::collect_selected_program_type_occurrences;
 
 mod layout_installation;
 pub(crate) use layout_installation::compute_plan_laid_layouts_in;
+use layout_installation::compute_prepared_plan_laid_layouts_in;
 
 use diagnostics::Diagnostic;
 use typed_trees::TypedTrees;
@@ -15,7 +16,7 @@ use typed_trees::TypedTrees;
 /// Every supplied declaration and member is checked, including defaults and
 /// overrides. None retains the reusable Source surface; Some(empty) carries
 /// provider declarations or authored target bodies without inventing an entry.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FixedLayoutTargetScope {
     pub target: String,
     pub facts: Option<layout_plans::LayoutTargetFacts>,
@@ -112,7 +113,8 @@ pub fn evaluate_fixed_layout_applications(
     let mut domain = crate::build_time_evaluation::EvaluationDomain::all();
     domain.layout_targets = targets;
     domain.layout_applications = Some(inputs);
-    compute_plan_laid_layouts_in(typed, selection_authority, &domain)?;
+    // Every query since preparation above only read the program.
+    compute_prepared_plan_laid_layouts_in(typed, selection_authority, &domain)?;
     layout_installation::validate_layout_application_coverage(
         typed,
         domain.layout_applications.as_deref(),

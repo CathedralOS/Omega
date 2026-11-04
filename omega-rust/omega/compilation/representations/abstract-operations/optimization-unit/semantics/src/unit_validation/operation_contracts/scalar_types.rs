@@ -61,6 +61,7 @@ pub(crate) fn operation_scalar_types_match(
         O::ReleaseActivationClaim { .. } | O::MergeActivationClaim { .. } => true,
         O::StorageAddress { result, .. } => matches!(result.scalar_type, ScalarType::Integer(integer) if integer.is_address())
             && scalar(result.value) == Some(result.scalar_type),
+        O::GlobalDescriptorTable { .. } => true,
         O::RegisterAccess { service, event, result, .. } => {
             let matches_carrier = |scalar, bits| matches!(scalar, ScalarType::Integer(integer)
                 if fixed(integer) && integer.bits() == bits

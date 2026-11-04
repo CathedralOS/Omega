@@ -1,2 +1,4 @@
-default domain is still FALSE
 pair
+cannot complete return from machine `inspect` state `entry`
+the `requires` facts of `pair` (data `Pair`)
+unproved; restore them first

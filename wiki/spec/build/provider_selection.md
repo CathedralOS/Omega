@@ -110,9 +110,35 @@ foreign locator need not be realizable on the selected target, but its source
 must still be checked. Missing, duplicate, incompatible, or unadmitted selected
 supply rejects rather than choosing a body by spelling or source order.
 
+Concrete layout evaluation follows
+[layout demand](../layouts/plans.md#layout-demand-and-validation), not a pre-pass
+over all supplied bodies. Every declared target row demands the layouts of its
+selected closure, including helpers and callbacks, even when that target is not
+being emitted. A body reached by no row or entry remains source-checked without
+speculative target geometry; selecting it later can expose a latent layout error
+and must validate it before successful consumption or realization.
+
 `BUILD-OWNED-TARGET-SELECTION` in [the task board](../../../TASKS.md)
 tracks the end-to-end migration off the retired family model; the target
 prefix is not an alternate API.
+
+### Generic selected requirements
+
+A boundary requirement may bind named implementation evidence, like an ordinary
+generic machine, under [generic machine requirements](../language/generics.md#generic-machine-requirements).
+Build selects the realizing implementation for the target; a static caller
+supplies the requirement's generic arguments, including the exact evidence map.
+The selected generic member must implement the public contract for every
+admitted application. Build neither enumerates all possible tuples nor chooses
+the caller's evidence as a side effect of platform selection.
+
+Specialization retains the caller's exact static selections and the selected
+provider identity. Runtime-capable value binders keep their ordinary argument
+semantics. This is not a `dyn Trait` method lookup and introduces no unrestricted
+generic vtable, runtime generic engine, or generic foreign ABI. A realized call
+may still use the selected boundary's import, indirect-entry or transport
+mechanism; absence of local trait dispatch is not a promise of direct native
+call encoding.
 
 [Foreign binding](foreign_bindings.md) identities are normalized evaluated values;
 the requirement owns its

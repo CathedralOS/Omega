@@ -23,6 +23,16 @@ pub(super) fn lower(
             port,
             value,
         },
+        OperationKind::GlobalDescriptorTable {
+            service,
+            operation: direction,
+            source,
+        } => AbstractOperation::GlobalDescriptorTable {
+            psi_operation: operation.id,
+            service,
+            operation: direction,
+            source,
+        },
         OperationKind::RegisterAccess { service, event } => AbstractOperation::RegisterAccess {
             psi_operation: operation.id,
             service,
