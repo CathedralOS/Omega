@@ -43,6 +43,7 @@ pub(super) fn requires_descriptor(source: &LegalizedScalarFunction, place: Place
                 | LegalizedScalarInstructionKind::StructuralByteSequenceFieldRead { source, .. } =>
                     source.place == place && !source.path.is_empty(),
                 LegalizedScalarInstructionKind::StorageAddress { source, path, .. }
+                | LegalizedScalarInstructionKind::GlobalDescriptorTable { source, path, .. }
                 | LegalizedScalarInstructionKind::PrimitiveScalarRead { source, path, .. } =>
                     *source == place && !path.is_empty(),
                 // Scalar observations can use the retained view coordinates.

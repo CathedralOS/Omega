@@ -185,6 +185,37 @@ pub fn index_parameters<'program>(
     }
 }
 
+/// Match the declared carrier under this membership's explicit arguments.
+/// A family over `Buffer<T>` belongs to `Buffer<u32>` only when its `T`
+/// argument is u32. Comparing the open declaration before substitution loses
+/// that relationship; checking only argument count admits the wrong carrier.
+/// This establishes declaration correspondence, never domain membership.
+pub fn domain_accepts_carrier(
+    program: &TypedTrees,
+    domain: &DomainDefinition,
+    carrier: TypeReferenceHandle,
+    arguments: &[TypeReferenceHandle],
+) -> bool {
+    use crate::type_identity::TypeIdentityRequest;
+
+    if !carrier.is_valid() || !domain.target_type.is_valid() {
+        return false;
+    }
+    if has_generic_carrier(program, domain) {
+        return true;
+    }
+    let substitutions = index_parameters(program, domain)
+        .iter()
+        .zip(arguments)
+        .map(|(parameter, argument)| (parameter.symbol, *argument))
+        .collect::<Vec<_>>();
+    program.package_qualified_type_identity(carrier)
+        == program.type_identity_with_simultaneous_substitutions(TypeIdentityRequest {
+            substitutions: &substitutions,
+            ..TypeIdentityRequest::package_qualified(domain.target_type)
+        })
+}
+
 /// The declaration carrying `symbol`, resolving through the program-owned
 /// domain index (`TypedTrees::domain_position_by_symbol`) instead of
 /// rescanning `domain_definitions()` per query.

@@ -181,53 +181,6 @@ fn statement_phase(statement: &StatementNode) -> &'static str {
     }
 }
 
-/// Alias bindings whose referents are represented directly by their uses.
-/// A supported capture instead establishes an ordinary reference value: later
-/// transfers need its descriptor identity, even if the borrow also admits an
-/// alias of the backing storage.
-fn erased_alias_locals(
-    program: &dyn ::validation::CheckingInput,
-    facts: &CheckFacts,
-    machine: &typed_trees::machine::Machine,
-    state: &typed_trees::state::State,
-) -> Vec<SymbolHandle> {
-    let mut erased = super::super::receiver_aliases::aliases(program, facts, machine, state)
-        .unwrap_or_default()
-        .into_iter()
-        .map(|alias| alias.owner)
-        .collect::<Vec<_>>();
-    erased.extend(
-        super::super::receiver_aliases::restored_call_alias_locals(program, facts, machine, state)
-            .unwrap_or_default(),
-    );
-    // A retained value or capture that establishes a descriptor is an ordinary value
-    // binding, even when it also admits an alias of its backing. Erasing that
-    // declaration leaves later descriptor transfers with no producer.
-    erased.retain(|symbol| {
-        let Some((statement_index, local)) = program.state_local_declaration(state, *symbol) else {
-            return true;
-        };
-        let Ok(statement_ordinal) = u32::try_from(statement_index) else {
-            return false;
-        };
-        facts
-            .values
-            .structural_values
-            .root_for_expression(state.symbol, statement_ordinal, local.initial_value)
-            .is_none()
-            && super::reference_captures::plan(
-                program,
-                facts,
-                machine,
-                state,
-                statement_index,
-                local,
-            )
-            .is_none()
-    });
-    erased
-}
-
 /// A case arm's payload marker (`let __arm_destructure#V=..`) precedes that
 /// arm's transition; the arm, not the sequence, binds its fields.
 fn is_arm_destructure_marker(statement: &StatementNode) -> bool {
@@ -293,18 +246,8 @@ pub(in super::super) fn build(
         // their retained completion owner. The call occurrence ledger already
         // assigns that owner's nested calls; do not invoke the outer call a
         // second time through the statement roster.
-        let completion_expression = match statement {
-            StatementNode::Expression(expression) => Some(*expression),
-            StatementNode::Transition(transition) if terminal_call => {
-                match program.statement_table.transition_target(transition.target) {
-                    typed_trees::statement::TransitionTargetNode::Value(expression) => {
-                        Some(*expression)
-                    }
-                    _ => None,
-                }
-            }
-            _ => None,
-        };
+        let completion_expression =
+            call_occurrences::completion_expression(program, machine, state, index);
         !completion_expression.is_some_and(|expression| {
             !is_unit(program, state.return_type)
                 && ((!matches!(
@@ -383,13 +326,6 @@ pub(in super::super) fn build(
         reference_retirement::OwnerCandidates::new(program, facts, machine.symbol, state.symbol)?;
     let mut operations = Vec::<CheckedUnitEffectOperationPlan>::new();
     let mut place_loans = Vec::new();
-    // Erased borrow carriers have no storage binding: the sequence advances
-    // past their declarations while each use's planner joins the captured
-    // referent's checked loan evidence.
-    let erased_locals = phase_profile::scope(
-        "psi.05.finalize_execution_identities.finalize_execution.unit_effect_plans.graph_body.erased_locals",
-        || erased_alias_locals(program, facts, machine, state),
-    );
     let mut scalar_count = crate::flow::state_statements(program, state.statement_nodes)
         .iter()
         .take(construction_statement_count)
@@ -625,7 +561,6 @@ pub(in super::super) fn build(
                 local_data::Planner {
                     construction: construction!(),
                     binders: &binders,
-                    erased_locals: &erased_locals,
                     operations: &mut operations,
                     place_loans: &mut place_loans,
                     scalar_count: &mut scalar_count,
@@ -782,6 +717,7 @@ pub(in super::super) fn build(
                 prepared_calls,
                 binders: &binders,
                 calls,
+                statement_end,
                 scalar_control,
                 operations,
                 place_loans,

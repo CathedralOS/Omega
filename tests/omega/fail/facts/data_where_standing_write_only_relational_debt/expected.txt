@@ -1,1 +1,3 @@
-data `Counter`'s default domain is still FALSE at state exit
+cannot complete return from machine `fill` state `entry`
+the `requires` facts of `counter` (data `Counter`)
+unproved; restore them first

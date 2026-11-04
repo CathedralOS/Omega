@@ -1,13 +1,12 @@
-//! Discharge declaration rows already enforced by selected payload carriers.
+//! Skip a predicate row only when the case tag and enforced field restrictions
+//! already guarantee it.
 //!
-//! A sum's tag selects exactly one payload. Each payload's interval-only
-//! contract is retained on its scalar fields, independently checked at stores
-//! and assumed at reads. Prove the *whole* declaration predicate from those
-//! carriers for every case before omitting its redundant expanded roster.
-//! Unknown predicates stay in the roster; a useful consequence is insufficient.
+//! An enclosing predicate can be temporarily unproved during mutation. It
+//! cannot supply its own premise here; only restrictions actually retained on
+//! each field's storage may make the whole declaration row redundant.
 
 use super::{FactSpelling, carrier_bounds};
-use crate::proof_contracts::arithmetic_domains::{BigIntInterval, Interval};
+use crate::proof_contracts::arithmetic_domains::BigIntInterval;
 use checked_trees::{
     CheckedBooleanExpression as Boolean, CheckedIntegerComparisonKind as Comparison,
     CheckedMemberIdentity, CheckedOperatorFacts, CheckedScalarExpression as Scalar,
@@ -21,20 +20,13 @@ pub(super) fn imply_declaration(
     operators: &CheckedOperatorFacts,
     definition: &DataDefinition,
 ) -> bool {
-    let mut cases = program
-        .data_members(definition)
-        .iter()
-        .filter_map(|member| member.as_variant())
-        .peekable();
-    if cases.peek().is_none() {
-        return false;
-    }
     let spelling = FactSpelling {
         program,
         operators,
         parameter_position: 0,
         prefix: &[],
         definition,
+        selected_case: None,
     };
     let Some(predicates) = program
         .proof_facts
@@ -45,19 +37,26 @@ pub(super) fn imply_declaration(
     else {
         return false;
     };
-    cases.all(|case| {
-        let Some(intervals) = crate::case_where_field_intervals(program, case) else {
-            return false;
-        };
-        let intervals = intervals
-            .into_iter()
-            .map(|(symbol, low, high)| (symbol, Interval { low, high }))
-            .collect::<Vec<_>>();
-        let carriers = CaseCarriers {
+    let mut cases = program
+        .data_members(definition)
+        .iter()
+        .filter_map(|member| member.as_variant())
+        .peekable();
+    if cases.peek().is_none() {
+        let carriers = FieldCarriers {
             program,
-            case,
-            identity: CheckedMemberIdentity::of_member(case.identity, case.name.clone()),
-            intervals: &intervals,
+            definition,
+            case: None,
+        };
+        return predicates
+            .iter()
+            .all(|predicate| carriers.boolean(predicate) == Some(true));
+    }
+    cases.all(|case| {
+        let carriers = FieldCarriers {
+            program,
+            definition,
+            case: Some(case),
         };
         predicates
             .iter()
@@ -65,14 +64,13 @@ pub(super) fn imply_declaration(
     })
 }
 
-struct CaseCarriers<'a> {
+struct FieldCarriers<'a> {
     program: &'a dyn crate::CheckingInput,
-    case: &'a DataVariant,
-    identity: CheckedMemberIdentity,
-    intervals: &'a [(symbols::SymbolHandle, Interval)],
+    definition: &'a DataDefinition,
+    case: Option<&'a DataVariant>,
 }
 
-impl CaseCarriers<'_> {
+impl FieldCarriers<'_> {
     fn boolean(&self, predicate: &Boolean) -> Option<bool> {
         match predicate {
             Boolean::Constant(value) => Some(*value),
@@ -80,7 +78,14 @@ impl CaseCarriers<'_> {
                 if subject.root == (CheckedStructuralCaseRoot::Parameter { position: 0 })
                     && subject.path.is_empty() =>
             {
-                Some(*case == self.identity)
+                let selected = self.case?;
+                Some(
+                    *case
+                        == CheckedMemberIdentity::of_member(
+                            selected.identity,
+                            selected.name.clone(),
+                        ),
+                )
             }
             Boolean::Not(operand) => Some(!self.boolean(operand)?),
             // Preserve short-circuit formation: an unknown left operand cannot
@@ -130,19 +135,35 @@ impl CaseCarriers<'_> {
                 primitive_type,
                 ..
             } => {
-                let [Segment::Case(case), Segment::Field(identity)] = path.as_slice() else {
-                    return None;
+                let field = match path.as_slice() {
+                    [Segment::Field(identity)] => self
+                        .program
+                        .data_members(self.definition)
+                        .iter()
+                        .find_map(|member| {
+                            member.as_field().filter(|field| {
+                                field.identity == identity.ordinal && field.name == identity.name
+                            })
+                        })?,
+                    [Segment::Case(case), Segment::Field(identity)] => {
+                        let selected = self.case?;
+                        if *case
+                            != CheckedMemberIdentity::of_member(
+                                selected.identity,
+                                selected.name.clone(),
+                            )
+                        {
+                            return None;
+                        }
+                        self.program
+                            .data_payload_fields(selected)
+                            .iter()
+                            .find(|field| {
+                                field.identity == identity.ordinal && field.name == identity.name
+                            })?
+                    }
+                    _ => return None,
                 };
-                if *case != self.identity {
-                    return None;
-                }
-                let field = self
-                    .program
-                    .data_payload_fields(self.case)
-                    .iter()
-                    .find(|field| {
-                        field.identity == identity.ordinal && field.name == identity.name
-                    })?;
                 if field.relevance.is_erased()
                     || self.program.primitive_type_reference(field.type_reference)
                         != Some(*primitive_type)
@@ -154,14 +175,26 @@ impl CaseCarriers<'_> {
                     low: Some(BigInt::from_i128(low)),
                     high: Some(BigInt::from_i128(high)),
                 };
-                if let Some((_, bounds)) = self
-                    .intervals
-                    .iter()
-                    .find(|(symbol, _)| *symbol == field.symbol)
+                if let Some((low, high)) =
+                    crate::enforced_integer_type_bounds(self.program, field.type_reference)
                 {
                     interval = interval.intersect(&BigIntInterval {
-                        low: bounds.low.map(BigInt::from_i64),
-                        high: bounds.high.map(BigInt::from_i64),
+                        low: Some(BigInt::from_i64(low)),
+                        high: Some(BigInt::from_i64(high)),
+                    });
+                }
+                // Dedicated atomic fields keep resident bounds at every event;
+                // ordinary data predicates never narrow a plain scalar slot.
+                if let Some(resident) =
+                    crate::proof_contracts::default_domains::atomic_field_interval(
+                        self.program,
+                        self.definition,
+                        field,
+                    )
+                {
+                    interval = interval.intersect(&BigIntInterval {
+                        low: resident.low.map(BigInt::from_i64),
+                        high: resident.high.map(BigInt::from_i64),
                     });
                 }
                 interval.into_closed()
@@ -181,8 +214,15 @@ mod tests {
     #[test]
     fn payload_carriers_prove_only_the_complete_guarded_bound() {
         let mut symbols = SymbolTableBuilder::default();
-        let integer = symbols.insert_root(SymbolKind::BuiltinType, SymbolNameRef::Static("u64"));
-        let field_symbol = symbols.insert_root(SymbolKind::Field, SymbolNameRef::Static("count"));
+        let root = symbols.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let children = symbols.insert_children(
+            root,
+            symbols::builtin_type_symbols()
+                .into_iter()
+                .chain([(SymbolKind::Field, SymbolNameRef::Static("count"))]),
+        );
+        let integer = children.handle_at(symbols::BuiltinTypeAtom::U64.ordinal() as u32);
+        let field_symbol = children.handle_at(symbols::BUILTIN_TYPE_COUNT as u32);
         let mut program = TypedTrees {
             symbols: symbols.finish(),
             ..Default::default()
@@ -193,6 +233,31 @@ mod tests {
                 symbol: integer,
                 name: Identifier::from("u64"),
             });
+        let minimum =
+            program
+                .expression_table
+                .insert(typed_trees::expression::ExpressionNode::Integer(
+                    numerics::literals::IntegerLiteral::from_value(0),
+                ));
+        let maximum =
+            program
+                .expression_table
+                .insert(typed_trees::expression::ExpressionNode::Integer(
+                    numerics::literals::IntegerLiteral::from_value(256),
+                ));
+        let constraints = program.type_reference_table.insert_constraints([
+            typed_trees::types::TypeConstraintNode::Range {
+                minimum,
+                maximum,
+                end_inclusive: true,
+            },
+        ]);
+        let bounded_type = program
+            .type_reference_table
+            .insert(TypeReferenceNode::Constrained {
+                base_type: integer_type,
+                constraints,
+            });
         let mut payload = HandleSpan::empty();
         program.data_payload_fields.append_to_span(
             &mut payload,
@@ -200,7 +265,7 @@ mod tests {
                 identity: Some(3),
                 symbol: field_symbol,
                 name: Identifier::from("count"),
-                type_reference: integer_type,
+                type_reference: bounded_type,
                 ..Default::default()
             },
         );
@@ -211,18 +276,31 @@ mod tests {
             ..Default::default()
         };
         let identity = CheckedMemberIdentity::of_member(case.identity, case.name.clone());
-        let intervals = [(
-            field_symbol,
-            Interval {
-                low: None,
-                high: Some(256),
+        let definition = DataDefinition::default();
+        let mut raw_payload = HandleSpan::empty();
+        program.data_payload_fields.append_to_span(
+            &mut raw_payload,
+            DataField {
+                identity: Some(3),
+                symbol: field_symbol,
+                name: Identifier::from("count"),
+                type_reference: integer_type,
+                ..Default::default()
             },
-        )];
-        let carriers = CaseCarriers {
+        );
+        let unrestricted_case = DataVariant {
+            payload: raw_payload,
+            ..case.clone()
+        };
+        let empty_case = DataVariant {
+            identity: Some(1),
+            name: Identifier::from("Empty"),
+            ..Default::default()
+        };
+        let carriers = FieldCarriers {
             program: &program,
-            case: &case,
-            identity: identity.clone(),
-            intervals: &intervals,
+            definition: &definition,
+            case: Some(&case),
         };
         let membership = |case| Boolean::StructuralCaseMembership {
             subject: checked_trees::CheckedStructuralCaseSubject {
@@ -263,18 +341,20 @@ mod tests {
             None,
             "a stronger predicate must retain its row"
         );
-        let unrestricted = CaseCarriers {
-            intervals: &[],
-            ..carriers
+        let unrestricted = FieldCarriers {
+            program: &program,
+            definition: &definition,
+            case: Some(&unrestricted_case),
         };
         assert_eq!(
             unrestricted.boolean(&guarded(256)),
             None,
             "the source predicate cannot establish its own field bound"
         );
-        let empty = CaseCarriers {
-            identity: CheckedMemberIdentity::of_member(Some(1), "Empty".into()),
-            ..unrestricted
+        let empty = FieldCarriers {
+            program: &program,
+            definition: &definition,
+            case: Some(&empty_case),
         };
         assert_eq!(
             empty.boolean(&guarded(256)),

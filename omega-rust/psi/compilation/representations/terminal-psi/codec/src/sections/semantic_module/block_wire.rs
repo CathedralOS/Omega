@@ -201,6 +201,7 @@ operation_wire! {
         READ_SCALAR_APPLICATION => ReadScalarApplication { application: Id },
         ESTABLISH_NATIVE_CODE_LAYOUT => EstablishNativeCodeLayout { machine: Id },
         STORAGE_ADDRESS => StorageAddress { source: Argument },
+        GLOBAL_DESCRIPTOR_TABLE => GlobalDescriptorTable { service: Id, operation: GlobalDescriptorTable, source: Argument },
         ESTABLISH_ACCESS_REFERENCE => EstablishAccessReference {
             source: Argument,
             resident: Resident,

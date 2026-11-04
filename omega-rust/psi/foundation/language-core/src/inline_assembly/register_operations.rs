@@ -5,7 +5,10 @@
 //! writes and operand-free processor control all remain observable. No event
 //! grants machine authority.
 
-use super::{AsmFenceKind, AsmInterruptControlKind, AsmSystemRegister, AsmTargetApplicability};
+use super::{
+    AsmFenceKind, AsmGlobalDescriptorTableOperation, AsmInterruptControlKind, AsmSystemRegister,
+    AsmTargetApplicability,
+};
 
 /// Exact unsigned scalar carriers of physical register operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +52,8 @@ pub enum AsmRegisterOperation {
     PortWrite,
     ModelSpecificRead,
     ModelSpecificWrite,
+    /// Native descriptor access; source and Terminal retain its byte loan separately.
+    GlobalDescriptorTable(AsmGlobalDescriptorTableOperation),
 }
 
 impl AsmRegisterOperation {
@@ -56,6 +61,8 @@ impl AsmRegisterOperation {
     /// tags carry no ISA encoding, operand values or authority disposition.
     pub const fn catalog_tag(self) -> u16 {
         match self {
+            Self::GlobalDescriptorTable(AsmGlobalDescriptorTableOperation::Store) => 0x600,
+            Self::GlobalDescriptorTable(AsmGlobalDescriptorTableOperation::Load) => 0x601,
             Self::ProcessorHalt => 0x400,
             Self::InterruptControl(AsmInterruptControlKind::Disable) => 0x401,
             Self::InterruptControl(AsmInterruptControlKind::Enable) => 0x402,
@@ -76,6 +83,16 @@ impl AsmRegisterOperation {
 
     pub const fn from_catalog_tag(tag: u16) -> Option<Self> {
         match tag {
+            0x600 => {
+                return Some(Self::GlobalDescriptorTable(
+                    AsmGlobalDescriptorTableOperation::Store,
+                ));
+            }
+            0x601 => {
+                return Some(Self::GlobalDescriptorTable(
+                    AsmGlobalDescriptorTableOperation::Load,
+                ));
+            }
             0x400 => return Some(Self::ProcessorHalt),
             0x401 => return Some(Self::InterruptControl(AsmInterruptControlKind::Disable)),
             0x402 => return Some(Self::InterruptControl(AsmInterruptControlKind::Enable)),
@@ -144,7 +161,7 @@ impl AsmRegisterOperation {
             | Self::ProcessorHalt
             | Self::InterruptControl(_)
             | Self::MemoryFence(_) => &[],
-            Self::SystemWrite(_) => &[U64],
+            Self::SystemWrite(_) | Self::GlobalDescriptorTable(_) => &[U64],
             Self::PortRead => &[U16],
             Self::PortWrite => &[U16, U8],
             Self::ModelSpecificRead => &[U32],
@@ -181,7 +198,8 @@ impl AsmRegisterOperation {
             | Self::ProcessorHalt
             | Self::InterruptControl(_)
             | Self::MemoryFence(_)
-            | Self::ModelSpecificWrite => true,
+            | Self::ModelSpecificWrite
+            | Self::GlobalDescriptorTable(_) => true,
             Self::SystemWrite(register) => register.write_intrinsic_name().is_some(),
         }
     }

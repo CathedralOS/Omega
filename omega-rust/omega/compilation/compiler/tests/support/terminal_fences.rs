@@ -190,6 +190,7 @@ fn observe_target(
     let entry = root.map(|root| terminal_psi::TargetMachineCallable::Machine(root.entry()));
     let supplies = |model| {
         program.admit_runtime_supplies(TerminalRuntimeSupplyRequest {
+            native_code_layouts: None,
             x86_flags: None,
             memory_ordering: model,
             entry,
