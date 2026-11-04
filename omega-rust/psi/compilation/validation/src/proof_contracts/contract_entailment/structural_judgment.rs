@@ -1786,8 +1786,20 @@ impl<'program> StructuralJudge<'program> {
                     measure,
                     collection,
                 } => {
+                    // A forwarding identity names the completed descriptor
+                    // before a case rewrite replaces its enclosing payload.
+                    // Keep that subject first; the same metadata query below
+                    // still handles descriptors produced by computation.
+                    let collection = match self.collection_measure_identity(
+                        measure,
+                        (*collection).into_collection_descriptor(),
+                        depth + 1,
+                    ) {
+                        StructuralTerm::CollectionMeasure { collection, .. } => *collection,
+                        value => return value,
+                    };
                     let collection = self
-                        .resolve_with_at(*collection, depth + 1, purpose)
+                        .resolve_with_at(collection, depth + 1, purpose)
                         .into_collection_descriptor();
                     let resolved = self.collection_measure_identity(measure, collection, depth + 1);
                     if !matches!(resolved, StructuralTerm::CollectionMeasure { .. }) {
