@@ -586,6 +586,41 @@ impl<'program> StructuralJudge<'program> {
                 "STRUCT storage-value-retired coordinate={coordinate:?} inline={inline} at={at:?} anchors={:?}",
                 stored.current_anchors,
             );
+            // Show this observation's recorded cuts and call associations
+            // without evaluating storage again or interpreting effects.
+            let calls = self
+                .flow_state(at.state)
+                .and_then(|state| graph.calls.span(state.calls))
+                .unwrap_or(&[]);
+            let mut previous_cuts = Vec::new();
+            let mut cut = at.snapshot;
+            for _ in 0..4 {
+                if !graph.storage_snapshots.is_valid(cut) {
+                    break;
+                }
+                let snapshot = graph.storage_snapshots.get(cut);
+                let associations = calls
+                    .iter()
+                    .filter(|call| call.invocation_storage == cut || call.completed_storage == cut)
+                    .take(4)
+                    .map(|call| {
+                        (
+                            call.statement_index,
+                            call.call_ordinal,
+                            call.authored_expression,
+                            call.target_symbol,
+                            call.invocation_storage,
+                            call.completed_storage,
+                        )
+                    })
+                    .collect::<Vec<_>>();
+                previous_cuts.push((cut, snapshot.previous, snapshot.operation, associations));
+                if snapshot.previous == cut {
+                    break;
+                }
+                cut = snapshot.previous;
+            }
+            eprintln!("STRUCT storage-retirement-cuts at={at:?} previous={previous_cuts:?}");
         }
         valid
     }
