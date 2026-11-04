@@ -49,23 +49,28 @@ class CompilerPilotTests(unittest.TestCase):
             library.parent.mkdir(parents=True)
             library.write_text("data Last {}")
             paths = [sample + "/main.omg", sample + "/build.omg", "source/library/std/last.omg"]
-            output = root / "observation"
             producer = Mock(cli=Path("/retained/omega"), target="windows_x86_64")
             producer.record.return_value = {"revision": "a" * 40}
-            expected_project = output / "workspace" / sample
+            for index, diagnostics in enumerate(({}, {"OMEGA_PROVIDER_DEBUG": "1",
+                                                       "OMEGA_COMPILER_CHECK_SITES": "1"})):
+                output = root / f"observation-{index}"
+                expected_project = output / "workspace" / sample
 
-            def refuse_update(arguments, **kwargs):
-                self.assertEqual(arguments[1:4], ["update", "--project", expected_project])
-                self.assertTrue((expected_project / "build.omg").is_file())
-                self.assertTrue((output / "workspace/source/library/std/last.omg").is_file())
-                return Mock(returncode=1)
+                def refuse_update(arguments, **kwargs):
+                    self.assertEqual(arguments[1:4], ["update", "--project", expected_project])
+                    self.assertTrue((expected_project / "build.omg").is_file())
+                    self.assertTrue((output / "workspace/source/library/std/last.omg").is_file())
+                    for name in ("OMEGA_PROVIDER_DEBUG", "OMEGA_COMPILER_CHECK_SITES"):
+                        self.assertEqual(kwargs["env"].get(name), diagnostics.get(name))
+                    return Mock(returncode=1)
 
-            with patch.object(pilot.ordinary_cli_fixture.subprocess, "check_output", return_value="\n".join(paths)), \
-                    patch.object(pilot.ordinary_cli_fixture.subprocess, "run", side_effect=refuse_update) as run:
-                row = pilot.ordinary_cli_fixture.observe(root, producer, sample, output)
-                run.assert_called_once()
-                self.assertEqual(row["stages"][0]["arguments"][3], str(expected_project))
-                self.assertFalse(row["passed"])
+                with self.subTest(diagnostics=diagnostics), patch.dict(os.environ, diagnostics, clear=True), \
+                        patch.object(pilot.ordinary_cli_fixture.subprocess, "check_output", return_value="\n".join(paths)), \
+                        patch.object(pilot.ordinary_cli_fixture.subprocess, "run", side_effect=refuse_update) as run:
+                    row = pilot.ordinary_cli_fixture.observe(root, producer, sample, output)
+                    run.assert_called_once()
+                    self.assertEqual(row["stages"][0]["arguments"][3], str(expected_project))
+                    self.assertFalse(row["passed"])
 
     def test_ordinary_cli_uses_exact_product_sample_and_its_authored_exit(self):
         sample = "samples/cli/systems/journal"

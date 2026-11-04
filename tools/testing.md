@@ -164,7 +164,14 @@ authored exit during execution. It preserves raw logs for both review phases; ma
 ordinary pending-row decisions, not a copied lock. Plain names in `expected_terminal_inspections.txt` run through public named
 inspection and canonical artifact reload with matching program identity. Stream,
 RAM and debug/runtime/control inspection oracles remain refused before building
-rather than silently omitted. For example:
+rather than silently omitted.
+
+Full compiler tracing stays opt-in through the caller's existing environment.
+The consumer retains ordinary stderr without forcing `OMEGA_PROVIDER_DEBUG` or
+`OMEGA_COMPILER_CHECK_SITES`; those traces can exceed 800 MB for one package
+check. A requested diagnostic replay still inherits both settings.
+
+For an ordinary run:
 
 ```sh
 gh workflow run compiler-pilot.yml --ref work/NAME \

@@ -123,10 +123,9 @@ def observe(root, producer, fixture, output):
         inputs[relative] = hashlib.sha256(source.read_bytes()).hexdigest()
     record = dict(fixture=fixture, target=producer.target, producer=producer.record(),
                   expected_exit=expected, passed=False, inputs=inputs, stages=[])
-    # Retain selection and cleanup diagnostics in the private command logs so
-    # a refusal identifies the operation that failed for this exact producer.
-    env = dict(os.environ, OMEGA_LIBRARY_ROOT=str(workspace / "source/library"),
-               OMEGA_PROVIDER_DEBUG="1", OMEGA_COMPILER_CHECK_SITES="1")
+    # Full compiler tracing can dwarf the program check. Leave full tracing
+    # opt-in and inherit it when the caller explicitly requests it.
+    env = dict(os.environ, OMEGA_LIBRARY_ROOT=str(workspace / "source/library"))
     project = workspace / project_relative
 
     def verify():
