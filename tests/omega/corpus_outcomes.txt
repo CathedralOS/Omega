@@ -6105,32 +6105,32 @@ fail/facts/atomic_compare_exchange_once_wide_rejected rejected 374ms expected @1
 	tests/omega/fail/facts/atomic_compare_exchange_once_wide_rejected/main.omg:1:1: atomic compare_exchange failure ordering `Publish` is invalid for success ordering `ReceivePublish`; failure cannot publish or be stronger than success
 fail/facts/atomic_compare_exchange_once_wrong_resident_rejected rejected 1088ms expected @1ee74504bebf
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_try_exchange_once/call_result rejected 1016ms expected @0410c70e4d00
+fail/facts/atomic_try_exchange_once/call_result rejected 888ms expected @17be13e1a9ff
 	machine `attempt` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_try_exchange_once/const_name rejected 857ms expected @0410c70e4d00
+fail/facts/atomic_try_exchange_once/const_name rejected 838ms expected @17be13e1a9ff
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
 	machine `mismatch` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_try_exchange_once/controls/discarded_result rejected 848ms expected @0410c70e4d00
+fail/facts/atomic_try_exchange_once/controls/discarded_result rejected 884ms expected @17be13e1a9ff
 	machine `discard_attempt` state `entry` local `unused` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_try_exchange_once/controls/wide rejected 1152ms expected @0410c70e4d00
+fail/facts/atomic_try_exchange_once/controls/wide rejected 828ms expected @17be13e1a9ff
 	machine `attempt64` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_try_exchange_once/field rejected 1256ms expected @0410c70e4d00
+fail/facts/atomic_try_exchange_once/field rejected 871ms expected @17be13e1a9ff
 	machine `probe` state `entry` local `raw` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
 	machine `mismatch` state `entry` local `raw` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_try_exchange_once/local rejected 1159ms expected @0410c70e4d00
+fail/facts/atomic_try_exchange_once/local rejected 937ms expected @17be13e1a9ff
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
 	machine `mismatch` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_try_exchange_once/match_join rejected 1279ms expected @0410c70e4d00
+fail/facts/atomic_try_exchange_once/match_join rejected 834ms expected @17be13e1a9ff
 	machine `probe` state `entry` local `raw` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
 	machine `mismatch` state `entry` local `raw` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_try_exchange_once/other_machine rejected 1119ms expected @0410c70e4d00
+fail/facts/atomic_try_exchange_once/other_machine rejected 873ms expected @17be13e1a9ff
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_try_exchange_once/other_state rejected 977ms expected @0410c70e4d00
+fail/facts/atomic_try_exchange_once/other_state rejected 841ms expected @17be13e1a9ff
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_try_exchange_once/parameter rejected 1110ms expected @0410c70e4d00
+fail/facts/atomic_try_exchange_once/parameter rejected 804ms expected @17be13e1a9ff
 	machine `probe` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
 	machine `mismatch` state `entry` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
-fail/facts/atomic_try_exchange_once/target_body rejected 931ms expected @0410c70e4d00
+fail/facts/atomic_try_exchange_once/target_body rejected 799ms expected @17be13e1a9ff
 	machine `SingleAttempt::attempt` state `attempt` local `outcome` requires the sealed AtomicCompareExchangeOnceOutcome with the exact resident type
 fail/facts/body_bearing_comparison_case_fields_rejected rejected 5720ms expected @ccdb99ca2214
 	cannot prove requires contract for call hold from check: direct == false (needs fact `direct == false` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
@@ -22133,28 +22133,17 @@ pass/facts/atomic_compare_exchange_once_through_other_state_exit checked 6268ms 
 pass/facts/atomic_compare_exchange_once_through_parameter_exit checked 6258ms check-target:macos_arm64 @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_through_target_body_exit checked 6291ms check-target:macos_arm64 @1ee74504bebf
 pass/facts/atomic_compare_exchange_once_wide_exit checked 6276ms check-target:macos_arm64 @1ee74504bebf
-pass/facts/atomic_try_exchange_once/call_result rejected 1075ms check-target:macos_arm64 @0410c70e4d00
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
-pass/facts/atomic_try_exchange_once/const_name rejected 1052ms check-target:macos_arm64 @0410c70e4d00
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
-pass/facts/atomic_try_exchange_once/controls/discarded_result rejected 1155ms check-target:macos_arm64 @0410c70e4d00
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
-pass/facts/atomic_try_exchange_once/controls/wide rejected 1155ms check-target:macos_arm64 @0410c70e4d00
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
-pass/facts/atomic_try_exchange_once/field rejected 1052ms check-target:macos_arm64 @0410c70e4d00
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
-pass/facts/atomic_try_exchange_once/local rejected 1203ms check-target:macos_arm64 @0410c70e4d00
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
-pass/facts/atomic_try_exchange_once/match_join rejected 1157ms check-target:macos_arm64 @0410c70e4d00
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
-pass/facts/atomic_try_exchange_once/other_machine rejected 941ms check-target:macos_arm64 @0410c70e4d00
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
-pass/facts/atomic_try_exchange_once/other_state rejected 918ms check-target:macos_arm64 @0410c70e4d00
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
-pass/facts/atomic_try_exchange_once/parameter rejected 1188ms check-target:macos_arm64 @0410c70e4d00
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
-pass/facts/atomic_try_exchange_once/target_body rejected 1018ms check-target:macos_arm64 @0410c70e4d00
-	machine `mod` state `entry` statement 1: stored call has no complete statement-successor effects
+pass/facts/atomic_try_exchange_once/call_result checked 4653ms check-target:macos_arm64 @17be13e1a9ff
+pass/facts/atomic_try_exchange_once/const_name checked 4764ms check-target:macos_arm64 @17be13e1a9ff
+pass/facts/atomic_try_exchange_once/controls/discarded_result checked 4899ms check-target:macos_arm64 @17be13e1a9ff
+pass/facts/atomic_try_exchange_once/controls/wide checked 5044ms check-target:macos_arm64 @17be13e1a9ff
+pass/facts/atomic_try_exchange_once/field checked 4811ms check-target:macos_arm64 @17be13e1a9ff
+pass/facts/atomic_try_exchange_once/local checked 4419ms check-target:macos_arm64 @17be13e1a9ff
+pass/facts/atomic_try_exchange_once/match_join checked 4989ms check-target:macos_arm64 @17be13e1a9ff
+pass/facts/atomic_try_exchange_once/other_machine checked 4898ms check-target:macos_arm64 @17be13e1a9ff
+pass/facts/atomic_try_exchange_once/other_state checked 4687ms check-target:macos_arm64 @17be13e1a9ff
+pass/facts/atomic_try_exchange_once/parameter checked 4880ms check-target:macos_arm64 @17be13e1a9ff
+pass/facts/atomic_try_exchange_once/target_body checked 4282ms check-target:macos_arm64 @17be13e1a9ff
 pass/facts/body_bearing_comparison_case_fields_exit checked 11592ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_default_fields_exit checked 12954ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
 pass/facts/body_bearing_comparison_ordered_field_calls_exit checked 14845ms check-target:macos_arm64 terminal-inspections:match @ccdb99ca2214
