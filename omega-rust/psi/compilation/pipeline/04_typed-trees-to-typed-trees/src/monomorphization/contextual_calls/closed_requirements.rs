@@ -77,7 +77,7 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
             let caller_lifetimes = expressions_of(program)
                 .static_machine_application_lifetimes(application)
                 .to_vec();
-            if !program.applied_machine_callable_matches(
+            if let Some(reason) = program.applied_machine_callable_mismatch(
                 application,
                 ordinal,
                 argument.symbol,
@@ -88,9 +88,12 @@ pub(in super::super) fn retain(program: &mut TypedTrees) -> Result<(), Vec<Diagn
                 caller_operands,
                 &caller_lifetimes,
             ) {
-                return Err(vec![Diagnostic::error(
-                    "closed requirement demand has a stale source provider tuple",
-                )]);
+                return Err(vec![Diagnostic::error(format!(
+                    "call to {} cannot reuse {} for {}: {reason}",
+                    program.symbols.name(invocation.target),
+                    program.symbols.name(argument.symbol),
+                    program.symbols.name(source.parameter),
+                ))]);
             }
             if program.applied_machine_callable_matches(
                 application,
