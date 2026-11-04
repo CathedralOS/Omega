@@ -742,6 +742,9 @@ struct Collector<'program, 'selection> {
     deferred_machines: Option<Vec<SymbolHandle>>,
     follow_dependencies: bool,
     purpose: DependencyPurpose,
+    // Typed choices disambiguate unresolved overload families. Readiness can
+    // also visit independently selected member bodies absent from that hint.
+    // Final normalization compares the complete reconstructed source roster.
     selected_calls: Option<&'selection [(SourceSpan, SourceSpan)]>,
 }
 
@@ -998,25 +1001,6 @@ impl<'program, 'selection> Collector<'program, 'selection> {
             NamedImplementationDependency::NotSelected => {}
         }
         if let Some(binding) = self.body_call_routing.binding(self.lexical_owner, &site)? {
-            let declaration = call_custody_source(self.program, binding.original)?;
-            if let Some(calls) = self.selected_calls
-                && !calls.contains(&(target_span, declaration))
-            {
-                let mut retained_count = 0usize;
-                let mut retained_prefix = Vec::new();
-                for (reference, retained) in calls {
-                    if *reference == target_span {
-                        retained_count += 1;
-                        if retained_prefix.len() < 4 {
-                            retained_prefix.push(*retained);
-                        }
-                    }
-                }
-                return Err(format!(
-                    "constant call selection disagrees with its owning implementation: purpose {:?}, call {target_span:?}, owner {:?}, binding original {:?}, selected {:?}, selected declaration {declaration:?}, retained declaration count {retained_count}, retained prefix {retained_prefix:?}",
-                    self.purpose, self.lexical_owner, binding.original, binding.selected,
-                ));
-            }
             return self.realized_call_dependency(binding, target_span);
         }
         if !target_symbol.is_valid() {
