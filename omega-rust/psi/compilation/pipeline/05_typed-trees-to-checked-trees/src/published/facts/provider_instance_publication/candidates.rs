@@ -121,8 +121,11 @@ fn candidates(
                         && row.receiving_application == application.trait_application_identity
                 })
             {
+                let Some(provider) = provider_declaration(typed, association)? else {
+                    continue;
+                };
                 declarations.push(CheckedProviderCandidateDeclaration {
-                    provider: provider_declaration(typed, association)?,
+                    provider,
                     receiving: receiving_handle(publication, association)?,
                 });
             }
@@ -173,9 +176,9 @@ fn candidates(
     if !supplies {
         return Ok(Vec::new());
     }
-    let provider =
-        typed_trees::provider_declarations::satisfaction_provider_declaration(typed, machine)
-            .ok_or("exact satisfaction has no recorded provider declaration")?;
+    let Some(provider) = machine_provider_declaration(typed, machine)? else {
+        return Ok(Vec::new());
+    };
     Ok(vec![CheckedProviderCandidateDeclaration {
         provider,
         receiving: arena::Handle::default(),
@@ -202,18 +205,36 @@ fn receiving_handle(
 pub(super) fn provider_declaration(
     typed: &TypedTrees,
     association: &checked_trees::CheckedProviderClosedRequirement,
-) -> Result<SymbolHandle, String> {
+) -> Result<Option<SymbolHandle>, String> {
     if typed
         .conformance_by_symbol(association.selecting_declaration)
         .is_some()
     {
-        return Ok(association.selecting_declaration);
+        return Ok(Some(association.selecting_declaration));
     }
     let machine = typed
         .machine(association.selecting_declaration)
         .ok_or("provider association lost its selecting declaration")?;
-    typed_trees::provider_declarations::satisfaction_provider_declaration(typed, machine)
-        .ok_or_else(|| "provider association has no recorded provider declaration".into())
+    machine_provider_declaration(typed, machine)
+}
+
+/// An exact proof edge on a free helper creates no selectable implementation.
+/// An authored map member or legacy attached supplier does promise a provider
+/// owner; losing that recorded relation must refuse rather than become a skip.
+fn machine_provider_declaration(
+    typed: &TypedTrees,
+    machine: &Machine,
+) -> Result<Option<SymbolHandle>, String> {
+    let provider =
+        typed_trees::provider_declarations::satisfaction_provider_declaration(typed, machine);
+    let owner = typed.symbols.get(machine.symbol).declaration_owner;
+    let owns_selection = (owner.is_valid()
+        && typed.symbols.get(owner).kind == symbols::SymbolKind::Conformance)
+        || machine.attached_data.is_some();
+    if provider.is_none() && owns_selection {
+        return Err("exact satisfaction lost its recorded provider declaration".into());
+    }
+    Ok(provider)
 }
 
 /// One exact requirement edge a candidate body may realize.
@@ -365,12 +386,8 @@ fn exact_requirement_edges(
                 if !declares_exact_requirement(typed, owner, definition, template) {
                     continue;
                 }
-                let Some(provider) =
-                    typed_trees::provider_declarations::satisfaction_provider_declaration(
-                        typed, owner,
-                    )
-                else {
-                    return Err("exact satisfaction has no recorded provider declaration".into());
+                let Some(provider) = machine_provider_declaration(typed, owner)? else {
+                    continue;
                 };
                 edges.push(RequirementEdge {
                     provider,

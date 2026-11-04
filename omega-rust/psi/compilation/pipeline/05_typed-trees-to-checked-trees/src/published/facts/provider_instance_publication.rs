@@ -34,13 +34,19 @@ pub(crate) fn retain(checked: &mut CheckedTrees) {
         {
             continue;
         }
+        let selecting_provider = match candidates::provider_declaration(typed, association) {
+            Ok(Some(provider)) => Ok(provider),
+            Ok(None) => continue,
+            Err(reason) => Err(reason),
+        };
         publication
             .requirements
             .insert(CheckedProviderInstanceRequirement {
                 template: association.template,
                 boundary: association.closed_requirement,
                 provider: association.provider,
-                declaration: named(checked, association, receiving),
+                declaration: selecting_provider
+                    .and_then(|provider| named(checked, association, receiving, provider)),
             });
     }
     // Preserve the existing requirement-only obligations while the separate
@@ -94,6 +100,7 @@ fn named(
     checked: &CheckedTrees,
     association: &CheckedProviderClosedRequirement,
     receiving: arena::Handle<CheckedProviderReceivingApplication>,
+    selecting_provider: SymbolHandle,
 ) -> Result<CheckedProviderInstanceDeclaration, String> {
     let typed = &checked.typed;
     let (owner, signature) = typed
@@ -136,7 +143,7 @@ fn named(
     Ok(CheckedProviderInstanceDeclaration {
         template_identity: typed.trait_requirement_callable_identity(owner, signature),
         package: typed.symbols.symbol_package_identity(association.template),
-        selecting_declaration: candidates::provider_declaration(typed, association)?,
+        selecting_declaration: selecting_provider,
         source_candidate_identity,
         requirement_identity: requirement,
         candidate_identity,
