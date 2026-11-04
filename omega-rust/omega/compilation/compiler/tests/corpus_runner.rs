@@ -1033,6 +1033,9 @@ fn build_native_fixture(
     let report = &cohort.primary;
     if let Some(capture) = capture {
         capture
+            .observe_native_entries(report)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
+        capture
             .observe_components(report)
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
     }
@@ -1479,6 +1482,9 @@ fn realize_fixture(
         interpretation.as_ref().map(|(directory, _)| *directory),
     )?;
     if let Some(capture) = capture {
+        capture
+            .observe_native_entries(&cohort.primary)
+            .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;
         capture
             .observe_components(&cohort.primary)
             .map_err(|message| vec![diagnostics::Diagnostic::error(message)])?;

@@ -22,6 +22,10 @@ mod frame_protocol;
 pub const ORDINARY_DIRECT_CALL_BYTES: [u8; 5] = [0xe8, 0, 0, 0, 0];
 /// Ordinary call-return control, after releasing the active frame.
 pub const ORDINARY_RETURN_BYTES: [u8; 1] = [0xc3];
+/// Restore the normalized long-mode interrupt frame, including SS:RSP.
+pub const INTERRUPT_RETURN_BYTES: [u8; 2] = [0x48, 0xcf];
+/// Establish the ordinary internal ABI direction flag after asynchronous entry.
+pub const CLEAR_DIRECTION_FLAG_BYTES: [u8; 1] = [0xfc];
 mod hosted_kernel;
 mod hosted_linux_encoding;
 mod ieee_float;
