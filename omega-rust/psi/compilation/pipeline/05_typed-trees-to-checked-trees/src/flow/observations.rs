@@ -1,10 +1,8 @@
-//! A tag observation names the receiver actually evaluated, not a later read
-//! of its reference binding. The physical tag and a repeatable expression have
-//! distinct lifetimes: descriptor replacement cannot change an observed tag,
-//! but it can change what the expression would observe on its next evaluation.
+//! An observation names the value actually read, not a later read from the
+//! same reference binding. Its completed source and content-write cut remain
+//! distinct from what a repeated source expression would observe now.
 
 use super::FlowBuildContext;
-use super::reference_spans::appended_span_since;
 use arena::Handle;
 use arena::HandleSpan;
 use checked_trees::FlowOperandReferent;
@@ -76,7 +74,7 @@ pub(super) struct ContentsObservation {
     pub(super) subject: CanonicalPlace,
     pub(super) descriptor: Handle<FlowValueObservationFact>,
     /// A selected descriptor namespace depends on its exact current binding
-    /// and every possible pointee; it asserts no tag on those other pointees.
+    /// and every possible pointee; it asserts no fact for each pointee separately.
     pub(super) dependencies: Vec<CanonicalPlace>,
     pub(super) origin_writes: HandleSpan<FlowOperandReferent>,
     pub(super) origin_unknown_write: bool,
@@ -96,20 +94,15 @@ fn completed_observation_receiver<'flow>(
     ),
     &'static str,
 > {
-    let statements = appended_span_since(&build.control.statements, build.state_statements_start);
+    let statement = build
+        .statement_fact_at(state, statement_index)
+        .ok_or("the observation has no uniquely retained source statement")?;
     let mut matching = build
         .control
-        .statements
-        .span(statements)
-        .ok_or("the observation has no complete statement roster")?
+        .value_observations
+        .span(statement.value_observations)
+        .ok_or("the statement has no complete observation roster")?
         .iter()
-        .filter(|statement| statement.statement_index == statement_index)
-        .flat_map(|statement| {
-            build
-                .control
-                .value_observations
-                .span_or_empty(statement.value_observations)
-        })
         .filter(|observation| observation.expression == expression);
     let observation = matching
         .next()

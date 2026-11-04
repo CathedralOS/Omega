@@ -56,6 +56,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
     let borrow_calls = borrow.calls.span_or_empty(borrow_state.calls);
     let borrow_loans = borrow.loans.span_or_empty(borrow_state.loans);
     let source_count = state.statement_nodes.len();
+    build.begin_statement_facts(state.symbol, source_count);
     let call_ranges = statement_record_ranges(
         source_count,
         borrow_calls.iter().map(|call| call.statement_index),
@@ -113,6 +114,7 @@ pub(super) fn append_state_statement_flow_facts<'plans>(
             entry_constraints: *active_constraints,
             pre_store_constraints: HandleSpan::empty(),
         });
+        build.record_statement_fact(statement_index, statement_fact);
         if matches!(statement, StatementNode::Transition(_))
             && proof.has_outcome_specific_arm(machine.symbol, state.symbol, statement_index)
         {

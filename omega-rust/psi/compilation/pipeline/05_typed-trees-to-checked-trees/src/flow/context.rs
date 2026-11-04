@@ -41,6 +41,57 @@ struct GuardPreparation {
     expression: Option<checked_trees::CheckedBooleanExpression>,
 }
 
+#[derive(Clone, Copy, Default)]
+enum PublishedStatement {
+    #[default]
+    Missing,
+    One(arena::Handle<checked_trees::FlowStatementFact>),
+    Duplicate,
+}
+
+/// Source ordinals stay stable when execution order changes. The statement
+/// producer fills this worker-local table as each row becomes available.
+#[derive(Default)]
+struct CurrentStateStatements {
+    state: SymbolHandle,
+    rows: Vec<PublishedStatement>,
+}
+
+impl CurrentStateStatements {
+    fn begin(&mut self, state: SymbolHandle, count: usize) {
+        self.state = state;
+        self.rows.clear();
+        self.rows.resize(count, PublishedStatement::Missing);
+    }
+
+    fn record(&mut self, index: usize, handle: arena::Handle<checked_trees::FlowStatementFact>) {
+        let Some(row) = self.rows.get_mut(index) else {
+            self.state = SymbolHandle::invalid();
+            return;
+        };
+        *row = match row {
+            PublishedStatement::Missing => PublishedStatement::One(handle),
+            PublishedStatement::One(_) | PublishedStatement::Duplicate => {
+                PublishedStatement::Duplicate
+            }
+        };
+    }
+
+    fn get(
+        &self,
+        state: SymbolHandle,
+        index: usize,
+    ) -> Option<arena::Handle<checked_trees::FlowStatementFact>> {
+        if !state.is_valid() || self.state != state {
+            return None;
+        }
+        match self.rows.get(index)? {
+            PublishedStatement::One(handle) => Some(*handle),
+            PublishedStatement::Missing | PublishedStatement::Duplicate => None,
+        }
+    }
+}
+
 /// Immutable preparation for one authored invocation. Neither result contains
 /// live flow contexts: the source, borrow inventory, mutation summaries and
 /// exact-prefix alias resolver stay fixed throughout this flow build. Keep
@@ -252,6 +303,7 @@ pub(super) struct FlowBuildContext<'plans> {
     pub(super) borrow_lifetimes: FlowBorrowLifetimeFacts,
     pub(super) boundaries: FlowBoundaryFacts,
     pub(super) control: FlowControlFacts,
+    current_statements: CurrentStateStatements,
     /// Current state's contiguous statement frontier while its flow is built.
     pub(super) state_statements_start: arena::PagedArenaFrontier<checked_trees::FlowStatementFact>,
     /// Current state's contiguous outgoing frontier while its flow is built.
@@ -260,6 +312,31 @@ pub(super) struct FlowBuildContext<'plans> {
 }
 
 impl<'plans> FlowBuildContext<'plans> {
+    pub(super) fn begin_statement_facts(&mut self, state: SymbolHandle, count: usize) {
+        self.current_statements.begin(state, count);
+    }
+
+    pub(super) fn record_statement_fact(
+        &mut self,
+        index: usize,
+        statement: arena::Handle<checked_trees::FlowStatementFact>,
+    ) {
+        self.current_statements.record(index, statement);
+    }
+
+    pub(super) fn statement_fact_at(
+        &self,
+        state: SymbolHandle,
+        index: usize,
+    ) -> Option<&checked_trees::FlowStatementFact> {
+        let handle = self.current_statements.get(state, index)?;
+        if !self.control.statements.is_valid(handle) {
+            return None;
+        }
+        let statement = self.control.statements.get(handle);
+        (statement.statement_index == index).then_some(statement)
+    }
+
     /// Each active semantic context, resolved against the plan's arena.
     pub(super) fn semantic_context_views<'a>(
         &'a self,
@@ -355,6 +432,7 @@ impl<'plans> FlowBuildContext<'plans> {
             active_completed_copies: arena::HandleSpan::empty(),
             program,
             state_statements_start: Default::default(),
+            current_statements: CurrentStateStatements::default(),
             state_outgoing_start: Default::default(),
             scalar_expressions,
             operators,
@@ -894,6 +972,7 @@ impl<'plans> FlowBuildContext<'plans> {
     pub(super) fn discard_output(&mut self) {
         self.active_completed_copies = arena::HandleSpan::empty();
         self.assignment_observations.clear();
+        self.current_statements.begin(SymbolHandle::invalid(), 0);
         // Every output arena, including ones only a few transfers write:
         // rows a discarded sweep left behind are unreferenced and must not
         // survive into published output.
