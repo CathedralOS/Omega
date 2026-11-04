@@ -33,7 +33,6 @@ data KernelState { phase: u64; workspace: [u64; 20000]; }
 
 uefi_x86_64 machine selected_continuation(image: Extent in Granted, context: &mut KernelState, storage: Extent in Granted)
 reaches PortIo
-requires addr::Bound == 18446744073709551616
 {
     let initially_zero: bool = context.phase == 0 && context.workspace[0] == 0 && context.workspace[19999] == 0;
     context.phase = 17;
@@ -41,9 +40,7 @@ requires addr::Bound == 18446744073709551616
     // Its generated caller must contribute to the retained private stack.
     context.workspace[0] = image.length;
     retain_tail(&mut context.workspace);
-    let image_base_matches: bool = image.base == 4096;
-    let storage_base_matches: bool = storage.base == 8192;
-    transition initially_zero && context.phase == 17 && context.workspace[19999] == image.length && image_base_matches && image.length == 4096 && storage_base_matches && storage.length == 4096 {
+    transition initially_zero && context.phase == 17 && context.workspace[19999] == image.length && image.base == 4096 && image.length == 4096 && storage.base == 8192 && storage.length == 4096 {
         true -> report(image, storage)
         _ -> wrong(image, storage)
     }
@@ -77,7 +74,6 @@ reaches PortIo
 // The entry owns ordinary local state; selection supplies no context.
 uefi_x86_64 machine entry_start(image: Extent in Granted, storage: Extent in Granted)
 reaches PortIo
-requires addr::Bound == 18446744073709551616
 {
     let mut entry_storage: KernelState;
     selected_continuation(image, &mut entry_storage, storage);
