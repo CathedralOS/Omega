@@ -1989,6 +1989,8 @@ fail/borrows/stored_fixed_array_shared_write rejected 1508ms expected @ccdb99ca2
 	mutable argument `buffer` for state `entry` is not writable in this state; the source cannot lend the requested exclusive access
 fail/borrows/stored_fixed_array_write_only_read rejected 901ms expected @ccdb99ca2214
 	machine `invalid` state `entry` reads through index projection of write-only parameter `buffer`; `&write` permits admitted fixed-array element replacement but never observation
+fail/borrows/stored_parameter_referent_descriptor_write rejected 2607ms expected @f5bf0a27e599
+	statement 1 creates local borrow `c` while local borrow `b` is still active (borrowed at statement 0; its last use is at statement 2 and it is released at state exit)
 fail/borrows/stored_primitive_reference_backing_write rejected 2803ms expected @ccdb99ca2214
 	statement 2 mutates `backing` while local borrow `bundle` is still active (borrowed at statement 1; its last use is at statement 3 and it is released at state exit)
 fail/borrows/stored_reference_address_write_only_read rejected 771ms expected @ccdb99ca2214
@@ -20036,6 +20038,7 @@ pass/borrows/static_carrier_bounded_reference_read_exit checked 60204ms check-ta
 pass/borrows/static_carrier_reference_read_exit checked 57827ms check-target:macos_arm64 @911f6617ba9e
 pass/borrows/static_projected_local_reference_exit checked 18221ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/static_record_reference_return_exit checked 3524ms check-target:macos_arm64 @ccdb99ca2214
+pass/borrows/stored_parameter_referent_descriptor_write_exit checked 3308ms @f5bf0a27e599
 pass/borrows/stored_primitive_reference_observations_exit checked 16418ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_reference_address_field_exit checked 3969ms check-target:macos_arm64 @ccdb99ca2214
 pass/borrows/stored_reference_projection_exit checked 15667ms check-target:macos_arm64 @ccdb99ca2214
