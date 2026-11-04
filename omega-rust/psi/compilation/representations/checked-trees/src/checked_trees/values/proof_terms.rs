@@ -108,6 +108,14 @@ pub enum CheckedProofTerm {
     /// A pass-through of the caller's own erased proof formal, keyed by the
     /// formal's symbol so scope lookup survives roster reorderings.
     Formal { parameter_symbol: SymbolHandle },
+    /// An erased payload read off the caller's erased proof formal. The field
+    /// path is root-to-leaf. The name is the projection, not a second formal
+    /// and not a reconstructed construction.
+    Projection {
+        parameter_symbol: SymbolHandle,
+        field_symbols: Vec<SymbolHandle>,
+        type_identity: TypeIdentityId,
+    },
     /// A scalar payload field of an erased record/enum carrier: the field's
     /// checked expression becomes the terminal `Scalar` leaf. The leaf is
     /// recorded whole; callers without an allocated scalar namespace reject

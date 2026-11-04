@@ -369,6 +369,10 @@ fn proof_term_type_matches(
             type_identity: actual,
             ..
         } => *actual == type_identity,
+        CheckedProofTerm::Projection {
+            type_identity: actual,
+            ..
+        } => *actual == type_identity,
         CheckedProofTerm::Formal { parameter_symbol } => {
             program.state_by_symbol(caller_state).is_some_and(|state| {
                 program.state_parameters(state).iter().any(|parameter| {

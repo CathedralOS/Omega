@@ -677,6 +677,18 @@ pub(crate) fn lower_proof_term(
                 fields,
             })
         }
+        ExpressionNode::Borrow(borrow) => lower_proof_term(
+            program,
+            operators,
+            borrow.target,
+            expected_type,
+            parameters,
+            authored_parameters,
+            parameter_types,
+            locals,
+            exact_integer_casts,
+            proof_only,
+        ),
         ExpressionNode::Name(path) => {
             let position = parameter_position(program, path, authored_parameters)?;
             let parameter = authored_parameters.get(position)?;
@@ -690,8 +702,424 @@ pub(crate) fn lower_proof_term(
                 parameter_symbol: parameter.symbol,
             })
         }
+        ExpressionNode::Member(_) | ExpressionNode::SavedSubject(_) => erased_payload_projection(
+            program,
+            expression,
+            expected_type,
+            authored_parameters,
+            proof_only,
+        ),
         _ => None,
     }
+}
+
+/// An erased payload read (`evidence.left`) is the enclosing formal plus the
+/// field path. Recording only the formal would name the whole carrier. The
+/// projection keeps the formal and every erased evidence field, and its type
+/// is the callee formal only when that carrier corresponds.
+fn erased_payload_projection(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+    expected_type: typed_trees::types::TypeReferenceHandle,
+    authored_parameters: &[StateParameter],
+    proof_only: &typed_trees::proof_only::ProofOnlyClassification,
+) -> Option<CheckedProofTerm> {
+    let mut cursor = expression;
+    let mut members = Vec::new();
+    for _ in 0..8 {
+        match program.expression_table.expression(cursor) {
+            ExpressionNode::Borrow(borrow) => cursor = borrow.target,
+            ExpressionNode::Member(member) => {
+                members.push(cursor);
+                cursor = member.receiver;
+            }
+            ExpressionNode::SavedSubject(saved) => {
+                cursor = program.saved_value_source(saved)?;
+            }
+            ExpressionNode::Name(_) => break,
+            _ => return None,
+        }
+    }
+    let ExpressionNode::Name(path) = program.expression_table.expression(cursor) else {
+        return None;
+    };
+    if members.is_empty() {
+        return None;
+    }
+    let parameter = authored_parameters
+        .iter()
+        .find(|parameter| parameter.symbol == path.symbol && parameter.relevance.is_erased())?;
+    if !(proof_only.contract_term_carrier(program, parameter.type_reference)
+        || validation::mathematical_applications::is_source_evidence_carrier(
+            program,
+            parameter.type_reference,
+        ))
+    {
+        return None;
+    }
+    let mut carrier = parameter.type_reference;
+    let mut field_symbols = Vec::new();
+    for member_expression in members.iter().rev() {
+        let ExpressionNode::Member(member) =
+            program.expression_table.expression(*member_expression)
+        else {
+            return None;
+        };
+        let field = validation::applied_data_member_field(program, carrier, member)?;
+        if !field.relevance.is_erased() {
+            return None;
+        }
+        if !(proof_only.contract_term_carrier(program, field.type_reference)
+            || validation::mathematical_applications::is_source_evidence_carrier(
+                program,
+                field.type_reference,
+            ))
+        {
+            return None;
+        }
+        field_symbols.push(field.symbol);
+        carrier = field.type_reference;
+    }
+    let expected_identity = program.normalized_type_identity(expected_type);
+    let carrier_identity = program.normalized_type_identity(carrier);
+    let corresponds = carrier_identity == expected_identity
+        || erased_generic_carriers_correspond(program, carrier, expected_type)
+        || projection_result_matches(program, parameter, expression, expected_identity)
+        || projection_instantiated_by_call(program, parameter, expression, carrier, expected_type);
+    corresponds.then_some(CheckedProofTerm::Projection {
+        parameter_symbol: parameter.symbol,
+        field_symbols,
+        type_identity: expected_identity,
+    })
+}
+
+/// The payload's indices are the constructor fields. The callee formal's
+/// indices are its own parameters. They name one carrier when the call
+/// passes each field value in that formal parameter's position.
+fn projection_instantiated_by_call(
+    program: &dyn ::validation::CheckingInput,
+    parameter: &StateParameter,
+    expression: ExpressionHandle,
+    carrier: typed_trees::types::TypeReferenceHandle,
+    expected: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let Some((carrier_base, carrier_indices)) = generic_index_symbols(program, carrier) else {
+        return false;
+    };
+    let Some((expected_base, expected_indices)) = generic_index_symbols(program, expected) else {
+        return false;
+    };
+    if carrier_indices.len() != expected_indices.len()
+        || !proof_symbols_correspond(program, carrier_base, expected_base)
+    {
+        return false;
+    }
+    program.machines().iter().any(|machine| {
+        program.machine_states(machine).iter().any(|state| {
+            program
+                .state_parameters(state)
+                .iter()
+                .any(|candidate| candidate.symbol == parameter.symbol)
+                && program
+                    .statement_table
+                    .statements(state.statement_nodes)
+                    .iter()
+                    .any(|statement| {
+                        projection_statement_instantiates(
+                            program,
+                            expression,
+                            statement,
+                            &carrier_indices,
+                            &expected_indices,
+                        )
+                    })
+        })
+    })
+}
+
+fn projection_statement_instantiates(
+    program: &dyn ::validation::CheckingInput,
+    expression: ExpressionHandle,
+    statement: &typed_trees::statement::StatementNode,
+    carrier_indices: &[symbols::SymbolHandle],
+    expected_indices: &[symbols::SymbolHandle],
+) -> bool {
+    match statement {
+        typed_trees::statement::StatementNode::Transition(transition) => {
+            [transition.target, transition.continuation]
+                .into_iter()
+                .filter(|handle| handle.is_valid())
+                .any(|handle| {
+                    let Some(transfer) =
+                        validation::completing_transition_transfer(program, handle)
+                    else {
+                        return false;
+                    };
+                    transfer.arguments.contains(&expression)
+                        && call_arguments_instantiate(
+                            program,
+                            transfer.target,
+                            transfer.arguments,
+                            carrier_indices,
+                            expected_indices,
+                        )
+                })
+        }
+        typed_trees::statement::StatementNode::Call(call) => {
+            let arguments = program.statement_table.expression_handles(call.arguments);
+            arguments.contains(&expression)
+                && call_arguments_instantiate(
+                    program,
+                    call.target_symbol,
+                    arguments,
+                    carrier_indices,
+                    expected_indices,
+                )
+        }
+        typed_trees::statement::StatementNode::Expression(call_expression) => program
+            .expression_table
+            .call_node(*call_expression)
+            .is_some_and(|call| {
+                let arguments = program.expression_table.expression_handles(call.arguments);
+                arguments.contains(&expression)
+                    && call_arguments_instantiate(
+                        program,
+                        call.target_symbol,
+                        arguments,
+                        carrier_indices,
+                        expected_indices,
+                    )
+            }),
+        _ => false,
+    }
+}
+
+fn call_arguments_instantiate(
+    program: &dyn ::validation::CheckingInput,
+    target: symbols::SymbolHandle,
+    arguments: &[ExpressionHandle],
+    carrier_indices: &[symbols::SymbolHandle],
+    expected_indices: &[symbols::SymbolHandle],
+) -> bool {
+    let Some(parameters) = validation::call_target_parameters(program, target) else {
+        return false;
+    };
+    carrier_indices
+        .iter()
+        .zip(expected_indices)
+        .all(|(carrier_index, formal_index)| {
+            let Some(position) = parameters.iter().position(|parameter| {
+                proof_symbols_correspond(program, parameter.symbol, *formal_index)
+            }) else {
+                return false;
+            };
+            arguments.get(position).is_some_and(|argument| {
+                expression_symbol(program, *argument)
+                    .is_some_and(|symbol| proof_symbols_correspond(program, symbol, *carrier_index))
+            })
+        })
+}
+
+fn generic_index_symbols(
+    program: &dyn ::validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<(symbols::SymbolHandle, Vec<symbols::SymbolHandle>)> {
+    let typed_trees::types::TypeReferenceNode::Generic {
+        base_symbol,
+        arguments,
+        ..
+    } = program
+        .type_reference_table
+        .type_reference(peel_type_shell(program, reference))
+    else {
+        return None;
+    };
+    if !base_symbol.is_valid() {
+        return None;
+    }
+    let indices = program
+        .type_reference_table
+        .type_reference_handles(*arguments)
+        .iter()
+        .map(|argument| proof_index_symbol(program, *argument))
+        .collect::<Option<Vec<_>>>()?;
+    Some((*base_symbol, indices))
+}
+
+fn expression_symbol(
+    program: &dyn ::validation::CheckingInput,
+    mut expression: ExpressionHandle,
+) -> Option<symbols::SymbolHandle> {
+    for _ in 0..8 {
+        match program.expression_table.expression(expression) {
+            ExpressionNode::Borrow(borrow) => expression = borrow.target,
+            ExpressionNode::SavedSubject(saved) => {
+                expression = program.saved_value_source(saved)?;
+            }
+            ExpressionNode::Name(path) if path.symbol.is_valid() => return Some(path.symbol),
+            ExpressionNode::Member(member) if member.member_symbol.is_valid() => {
+                return Some(member.member_symbol);
+            }
+            _ => return None,
+        }
+    }
+    None
+}
+
+fn proof_symbols_correspond(
+    program: &dyn ::validation::CheckingInput,
+    left: symbols::SymbolHandle,
+    right: symbols::SymbolHandle,
+) -> bool {
+    left == right
+        || proof_symbol_derives_from(program, left, right)
+        || proof_symbol_derives_from(program, right, left)
+}
+
+fn projection_result_matches(
+    program: &dyn ::validation::CheckingInput,
+    parameter: &StateParameter,
+    expression: ExpressionHandle,
+    expected_identity: typed_trees::type_identity::TypeIdentityId,
+) -> bool {
+    program.machines().iter().any(|machine| {
+        program.machine_states(machine).iter().any(|state| {
+            program
+                .state_parameters(state)
+                .iter()
+                .any(|candidate| candidate.symbol == parameter.symbol)
+                && validation::expression_result_type_reference(program, machine, state, expression)
+                    .is_some_and(|result| {
+                        program.normalized_type_identity(result) == expected_identity
+                    })
+        })
+    })
+}
+
+fn erased_generic_carriers_correspond(
+    program: &dyn ::validation::CheckingInput,
+    actual: typed_trees::types::TypeReferenceHandle,
+    expected: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let actual = peel_type_shell(program, actual);
+    let expected = peel_type_shell(program, expected);
+    let (
+        typed_trees::types::TypeReferenceNode::Generic {
+            base_symbol: actual_base,
+            arguments: actual_arguments,
+            ..
+        },
+        typed_trees::types::TypeReferenceNode::Generic {
+            base_symbol: expected_base,
+            arguments: expected_arguments,
+            ..
+        },
+    ) = (
+        program.type_reference_table.type_reference(actual),
+        program.type_reference_table.type_reference(expected),
+    )
+    else {
+        return false;
+    };
+    if *actual_base != *expected_base
+        && !proof_symbol_derives_from(program, *actual_base, *expected_base)
+        && !proof_symbol_derives_from(program, *expected_base, *actual_base)
+    {
+        return false;
+    }
+    let actual_arguments = program
+        .type_reference_table
+        .type_reference_handles(*actual_arguments);
+    let expected_arguments = program
+        .type_reference_table
+        .type_reference_handles(*expected_arguments);
+    actual_arguments.len() == expected_arguments.len()
+        && actual_arguments.iter().zip(expected_arguments.iter()).all(
+            |(actual_argument, expected_argument)| {
+                program.normalized_type_identity(*actual_argument)
+                    == program.normalized_type_identity(*expected_argument)
+                    || proof_index_symbols_correspond(program, *actual_argument, *expected_argument)
+            },
+        )
+}
+
+fn proof_index_symbols_correspond(
+    program: &dyn ::validation::CheckingInput,
+    actual: typed_trees::types::TypeReferenceHandle,
+    expected: typed_trees::types::TypeReferenceHandle,
+) -> bool {
+    let (Some(actual), Some(expected)) = (
+        proof_index_symbol(program, actual),
+        proof_index_symbol(program, expected),
+    ) else {
+        return false;
+    };
+    actual == expected
+        || proof_symbol_derives_from(program, actual, expected)
+        || proof_symbol_derives_from(program, expected, actual)
+}
+
+fn proof_index_symbol(
+    program: &dyn ::validation::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+) -> Option<symbols::SymbolHandle> {
+    match program
+        .type_reference_table
+        .type_reference(peel_type_shell(program, reference))
+    {
+        typed_trees::types::TypeReferenceNode::Named { symbol, .. } if symbol.is_valid() => {
+            Some(*symbol)
+        }
+        typed_trees::types::TypeReferenceNode::ConstExpression(expression) => {
+            match program.expression_table.expression(*expression) {
+                ExpressionNode::Name(path) if path.symbol.is_valid() => Some(path.symbol),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn peel_type_shell(
+    program: &dyn ::validation::CheckingInput,
+    mut reference: typed_trees::types::TypeReferenceHandle,
+) -> typed_trees::types::TypeReferenceHandle {
+    for _ in 0..8 {
+        match program.type_reference_table.type_reference(reference) {
+            typed_trees::types::TypeReferenceNode::Reference { referee, .. } => {
+                reference = *referee;
+            }
+            typed_trees::types::TypeReferenceNode::Constrained { base_type, .. } => {
+                reference = *base_type;
+            }
+            _ => break,
+        }
+    }
+    reference
+}
+
+fn proof_symbol_derives_from(
+    program: &dyn ::validation::CheckingInput,
+    mut symbol: symbols::SymbolHandle,
+    origin: symbols::SymbolHandle,
+) -> bool {
+    if !symbol.is_valid() || !origin.is_valid() {
+        return false;
+    }
+    if symbol == origin {
+        return true;
+    }
+    for _ in 0..8 {
+        let next = program.symbols.get(symbol).generated_from;
+        if !next.is_valid() {
+            return false;
+        }
+        if next == origin {
+            return true;
+        }
+        symbol = next;
+    }
+    false
 }
 
 #[allow(clippy::too_many_arguments)]
