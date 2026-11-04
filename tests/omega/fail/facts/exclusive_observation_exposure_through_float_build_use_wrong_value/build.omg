@@ -1,3 +1,5 @@
+use omega::language::core::float_operations;
+
 machine build(builder: &mut Build) crashes Trap {
     let value: f64 = F64::negate(8.0);
     transition value == -7.0 {

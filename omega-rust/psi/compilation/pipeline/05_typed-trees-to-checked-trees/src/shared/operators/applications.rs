@@ -131,12 +131,26 @@ pub(crate) fn bind_boundary_operator_application_demands(
                             eprintln!("NAMEDUSE related {selected:?}");
                         }
                     }
-                    diagnostics.push(
-                        diagnostics::Diagnostic::error(format!(
+                    let source_span = program.expression_table.source_span(expression);
+                    let message = if program
+                        .symbols
+                        .source_reference_may_select_symbol(source_span, application.requirement)
+                    {
+                        format!(
                             "the compiler lost the checked use of named operator `{}`",
                             program.operator_path_string(operator.name),
-                        ))
-                        .with_source_span(program.expression_table.source_span(expression)),
+                        )
+                    } else {
+                        // Loaded vocabulary is not an import. Keep the same
+                        // selection fence that omitted this use, and explain
+                        // the authored error before reporting a compiler loss.
+                        format!(
+                            "named operator `{}` is not available in this source's import scope",
+                            program.operator_path_string(operator.name),
+                        )
+                    };
+                    diagnostics.push(
+                        diagnostics::Diagnostic::error(message).with_source_span(source_span),
                     );
                     continue;
                 }
