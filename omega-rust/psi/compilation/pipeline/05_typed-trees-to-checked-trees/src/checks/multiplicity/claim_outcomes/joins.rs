@@ -10,6 +10,7 @@ use super::{
     derive_checked_claim_outcome_maps,
 };
 use crate::checks::multiplicity::ClaimConsumption;
+use crate::checks::multiplicity::ReturnedClaimSource;
 use crate::checks::multiplicity::ReturnedClaimSource::Live;
 use crate::checks::multiplicity::consumed_operand_claims;
 use crate::checks::multiplicity::current_returned_claims;
@@ -17,7 +18,6 @@ use crate::checks::multiplicity::linear_obligations::{
     CheckedClaimOutcomeEntry, CheckedClaimOutcomeMap, CheckedClaimOutcomeSource,
 };
 use crate::checks::multiplicity::linear_validation::linear_claim_frontier;
-use crate::checks::multiplicity::{ReturnedClaim, ReturnedClaimSource};
 use crate::shared::collections::push_unique;
 use checked_trees::{
     CheckFacts, FlowClaimJoinAlternative, FlowClaimJoinAlternativeSource, FlowClaimJoinExit,
@@ -130,64 +130,6 @@ struct PreparedCalleeFrontier {
     path: Vec<PlaceSegment>,
     frontiers: Option<Vec<ExitFrontier>>,
     diagnostics: ReturnFrontierDiagnostics,
-}
-
-// Checking another field of the same returned value must preserve every live
-// alternative and the cross-field uniqueness check. Reuse that complete check
-// only within one immutable receipt derivation, then project each requested path.
-struct ReturnedClaimQueries<'a> {
-    program: &'a dyn validation::CheckingInput,
-    facts: &'a CheckFacts,
-    exits: Vec<Option<PreparedReturnedClaims>>,
-}
-
-struct PreparedReturnedClaims {
-    outgoing: arena::Handle<checked_trees::FlowStateOutgoingFact>,
-    // ReturnedClaim conditions name nodes in this exact arena.
-    _conditions: crate::flow::SelectionConditions,
-    claims: Result<Vec<ReturnedClaim>, &'static str>,
-}
-
-impl<'a> ReturnedClaimQueries<'a> {
-    fn new(program: &'a dyn validation::CheckingInput, facts: &'a CheckFacts) -> Self {
-        Self {
-            program,
-            facts,
-            exits: Default::default(),
-        }
-    }
-
-    fn at(
-        &mut self,
-        outgoing: arena::Handle<checked_trees::FlowStateOutgoingFact>,
-    ) -> Result<&[ReturnedClaim], &'static str> {
-        let index = outgoing.arena_index() as usize;
-        if self.exits.len() <= index {
-            self.exits.resize_with(index + 1, || None);
-        }
-        let slot = &mut self.exits[index];
-        if slot
-            .as_ref()
-            .is_some_and(|prepared| prepared.outgoing != outgoing)
-        {
-            *slot = None;
-        }
-        let prepared = slot.get_or_insert_with(|| {
-            let mut conditions = crate::flow::SelectionConditions::new();
-            let claims = current_returned_claims(
-                self.program,
-                self.facts,
-                self.facts.flow.control.outgoing.get(outgoing),
-                &mut conditions,
-            );
-            PreparedReturnedClaims {
-                outgoing,
-                _conditions: conditions,
-                claims,
-            }
-        });
-        prepared.claims.as_deref().map_err(|reason| *reason)
-    }
 }
 
 pub(crate) struct CallClaimJoinFailure {
@@ -391,7 +333,6 @@ fn state_frontiers(
     active: &mut Vec<SymbolHandle>,
     path: &[PlaceSegment],
     diagnostics: &mut ReturnFrontierDiagnostics,
-    returned_claims: &mut ReturnedClaimQueries<'_>,
 ) -> Option<Vec<ExitFrontier>> {
     if active.contains(&state.symbol) {
         return None;
@@ -406,11 +347,8 @@ fn state_frontiers(
             .iter()
             .find_map(|(_, row)| (row.state_symbol == state.symbol).then_some(row))?;
         let mut frontiers = Vec::new();
-        for (outgoing_handle, outgoing) in flow
-            .outgoing
-            .handles()
-            .zip(facts.flow.control.outgoing.span_or_empty(flow.outgoing))
-        {
+        let mut conditions = crate::flow::SelectionConditions::new();
+        for outgoing in facts.flow.control.outgoing.span_or_empty(flow.outgoing) {
             // A nonreturning completing call still transports custody. It
             // contributes no result alternative to the caller's return join.
             if outgoing.cannot_return_normally {
@@ -465,7 +403,6 @@ fn state_frontiers(
                     active,
                     path,
                     diagnostics,
-                    returned_claims,
                 )?;
                 for mut child in children {
                     for entry in &mut child.entries {
@@ -496,7 +433,7 @@ fn state_frontiers(
             // This query checks the whole actual return frontier, including
             // every retained alternative and cross-path resource uniqueness,
             // before projecting the one result path this receipt requests.
-            let claims = match returned_claims.at(outgoing_handle) {
+            let claims = match current_returned_claims(program, facts, outgoing, &mut conditions) {
                 Ok(claims) => claims,
                 Err(reason) => {
                     diagnostics.record(edge, reason);
@@ -1089,7 +1026,6 @@ fn derive_receipts(
     // received path, so a target alone cannot key it. Actual argument binding
     // and the receiving occurrence remain outside this prepared callee graph.
     let mut prepared_frontiers: Vec<PreparedCalleeFrontier> = Vec::new();
-    let mut returned_claims = ReturnedClaimQueries::new(program, facts);
     for event in events {
         if event.kind != PermissionEventKind::Establish
             || event.access != PermissionAccess::Owned
@@ -1178,7 +1114,6 @@ fn derive_receipts(
                     &mut Vec::new(),
                     received_path,
                     &mut diagnostics,
-                    &mut returned_claims,
                 );
                 prepared_frontiers.push(PreparedCalleeFrontier {
                     state: target.symbol,
