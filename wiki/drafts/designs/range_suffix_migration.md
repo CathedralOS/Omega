@@ -463,6 +463,21 @@ computed upper bound `2 * 64 + 128` in `ensures`. The domain `Bound`, introduced
 only for that old annotation, is removed. The program still combines its results
 into 275 and exits 70.
 
+## Restored generic endpoint helper contracts
+
+The [endpoint-helper inventory](../../../tests/omega/pass/generics/declared_range_endpoint_inference/README.md)
+maps five original positions at `7a9a7b8287` to ordinary clauses: inclusive and
+exclusive generic helper inputs, the named `later_limit()` helper's input and
+result bounds, and a `u64` input whose lower bound is 2^63. Explicit generic
+arguments remain explicit; selecting an argument does not discharge the chosen
+helper's input requirement. The existing exit-70 calculation is unchanged.
+The unsigned carrier supplies redundant zero and maximum bounds.
+
+These declarations lost their clauses in `818f643f12d`. This restores those
+clauses without introducing interval-only nominal domains. The other generic
+local positions in this fixture and the full historical audit are not accounted
+for by this five-position restoration.
+
 ## Audited ranked borrowed-field customers
 
 The six `[0..=8]` declarations in
