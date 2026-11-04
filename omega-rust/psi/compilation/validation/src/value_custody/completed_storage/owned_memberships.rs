@@ -14,6 +14,79 @@ use language_semantics::{
 };
 use symbols::SymbolHandle;
 
+/// Describe retained records without resolving source displays or replaying values.
+pub(super) fn observation_diagnostic(
+    program: &dyn crate::CheckingInput,
+    facts: &CheckFacts,
+    value: Handle<FlowOperandFact>,
+    path_len: usize,
+    domain: SymbolHandle,
+    semantic_domain: SemanticDomainId,
+) -> String {
+    let projections = &facts.qualifications.content.plans;
+    let exact_projections = projections
+        .iter()
+        .filter(|plan| plan.domain == domain && plan.semantic_domain == semantic_domain)
+        .count();
+    let owner_projections = projections
+        .iter()
+        .filter(|plan| plan.domain == domain)
+        .count();
+    let control = &facts.flow.control;
+    if !control.operands.is_valid(value) {
+        return format!(
+            "completed value is unavailable; value={value:?}, domain={domain:?}/{semantic_domain:?}, content_plans={exact_projections}/{owner_projections}"
+        );
+    }
+    let observed = control.operands.get(value);
+    let expression_valid = program
+        .expression_table
+        .expression_is_valid(observed.expression);
+    let kind = if !expression_valid {
+        "unavailable"
+    } else {
+        match program.expression_table.expression(observed.expression) {
+            typed_trees::expression::ExpressionNode::Cast(_) => "cast",
+            typed_trees::expression::ExpressionNode::SavedSubject(_) => "saved-subject",
+            typed_trees::expression::ExpressionNode::Name(_) => "name",
+            typed_trees::expression::ExpressionNode::Member(_) => "member",
+            _ => "other",
+        }
+    };
+    let inputs_valid = control.operands.span(observed.evaluated_inputs).is_some();
+    let inputs = observed
+        .evaluated_inputs
+        .handles()
+        .take(if inputs_valid { 4 } else { 0 })
+        .map(|input| {
+            let record = control.operands.is_valid(input).then(|| {
+                let input = control.operands.get(input);
+                (
+                    input.expression,
+                    input.state_symbol,
+                    input.statement_index,
+                    input.evaluation,
+                    input.storage_snapshot,
+                    input.constraints.len(),
+                )
+            });
+            (input, record)
+        })
+        .collect::<Vec<_>>();
+    format!(
+        "value={value:?}, expression={:?}/{kind}, state={:?}, statement={}, lane={:?}, storage={:?}, completion={:?}, value_source={:?}, inputs={}/valid:{inputs_valid}/first4(handle,expression,state,statement,lane,storage,constraints):{inputs:?}, constraints={}, domain={domain:?}/{semantic_domain:?}, content_plans={exact_projections}/{owner_projections}, path_len={path_len}",
+        observed.expression,
+        observed.state_symbol,
+        observed.statement_index,
+        observed.evaluation,
+        observed.storage_snapshot,
+        observed.completion,
+        observed.value_source,
+        observed.evaluated_inputs.len(),
+        observed.constraints.len(),
+    )
+}
+
 pub(super) fn transferred_membership(
     program: &dyn crate::CheckingInput,
     facts: &CheckFacts,

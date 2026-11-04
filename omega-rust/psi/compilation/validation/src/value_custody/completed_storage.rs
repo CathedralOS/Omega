@@ -96,7 +96,10 @@ pub use predecessors::{
 };
 mod memberships;
 mod owned_memberships;
-pub use memberships::completed_membership;
+pub use memberships::{
+    CompletedMembershipRefusal, completed_membership, completed_membership_diagnostic,
+    completed_membership_with_refusal,
+};
 
 mod occurrences;
 pub use occurrences::consumer_captures;
