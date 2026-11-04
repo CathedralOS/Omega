@@ -3516,6 +3516,8 @@ fail/layouts/private_callback_fragments_destination_overlap rejected 45351ms exp
 	private callback fragments overlap in destination storage
 fail/layouts/private_callback_fragments_incomplete_source rejected 44218ms expected @72079e22578e+wt
 	private callback fragments do not cover the complete target pointer
+fail/layouts/private_callback_inherited_policy_missing rejected 40019ms expected @26231d1dbd74+wt
+	foreign callback registration requires an explicit selected callback calling plan
 fail/machines/cyclic_private_arrival_maximum_rejected rejected 383ms expected @f58fe154c6f3
 	exact arithmetic in machine `pair` state `entry` terminal call operands may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
 	exact arithmetic in machine `right` state `entry` terminal call operands may overflow `i32`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`i32 in Wrapping`/`Saturating`/`Trapping`).
@@ -3688,7 +3690,7 @@ fail/traits/inherited_nominal_requirement_overload rejected 629ms expected @f2c7
 	nominal machine parameter `Handler` requirement `Derived::value` does not resolve to one exact trait requirement; signature-free references reject overloads
 fail/traits/inherited_nominal_requirement_refinement_missing rejected 1711ms expected @f2c75870ebaf+wt
 	machine `forward` publishes service reach `<none>` but its checked body reaches undeclared service `External`
-fail/traits/inherited_nominal_requirement_wrong_application rejected 471ms expected @f2c75870ebaf+wt
+fail/traits/inherited_nominal_requirement_wrong_application rejected 544ms expected @26231d1dbd74+wt
 	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
 	static machine argument `selected` for nominal parameter `Handler` retains 0 authored satisfaction row(s) for exact requirement `Base::value`; exactly one is required and structural coincidence establishes none; required operands [Box<u64>, bool], provider [], caller [], contextual demand true, operand mismatch actual index/type identity Some("named(name(u64))"), required Some("named(name(bool))")
 fail/traits/inherited_nominal_requirement_wrong_owner rejected 479ms expected @f2c75870ebaf+wt
@@ -13097,6 +13099,7 @@ pass/layouts/placed_view_source_access_exit checked 3837ms check-target:macos_ar
 pass/layouts/portable_data_layout_queries checked 3615ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/portable_layout_constant_composition_exit checked 4656ms check-target:macos_arm64 @ccdb99ca2214
 pass/layouts/private_callback_descriptor_fragments_exit checked 59018ms check-target:macos_arm64 @72079e22578e+wt
+pass/layouts/private_callback_inherited_policy_exit checked 50702ms check-target:macos_arm64 @26231d1dbd74+wt
 pass/layouts/private_callback_slot_demand_compile checked 1678ms @2ba727eefb59+wt
 pass/layouts/private_callback_slot_standalone_source checked 1047ms @2ba727eefb59+wt
 pass/layouts/private_callback_slot_untaken_compile checked 1058ms @2ba727eefb59+wt
@@ -14959,7 +14962,7 @@ pass/traits/implementation_argument_category_collision checked 11458ms check-tar
 pass/traits/implementation_argument_mixed_telescope checked 2274ms @ccdb99ca2214
 pass/traits/implementation_argument_region_mapping checked 2453ms @ccdb99ca2214
 pass/traits/implementation_value_mapped_region_identity checked 5981ms check-target:macos_arm64 @68b6f6ba6c2f
-pass/traits/inherited_nominal_requirement_application_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
+pass/traits/inherited_nominal_requirement_application_exit checked 3538ms check-target:macos_arm64 @26231d1dbd74+wt
 pass/traits/inherited_nominal_requirement_diamond_exit checked 3249ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_nominal_requirement_exit checked 3248ms check-target:macos_arm64 @f2c75870ebaf+wt
 pass/traits/inherited_nominal_requirement_refinement_exit checked 3251ms check-target:macos_arm64 @f2c75870ebaf+wt
