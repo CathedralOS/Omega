@@ -5,6 +5,6 @@ trait ByteCheck {
 Crashing satisfies ByteCheck {
     machine valid_utf8(bytes: [u8; 4]) -> bool crashes Trap { crash Trap; }
 }
-machine main() {
+machine main() crashes Trap false {
     let result: bool = Crashing::valid_utf8([65u8, 0u8, 0u8, 0u8]);
 }
