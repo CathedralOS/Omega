@@ -135,6 +135,8 @@ fn environment_identity_binds_target_components_and_named_selected_keys() {
         system_register_read: None,
         system_register_write: None,
         global_descriptor_table: None,
+        task_register_activate: None,
+        task_register_read: None,
         control_register_read: None,
         control_register_write: None,
         port_register_read: None,

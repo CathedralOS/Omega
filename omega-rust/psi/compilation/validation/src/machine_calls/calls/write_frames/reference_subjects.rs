@@ -104,6 +104,23 @@ pub(super) fn unknown_readonly_origin(
         })
 }
 
+/// The parameter this assignment rebinds, when it replaces a whole
+/// parameter's binding instead of writing through it. Preparation gives such a
+/// parameter a local descriptor home, so later stages see only the formal's
+/// ingress referent; this is the same classification write frames use.
+pub fn assignment_rebinds_parameter(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    statement: &StatementNode,
+) -> Option<symbols::SymbolHandle> {
+    let assignment = statement.as_assignment()?;
+    let target = FrameSourcePlace::from_expression(program, assignment.target);
+    (target.root.is_valid()
+        && program.symbols.get(target.root).kind == SymbolKind::Parameter
+        && replaces_binding(program, machine, statement)?)
+    .then_some(target.root)
+}
+
 pub(super) fn replaces_binding(
     program: &dyn crate::CheckingInput,
     machine: &Machine,

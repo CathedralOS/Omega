@@ -1392,6 +1392,7 @@ pass/control_flow/ordered_terminal_call_exit built 5554ms exit:0 @a92f16431042
 pass/control_flow/ordered_unconditional_arm_exit built 16041ms exit:70 @a92f16431042
 pass/control_flow/owned_array_local_state_transfer_exit built 16005ms exit:70 @a92f16431042
 pass/control_flow/owned_array_state_transfer_exit built 16017ms exit:70 @a92f16431042
+pass/control_flow/pattern_arm_guarded_index_argument_exit built 10359ms exit:0 @189b8cf70738+wt
 pass/control_flow/projected_case_subject_root_forwarding_exit built 16118ms exit:70 @a92f16431042
 pass/control_flow/projected_field_exhaustive_case_dispatch_exit built 12207ms exit:70 @a92f16431042
 pass/control_flow/projected_loan_state_argument_exit built 11902ms exit:11 @a92f16431042

@@ -45,6 +45,10 @@ pub(super) fn classify_compiler_intrinsic(
             // Native admission still requires its exact realization and custody.
             empty_disposition()
         }
+        CompilerIntrinsicExecutionIdentity::TaskRegisterActivate
+        | CompilerIntrinsicExecutionIdentity::TaskRegisterRead => {
+            disposition([TerminalAuthorityClass::MachineControl])
+        }
         CompilerIntrinsicExecutionIdentity::BuiltinFunction(function) => {
             classify_builtin_function(function)
         }

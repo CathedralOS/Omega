@@ -23,6 +23,38 @@ pub(super) fn lower(
             port,
             value,
         },
+        OperationKind::ActivateTaskRegister {
+            service,
+            entries,
+            gdt,
+            task_state,
+            selector,
+            scratch,
+        } => {
+            let Some(result) = operation.result.scalar() else {
+                return Err(LoweringError::InvalidTaskRegisterOperation(operation.id));
+            };
+            AbstractOperation::ActivateTaskRegister {
+                psi_operation: operation.id,
+                service,
+                result: result.into(),
+                entries,
+                gdt,
+                task_state,
+                selector,
+                scratch,
+            }
+        }
+        OperationKind::ReadTaskRegister { service } => {
+            let Some(result) = operation.result.scalar() else {
+                return Err(LoweringError::InvalidTaskRegisterOperation(operation.id));
+            };
+            AbstractOperation::ReadTaskRegister {
+                psi_operation: operation.id,
+                service,
+                result: result.into(),
+            }
+        }
         OperationKind::GlobalDescriptorTable {
             service,
             operation: direction,

@@ -1,1 +1,1 @@
-cannot prove index `count` is within length 2
+cannot prove ensures contract for exit from count at statement 2: result <= values.len

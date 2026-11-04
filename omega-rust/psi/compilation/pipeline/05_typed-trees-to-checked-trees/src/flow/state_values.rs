@@ -31,7 +31,7 @@ pub(super) use arguments::capture_argument;
 /// participate in the incoming meet; it is never an omitted predecessor.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(super) struct StateValues {
-    state: SymbolHandle,
+    pub(super) state: SymbolHandle,
     values: Vec<(SymbolHandle, ScalarValue)>,
     /// The integer interval every edge proves for the parameter, `None` when
     /// this edge delivers none. The join keeps the UNION: the destination
@@ -93,11 +93,7 @@ fn reachable(
 ) -> bool {
     let declared_entry = entry_state(program, machine).is_some_and(|entry| entry.symbol == state)
         && !validation::private_invocation_entry_is_closed(program, machine);
-    declared_entry
-        || build
-            .state_value_inputs
-            .iter()
-            .any(|input| input.state == state)
+    declared_entry || build.reached_state_index(state).is_some()
 }
 
 fn join(
@@ -115,9 +111,8 @@ fn join(
     // flow build, not once per rejoin.
     let thresholds = build.integer_literal_thresholds_at(program);
     if let Some(previous) = build
-        .state_value_inputs
-        .iter_mut()
-        .find(|row| row.state == incoming.state)
+        .reached_state_index(incoming.state)
+        .map(|index| &mut build.state_value_inputs[index])
     {
         if !previous.field_sources.contains(&source) {
             previous.field_sources.push(source);
@@ -184,7 +179,7 @@ fn join(
         for field in &mut incoming.fields {
             field.seed_delivery(source);
         }
-        build.state_value_inputs.push(incoming);
+        build.push_state_value_input(incoming);
     }
     if changed && !build.dirty_state_value_inputs.contains(&state) {
         build.dirty_state_value_inputs.push(state);
@@ -694,14 +689,10 @@ fn ensure_input_row(
     build: &mut FlowBuildContext,
     destination: &typed_trees::state::State,
 ) -> usize {
-    if let Some(index) = build
-        .state_value_inputs
-        .iter()
-        .position(|row| row.state == destination.symbol)
-    {
+    if let Some(index) = build.reached_state_index(destination.symbol) {
         return index;
     }
-    build.state_value_inputs.push(StateValues {
+    build.push_state_value_input(StateValues {
         state: destination.symbol,
         field_sources: Vec::new(),
         values: program
@@ -716,8 +707,7 @@ fn ensure_input_row(
         entry_paths: EntryPaths::unknown(),
         argument_edges: ArgumentInputs::Edges(Vec::new()),
         cases: Vec::new(),
-    });
-    build.state_value_inputs.len() - 1
+    })
 }
 
 fn joined_cases(edges: &[ArgumentEdge]) -> Vec<(SymbolHandle, SymbolHandle)> {
@@ -792,9 +782,8 @@ pub(super) fn append_entry_context(
         return;
     }
     let Some(input) = build
-        .state_value_inputs
-        .iter()
-        .find(|input| input.state == state.symbol)
+        .reached_state_index(state.symbol)
+        .map(|index| &build.state_value_inputs[index])
     else {
         return;
     };
