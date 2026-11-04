@@ -485,6 +485,31 @@ fn validate_call(
             &ordinary,
             ArgumentScope::Caller(state),
         ) {
+            if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
+                // Source arguments keep their original owner after body
+                // specialization. Trace both owners before deciding which
+                // instance's argument bindings this occurrence may use.
+                let source_owner = call.lexical_owner(program);
+                let caller = state.and_then(|state| program.machine_holding_state(state.symbol));
+                eprintln!(
+                    "STATICARG refused source_owner={source_owner:?} source_application={:?} current_state={:?} current_caller={:?} target={name} arguments={ordinary:?}",
+                    call.application(),
+                    state.map(|state| state.symbol),
+                    caller.map(|machine| (machine.symbol, machine.name.as_str())),
+                );
+                for instance in program.machine_specializations.iter().filter(|instance| {
+                    instance.template == source_owner
+                        || caller.is_some_and(|caller| instance.instance == caller.symbol)
+                }) {
+                    eprintln!(
+                        "STATICARG enclosing template={:?} instance={:?} binding_application={:?} const_identities={:?}",
+                        instance.template,
+                        instance.instance,
+                        instance.binding_application,
+                        instance.const_argument_identities,
+                    );
+                }
+            }
             diagnostics.push(error);
         }
         if let Some(state) = state
