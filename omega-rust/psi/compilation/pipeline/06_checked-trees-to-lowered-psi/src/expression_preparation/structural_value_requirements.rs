@@ -19,6 +19,12 @@ pub(crate) fn collect_operation_requirements(
     operation: &checked_trees::CheckedUnitEffectOperationPlan,
     domains: &mut Vec<SemanticDomainId>,
 ) -> Result<bool, LoweringError> {
+    if let checked_trees::CheckedUnitEffectOperationPlan::EstablishReference {
+        backing_type, ..
+    } = operation
+    {
+        collect_reference_contract(checked, *backing_type, domains)?;
+    }
     let Some((value, _)) = operation.structural_value_evaluation() else {
         return Ok(false);
     };
@@ -116,6 +122,20 @@ fn collect_domains(
             }
         }
         match &node.kind {
+            CheckedStructuralValueKind::Reference {
+                backing_type,
+                source_value,
+                ..
+            } => {
+                collect_reference_contract(checked, *backing_type, domains)?;
+                if source_value.is_valid() {
+                    if !plans.nodes.is_valid(*source_value) {
+                        return unsupported("reference domain catalog has stale source value");
+                    }
+                    let child = plans.nodes.get(*source_value);
+                    pending.push((*source_value, child.type_reference));
+                }
+            }
             CheckedStructuralValueKind::ZeroedStructural {
                 projected_qualifications,
             } => {
@@ -210,4 +230,26 @@ fn collect_domains(
         }
     }
     Ok(requires_literal_view)
+}
+
+/// Reference formation consumes the completed source's standing contract,
+/// even when no signature names its domains. Register those same theories;
+/// this dependency walk establishes no membership on the source or its home.
+fn collect_reference_contract(
+    checked: &CheckedTrees,
+    backing_type: TypeReferenceHandle,
+    domains: &mut Vec<SemanticDomainId>,
+) -> Result<(), LoweringError> {
+    if !backing_type.is_valid() {
+        return unsupported("reference domain catalog lost its supplying type");
+    }
+    let contract =
+        validation::structural_result_qualification_contract(&checked.typed, backing_type)
+            .map_err(LoweringError::Unsupported)?;
+    for (domain, _) in contract.domains {
+        if !domains.contains(&domain) {
+            domains.push(domain);
+        }
+    }
+    Ok(())
 }

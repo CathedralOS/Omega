@@ -556,6 +556,9 @@ pub fn structural_result_projected_qualifications(
 /// concrete source declarations those paths cross. Pointer targets without a
 /// qualification demand remain identity-only; this is not graph expansion.
 pub struct StructuralQualificationContract {
+    /// Whole-value obligations stay separate from descendant paths. The
+    /// inventory describes the source type; it does not initialize storage.
+    pub qualifications: Vec<SemanticDomainId>,
     pub projected_qualifications: Vec<CheckedStructuralPathQualification>,
     pub domains: Vec<(SemanticDomainId, TypeReferenceHandle)>,
     pub projection_types: Vec<TypeReferenceHandle>,
@@ -603,6 +606,7 @@ fn structural_qualification_inventory(
         is_root: bool,
         published_root: bool,
         path: &mut Vec<CheckedUnitStructuralPathSegment>,
+        whole: &mut Vec<SemanticDomainId>,
         output: &mut Vec<CheckedStructuralPathQualification>,
         carriers: &mut Vec<(SemanticDomainId, TypeReferenceHandle)>,
         projection_types: &mut Vec<TypeReferenceHandle>,
@@ -630,6 +634,7 @@ fn structural_qualification_inventory(
                         is_root && !pointer,
                         true,
                         path,
+                        whole,
                         output,
                         carriers,
                         projection_types,
@@ -695,6 +700,8 @@ fn structural_qualification_inventory(
                             path: path.clone(),
                             domain: domain.semantic_id,
                         });
+                    } else {
+                        whole.push(domain.semantic_id);
                     }
                 }
                 collect(
@@ -704,6 +711,7 @@ fn structural_qualification_inventory(
                     is_root,
                     published_root,
                     path,
+                    whole,
                     output,
                     carriers,
                     projection_types,
@@ -722,6 +730,7 @@ fn structural_qualification_inventory(
                     false,
                     false,
                     path,
+                    whole,
                     output,
                     carriers,
                     projection_types,
@@ -756,6 +765,7 @@ fn structural_qualification_inventory(
                     false,
                     false,
                     &mut Vec::new(),
+                    whole,
                     &mut element_rows,
                     carriers,
                     &mut element_projection_types,
@@ -856,6 +866,7 @@ fn structural_qualification_inventory(
                         false,
                         false,
                         path,
+                        whole,
                         output,
                         carriers,
                         projection_types,
@@ -877,6 +888,7 @@ fn structural_qualification_inventory(
         result
     }
     let mut output = Vec::new();
+    let mut whole = Vec::new();
     let mut carriers = Vec::new();
     let mut projection_types = Vec::new();
     collect(
@@ -886,6 +898,7 @@ fn structural_qualification_inventory(
         true,
         published_root,
         &mut Vec::new(),
+        &mut whole,
         &mut output,
         &mut carriers,
         &mut projection_types,
@@ -897,7 +910,10 @@ fn structural_qualification_inventory(
             .then(left.domain.0.cmp(&right.domain.0))
     });
     output.dedup();
+    whole.sort_by_key(|domain| domain.0);
+    whole.dedup();
     Ok(StructuralQualificationContract {
+        qualifications: whole,
         projected_qualifications: output,
         domains: carriers,
         projection_types,

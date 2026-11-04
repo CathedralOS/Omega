@@ -13,6 +13,9 @@ use crate::emission::operation_emission::place_declarations::operation_result_pl
 use crate::emission::scalar_types::terminal_scalar_type;
 use crate::retention::access_lifecycles::storage_fields;
 use crate::shared::terminal_identities::lookup_domain_id_for_carrier;
+use crate::shared::terminal_identities::{
+    stored_structural_identity, structural_declaration_by_identity,
+};
 use checked_trees::CheckedUnitStructuralResultBindingPlan;
 
 /// The checked expression the reference operation actually evaluates.
@@ -335,6 +338,78 @@ pub(crate) fn emit_carrier(
                 )
                 .map_err(LoweringError::Unsupported)?,
             );
+            if matches!(
+                storage,
+                PublishedReferenceStorage::Declared
+                    | PublishedReferenceStorage::RepresentationView(_)
+            ) {
+                // A local home's empty declaration describes storage before
+                // initialization. The checked source endpoint retains the
+                // standing obligations its completed stores must establish.
+                // Carry those obligations into the loan, not predicates inferred
+                // from its current bytes or the receiving reference annotation.
+                if !formation.backing_type.is_valid() {
+                    return Err(LoweringError::Unsupported(
+                        "reference formation lost its supplying type",
+                    ));
+                }
+                let supplying = structural_declaration_by_identity(
+                    declarations,
+                    identities,
+                    formation.checked,
+                    stored_structural_identity(formation.checked, formation.backing_type),
+                    "reference formation lost its supplying carrier",
+                )?;
+                let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
+                    declaration.shape
+                else {
+                    return Err(LoweringError::Unsupported(
+                        "reference formation lost its reference carrier",
+                    ));
+                };
+                if matches!(storage, PublishedReferenceStorage::Declared)
+                    && supplying.id != referent
+                {
+                    return Err(LoweringError::Unsupported(
+                        "reference formation source differs from its exact referent",
+                    ));
+                }
+                let contract = validation::structural_result_qualification_contract(
+                    &formation.checked.typed,
+                    formation.backing_type,
+                )
+                .map_err(LoweringError::Unsupported)?;
+                let projected = super::parameters::lower_projected_qualifications(
+                    identities,
+                    &contract.projected_qualifications,
+                    formation.domain_ids,
+                    supplying.id,
+                    declarations,
+                )?;
+                let whole = contract
+                    .qualifications
+                    .into_iter()
+                    .map(|domain| {
+                        lookup_domain_id_for_carrier(formation.domain_ids, domain, supplying.id)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                result.projected_qualifications.extend(
+                    terminal_semantics::reference_carrier_memberships(
+                        declarations.iter(),
+                        supplying.id,
+                        &whole,
+                        &projected,
+                        &[],
+                        source.access,
+                        structural_type,
+                        match &storage {
+                            PublishedReferenceStorage::RepresentationView(view) => Some(view),
+                            _ => None,
+                        },
+                    )
+                    .map_err(LoweringError::Unsupported)?,
+                );
+            }
             if let Some(field) =
                 terminal_semantics::runtime_structural_field(declarations.iter(), root, path)
                 && field.field_type.byte_sequence_carrier().is_some()
@@ -344,24 +419,15 @@ pub(crate) fn emit_carrier(
                         "inline field loan lost its supplying type",
                     ));
                 }
-                let terminal_psi::StructuralTypeShape::Reference { referent, access } =
+                let terminal_psi::StructuralTypeShape::Reference { referent, .. } =
                     declaration.shape
                 else {
                     return Err(LoweringError::Unsupported(
                         "field loan lost its reference carrier",
                     ));
                 };
-                let mut domains = if access == terminal_psi::StructuralAccess::SharedBorrow {
-                    Vec::new()
-                } else {
-                    validation::field_domains::domain_constraint_identities(
-                        &formation.checked.typed,
-                        formation.backing_type,
-                    )
-                    .into_iter()
-                    .map(|(_, domain)| domain)
-                    .collect::<Vec<_>>()
-                };
+                // These are independent judgments on this checked occurrence,
+                // separate from the source type's standing obligations above.
                 let decisions = formation
                     .checked
                     .facts
@@ -371,8 +437,7 @@ pub(crate) fn emit_carrier(
                     .ok_or(LoweringError::Unsupported(
                         "field loan membership decisions are stale",
                     ))?;
-                domains.extend(decisions.iter().map(|decision| decision.semantic_domain));
-                for domain in domains {
+                for domain in decisions.iter().map(|decision| decision.semantic_domain) {
                     result.projected_qualifications.push(
                         terminal_psi::StructuralPathQualification {
                             path: vec![terminal_psi::StructuralPathSegment::Referent],
