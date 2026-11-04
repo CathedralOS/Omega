@@ -64,8 +64,6 @@ fail/borrows/symbolic_call_before_concrete_output_obligation rejected 3348ms exp
 	machine `symbolic_first` state `entry` statement 0: call stores a borrowed value without a complete destination/backing relation
 fail/boundary/requirement_case_precondition_unproved rejected 13880ms expected @57a69f8b8ad1
 	cannot prove requires contract for call fill from main: chosen == constructor:78:package:0f4fb3c3aaa826e755e2f71895ab48a8976b5b928cf24c7833be8a4f629a45dd::Slot12:name:Present (needs fact `chosen == Slot::Present` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/boundary/requirement_float_precondition_unproved rejected 19505ms expected @55902b88f129
-	cannot prove requires contract for call observe from main: 7.25 == 7.0 (needs fact `value == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/build/activation_borrowed_field_replacement_refused rejected 361ms expected @3a020eca642a
 	the compiler-owned Build activation cannot be replaced as a whole value
 fail/build/activation_descriptor_forwarded_write_readonly rejected 309ms expected @8f7188b97d7a
@@ -312,8 +310,6 @@ fail/domains/routed_qualification_erased_reference_annotation rejected 6811ms ex
 	cannot prove initializer of `held` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
 fail/domains/routed_qualification_erased_return rejected 6034ms expected @f2672d675498
 	cannot prove default-domain field requirement for return from forward, state entry, at statement 0: t as Ticket  requires Ticket::Held
-fail/domains/routed_qualification_erased_stored_reference_field rejected 19630ms expected @a609da6cfce8+wt
-	cannot prove requires contract for call observe from main: v.t in Ticket::Held in state `entry`
 fail/domains/routed_qualification_erased_transition_argument rejected 4714ms expected @f2672d675498
 	cannot prove requires contract for call next from main: issued as Ticket in Ticket::Held in state `entry`
 fail/drops/retired_attached_drop rejected 2739ms expected @ee4dbb4b2d56
@@ -3970,11 +3966,11 @@ fail/traits/refinement_clause_terminators rejected 3ms expected @89956713be3d
 	tests/omega/fail/traits/refinement_clause_terminators/main.omg:4:29: expected `machine`, found identifier `terminates`
 fail/traits/requirement_evidence_wrong_region rejected 7060ms expected @b9975b628a04
 	provider `SelectedReader::read` does not refine requirement `read` evidence parameter `Evidence`: forwarded binder `Evidence` does not guarantee the exact `Reading` trait application
-fail/traits/runtime_dyn_family_local_width_requires rejected 9611ms expected @7b6988120e7e
+fail/traits/runtime_dyn_family_local_width_requires rejected 11704ms expected @4148c7ab0c1e
 	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/traits/runtime_dyn_family_reordered_roster_requires rejected 8930ms expected @7b6988120e7e
+fail/traits/runtime_dyn_family_reordered_roster_requires rejected 10078ms expected @4148c7ab0c1e
 	cannot prove requires contract for call dyn Family::row from create: Width == 32 || Width == 16 || Width == 16 (needs fact `Width == 32 || Width == 16 || Width == 16` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/traits/runtime_dyn_family_replaced_width_requires rejected 9888ms expected @7b6988120e7e
+fail/traits/runtime_dyn_family_replaced_width_requires rejected 8829ms expected @4148c7ab0c1e
 	cannot prove requires contract for call dyn Family::row from create: Width == 16 || Width == 32 (needs fact `Width == 16 || Width == 32` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/types/address_sum_past_model_bound_rejected rejected 2388ms expected @bcbf0eef0c01+wt
 	exact arithmetic in machine `cut` state `entry` return value may overflow `addr`: the operands are not provably in range (decision 17 -- exact arithmetic is a proof obligation). Widen with an `as` cast to a larger type, constrain the operands' range (bound a parameter with a `requires` clause, or narrow a value with a dominating guard), or opt into a defined-overflow domain (`addr in Wrapping`/`Saturating`/`Trapping`).
@@ -4732,7 +4728,6 @@ pass/boundary/named_target_foreign_provider_exit checked 3648ms check-target:mac
 pass/boundary/native_provider_unoffered_read checked 3963ms check-target:linux_x86_64 @ccdb99ca2214
 pass/boundary/nested_projected_structural_crash_formal_exit checked 3354ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/requirement_case_precondition_exit checked 23311ms check-target:macos_arm64 @57a69f8b8ad1
-pass/boundary/requirement_float_precondition_exit checked 24648ms check-target:macos_arm64 @55902b88f129
 pass/boundary/static_foreign_scalar_result_locals_exit checked 17698ms check-target:macos_arm64 @ccdb99ca2214
 pass/boundary/static_opaque_qualifier_exit checked 4171ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/acquired_generator_completed_output_set checked 15684ms check-target:macos_arm64 published:files/companion.txt,files/generated.omg @ccdb99ca2214
@@ -4850,8 +4845,10 @@ pass/build/runtime_main_source_builder_is_ordinary_exit checked 16326ms check-ta
 pass/build/runtime_opaque_by_value_selected_exit checked 16099ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/runtime_retained_const_application_exit checked 4046ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/runtime_static_service_exclusion_exit checked 4365ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/same_leaf_runner_entry_left_exit checked 137629ms check-target:macos_arm64 @05cd26b99f66
-pass/build/same_leaf_runner_entry_right_exit checked 120183ms check-target:macos_arm64 @05cd26b99f66
+pass/build/same_leaf_runner_entry_left_exit rejected 973ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	product entry `left::Runner::run` is incompatible with slot `macos_arm64::ProgramEntry`: hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `runner`
+pass/build/same_leaf_runner_entry_right_exit rejected 771ms regressed-from:checked+check-target:macos_arm64 @ccdb99ca2214
+	product entry `right::Runner::run` is incompatible with slot `macos_arm64::ProgramEntry`: hosted `ProgramEntry` exposes no arrival parameters, but `Runner::run` declares `runner`
 pass/build/selected_const_array_length_exit rejected 6094ms regressed-from:checked+check-target:macos_arm64 @b23365ced206+wt
 	fixed-array length `[u8; slot_count()]`: const evaluation of `slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-61` has non-hermetic source origin `User`"))
 	fixed-array length `[u8; named_slot_count()]`: const evaluation of `named_slot_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-2-64` has non-hermetic source origin `User`"))
@@ -8244,7 +8241,7 @@ pass/facts/finite_family_const_roster/match_join checked 10143ms check-target:ma
 pass/facts/finite_family_const_roster/other_machine checked 10227ms check-target:macos_arm64 @74bbe3c7f0f1
 pass/facts/finite_family_const_roster/other_state checked 10239ms check-target:macos_arm64 @74bbe3c7f0f1
 pass/facts/finite_family_const_roster/parameter checked 10224ms check-target:macos_arm64 @74bbe3c7f0f1
-pass/facts/finite_family_const_roster/target_body checked 17712ms check-target:macos_arm64 @55902b88f129
+pass/facts/finite_family_const_roster/target_body checked 10805ms check-target:macos_arm64 @74bbe3c7f0f1
 pass/facts/finite_family_exclusive_result/call_result checked 7369ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/const_name checked 7497ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/field checked 6585ms check-target:macos_arm64 @05a6f6af37ec+wt
@@ -8254,15 +8251,15 @@ pass/facts/finite_family_exclusive_result/other_machine checked 8080ms check-tar
 pass/facts/finite_family_exclusive_result/other_state checked 7991ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/parameter checked 8043ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_exclusive_result/target_body checked 16804ms check-target:macos_arm64 @25f8bb78090b
-pass/facts/finite_family_input_index/call_result checked 15899ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/const_name checked 15017ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/field checked 15381ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/local checked 12285ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/match_join checked 12431ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/other_machine checked 13990ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/other_state checked 12316ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/parameter checked 12868ms check-target:macos_arm64 @7b6988120e7e
-pass/facts/finite_family_input_index/target_body checked 17736ms check-target:macos_arm64 @55902b88f129
+pass/facts/finite_family_input_index/call_result checked 15566ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/const_name checked 17162ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/field checked 15732ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/local checked 15565ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/match_join checked 15577ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/other_machine checked 18357ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/other_state checked 14815ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/parameter checked 13018ms check-target:macos_arm64 @4148c7ab0c1e
+pass/facts/finite_family_input_index/target_body checked 18230ms check-target:macos_arm64 @4148c7ab0c1e
 pass/facts/finite_family_returned_descriptor/call_result checked 8090ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_returned_descriptor/const_name checked 8868ms check-target:macos_arm64 @05a6f6af37ec+wt
 pass/facts/finite_family_returned_descriptor/field checked 6737ms check-target:macos_arm64 @05a6f6af37ec+wt
@@ -15122,11 +15119,13 @@ pass/traits/runtime_dyn_byte_record_result checked 3619ms check-target:macos_arm
 pass/traits/runtime_dyn_byte_result_candidates checked 4308ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_byte_subview_join checked 3471ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_data_argument_counts_exit checked 11178ms check-target:macos_arm64 @ccdb99ca2214
-pass/traits/runtime_dyn_family_local_width_exit checked 11708ms check-target:macos_arm64 @7b6988120e7e
-pass/traits/runtime_dyn_family_nested_result checked 93728ms check-target:macos_arm64 @7b6988120e7e
-pass/traits/runtime_dyn_family_reordered_roster_exit checked 11748ms check-target:macos_arm64 @7b6988120e7e
-pass/traits/runtime_dyn_family_replaced_width_exit checked 14132ms check-target:macos_arm64 @7b6988120e7e
-pass/traits/runtime_dyn_family_scalar_continuation checked 15484ms check-target:macos_arm64 @7b6988120e7e
+pass/traits/runtime_dyn_family_local_width_exit checked 13286ms check-target:macos_arm64 @4148c7ab0c1e
+pass/traits/runtime_dyn_family_nested_result rejected 58260ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @4148c7ab0c1e
+	retained requirement tuple lost its exact source call application: call `code` in `scan` binds declaration Handle { arena_index: 17954, generation: 1 }, but its retained targets are [(Handle { arena_index: 17954, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+	retained requirement tuple lost its exact source call application: call `code` in `nested_read` binds declaration Handle { arena_index: 17954, generation: 1 }, but its retained targets are [(Handle { arena_index: 17954, generation: 1 }, Handle { arena_index: 0, generation: 0 })]
+pass/traits/runtime_dyn_family_reordered_roster_exit checked 14674ms check-target:macos_arm64 @4148c7ab0c1e
+pass/traits/runtime_dyn_family_replaced_width_exit checked 14957ms check-target:macos_arm64 @4148c7ab0c1e
+pass/traits/runtime_dyn_family_scalar_continuation checked 15076ms check-target:macos_arm64 @4148c7ab0c1e
 pass/traits/runtime_dyn_field_assignment_establishment_exit checked 3362ms check-target:macos_arm64 @ccdb99ca2214
 pass/traits/runtime_dyn_guarded_result_exit checked 10404ms check-target:macos_arm64 @ee4dbb4b2d56
 pass/traits/runtime_dyn_image_incoming_backing_exit checked 3641ms check-target:macos_arm64 @ccdb99ca2214
@@ -17492,9 +17491,8 @@ fail/build/product_selection_repeated_helper rejected 432ms expected @ccdb99ca22
 	build selects opaque representation `Token` more than once
 fail/build/product_selection_unused_invalid_carrier rejected 487ms expected @ccdb99ca2214
 	opaque representation carrier graph at `TokenBytes` is affine; a copyable opaque datum requires every carrier declaration to be structurally `[copy]`; v1 carriers must be inert storage
-fail/build/program_entry_binding_outside_build rejected 1936ms expected @05cd26b99f66
-	argument `builder` for state `prepare` expects `&Build`, got `named value`; expected carrier `ref(named(name(nominal\\(toolchain-owner\\,path\\(Build\\)\\))))`, declared place carrier `named(name(nominal\\(package-owner\\(32:787872d1d8981bd28a9b55962ada1d6d09dbb87a2a3ab944cefe773b82514a48\\)\\,path\\(Main\\)\\)))`
-	argument `builder` for state `prepare` expects the `Build` data type but got `Main` in the `argument` position; these are incompatible data types (a place is accepted structurally, but its declared type must match)
+fail/build/program_entry_binding_outside_build rejected 115ms unexpected @ccdb99ca2214
+	Build selection requires its exact toolchain protocol
 fail/build/program_entry_receiver_not_zii rejected 2046ms expected @911f6617ba9e
 	machine `entry_start` state `entry` statement 1: reading `entry_storage.<whole value>` crosses an open default-domain invariant window before data `Application` is established: the zeroed representation is not yet a `Application` (ch12's access gate) -- construct it on every path first (the cross-state must-analysis carries establishment)
 fail/build/program_entry_returns_value rejected 3446ms expected @ccdb99ca2214
@@ -24158,7 +24156,7 @@ fail/facts/finite_family_const_roster/parameter rejected 1839ms expected @74bbe3
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
 fail/facts/finite_family_const_roster/runtime_const rejected 887ms expected @74bbe3c7f0f1
 	callable expression argument does not name a const or value declaration
-fail/facts/finite_family_const_roster/target_body rejected 2816ms expected @55902b88f129
+fail/facts/finite_family_const_roster/target_body rejected 2000ms expected @74bbe3c7f0f1
 	dynamic family call `Family::row` requires exactly one closed roster tuple ((16) or (32)); a runtime value cannot select a family row without proved membership -- ordinary runtime subjects of that arity discharge it at the call's own proof
 fail/facts/finite_family_exclusive_result/call_result rejected 8489ms expected @05a6f6af37ec+wt
 	machine `First::row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
@@ -24223,30 +24221,28 @@ fail/facts/finite_family_exclusive_result/target_body rejected 16022ms expected 
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `row` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
-fail/facts/finite_family_input_index/call_result rejected 9033ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/call_result rejected 11424ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/const_name rejected 7997ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/const_name rejected 10324ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/field rejected 9640ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/field rejected 10001ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/local rejected 8098ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/local rejected 10032ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/match_join rejected 6491ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/match_join rejected 12135ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/other_machine rejected 14133ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/other_machine rejected 12319ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/other_state rejected 11782ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/other_state rejected 10078ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/parameter rejected 16530ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/parameter rejected 10494ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/target_body rejected 9606ms expected @55902b88f129
+fail/facts/finite_family_input_index/target_body rejected 10205ms expected @4148c7ab0c1e
 	machine `create` state `entry` cannot prove runtime index subject equality at statement 2; an indexed value retains its captured index
-fail/facts/finite_family_input_index/wrong_provider rejected 7226ms expected @7b6988120e7e
+fail/facts/finite_family_input_index/wrong_provider rejected 11117ms expected @4148c7ab0c1e
 	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
-	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
-	machine `produce` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
-	machine `produce$specialized$bf862e295a8967d7$0` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
-	machine `produce$specialized$d1322acad3338bfd$1` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce$specialized$bf862e295a8967d7$0$2751` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
+	machine `produce$specialized$d1322acad3338bfd$1$2756` state `entry` does not satisfy trait `Family` machine `row`: expected return `Indexed<limit>`, got `Indexed<payload>`
 fail/facts/finite_family_returned_descriptor/call_result rejected 4026ms expected @05a6f6af37ec+wt
 	machine `Header::window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
 	machine `window` returns a view borrowing the local `local`, which does not outlive the call; return a view of storage that outlives the invocation instead
