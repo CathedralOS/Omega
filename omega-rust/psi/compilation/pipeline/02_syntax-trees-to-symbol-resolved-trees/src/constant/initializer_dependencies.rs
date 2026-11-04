@@ -254,147 +254,11 @@ pub(crate) fn expression_at_source(
     selected.ok_or_else(|| "initializer leaf is absent from its retained original root".to_owned())
 }
 
-/// How a call through a named implementation contributes a constant dependency.
-/// Ordinary machine, operator, and evidence-binder calls stay on their existing
-/// paths. A concrete map supplies its owned realization body. A map that does
-/// not implement the named trait supplies no body; checking still rejects it.
-enum NamedImplementationDependency {
-    NotSelected,
-    Realization(ResolvedAuthoredCallBinding),
-    RequirementOnly(SymbolHandle),
-}
-
-fn named_implementation_dependency(
-    program: &SymbolResolvedTrees,
-    receiver_symbol: SymbolHandle,
-    target_symbol: SymbolHandle,
-    target_name: &str,
-    static_arguments: &[StaticMachineArgument],
-) -> Result<NamedImplementationDependency, String> {
-    let target = program.symbols.get(target_symbol);
-    let target_parent_kind = program.symbols.get(target.parent).kind;
-    if matches!(
-        target.kind,
-        SymbolKind::Machine | SymbolKind::Operator | SymbolKind::BuiltinFunction
-    ) || (target.kind == SymbolKind::State
-        && matches!(
-            target_parent_kind,
-            SymbolKind::Machine | SymbolKind::ConformanceParameter
-        ))
-    {
-        return Ok(NamedImplementationDependency::NotSelected);
-    }
-    let (implementation, requirement_trait) =
-        if program.symbols.get(receiver_symbol).kind == SymbolKind::Conformance {
-            (receiver_symbol, None)
-        } else if target.kind == SymbolKind::State && target_parent_kind == SymbolKind::Trait {
-            let Some(argument) = static_arguments.last() else {
-                return Ok(NamedImplementationDependency::NotSelected);
-            };
-            if program.symbols.get(argument.symbol).kind != SymbolKind::Conformance {
-                return Ok(NamedImplementationDependency::NotSelected);
-            }
-            (argument.symbol, Some(target.parent))
-        } else {
-            return Ok(NamedImplementationDependency::NotSelected);
-        };
-    let conformance = program
-        .conformances
-        .iter()
-        .find(|conformance| conformance.symbol == implementation)
-        .ok_or_else(|| {
-            format!(
-                "named implementation call lost its conformance declaration `{}`",
-                program.symbols.display_path(implementation, "::")
-            )
-        })?;
-    if let Some(requirement_trait) = requirement_trait
-        && !trait_supplies_requirement(program, conformance.trait_symbol, requirement_trait)
-    {
-        return Ok(NamedImplementationDependency::RequirementOnly(
-            target_symbol,
-        ));
-    }
-    let mut rows = conformance.rows.iter().filter(|row| {
-        if target_symbol.is_valid() && row.requirement.is_valid() {
-            row.requirement == target_symbol
-        } else {
-            row.requirement_name.as_str() == target_name
-        }
-    });
-    let Some(row) = rows.next() else {
-        if requirement_trait.is_some() {
-            return Ok(NamedImplementationDependency::RequirementOnly(
-                target_symbol,
-            ));
-        }
-        return Err(format!(
-            "named implementation `{}` has no row for `{target_name}`",
-            program.symbols.display_path(implementation, "::")
-        ));
-    };
-    if rows.next().is_some() {
-        return Err(format!(
-            "named implementation `{}` has more than one row for `{target_name}`",
-            program.symbols.display_path(implementation, "::")
-        ));
-    }
-    let machine =
-        crate::symbols::owned_conformance_realization(program, row).map_err(str::to_owned)?;
-    let entry = realization_entry(program, machine)?;
-    Ok(NamedImplementationDependency::Realization(
-        ResolvedAuthoredCallBinding {
-            selected: entry,
-            original: if requirement_trait.is_some() {
-                target_symbol
-            } else {
-                entry
-            },
-        },
-    ))
-}
-
-fn trait_supplies_requirement(
-    program: &SymbolResolvedTrees,
-    implementation_trait: SymbolHandle,
-    requirement_trait: SymbolHandle,
-) -> bool {
-    if !implementation_trait.is_valid() || !requirement_trait.is_valid() {
-        return false;
-    }
-    let mut pending = vec![implementation_trait];
-    let mut visited = Vec::new();
-    while let Some(current) = pending.pop() {
-        if !current.is_valid() || visited.contains(&current) {
-            continue;
-        }
-        if current == requirement_trait {
-            return true;
-        }
-        visited.push(current);
-        let Some(definition) = program
-            .traits
-            .iter()
-            .find(|definition| definition.symbol == current)
-        else {
-            continue;
-        };
-        pending.extend(
-            program
-                .trait_requirements(definition.requires)
-                .iter()
-                .map(|parent| parent.symbol),
-        );
-    }
-    false
-}
-
-/// Bind unresolved constant-initializer calls through a named implementation
-/// to that row's owned entry before authored-selection recording. Every copy
+/// Bind constant-initializer calls through a named implementation
+/// to its public requirement before authored-selection recording. Every copy
 /// of those source tokens is bound too: selection finalization groups copies
-/// by token, and one unresolved copy keeps a late call selection. Machine-body
-/// calls keep their own later requirement route. The entry is what constant
-/// custody compares with the call that remains.
+/// by token, and one unresolved copy keeps a late call selection. The private
+/// realization supplies body demand separately, just as for machine-body calls.
 pub(crate) fn bind_named_implementation_const_calls(
     program: &mut SymbolResolvedTrees,
     roots: &[ExpressionHandle],
@@ -408,41 +272,47 @@ pub(crate) fn bind_named_implementation_const_calls(
         .iter_expressions()
         .map(|(expression, _)| expression)
         .collect::<Vec<_>>();
-    let mut bound_entries: Vec<(SourceSpan, SymbolHandle)> = Vec::new();
+    let mut routing =
+        crate::selection::conformance_blocks::ProvisionalBodyCallRouting::new(program);
+    let mut targets = Vec::new();
     for expression in expressions {
         let node = expression_node(program, expression);
         let ExpressionNode::Call(call) = &node else {
             continue;
         };
-        if call.target_symbol.is_valid() || !spans.contains(&call.target.source_span()) {
+        if !spans.contains(&call.target.source_span()) {
             continue;
         }
         let receiver_symbol = body_expressions(program)
             .name_path_node(call.receiver)
             .map_or_else(SymbolHandle::invalid, |path| path.symbol);
-        let NamedImplementationDependency::Realization(binding) = named_implementation_dependency(
-            program,
-            receiver_symbol,
-            call.target_symbol,
-            call.target.as_str(),
+        let Some(binding) = routing.named_binding(
+            &crate::selection::body_calls::CallSite {
+                receiver_symbol,
+                target_symbol: call.target_symbol,
+                target: &call.target,
+                member: &call.target,
+                requirement_application: call.requirement_application,
+                local_receiver: !call.receiver.is_valid(),
+                argument_count: body_expressions(program)
+                    .expression_handles(call.arguments)
+                    .len(),
+            },
             &call.machine_arguments,
         )?
         else {
             continue;
         };
-        let mut entry = binding.selected;
-        let span = call.target.source_span();
-        if let Some((_, existing)) = bound_entries.iter().find(|(bound, _)| *bound == span) {
-            entry = *existing;
-        } else {
-            bound_entries.push((span, entry));
-        }
+        targets.push((expression, binding.original));
+    }
+    drop(routing);
+    for (expression, requirement) in targets {
         let ExpressionNode::Call(call) =
             program.tables.bodies.expressions.expression_mut(expression)
         else {
             continue;
         };
-        call.target_symbol = entry;
+        call.target_symbol = requirement;
     }
     Ok(())
 }
@@ -451,8 +321,7 @@ pub(crate) fn bind_named_implementation_const_calls(
 /// Ordinary overload selection initially needs the evaluator's typed owner;
 /// re-lowering its saved source after materialization leaves that target open.
 /// The declaration's own resolved selection supplies the original target here.
-/// Named-implementation routing can also move machine-reachable copies to the
-/// trait requirement; those copies retain the existing owned-entry restoration.
+/// Named implementation calls keep their public requirements through routing.
 pub(crate) fn restore_const_call_targets(
     program: &mut SymbolResolvedTrees,
     work: &[ExpressionHandle],
@@ -466,7 +335,6 @@ pub(crate) fn restore_const_call_targets(
     let mut initializer_expressions = Vec::new();
     collect_expression_handles(program, &roots, &mut initializer_expressions);
     let mut initializer_targets = Vec::new();
-    let mut recorded = Vec::new();
     for expression in &initializer_expressions {
         let node = expression_node(program, *expression);
         let ExpressionNode::Call(call) = &node else {
@@ -483,16 +351,8 @@ pub(crate) fn restore_const_call_targets(
             continue;
         }
         initializer_targets.push((*expression, symbol));
-        let span = call.target.source_span();
-        if let Some((_, existing)) = recorded.iter().find(|(bound, _)| *bound == span) {
-            if *existing != symbol {
-                recorded.retain(|(bound, _)| *bound != span);
-            }
-            continue;
-        }
-        recorded.push((span, symbol));
     }
-    if recorded.is_empty() && initializer_targets.is_empty() {
+    if initializer_targets.is_empty() {
         return;
     }
     for &expression in work {
@@ -500,9 +360,6 @@ pub(crate) fn restore_const_call_targets(
         let ExpressionNode::Call(call) = &node else {
             continue;
         };
-        let receiver_symbol = body_expressions(program)
-            .name_path_node(call.receiver)
-            .map_or_else(SymbolHandle::invalid, |path| path.symbol);
         // An ordinary unresolved call must be the exact declaration-owned
         // expression carrying the reconciled selection. Equal source spans on
         // other expressions do not authorize filling their targets. Keep a
@@ -515,15 +372,7 @@ pub(crate) fn restore_const_call_targets(
             })
             .flatten()
             .map(|(_, symbol)| *symbol);
-        let routed_target = (program.symbols.get(receiver_symbol).kind == SymbolKind::Conformance)
-            .then(|| {
-                recorded
-                    .iter()
-                    .find(|(span, _)| *span == call.target.source_span())
-            })
-            .flatten()
-            .map(|(_, symbol)| *symbol);
-        let Some(symbol) = initializer_target.or(routed_target) else {
+        let Some(symbol) = initializer_target else {
             continue;
         };
         if call.target_symbol == symbol {
@@ -667,38 +516,6 @@ fn expression_child_handles(
         | ExpressionNode::TypeExpression(_)
         | ExpressionNode::ZeroValue(_) => Vec::new(),
     }
-}
-
-fn realization_entry(
-    program: &SymbolResolvedTrees,
-    machine_symbol: SymbolHandle,
-) -> Result<SymbolHandle, String> {
-    let mut machines = program
-        .machines
-        .iter()
-        .filter(|machine| machine.symbol == machine_symbol);
-    let machine = machines
-        .next()
-        .ok_or("owned conformance realization lost its machine declaration")?;
-    if machines.next().is_some() {
-        return Err("owned conformance realization has ambiguous machine declarations".to_owned());
-    }
-    let leaf = machine
-        .name
-        .as_str()
-        .rsplit_once("::")
-        .map_or(machine.name.as_str(), |(_, leaf)| leaf);
-    let states = program.machine_state_handles(machine.states);
-    let state = states
-        .iter()
-        .find(|state| program.machine_state(**state).name.as_str() == leaf)
-        .or_else(|| {
-            states
-                .iter()
-                .find(|state| program.machine_state(**state).name.as_str() == "entry")
-        })
-        .ok_or("owned conformance realization has no entry state")?;
-    Ok(program.machine_state(*state).symbol)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -982,23 +799,11 @@ impl<'program, 'selection> Collector<'program, 'selection> {
         // Named implementation routing runs after lexical routing and owns the
         // final choice for an explicit map call. Honor that choice first when
         // discovering dependencies in either fresh or already-routed source.
-        match named_implementation_dependency(
-            self.program,
-            receiver_symbol,
-            target_symbol,
-            target_name,
-            static_arguments,
-        )? {
-            // A map that does not supply this requirement has no body to walk.
-            // Keep the requirement so ordinary checking rejects the selection.
-            NamedImplementationDependency::RequirementOnly(requirement) => {
-                self.dependencies.pending_target_observation = true;
-                return self.record_logical_call(requirement, target_span);
-            }
-            NamedImplementationDependency::Realization(binding) => {
-                return self.realized_call_dependency(binding, target_span);
-            }
-            NamedImplementationDependency::NotSelected => {}
+        if let Some(binding) = self
+            .body_call_routing
+            .named_binding(&site, static_arguments)?
+        {
+            return self.realized_call_dependency(binding, target_span);
         }
         if let Some(binding) = self.body_call_routing.binding(self.lexical_owner, &site)? {
             return self.realized_call_dependency(binding, target_span);
