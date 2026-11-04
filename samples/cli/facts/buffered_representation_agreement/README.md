@@ -63,37 +63,40 @@ byte snapshots, extent checks and write markers leave that evaluation. The live
 mutable reference stays inside it. Main checks those observations and runs the
 same observer at runtime.
 
-[Run 41876775834](https://github.com/CathedralOS/Omega/actions/runs/41876775834),
-at exact producer source `fedba668faa985235b7b4db1a46c04397219fdbd`,
+[Run 41917901703](https://github.com/CathedralOS/Omega/actions/runs/41917901703),
+at exact producer source `d97ab1ffb60d787137a56d861a03e45dd49219ee`,
 executes all nine positives with native 0, Terminal 0 and engine agreement.
 All nine twins reject only the Reader's field guarantees. The complete request
-has 31 source observations, 13 native/Terminal agreements, all nine ordinary CLI
+has 35 source observations, 17 native/Terminal agreements, nine ordinary CLI
 projects and eighteen sample results. Every CLI project completes update and
 both-engine execution; all nine sample positives return zero and their nine
-twins reject as intended. The compiler binaries match the earlier focused run;
-optimized preparation takes 84 seconds on the warm cache. Original reports,
-optimized profile metadata, the source bundle and complete raw log are retained
-with [PR 1819](https://github.com/CathedralOS/Omega/pull/1819). These observations
-keep their original producer identity when regression records or prose change.
+twins reject as intended. All four strict storage controls also return zero in
+both engines, including collection metadata and the guarded array descriptor.
+Original reports, optimized profile metadata, the source bundle and complete raw
+log are retained with [PR 1819](https://github.com/CathedralOS/Omega/pull/1819).
+These observations keep their exact producer identity when prose or regression
+records change.
 
 The direct named constant call and positional implementation through a constant
 also execute at native 0 and Terminal 0 in this run. Their precondition and
 runtime-service refusal controls reject. Four hosted Build entries are authored;
 these runtime observations are Linux x86-64 only.
 
+The PR remains unfinished. Two additional storage programs still return native
+0 but decline in Terminal Psi: a qualified write-only array and a reference into
+a byte view. Separate rebinding and nominal-cleanup controls also need precise
+baseline attribution. None of those failures is recorded as passing. The latest
+failure-only diagnostics retain the supplying reference contracts and failed
+operation name; they do not change any execution verdict.
+
 The [original valid-source baseline](https://github.com/CathedralOS/Omega/actions/runs/41546898552)
-and [compiler changes](https://github.com/CathedralOS/Omega/pull/1562) retain the
-earlier diagnostics and repairs. [Comparison 41772865951](https://github.com/CathedralOS/Omega/actions/runs/41772865951)
+and [earlier compiler repairs](https://github.com/CathedralOS/Omega/pull/1562)
+retain the original diagnostics. [Comparison 41772865951](https://github.com/CathedralOS/Omega/actions/runs/41772865951)
 and [comparison 41774777402](https://github.com/CathedralOS/Omega/actions/runs/41774777402)
-attribute six earlier failures to fixed main `db92349b9c2ef6e6e3705372ba6754b3e70e4874`.
-Those historical records include four earlier formation or borrowing-source
-failures and two default-body positives that could not lower their returned
-expression. They remain separately unaccepted; they are not current execution
-evidence. Four explicit header-zero checks, the default-body positives and the
-[nested-machine sibling-write control](../../../../tests/omega/fail/borrows/nested_machine_carried_field_sibling_rejected/main.omg)
-are selected in [follow-up 41878304380](https://github.com/CathedralOS/Omega/actions/runs/41878304380)
-on the same producer. Their results remain pending. Wrong-reason refusals and
-timeouts do not satisfy those obligations.
+attribute six earlier failures to fixed main
+`db92349b9c2ef6e6e3705372ba6754b3e70e4874`. Those historical observations are
+separate from current execution evidence. The full standard Representation
+interface, reflection adapters and other hosts remain parent work.
 
 The programs exercise the following obligations. The parent task retains the
 separate controls above, broader library support and other-host execution:
