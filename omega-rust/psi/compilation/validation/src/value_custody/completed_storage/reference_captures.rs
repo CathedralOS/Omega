@@ -181,7 +181,10 @@ impl Resolver<'_> {
             {
                 return Selection::Unavailable;
             }
-            let Some(place) = super::project_captured_view_place(
+            let Some(place) = super::project_captured_storage_place(
+                self.program,
+                capture.state_symbol,
+                capture.statement_index,
                 crate::CanonicalPlace {
                     root,
                     segments: prefix.to_vec(),
@@ -386,7 +389,13 @@ impl Resolver<'_> {
         }
         let mut selected = Vec::new();
         for place in places {
-            let Some(place) = super::project_captured_view_place(place, path) else {
+            let Some(place) = super::project_captured_storage_place(
+                self.program,
+                capture.state_symbol,
+                capture.statement_index,
+                place,
+                path,
+            ) else {
                 return Selection::Unavailable;
             };
             let snapshot = if view {
@@ -528,7 +537,10 @@ impl Resolver<'_> {
             else {
                 return Some(Selection::Unavailable);
             };
-            let Some(place) = super::project_captured_view_place(
+            let Some(place) = super::project_captured_storage_place(
+                self.program,
+                capture.state_symbol,
+                capture.statement_index,
                 crate::CanonicalPlace {
                     root: referent.root,
                     segments: segments.to_vec(),

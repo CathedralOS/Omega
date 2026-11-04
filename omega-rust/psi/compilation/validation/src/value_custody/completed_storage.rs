@@ -77,7 +77,7 @@ mod reference_captures;
 pub use captures::{
     captured_operand_child_at_path, captured_operand_children_at_path,
     captured_retention_profiles_at_path, finite_projection_paths, operand_child_type,
-    project_captured_view_place,
+    project_captured_storage_place, project_captured_view_place,
 };
 pub use descriptor_suppliers::descriptor_suppliers;
 pub use reference_captures::{
