@@ -64,6 +64,22 @@ class SourceExportTests(unittest.TestCase):
         self.assertEqual(self.git(restored, "show", self.sources[-1] + ":source"), "2")
         self.assertEqual(self.git(self.checkout, "rev-parse", "HEAD"), self.sources[-1])
         self.assertEqual(json.loads((self.output / "source/manifest.json").read_text()), records)
+        self.assertEqual(export.export(self.output, [self.sources[-1], self.sources[0]]), records)
+
+    def test_preexisting_shallow_bundle_is_refused_without_overwriting_it(self):
+        revision = self.sources[-1]
+        directory = self.checkout / "build/corpus-source"
+        directory.mkdir()
+        bundle = directory / (revision + ".bundle")
+        reference = "refs/corpus-observations/" + revision
+        self.git(self.checkout, "update-ref", reference, revision)
+        self.git(self.checkout, "bundle", "create", str(bundle), reference)
+        digest = hashlib.sha256(bundle.read_bytes()).hexdigest()
+        with self.assertRaisesRegex(ValueError, "cannot restore its bundle"):
+            export.export(self.output, [revision])
+        self.assertEqual(hashlib.sha256(bundle.read_bytes()).hexdigest(), digest)
+        self.assertFalse((self.output / "source/manifest.json").exists())
+        self.assertFalse((self.output / "source" / bundle.name).exists())
 
     def test_unknown_original_source_or_missing_remote_refuses_without_a_manifest(self):
         for missing in (False, True):
@@ -73,6 +89,19 @@ class SourceExportTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "source export"):
                     export.export(self.output, ["0" * 40])
                 self.assertFalse((self.output / "source/manifest.json").exists())
+
+    def test_bundle_cannot_require_an_unpublished_feature_parent(self):
+        self.git(self.checkout, "fetch", "--deepen=64", "origin", "work")
+        revision = self.sources[-1]
+        directory = self.checkout / "build/corpus-source"
+        directory.mkdir()
+        bundle = directory / (revision + ".bundle")
+        reference = "refs/corpus-observations/" + revision
+        self.git(self.checkout, "update-ref", reference, revision)
+        self.git(self.checkout, "bundle", "create", str(bundle), reference, "^" + self.sources[0])
+        with self.assertRaisesRegex(ValueError, "source export"):
+            export.export(self.output, [revision])
+        self.assertFalse((self.output / "source/manifest.json").exists())
 
     def test_existing_bundle_owner_refusal_stops_artifact_copy(self):
         with patch.object(export.corpus_gate, "retain_record_source", return_value="bad source bundle"):

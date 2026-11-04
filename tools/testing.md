@@ -255,7 +255,10 @@ Both fresh and retained-producer runs export their measured source into the
 existing pilot artifact. A shallow checkout fetches only until the source range
 above known published main has no missing ancestry. The corpus's existing
 `retain_record_source` owner then verifies its Git bundle; the pilot authenticates
-the copied bytes and records the exact source, published prerequisite and digest
+the bundle again in a fresh bare repository containing only its declared,
+authenticated published prerequisites. Missing feature parents or objects refuse,
+including in an older bundle that the corpus owner deliberately preserves.
+The pilot authenticates the copied bytes and records source, prerequisites and digest
 under `source/manifest.json`. An incomplete or unauthenticated export stops before
 fixture observations. This keeps later golden stamps inspectable after branch
 squashing without committing raw bundles or changing workflow permissions.
