@@ -1,153 +1,599 @@
-name: Compiler queue pilot
-
+name: Qualify inferred-array programs with the retained compiler
 on:
-  pull_request:
-    branches: [integration-pilot]
-  merge_group:
-    branches: [integration-pilot]
-    types: [checks_requested]
   workflow_dispatch:
-    inputs:
-      smoke:
-        description: Also build executables and run the native/Terminal smoke (not admission)
-        type: boolean
-        default: false
-      fixtures:
-        description: Optional comma-separated exact pass/group/name and fail/group/name IDs; replaces smoke
-        type: string
-        default: ''
-      checking_only:
-        description: Check only the exact fixtures and rejection controls, without repeating runtime observations
-        type: boolean
-        default: false
-      samples:
-        description: Optional comma-separated exact samples/cli/facts project paths (with descendants); replaces smoke
-        type: string
-        default: ''
-      cli_fixtures:
-        description: Optional exact pass/... or samples/cli/... normal-exit projects through ordinary CLI package review and both engines
-        type: string
-        default: ''
-      build_consent:
-        description: Run public source-produced Build consent and filesystem isolation controls
-        type: boolean
-        default: false
-      native_host:
-        description: Matching native host for manual executable observations
-        type: choice
-        options:
-          - linux_x86_64
-          - linux_arm64
-          - windows_x86_64
-          - macos_arm64
-        default: linux_x86_64
-
 permissions:
   contents: read
-
-# A new PR revision supersedes its old check; never cancel a merge-group check
-# merely because another PR entered the queue.
-concurrency:
-  group: compiler-pilot-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.native_host || 'linux_x86_64' }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
+  actions: read
 jobs:
-  compiler-pilot:
-    runs-on: ${{ github.event_name == 'workflow_dispatch' && fromJSON('{"linux_x86_64":"ubuntu-24.04","linux_arm64":"ubuntu-24.04-arm","windows_x86_64":"windows-2022","macos_arm64":"macos-15"}')[inputs.native_host] || 'ubuntu-24.04' }}
-    timeout-minutes: ${{ github.event_name == 'workflow_dispatch' && (inputs.native_host == 'windows_x86_64' && 120 || 60) || 30 }}
+  replay:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 60
     env:
-      CARGO_BUILD_JOBS: '2'
-      CARGO_INCREMENTAL: '0'
-      CARGO_UNSTABLE_CHECKSUM_FRESHNESS: 'true'
-      CARGO_BUILD_FINGERPRINT: content
-      # Large calling-policy checks use about 2.8 GiB each. Run one fixture
-      # at a time to reduce concurrent memory pressure.
-      OMEGA_CORPUS_JOBS: '1'
+      GH_TOKEN: ${{ github.token }}
       RUST_MIN_STACK: '67108864'
-      # Match Linux/macOS post-merge storage; Windows keeps its short target path.
-      CARGO_TARGET_DIR: ${{ github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && 'D:/ot' || '/tmp/ot' }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: 29a5c1cd3b267fb567da6816a61603ad6f0d819c
           persist-credentials: false
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
-      - name: Test the gate's refusal paths
-        run: python tools/tests/test_compiler_pilot.py -v
-      - name: Test Build control evidence refusal paths
-        run: python tools/tests/test_build_consent_controls.py -v
-      - name: Validate exact fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_fixtures; import os; print(select_fixtures(os.environ['OMEGA_COMPILER_PILOT_FIXTURES']))"
-      - name: Validate exact fact sample selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.samples != ''
-        env:
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-        run: python -c "from tools.ci.compiler_pilot import select_samples; import os; print(select_samples(os.environ['OMEGA_COMPILER_PILOT_SAMPLES']))"
-      - name: Validate exact ordinary CLI fixture selection before building
-        if: github.event_name == 'workflow_dispatch' && inputs.cli_fixtures != ''
-        env:
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-        run: python -c "from tools.ci.compiler_pilot import select_cli_fixtures; import os; print(select_cli_fixtures(os.environ['OMEGA_COMPILER_PILOT_CLI_FIXTURES']))"
-      - name: Provision Windows rooted temporary directory for hosted applications
-        if: github.event_name == 'workflow_dispatch' && inputs.native_host == 'windows_x86_64' && inputs.cli_fixtures != ''
-        run: python -c "from pathlib import Path; root = Path(Path.cwd().anchor) / 'tmp'; root.mkdir(exist_ok=True); print('Provisioned current-drive rooted temporary directory:', root)"
-      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        id: build-cache
+      - name: Authenticate the retained compiler and check the frozen inferred-array programs
+        shell: bash
+        run: |
+          python3 - <<'REPLAY'
+          from pathlib import Path
+          from types import SimpleNamespace
+          import hashlib,json,os,subprocess,sys
+          settings={'label': 'inferred-array-full-35dd60f5-linux_arm64',
+           'target': 'linux_arm64',
+           'run': 41926336006,
+           'artifact': 'compiler-pilot-linux_arm64-35dd60f558783639a29ce41f98c7344abf855fd1-1',
+           'producer_source': '35dd60f558783639a29ce41f98c7344abf855fd1',
+           'producer_tree': '0502e70b79688780bfdd6bc8d74618e4085e40d3',
+           'program_source': '29a5c1cd3b267fb567da6816a61603ad6f0d819c',
+           'program_tree': '1712f732127bd54f01f6bb32ad44a7a8aedb59ac',
+           'original_producer': {'revision': '35dd60f558783639a29ce41f98c7344abf855fd1',
+                                 'tree': '0502e70b79688780bfdd6bc8d74618e4085e40d3',
+                                 'target': 'linux_arm64',
+                                 'toolchain': 'rustc 1.100.0-nightly (a69a63265 2026-09-03)\n'
+                                              'binary: rustc\n'
+                                              'commit-hash: a69a63265cfd9e006d43137f98301b8d274ad4c9\n'
+                                              'commit-date: 2026-09-03\n'
+                                              'host: aarch64-unknown-linux-gnu\n'
+                                              'release: 1.100.0-nightly\n'
+                                              'LLVM version: 23.1.1',
+                                 'cli': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-5rxttp9i/omega',
+                                 'runner': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-5rxttp9i/corpus_runner',
+                                 'cli_profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-5rxttp9i/omega',
+                                                 'sha256': 'f8cf9d175e4e887cb56b48887e0cc5108effbdb3b036baa007fbabbb8dd5f81a',
+                                                 'profile': {'schema': 'omega-compiler-build-profile-v1',
+                                                             'opt_level': '1'}},
+                                 'runner_profile': {'binary': '/home/runner/work/Omega/Omega/build/compiler-pilot/producer-5rxttp9i/corpus_runner',
+                                                    'sha256': '2fcc5d44340f4f84845fe9735cdf4ac467d4cb77478856bbbd9f531ac4d07f42',
+                                                    'profile': {'schema': 'omega-compiler-build-profile-v1',
+                                                                'opt_level': '1'}}},
+           'objects': {'omega-rust': '96c3f8c5027d082e52aa102a0d64194a0f6eda2d',
+                       'source/library': 'c0f12a0920db3e54ed7efba46f5b8ec1a6d29765',
+                       'tools': '13690a29d787e238387e0750182723b8a1611e0f',
+                       '.github': 'bae01e4f85b7173fa6cce374bf7bc9a924654a71',
+                       'Cargo.toml': '2699e0a8d0be49c789639cbd3c603521634145d9',
+                       'Cargo.lock': 'b9590ac649fdf234e519f0197a05372d3fe65df5',
+                       'rust-toolchain.toml': '34677fc928123970d13e8b81641724e2a9e6f929'},
+           'program_objects': {'omega-rust': '96c3f8c5027d082e52aa102a0d64194a0f6eda2d',
+                               'source/library': 'c0f12a0920db3e54ed7efba46f5b8ec1a6d29765',
+                               'tools': '13690a29d787e238387e0750182723b8a1611e0f',
+                               '.github': 'bae01e4f85b7173fa6cce374bf7bc9a924654a71',
+                               'Cargo.toml': '2699e0a8d0be49c789639cbd3c603521634145d9',
+                               'Cargo.lock': 'b9590ac649fdf234e519f0197a05372d3fe65df5',
+                               'rust-toolchain.toml': '34677fc928123970d13e8b81641724e2a9e6f929'},
+           'baseline': False,
+           'input_hashes': {'samples/cli/facts/inferred_array_equation_call/README.md': 'dcd095453f4a8b87f35fe590a94d19966bd07f40d131f303954d4ba410b1149b',
+                            'samples/cli/facts/inferred_array_equation_call/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/invalid/build.omg': '7a9e2d0199b5649ecceff1eab550173ce28c7093494ab4946015143289577822',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/invalid/main.omg': 'aa4d5144ca43c4fa38fba5f78fadd8e107687e4c587ddaaebab674049f23535a',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/invalid/sample.json': 'c564b88e8900960995272bb9b72699906fbb7acc7e0f76836cb6bd3ce02ab123',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/main.omg': '1a22e76a08ab2c327386d5dc96a98fac14dbd7598d36fab204f6ee7cf2bb835b',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/invalid/build.omg': 'a05f45cfee038fc52d2bbf08160fc911f78018602457c7bcd22860af146989ab',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/invalid/main.omg': 'cc6ffabfbd9b8c9e8bf4db26e93b524c2b35830f42a80a7a83115413f472837f',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/invalid/sample.json': 'c564b88e8900960995272bb9b72699906fbb7acc7e0f76836cb6bd3ce02ab123',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/main.omg': '1db17fbb9d51c2531acdeb0a3d4edcf809488102722c765cc81c86d19f8a827c',
+                            'samples/cli/facts/inferred_array_equation_call/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/field/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'samples/cli/facts/inferred_array_equation_call/field/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/field/invalid/build.omg': '97166c1d056f666a56ff19e9621a519dd53531025a1b6f56ec64ab1e8de3cb02',
+                            'samples/cli/facts/inferred_array_equation_call/field/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/field/invalid/main.omg': '81885ab92aaeaec0dae3cdafb76c6be29f4c83c1927cf4467f455253def3d80d',
+                            'samples/cli/facts/inferred_array_equation_call/field/invalid/sample.json': 'c564b88e8900960995272bb9b72699906fbb7acc7e0f76836cb6bd3ce02ab123',
+                            'samples/cli/facts/inferred_array_equation_call/field/main.omg': '4149f6b2b4202004f4bc386483a190215de2f655789516a3a0268e55dddb6841',
+                            'samples/cli/facts/inferred_array_equation_call/local/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'samples/cli/facts/inferred_array_equation_call/local/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/local/invalid/build.omg': '8363028b409d9f4fdf467f39033b0f7661ccc8fc5853cca7415fb13da51bff04',
+                            'samples/cli/facts/inferred_array_equation_call/local/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/local/invalid/main.omg': 'ba87486e9d76267d98cce16c2ae0bb607620c526ee0fe95c5137047abf1ab856',
+                            'samples/cli/facts/inferred_array_equation_call/local/invalid/sample.json': 'c564b88e8900960995272bb9b72699906fbb7acc7e0f76836cb6bd3ce02ab123',
+                            'samples/cli/facts/inferred_array_equation_call/local/main.omg': 'e490834b3e129322735e2e597385f143d0ec0b4fa244a97ff893183c0259abf3',
+                            'samples/cli/facts/inferred_array_equation_call/main.omg': 'fd2f636f4ea67a9bd673f7910e5c44f429017f0f234ed04495a57a0ac0ba16ec',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/invalid/build.omg': '6cd2584752c0a3c537bb39056f24bcefc8462decc06cc291739f81dc9eff335b',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/invalid/main.omg': '0ddc1ad304ed4360daca349d72c447bcce9d8bfa3034644cccbe500a10d2a7f2',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/invalid/sample.json': 'c564b88e8900960995272bb9b72699906fbb7acc7e0f76836cb6bd3ce02ab123',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/main.omg': 'df2bd7bd25ce231958ea05f3d0f99aa2cab662e2c01c6dad08d12b9b0d673c6a',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/invalid/build.omg': 'e6ea54b2858c2d14fa077f317c8771865681f2431f37c3719533feaf9bb574b9',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/invalid/main.omg': '797389917b97377e540cc18a52f730e369882be38d2dd0f6688f83299740f2a8',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/invalid/sample.json': 'c564b88e8900960995272bb9b72699906fbb7acc7e0f76836cb6bd3ce02ab123',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/main.omg': 'f04f0e32e11e6532276a3b0c9f62c8828fd18e062804da4d34f8c902bc46d18c',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/invalid/build.omg': '2ec3ff302cb25165253bce017d06870c13f41da7c50d2795d0b36563ed92519e',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/invalid/main.omg': 'ebc5a656d12c64e6a36d8488ac3070f317e5bc3fad030856fb1fd10e720b2c4f',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/invalid/sample.json': 'c564b88e8900960995272bb9b72699906fbb7acc7e0f76836cb6bd3ce02ab123',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/main.omg': 'e595f9bc4cfeb8dd238caa60edf0a718d784d8e51b23c5fd1a932206677cf1a3',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/invalid/build.omg': '105e50a47dc41c87300ae41fb288f329b9c67db353b3551d720c24715d498131',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/invalid/main.omg': '9c3a607fffb0f0ea1bfa0b860abc14ee83922c5beee57c33397b50512291a255',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/invalid/sample.json': 'c564b88e8900960995272bb9b72699906fbb7acc7e0f76836cb6bd3ce02ab123',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/main.omg': '87f98048502f1164220283f01c7c253ba124bbd5570506e4e325e068455ebf41',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/invalid/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/invalid/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/invalid/main.omg': 'd401e0572d11ef761b4dae701f27eb772942401b9a09559d99a81e43fa06ebe0',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/invalid/sample.json': 'c564b88e8900960995272bb9b72699906fbb7acc7e0f76836cb6bd3ce02ab123',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/main.omg': 'e940885014be7fde880fefb18b72a56933b769f9ec88759621f11eaee5c4548e',
+                            'tests/omega/fail/core/integer_query_pending_false_type_equation_rejected/build.omg': '33240ea404e3b85260bbe940688903d63115cd4e695915b02739d93064f4d22f',
+                            'tests/omega/fail/core/integer_query_pending_false_type_equation_rejected/expected.txt': 'd71ec49c01b1740f2de20c0bf5862fd649739c7f4996a42d03ef327538fb46e6',
+                            'tests/omega/fail/core/integer_query_pending_false_type_equation_rejected/main.omg': '7e0f939198c95bb698256da889d0510ac5ae3d4c86d5fa101f0fe8a0ae3a837a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_contract_mismatch_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_contract_mismatch_rejected/expected.txt': 'a3bbbff9bf0802bca00634c97ee7ffb22f3f392cdba9196a7fd2be2d893b984e',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_contract_mismatch_rejected/main.omg': 'ed5d0871c07fdb5bc702a3f6177c839b0a21a2ea4bad306eada45618ddcfe120',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_expression_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_expression_shadow_rejected/expected.txt': 'da9e941486eb3361d89ec04f9699c2435c7ba016356bd7f9b22ae49d052d3a9a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_expression_shadow_rejected/main.omg': 'e426f5c0d14d7b48390847b7c7b3783f1f42b68d29bbec53e5a7f0438ccba778',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_formal_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_formal_shadow_rejected/expected.txt': 'da9e941486eb3361d89ec04f9699c2435c7ba016356bd7f9b22ae49d052d3a9a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_formal_shadow_rejected/main.omg': '53230bbd2afcccb19770d5f34820b3506064f14d21e8da871f9118020f761c73',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_result_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_result_shadow_rejected/expected.txt': 'da9e941486eb3361d89ec04f9699c2435c7ba016356bd7f9b22ae49d052d3a9a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_result_shadow_rejected/main.omg': '071d21ce21f13b6d0b0936b57391d6748f5fa0e9f9bcaa6d91452726c735d4d9',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_static_argument_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_static_argument_shadow_rejected/expected.txt': 'da9e941486eb3361d89ec04f9699c2435c7ba016356bd7f9b22ae49d052d3a9a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_callback_static_argument_shadow_rejected/main.omg': '445b0bed1a62824504788dc2bf9abd1d3de7d8963fe294ea62a4dc1602c41216',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected/expected.txt': 'ab7d06befeef59f2cbc5b5d09c8461db8391e6cc7b72a77f4e935f6ceba211b6',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected/main.omg': '88acacd7f05d6f249adcdfed8c401ad6693354521e4bba7a94baa96b27859223',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_domain_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_domain_shadow_rejected/expected.txt': '95125cc26b4a269ef5a89e583617b43472677d7fa6ceba28bb977b357836e2f0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_domain_shadow_rejected/main.omg': '4000cc30d20b756f8b1f3a91b6880f072f4c88853e8a3daa5af300ce88855846',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_equation_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_equation_shadow_rejected/expected.txt': '95125cc26b4a269ef5a89e583617b43472677d7fa6ceba28bb977b357836e2f0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_equation_shadow_rejected/main.omg': 'cd73adc3628a1a81fda7f5722e8b6b32d33c078cb0c7ca8e8b2aba5558aa8823',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_formal_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_formal_shadow_rejected/expected.txt': '95125cc26b4a269ef5a89e583617b43472677d7fa6ceba28bb977b357836e2f0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_formal_shadow_rejected/main.omg': '18fdfdffce1e6ae45721fb31690c1e654da4c23d7dc51856ca8744e147e80677',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_name_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_name_shadow_rejected/expected.txt': 'a89d41d9da65cb068d40577128f354c00f6fe9a1c1c747460b48baed2e0a0e7a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_evidence_name_shadow_rejected/main.omg': 'b67dab730615813f76dfadc6284eb9938a1e41fcb310373ba081208eb19afb08',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_call_result_rejected/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_call_result_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_call_result_rejected/main.omg': 'a4de6c040c64f28483ad5b0473d4a6095efb8c61ebfa7e9706500bfc600ef593',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_const_name_rejected/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_const_name_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_const_name_rejected/main.omg': '85a122efdc8502642ab588674f6fe6b8f26322b78225274509c3f8aaec2bedaa',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_field_rejected/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_field_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_field_rejected/main.omg': '6b7920adb85feb53c22e9054207c1abd137344ef18a7beb51d8926b69e7aba7b',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_local_rejected/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_local_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_local_rejected/main.omg': '4b3ba47fde09318acfdf0ea9b5cc9f07eb1e2873afdd1253ebf7132e8a86b6ac',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_match_join_rejected/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_match_join_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_match_join_rejected/main.omg': 'ecde27e2b9af2a22c0951e33cfc4a34ef18a64feefee21574fe30b00e23da3df',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_machine_rejected/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_machine_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_machine_rejected/main.omg': '7b7672f9ea42554726998c3a8f7f8d9debd2a92cc78192afcaafcfe6ed1393a1',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_state_rejected/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_state_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_other_state_rejected/main.omg': '2b688c293ed2a063adec76713404d6d1426deefd6c545b1fe8fc5ade2060f96a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_parameter_rejected/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_parameter_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_parameter_rejected/main.omg': 'a672af6426ac77bacc9a925d1a803b69908430f772091fe9d9c353266d5292eb',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_target_body_rejected/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_target_body_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_through_target_body_rejected/main.omg': '7a309db493e5130eae4bae1b4f3099e84cfea70b253f280a7a1576b43f395ec3',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_carrier_mismatch_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_carrier_mismatch_rejected/expected.txt': '43cffae785e66cbf927ae4e53185dc6eac7632a738c1eb5877131bb71ff095bc',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_carrier_mismatch_rejected/main.omg': '3d62591fe377c5af8888171d00f87044203558f93259ed65dc60a203a8a8cbc3',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_index_invalid_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_index_invalid_rejected/expected.txt': '42ba49d64c0b85fea584222c296e282d23c0a9a685903ded4a57b103225338d4',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_index_invalid_rejected/main.omg': '33e8e18fac7f6d2036a756b78354b8264cc4e57cfa1a5dea4029b1074db3dc19',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_type_shadow_rejected/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_type_shadow_rejected/expected.txt': '53947e51bffb95f30ccfd886006e453d88618a55c2a8b678f2e471f0a4c4414f',
+                            'tests/omega/fail/facts/inferred_array_equation_call_mixed_binders_value_type_shadow_rejected/main.omg': 'd26080203b977321df0a5cf409d05c588cfe80a0a6ab2b938e000e6bc5c6268d',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_call_result_rejected/build.omg': '7a9e2d0199b5649ecceff1eab550173ce28c7093494ab4946015143289577822',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_call_result_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_call_result_rejected/main.omg': 'aa4d5144ca43c4fa38fba5f78fadd8e107687e4c587ddaaebab674049f23535a',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_const_name_rejected/build.omg': 'a05f45cfee038fc52d2bbf08160fc911f78018602457c7bcd22860af146989ab',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_const_name_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_const_name_rejected/main.omg': 'cc6ffabfbd9b8c9e8bf4db26e93b524c2b35830f42a80a7a83115413f472837f',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_field_rejected/build.omg': '97166c1d056f666a56ff19e9621a519dd53531025a1b6f56ec64ab1e8de3cb02',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_field_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_field_rejected/main.omg': '81885ab92aaeaec0dae3cdafb76c6be29f4c83c1927cf4467f455253def3d80d',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_local_rejected/build.omg': '8363028b409d9f4fdf467f39033b0f7661ccc8fc5853cca7415fb13da51bff04',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_local_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_local_rejected/main.omg': 'ba87486e9d76267d98cce16c2ae0bb607620c526ee0fe95c5137047abf1ab856',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_match_join_rejected/build.omg': '6cd2584752c0a3c537bb39056f24bcefc8462decc06cc291739f81dc9eff335b',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_match_join_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_match_join_rejected/main.omg': '0ddc1ad304ed4360daca349d72c447bcce9d8bfa3034644cccbe500a10d2a7f2',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_machine_rejected/build.omg': 'e6ea54b2858c2d14fa077f317c8771865681f2431f37c3719533feaf9bb574b9',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_machine_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_machine_rejected/main.omg': '797389917b97377e540cc18a52f730e369882be38d2dd0f6688f83299740f2a8',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_state_rejected/build.omg': '2ec3ff302cb25165253bce017d06870c13f41da7c50d2795d0b36563ed92519e',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_state_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_other_state_rejected/main.omg': 'ebc5a656d12c64e6a36d8488ac3070f317e5bc3fad030856fb1fd10e720b2c4f',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_parameter_rejected/build.omg': '105e50a47dc41c87300ae41fb288f329b9c67db353b3551d720c24715d498131',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_parameter_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_parameter_rejected/main.omg': '9c3a607fffb0f0ea1bfa0b860abc14ee83922c5beee57c33397b50512291a255',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_target_body_rejected/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_target_body_rejected/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/facts/inferred_array_equation_call_through_target_body_rejected/main.omg': 'd401e0572d11ef761b4dae701f27eb772942401b9a09559d99a81e43fa06ebe0',
+                            'tests/omega/fail/generics/captured_map_machine_contract_nominal_const/expected.txt': 'd36c502e7e53bd8a5dd62a7db26265f5f53e774054cd375982199e04356512cf',
+                            'tests/omega/fail/generics/captured_map_machine_contract_nominal_const/main.omg': '929f10f4b6950e4dd8d21da338fa475b43f102e4eb598ade52527f1044c77b86',
+                            'tests/omega/fail/generics/captured_map_nominal_open_const_mismatch/expected.txt': 'f3e8c2e5f9b518d8415356bb83be72e2aacbd4dfb076f2282488ce2b0b869e41',
+                            'tests/omega/fail/generics/captured_map_nominal_open_const_mismatch/main.omg': '05ddabcb8ce450c83d2be3ba949876cf957f0eecf82f9bca09792c12e3de14b9',
+                            'tests/omega/fail/generics/const_data_argument_requires_value/expected.txt': 'ccc4d82eb7daaa0df776dc5150b34ea57a41f142451855f5aba4b0b1d408795c',
+                            'tests/omega/fail/generics/const_data_argument_requires_value/main.omg': 'f6601d4d4e0e597d98a6284ad12f4fee7b6f65799dc523ba5099639c073b54cd',
+                            'tests/omega/fail/generics/dependent_const_array_extent/expected.txt': '4325ff84673f5bb8416262c2010e01ec079fb2ca338c905136272e1880856665',
+                            'tests/omega/fail/generics/dependent_const_array_extent/main.omg': '18d0af99738b309712e3754c4aab5b78002ee0f4805c37f1063e4438c7d6f1bd',
+                            'tests/omega/fail/generics/dependent_const_array_named_carrier/expected.txt': 'bc632d3a9be5107d910e0199115e4d031aea8adf64ba122f8b97bd64b41a7f21',
+                            'tests/omega/fail/generics/dependent_const_array_named_carrier/main.omg': '4a75577b02c351ced9085b26c607cc17c593c3b233d2fce087dcd970d1100de6',
+                            'tests/omega/fail/generics/generic_selected_extent_boolean/expected.txt': '05b87876067011de780e09ebd5cf12898af160478d32303e2cf9c8f712e33b24',
+                            'tests/omega/fail/generics/generic_selected_extent_boolean/main.omg': '452517614a8bd2cdc6ace233b663264a0ba7848489dc22df6dee79d39476df92',
+                            'tests/omega/fail/generics/inferred_equation_computed_satisfaction_extent_conflict/build.omg': '93ef0b3ed9b80f57504404c094f9ffd94b1fec3ad21477e1a9b3d4cd6d19c42c',
+                            'tests/omega/fail/generics/inferred_equation_computed_satisfaction_extent_conflict/expected.txt': '0505cf4ea9976a76933497a3c4252c7f097ac835e77c56276bc84a93eddd041b',
+                            'tests/omega/fail/generics/inferred_equation_computed_satisfaction_extent_conflict/main.omg': 'fe94e33e3f90c5be63aed0c38fbd1ead62749e78b4fe1146af142617b38581e2',
+                            'tests/omega/fail/generics/inferred_equation_mixed_destination_invalid_value/build.omg': '93ef0b3ed9b80f57504404c094f9ffd94b1fec3ad21477e1a9b3d4cd6d19c42c',
+                            'tests/omega/fail/generics/inferred_equation_mixed_destination_invalid_value/expected.txt': 'b7bcab4606786461d38deacec70b78b5c7c5bdda70cf0c2fad2c396fc42436f9',
+                            'tests/omega/fail/generics/inferred_equation_mixed_destination_invalid_value/main.omg': '3f1a48c2ecb4b5c4ae714bf39fa25c85a68e8dca341ba83a207745fb4dab9c11',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_call_result_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_call_result_conflict/main.omg': 'ce01777c804cd24c634323b197df64def214bb1a565ef7db141f165482b1c3af',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_const_name_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_const_name_conflict/main.omg': 'fb8c45541db633674327322ab01a9247a39c6055c18d211fe6e2a3135de09a9b',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_field_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_field_conflict/main.omg': 'dd6095ee2a9313670d0ce1157b58098c7cb27cb2fb206fcacfb5222c3994222e',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_local_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_local_conflict/main.omg': 'b47116f0e1fa0f066ffa4ea90620ed006339092c9bd107affe91eee70da70ae0',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_match_join_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_match_join_conflict/main.omg': '6ffd7247ade1bf1dfb047e73205a54ed908d4c68d2872e10e5b69393cbfa358f',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_other_machine_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_other_machine_conflict/main.omg': '8c850993fbe744550b8e459b7685ff18c7ea59879b585eac5bc5b326beb03699',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_other_state_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_other_state_conflict/main.omg': '273aa46ceb9891a8ad7fea7d1c059aa8d9d35e6b3bb4a642e30549044617dadc',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_parameter_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_parameter_conflict/main.omg': '42d930b709e588419810481bf8c12b5b95f347cfb06dc7749c307de422936e07',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_target_body_conflict/expected.txt': 'aa8e561ad9f4af7ac260c188dd131aa5e637220d3d2132ec2b5cb33c9dabcb77',
+                            'tests/omega/fail/generics/inferred_equation_typed_const_target_body_conflict/main.omg': '18b9e856b945a494d4d81dd1d573ff419c6cfe1087149a32ca371e3b130fefd6',
+                            'tests/omega/fail/generics/machine_equation_selected_const_kind_conflict/expected.txt': '62ea92c78371ee64daa8ef5223aa1117f8c3db5ed80c088d225323624a975062',
+                            'tests/omega/fail/generics/machine_equation_selected_const_kind_conflict/main.omg': '74cbb3cc3257694a3f65a2eba6e7be1bb7bf36d4c722db44a064d5d2fc622e8b',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit/main.omg': '0b632b47fca27b6ecb1d8999f3e43c5170a8609a1599ba6258c3826ad2da0ac2',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit/main.omg': '02d84b4aa26a78c2f98b619cb430e28e761a6854ea38f655ffbe3e58443b10f4',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit/main.omg': 'c33118ddcbceb01666938f9f973aa5b82cce0a6b6cbb63d689ca68620a38a6c6',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_local_exit/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_local_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_local_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_local_exit/main.omg': 'bfccc9590a48974681b47033ff0da8b889cf1a2ff136d438e7669a110b18cd18',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_match_join_exit/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_match_join_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_match_join_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_match_join_exit/main.omg': '53c2422f78f08c746a6cc5994036775df640f93f8d087868a61c6782ede95c57',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit/main.omg': 'e5eb9970195d9a711a0280352d9ab774bcf0b662970e653c264ccefd6745350c',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit/main.omg': '8f105197cb3407ad8ddc49fdc305bf2087d66eaf9d08e61f0289a6b5f9d61e41',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit/main.omg': 'ddc03fb99c17ceb3e0a04155af5a6f788e8dafb0426a67efa21189a65111d3ff',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit/main.omg': 'fe0b3b78fa4c2b96012f44e87cb13d1cc1496aed4034f8c6d53dd92f221a2909',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit/build.omg': 'd6e913092e683e30b1a674ed193311a518f92dd3dd052074c9d0908ef8e420d0',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit/main.omg': 'bca78adbd7930478e857e75e649a752e72e9903c0f80318e293f44bad532f1b8',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_call_result_exit/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_call_result_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_call_result_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_call_result_exit/main.omg': '1a22e76a08ab2c327386d5dc96a98fac14dbd7598d36fab204f6ee7cf2bb835b',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_const_name_exit/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_const_name_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_const_name_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_const_name_exit/main.omg': '1db17fbb9d51c2531acdeb0a3d4edcf809488102722c765cc81c86d19f8a827c',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_field_exit/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_field_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_field_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_field_exit/main.omg': '4149f6b2b4202004f4bc386483a190215de2f655789516a3a0268e55dddb6841',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_local_exit/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_local_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_local_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_local_exit/main.omg': 'e490834b3e129322735e2e597385f143d0ec0b4fa244a97ff893183c0259abf3',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_match_join_exit/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_match_join_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_match_join_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_match_join_exit/main.omg': 'df2bd7bd25ce231958ea05f3d0f99aa2cab662e2c01c6dad08d12b9b0d673c6a',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_machine_exit/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_machine_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_machine_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_machine_exit/main.omg': 'f04f0e32e11e6532276a3b0c9f62c8828fd18e062804da4d34f8c902bc46d18c',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_state_exit/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_state_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_state_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_other_state_exit/main.omg': 'e595f9bc4cfeb8dd238caa60edf0a718d784d8e51b23c5fd1a932206677cf1a3',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_parameter_exit/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_parameter_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_parameter_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_parameter_exit/main.omg': '87f98048502f1164220283f01c7c253ba124bbd5570506e4e325e068455ebf41',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_target_body_exit/build.omg': '80af602363cb125e0ee0f72ae89dbb89ba9157812213a5b9a1d9be9b81ab1e2f',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_target_body_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_target_body_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/facts/inferred_array_equation_call_through_target_body_exit/main.omg': 'e940885014be7fde880fefb18b72a56933b769f9ec88759621f11eaee5c4548e',
+                            'tests/omega/pass/generics/inferred_equation_computed_satisfaction_exit/build.omg': '93ef0b3ed9b80f57504404c094f9ffd94b1fec3ad21477e1a9b3d4cd6d19c42c',
+                            'tests/omega/pass/generics/inferred_equation_computed_satisfaction_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_computed_satisfaction_exit/main.omg': 'f448f519ccca114dabc1cdd8c11a663091f827f4f69571c673bbe3776447af82',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_call_result_exit/build.omg': 'd2e6f5b79512e8f76f889ef41a1d0d73d96fa7563aa7bb3c25892a9851e4b609',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_call_result_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_call_result_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_call_result_exit/main.omg': '7160f6ecf02a33afbacfe797f62afd95753e1f44df7044b244bad1e642528049',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_const_name_exit/build.omg': 'd01a27c0cc349c8f4a473aab3c3f903547da07facd68d7dfb4b96b50f65ff7e5',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_const_name_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_const_name_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_const_name_exit/main.omg': '67980da17814394e9ad22ad5b2f4549b8b004ba1d846b7a02a927104913c2fca',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_field_exit/build.omg': '66d2bda366df9d01a3948e5ab4563b49b5705f28d07071921eaf373ebd70ea63',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_field_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_field_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_field_exit/main.omg': '5523d4263436683604f30b8e6c45047779c352e296f2a1cec21602948f052d96',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_local_exit/build.omg': 'a5b05cdea23e2c56876e6883b9d3c445384f1cc77b9b93e55d20db6248ffb113',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_local_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_local_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_local_exit/main.omg': '21e89d14f6b1e97c3df5b2f5ea2f6e40363c24c0824d36d7abad61b803302352',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_match_join_exit/build.omg': '618affb18220d137055a7a87eff3261a3f7710b8eb41eb34951668a11d4206a3',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_match_join_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_match_join_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_match_join_exit/main.omg': '3b89767cbb26b13cfebbd37374158acab6a0883d8f9124caf511f141bf2ef51c',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_machine_exit/build.omg': '29098e438e0e9435eaf15a804879a65d4787b449905a2083b5360b43aee051d5',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_machine_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_machine_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_machine_exit/main.omg': '5f3e983a657612d2cc15843a7364bd8b185e89d72de5e40ada10ea009f22f0b2',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_state_exit/build.omg': 'aa61c16d4bfc0cff0ce447470d456499d515085b2d0089d1f954960785f56432',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_state_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_state_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_other_state_exit/main.omg': '1777e03568f18670192430aea4598b3350fa81da60ca120a544940b8935496b2',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_parameter_exit/build.omg': 'ebacaf057572492a65e9d18e4b4aabd9d52fa6c26fd675d7df9a36e423f16dc8',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_parameter_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_parameter_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_parameter_exit/main.omg': 'ef581d5b13746feb2fab7f645629fc85b77be02862166d7347f64a08cc1713ad',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_target_body_exit/build.omg': '32770bcff9aacf712d57a207b3c408ccd40c45ccfb47150ba7ad7589dbe90c2d',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_target_body_exit/expected_interpreter_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_target_body_exit/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/inferred_equation_typed_const_target_body_exit/main.omg': '5ae25246ae1bedad07fbfd4c694c0eac798ec3273ccd274237f997b6befa1920',
+                            'tests/omega/pass/generics/runtime_captured_map_nominal_const_forward/build.omg': 'ee999d962a3f5e4cc7a8b2102abe29c4bb727efdca1778b01413761a6ea7d14a',
+                            'tests/omega/pass/generics/runtime_captured_map_nominal_const_forward/expected_native_exit.txt': '9a271f2a916b0b6ee6cecb2426f0b3206ef074578be55d9bc94f6f3fe3ab86aa',
+                            'tests/omega/pass/generics/runtime_captured_map_nominal_const_forward/main.omg': '478cfc9a15bda756b1233c1878d470482e358f142f3c4f130bc126cfdadddda1'},
+           'fixtures': ['fail/core/integer_query_pending_false_type_equation_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_callback_contract_mismatch_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_callback_expression_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_callback_formal_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_callback_result_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_callback_static_argument_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_evidence_application_mismatch_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_evidence_domain_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_evidence_equation_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_evidence_formal_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_evidence_name_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_call_result_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_const_name_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_field_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_local_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_match_join_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_other_machine_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_other_state_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_parameter_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_through_target_body_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_value_carrier_mismatch_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_value_index_invalid_rejected',
+                        'fail/facts/inferred_array_equation_call_mixed_binders_value_type_shadow_rejected',
+                        'fail/facts/inferred_array_equation_call_through_call_result_rejected',
+                        'fail/facts/inferred_array_equation_call_through_const_name_rejected',
+                        'fail/facts/inferred_array_equation_call_through_field_rejected',
+                        'fail/facts/inferred_array_equation_call_through_local_rejected',
+                        'fail/facts/inferred_array_equation_call_through_match_join_rejected',
+                        'fail/facts/inferred_array_equation_call_through_other_machine_rejected',
+                        'fail/facts/inferred_array_equation_call_through_other_state_rejected',
+                        'fail/facts/inferred_array_equation_call_through_parameter_rejected',
+                        'fail/facts/inferred_array_equation_call_through_target_body_rejected',
+                        'fail/generics/captured_map_machine_contract_nominal_const',
+                        'fail/generics/captured_map_nominal_open_const_mismatch',
+                        'fail/generics/const_data_argument_requires_value',
+                        'fail/generics/dependent_const_array_extent',
+                        'fail/generics/dependent_const_array_named_carrier',
+                        'fail/generics/generic_selected_extent_boolean',
+                        'fail/generics/inferred_equation_computed_satisfaction_extent_conflict',
+                        'fail/generics/inferred_equation_mixed_destination_invalid_value',
+                        'fail/generics/inferred_equation_typed_const_call_result_conflict',
+                        'fail/generics/inferred_equation_typed_const_const_name_conflict',
+                        'fail/generics/inferred_equation_typed_const_field_conflict',
+                        'fail/generics/inferred_equation_typed_const_local_conflict',
+                        'fail/generics/inferred_equation_typed_const_match_join_conflict',
+                        'fail/generics/inferred_equation_typed_const_other_machine_conflict',
+                        'fail/generics/inferred_equation_typed_const_other_state_conflict',
+                        'fail/generics/inferred_equation_typed_const_parameter_conflict',
+                        'fail/generics/inferred_equation_typed_const_target_body_conflict',
+                        'fail/generics/machine_equation_selected_const_kind_conflict',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_call_result_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_const_name_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_field_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_local_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_match_join_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_other_machine_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_other_state_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_parameter_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_through_target_body_exit',
+                        'pass/facts/inferred_array_equation_call_mixed_binders_value_index_exit',
+                        'pass/facts/inferred_array_equation_call_through_call_result_exit',
+                        'pass/facts/inferred_array_equation_call_through_const_name_exit',
+                        'pass/facts/inferred_array_equation_call_through_field_exit',
+                        'pass/facts/inferred_array_equation_call_through_local_exit',
+                        'pass/facts/inferred_array_equation_call_through_match_join_exit',
+                        'pass/facts/inferred_array_equation_call_through_other_machine_exit',
+                        'pass/facts/inferred_array_equation_call_through_other_state_exit',
+                        'pass/facts/inferred_array_equation_call_through_parameter_exit',
+                        'pass/facts/inferred_array_equation_call_through_target_body_exit',
+                        'pass/generics/inferred_equation_computed_satisfaction_exit',
+                        'pass/generics/inferred_equation_typed_const_call_result_exit',
+                        'pass/generics/inferred_equation_typed_const_const_name_exit',
+                        'pass/generics/inferred_equation_typed_const_field_exit',
+                        'pass/generics/inferred_equation_typed_const_local_exit',
+                        'pass/generics/inferred_equation_typed_const_match_join_exit',
+                        'pass/generics/inferred_equation_typed_const_other_machine_exit',
+                        'pass/generics/inferred_equation_typed_const_other_state_exit',
+                        'pass/generics/inferred_equation_typed_const_parameter_exit',
+                        'pass/generics/inferred_equation_typed_const_target_body_exit',
+                        'pass/generics/runtime_captured_map_nominal_const_forward'],
+           'samples': ['samples/cli/facts/inferred_array_equation_call',
+                       'samples/cli/facts/inferred_array_equation_call/call_result',
+                       'samples/cli/facts/inferred_array_equation_call/call_result/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/const_name',
+                       'samples/cli/facts/inferred_array_equation_call/const_name/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/field',
+                       'samples/cli/facts/inferred_array_equation_call/field/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/local',
+                       'samples/cli/facts/inferred_array_equation_call/local/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/match_join',
+                       'samples/cli/facts/inferred_array_equation_call/match_join/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/other_machine',
+                       'samples/cli/facts/inferred_array_equation_call/other_machine/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/other_state',
+                       'samples/cli/facts/inferred_array_equation_call/other_state/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/parameter',
+                       'samples/cli/facts/inferred_array_equation_call/parameter/invalid',
+                       'samples/cli/facts/inferred_array_equation_call/target_body',
+                       'samples/cli/facts/inferred_array_equation_call/target_body/invalid'],
+           'sample_roles': {'samples/cli/facts/inferred_array_equation_call': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/call_result': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/call_result/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/const_name': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/const_name/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/field': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/field/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/local': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/local/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/match_join': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/match_join/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/other_machine/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/other_state': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/other_state/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/parameter': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/parameter/invalid': 'intended-invalid',
+                            'samples/cli/facts/inferred_array_equation_call/target_body': 'program',
+                            'samples/cli/facts/inferred_array_equation_call/target_body/invalid': 'intended-invalid'},
+           'sample_root': 'samples/cli/facts/inferred_array_equation_call',
+           'meaning': 'Current retained array-input qualification with actual compiled producer and separately sealed '
+                      'program inputs; preserve every failed observation.',
+           'cli_fixtures': ['pass/generics/runtime_captured_map_nominal_const_forward']}
+          root=Path.cwd();out=root/'build'/settings['label'];out.mkdir(parents=True,exist_ok=True)
+          def git(*args):return subprocess.check_output(['git',*args],text=True).strip()
+          assert git('rev-parse','HEAD')==settings['program_source']
+          assert git('rev-parse','HEAD^{tree}')==settings['program_tree']
+          assert not git('status','--porcelain')
+          subprocess.run(['git','fetch','--no-tags','--depth=1','origin',settings['producer_source']],check=True)
+          objects={p:git('rev-parse',settings['producer_source']+':'+p) for p in settings['objects']}
+          assert objects==settings['objects']
+          for p,expected in settings['program_objects'].items():assert git('rev-parse','HEAD:'+p)==expected
+          run=json.loads(subprocess.check_output(['gh','api','repos/CathedralOS/Omega/actions/runs/'+str(settings['run'])],text=True))
+          assert run['head_sha']==settings['producer_source'] and run['status']=='completed'
+          retained=out/'retained';subprocess.run(['gh','run','download',str(settings['run']),'--name',settings['artifact'],'--dir',str(retained)],check=True)
+          records=list(retained.rglob('producer.json'));assert len(records)==1
+          original=json.loads(records[0].read_text());assert original==settings['original_producer']
+          assert original['revision']==settings['producer_source'] and original['tree']==settings['producer_tree'] and original['target']==settings['target']
+          sys.path.insert(0,'tools/ci');import compiler_pilot,platform
+          assert compiler_pilot.corpus_gate.host_target()==settings['target']
+          cli=(records[0].parent/Path(original['cli']).name).resolve();runner=(records[0].parent/Path(original['runner']).name).resolve()
+          for p in [cli,runner]:p.chmod(0o755)
+          tracked=sorted(set(settings['input_hashes']) | set(subprocess.check_output(['git','ls-files','source/library'],text=True).splitlines()))
+          inputs={p:hashlib.sha256(Path(p).read_bytes()).hexdigest() for p in tracked}
+          for p,h in settings['input_hashes'].items():assert inputs[p]==h,p
+          actual_profiles={key:compiler_pilot.corpus_gate.require_optimized(binary) for binary,key in [(cli,'cli_profile'),(runner,'runner_profile')]}
+          def profile_identity(profile):
+              identity={k:v for k,v in profile.items() if k!='binary'}
+              if isinstance(identity.get('build_receipt'),dict):
+                  identity['build_receipt']={k:v for k,v in identity['build_receipt'].items() if k!='path'}
+              return identity
+          for key,observed in actual_profiles.items():
+              assert profile_identity(observed)==profile_identity(original[key])
+          def verify():
+              assert git('rev-parse','HEAD')==settings['program_source'] and not git('status','--porcelain')
+              for binary,key in [(cli,'cli_profile'),(runner,'runner_profile')]:assert compiler_pilot.corpus_gate.require_optimized(binary)==actual_profiles[key]
+              for p,h in inputs.items():assert hashlib.sha256(Path(p).read_bytes()).hexdigest()==h,p
+          verify()
+          producer=SimpleNamespace(cli=cli,runner=runner,target=settings['target'],verify=verify,record=lambda:original)
+          (out/'retained-origin.json').write_text(json.dumps({'settings':settings,'driver':os.environ['GITHUB_SHA'],'program_source':settings['program_source'],'original_producer':original,'original_run_conclusion':run['conclusion'],'actual_cli':str(cli),'actual_runner':str(runner),'actual_profiles':actual_profiles,'host':{'system':platform.system(),'machine':platform.machine(),'version':platform.version()},'inputs':inputs,'builds_rust':False},indent=2)+'\n')
+          refusals=[]
+          fixtures=tuple(settings['fixtures'])
+          positives=tuple(p for p in fixtures if p.startswith('pass/'))
+          for leg,selection,both in [('checking',fixtures,False),('both',positives,True)]:
+              report=out/(leg+'.json')
+              command=[sys.executable,'tools/corpus_gate.py','--runner',str(runner),'--filter',','.join(selection),'--json',str(report),'--golden',str(compiler_pilot.observation_golden(out,both=both,target=settings['target']))]
+              if both:command.append('--both')
+              result=subprocess.run(command,env=dict(os.environ,OMEGA_CORPUS_JOBS='1',OMEGA_CORPUS_SWEEP='1',OMEGA_CORPUS_CAPTURE_ARTIFACTS=str(out/(leg+'-artifacts'))))
+              try:
+                  assert result.returncode in [0,1]
+                  compiler_pilot.validate_report(json.loads(report.read_text()),selection,both=both,revision=settings['program_source'],target=settings['target'])
+              except (AssertionError,ValueError,OSError) as error:refusals.append(leg+': '+str(error))
+              verify()
+          report=out/'samples.json'
+          result=subprocess.run([sys.executable,'tools/sample_native_gate.py','--cli',str(cli),'--facts','--jobs','1','--target',settings['target'],'--filter',','.join(settings['samples']),'--write-results',str(report)])
+          try:
+              rows=json.loads(report.read_text());assert result.returncode==0 and len(rows)==len(settings['samples']) and {r['sample'] for r in rows}==set(settings['samples'])
+              for row in rows:
+                  if settings['sample_roles'][row['sample']]=='intended-invalid':
+                      assert row.get('role')=='intended-invalid' and row.get('state')=='rejected' and row.get('detail')=='intended rejection matched' and 'execution' not in row
+                  else:
+                      assert row.get('state')=='pass' and row.get('execution')=={'native_exit':0,'interpreter_exit':0}
+          except (AssertionError,ValueError,OSError) as error:refusals.append('Samples: '+str(error))
+          verify()
+          cli_rows=[]
+          for fixture in settings['cli_fixtures']:
+              try:
+                  row=compiler_pilot.ordinary_cli_fixture.observe(root,producer,fixture,out/'ordinary-cli'/fixture)
+                  cli_rows.append(row)
+                  assert row['passed'] is True and row['expected_exit']==row['native_exit']==row['terminal_exit']==0
+              except (AssertionError,ValueError,OSError) as error:
+                  refusals.append('ordinary CLI '+fixture+': '+str(error))
+                  if not cli_rows:cli_rows.append({'fixture':fixture,'passed':False,'error':str(error)})
+          (out/'cli.json').write_text(json.dumps(cli_rows,indent=2)+'\n')
+          verify()
+          (out/'summary.json').write_text(json.dumps({'passed':not refusals,'refusals':refusals,'program_source':settings['program_source'],'producer_source':settings['producer_source'],'producer':original,'driver':os.environ['GITHUB_SHA'],'input_count':len(inputs),'builds_rust':False},indent=2)+'\n')
+          raise SystemExit(bool(refusals))
+          REPLAY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
         with:
+          name: inferred-array-full-35dd60f5-linux_arm64-${{ github.run_id }}
           path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('rust-toolchain.toml', 'Cargo.lock', 'Cargo.toml') }}-
-            ${{ runner.os == 'Windows' && 'compiler-pilot' || runner.os == 'macOS' && 'compiler-regression-macos15' || 'compiler-regression' }}-${{ runner.os }}-${{ runner.arch }}-
-      - name: Check the exact integration candidate
-        id: compiler-check
-        run: cargo check --locked -p omega
-      - name: Observe public Build consent and filesystem isolation
-        if: github.event_name == 'workflow_dispatch' && inputs.build_consent
-        run: python tools/ci/build_consent_controls.py
-      - name: Optional executable observations
-        if: github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '')
-        env:
-          OMEGA_COMPILER_PILOT_FIXTURES: ${{ inputs.fixtures }}
-          OMEGA_COMPILER_PILOT_SAMPLES: ${{ inputs.samples }}
-          OMEGA_COMPILER_PILOT_CLI_FIXTURES: ${{ inputs.cli_fixtures }}
-          OMEGA_COMPILER_PILOT_CHECKING_ONLY: ${{ inputs.checking_only }}
-        run: python tools/ci/compiler_pilot.py
-      - name: Report actual producer and fixture observations
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        run: python -c "from pathlib import Path; root = Path('build/compiler-pilot'); [print(name + '\n' + (root / name).read_text(encoding='utf-8')) for name in ('summary.json', 'checking.json', 'both.json', 'samples.json', 'cli.json', 'build-consent-controls.json') if (root / name).is_file()]"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/
-          if-no-files-found: warn
-          compression-level: 0
+            build/inferred-array-full-35dd60f5-linux_arm64/*.json
+            build/inferred-array-full-35dd60f5-linux_arm64/checking-artifacts/
+            build/inferred-array-full-35dd60f5-linux_arm64/both-artifacts/
+            build/inferred-array-full-35dd60f5-linux_arm64/ordinary-cli/**/observation.json
+            build/inferred-array-full-35dd60f5-linux_arm64/ordinary-cli/**/*.stdout
+            build/inferred-array-full-35dd60f5-linux_arm64/ordinary-cli/**/*.stderr
           retention-days: 7
-      # The corpus reports alone, so `corpus_gate.py --compare --remote` reads
-      # rows without downloading the retained producer (350-520 MB).
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        if: always() && github.event_name == 'workflow_dispatch' && (inputs.smoke || inputs.fixtures != '' || inputs.samples != '' || inputs.cli_fixtures != '' || inputs.build_consent)
-        with:
-          name: compiler-pilot-records-${{ inputs.native_host }}-${{ github.sha }}-${{ github.run_attempt }}
-          path: build/compiler-pilot/*.json
-          if-no-files-found: warn
-          retention-days: 7
-      # A source/runtime fixture failure does not invalidate compiled Cargo
-      # objects. Retain them for the next correction; check outcomes stay red.
-      - name: Save build cache after fixture observations
-        if: always() && !cancelled() && steps.compiler-check.outcome == 'success' && steps.build-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            ${{ env.CARGO_TARGET_DIR }}
-          key: ${{ steps.build-cache.outputs.cache-primary-key }}
