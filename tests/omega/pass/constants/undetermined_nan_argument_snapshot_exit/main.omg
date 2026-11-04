@@ -1,0 +1,16 @@
+// Expected exit: 0
+// Call checking retains the selected computation when a NaN has no payload bits.
+use omega::language::core::float_operations;
+
+machine classify(value: f32) -> bool { F32::is_nan(value) }
+
+const NAN_CLASSIFIED: bool = classify(0.0f32 / 0.0f32);
+const FINITE_CLASSIFIED: bool = classify(1.0f32);
+
+machine main() crashes Trap {
+    transition NAN_CLASSIFIED && !FINITE_CLASSIFIED {
+        true -> done() _ -> bad()
+    }
+    machine done() {}
+    machine bad() { crash Trap; }
+}
