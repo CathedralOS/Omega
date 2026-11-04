@@ -710,9 +710,9 @@ fail/asm/proposition_wrong_transparent_exit rejected 1922ms expected @0af7c594a1
 	cannot prove asm `ensures` fact at block exit in change state `entry` (statement 3): boolean:subject.value > 0
 fail/asm/requires_after_prior_block_write rejected 1896ms expected @0af7c594a1c0
 	cannot prove asm `requires` fact at block entry in Subject::change state `change` (statement 5): subject.ready
-fail/asm/scratch_catalog_subtract_meaning rejected 379ms expected regressed-from:checked @12385533695f
+fail/asm/scratch_catalog_subtract_meaning rejected 638ms expected @d31209ea0d20+wt
 	`u32::replacement` binds the fixed operator token `-` over operands that name no declared type or domain (u32[in Wrapping], u32[in Wrapping]); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
-fail/asm/scratch_catalog_zero_flag_meaning rejected 333ms expected regressed-from:checked @12385533695f
+fail/asm/scratch_catalog_zero_flag_meaning rejected 618ms expected @d31209ea0d20+wt
 	`u32::replacement` binds the fixed operator token `==` over operands that name no declared type or domain (u32, u32); that joins a primitive operator family, which only the core semantic-home owner may publish -- give the binding a data or domain home among its operands
 fail/asm/scratch_destination_finite_indexed rejected 816ms expected @ccdb99ca2214
 	assembly scratch register destination must be a plain register name; member, index and borrow destinations are not scalar register writes
@@ -3076,7 +3076,8 @@ fail/collections/empty_record_array_index_rejected rejected 3265ms expected @ccd
 	cannot prove index `0` is within length 0
 fail/collections/fixed_array_write_out_of_bounds_after_mutation rejected 2347ms expected @ccdb99ca2214
 	cannot prove index `index` is within length 2
-fail/collections/fixed_array_write_rejects_element_domain checked 2614ms @ccdb99ca2214
+fail/collections/fixed_array_write_rejects_element_domain rejected 7667ms expected @d31209ea0d20+wt
+	cannot prove default-domain field requirement for call corrupt from main::entry: parameter bytes requires [u8; N]::Ascii
 fail/collections/fixed_vec_push_without_room rejected 4669ms expected @ccdb99ca2214
 	cannot prove requires contract for call push from Main::main: main.vec.length < main.vec.items.len (needs fact `fixed_vec_i32x4.length < fixed_vec_i32x4.items.len` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `main`
 fail/collections/guarded_computed_index_overrun rejected 1943ms expected @ccdb99ca2214
@@ -4995,7 +4996,7 @@ fail/domains/routed_domain_bare_argument rejected 2091ms expected @ccdb99ca2214
 	cannot prove requires contract for call spend from relay: x in u64::Issued in state `entry`
 fail/domains/routed_primitive_receiver_requires_issuer rejected 11221ms unexpected @ccdb99ca2214
 	cannot prove the value assigned to `row` in replace is in domain `u64::IssuedIndex`; a place declared `in u64::IssuedIndex` requires every write to be established in that domain (pass a value already proven in the domain, or a literal its byte-predicate fact accepts)
-fail/domains/routed_qualification_cast_after_erasure rejected 7187ms expected regressed-from:checked @47a2311bffbe
+fail/domains/routed_qualification_cast_after_erasure rejected 7584ms expected @d31209ea0d20+wt
 	`as ... in Ticket::Held` cannot establish a non-vacuous domain; every predicate must be proved and routed provenance must come from an exact requirement authorized by the domain
 	cannot prove initializer of `forged` in main is in domain `Ticket::Held`; an annotation cannot establish routed qualification
 fail/domains/routed_qualification_cast_computed_operand rejected 9135ms expected @47a2311bffbe
@@ -16201,7 +16202,7 @@ fail/facts/provider_poststate_selector_different_join_rejected rejected 9110ms e
 	a completed copied argument retains backing storage overlapping a staged exclusive loan
 fail/facts/provider_poststate_selector_dispatch_result_rejected rejected 7678ms expected @45808887db27
 	a completed copied argument retains backing storage overlapping a staged exclusive loan
-fail/facts/provider_poststate_selector_unknown_parameter_rejected rejected 9623ms expected regressed-from:checked @45808887db27
+fail/facts/provider_poststate_selector_unknown_parameter_rejected rejected 7829ms expected @d31209ea0d20+wt
 	a completed copied argument retains backing storage overlapping a staged exclusive loan
 fail/facts/provider_poststate_wrong_inputs_rejected rejected 2728ms expected @ccdb99ca2214
 	machine `Installer::install` satisfies `Installing::install` but proves no ensures matching the declared law `destination.bytes.len == first.bytes.len` -- a law requirement's satisfier must carry that equation as a machine-checked ensures, general in every law parameter
@@ -23533,7 +23534,7 @@ fail/providers/direct_foreign_rejected_calling rejected 11514ms expected @ccdb99
 	calling policy rejected the boundary: direct foreign policy refuses
 fail/providers/direct_foreign_wrong_table rejected 7086ms expected @e2e21da6e1d9
 	cannot realize table field `invoke` for `query`: no runtime field `invoke` in the dispatch table
-fail/providers/erased_routed_result_not_recovered rejected 5819ms expected regressed-from:checked @47a2311bffbe
+fail/providers/erased_routed_result_not_recovered rejected 8138ms expected @d31209ea0d20+wt
 	cannot prove requires contract for call consume from main: erased in Token::Issued in state `entry`
 fail/providers/explicit_unavailable_target_provider rejected 9055ms expected @ccdb99ca2214
 	build selects provider `FirmwareValue` for slot `Value`, but no candidate exists in the loaded dependency closure
