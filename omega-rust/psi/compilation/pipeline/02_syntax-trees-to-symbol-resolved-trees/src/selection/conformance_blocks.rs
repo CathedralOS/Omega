@@ -941,17 +941,24 @@ fn resolve_realizations<'catalog>(
 /// used to disambiguate that row. This avoids deriving two provider candidates
 /// for one map without dropping an independently authored obligation.
 fn remove_inline_row_disambiguation_edges(program: &mut SymbolResolvedTrees) {
-    let mut rows =
-        std::collections::HashMap::<SymbolHandle, Vec<(SymbolHandle, DiagnosticName)>>::new();
+    // Arena slots locate buckets; the full handle still authenticates each
+    // relation, including its generation.
+    let mut rows = Vec::<Vec<(SymbolHandle, SymbolHandle, DiagnosticName)>>::new();
     for implementation in program.conformances.iter() {
         for row in implementation
             .rows
             .iter()
             .filter(|row| row.source == ConformanceRowSource::Inline)
         {
-            rows.entry(row.realization_machine)
-                .or_default()
-                .push((row.declaring_trait, row.requirement_name.clone()));
+            let slot = row.realization_machine.arena_index() as usize;
+            if rows.len() <= slot {
+                rows.resize_with(slot + 1, Vec::new);
+            }
+            rows[slot].push((
+                row.realization_machine,
+                row.declaring_trait,
+                row.requirement_name.clone(),
+            ));
         }
     }
     let replacements = program
@@ -962,11 +969,15 @@ fn remove_inline_row_disambiguation_edges(program: &mut SymbolResolvedTrees) {
             let retained = original
                 .iter()
                 .filter(|edge| {
-                    !rows.get(&machine.symbol).is_some_and(|rows| {
-                        rows.iter().any(|(owner, requirement)| {
-                            edge.symbol == *owner && edge.requirement.as_ref() == Some(requirement)
+                    !rows
+                        .get(machine.symbol.arena_index() as usize)
+                        .is_some_and(|rows| {
+                            rows.iter().any(|(member, owner, requirement)| {
+                                *member == machine.symbol
+                                    && edge.symbol == *owner
+                                    && edge.requirement.as_ref() == Some(requirement)
+                            })
                         })
-                    })
                 })
                 .cloned()
                 .collect::<Vec<_>>();
