@@ -73,7 +73,7 @@ pub fn prepare_requirement_expression_views(
                 .call_node(*expression)
                 .is_some_and(|call| {
                     !call.authored_machine_application.is_valid()
-                        || program
+                        || crate::tables::expressions_of(program)
                             .static_machine_application(call.authored_machine_application)
                             .lexical_owner
                             == *owner
