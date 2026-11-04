@@ -168,7 +168,7 @@ fail/contracts/assignment_destination_cannot_use_rhs_call_guarantee rejected 710
 	cannot prove index `index` is within length 1 in exercise::entry
 fail/contracts/assignment_destination_cannot_use_rhs_match_guard rejected 1464ms expected @d2f3e99f1e08
 	cannot prove index `index` is within length 1 in exercise::entry
-fail/contracts/borrowed_descriptor_guarded_end_exit rejected 2685ms expected @3c1e6529963a
+fail/contracts/borrowed_descriptor_guarded_end_exit rejected 3223ms expected @90edc8a280a9+wt
 	cannot prove requires contract for call compare from walk: bytes[offset].number_of_pages <= 4503599627370495 && bytes[offset].physical_start <= 18446744073709551615 - bytes[offset].number_of_pages * 4096 (needs fact `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096`
 	cannot prove requires contract for call compare_mut from walk_mut: bytes[offset].number_of_pages <= 4503599627370495 && bytes[offset].physical_start <= 18446744073709551615 - bytes[offset].number_of_pages * 4096 (needs fact `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`; authored requirement `descriptor.number_of_pages <= 4503599627370495 && descriptor.physical_start <= 18446744073709551615 - descriptor.number_of_pages * 4096`
 fail/contracts/case_requirement_constructed_array_wrong_tag rejected 871ms expected @00e93f641615+wt
@@ -772,7 +772,7 @@ fail/facts/data_where_standing_predicate_helper_parameter_unrestored rejected 51
 	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
 fail/facts/data_where_standing_predicate_helper_target_body_unrestored rejected 5101ms expected @cd5340c6d0348e868e34d68ee85f250c431f79ba
 	machine `produce` cannot lend restricted field `value` to `entry`: the selected scalar referent's normal-return guarantees do not preserve the field's standing predicate
-fail/facts/data_where_standing_recast_owner_restoration rejected 2451ms expected @f78c2623a68c
+fail/facts/data_where_standing_recast_owner_restoration rejected 3169ms expected @90edc8a280a9+wt
 	cannot complete return from machine `replace` state `entry`: this write left the `requires` facts of `outer` (data `Outer`) unproved; restore them first
 fail/facts/data_where_standing_shared_record_replacement rejected 2115ms expected @f78c2623a68c
 	cannot complete return from machine `fill` state `entry`: this write left the `requires` facts of `counter` (data `Counter`) unproved; restore them first
@@ -5491,7 +5491,7 @@ pass/contracts/arith_ensures_selection checked 3686ms @ccdb99ca2214
 pass/contracts/assignment_destination_before_rhs_call_guarantee_exit checked 2213ms check-target:macos_arm64 @d2f3e99f1e08
 pass/contracts/assignment_destination_before_rhs_match_guard_exit checked 2213ms check-target:macos_arm64 @d2f3e99f1e08
 pass/contracts/boolean_result_all_normal_returns_exit checked 3700ms check-target:macos_arm64 @ccdb99ca2214
-pass/contracts/borrowed_descriptor_guarded_end_exit checked 3587ms check-target:macos_arm64 @3c1e6529963a
+pass/contracts/borrowed_descriptor_guarded_end_exit checked 4589ms check-target:macos_arm64 @90edc8a280a9+wt
 pass/contracts/borrowed_field_ensures checked 3420ms @ccdb99ca2214
 pass/contracts/call_write_keeps_disjoint_guard_assert_exit checked 2906ms check-target:macos_arm64 @ccdb99ca2214
 pass/contracts/call_write_keeps_disjoint_guard_exit checked 17015ms check-target:macos_arm64 @ccdb99ca2214
@@ -7767,7 +7767,7 @@ pass/facts/data_where_standing_borrowed_field_through_target_body_exit checked 6
 pass/facts/data_where_standing_const_coupled_const checked 5446ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_const_nested_const checked 6944ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_mutable_recast_direct_exit checked 6949ms check-target:macos_arm64 @911f6617ba9e
-pass/facts/data_where_standing_mutable_recast_through_call_result_exit checked 4190ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_mutable_recast_through_call_result_exit checked 4143ms check-target:macos_arm64 @90edc8a280a9+wt
 pass/facts/data_where_standing_mutable_recast_through_const_name_exit checked 3902ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_recast_through_field_exit checked 3872ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_mutable_recast_through_local_exit checked 3300ms check-target:macos_arm64 @f78c2623a68c
@@ -7801,7 +7801,7 @@ pass/facts/data_where_standing_predicate_helper_through_other_machine_exit check
 pass/facts/data_where_standing_predicate_helper_through_other_state_exit checked 6125ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
 pass/facts/data_where_standing_predicate_helper_through_parameter_exit checked 6277ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
 pass/facts/data_where_standing_predicate_helper_through_target_body_exit checked 6989ms check-target:macos_arm64 @cd5340c6d0348e868e34d68ee85f250c431f79ba
-pass/facts/data_where_standing_recast_owner_restoration checked 3244ms check-target:macos_arm64 @f78c2623a68c
+pass/facts/data_where_standing_recast_owner_restoration checked 4531ms check-target:macos_arm64 @90edc8a280a9+wt
 pass/facts/data_where_standing_root_exit checked 6116ms check-target:macos_arm64 @911f6617ba9e
 pass/facts/data_where_standing_shared_record_replacement checked 3701ms check-target:macos_arm64 @f78c2623a68c
 pass/facts/data_where_standing_shared_record_with_array checked 3856ms check-target:macos_arm64 @f78c2623a68c
@@ -33987,7 +33987,7 @@ fail/proofs/declaration_synthesized_equality_missing_selection rejected 4ms unex
 	tests/omega/fail/proofs/declaration_synthesized_equality_missing_selection/main.omg:9:22: implicit `self` is retired; name the explicit parameter or domain subject
 fail/proofs/declaration_synthesized_equality_value_context rejected 4ms unexpected @ccdb99ca2214
 	tests/omega/fail/proofs/declaration_synthesized_equality_value_context/main.omg:13:22: implicit `self` is retired; name the explicit parameter or domain subject
-fail/proofs/declaration_view_call_stale_field rejected 1995ms expected @ccdb99ca2214
+fail/proofs/declaration_view_call_stale_field rejected 3169ms expected @90edc8a280a9+wt
 	cannot prove requires contract for call consume from caller: (counter as Counter).value >= 1 && addr::Bound == 18446744073709551616 (needs fact `counter.value >= 1 && addr::Bound == 18446744073709551616` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/proofs/declaration_view_call_wrong_bound rejected 1662ms expected @ccdb99ca2214
 	cannot prove requires contract for call consume from visit: (counter as Counter).value >= 2 && addr::Bound == 18446744073709551616 (needs fact `counter.value >= 2 && addr::Bound == 18446744073709551616` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
