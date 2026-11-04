@@ -283,6 +283,7 @@ pub(in crate::execution::terminal_unit) fn value_calls(
     Vec<checked_trees::CheckedStructuralValueCall>,
     checked_trees::CheckedValueCompletion,
 )> {
+    let caller_trace = trace.mark();
     let plans = &facts.values.structural_values;
     let binders = machine_binders(program, machine);
     let mut scoped_results = results.to_vec();
@@ -430,6 +431,8 @@ pub(in crate::execution::terminal_unit) fn value_calls(
                         trace,
                     )?,
                 );
+                trace.phase("structural value: retained call schedule");
+                trace.statement(Some(result.statement_index));
                 output.push(checked_trees::CheckedStructuralValueCall::with_operands(
                     value,
                     checked_trees::CheckedOperandSequence::new(preparation),
@@ -566,11 +569,25 @@ pub(in crate::execution::terminal_unit) fn value_calls(
             | checked_trees::CheckedStructuralValueKind::Place(_) => {}
         }
     }
+    trace.phase("structural value: completion");
+    trace.statement(Some(plans.nodes.get(root).statement_index));
     let completion = plans.completion_with(root, &output, &|value| {
         subject_completions
             .iter()
             .find_map(|(root, completion)| (*root == value).then_some(*completion))
-    })?;
+    });
+    if completion.is_none() && std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+        eprintln!(
+            "CHECKSITE completion-value-summary machine={} state={} root={:?} value={:?} calls={:?}",
+            machine.name,
+            state.name,
+            root,
+            plans.nodes.get(root),
+            output,
+        );
+    }
+    let completion = completion?;
+    trace.restore(&caller_trace);
     Some((output, completion))
 }
 

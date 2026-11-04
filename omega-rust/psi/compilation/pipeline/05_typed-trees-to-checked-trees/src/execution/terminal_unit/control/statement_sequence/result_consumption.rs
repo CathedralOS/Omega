@@ -1494,6 +1494,7 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
     results: &mut Vec<(BindingPlan, PlaceRoot)>,
     operations: &mut [OperationPlan],
     calls: &[CheckedStructuralValueCall],
+    trace: &LocalConstructionTrace,
 ) -> Option<()> {
     for call in calls {
         // Every retained producer has an exact source occurrence, including
@@ -1509,13 +1510,22 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
             let Some(result) = operand.structural_result_binding() else {
                 continue;
             };
+            trace.phase("call sources: producer occurrence");
+            trace.statement(Some(result.statement_index));
             let expression = if let Some(producer) = operand.call() {
                 let Some(NominalMachineUseSite::Expression(expression)) = producer.source_site()
                 else {
+                    if std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+                        eprintln!(
+                            "CHECKSITE completion-call-source-kind trace={trace:?} producer={producer:?}"
+                        );
+                    }
                     return None;
                 };
                 expression
             } else {
+                trace.phase("call sources: non-call producer");
+                trace.statement(Some(result.statement_index));
                 match operand {
                     OperationPlan::EstablishLocal(
                         CheckedUnitLocalBindingPlan::StructuralValue { value, .. },
@@ -1528,15 +1538,29 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                         expression: formation_expression,
                         ..
                     } => *formation_expression,
-                    _ => return None,
+                    _ => {
+                        if std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+                            eprintln!(
+                                "CHECKSITE completion-producer-kind trace={trace:?} producer={operand:?}"
+                            );
+                        }
+                        return None;
+                    }
                 }
             };
             let root = PlaceRoot::Expression(expression);
+            trace.phase("call sources: binding agreement");
+            trace.statement(Some(result.statement_index));
             if let Some((existing, existing_root)) = results
                 .iter()
                 .find(|(existing, _)| existing.binding_ordinal == result.binding_ordinal)
             {
                 if existing != result || *existing_root != root {
+                    if std::env::var_os("OMEGA_COMPILER_TRACE_COMPLETION").is_some() {
+                        eprintln!(
+                            "CHECKSITE completion-binding-conflict trace={trace:?} existing={existing:?} existing_root={existing_root:?} result={result:?} root={root:?} producer={operand:?}"
+                        );
+                    }
                     return None;
                 }
                 continue;
@@ -1554,11 +1578,14 @@ pub(in crate::execution::terminal_unit) fn consume_value_call_sources(
                 ..
             }) = operation
             {
+                trace.phase("call sources: stored value transfer");
                 consume_value_places(facts, *value, results, operations)?;
             }
+            trace.phase("call sources: retained result transfer");
             consume_retained_results(operations, operation)?;
         }
     }
+    trace.phase("call sources: finished");
     Some(())
 }
 
@@ -1740,7 +1767,9 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
     if completion == CheckedValueCompletion::NoNormal {
         // Only invocations actually reached consume their arguments. The
         // enclosing construction never completes and transfers no whole root.
-        consume_value_call_sources(facts, results, operations, &calls)?;
+        trace.phase("value operands: nonreturning call sources");
+        trace.statement(Some(statement_ordinal));
+        consume_value_call_sources(facts, results, operations, &calls, trace)?;
         return Some((calls, completion));
     }
     if facts
@@ -1749,11 +1778,19 @@ pub(in crate::execution::terminal_unit) fn prepare_value_operands(
         .owned_selection_at(state.symbol, statement_ordinal)
         .is_some()
     {
+        trace.phase("value operands: selected sources");
+        trace.statement(Some(statement_ordinal));
         retain_selected_sources(program, facts, state, statement_ordinal, operations)?;
     } else {
+        trace.phase("value operands: stored sources");
+        trace.statement(Some(statement_ordinal));
         consume_value_places(facts, root, results, operations)?;
     }
-    consume_value_call_sources(facts, results, operations, &calls)?;
+    trace.phase("value operands: completed call sources");
+    trace.statement(Some(statement_ordinal));
+    consume_value_call_sources(facts, results, operations, &calls, trace)?;
+    trace.phase("value operands: finished");
+    trace.statement(Some(statement_ordinal));
     Some((calls, completion))
 }
 

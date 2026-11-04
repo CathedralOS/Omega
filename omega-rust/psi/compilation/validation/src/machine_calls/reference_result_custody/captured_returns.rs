@@ -15,6 +15,7 @@
 
 mod descriptor_sources;
 mod incoming_origins;
+mod input_views;
 mod invocation_returns;
 mod loaded_origins;
 mod presence;
@@ -113,7 +114,39 @@ struct FrameOrigin {
     extent: ReferenceOriginExtent,
 }
 
+#[derive(Clone, PartialEq, Eq)]
+struct CapturedReturnOrigin {
+    result_path: Vec<facts::PlaceSegment>,
+    source: crate::LocalWriteSource,
+    extent: ReferenceOriginExtent,
+    presentation: Option<CapturedReturnPresentation>,
+}
+
+/// A callee can return another checked view of the same backing. Its typed
+/// view steps travel with the result; their original formation is not replayed
+/// as an expression in the caller.
+#[derive(Clone, PartialEq, Eq)]
+struct CapturedReturnPresentation {
+    path: Vec<CheckedReferenceOriginProjection>,
+    source_type: typed_trees::type_identity::TypeIdentityId,
+    endpoint_type: typed_trees::type_identity::TypeIdentityId,
+    result_type: typed_trees::type_identity::TypeIdentityId,
+}
+
 impl Captures<'_> {
+    fn trace_return_state(&self, state: &State) -> bool {
+        let Ok(selected) = std::env::var("OMEGA_COMPILER_TRACE_COMPLETION") else {
+            return false;
+        };
+        let name = self
+            .program
+            .machine_by_own_or_state_symbol(state.symbol)
+            .map_or(state.name.as_str(), |machine| machine.name.as_str());
+        selected
+            .split(',')
+            .any(|selected| selected == "*" || selected == name)
+    }
+
     fn target_sources(
         &self,
         target: SymbolHandle,
@@ -155,6 +188,12 @@ impl Captures<'_> {
         }
         active.push(state.symbol);
         let result = self.normal_returns(state, active, None);
+        if self.trace_return_state(state) {
+            eprintln!(
+                "CHECKSITE completion-returned-sources state={:?} active={:?} result={:?}",
+                state.symbol, active, result
+            );
+        }
         active.pop();
         result
     }
@@ -360,7 +399,7 @@ impl Captures<'_> {
         completed.then_some(output)
     }
 
-    /// Input-relative ordinary results use the callee's finite body relation.
+    /// Input-relative results consume the callee's checked or public relation.
     /// Already formed independent permissions use the common captured-loan
     /// projection, as do abstract invocations and constructors.
     fn ordinary_return_call(
@@ -374,12 +413,16 @@ impl Captures<'_> {
         let Some(call) = expression_table(self.program).call_node(expression) else {
             return Some(None);
         };
-        if call.static_requirement_dispatch.is_some()
-            || call.static_machine_parameter.is_valid()
-            || !crate::call_target_has_checked_body_contract(
-                self.program,
-                crate::call_target_symbol(self.program, call),
-            )
+        if call.static_requirement_dispatch.is_some() || call.static_machine_parameter.is_valid() {
+            return Some(None);
+        }
+        // Constructors and other non-invocation expressions retain their
+        // formation route. An abstract callable has a public signature even
+        // without an executable state; its region cannot become an exact
+        // pointer merely because the endpoint types happen to match.
+        let callable = crate::call_target_symbol(self.program, call);
+        if crate::call_target_parameters(self.program, callable).is_none()
+            || crate::call_target_return_type(self.program, callable).is_none()
         {
             return Some(None);
         }
@@ -641,7 +684,7 @@ impl Captures<'_> {
         leaf: &CheckedReferenceResultSourcePlan,
         segments: &[facts::PlaceSegment],
         loans: &[checked_trees::BorrowReturnedLoanFact],
-        captured: Option<&[crate::ReferenceResultLeafOrigin]>,
+        captured: Option<&[CapturedReturnOrigin]>,
     ) -> Option<Vec<CheckedReferenceOriginSourcePlan>> {
         // The named-return route enters this shared projector directly.
         // A lifetime dependency cannot provide its address or cover a peer.
@@ -775,15 +818,25 @@ impl Captures<'_> {
         let mut segments = segments.to_vec();
         facts::compose_captured_view_segments(&mut segments)?;
         let parameter_index = u32::try_from(parameter_index).ok()?;
-        let frame = crate::CallFrameResolver::new(self.program)?;
         let result_path = loan_place_segments(self.program, state.return_type, &leaf.path)?;
-        let inferred;
-        let origins = if let Some(captured) = captured {
-            Some(captured)
+        let inferred = if captured.is_none() {
+            crate::CallFrameResolver::new(self.program)?
+                .reference_result_leaf_origins(state.symbol)
+                .map(|origins| {
+                    origins
+                        .into_iter()
+                        .map(|origin| CapturedReturnOrigin {
+                            result_path: origin.result_path,
+                            source: origin.source,
+                            extent: ReferenceOriginExtent::Projected,
+                            presentation: None,
+                        })
+                        .collect::<Vec<_>>()
+                })
         } else {
-            inferred = frame.reference_result_leaf_origins(state.symbol);
-            inferred.as_deref()
+            None
         };
+        let origins = captured.or(inferred.as_deref());
         let has_presentation = origins.as_ref().is_some_and(|origins| {
             origins.iter().any(|origin| {
                 origin.result_path == result_path
@@ -854,7 +907,7 @@ impl Captures<'_> {
                             && candidate.kind == loan.kind
                             && self.returned_loan_owner_path(state, candidate).as_deref()
                                 == Some(owner_path.as_slice())
-                            && self.origin_matches_returned_loan(state, candidate, &origin.source)
+                            && self.origin_matches_returned_loan(state, candidate, origin)
                     })
                 {
                     return None;
@@ -865,7 +918,7 @@ impl Captures<'_> {
                 .filter(|origin| {
                     origin.result_path == result_path
                         && loan.root == facts::PlaceRoot::Symbol(origin.source.root)
-                        && self.origin_matches_returned_loan(state, loan, &origin.source)
+                        && self.origin_matches_returned_loan(state, loan, origin)
                 })
                 .collect::<Vec<_>>();
             if !matching.is_empty() {
@@ -873,16 +926,41 @@ impl Captures<'_> {
                 for origin in matching {
                     let captured =
                         self.frame_origin_path(selected, &incoming_segments, &origin.source)?;
-                    let source_identity = self.program.normalized_type_identity(captured.backing);
-                    let extent = self.result_origin_extent(
-                        captured.presentation,
-                        state.return_type,
-                        &result_path,
-                        leaf.source.type_identity,
-                        captured.extent,
-                    )?;
+                    let retained_extent = if origin.extent == ReferenceOriginExtent::WithinRegion
+                        || captured.extent == ReferenceOriginExtent::WithinRegion
+                    {
+                        ReferenceOriginExtent::WithinRegion
+                    } else {
+                        ReferenceOriginExtent::Projected
+                    };
+                    let mut source_identity =
+                        self.program.normalized_type_identity(captured.backing);
+                    let extent = if let Some(presentation) = &origin.presentation
+                        && !presentation.path.is_empty()
+                    {
+                        if self.program.normalized_type_identity(captured.presentation)
+                            != presentation.source_type
+                            || presentation.result_type != leaf.source.type_identity
+                            || !presentation.endpoint_type.is_valid()
+                        {
+                            return None;
+                        }
+                        source_identity = presentation.endpoint_type;
+                        retained_extent
+                    } else {
+                        self.result_origin_extent(
+                            captured.presentation,
+                            state.return_type,
+                            &result_path,
+                            leaf.source.type_identity,
+                            retained_extent,
+                        )?
+                    };
                     let mut complete = path.clone();
                     complete.extend(captured.path);
+                    if let Some(presentation) = &origin.presentation {
+                        complete.extend(presentation.path.iter().cloned());
+                    }
                     let source = CheckedReferenceOriginSourcePlan {
                         root: checked_trees::CheckedReferenceOriginRoot::Parameter {
                             index: parameter_index,
@@ -1243,12 +1321,25 @@ impl Captures<'_> {
 
 /// Match a lifetime capture in its original declaration namespace, retaining
 /// the exact presentation coordinate when the loan already captured that view.
-fn frame_origin_fits_loan(origin: &crate::LocalWriteSource, loan: &[facts::PlaceSegment]) -> bool {
+fn frame_origin_fits_loan(
+    origin: &crate::LocalWriteSource,
+    extent: ReferenceOriginExtent,
+    loan: &[facts::PlaceSegment],
+) -> bool {
     // Lifetime capture can conservatively lend a whole input region. The
     // complete body relation narrows its declaration-level origin only within
     // that captured region; it cannot pick an unrelated field or storage root.
     let within = |candidate: &[facts::PlaceSegment]| {
         captured_address_refines(candidate, loan)
+            // A checked callee may describe its result as somewhere inside
+            // this input collection. Its captured opaque window records that
+            // same region without identifying an exact address. Compare only
+            // the collection's parent path; fixed windows and other dimensions
+            // still need their own coordinates. Publication retains the extent
+            // and execution retains the formed descriptor's offset and length.
+            || (extent == ReferenceOriginExtent::WithinRegion
+                && matches!(loan.split_last(), Some((facts::PlaceSegment::OpaqueRange, parent))
+                    if captured_address_refines(candidate, parent)))
             || candidate
                 .get(..loan.len())
                 .is_some_and(|prefix| captured_address_refines(loan, prefix))
