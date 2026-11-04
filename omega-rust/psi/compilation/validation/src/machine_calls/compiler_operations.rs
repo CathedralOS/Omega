@@ -184,6 +184,15 @@ pub fn statement_wire_codec_intrinsic(
         .then_some(intrinsic)
 }
 
+/// The one caller place an exclusive reference argument denotes.
+pub fn single_exclusive_reference_storage(
+    program: &dyn crate::CheckingInput,
+    machine: &typed_trees::machine::Machine,
+    argument: typed_trees::expression::ExpressionHandle,
+) -> Option<(symbols::SymbolHandle, Vec<facts::PlaceSegment>)> {
+    crate::machine_calls::calls::single_exclusive_reference_storage(program, machine, argument)
+}
+
 pub fn classify_expression_call_intrinsic(
     program: &dyn crate::CheckingInput,
     call: &typed_trees::expression::TableCallExpression,

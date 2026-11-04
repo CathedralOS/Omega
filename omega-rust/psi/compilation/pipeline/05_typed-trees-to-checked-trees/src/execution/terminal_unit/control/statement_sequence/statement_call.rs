@@ -241,10 +241,14 @@ pub(super) fn plan(
         && validation::compiler_operations::statement_wire_codec_intrinsic(program, authored)
             .is_some()
     {
-        // Numbered-data `Schema::encode` / `decode` has no synthesized body.
-        // Operand preparation already recorded the exclusive argument writes.
-        // The check product does not invent a byte grammar for that call.
+        // Numbered-data `Schema::encode` has no synthesized machine. Operand
+        // preparation already evaluated the selector. The store below is the
+        // cursor write that machine used to perform: era, tags, and payload
+        // bytes, landed in the exclusive `written` referent.
         call_phase("statement sequence: call: derived wire codec");
+        let store =
+            super::wire_codec::written_store(program, machine, state, statement_index, authored)?;
+        operations.push(store);
         return Some(());
     }
     call_phase("statement sequence: call: call operation");

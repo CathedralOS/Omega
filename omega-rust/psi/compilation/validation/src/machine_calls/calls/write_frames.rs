@@ -201,6 +201,30 @@ fn derived_wire_codec_written_paths(
     Some(written)
 }
 
+/// The one storage place an exclusive reference denotes. Several origins stay
+/// unresolved: a store must not pick one arm of an open selector.
+pub(crate) fn single_exclusive_reference_storage(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    argument: ExpressionHandle,
+) -> Option<(SymbolHandle, Vec<facts::PlaceSegment>)> {
+    let symbols = crate::declarations::symbols::TopLevelSymbols::build(program, &mut Vec::new());
+    let mut inference = inference::FrameInference::default();
+    let origins = reference_origins::exclusive_reference_origins(
+        program,
+        machine,
+        argument,
+        &symbols,
+        &mut inference,
+    )?;
+    let [origin] = <[_; 1]>::try_from(origins).ok()?;
+    if origin.precision != place_paths::FramePathPrecision::Exact || !origin.source.root.is_valid()
+    {
+        return None;
+    }
+    Some((origin.source.root, origin.source.segments))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn known_call_written_paths_for_parts(
     program: &dyn crate::CheckingInput,
