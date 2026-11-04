@@ -8,4 +8,10 @@ The authored Build calls the public `F64::negate` operation and compares its res
 
 `invalid_build` changes only that call's input from 7.0 to 8.0. The unchanged comparison must take the crash route, so a successful configuration cannot hide an ignored or fabricated result. The rootless numeric provider controls separately preserve application override priority and exact `F32::negate` satisfaction.
 
-Fresh source and execution observations are pending. The original nine-place programs and their historical evidence are unchanged.
+[Source run 41904172267](https://github.com/CathedralOS/Omega/actions/runs/41904172267)
+reaches the imported `F64::negate` call, then refuses because its selected
+operation has no installed Build host adapter. The positive and both twins stop
+there, so the wrong-value crash and overlapping-write refusal remain unverified
+for this Build example. An exact copy without the import reaches its intended
+import-scope refusal. The adapter repair and actual execution remain pending.
+The original nine-place programs and their historical evidence are unchanged.

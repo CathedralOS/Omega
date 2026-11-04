@@ -22,16 +22,26 @@ selected default provider. Its ten overlapping-write controls still reached
 their intended refusals.
 
 [PR #1811](https://github.com/CathedralOS/Omega/pull/1811) owns that configuration
-repair. Its [current focused checks](https://github.com/CathedralOS/Omega/actions/runs/41888053132)
-accept the local float proof, explicit override review and opaque-wrapper program,
-plus five intended rejection controls. Application Build code still loses the
-recorded use of `F64::negate`, and the ordinary inline provider still refuses two
-inherited equality contracts. The [two-case check](https://github.com/CathedralOS/Omega/actions/runs/41892646794)
-confirms that missing operator record and reaches the intended unproved-member
-refusal. These failures remain open; SDK behavior and new native results have
-not been qualified. The separate [Build-use controls](build_use/README.md) require
-the application's Build to use the completed defaults before configuring the
-program. The original nine places and runtime oracles remain unchanged.
+repair. Its [twenty Source checks](https://github.com/CathedralOS/Omega/actions/runs/41904172267)
+check three positives and reach eleven intended rejection causes. The inline
+member now proves its inherited equality contracts, then stops because its
+selected implementation is missing from the emitted provider catalog. The
+application Build imports `float_operations` explicitly and reaches its
+`F64::negate` call, but that selected operation has no installed host adapter.
+The provider publication repair has independent source review; fresh checking
+and execution remain required.
+
+The [SDK trace](https://github.com/CathedralOS/Omega/actions/runs/41912411898)
+shows that two repeated Pure requests still start both Builds twice. Both are
+eligible for reuse and their completed values are retained, but their checked
+programs compare unequal on the next request. Every original SDK assertion
+remains in place. The earlier four-host observations below do not qualify this
+new configuration route.
+
+The separate [Build-use controls](build_use/README.md) require the application's
+Build to use the completed defaults before configuring the program. The
+original nine places and runtime oracles remain unchanged. Their overlapping
+write twins keep the same intended equality obligations.
 
 `expose` reads its argument and makes no write. Its complete empty write summary
 preserves the observation. The existing call-result, forwarding-machine and
