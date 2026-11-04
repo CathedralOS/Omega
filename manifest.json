@@ -1,0 +1,38 @@
+{
+  "purpose": "A helper can update a bounded field through a saved reference, restore the bound and return. These receipts preserve actual source and execution evidence through squash and branch cleanup.",
+  "candidate": "d565dc2cf4432f522e97fc3243ce47c24f8d05a0",
+  "observed_producer_source": "cd5340c6d0348e868e34d68ee85f250c431f79ba",
+  "publication_base": "0378c9bcf14f9e63f4c4dd67bc60a0ec06da6cd2",
+  "target": "macos_arm64",
+  "core_both_programs": 18,
+  "core_refusals": 36,
+  "additional_both_programs": 8,
+  "additional_ownership_refusals": 2,
+  "hosted_source_checks": {
+    "accepted": 24,
+    "rejected": 37,
+    "run": 41774629213
+  },
+  "cli_sha256": "02777d19f59b383102c937ddc9cd930d47196332853a7ec7696de56724a8f9fd",
+  "cli_opt_level": 1,
+  "source_bundle": {
+    "file": "cd5340c6d0348e868e34d68ee85f250c431f79ba.bundle",
+    "sha256": "bcbaa9c3f553628a088532505f1a4e4fde87c9216afb29f6d74b0fdac632cd3a",
+    "exported_ref": "refs/corpus-observations/cd5340c6d0348e868e34d68ee85f250c431f79ba",
+    "prerequisites": [
+      "674184316eba783ba3d8324aa1cdf6053b3be0cb",
+      "c805a6fbfed7100d2250281d6f6584f77f7d77ec",
+      "0378c9bcf14f9e63f4c4dd67bc60a0ec06da6cd2"
+    ]
+  },
+  "observations": {
+    "file": "observations.tar.gz",
+    "sha256": "9eb5f4f7226b2b131f67cd1ce9350bade8a1d954c274549d72d94cea639fc290",
+    "bytes": 836321,
+    "receipt_files": 441
+  },
+  "applicability": "The only later compiler edit removes a redundant check of the producer-guaranteed outer reference marker. It preserves every tested valid path. Raw observations retain their actual cd534 source; no execution is relabeled.",
+  "retention": "Source was exported and verified before landing, after the initial manual splice. All 54 fixture paths exist in the stamped commit. Bundle verification and unbundling use the existing corpus provenance owner.",
+  "replay": "Restore the bundle in a clone containing its published prerequisite. Locks are consumed replay inputs, not portable acceptance authority; a new checkout completes its ordinary package review. Executable artifacts remain in the hosted run and the original local producer is retained.",
+  "limits": "Other hosted targets remain unexecuted; GUI qualification is deferred; the parent migration stays open. Failed checking, wrong-library setup, pending package review and interrupted downloads remain explicit."
+}
