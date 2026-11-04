@@ -28,6 +28,18 @@ impl Captures<'_> {
         // relation or recover the origins of an abstract requirement's result.
         let relative = self.target_sources(call.target_symbol, active)?;
         let leaves = self.reference_leaves(state)?;
+        if self.trace_return_state(state) {
+            eprintln!(
+                "CHECKSITE completion-invocation-origins state={:?} call={:?} relative={:?} leaves={:?}",
+                state.symbol,
+                call,
+                relative,
+                leaves
+                    .iter()
+                    .map(|leaf| (&leaf.path, &leaf.source))
+                    .collect::<Vec<_>>()
+            );
+        }
         let return_type = crate::call_target_return_type(self.program, call.target_symbol)?;
         // This declaration roster supplies result paths and types only. Its
         // placeholder source does not establish a parameter or permission;
@@ -80,12 +92,19 @@ impl Captures<'_> {
             let target_leaf = target_leaves
                 .iter()
                 .find(|leaf| leaf.path == candidate.path)?;
-            let (relative, presentation) = self.checked_input_origin(
+            let input_origin = self.checked_input_origin(
                 parameter,
                 &candidate.source,
                 target_leaf.source.type_identity,
-            )?;
-            for input in self.argument_return_sources(
+            );
+            if input_origin.is_none() && self.trace_return_state(state) {
+                eprintln!(
+                    "CHECKSITE completion-input-origin state={:?} parameter={:?} candidate={:?} result_type={:?}",
+                    state.symbol, parameter, candidate, target_leaf.source.type_identity
+                );
+            }
+            let (relative, presentation) = input_origin?;
+            let inputs = self.argument_return_sources(
                 state,
                 parameter.type_reference,
                 call.argument_operands().handles().nth(position)?,
@@ -94,7 +113,14 @@ impl Captures<'_> {
                 &presentation,
                 active,
                 &mut Vec::new(),
-            )? {
+            );
+            if inputs.is_none() && self.trace_return_state(state) {
+                eprintln!(
+                    "CHECKSITE completion-input-sources state={:?} parameter={:?} operand={:?} relative={:?}",
+                    state.symbol, parameter, operand, relative
+                );
+            }
+            for input in inputs? {
                 let origin = CapturedReturnOrigin {
                     result_path: result_path.clone(),
                     source: input.source,
@@ -240,6 +266,12 @@ impl Captures<'_> {
                     }
                 }
                 if !covered {
+                    if self.trace_return_state(state) {
+                        eprintln!(
+                            "CHECKSITE completion-uncovered-origin state={:?} leaf={:?} source={:?} extent={:?} loans={:?}",
+                            state.symbol, leaf.path, origin.source, origin.extent, site_loans
+                        );
+                    }
                     return None;
                 }
                 captured = true;

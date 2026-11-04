@@ -133,6 +133,19 @@ struct CapturedReturnPresentation {
 }
 
 impl Captures<'_> {
+    fn trace_return_state(&self, state: &State) -> bool {
+        let Ok(selected) = std::env::var("OMEGA_COMPILER_TRACE_COMPLETION") else {
+            return false;
+        };
+        let name = self
+            .program
+            .machine_by_own_or_state_symbol(state.symbol)
+            .map_or(state.name.as_str(), |machine| machine.name.as_str());
+        selected
+            .split(',')
+            .any(|selected| selected == "*" || selected == name)
+    }
+
     fn target_sources(
         &self,
         target: SymbolHandle,
@@ -174,6 +187,12 @@ impl Captures<'_> {
         }
         active.push(state.symbol);
         let result = self.normal_returns(state, active, None);
+        if self.trace_return_state(state) {
+            eprintln!(
+                "CHECKSITE completion-returned-sources state={:?} active={:?} result={:?}",
+                state.symbol, active, result
+            );
+        }
         active.pop();
         result
     }
