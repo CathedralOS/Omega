@@ -183,13 +183,35 @@ fn pure_build_accounting() {
     let mut session = CompilationSession::default();
     let shared_sponsor = sponsor(limits(2 * fuel));
     let before = counters::build_execution_count();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
     build_sequence::print_execution_counts("before repeated Pure source requests");
     check(&mut session, &shared_sponsor, "windows_x86_64")
         .result
         .expect("first row");
+    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::source_build_execution_count() - sources_before, 1);
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers_before,
+        1
+    );
+    let after_first = (
+        counters::build_execution_count(),
+        counters::source_build_execution_count(),
+        counters::provider_defaults_execution_count(),
+    );
     check(&mut session, &shared_sponsor, "linux_x86_64")
         .result
         .expect("second row");
+    assert_eq!(
+        (
+            counters::build_execution_count(),
+            counters::source_build_execution_count(),
+            counters::provider_defaults_execution_count(),
+        ),
+        after_first,
+        "the second request must reuse both completed Builds"
+    );
     let executions = counters::build_execution_count() - before;
     println!(
         "two_rows_executions={executions} charged_fuel={} charged_cells={}",
@@ -197,7 +219,7 @@ fn pure_build_accounting() {
         shared_sponsor.consumed_result_storage_cells()
     );
     build_sequence::print_execution_counts("two Pure source requests completed");
-    assert_eq!(executions, 1);
+    assert_eq!(executions, 2);
     assert_eq!(
         shared_sponsor.consumed_fuel_units(),
         2 * fuel,
@@ -210,7 +232,7 @@ fn pure_build_accounting() {
         .expect("fresh account");
     assert_eq!(fresh.consumed_fuel_units(), fuel);
     assert_eq!(fresh.consumed_result_storage_cells(), cells);
-    assert_eq!(counters::build_execution_count() - before, 1);
+    assert_eq!(counters::build_execution_count() - before, 2);
     println!("fresh_account_charged_without_execution");
 
     let mut limited_session = CompilationSession::default();
@@ -2393,6 +2415,8 @@ fn interleaved_build_invocations() {
     let request = package_invocation_requests("pass/build/activation_yields_without_replay");
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
     let products_before = counters::product_source_completion_count();
     let mut first = session
         .begin_package_build(request())
@@ -2439,7 +2463,12 @@ fn interleaved_build_invocations() {
         let mut second = session
             .begin_package_build(request())
             .expect("second admission while paused");
-        assert_eq!(counters::build_execution_count(), before + 1);
+        assert_eq!(counters::build_execution_count(), before + 2);
+        assert_eq!(counters::source_build_execution_count() - sources_before, 1);
+        assert_eq!(
+            counters::provider_defaults_execution_count() - suppliers_before,
+            1
+        );
         let second_returned = return_build(&mut second);
         let second = session
             .complete_package_build(second, second_returned)
@@ -2468,7 +2497,12 @@ fn interleaved_build_invocations() {
         .complete_package_build(first, Some(first_returned))
         .expect("first completion");
     session.check_package_build(first).expect("first Product");
-    assert_eq!(counters::build_execution_count(), before + 2);
+    assert_eq!(counters::build_execution_count(), before + 3);
+    assert_eq!(counters::source_build_execution_count() - sources_before, 2);
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers_before,
+        1
+    );
     println!("paused_build_survived_another_package_product_without_replay");
 }
 
@@ -2590,6 +2624,8 @@ fn anonymous_build_completes_before_product() {
     )
     .with_requested_product(compiler::RequestedCompileProduct::TerminalArtifact);
     let before = counters::build_execution_count();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
     let outcomes =
         orchestration::compile_sources(&mut compiler::CompilationSession::default(), request)
             .expect("anonymous multi-target request");
@@ -2616,7 +2652,12 @@ fn anonymous_build_completes_before_product() {
         }
     }
     build_sequence::print_execution_counts("anonymous Build after both target products");
-    assert_eq!(counters::build_execution_count() - before, 1);
+    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::source_build_execution_count() - sources_before, 1);
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers_before,
+        1
+    );
     println!("anonymous_build_executed_once_before_two_portable_products");
 }
 

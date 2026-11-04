@@ -71,6 +71,8 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
     let host = target::TargetProfile::host_if_supported().unwrap();
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
     let mut invocation = session
         .begin_package_build(CheckedCompileRequest {
             package_inputs: Some(inputs.clone()),
@@ -104,11 +106,16 @@ fn inherited(role: BuildDeclarationKind, marker: u8) {
     build_sequence::print_execution_counts("default Build after both Product contexts");
     assert_eq!(
         counters::build_execution_count() - before,
-        1,
-        "ordinary default Build must execute once without replay at Product join"
+        2,
+        "one source and one supplier Build must complete without Product replay"
+    );
+    assert_eq!(counters::source_build_execution_count() - sources_before, 1);
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers_before,
+        1
     );
     println!(
-        "default_role={role:?} executions=1 retained_purposes=2 role_substitution=refused product_build_trap=not_executed"
+        "default_role={role:?} source_executions=1 supplier_executions=1 retained_purposes=2 role_substitution=refused product_build_trap=not_executed"
     );
 }
 
@@ -137,6 +144,8 @@ fn anonymous() {
     let host = target::TargetProfile::host_if_supported().unwrap();
     let mut session = CompilationSession::default();
     let before = counters::build_execution_count();
+    let sources_before = counters::source_build_execution_count();
+    let suppliers_before = counters::provider_defaults_execution_count();
     let mut invocation = session
         .begin_source_compilation(CheckedCompileRequest::new(&root, Some(host.target_name())))
         .unwrap();
@@ -153,10 +162,15 @@ fn anonymous() {
         .result
         .unwrap();
     build_sequence::print_execution_counts("anonymous default Build completed");
-    assert_eq!(counters::build_execution_count() - before, 1);
+    assert_eq!(counters::build_execution_count() - before, 2);
+    assert_eq!(counters::source_build_execution_count() - sources_before, 1);
+    assert_eq!(
+        counters::provider_defaults_execution_count() - suppliers_before,
+        1
+    );
     assert!(!temporary.path().join("build.omg").exists());
     println!(
-        "anonymous_default executions=1 late_package_graft=refused product_build_trap=not_executed"
+        "anonymous_default source_executions=1 supplier_executions=1 late_package_graft=refused product_build_trap=not_executed"
     );
 }
 
