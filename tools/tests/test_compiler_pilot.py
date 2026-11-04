@@ -371,6 +371,33 @@ class CompilerPilotTests(unittest.TestCase):
             observe.assert_called_once_with(pilot.ROOT, producer, fixture, output / "ordinary-cli" / fixture)
             run.assert_not_called()
 
+    def test_failed_cli_fixture_keeps_later_observation_and_stage_red(self):
+        fixtures = ("pass/example/first", "pass/example/second")
+        observations = [
+            dict(fixture=fixtures[0], passed=False, error="package admission refused"),
+            dict(fixture=fixtures[1], passed=True, native_exit=70, terminal_exit=70),
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            producer = Mock(revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
+            with patch.object(pilot, "command", side_effect=lambda argv: "" if "status" in argv else "a" * 40), \
+                    patch.dict(os.environ, {"GITHUB_SHA": "a" * 40}), \
+                    patch.object(pilot.corpus_gate, "host_target", return_value=producer.target), \
+                    patch.object(pilot.ordinary_cli_fixture, "observe", side_effect=observations) as observe:
+                summary = {}
+                with self.assertRaisesRegex(ValueError, "first: package admission refused"):
+                    pilot.execute(output, summary, positives=(), negatives=(),
+                                  producer=producer, cli_fixtures=fixtures)
+            self.assertEqual([call.args[2] for call in observe.call_args_list], list(fixtures))
+            rows = json.loads((output / "cli.json").read_text())
+            self.assertEqual(rows, summary["cli_observations"])
+            self.assertEqual([row["fixture"] for row in rows], list(fixtures))
+            self.assertFalse(rows[0]["passed"])
+            self.assertTrue(rows[1]["passed"])
+            self.assertEqual((rows[1]["native_exit"], rows[1]["terminal_exit"]), (70, 70))
+            self.assertFalse(summary["stages"][-1]["passed"])
+            self.assertIn("first: package admission refused", summary["stages"][-1]["error"])
+
     def test_cli_only_producer_cannot_execute_corpus_fixtures(self):
         producer = Mock(revision="a" * 40, target="linux_x86_64", runner=None, runner_profile=None)
         with tempfile.TemporaryDirectory() as temporary, \

@@ -381,7 +381,10 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
         observe("native and Terminal execution", lambda: corpus("both", positives, both=True))
     if cli_fixtures:
         def ordinary_cli():
+            # A refused program must not hide later independent observations.
+            # A changed compiler still stops testing before the next program.
             rows = []
+            failed = []
             summary["cli_observations"] = rows
             for fixture in cli_fixtures:
                 row = ordinary_cli_fixture.observe(ROOT, producer, fixture, output / "ordinary-cli" / fixture)
@@ -392,8 +395,11 @@ def execute(output, summary, *, positives=POSITIVES, negatives=NEGATIVES, checki
                 compact["full_observation"] = str(output / "ordinary-cli" / fixture / "observation.json")
                 rows.append(compact)
                 (output / "cli.json").write_text(json.dumps(rows, indent=2) + "\n", encoding="utf-8")
+                producer.verify()
                 if row.get("passed") is not True:
-                    raise ValueError(f"{fixture}: {row.get('error', 'ordinary CLI observation failed')}")
+                    failed.append(f"{fixture}: {row.get('error', 'ordinary CLI observation failed')}")
+            if failed:
+                raise ValueError("; ".join(failed))
         observe("ordinary CLI package admission and native/Terminal execution", ordinary_cli)
     if samples:
         def fact_samples():
