@@ -1116,6 +1116,8 @@ fail/facts/dynamic_trait_input_arithmetic_through_parameter_weakened_input rejec
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/dynamic_trait_input_arithmetic_through_target_body_weakened_input rejected 7602ms expected @297562733b94
 	cannot prove requires contract for call dyn WeightedCombine::combine from probe: a >= 60 && a <= 60 (needs fact `left >= 60 && left <= 60` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/exclusive_observation_exposure_through_float_local_rejected rejected 6769ms expected @967c651da77a
+	cannot prove requires contract for call agree from main: saved == item.kept && saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/finite_family_static_inline_result/interior_index_requires_every_extent rejected 3575ms expected @ddc17fff6a3c
 	cannot prove index `16` is within const extent `Width` of `result.bytes` in Selected::row::row
 	cannot prove index `16` is within const extent `Width` of `result.bytes` in Other::row::row
@@ -8209,15 +8211,16 @@ pass/facts/exclusive_match_arm_through_target_body_exit rejected 2793ms check-ta
 pass/facts/exclusive_observation_exposure_through_call_result_exit checked 3815ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exclusive_observation_exposure_through_const_name_exit checked 3796ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exclusive_observation_exposure_through_field_exit checked 3559ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_observation_exposure_through_float_call_result_exit checked 6374ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_observation_exposure_through_float_const_name_exit checked 7305ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_observation_exposure_through_float_exit checked 6076ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_observation_exposure_through_float_field_exit checked 6233ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_observation_exposure_through_float_match_join_exit checked 5872ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_observation_exposure_through_float_other_machine_exit checked 6770ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_observation_exposure_through_float_other_state_exit checked 7485ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_observation_exposure_through_float_parameter_exit checked 7653ms check-target:macos_arm64 @ccdb99ca2214
-pass/facts/exclusive_observation_exposure_through_float_target_body_exit checked 7286ms check-target:macos_arm64 @ccdb99ca2214
+pass/facts/exclusive_observation_exposure_through_float_call_result_exit checked 9961ms check-target:macos_arm64 @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_const_name_exit checked 9960ms check-target:macos_arm64 @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_exit checked 10171ms check-target:macos_arm64 @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_field_exit checked 10168ms check-target:macos_arm64 @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_local_exit checked 10132ms check-target:macos_arm64 @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_match_join_exit checked 10203ms check-target:macos_arm64 @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_other_machine_exit checked 10273ms check-target:macos_arm64 @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_other_state_exit checked 10178ms check-target:macos_arm64 @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_parameter_exit checked 9726ms check-target:macos_arm64 @967c651da77a
+pass/facts/exclusive_observation_exposure_through_float_target_body_exit checked 18394ms check-target:macos_arm64 @967c651da77a
 pass/facts/exclusive_observation_exposure_through_local_exit checked 3684ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exclusive_observation_exposure_through_match_join_exit checked 3683ms check-target:macos_arm64 @ccdb99ca2214
 pass/facts/exclusive_observation_exposure_through_other_machine_exit checked 3753ms check-target:macos_arm64 @ccdb99ca2214
@@ -24082,28 +24085,24 @@ fail/facts/exclusive_observation_exposure_through_const_name_rejected rejected 2
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/exclusive_observation_exposure_through_field_rejected rejected 2885ms expected @ccdb99ca2214
 	cannot prove requires contract for call agree from main: note.observed == items[0] && note.observed == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_observation_exposure_through_float_call_result_rejected rejected 4327ms expected @ccdb99ca2214
+fail/facts/exclusive_observation_exposure_through_float_call_result_rejected rejected 7094ms expected @967c651da77a
 	cannot prove requires contract for call agree from main: saved == item.kept && saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_observation_exposure_through_float_const_name_rejected rejected 5717ms expected @ccdb99ca2214
+fail/facts/exclusive_observation_exposure_through_float_const_name_rejected rejected 6959ms expected @967c651da77a
 	cannot prove requires contract for call agree from main: saved == item.kept && saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_observation_exposure_through_float_field_rejected rejected 4771ms expected @ccdb99ca2214
+fail/facts/exclusive_observation_exposure_through_float_field_rejected rejected 7398ms expected @967c651da77a
 	cannot prove requires contract for call agree from main: note.observed == item.kept && note.observed == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_observation_exposure_through_float_match_join_rejected rejected 4835ms expected @ccdb99ca2214
-	cannot prove requires contract for call agree from main: saved == item.kept && saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_observation_exposure_through_float_other_machine_rejected rejected 4676ms expected @ccdb99ca2214
-	cannot prove ensures contract for exit from read_kept at statement 3: result == item.kept && result == 7.0
-	cannot prove ensures contract for exit from read_kept at statement 4: result == item.kept && result == 7.0
-fail/facts/exclusive_observation_exposure_through_float_other_state_rejected rejected 5487ms expected @ccdb99ca2214
+fail/facts/exclusive_observation_exposure_through_float_match_join_rejected rejected 7373ms expected @967c651da77a
+	cannot prove requires contract for call agree from probe: joined.saved == item.kept && joined.saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/exclusive_observation_exposure_through_float_other_machine_rejected rejected 7138ms expected @967c651da77a
+	cannot prove ensures contract for exit from read_kept at statement 2: result == item.kept && result == 7.0
+fail/facts/exclusive_observation_exposure_through_float_other_state_rejected rejected 9108ms expected @967c651da77a
 	cannot prove requires contract for call check from main: saved == item.kept && saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_observation_exposure_through_float_parameter_rejected rejected 5198ms expected @ccdb99ca2214
+fail/facts/exclusive_observation_exposure_through_float_parameter_rejected rejected 7145ms expected @967c651da77a
 	cannot prove requires contract for call agree from hold: observed == item.kept && observed == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_observation_exposure_through_float_rejected rejected 5319ms expected @ccdb99ca2214
+fail/facts/exclusive_observation_exposure_through_float_rejected rejected 6927ms expected @967c651da77a
 	cannot prove requires contract for call agree from main: saved == item.kept && saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/facts/exclusive_observation_exposure_through_float_target_body_rejected rejected 5334ms expected @ccdb99ca2214
-	cannot prove requires contract for call agree from observe: saved == item.kept && saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call agree from observe: saved == item.kept && saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call agree from observe: saved == item.kept && saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-	cannot prove requires contract for call agree from observe: saved == item.kept && saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
+fail/facts/exclusive_observation_exposure_through_float_target_body_rejected rejected 12162ms expected @967c651da77a
+	cannot prove requires contract for call agree from SelectedFloatObservation::observe: saved == item.kept && saved == 7.0 (needs fact `observed == current && observed == 7.0` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `observe`
 fail/facts/exclusive_observation_exposure_through_local_rejected rejected 3272ms expected @ccdb99ca2214
 	cannot prove requires contract for call agree from main: saved == items[0] && saved == 7 (needs fact `observed == current && observed == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/facts/exclusive_observation_exposure_through_match_join_rejected rejected 3786ms expected @ccdb99ca2214
