@@ -73,29 +73,17 @@ pub fn evaluate_terminal_calling_policy(
         .execution_requirements(Some(&installation))
         .map_err(|error| format!("calling policy demands: {error:?}"))?;
     if let Some(boundary) = requirements.missing_providers.first() {
-        let scope = &artifact.semantic_module().scalar_applications.proof_scope;
-        let declaration = scope
-            .callable_declaration(TargetMachineCallable::Boundary(*boundary))
-            .ok_or("calling policy's missing provider has no checked declaration")?;
-        let mut headers = scope
-            .callable_headers
-            .iter()
-            .filter_map(|(_, header)| (header.declaration == declaration).then_some(header));
-        let header = headers
-            .next()
-            .ok_or("calling policy's missing provider has no retained contract")?;
-        if headers.next().is_some() {
-            return Err(
-                "calling policy's missing provider has competing retained contracts".into(),
-            );
-        }
-        let contract = header
-            .compiler_evaluation
-            .as_ref()
-            .map_err(|reason| format!("calling policy provider contract: {reason}"))?;
+        let declaration = program
+            .import(*boundary)
+            .ok_or("calling policy's missing provider has no boundary declaration")?;
+        let identity = artifact
+            .semantic_module()
+            .identities
+            .text(declaration.identity)
+            .ok_or("calling policy's missing provider has no callable identity")?;
         return Err(format!(
             "calling policy calls `{}` without a selected provider for target `{}`",
-            contract.name,
+            language_semantics::type_identity::callable_display_path(identity),
             target.target_name(),
         ));
     }
