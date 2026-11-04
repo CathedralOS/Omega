@@ -11,7 +11,7 @@ use crate::proofs::crash_routes::crash_predicates::{
 };
 use crate::proofs::crash_routes::scalar_terms::{checked_boolean_scalar_term, checked_scalar_term};
 use crate::proofs::crash_routes::structural_members::{
-    lower_byte_sequence_field, lower_ieee_float_field, lower_structural_member_path,
+    lower_byte_sequence_field, lower_ieee_float_field, lower_structural_identity,
     lower_structural_member_term,
 };
 use crate::proofs::{
@@ -104,6 +104,21 @@ struct RouteTerms<'a> {
 }
 
 impl crate::proofs::contract_predicates::PredicateTerms for RouteTerms<'_> {
+    fn structural_identity(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        left: &checked_trees::CheckedStructuralParameterField,
+        right: &checked_trees::CheckedStructuralParameterField,
+    ) -> Result<Proposition, LoweringError> {
+        lower_structural_identity(
+            identities,
+            left,
+            right,
+            self.parameters,
+            self.structural_types,
+        )
+    }
+
     fn scalar(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,
@@ -395,33 +410,13 @@ impl RouteTerms<'_> {
             });
         }
         if let CheckedBooleanExpression::StructuralIdentity { left, right } = expression {
-            let mut subject = |field: &checked_trees::CheckedStructuralParameterField| {
-                let (root, path, endpoint) = lower_structural_member_path(
-                    identities,
-                    field.parameter_position,
-                    &field.path,
-                    self.parameters,
-                    self.structural_types,
-                )?;
-                let terminal_psi::StructuralFieldType::Structural(structural_type) = endpoint
-                else {
-                    return unsupported("structural identity requires a complete data endpoint");
-                };
-                Ok(semantic_vocabulary::StructuralIdentitySubject::new(
-                    root,
-                    path,
-                    structural_type,
-                ))
-            };
-            let mut left = subject(left)?;
-            let mut right = subject(right)?;
-            if left.structural_type() != right.structural_type() {
-                return unsupported("structural identity operands have different exact types");
-            }
-            if left > right {
-                std::mem::swap(&mut left, &mut right);
-            }
-            return Ok(Proposition::StructuralIdentity { left, right });
+            return lower_structural_identity(
+                identities,
+                left,
+                right,
+                self.parameters,
+                self.structural_types,
+            );
         }
         if let CheckedBooleanExpression::IeeeFloatComparison {
             kind,

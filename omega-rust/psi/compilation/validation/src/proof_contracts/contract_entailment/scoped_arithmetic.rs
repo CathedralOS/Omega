@@ -189,6 +189,67 @@ pub struct ScopedCallResultObservation {
     pub(crate) backing: Option<crate::machine_calls::calls::CapturedStorageReadBacking>,
 }
 
+/// A public result coordinate can be discovered before its case and extent
+/// are established at this call. These requirements grant no observation.
+pub(in crate::proof_contracts::contract_entailment) struct PendingScopedCallResultObservation {
+    pub observation: ScopedCallResultObservation,
+    pub declaration_root: ExpressionHandle,
+    pub cases: Vec<ScalarProjectionCaseRequirement>,
+    pub indices: Vec<ScalarProjectionIndexRequirement>,
+    pub requires_backing: bool,
+}
+
+pub(in crate::proof_contracts::contract_entailment) struct ScalarProjectionCaseRequirement {
+    pub prefix_length: usize,
+    pub variant: symbols::SymbolHandle,
+}
+
+pub(in crate::proof_contracts::contract_entailment) struct ScalarProjectionIndexRequirement {
+    pub prefix_length: usize,
+    pub index: usize,
+}
+
+/// Typed projection dependencies grant no case or bounds fact. Each read owner
+/// must establish them independently before observing a scalar coordinate.
+pub(in crate::proof_contracts::contract_entailment) fn scalar_projection_requirements(
+    program: &dyn crate::CheckingInput,
+    reference: typed_trees::types::TypeReferenceHandle,
+    path: &[facts::PlaceSegment],
+) -> Option<(
+    Vec<ScalarProjectionCaseRequirement>,
+    Vec<ScalarProjectionIndexRequirement>,
+)> {
+    let mut cases = Vec::new();
+    let mut indices = Vec::new();
+    for (prefix_length, segment) in path.iter().enumerate() {
+        let current = crate::project_type_reference_from_segments(
+            program,
+            reference,
+            &path[..prefix_length],
+        )?;
+        match segment {
+            facts::PlaceSegment::Case { variant } => cases.push(ScalarProjectionCaseRequirement {
+                prefix_length,
+                variant: *variant,
+            }),
+            facts::PlaceSegment::FixedIndex { index } => {
+                let collection = crate::unwrapped_type_reference(program, current)?;
+                if matches!(
+                    program.type_reference_table.type_reference(collection),
+                    typed_trees::types::TypeReferenceNode::Slice { .. }
+                ) {
+                    indices.push(ScalarProjectionIndexRequirement {
+                        prefix_length,
+                        index: *index,
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    Some((cases, indices))
+}
+
 pub fn scoped_call_result_observations(
     program: &dyn crate::CheckingInput,
     machine: &Machine,
@@ -196,6 +257,28 @@ pub fn scoped_call_result_observations(
     expression: ExpressionHandle,
 ) -> Vec<ScopedCallResultObservation> {
     calls::result_observations::result_observations(program, machine, state, expression)
+}
+
+pub(in crate::proof_contracts::contract_entailment) fn pending_scoped_call_result_observations(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+) -> Vec<PendingScopedCallResultObservation> {
+    calls::result_observations::pending_result_observations(program, machine, state, expression)
+}
+
+pub(in crate::proof_contracts::contract_entailment) fn resolve_scoped_call_result_observation(
+    program: &dyn crate::CheckingInput,
+    machine: &Machine,
+    state: &typed_trees::state::State,
+    expression: ExpressionHandle,
+    pending: PendingScopedCallResultObservation,
+    frames: Option<&crate::CallFrameResolver<'_>>,
+) -> Option<ScopedCallResultObservation> {
+    calls::result_observations::resolve_backing(
+        program, machine, state, expression, pending, frames,
+    )
 }
 
 /// One completed call's retained caller observations. Source ordinal belongs

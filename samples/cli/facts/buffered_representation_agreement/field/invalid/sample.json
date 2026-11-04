@@ -1,0 +1,8 @@
+{
+  "role": "intended-invalid",
+  "rejection_contains": [
+    "Reader",
+    "ensures",
+    "last"
+  ]
+}

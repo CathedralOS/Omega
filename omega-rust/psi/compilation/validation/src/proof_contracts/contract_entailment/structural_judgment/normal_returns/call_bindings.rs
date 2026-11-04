@@ -270,11 +270,17 @@ impl<'program> StructuralJudge<'program> {
 impl StructuralJudge<'_> {
     pub(super) fn intake_normal_call_equations(&mut self, equations: Vec<CapturedResultEquation>) {
         for equation in equations {
+            if equation.is_data_identity() {
+                // A public data Id relates complete values. Keep its meaning
+                // separate from equations that authorize scalar substitution.
+                std::sync::Arc::make_mut(&mut self.captured_result_equations).push(equation);
+                continue;
+            }
             // The producer retained this identity after the actual normal
             // return and conditional repeatability admission. Registering it
             // reads no body. Actual later expansion owns dependency recording,
             // including when this fact is installed under a field observer.
-            let completed_identity = equation.completed_call_identity;
+            let completed_identity = equation.is_completed_call_identity();
             let (left, right) = (equation.left.clone(), equation.right.clone());
             let max_premise_occ = self.rewrites.max_premise_occurrence();
             let pattern_occ = match (

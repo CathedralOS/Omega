@@ -1108,7 +1108,10 @@ fn collect_type(
                     else {
                         return false;
                     };
-                    let outer = if *start == 0 {
+                    // Earlier applications can bind lifetimes without binding
+                    // any Types. Their position, rather than the Type offset,
+                    // decides which supplying scopes this operand keeps.
+                    let outer = if scope_ordinal == 0 {
                         frame.outer.copied().unwrap_or_default()
                     } else {
                         TypeScope {

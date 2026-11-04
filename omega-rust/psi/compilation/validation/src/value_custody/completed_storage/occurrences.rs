@@ -81,6 +81,16 @@ pub fn consumer_captures(
         // This finds a selected operand's own occurrence; it does not claim
         // that a conditional input executed on every completion route.
         pending.extend(operand.evaluated_inputs.handles());
+        if operand.backing.is_valid()
+            && control.operands.get(operand.backing).statement_index == statement
+        {
+            pending.push(operand.backing);
+        }
+        if operand.value_source.is_valid()
+            && control.operands.get(operand.value_source).statement_index == statement
+        {
+            pending.push(operand.value_source);
+        }
         pending.extend(
             control
                 .operand_children

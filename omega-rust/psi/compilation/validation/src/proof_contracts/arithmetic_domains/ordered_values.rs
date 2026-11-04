@@ -32,6 +32,7 @@ use numerics::literals::IntegerLanding;
 use symbols::SymbolHandle;
 use typed_trees::data::TypeParameterKind;
 
+mod assignment_reads;
 mod captured_references;
 mod congruence;
 pub(super) use congruence::ValueComparison;

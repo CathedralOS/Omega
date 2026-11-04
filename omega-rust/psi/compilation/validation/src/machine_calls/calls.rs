@@ -42,7 +42,7 @@ mod generic_requirement;
 pub(crate) use generic_requirement::requirement_namespace_member;
 pub use generic_requirement::{
     named_conformance_target_requirement, requirement_contract_signature,
-    selected_requirement_signature,
+    resolve_requirement_contract, selected_requirement_signature,
 };
 mod inline_assembly;
 mod machine_parameter_arguments;

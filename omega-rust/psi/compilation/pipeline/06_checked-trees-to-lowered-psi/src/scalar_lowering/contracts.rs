@@ -563,6 +563,21 @@ struct ScalarContractTerms<'namespace> {
 }
 
 impl PredicateTerms for ScalarContractTerms<'_> {
+    fn structural_identity(
+        &self,
+        identities: &mut terminal_psi::TerminalIdentityTableBuilder,
+        left: &checked_trees::CheckedStructuralParameterField,
+        right: &checked_trees::CheckedStructuralParameterField,
+    ) -> Result<semantic_vocabulary::Proposition, LoweringError> {
+        crate::proofs::crash_routes::lower_structural_identity(
+            identities,
+            left,
+            right,
+            &self.authored_structural_parameters(),
+            self.views.structural_types,
+        )
+    }
+
     fn case_membership(
         &self,
         identities: &mut terminal_psi::TerminalIdentityTableBuilder,

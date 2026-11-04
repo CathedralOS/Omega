@@ -10,8 +10,10 @@ use semantic_vocabulary::ScalarType;
 pub fn atomic_once_outcome_cases(
     declaration: &StructuralTypeDeclaration,
     resident: ScalarType,
+    custody: language_core::atomic::AtomicCompareExchangeOnceResultCustody,
 ) -> Option<&[StructuralCaseDeclaration; 3]> {
-    if declaration.quotient_carrier.is_some()
+    if !custody.is_canonical()
+        || declaration.quotient_carrier.is_some()
         || declaration.owns_linear_claim
         || declaration.scalar_restriction.is_some()
     {
@@ -21,19 +23,37 @@ pub fn atomic_once_outcome_cases(
         return None;
     };
     let cases: &[StructuralCaseDeclaration; 3] = cases.as_slice().try_into().ok()?;
-    if !cases[1].fields.is_empty() {
-        return None;
-    }
-    for case in [&cases[0], &cases[2]] {
-        let [field] = case.fields.as_slice() else {
-            return None;
-        };
-        if field.relevance.is_erased()
-            || field.field_type != StructuralFieldType::Scalar(resident)
-            || field.storage.is_some()
-        {
-            return None;
+    for (case, schema) in cases.iter().zip(custody.outcome_identity.cases()) {
+        match schema.payload {
+            None if case.fields.is_empty() => {}
+            Some(_) => {
+                let [field] = case.fields.as_slice() else {
+                    return None;
+                };
+                if field.relevance.is_erased()
+                    || field.field_type != StructuralFieldType::Scalar(resident)
+                    || field.storage.is_some()
+                {
+                    return None;
+                }
+            }
+            _ => return None,
         }
     }
     Some(cases)
+}
+
+/// The canonical result owns exactly the value its admitted family produces.
+/// No result qualification or claim may be invented from an outcome shape.
+pub fn atomic_once_result_is_plain(
+    result: &crate::StructuralOperationResult,
+    custody: language_core::atomic::AtomicCompareExchangeOnceResultCustody,
+) -> bool {
+    use language_core::atomic::AtomicCompareExchangeObservationAxis;
+    custody.is_canonical()
+        && result.qualification_establishments.is_empty()
+        && match custody.observation {
+            AtomicCompareExchangeObservationAxis::Observing => result.is_unrestricted_plain(),
+            AtomicCompareExchangeObservationAxis::NonObserving => result.is_affine_plain(),
+        }
 }

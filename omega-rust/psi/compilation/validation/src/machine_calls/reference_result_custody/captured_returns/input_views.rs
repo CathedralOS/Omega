@@ -53,7 +53,7 @@ impl Captures<'_> {
                 active,
             );
         }
-        let actual = control.operands.get(operand);
+        let _actual = control.operands.get(operand);
         let stored = crate::completed_storage::reference_sources_at_path(
             self.program,
             control,
