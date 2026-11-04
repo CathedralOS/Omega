@@ -1419,75 +1419,6 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         &mut self,
         expression: ExpressionHandle,
     ) -> HandleSpan<checked_trees::FlowOperandReferent> {
-        if let ExpressionNode::Match(dispatch) =
-            self.program.expression_table.expression(expression)
-        {
-            // Each arm keeps the addresses a direct use of that arm would
-            // see. A nonempty snapshot wins. An empty snapshot is unknown
-            // for that spelling, so the syntactic storage walk may still
-            // name the arm. An arm with neither record fails the join.
-            let mut rows = Vec::<checked_trees::FlowOperandReferent>::new();
-            for arm in self.program.expression_table.match_arms(dispatch.arms) {
-                let snapshot = self
-                    .stored_view_referents(arm.value)
-                    .filter(|referents| !referents.is_empty());
-                let arm_referents = if let Some(referents) = snapshot {
-                    referents
-                } else {
-                    let Some(places) =
-                        crate::flow::reference_expression_storage_places_including_shared(
-                            self.program,
-                            self.state.symbol,
-                            self.statement_index,
-                            arm.value,
-                            self.context.call_frames,
-                        )
-                    else {
-                        return HandleSpan::empty();
-                    };
-                    let formed = places
-                        .iter()
-                        .map(|referent| checked_trees::FlowOperandReferent {
-                            formation: arena::Handle::invalid(),
-                            root: referent.root,
-                            segments: self
-                                .context
-                                .control
-                                .operand_referent_segments
-                                .insert_many(referent.segments.iter().copied()),
-                        })
-                        .collect::<Vec<_>>();
-                    self.context.control.operand_referents.insert_many(formed)
-                };
-                let captured = self
-                    .context
-                    .control
-                    .operand_referents
-                    .span_or_empty(arm_referents);
-                if captured.is_empty() {
-                    return HandleSpan::empty();
-                }
-                for referent in captured {
-                    let duplicate = rows.iter().any(|prior| {
-                        prior.root == referent.root
-                            && self
-                                .context
-                                .control
-                                .operand_referent_segments
-                                .span_or_empty(prior.segments)
-                                == self
-                                    .context
-                                    .control
-                                    .operand_referent_segments
-                                    .span_or_empty(referent.segments)
-                    });
-                    if !duplicate {
-                        rows.push(*referent);
-                    }
-                }
-            }
-            return self.context.control.operand_referents.insert_many(rows);
-        }
         if let Some(referents) = self.stored_view_referents(expression) {
             return referents;
         }
@@ -1756,22 +1687,20 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
                 // Its natural reference type is not a second outer read after
                 // an arm already produced an owned primitive observation.
                 *formed_type = destination;
-                *completion = checked_trees::FlowOperandCompletion::Selected(self.dispatch(
-                    expression,
-                    *dispatch,
-                    destination,
-                    contexts,
-                    constraints,
-                ));
-                *retention = Some(self.capture_alternative_retention(
-                    expression,
-                    match *completion {
-                        checked_trees::FlowOperandCompletion::Selected(alternatives) => {
-                            alternatives
-                        }
-                        _ => unreachable!("match completion is selected"),
-                    },
-                ));
+                let alternatives =
+                    self.dispatch(expression, *dispatch, destination, contexts, constraints);
+                *completion = checked_trees::FlowOperandCompletion::Selected(alternatives);
+                // These are the arm values already evaluated at their own cuts.
+                // A later source lookup could see a replacement descriptor.
+                let binds_view = if destination.is_valid() {
+                    self.is_view_type(destination)
+                } else {
+                    self.operand_is_view(expression)
+                };
+                if binds_view {
+                    *referents = Some(self.capture_alternative_referents(alternatives));
+                }
+                *retention = Some(self.capture_alternative_retention(expression, alternatives));
                 return None;
             }
             ExpressionNode::Boolean(value) => return Some(*value),
@@ -2395,12 +2324,9 @@ impl<'a, 'b, 'plans> Execution<'a, 'b, 'plans> {
         expression: ExpressionHandle,
         constraints: HandleSpan<FlowConstraintRef>,
     ) -> Handle<checked_trees::FlowCaseAccessFact> {
-        let Some(place) = place_at(
-            self.program,
-            self.state.symbol,
-            self.statement_index,
-            expression,
-        ) else {
+        // A selected payload copy keeps its own case even after its old home
+        // changes. Address formation still asks for the live source place.
+        let Some(place) = self.completed_read_place(expression) else {
             return Handle::invalid();
         };
         let places = self.append_referent_places(&[place]);
