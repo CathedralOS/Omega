@@ -35,16 +35,20 @@ public boundary trait WindowsGuiHost {
             ClockObservation + ExecutionDelay + FilesystemContentRead +
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-            ProcessOutput + ProcessExit;
-    machine foreground_window() -> u64 reaches WindowManagement;
-    machine is_window(window: u64) -> bool reaches WindowManagement;
+            ProcessOutput + ProcessExit
+    invokes WindowsGuiIo;
+    machine foreground_window() -> u64 reaches WindowManagement
+    invokes WindowsGuiIo;
+    machine is_window(window: u64) -> bool reaches WindowManagement
+    invokes WindowsGuiIo;
     machine window_destroy(window: u64) -> bool reaches
         NativeCodeExecution + WindowManagement + SurfacePresentation +
         WindowEventObservation + WindowEventDispatch + GlobalInputObservation +
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    invokes WindowsGuiIo;
     // Remove at most one message from this thread, translate and dispatch it.
     // A false result means the queue had no message; this operation never waits.
     machine pump_message(message: &mut WindowsMessage) -> bool reaches
@@ -53,7 +57,8 @@ public boundary trait WindowsGuiHost {
         ClockObservation + ExecutionDelay + FilesystemContentRead +
         FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
         DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-        ProcessOutput + ProcessExit;
+        ProcessOutput + ProcessExit
+    invokes WindowsGuiIo;
     // Add native frame metrics to the requested client size. Windows may
     // enforce its own minimum window size during creation.
     machine window_create_client(class_name: &[u8], title: &[u8], style: u32,
@@ -63,7 +68,8 @@ public boundary trait WindowsGuiHost {
             ClockObservation + ExecutionDelay + FilesystemContentRead +
             FilesystemContentWrite + FilesystemMetadataQuery + FilesystemMetadataMutation +
             DirectoryEnumeration + FilesystemNamespaceMutation + ProcessInput +
-            ProcessOutput + ProcessExit;
+            ProcessOutput + ProcessExit
+    invokes WindowsGuiIo;
     machine get_dc(window: u64) -> u64 reaches
         SurfacePresentation + FilesystemContentRead + FilesystemContentWrite +
         FilesystemMetadataQuery + FilesystemMetadataMutation + DirectoryEnumeration +
@@ -83,5 +89,6 @@ public boundary trait WindowsGuiHost {
             FilesystemNamespaceMutation;
     // Asynchronous virtual-key state. One means the key was down at call time;
     // the raw pressed-since-last-call latch of GetAsyncKeyState is discarded.
-    machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation;
+    machine key_state(virtual_key: u32) -> u64 reaches GlobalInputObservation
+    invokes WindowsGuiIo;
 }
