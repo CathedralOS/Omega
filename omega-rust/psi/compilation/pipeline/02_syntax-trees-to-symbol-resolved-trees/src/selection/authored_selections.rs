@@ -1723,6 +1723,17 @@ fn finalize_expression_groups(
                     .with_source_span(group.source_span)
                 })?;
         }
+        let group_call_target = if group.kind == Kind::Call {
+            program
+                .authored_declaration_selections()
+                .get(occurrence)
+                .ok_or_else(|| Diagnostic::error("reconciled call group lost its occurrence"))?
+                .target()
+                .as_resolved()
+                .map(|selected| selected.selected_symbol())
+        } else {
+            None
+        };
         for expression in group.expressions {
             program
                 .tables
@@ -1730,6 +1741,19 @@ fn finalize_expression_groups(
                 .expressions
                 .attach_authored_selection_occurrences(expression, [occurrence]);
             if group.kind == Kind::Call {
+                // A copied call can still be late after its group has selected
+                // one declaration. Restore that exact group's target before
+                // freezing correspondence; conflicting nonempty targets keep
+                // the ordinary strict comparison below.
+                // Arguments, substitutions and the selected body retain their
+                // independent checks.
+                if let (Some(selected), ExpressionNode::Call(call)) = (
+                    group_call_target,
+                    program.tables.bodies.expressions.expression_mut(expression),
+                ) && !call.target_symbol.is_valid()
+                {
+                    call.target_symbol = selected;
+                }
                 let original = original_call_target(program, expression)?;
                 if let (Some(original), ExpressionNode::Call(call)) = (
                     original,

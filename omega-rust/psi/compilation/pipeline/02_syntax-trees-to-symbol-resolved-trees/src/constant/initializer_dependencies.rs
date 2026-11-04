@@ -10,8 +10,7 @@ use crate::tables::body_expressions;
 use crate::tables::resolved_declarations;
 use language_core::data_layout_queries::is_data_layout_query_spelling;
 use language_semantics::declaration_selection::{
-    AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
-    ResolvedAuthoredCallBinding,
+    AuthoredDeclarationSelectionTarget, ResolvedAuthoredCallBinding,
 };
 use source::SourceSpan;
 use std::iter::once;
@@ -315,122 +314,6 @@ pub(crate) fn bind_named_implementation_const_calls(
         call.target_symbol = requirement;
     }
     Ok(())
-}
-
-/// Preserve reconciled source targets on retained initializer expressions.
-/// Ordinary overload selection initially needs the evaluator's typed owner;
-/// re-lowering its saved source after materialization leaves that target open.
-/// The declaration's own resolved selection supplies the original target here.
-/// Named implementation calls keep their public requirements through routing.
-pub(crate) fn restore_const_call_targets(
-    program: &mut SymbolResolvedTrees,
-    work: &[ExpressionHandle],
-) {
-    let roots = program
-        .const_declarations
-        .iter()
-        .flat_map(|declaration| [declaration.initializer, declaration.authored_initializer])
-        .filter(|expression| expression.is_valid())
-        .collect::<Vec<_>>();
-    let mut initializer_expressions = Vec::new();
-    collect_expression_handles(program, &roots, &mut initializer_expressions);
-    let mut initializer_targets = Vec::new();
-    for expression in &initializer_expressions {
-        let node = expression_node(program, *expression);
-        let ExpressionNode::Call(call) = &node else {
-            continue;
-        };
-        let Some(symbol) = recorded_call_selection(program, *expression, call.target.source_span())
-        else {
-            continue;
-        };
-        let selected_symbol = program.symbols.get(symbol);
-        if selected_symbol.kind != SymbolKind::State
-            || program.symbols.get(selected_symbol.parent).kind != SymbolKind::Machine
-        {
-            continue;
-        }
-        initializer_targets.push((*expression, symbol));
-    }
-    if initializer_targets.is_empty() {
-        return;
-    }
-    for &expression in work {
-        let node = expression_node(program, expression);
-        let ExpressionNode::Call(call) = &node else {
-            continue;
-        };
-        // An ordinary unresolved call must be the exact declaration-owned
-        // expression carrying the reconciled selection. Equal source spans on
-        // other expressions do not authorize filling their targets. Keep a
-        // conflicting nonempty ordinary target for the custody checker to reject.
-        let initializer_target = (!call.target_symbol.is_valid())
-            .then(|| {
-                initializer_targets
-                    .iter()
-                    .find(|(owner, _)| *owner == expression)
-            })
-            .flatten()
-            .map(|(_, symbol)| *symbol);
-        let Some(symbol) = initializer_target else {
-            continue;
-        };
-        if call.target_symbol == symbol {
-            continue;
-        }
-        let ExpressionNode::Call(call) =
-            program.tables.bodies.expressions.expression_mut(expression)
-        else {
-            continue;
-        };
-        call.target_symbol = symbol;
-    }
-}
-
-fn recorded_call_selection(
-    program: &SymbolResolvedTrees,
-    expression: ExpressionHandle,
-    span: SourceSpan,
-) -> Option<SymbolHandle> {
-    let mut selected = None;
-    for occurrence in body_expressions(program).authored_selection_occurrences(expression) {
-        let Some(selection) = program.authored_declaration_selections().get(occurrence) else {
-            continue;
-        };
-        if selection.kind() != AuthoredDeclarationSelectionKind::Call
-            || selection.source_span() != span
-        {
-            continue;
-        }
-        let target = selection.target();
-        let resolved = target.as_resolved()?;
-        let symbol = resolved.selected_symbol();
-        match selected {
-            None => selected = Some(symbol),
-            Some(existing) if existing == symbol => {}
-            Some(_) => return None,
-        }
-    }
-    selected
-}
-
-fn collect_expression_handles(
-    program: &SymbolResolvedTrees,
-    roots: &[ExpressionHandle],
-    expressions: &mut Vec<ExpressionHandle>,
-) {
-    let mut pending = roots.to_vec();
-    while let Some(expression) = pending.pop() {
-        if !expression.is_valid() || expressions.contains(&expression) {
-            continue;
-        }
-        if !body_expressions(program).expression_is_valid(expression) {
-            continue;
-        }
-        expressions.push(expression);
-        let node = expression_node(program, expression);
-        pending.extend(expression_child_handles(program, &node));
-    }
 }
 
 fn collect_call_target_spans(
