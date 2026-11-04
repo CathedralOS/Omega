@@ -170,6 +170,8 @@ Full compiler tracing stays opt-in through the caller's existing environment.
 The consumer retains ordinary stderr without forcing `OMEGA_PROVIDER_DEBUG` or
 `OMEGA_COMPILER_CHECK_SITES`; those traces can exceed 800 MB for one package
 check. A requested diagnostic replay still inherits both settings.
+Manual pilot runs can set `compiler_diagnostics=true` to enable them explicitly;
+leave it false for ordinary acceptance runs.
 
 For an ordinary run:
 
