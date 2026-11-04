@@ -1162,8 +1162,7 @@ defines the complete product bar.
   Owners:
   `omega-rust/psi/compilation/pipeline/04_typed-trees-to-typed-trees/src/monomorphization/dynamic_families.rs`
   and `omega-rust/psi/compilation/validation/src/machine_calls/calls/dynamic_requirement.rs`.
-  - Complete structural field reads rooted in entry content claims and
-    target-ineligible/const-only bridge qualification.
+  - Complete target-ineligible/const-only bridge qualification.
   Acceptance: pass/fail/run finite-family fixtures execute via `omega run --both`
   preserving effects, index identity, and once-only moves/cleanup across
   selection, forwarding, and storage, while unproved membership, missing/wrong
