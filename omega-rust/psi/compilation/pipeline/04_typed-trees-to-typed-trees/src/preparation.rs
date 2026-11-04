@@ -216,6 +216,9 @@ pub fn prepare_typed_trees(
     // targets.
     // Cloning binds only its newly produced instance after substitution; no
     // final whole-program receiver repair or data-method search is needed.
+    // A rebound reference parameter becomes a local home before any later
+    // stage reads its name as the caller's referent.
+    crate::rebound_parameter_homes::materialize(&mut program);
     validation::resolve_dynamic_call_targets(&mut program)?;
     program.retain_static_argument_contexts();
     // Executable specialization retains each consumed source application;
@@ -522,6 +525,9 @@ pub fn prepare_constant_execution(mut program: TypedTrees) -> Result<TypedTrees,
     let type_frontier = program.type_reference_table.type_reference_count();
     value_location_alignment::settle(&mut program)?;
     elaborate(&mut program)?;
+    // A rebound reference parameter becomes a local home before any later
+    // stage reads its name as the caller's referent.
+    crate::rebound_parameter_homes::materialize(&mut program);
     validation::resolve_dynamic_call_targets(&mut program)?;
     program.retain_static_argument_contexts();
     selections::bind_pre_specialization_authored_selections(&mut program)
