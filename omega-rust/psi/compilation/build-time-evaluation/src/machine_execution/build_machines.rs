@@ -12,6 +12,7 @@ use symbols::SymbolHandle;
 use typed_trees::TypedTrees;
 
 mod numeric_imports;
+mod reuse_diagnostics;
 #[cfg(test)]
 mod tests;
 
@@ -63,12 +64,32 @@ enum PreparedBuildMachineBody {
 /// Immutable checked execution content, including all CheckFacts. Equality
 /// compares the complete checked value, not typed trees or arena token identity.
 /// It contains no executable prepared entry and no host authority.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, Eq)]
 pub struct CheckedBuildProgram {
     checked: Arc<checked_trees::CheckedTrees>,
     /// Descriptor queries are observable Build inputs, even when their bodies
     /// are absent from the checked executable closure.
     product_declarations: Arc<TypedTrees>,
+}
+
+impl PartialEq for CheckedBuildProgram {
+    fn eq(&self, other: &Self) -> bool {
+        if self.checked != other.checked {
+            if std::env::var_os("OMEGA_BUILD_REUSE_TRACE").is_some() {
+                reuse_diagnostics::checked(&self.checked, &other.checked);
+            }
+            return false;
+        }
+        let same = self.product_declarations == other.product_declarations;
+        if !same && std::env::var_os("OMEGA_BUILD_REUSE_TRACE").is_some() {
+            reuse_diagnostics::typed(
+                "product declarations",
+                &self.product_declarations,
+                &other.product_declarations,
+            );
+        }
+        same
+    }
 }
 
 /// Exact build-machine entry owned by one prepared program.
