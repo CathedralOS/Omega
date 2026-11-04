@@ -97,23 +97,25 @@ Inspect every added or modified line in `tests/omega/corpus_outcomes.txt`:
   never a dirty worktree (`@<sha>+wt`).
 - **Zero `regressed-from:` markers** introduced.
 
-### Point 4: Witness & Reject-Twin Integrity Audit (`samples/cli/facts/` & `tests/omega/` diff)
-- **No weakened positive witnesses:** Confirm the worker did not make a place
-  pass by adding a caller post-hoc equality guard (`transition x == 100`),
+### Point 4: Witness, Reject-Twin & Anti-Bloat Audit (`samples/` & `tests/omega/` diff)
+- **No new `samples/cli/facts/<folder>/` or 18-fixture fact-matrix bloat:**
+  `samples/cli/facts/` is frozen against new folder creation (`tools/check_rules.py`
+  enforces this). Repairs must flip existing pinned regressions in
+  `tests/omega/corpus_outcomes.txt` and `samples/` or add a focused
+  positive/negative fixture pair under `tests/omega/{pass,fail,run}/<behavior>/`.
+- **No weakened positive witnesses:** Confirm the worker did not make a fixture
+  or sample pass by adding a caller post-hoc equality guard (`transition x == 100`),
   changing the bound or operation, or simplifying the construct under test.
-  All nine places (`local`, `field`, `parameter`, `call_result`, `match_join`,
-  `const_name`, `other_state`, `other_machine`, `target_body`) must copy the
-  exact same fact sentence, bind `ProgramEntry` for all four hosted targets
-  (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), and pass
-  `omega run --both` with exit 0.
-- **Minimal reject-twin diff:** Compare `<place>/main.omg` against
-  `<place>/invalid/main.omg` (and `tests/omega/pass/facts/...` against
-  `tests/omega/fail/facts/...`). They must differ **only** in the construct's
-  own broken fact, domain, or contract—never in a caller guard or unrelated
-  syntax.
+  Positive executable witnesses must bind `ProgramEntry` for all four hosted
+  targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`) and
+  pass `omega run --both` with their authored exit.
+- **Minimal reject-twin diff:** Compare positive vs. negative controls
+  (`tests/omega/pass/...` vs. `tests/omega/fail/...`). They must differ **only**
+  in the construct's own broken fact, domain, or contract—never in a caller
+  guard or unrelated syntax.
 - **No deprecated syntax in new or migrated `.omg` files:** Reject any diff
   introducing `state` (instead of nested `machine`), `T [lo..hi]` scalar range
-  suffixes, or `Build::select_provider`.
+  suffixes, or un-targeted `Build::select_provider`.
 
 ### Point 5: Algorithmic Complexity, Ratchet & Board Audit
 - **No quadratic scans or branch explosions:** Inspect loops in hot compiler

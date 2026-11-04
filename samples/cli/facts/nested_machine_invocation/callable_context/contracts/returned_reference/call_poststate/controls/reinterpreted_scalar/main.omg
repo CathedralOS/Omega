@@ -1,8 +1,0 @@
-// Must reject: a signed upper bound does not bound the unsigned backing interpretation.
-machine negative(value: &mut i16) ensures value <= 7i16 { value = -1i16; }
-machine main() {
-    let mut bits: u16 = 5u16;
-    let view: &mut i16 = &mut bits as &mut i16;
-    negative(view);
-    let gap: u16 = bits + 1u16;
-}

@@ -6,7 +6,7 @@ description: Coordinate a requested local swarm using one isolated worktree per 
 # Local Swarm (Platform Adapter)
 
 This skill defines **only** the local shared-machine transport for running concurrent agents on one host.
-- **Worker workflow:** Every worker follows [advance](../advance/SKILL.md) (`/advance`) for capability selection, the 9-place sample loop, validation, and board updates. Do not duplicate `/advance` rules in worker prompts; point the worker to `.agents/skills/advance/SKILL.md`.
+- **Worker workflow:** Every worker follows [advance](../advance/SKILL.md) (`/advance`) and [AGENTS.md](../../../AGENTS.md#law-of-completion) for capability selection, validation, and board updates. Do not duplicate `/advance` rules in worker prompts; point the worker to `.agents/skills/advance/SKILL.md`.
 - **Coordinator review & landing:** Workers push a **draft** PR (`gh pr create --draft`) and stop (`candidate_ready`). The coordinator audits every diff using [coordinator-review](../coordinator-review/SKILL.md) before running `python3 tools/landing.py land <pr> --expected-head <sha>`.
 
 ## 1. Local Host Setup & Worktrees

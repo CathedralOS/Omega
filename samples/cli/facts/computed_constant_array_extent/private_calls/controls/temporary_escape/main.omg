@@ -1,2 +1,0 @@
-const ITEMS: [u64; 1] = [17];
-machine escape() -> &[u64; 1] { &ITEMS }

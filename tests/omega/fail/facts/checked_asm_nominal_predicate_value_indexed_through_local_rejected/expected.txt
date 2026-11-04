@@ -1,1 +1,0 @@
-cannot prove asm `requires` fact at block entry in main state `entry` (statement 8): output == 9

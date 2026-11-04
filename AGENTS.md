@@ -21,11 +21,10 @@ state machines. This repository holds the language, its Rust reference
 compiler, its Omega-written product compiler, and the Alpha-to-Omega bootstrap
 chain.
 
-**The goal is a compiler that ships.** Choose a capability outcome from
-`TASKS.md`, then carry its executable witnesses end to end
-([the sample loop](#the-sample-loop)), not a file or a stage.
-Compiler-advance witnesses are fact folders under `samples/cli/facts`.
-Demonstrate compiler work through real programs and
+**The goal is a compiler that ships.** Choose an unfinished capability or
+release-gate blocker from `TASKS.md`, `tests/omega/corpus_outcomes.txt`, or
+`samples/`, then carry its repair end to end ([the completion loop](#the-sample-loop)),
+not a file or a stage. Demonstrate compiler work through real programs and
 relevant invalid controls; `omega run <program.omg>` must produce the authored
 result. Squalr and Cathedral expose general compiler gaps, not special cases
 to recognize or applications to rewrite around missing language support.
@@ -164,20 +163,24 @@ packages, native matrix, diagnostics, and representative programs) with
 Optimize every engineering and validation choice for **compiler completion**,
 never for making a single turn or gate check appear green:
 
-1. **Never settle for 1-off wins or stop after one passing test:** Making a
-   single fixture or fact folder pass and stopping does not complete the
-   compiler. The nine-place fact row (`samples/cli/facts/<fact>/`) exists to
-   prevent 1-off AST shape hacks by proving a compiler mechanism works across all
-   nine transport places — it is a **generalization bar, never a stopping
-   condition**. Whenever you repair a mechanism:
-   - Prove the general mechanism across all nine transport places (`local`,
-     `field`, `parameter`, `call_result`, `match_join`, `const_name`,
-     `other_state`, `other_machine`, `target_body`).
+1. **Never settle for 1-off wins, stop after one passing test, or bloat `samples/cli/facts`:**
+   Making a single fixture pass and stopping does not complete the compiler, and
+   minting new 36-file `samples/cli/facts/<fact>/` folders bloats the corpus and
+   slows every release gate. `samples/cli/facts/` is **frozen against new folder
+   creation** (`tools/check_rules.py` rejects new folders there). Whenever you
+   repair a mechanism:
+   - Implement the general semantic, proof, and lowering rule across all value
+     placements (`local`, `field`, `parameter`, `call_result`, `match_join`,
+     `const_name`, nested `machine`, other `machine`, and `Build`-selected
+     target implementation) in `omega-rust/`.
    - Sweep and re-record the **entire root-cause family** of pinned regressions in
      `tests/omega/corpus_outcomes.txt` (`--list-pinned-regressions`) and failing
      programs in `samples/` (`tools/sample_native_gate.py`) that share that
      mechanism, closing the whole cluster in one pass rather than one test at a
      time.
+   - Pin any newly uncovered behavior with a focused positive and negative
+     fixture pair under `tests/omega/{pass,fail,run}/<behavior>/` (never a new
+     18-place fact matrix).
    - Immediately continue to the next open requirement of the `TASKS.md`
      capability or the next release-gate blocker in the same session. Do not stop
      after landing one witness or one PR unless the coordinator or user
@@ -213,232 +216,83 @@ never for making a single turn or gate check appear green:
 
 ## The sample loop
 
-Capability outcomes determine priority; samples provide executable evidence.
-Compiler advancement runs `samples/cli/facts` only. One fact is one folder.
-The nine places are local, field, parameter, call result, match join, const
-name, a nested machine, another machine, and another selected target implementation. Those places
-are one row. Do not expand them into a combinatorial matrix.
-The nested-machine place retains the existing `other_state/` path during the
-source migration; it is distinct from the non-nested `other_machine/` place.
-The other-target place uses an ordinary named implementation selected by Build;
-existing target-prefixed witnesses are migration inputs, not supported syntax.
-`samples/cli/facts/length/` is a reference row. Inspect each folder's current
-coverage and applicable evidence to distinguish filled rows from missing places.
-The next advance fills a missing place of the selected fact, or takes the next
-uncovered fact, instead of picking an unrelated program.
+Compiler advancement is driven by the **six release gates** in
+[rust_compiler_completion.md](wiki/drafts/reference/rust_compiler_completion.md):
+repository health, source semantics (`python3 tools/corpus_gate.py`), build and
+packages, the 4-host native execution matrix (`python3 tools/corpus_gate.py --native`
+on `linux_x86_64`, `linux_arm64`, `macos_arm64`, `windows_x86_64`), diagnostics
+(`python3 tools/corpus_gate.py --filter fail/`), and representative programs
+across all of `samples/` (`python3 tools/sample_native_gate.py`).
 
-A fact folder is done only when the same fact survives all nine places. One
-sentence names the fact and the operation, and every place copies that
-sentence. Changing the fact, the bound, or the operation so a place passes
-is a different fact and does not count. Every positive place (and root
-`main.omg` when present) binds `ProgramEntry` for all four hosted targets
-(`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares
-`Expected exit: 0`, and passes `omega run --both` (Terminal Psi and native
-execution agreement); compile-only positive places do not count. A red place
-is a checking or lowering repair: keep the program the same shape, and record
-the diagnostic before editing the compiler. Each place needs a reject twin
-that breaks only that fact or obligation and still rejects. A place with no
-twin does not count, and a row is not closed until its nine positive places
-and nine reject twins are pinned under `tests/omega/{pass,fail}/facts/`. A
-landing that only rewrites the failing place is not acceptance. Exact
-subtraction, alias transfer, and dependent subtract are examples of that
-repair path.
+### No new `samples/cli/facts` folder bloat
 
-When a place fails because the producing layer dropped a requirement, that
-requirement is the fact. The sentence names every requirement that layer
-records on the value it emits: the saved scalars, the write set, the crash
-routes, the domain facts, or the selected body this layer owes. The consuming
-operation is written against that recorded list. Every place transports the
-value and copies the sentence. The reject twin removes one requirement from
-the list, and the diagnostic is the missing requirement. A compiler edit that
-recognizes one production and rebuilds one requirement for it leaves the fact
-open. The next witness is another production of that same layer, in this
-folder, copying the same sentence. A separate fact folder for that production
-does not count.
+`samples/cli/facts/` already holds 414 nine-place folders and
+`tests/omega/{pass,fail}/facts/` holds over 11,500 fixtures. **Creating new
+`samples/cli/facts/<folder>/` directories or new 18-fixture
+`tests/omega/{pass,fail}/facts/<fact>_through_<place>` matrices is frozen** and
+rejected by `tools/check_rules.py`. Existing fact folders remain as regression
+coverage (and any incomplete existing place or broken row inside them may be
+repaired in place), but new compiler work must never mint 36-file fact matrices.
 
-The nine places carry each language construct end to end—from source checking
-and proof through Terminal Psi semantics to native realization and execution
-(`omega run --both`)—as one row per construct, never a combinatorial matrix or
-a stage-isolated task. Each fact folder exists to prove that **one distinct
-compiler mechanism**—one semantic rule, layout representation, ownership or loan
-transition, ABI placement lane, or instruction-lowering path—preserves its
-static meaning and runtime behavior across all nine transport places:
-width/signedness scalars, shifts, narrow-to-wide sign/zero
-extension, signed/unsigned division and remainder, and IEEE floats
-([numeric values](wiki/spec/language/numeric_values.md)); refinement domains,
-dependent value parameters, quotient projections, mathematical bindings,
-inductive structural recursion, and termination measures
-([domains](wiki/spec/language/domains.md),
-[dependent values](wiki/spec/language/dependent_values.md),
-[quotients](wiki/spec/proofs/quotients.md),
-[mathematical bindings](wiki/spec/proofs/mathematical_bindings.md),
-[inductive profile](wiki/spec/proofs/inductive_profile.md),
-[termination](wiki/spec/language/termination.md)); fixed-size arrays,
-nested structural records, tagged case payloads, slice views, explicit layout
-recasts/codecs, and `size_of`/`align_of` layout geometry
-([layout plans](wiki/spec/layouts/plans.md),
-[recasts](wiki/spec/layouts/recasts.md),
-[codecs](wiki/spec/layouts/codecs.md),
-[counts and addresses](wiki/spec/language/counts_and_addresses.md)); borrowed
-projections (`&`, `&mut`), `&write` write-only borrows, affine cleanup, linear
-claim retirement, borrowed-storage restoration windows, content custody,
-policy-governed/MMIO access, and atomic concurrency orderings
-([structural access](wiki/spec/terminal-psi/structural_access.md),
-[ownership](wiki/spec/terminal-psi/ownership.md),
-[loans](wiki/spec/terminal-psi/loans.md),
-[content custody](wiki/spec/resources/content_custody.md),
-[access policies](wiki/spec/resources/access.md),
-[concurrency](wiki/spec/language/concurrency.md)); and named-implementation/`dyn`
-dispatch, multi-argument calling plans across register and stack slots,
-live-across-call preservation, disjoint stack-frame homes, boundary/provider
-calls, foreign bindings, private callbacks, process exit, and checked `asm`
-([dynamic dispatch](wiki/spec/terminal-psi/dynamic_dispatch.md),
-[calling plans](wiki/spec/build/calling_plans.md),
-[foreign bindings](wiki/spec/build/foreign_bindings.md),
-[private callbacks](wiki/spec/build/private_callbacks.md),
-[process exit](wiki/spec/language/process_exit.md),
-[storage](wiki/spec/resources/storage.md),
-[checked assembly](wiki/spec/language/assembly.md)). Once a row proves a
-mechanism across the nine places, repeating that same mechanism at a larger
-count teaches the compiler nothing new. Another production that drops the same
-requirements is that same row: the repair records the requirements on the value
-the layer emits, and the next layer reads that list. A new row is a different
-requirement, a different layer, or a real physical boundary where
-representation, ABI placement, or instruction encoding changes (such as
-crossing from register arguments into stack slots, widening a discriminant tag,
-or relaxing a short branch into a near displacement). When a repair adds or
-changes a construct, carrier, access mode, cleanup disposition, or target rule,
-complete the entire source-to-native path in the same change rather than
-stopping at an intermediate compiler stage. Completion also follows the
-[requirements and evidence rule](#requirements-and-evidence): each completed
-fact row names the requirement it establishes, and each requirement closes only
-when its full acceptance is demonstrated.
+Instead, every compiler repair must:
+1. **Generalize the mechanism in `omega-rust/` across all value placements:**
+   Operate on canonical semantic representations so the same construct, proof
+   fact, loan, cleanup action, or ABI placement works regardless of whether the
+   value arrives through a local, field, parameter, call result, `match` join,
+   `const` name, nested `machine`, other `machine`, or `Build`-selected target
+   implementation, from `Psi 01–05` checking through `Psi 06–08` Terminal Psi
+   and `Omega 00–09` native codegen (`omega run --both`).
+2. **Sweep the entire root-cause family:** Identify and re-record every pinned
+   regression in `tests/omega/corpus_outcomes.txt` (`python3 tools/corpus_gate.py
+   --list-pinned-regressions`) and every failing program in `samples/`
+   (`python3 tools/sample_native_gate.py`) that shares the repaired mechanism.
+3. **Pin new coverage with focused behavioral fixtures:** When a repair covers a
+   gap not already pinned by an existing corpus regression, add a focused
+   positive fixture and reject control under
+   `tests/omega/{pass,fail,run}/<behavior>/` (2 fixtures, not 36).
 
-The sample loop is the **anti-1-off generalization instrument** serving the six
-release gates in [rust_compiler_completion.md](wiki/drafts/reference/rust_compiler_completion.md):
-it ensures every compiler mechanism is proved across all nine transport places
-(`samples/cli/facts/<fact>/`), while every repair simultaneously closes its
-entire root-cause family across `TASKS.md`, pinned corpus regressions in
-`tests/omega/corpus_outcomes.txt`, and representative programs across `samples/`
-(`tools/sample_native_gate.py`). A named assignment outside `samples/cli/facts`
-keeps the oracle on its own program (`Expected exit` or `Expected output
-contains`) and closes the underlying compiler or migration family blocking the
-representative-programs release gate.
+### Priority and continuous execution
 
-1. **Choose the outcome, then its witness.** Honor explicit user scope and
-   retain the current capability assignment first; sessions with an active
-   capability or user assignment never pivot to unrelated `main` regressions.
-   For new automatic work without a current assignment, repair an unclaimed
-   active `main` regression (where the newest completed `Post-merge smoke` run
-   on `main` failed and no live claim already covers it) before choosing an
-   actionable `TASKS.md` outcome in this priority order:
+1. **Choose the outcome and its root-cause family:** Honor explicit user scope
+   and retain the current capability assignment first; sessions with an active
+   assignment never pivot to unrelated `main` regressions. For new automatic
+   work without a current assignment, repair an unclaimed active `main`
+   regression (where the newest completed `Post-merge smoke` run on `main`
+   failed and no live claim covers it) before choosing an actionable outcome in
+   this order:
    - First, take the first unassigned actionable item in `TASKS.md`'s
      `## Priority (human-set only)` section (in top-down order; only humans add,
      reorder, or move items into or out of that section).
    - Within and immediately after that section, prioritize ratified
-     language-design and surface-syntax migrations that affect wide swaths of
-     authored `.omg` files (such as `NESTED-MACHINE-UNIFICATION` replacing
-     `state` with nested `machine` across 100% of `.omg` files,
-     `CANONICALIZE-SCALAR-RANGE-CONTRACTS` removing `T [lo..hi]` suffixes across
-     ~25% of `.omg` files, `STATIC-MACHINE-MIGRATION`, `BUILD-OWNED-TARGET-SELECTION`,
-     `BUILD-OWNED-NATIVE-BINDINGS`, and
-     `TOP-LEVEL-BOUNDARY-REQUIREMENTS`), ordered by `.omg` blast radius so new
-     witnesses and samples are not continually authored in deprecated syntax.
-   - Then take remaining `TASKS.md` outcomes in top-down board order and release
-     dependencies.
-   Discharge compiler capability gaps inside `samples/cli/facts`; for a ratified
-   language-design or surface-syntax migration outcome, carry both its nine-place
-   `samples/cli/facts` witnesses and its repository-wide `.omg`
-   source/library/sample/fixture migration and retired-syntax deletion bullets
-   to completion. Read its full acceptance
-   and verify its remaining gap with an optimized exact-source producer
-   for the recorded fixed base. Reuse a warm `target/` or retained
-   producer with verified inputs; build only when those inputs changed or no
-   valid producer exists. Never use an unverified cached binary. Name
-   the exact requirement the next witness will discharge. Never filter discovery
-   solely to folders that already have all nine `<place>/main.omg` files and
-   already pass on current main (which produces coverage-only commits without
-   advancing `omega-rust/`), and never treat fixing an isolated `tests/omega/`
-   fixture as end-to-end completion without carrying the `TASKS.md` capability
-   across all nine transport places in `samples/cli/facts/<fact>/`. Query both
-   incomplete fact folders (`< 9` standard places present) and open `TASKS.md`
-   requirements whose mechanism lacks a complete nine-place row. `python3
-   tools/sample_queue.py --facts` supplies failing fact witnesses; its
-   smallest-first order does not set product priority, and a green facts list
-   does not fill an unfilled fact. Use existing evidence or a focused run for
-   the selected fact; run `python3 tools/sample_native_gate.py --programs-only
-   --find-work --facts` when discovery is needed and no recent facts record
-   exists. The same commands without `--facts` remain the ordinary program queue
-   and are not compiler-advance selection. A genuinely missing owner decision
-   is cited in the sample README through `OWNER_QUESTIONS.md`.
-2. **Make it run and land.** Done for this witness means it compiles and runs
-   natively with its authored result on main, with every compiler, library and fixture repair
-   it needed landed with it, and its invalid controls still rejecting.
-   Nothing short of that is done: a stage, checkpoint, diagnosis or board edit
-   is progress, not completion. One place running does not finish the fact.
-   A landing that only rewrites the failing place is not acceptance.
-3. **Land complete steps toward the same outcome.** Size each executable
-   repair to finish in one session; the capability may require several landed
-   repairs. When a fact is too large to trace (its size hides the
-   failing construct, or its first failure leads into an unrelated second
-   gap), cut it down: write a smaller witness inside that fact folder that
-   isolates the failing construct with its own oracle, make that run, land it,
-   then return to the fact. The smaller witness keeps the same fact, bound,
-   and operation. Facts advance as a ladder of those places,
-   never as stage tasks.
-4. **Return to the remaining acceptance.** `tests/omega/` (`corpus_results.txt`)
-   and `samples/cli/facts/` own regression retention of landed witnesses;
-   `TASKS.md` owns only the unbuilt or failing gap. Each outcome in `TASKS.md`
-   lists its remaining work as discrete, one-per-line bullets (one unfinished
-   witness or missing mechanism gap per bullet). After a witness lands or already
-   passes, delete its bullet or requirement from `TASKS.md` outright so the
-   board shrinks monotonically (never move a landed witness into a
-   `"preserving / retaining / keeping / now passes"` clause or append milestone
-   history). When one bullet mixes a landed witness with work that is still
-   open, delete only the finished clause and leave the open clause. A merge
-   keeps one heading for each item. Then take the next required place of the
-   same fact, or the next
-   uncovered fact under `samples/cli/facts`. Write a new witness when an
-   uncovered requirement needs one, not to manufacture a failure or fill a slot.
-   Delete the `TASKS.md` item when its full `Acceptance:` passes. Switch capabilities on
-   closure, explicit reprioritization, or a genuine external prerequisite after
-   exhausting feasible work on that outcome. Never interrupt an active
-   capability chain for an unrelated `main` regression, and keep chaining next
-   witnesses directly on the worktree's warm local commit rather than resetting
-   to `origin/main` between witnesses. Respect user stops, budgets and explicitly bounded
-   assignments, preserving the parent outcome and next requirement for resumption.
-   A green facts queue does not establish capability closure. Open-ended
-   advancement stays inside `samples/cli/facts` and takes the next uncovered
-   fact there. Draw that fact from an open `TASKS.md` item's remaining
-   acceptance and name the item in its README, not from the mechanism list
-   above. A folder that changes only a count, width, arity or extension pair
-   of an existing row repeats that row. By 2026-10-21, 24 folders differed
-   only in argument count (9 through 32), and 128 belonged to families that
-   differ only in bit width or extension pair.
-
-A smaller witness is a rung inside the fact that is too large to trace.
-Land it in the same session that returns to that fact. A session that
-lands the rung and stops has not finished. Do not carve a new sample out of
-a fact that already meets its oracle.
-
-Cathedral is a customer. A session driving Cathedral fixes the Omega defect
-that blocks its current acceptance, then returns to Cathedral. It does not
-stay in the compiler collecting adjacent repairs.
-
-The repair inside the loop is ordinary compiler engineering and follows every
-rule below: generalize the operation, check the fact-place fixtures, pin the
-behavior with fixtures under `tests/omega/`, and keep main green.
-
-A change that makes the language reject source it used to accept migrates
-every sample and fixture it breaks in the same change. Run the sample gate on
-the affected samples before landing; a sample left failing by a language
-change becomes someone else's queue entry with no compiler work in it.
+     language-design and surface-syntax migrations (`NESTED-MACHINE-UNIFICATION`,
+     `CANONICALIZE-SCALAR-RANGE-CONTRACTS`, `STATIC-MACHINE-MIGRATION`,
+     `BUILD-OWNED-TARGET-SELECTION`, `BUILD-OWNED-NATIVE-BINDINGS`, and
+     `TOP-LEVEL-BOUNDARY-REQUIREMENTS`) ordered by `.omg` blast radius.
+   - Next, take remaining `TASKS.md` outcomes in top-down board order and
+     cluster-sized families of pinned regressions in
+     `tests/omega/corpus_outcomes.txt` (`--list-pinned-regressions`) and failing
+     programs in `samples/` (`tools/sample_native_gate.py`).
+   Reuse a warm `target/` producer with verified inputs; build only when those
+   inputs changed or no valid producer exists.
+2. **Make the full family run and land:** Done for a slice means the compiler
+   repair is general across value placements and stages (`omega run --both`),
+   the entire root-cause family in `tests/omega/corpus_outcomes.txt` and
+   `samples/` is repaired and cleanly recorded (zero `+wt` stamps, zero
+   `pass/` rows recorded as `rejected`, zero `fail/` rows recorded as
+   `unexpected`), and any language change that rejects previously accepted
+   syntax migrates every affected sample and fixture in the same commit.
+3. **Update `TASKS.md` monotonically and continue immediately:** Delete each
+   completed bullet or clause from `TASKS.md` outright so the board shrinks
+   monotonically (never rewrite completed work into `"preserving / retaining /
+   keeping / now passes"` prose), and delete the item when its full
+   `Acceptance:` passes. Landing one slice never ends the session: immediately
+   continue to the next open requirement of the capability or next release-gate
+   blocker on the warm worktree until the assigned capability or wave is closed.
 
 ### Requirements and evidence
 
-Facts supply executable evidence; the accepted specification requirements define
-what must be complete end to end. Read the governing specification and the owning
-task's full acceptance. Prove out and list these obligations in the sample fact:
+Every compiler repair and its fixtures must satisfy the accepted specification
+requirements end to end:
 
 - **Establishment:** construction, guards, entry contracts, completed calls or
   checked theorem evidence on the construct under test justify introducing the
@@ -907,9 +761,9 @@ are byte-sensitive.
 - A newly discovered obstacle belongs to the work that found it: fix it
   rather than filing a task for someone else. Do not split work or mine
   tasks to keep agents busy; narrow parallel slices build duplicate routes for
-  the same operation. An empty facts queue calls for the next uncovered place,
-  or a new fact drawn from an open `TASKS.md` item's remaining acceptance
-  (step 4 of the sample loop).
+  the same operation. When a slice lands, immediately take the next open
+  requirement of the parent `TASKS.md` capability or the next release-gate
+  regression family in `tests/omega/corpus_outcomes.txt` and `samples/`.
 - Overlap is expected and needs no permission. A Git conflict is a design
   signal: two sessions are changing one decision point, so reconcile them into
   one implementation at rebase. Conflicts only show textual overlap; semantic
@@ -982,10 +836,12 @@ To publish a PR, push HEAD directly to origin:
 `git push origin HEAD:refs/heads/work/<short-name>`.
 On that first push, open the pull request as a draft and return its URL in the
 same turn. Later pushes update that same draft. A request to "push" includes
-this step; no separate confirmation is needed. When the work is finished and
-pushed, run `python tools/landing.py land <number> --expected-head <sha>`: it marks
-the draft ready and hands the wait for `compiler-check` to GitHub's merge queue,
-then returns. A draft cannot enter the queue, and it is not a place to leave the work.
+this step; no separate confirmation is needed. When controlled by a coordinator
+session, stop at the draft pull request (`candidate_ready`) so the coordinator
+can run [coordinator-review](.agents/skills/coordinator-review/SKILL.md) before
+landing; standalone sessions with no coordinator run
+`python tools/landing.py land <number> --expected-head <sha>` after
+self-reviewing against the same checklist. A draft cannot enter the queue, and it is not a place to leave the work.
 
 **Retain and reuse warm worktrees as workbenches.** Teardown is never mandatory.
 Reusing an existing worktree preserves its pre-compiled `target/` directory and
@@ -1016,8 +872,10 @@ including after resumption or compaction.
 
 **Never chase main with gates or rebuilds.** Main or queue SHA movement alone never
 triggers pull, rebase, build, requalification, gate re-runs, or review. A draft
-pull request is already submitted for `compiler-check`. Land it with
-`tools/landing.py land` in the same session; do not leave it draft across unrelated landings, and do
+pull request is already submitted for `compiler-check`. Standalone sessions land
+it with `tools/landing.py land` in the same session after self-review; workers
+under a coordinator report `candidate_ready` so the coordinator reviews and
+lands it with `tools/landing.py land`; do not leave a draft across unrelated landings, and do
 not rebase it merely because `main` moved. Once it is ready, GitHub's native
 merge queue and Actions CI perform the integration build and admission check
 against current `main`. Authors only perform focused validation on their own
@@ -1170,25 +1028,32 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   Worktrees may be retained and reused as warm build workbenches (`git checkout --detach origin/main`)
   to accelerate future builds, or removed (`git worktree remove <path>`) when explicitly requested
   or reclaiming disk.
-- **Do not add required feature-combination special cases. Clean as you go.**
-  Generalize the touched operation or representation and remove its superseded
-  path in the same change; do not land another source-shape recognizer, fallback
-  or mode with cleanup deferred to a task. Preserve genuine semantic and ABI
-  distinctions. Optional optimization specialization requires a correct general
-  path. See [compositional lowering](omega-rust/pipeline.md#compositional-lowering).
-  A repair counts only when the same proved fact (a length, a bound, or a loan) works through a local, a field, a parameter, a call result, a match join, a const name, a nested machine, another machine, and another selected target implementation, as pinned by the fact-place fixtures under [`tests/omega/pass/facts`](tests/omega/pass/facts) and [`tests/omega/fail/facts`](tests/omega/fail/facts). When the fact is a requirement the producing layer dropped, the sentence names the requirements recorded on the emitted value, the consuming operation uses that list, and another production that drops the same requirements stays in that fact folder.
+- **Do not add required feature-combination special cases or new `samples/cli/facts` folders. Clean as you go.**
+  Generalize the touched operation or representation across all value placements
+  (`local`, `field`, `parameter`, `call_result`, `match_join`, `const_name`,
+  nested `machine`, other `machine`, and `Build`-selected target implementation)
+  and remove its superseded path in the same change; do not land another
+  source-shape recognizer, fallback, or mode with cleanup deferred to a task,
+  and do not create new `samples/cli/facts/<folder>/` directories (which are
+  frozen by `tools/check_rules.py` to prevent corpus bloat). Pin repairs by
+  flipping existing pinned regressions in `tests/omega/corpus_outcomes.txt` and
+  `samples/`, or with a focused positive/negative fixture pair under
+  `tests/omega/{pass,fail,run}/<behavior>/`. See
+  [compositional lowering](omega-rust/pipeline.md#compositional-lowering).
 - **Verify at trust boundaries, not after every stage.** Foreign package review
   and untrusted build-script execution verify; a stage never re-validates,
   replays or rebuilds output the same compile just produced. Verifiers stay
   exercised by the corpus runner and tests, off the default compile path. See
   [verification placement](omega-rust/pipeline.md#verification-placement).
-- **Every delivery push must have a draft until it can merge.** A user request
+- **Every delivery push must have a draft until reviewed and landed.** A user request
   to "push" means push the committed work and open or update its pull request
   in the same turn. The first push opens a draft (`gh pr create --draft`).
-  Later pushes update that same draft. When the work is finished and pushed, run
+  Later pushes update that same draft. Under a coordinator session, the worker
+  stops at the draft PR and reports `candidate_ready` so the coordinator can run
+  [coordinator-review](.agents/skills/coordinator-review/SKILL.md) before running
   `python tools/landing.py land <number> --expected-head <sha>`
-  ([tools/landing.md](tools/landing.md)); it marks the draft ready and GitHub adds
-  it to the queue when `compiler-check` passes. A draft cannot enter the queue. Reuse
+  ([tools/landing.md](tools/landing.md)); standalone sessions run
+  `tools/landing.py land` after self-reviewing against the same checklist. A draft cannot enter the queue. Reuse
   the existing pull request, verify its head matches the pushed commit, and
   return the PR URL. A draft is not a place to leave the work: the session
   still lands it and does not leave the draft across unrelated landings. Do
@@ -1198,7 +1063,7 @@ Commit messages carry no tool attribution: no "Generated with ..." line, no
   push as completion.
 - **Never push to `main` directly and never chase `main` with gates.** Push candidate commits
   directly from HEAD to a remote work branch ref (`git push origin HEAD:refs/heads/work/<name>`)
-  and open that pull request as a draft until the work is finished, then land it with
+  and open that pull request as a draft until reviewed and landed via
   `tools/landing.py land` ([tools/landing.md](tools/landing.md)). The queue
   integrates the candidate with latest `main`, and GitHub Actions CI performs the build and checks.
   Do focused validation only on the author's own changes against the recorded worktree base;

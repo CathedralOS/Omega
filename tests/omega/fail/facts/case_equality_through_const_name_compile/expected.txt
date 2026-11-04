@@ -1,1 +1,0 @@
-state `take` assignment may overflow `u64`

@@ -1,1 +1,0 @@
-cannot form specification index in machine `count` requires contract: independent collection bounds are not established by preceding formed facts
