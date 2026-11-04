@@ -1,5 +1,5 @@
 machine build(builder: &mut Build) {
-    Build::application(builder, "finite_const_roster_local");
+    Build::application(builder, "finite_family_const_missing_row");
     Build::bind(builder, linux_x86_64::ProgramEntry, main);
     Build::bind(builder, linux_arm64::ProgramEntry, main);
     Build::bind(builder, macos_arm64::ProgramEntry, main);

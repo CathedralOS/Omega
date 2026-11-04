@@ -68,7 +68,7 @@ Linux x86-64 at `74bbe3c7f0f173fe5063b15d085e810758a215be`:
 [run 41560780946](https://github.com/CathedralOS/Omega/actions/runs/41560780946).
 That result establishes existing literal-call behavior.
 
-The [local bridge](bridge/local/main.omg) exposed a current compiler defect:
+The [original local bridge](https://github.com/CathedralOS/Omega/blob/738740fe657619248c4085b47b376e3788e9f175/samples/cli/facts/finite_family_const_roster/bridge/local/main.omg) exposed a current compiler defect:
 optimized compiler `17be13e1a9ff` refused its valid generic provider's const call.
 At `d023d9db7fb8`, that frozen program, a computed const expression, correlated
 parameter pairs, and an explicit nested const call execute with native and
@@ -76,7 +76,22 @@ Terminal exits 0 on macOS ARM64. Runtime-to-const, unrestricted-value,
 wrong-carrier, unsupported-row and crossed-pair controls still reject for their
 intended causes. The claim retains the exact producer, sources and raw outputs.
 
-The nine updated transport places and their corpus mirrors still need fresh
-execution and intended rejections. Other-host execution and target-ineligible
+All nine updated sample places execute with native and Terminal exits 0 on
+macOS ARM64. Their nine corpus positives check and all eighteen sample/corpus
+twins reject as intended. These observations use the retained `d023d9db7fb8`
+compiler against program revision `baf04598f640`, with all seven compiler,
+library, tool and configuration objects verified equal. The claim retains all
+319 input hashes and 72 raw-output digests. Corpus runtime records still need
+fresh qualification. Other-host execution and target-ineligible
 bridge qualification remain open. These local results do not close the parent
 task.
+
+
+The focused [forwarding program](../../../../tests/omega/pass/traits/finite_family_const_forwarding/main.omg)
+combines computed const arguments, the original correlated pairs, and a public
+const-forwarding machine. Its twin removes only that machine's width requirement
+and must fail the ordinary call-precondition proof. A separate
+[missing-row control](../../../../tests/omega/fail/traits/finite_family_const_missing_row/main.omg)
+keeps the runtime family's two rows while removing the kernel's second row;
+main requests only the first. The repository keeps these focused controls beside
+the existing transport fixtures instead of adding another fact folder.
