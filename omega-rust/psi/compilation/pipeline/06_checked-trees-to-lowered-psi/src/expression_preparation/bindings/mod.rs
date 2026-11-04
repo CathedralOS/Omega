@@ -539,17 +539,9 @@ impl ScalarBindings {
             // The alias has no descriptor word to load. Remove only its
             // producer-spelled outer crossing; a reference stored inside the
             // borrowed value still needs its own real pointer load.
-            let mut suffix = argument.path.as_slice();
-            if argument.borrowed_root_reference_hops() > 0 {
-                let Some((checked_trees::CheckedUnitStructuralPathSegment::Referent, rest)) =
-                    suffix.split_first()
-                else {
-                    return unsupported("place loan lost its declared outer reference crossing");
-                };
-                suffix = rest;
-            }
+            let omitted_crossing = usize::from(argument.borrowed_root_reference_hops() > 0);
             let mut prefix = alias.loan.path.clone();
-            prefix.extend_from_slice(suffix);
+            prefix.extend(argument.path.iter().skip(omitted_crossing).cloned());
             argument.path = prefix;
             let mut coordinates = alias.selectors.clone();
             coordinates.extend(captured);
