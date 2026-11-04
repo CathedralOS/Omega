@@ -912,6 +912,31 @@ pub fn cast_erases_membership(
             })
 }
 
+/// Whether the value `expression` delivers lost this membership to an
+/// erasing cast. A borrow lends the value it names, so `&(x as T)` lends a
+/// value without the meaning `T` omits, though the bytes stay in `x`.
+/// A recast or an unresolved cast ends the walk without erasing.
+pub fn expression_erases_membership(
+    program: &dyn crate::CheckingInput,
+    mut expression: typed_trees::expression::ExpressionHandle,
+    domain_symbol: SymbolHandle,
+    semantic_domain: language_semantics::SemanticDomainId,
+) -> bool {
+    while let Some(borrow) = program.expression_table.borrow_expression(expression) {
+        expression = borrow.target;
+    }
+    while let Some(cast) = program.expression_table.cast_node(expression) {
+        if cast.form.is_recast() || !cast.result_type.is_valid() {
+            return false;
+        }
+        if cast_erases_membership(program, cast, domain_symbol, semantic_domain) {
+            return true;
+        }
+        expression = cast.value;
+    }
+    false
+}
+
 /// The exact declared domain constraints of a type-reference conjunction,
 /// including each application's closed index roster.
 ///

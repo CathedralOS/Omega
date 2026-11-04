@@ -6487,6 +6487,7 @@ pass/operators/core_operator_spelling_surface built 2475ms @a92f16431042
 pass/operators/crash_routes built 2458ms exit:0 interpreter-exit:0 interpreter:agrees @a92f16431042
 pass/operators/division_value_entry_selection built 5569ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
 pass/operators/domain_operator_overload_signature_compile checked 1554ms @a92f16431042
+pass/operators/domain_qualified_boundary_operator_exit built 5957ms exit:0 interpreter-exit:0 interpreter:agrees @18fc751d0060+wt
 pass/operators/fixed_token_operators checked 1700ms @a92f16431042
 pass/operators/fixed_use_survives_division_and_call_exit built 4897ms exit:0 stdout:match stderr:match interpreter-exit:0 interpreter-stdout:match interpreter-stderr:match interpreter:agrees @a92f16431042
 pass/operators/float_operator_identities built 15539ms exit:70 interpreter-exit:70 interpreter:agrees @a92f16431042
