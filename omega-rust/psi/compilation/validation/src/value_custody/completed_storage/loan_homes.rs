@@ -217,7 +217,7 @@ fn owner_segment_agrees(
     }
 }
 
-fn place_segments(path: &[BorrowLoanOwnerSegment]) -> Vec<PlaceSegment> {
+pub(super) fn place_segments(path: &[BorrowLoanOwnerSegment]) -> Vec<PlaceSegment> {
     path.iter()
         .map(|segment| match segment {
             BorrowLoanOwnerSegment::Field(symbol) => PlaceSegment::Field { symbol: *symbol },

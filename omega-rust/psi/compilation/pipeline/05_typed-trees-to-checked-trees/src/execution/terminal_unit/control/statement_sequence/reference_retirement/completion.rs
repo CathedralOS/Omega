@@ -145,6 +145,24 @@ impl Retirement<'_> {
             })
             .peekable();
         let control = &self.facts.flow.control;
+        let call_descriptors = if loan.formation_owner_path.is_none() {
+            match validation::completed_storage::loan_call_descriptors(
+                self.program,
+                self.facts,
+                self.machine,
+                self.state.symbol,
+                handle,
+            ) {
+                Ok(Some(descriptors)) => Some(descriptors),
+                Ok(None) => return false,
+                Err(reason) => {
+                    self.trace.phase(reason);
+                    return false;
+                }
+            }
+        } else {
+            None
+        };
         let storage = validation::CanonicalPlace {
             root: loan.storage_owner,
             segments: path.clone(),
@@ -167,6 +185,17 @@ impl Retirement<'_> {
                 };
                 !stored.is_empty()
                     && stored.iter().all(|stored| {
+                        if let Some(descriptors) = &call_descriptors {
+                            return descriptors.iter().any(|descriptor| {
+                                descriptor.captured.capture == stored.capture
+                                    && validation::corresponding_place_projection(
+                                        self.program,
+                                        stored.reference,
+                                        &stored.projection,
+                                    )
+                                    .is_some_and(|path| path == descriptor.captured.projection)
+                            });
+                        }
                         validation::completed_storage::descriptor_formation_matches_loan(
                             self.program,
                             control,

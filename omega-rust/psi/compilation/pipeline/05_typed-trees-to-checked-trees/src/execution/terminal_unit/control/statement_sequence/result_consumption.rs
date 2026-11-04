@@ -1268,15 +1268,20 @@ pub(in crate::execution::terminal_unit) fn append_exit_reference_releases(
                 }
                 continue;
             }
-            if !storage_loans
-                .iter()
-                .all(|loan| retirement.holder_retired(*loan))
-            {
+            let mut waiting_storage = None;
+            if !storage_loans.iter().all(|loan| {
+                let retired = retirement.holder_retired(*loan);
+                if !retired {
+                    waiting_storage = Some(*loan);
+                }
+                retired
+            }) {
                 if std::env::var_os("OMEGA_COMPILER_CHECK_SITES").is_some() {
                     eprintln!(
-                        "CHECKSITE exit-reference-pending state={state:?} result={} reason=storage-holder scheduled={} storage_loans={storage_loans:?}",
+                        "CHECKSITE exit-reference-pending state={state:?} result={} reason=storage-holder scheduled={} storage_loans={storage_loans:?} waiting={waiting_storage:?} row={:?}",
                         result.binding_ordinal,
-                        scheduled.len()
+                        scheduled.len(),
+                        waiting_storage.map(|loan| facts.borrow.loans.get(loan)),
                     );
                 }
                 continue;

@@ -105,3 +105,5 @@ mod loan_homes;
 pub use loan_homes::{
     InstalledLoanHomes, descriptor_formation_matches_loan, descriptor_formation_sources,
 };
+mod call_stores;
+pub use call_stores::{CompletedCallDescriptor, loan_call_descriptors};
