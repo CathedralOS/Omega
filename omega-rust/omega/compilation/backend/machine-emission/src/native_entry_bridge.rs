@@ -23,10 +23,13 @@
 
 use arena::Arena;
 use calling_conventions::{
-    CallPlan, EntryControl, MachineRegister, RegisterSet, ValueClass, ValuePlacement, ValueShape,
+    BoundaryEntryPlan, CallPlan, EntryControl, MachineRegister, RegisterSet,
+    StateFootprintEvidence, ValueClass, ValuePlacement, ValueShape,
 };
 use register_model::validate_physical_register_model;
 use target::{Architecture, NativeTarget};
+
+mod entry_protocol;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct NativeEntryParameter {
@@ -39,7 +42,10 @@ pub struct NativeEntryParameter {
 pub struct NativeEntryBridgeRequest {
     pub target: NativeTarget,
     pub internal: CallPlan,
-    pub inbound: CallPlan,
+    /// The entry owns both argument placement and interrupted-state obligations.
+    pub inbound: BoundaryEntryPlan,
+    /// Actual checked body closure, required for asynchronous entry ceilings.
+    pub body_footprint: Option<StateFootprintEvidence>,
     /// Internal scalar-then-structural order, joined through nominal origins.
     pub parameters: Arena<NativeEntryParameter>,
 }
@@ -73,6 +79,10 @@ impl NativeEntryBridge {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NativeEntryBridgeError {
     IncompatiblePlan,
+    UnsupportedEntryControl,
+    UnsupportedInterruptState,
+    MissingInterruptBodyFootprint,
+    InterruptBodyStateExceedsPlan,
     InvalidParameterJoin,
     UnsupportedValueTransport,
     MissingScalarCodec,
@@ -81,7 +91,24 @@ pub enum NativeEntryBridgeError {
     Encoding,
     ReplayMismatch,
 }
-diagnostics::failed_display!(NativeEntryBridgeError, "native entry bridge failed");
+impl std::fmt::Display for NativeEntryBridgeError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let reason = match self {
+            Self::UnsupportedEntryControl => "this target cannot emit the requested entry return",
+            Self::UnsupportedInterruptState => {
+                "interrupt entry requires the supported x86-64 integer-register save/restore plan and 16-byte stack alignment"
+            }
+            Self::MissingInterruptBodyFootprint => {
+                "interrupt entry lacks the checked handler's machine-state effects"
+            }
+            Self::InterruptBodyStateExceedsPlan => {
+                "interrupt handler uses machine state its entry does not permit, save and restore"
+            }
+            _ => return write!(formatter, "native entry bridge failed: {self:?}"),
+        };
+        write!(formatter, "native entry bridge failed: {reason}")
+    }
+}
 impl std::error::Error for NativeEntryBridgeError {}
 type Error = NativeEntryBridgeError;
 
@@ -168,17 +195,18 @@ fn value_transport(
 }
 
 /// Build an adapter from two already admitted calling plans. Owned ABI pointers
-/// name complete byte extents, not borrows. Non-call entry regimes reject;
-/// equal thin-pointer geometry never admits a scalar loan.
+/// name complete byte extents, not borrows. Interrupt entry preserves its
+/// admitted state around the same body transport; it does not establish the
+/// incoming arguments. Equal pointer geometry never admits a scalar loan.
 pub fn emit_native_entry_bridge(
     request: NativeEntryBridgeRequest,
 ) -> Result<NativeEntryBridge, Error> {
+    let protocol = entry_protocol::select(&request)?;
     let internal = &request.internal;
-    let inbound = &request.inbound;
+    let inbound = &request.inbound.call;
     if internal.policy.architecture() != request.target.architecture
         || inbound.policy.architecture() != request.target.architecture
         || internal.entry_control != EntryControl::CallReturn
-        || inbound.entry_control != EntryControl::CallReturn
         || internal.stack_alignment != 16
         // A stronger incoming alignment still guarantees the bridge's
         // 16-byte frame base. Incoming stack offsets are entry-relative;
@@ -396,11 +424,12 @@ pub fn emit_native_entry_bridge(
     // are inputs; only direct result registers (and x64's result-pointer echo)
     // supersede the caller's old register value.
     let internal_writes = RegisterSet::new(
-        internal
-            .ordinary_clobbers
+        protocol
+            .body_clobbers
             .as_slice()
             .iter()
             .copied()
+            .chain(protocol.preserved_registers.as_slice().iter().copied())
             .chain([scratch_register, address_scratch])
             .chain(
                 transports
@@ -417,6 +446,29 @@ pub fn emit_native_entry_bridge(
                     }),
             ),
     );
+    if inbound.entry_control == EntryControl::InterruptReturn
+        && internal_writes
+            .as_slice()
+            .iter()
+            .copied()
+            .chain(
+                transports
+                    .iter()
+                    .flat_map(|transport| transport.source.pieces())
+                    .filter_map(|piece| match piece.location {
+                        WordLocation::Register(register) => Some(register),
+                        WordLocation::Stack(_) => None,
+                    }),
+            )
+            .any(|register| {
+                matches!(
+                    register,
+                    MachineRegister::X86Xmm(_) | MachineRegister::Aarch64V(_)
+                )
+            })
+    {
+        return Err(Error::UnsupportedInterruptState);
+    }
     let result_output = |register| match result.as_ref().map(|transport| &transport.destination) {
         Some(ValueStorage::Direct(pieces)) => pieces.iter().any(
             |piece| matches!(piece.location, WordLocation::Register(output) if output == register),
@@ -433,7 +485,12 @@ pub fn emit_native_entry_bridge(
         .iter()
         .copied()
         .filter(|register| {
-            !inbound.ordinary_clobbers.contains(*register) && !result_output(*register)
+            // The frame epilogue and CPU return frame restore RSP. It is not
+            // an ordinary spill slot, even when the body uses its stack.
+            *register != MachineRegister::X86Rsp
+                && (protocol.preserved_registers.contains(*register)
+                    || (!inbound.ordinary_clobbers.contains(*register)
+                        && !result_output(*register)))
         })
     {
         let byte_size = if matches!(
@@ -457,7 +514,7 @@ pub fn emit_native_entry_bridge(
     let frame_bytes = cursor
         .checked_add(15)
         .map(|value| value & !15)
-        .and_then(|value| value.checked_add(call_stack_bias(request.target.architecture)))
+        .and_then(|value| value.checked_add(protocol.frame_alignment_padding))
         .filter(|value| *value <= i32::MAX as u32)
         .ok_or(Error::FrameOverflow)?;
     let interval = crate::frame_layout::stack_commit::stack_commit_granule_bytes(request.target)
@@ -502,6 +559,7 @@ pub fn emit_native_entry_bridge(
             false,
         )?;
     }
+    bytes.extend_from_slice(protocol.before_body);
     // Capture registers before any scratch-based stack transfer.
     for (transport, snapshot) in transports.iter().zip(&snapshots) {
         encoding.capture_registers(
@@ -516,7 +574,7 @@ pub fn emit_native_entry_bridge(
         encoding.capture_registers(&mut bytes, transport.destination.pieces(), pointer)?;
     }
     let incoming_bias = frame_bytes
-        .checked_add(call_stack_bias(request.target.architecture))
+        .checked_add(protocol.incoming_argument_bias)
         .ok_or(Error::FrameOverflow)?;
     for (transport, snapshot) in transports.iter().zip(&snapshots) {
         encoding.capture_stack(
@@ -615,10 +673,7 @@ pub fn emit_native_entry_bridge(
         encoding.memory(&mut bytes, MachineRegister::Aarch64X(30), offset, 8, true)?;
     }
     bytes.extend_from_slice(&epilogue);
-    match request.target.architecture {
-        Architecture::Aarch64 => bytes.extend_from_slice(&isa_aarch64::ORDINARY_RETURN_BYTES),
-        Architecture::X86_64 => bytes.extend_from_slice(&isa_x86_64::ORDINARY_RETURN_BYTES),
-    }
+    bytes.extend_from_slice(protocol.return_bytes);
     Ok(NativeEntryBridge {
         request,
         bytes,
@@ -639,7 +694,10 @@ pub fn validate_native_entry_bridge(bridge: &NativeEntryBridge) -> Result<(), Er
 mod tests {
     use super::*;
     use crate::native_bridge_encoding::value_pieces;
-    use calling_conventions::{CallSignature, CallingPolicy, ValueLocation, evaluate_call_plan};
+    use calling_conventions::{
+        CallSignature, CallingPolicy, ValueLocation, evaluate_call_plan,
+        evaluate_ordinary_boundary_entry_plan,
+    };
 
     fn request(
         target: NativeTarget,
@@ -658,7 +716,7 @@ mod tests {
             },
         )
         .unwrap();
-        let inbound = evaluate_call_plan(
+        let inbound = evaluate_ordinary_boundary_entry_plan(
             policy,
             &CallSignature {
                 parameters: inbound_shapes,
@@ -676,9 +734,181 @@ mod tests {
         NativeEntryBridgeRequest {
             target,
             internal,
-            inbound,
+            inbound: inbound.plan().clone(),
+            body_footprint: None,
             parameters,
         }
+    }
+
+    fn interrupt_request(shapes: Vec<ValueShape>) -> NativeEntryBridgeRequest {
+        use calling_conventions::{
+            EntryStack, MachineRegime, MachineState, MachineStateSet, Preemption, StatePlan,
+        };
+        let count = shapes.len();
+        let mut request = request(
+            NativeTarget::linux_x64(),
+            shapes.clone(),
+            shapes,
+            &(0..count as u32).collect::<Vec<_>>(),
+            &vec![0; count],
+            None,
+        );
+        request.inbound.call.entry_control = EntryControl::InterruptReturn;
+        let preserved = MachineStateSet::new([
+            MachineState::GeneralRegisters,
+            MachineState::Flags,
+            MachineState::InstructionPointer,
+            MachineState::StackPointer,
+        ]);
+        request.inbound.state = StatePlan {
+            initial_regime: MachineRegime::X86Long64,
+            interrupted_state: preserved
+                .union(MachineStateSet::new([MachineState::VectorRegisters])),
+            saved_state: preserved,
+            restored_state: preserved,
+            permitted_transitive_use: preserved,
+            stack: EntryStack::Dedicated { class: 4 },
+            preemption: Preemption::Masked,
+        };
+        request.body_footprint = Some(StateFootprintEvidence::new(
+            RegisterSet::new([
+                MachineRegister::X86Rax,
+                MachineRegister::X86Rdx,
+                MachineRegister::X86Rsp,
+            ]),
+            MachineStateSet::new([
+                MachineState::Flags,
+                MachineState::InstructionPointer,
+                MachineState::StackPointer,
+            ]),
+        ));
+        request
+    }
+
+    #[test]
+    fn interrupt_entry_preserves_registers_and_returns_through_cpu_frame() {
+        use iced_x86::{Decoder, DecoderOptions, Mnemonic, Register};
+        let bridge = emit_native_entry_bridge(interrupt_request(vec![])).unwrap();
+        let instructions = Decoder::new(64, bridge.bytes(), DecoderOptions::NONE)
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert!(
+            instructions
+                .iter()
+                .all(|instruction| !instruction.is_invalid())
+        );
+        assert_eq!(instructions.last().unwrap().mnemonic(), Mnemonic::Iretq);
+        let call = instructions
+            .iter()
+            .position(|instruction| instruction.mnemonic() == Mnemonic::Call)
+            .unwrap();
+        assert!(
+            instructions[..call]
+                .iter()
+                .any(|instruction| instruction.mnemonic() == Mnemonic::Cld)
+        );
+        let stores = instructions[..call]
+            .iter()
+            .filter(|instruction| {
+                instruction.mnemonic() == Mnemonic::Mov
+                    && instruction.memory_base() == Register::RSP
+                    && instruction.op1_register() != Register::None
+            })
+            .count();
+        let loads = instructions[call + 1..]
+            .iter()
+            .filter(|instruction| {
+                instruction.mnemonic() == Mnemonic::Mov
+                    && instruction.memory_base() == Register::RSP
+                    && instruction.op0_register() != Register::None
+            })
+            .count();
+        assert_eq!((stores, loads), (15, 15));
+        assert_eq!(bridge.frame_bytes() % 16, 8);
+        validate_native_entry_bridge(&bridge).unwrap();
+
+        // Optional CPU-harness artifact: the adapter comes from the compiler;
+        // its ordinary test body writes T and returns. This is not an Omega
+        // source-body or interrupt-acknowledgement qualification witness.
+        if let Some(path) = std::env::var_os("OMEGA_INTERRUPT_BRIDGE_PROBE") {
+            let mut payload = bridge.bytes().to_vec();
+            let body_offset = payload.len();
+            payload.extend_from_slice(&[0xb0, b'T', 0xe6, 0xe9, 0xc3]);
+            let field = bridge.call_field_offset();
+            let displacement =
+                i32::try_from(body_offset).unwrap() - i32::try_from(field + 4).unwrap();
+            payload[field..field + 4].copy_from_slice(&displacement.to_le_bytes());
+            std::fs::write(path, payload).unwrap();
+        }
+    }
+
+    #[test]
+    fn interrupt_stack_arguments_follow_the_complete_return_frame() {
+        use calling_conventions::ValueLocation;
+        use iced_x86::{Decoder, DecoderOptions, Register};
+        let mut request = interrupt_request(vec![ValueShape::integer(8, 8)]);
+        request.inbound.call.parameters[0].locations = vec![ValueLocation::Stack {
+            stack_byte_offset: 0,
+            value_byte_offset: 0,
+            byte_size: 8,
+            alignment: 8,
+        }];
+        let bridge = emit_native_entry_bridge(request).unwrap();
+        let instructions = Decoder::new(64, bridge.bytes(), DecoderOptions::NONE)
+            .into_iter()
+            .collect::<Vec<_>>();
+        assert!(
+            instructions
+                .iter()
+                .any(|instruction| instruction.memory_base() == Register::RSP
+                    && instruction.memory_displacement64() == u64::from(bridge.frame_bytes()) + 40)
+        );
+        assert!(!instructions.iter().any(|instruction| {
+            instruction.memory_base() == Register::RSP
+                && (u64::from(bridge.frame_bytes())..u64::from(bridge.frame_bytes()) + 40)
+                    .contains(&instruction.memory_displacement64())
+        }));
+    }
+
+    #[test]
+    fn interrupt_entry_refuses_vector_argument_reads() {
+        use calling_conventions::ValueLocation;
+        let mut request = interrupt_request(vec![ValueShape::integer(8, 8)]);
+        request.inbound.call.parameters[0].locations = vec![ValueLocation::Register {
+            register: MachineRegister::X86Xmm(0),
+            value_byte_offset: 0,
+            byte_size: 8,
+        }];
+        assert_eq!(
+            emit_native_entry_bridge(request),
+            Err(Error::UnsupportedInterruptState)
+        );
+    }
+
+    #[test]
+    fn interrupt_entry_refuses_unpreserved_or_unaccounted_body_state() {
+        use calling_conventions::{MachineState, MachineStateSet};
+        let mut missing = interrupt_request(vec![]);
+        missing.body_footprint = None;
+        assert_eq!(
+            emit_native_entry_bridge(missing),
+            Err(Error::MissingInterruptBodyFootprint)
+        );
+        let mut vector = interrupt_request(vec![]);
+        vector.body_footprint = Some(StateFootprintEvidence::new(
+            RegisterSet::new([MachineRegister::X86Xmm(0)]),
+            MachineStateSet::empty(),
+        ));
+        assert_eq!(
+            emit_native_entry_bridge(vector),
+            Err(Error::InterruptBodyStateExceedsPlan)
+        );
+        let mut unsaved = interrupt_request(vec![]);
+        unsaved.inbound.state.saved_state = MachineStateSet::new([MachineState::Flags]);
+        assert_eq!(
+            emit_native_entry_bridge(unsaved),
+            Err(Error::UnsupportedInterruptState)
+        );
     }
 
     /// Keep only the internal clobbers the case names as inbound, so one
@@ -687,7 +917,7 @@ mod tests {
         request: &mut NativeEntryBridgeRequest,
         keep: impl Fn(&MachineRegister) -> bool,
     ) {
-        request.inbound.ordinary_clobbers = RegisterSet::new(
+        request.inbound.call.ordinary_clobbers = RegisterSet::new(
             request
                 .internal
                 .ordinary_clobbers
@@ -813,7 +1043,7 @@ mod tests {
         let mut request = request(target, vec![], vec![], &[], &[], None);
         // Neither promise clobbers anything, so only the bridge's own scratch
         // use can put a register in the saved set.
-        request.inbound.ordinary_clobbers = RegisterSet::default();
+        request.inbound.call.ordinary_clobbers = RegisterSet::default();
         request.internal.ordinary_clobbers = RegisterSet::default();
         let bridge = emit_native_entry_bridge(request).unwrap();
         let before_call = &bridge.bytes()[..bridge.call_field_offset() - 1];
@@ -860,7 +1090,10 @@ mod tests {
                 result: Some(ValueShape::float(8)),
             };
             request.internal = evaluate_call_plan(internal_policy, &signature).unwrap();
-            request.inbound = evaluate_call_plan(inbound_policy, &signature).unwrap();
+            request.inbound = evaluate_ordinary_boundary_entry_plan(inbound_policy, &signature)
+                .unwrap()
+                .plan()
+                .clone();
             validate_native_entry_bridge(&emit_native_entry_bridge(request).unwrap()).unwrap();
         }
     }
@@ -1028,12 +1261,12 @@ mod tests {
             &[0; 2],
             None,
         );
-        request.inbound.parameters[0].locations = vec![ValueLocation::Register {
+        request.inbound.call.parameters[0].locations = vec![ValueLocation::Register {
             register: MachineRegister::Aarch64X(16),
             value_byte_offset: 0,
             byte_size: 8,
         }];
-        request.inbound.parameters[1].locations = vec![ValueLocation::Register {
+        request.inbound.call.parameters[1].locations = vec![ValueLocation::Register {
             register: MachineRegister::Aarch64X(17),
             value_byte_offset: 0,
             byte_size: 8,
@@ -1055,8 +1288,8 @@ mod tests {
                     &[0],
                     Some(ordinary),
                 );
-                request.inbound.result = evaluate_call_plan(
-                    request.inbound.policy,
+                request.inbound.call.result = evaluate_call_plan(
+                    request.inbound.call.policy,
                     &CallSignature {
                         parameters: vec![aggregate],
                         result: Some(aggregate),
@@ -1108,8 +1341,8 @@ mod tests {
                 &[0],
                 Some(ordinary),
             );
-            request.inbound.result = evaluate_call_plan(
-                request.inbound.policy,
+            request.inbound.call.result = evaluate_call_plan(
+                request.inbound.call.policy,
                 &CallSignature {
                     parameters: vec![aggregate],
                     result: Some(aggregate),

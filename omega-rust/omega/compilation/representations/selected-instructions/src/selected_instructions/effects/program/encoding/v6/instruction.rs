@@ -141,6 +141,10 @@ fn decode_kind(
                     .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
             }
         }
+        crate::AtomicForm::ONCE_FAMILY_TAG => SelectedInstructionKind::AtomicAccess {
+            form: crate::AtomicForm::from_once_payload(cursor.byte()?)
+                .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+        },
         tag if crate::AtomicForm::from_machine_tag(tag).is_some() => {
             SelectedInstructionKind::AtomicAccess {
                 form: crate::AtomicForm::from_machine_tag(tag)
@@ -538,6 +542,12 @@ fn decode_alternative_for_version(
         tag if tag == u16::from(crate::IeeeFloatArithmeticForm::FAMILY_TAG) => {
             MachineAlternativeFamily::NearestIeeeFloatArithmetic(
                 crate::IeeeFloatArithmeticForm::from_machine_payload(cursor.byte()?)
+                    .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
+            )
+        }
+        tag if tag == u16::from(crate::AtomicForm::ONCE_FAMILY_TAG) => {
+            MachineAlternativeFamily::AtomicAccess(
+                crate::AtomicForm::from_once_payload(cursor.byte()?)
                     .ok_or(PreAllocationMachineEffectDecodeError::InvalidField)?,
             )
         }

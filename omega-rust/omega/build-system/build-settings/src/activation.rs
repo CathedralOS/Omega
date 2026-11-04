@@ -201,6 +201,7 @@ impl TerminalBuildHost {
         host_imports.dedup();
         let mut supplies = program
             .admit_runtime_supplies(terminal_interpreter::TerminalRuntimeSupplyRequest {
+                native_code_layouts: None,
                 host_imports: &host_imports,
                 installation: None,
                 entry: None,

@@ -42,24 +42,23 @@ impl AppliedDeclarationRegionScope {
 }
 
 impl AppliedTraitScope<'_> {
-    /// Apply the region operands already retained on one ordinary invocation.
-    /// Incoming operands precede the trait's simultaneous telescope. Captured
-    /// region owners remain distinct; this grants no loan or provider selection.
+    /// A binder inside a generic call uses that call's actual types and regions.
+    /// Prepend their simultaneous scope so a child trait retains those actuals
+    /// without changing the inherited requirement's own parameter ownership.
     pub fn under_invocation(
         mut self,
         program: &TypedTrees,
         declaration: SymbolHandle,
         argument_owner: SymbolHandle,
+        arguments: &[(SymbolHandle, crate::types::TypeReferenceHandle)],
         bindings: &[crate::static_applications::StaticMachineLifetimeBinding],
     ) -> Option<Self> {
         let declaration = program.lifetime_declaration_owner(declaration);
-        let machine = program.machine_by_symbol(declaration)?;
         let mut lifetimes = Vec::with_capacity(bindings.len());
         for binding in bindings {
             let parameter =
                 lifetime_parameter_identity(program, declaration, binding.parameter.as_str())?;
             if parameter.declaration != declaration
-                || machine.lifetime_parameters.get(parameter.ordinal)? != &binding.parameter
                 || lifetimes
                     .iter()
                     .any(|(previous, _)| previous == binding.parameter.as_str())
@@ -73,6 +72,10 @@ impl AppliedTraitScope<'_> {
             ));
         }
         self.argument_owner = argument_owner;
+        self.substitutions.splice(0..0, arguments.iter().copied());
+        for start in &mut self.substitution_scope_starts {
+            *start += arguments.len();
+        }
         self.substitution_scope_starts.insert(0, 0);
         self.region_scopes.insert(
             0,
@@ -229,21 +232,8 @@ impl AppliedTraitScope<'_> {
                     .iter()
                     .map(|(parameter, argument)| {
                         let is_type = program
-                            .trait_definition_by_symbol(self.region_scopes[ordinal].declaration)
-                            .map(|declaration| program.trait_type_parameters(declaration))
-                            .or_else(|| {
-                                program
-                                    .data_definition_by_symbol(
-                                        self.region_scopes[ordinal].declaration,
-                                    )
-                                    .map(|declaration| program.data_type_parameters(declaration))
-                            })
-                            .is_some_and(|parameters| {
-                                parameters.iter().any(|binder| {
-                                    binder.symbol == *parameter
-                                        && binder.kind == TypeParameterKind::Type
-                                })
-                            });
+                            .data_type_parameter_by_symbol(*parameter)
+                            .is_some_and(|binder| binder.kind == TypeParameterKind::Type);
                         (
                             *parameter,
                             if is_type {

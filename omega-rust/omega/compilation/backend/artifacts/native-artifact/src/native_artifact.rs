@@ -471,6 +471,16 @@ impl NativeArtifact {
         &self.parts.image
     }
 
+    /// Inspect finalized native metadata under this artifact's exact semantic,
+    /// target and image custody. Linked coordinates remain distinct from any
+    /// separately launched process's eventual load slide.
+    pub fn inspect_native_code_layouts(
+        &self,
+    ) -> Result<Vec<image_emission::LinkedNativeCodeLayout>, diagnostics::Diagnostic> {
+        self.validate().map_err(diagnostics::Diagnostic::error)?;
+        image_emission::inspect_native_code_layouts(&self.parts.object, &self.parts.image)
+    }
+
     /// Non-authoritative compatibility/report identity of the selected
     /// provider closure.
     pub const fn selected_provider_closure_report_identity(&self) -> u64 {
