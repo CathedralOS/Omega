@@ -3583,15 +3583,15 @@ fail/generics/static_dispatch_private_ensures_through_generic rejected 2984ms ex
 	cannot prove requires contract for call hold from main: picked == 7 (needs fact `picked == 7` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
 fail/inline_asm/asm_where_retired rejected 623ms expected @d83ddecd7693+wt
 	tests/omega/fail/inline_asm/asm_where_retired/main.omg:3:22: expected one of `clobbers <registers>`, `requires`, `ensures`, `{`, found identifier `where`
-fail/inline_asm/gdtr_excluded_machine_control rejected 2864ms expected @7aaf32035029
+fail/inline_asm/gdtr_excluded_machine_control rejected 1918ms expected @fe5c93add7a4
 	machine `main` publishes service reach `<none>` but its checked body reaches undeclared service `MachineControl`
-fail/inline_asm/gdtr_numeric_address rejected 1672ms expected @7aaf32035029
+fail/inline_asm/gdtr_numeric_address rejected 716ms expected @fe5c93add7a4
 	asm instruction `lgdt`: operand must be a borrowed ten-byte array, not a numeric address
-fail/inline_asm/gdtr_store_invalidates_bytes rejected 2462ms expected @7aaf32035029
+fail/inline_asm/gdtr_store_invalidates_bytes rejected 2116ms expected @fe5c93add7a4
 	cannot prove requires contract for call consume from main: buffer.bytes[0] == 17 (needs fact `value == 17` here; establish it before the call via a prior contract guarantee, domain membership, or guard) in state `entry`
-fail/inline_asm/gdtr_store_shared_reference rejected 1659ms expected @7aaf32035029
+fail/inline_asm/gdtr_store_shared_reference rejected 716ms expected @fe5c93add7a4
 	asm instruction `sgdt`: sgdt needs writable bytes
-fail/inline_asm/gdtr_wrong_extent rejected 1660ms expected @7aaf32035029
+fail/inline_asm/gdtr_wrong_extent rejected 716ms expected @fe5c93add7a4
 	machine `capture` state `entry` reads write-only parameter `destination`; `&write` permits replacement or exact `&write` forwarding, never observation
 	asm instruction `sgdt`: descriptor must be exactly [u8; 10]
 fail/layouts/accessor_with_linear_owner_write_denied rejected 13119ms expected @ee4dbb4b2d56
@@ -4646,7 +4646,7 @@ pass/build/dependency_implementation_closure rejected 873ms regressed-from:check
 	fixed-array length `[u8; placed_byte_count()]`: const evaluation of `placed_byte_count` failed: Lowering(InvalidDeclarationIdentity("checked machine identity: declaration `@array-extent-1-43` has non-hermetic source origin `User`"))
 pass/build/described_runner_entry_left_exit checked 17644ms check-target:macos_arm64 @ccdb99ca2214
 pass/build/described_runner_entry_right_exit checked 19223ms check-target:macos_arm64 @ccdb99ca2214
-pass/build/descriptor_table_round_trip checked 48720ms check-target:linux_x86_64 @7aaf32035029
+pass/build/descriptor_table_round_trip checked 74924ms check-target:linux_x86_64 @fe5c93add7a4
 pass/build/discarded_provider_selection_exit rejected 3180ms check-target:macos_arm64 regressed-from:checked+check-target:macos_arm64 @b8f9f267c739+wt
 	machine `NativeAccess::initialize` state `initialize` calls `Access::initialize_from_profile` with write-only input authority; an opaque selected implementation requires an admitted write-only boundary claim
 	bodyless boundary symbol `view_from_profile` has no executable realization; use it only in contracts, or satisfy a boundary requirement via an admitted provider
@@ -13156,7 +13156,7 @@ pass/inline_asm/asm_system_register_scalar_variants_compile rejected 2534ms chec
 pass/inline_asm/asm_typed_places checked 3553ms @ccdb99ca2214
 pass/inline_asm/asm_where_contract checked 6826ms @0af7c594a1c0
 pass/inline_asm/asm_where_exact_clobbers_compile checked 7171ms @0af7c594a1c0
-pass/inline_asm/gdtr_store_preserves_neighbor checked 3414ms check-target:linux_x86_64 @7aaf32035029
+pass/inline_asm/gdtr_store_preserves_neighbor checked 2854ms check-target:linux_x86_64 @fe5c93add7a4
 pass/inline_asm/port_write_terminal_sequences checked 17549ms terminal-inspections:match @03522ca11fdf
 pass/inline_asm/target_family_control_observation checked 3733ms check-target:linux_x86_64 @ccdb99ca2214
 pass/inline_asm/target_family_instruction_exit checked 3668ms check-target:macos_arm64 @ccdb99ca2214
