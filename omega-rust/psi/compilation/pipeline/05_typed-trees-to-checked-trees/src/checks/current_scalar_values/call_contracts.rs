@@ -45,6 +45,7 @@ impl CurrentScalarValues<'_> {
             parameters,
             arguments,
             &machine_values,
+            &[],
             false,
         )?;
         Some(self.enrich_parameter_goal(captured))
@@ -86,6 +87,33 @@ impl CurrentScalarValues<'_> {
             parameters,
             arguments,
             &[],
+            &[],
+            true,
+        )?;
+        Some(self.enrich_parameter_goal(captured))
+    }
+
+    /// The same substitution when a formal is a field of the actual rather than
+    /// the actual itself. `paths` aligns with `parameters`; an empty path is
+    /// the whole actual. A nonempty path selects that projection before the
+    /// formal's length or scalar value is read.
+    pub(crate) fn bind_projected_formals(
+        &self,
+        callee: &Machine,
+        state: &State,
+        expression: ExpressionHandle,
+        parameters: &[typed_trees::signature::StateParameter],
+        arguments: &[ExpressionHandle],
+        paths: &[Vec<facts::PlaceSegment>],
+    ) -> Option<ScopedArithmeticExpression> {
+        let captured = self.capture_parameter_goal(
+            callee,
+            state,
+            expression,
+            parameters,
+            arguments,
+            &[],
+            paths,
             true,
         )?;
         Some(self.enrich_parameter_goal(captured))
@@ -113,6 +141,7 @@ impl CurrentScalarValues<'_> {
             parameters,
             arguments,
             &machine_values,
+            &[],
             false,
         ) else {
             return false;
@@ -440,6 +469,7 @@ impl CurrentScalarValues<'_> {
         parameters: &[typed_trees::signature::StateParameter],
         arguments: &[ExpressionHandle],
         machine_values: &[(SymbolHandle, ScopedArithmeticValue)],
+        paths: &[Vec<facts::PlaceSegment>],
         form_operations: bool,
     ) -> Option<CapturedParameterGoal> {
         if parameters.len() != arguments.len() {
@@ -448,26 +478,37 @@ impl CurrentScalarValues<'_> {
         let mut formals = Vec::with_capacity(parameters.len());
         let mut lengths = Vec::new();
         let mut fields = Vec::new();
-        for (parameter, argument) in parameters.iter().zip(arguments) {
+        for (index, (parameter, argument)) in parameters.iter().zip(arguments).enumerate() {
+            let path = paths.get(index).map(Vec::as_slice).unwrap_or(&[]);
             let Some(_primitive) = integer_carrier(self.program, parameter.type_reference) else {
-                let measured = self.collection_length(*argument, 0);
+                // A projected formal is the selected field, so its storage
+                // length is that field's descriptor. The root's other fields
+                // belong to the actual, not to this formal.
+                let measured = if path.is_empty() {
+                    self.collection_length(*argument, 0)
+                } else {
+                    self.projected_collection_length(*argument, path)
+                };
                 if let Some(value) = measured
                     && fixed_length(self.program, parameter.type_reference, String::new).is_some()
-                    && (validation::state_reference_parameter_binding_is_stable(
-                        self.program,
-                        callee,
-                        state,
-                        parameter.symbol,
-                    ) || matches!(
-                        value,
-                        ScopedArithmeticValue::Integer(_)
-                            | ScopedArithmeticValue::BoundedInteger { .. }
-                            | ScopedArithmeticValue::IntegerOperation { .. }
-                    ))
+                    && (!path.is_empty()
+                        || validation::state_reference_parameter_binding_is_stable(
+                            self.program,
+                            callee,
+                            state,
+                            parameter.symbol,
+                        )
+                        || matches!(
+                            value,
+                            ScopedArithmeticValue::Integer(_)
+                                | ScopedArithmeticValue::BoundedInteger { .. }
+                                | ScopedArithmeticValue::IntegerOperation { .. }
+                        ))
                 {
                     // A closed length is an entry observation. A mutable slice
                     // parameter may later reseat its descriptor; the requires
-                    // clause still sees the length the caller passed.
+                    // clause still sees the length the caller passed. A field
+                    // projection already names that passed descriptor.
                     lengths.push(Length {
                         subject: LengthSubject::Storage(parameter.symbol),
                         name: parameter.name.to_string(),
@@ -476,27 +517,39 @@ impl CurrentScalarValues<'_> {
                         value: Some(value),
                     });
                 }
-                for field in self.captured_scalar_fields(*argument, 0) {
-                    fields.push(ScalarField::for_owner(parameter.symbol, field));
-                }
-                for field in self.captured_field_lengths(*argument, 0) {
-                    lengths.push(Length {
-                        subject: LengthSubject::Field {
-                            owner: parameter.symbol,
-                            path: field.path,
-                        },
-                        name: format!("{}.{}", parameter.name, field.name),
-                        stable: true,
-                        type_reference: field.type_reference,
-                        value: Some(field.value),
-                    });
+                if path.is_empty() {
+                    for field in self.captured_scalar_fields(*argument, 0) {
+                        fields.push(ScalarField::for_owner(parameter.symbol, field));
+                    }
+                    for field in self.captured_field_lengths(*argument, 0) {
+                        lengths.push(Length {
+                            subject: LengthSubject::Field {
+                                owner: parameter.symbol,
+                                path: field.path,
+                            },
+                            name: format!("{}.{}", parameter.name, field.name),
+                            stable: true,
+                            type_reference: field.type_reference,
+                            value: Some(field.value),
+                        });
+                    }
                 }
                 continue;
             };
+            let value = if path.is_empty() {
+                self.capture(self.program, self.machine, self.state, *argument)
+            } else {
+                self.projected_scalar_value_in_call(
+                    *argument, path, callee, state, parameters, arguments,
+                )
+            };
+            if !path.is_empty() && value.is_none() {
+                return None;
+            }
             formals.push(Binding {
                 symbol: parameter.symbol,
                 name: parameter.name.to_string(),
-                value: self.capture(self.program, self.machine, self.state, *argument),
+                value,
                 alternatives: Vec::new(),
                 immutable_coordinate: false,
                 unwritable: false,

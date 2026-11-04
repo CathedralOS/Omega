@@ -13691,6 +13691,8 @@ fail/facts/nested_machine_joint_rank_bounded_computed_length_call_result_rejecte
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_bounded_computed_length_const_name_rejected rejected 3423ms expected @2901d17d5aa3+wt
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
+fail/facts/nested_machine_joint_rank_bounded_computed_length_field_formal_rejected rejected 3959ms expected @90ee09940685+wt
+	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_bounded_computed_length_field_rejected rejected 3665ms expected @2901d17d5aa3+wt
 	machine call cycle: `count`, `forward` -- no exact private-coordinate assignment proves every edge and complete cycle; runtime calls must be tail; a termination promise additionally requires strict descent on every complete cycle
 fail/facts/nested_machine_joint_rank_bounded_computed_length_local_rejected rejected 3902ms expected @83e3d72bad8b+wt
@@ -31383,6 +31385,7 @@ pass/facts/nested_machine_joint_rank_borrowed_value_target_body_exit checked 348
 pass/facts/nested_machine_joint_rank_bounded_computed_length_call_result_exit checked 5108ms check-target:macos_arm64 @2901d17d5aa3+wt
 pass/facts/nested_machine_joint_rank_bounded_computed_length_const_name_exit checked 5080ms check-target:macos_arm64 @2901d17d5aa3+wt
 pass/facts/nested_machine_joint_rank_bounded_computed_length_field_exit checked 5007ms check-target:macos_arm64 @2901d17d5aa3+wt
+pass/facts/nested_machine_joint_rank_bounded_computed_length_field_formal_exit checked 5216ms check-target:macos_arm64 @90ee09940685+wt
 pass/facts/nested_machine_joint_rank_bounded_computed_length_local_exit checked 5239ms check-target:macos_arm64 @83e3d72bad8b+wt
 pass/facts/nested_machine_joint_rank_bounded_computed_length_match_join_exit checked 4965ms check-target:macos_arm64 @2901d17d5aa3+wt
 pass/facts/nested_machine_joint_rank_bounded_computed_length_other_machine_exit checked 5001ms check-target:macos_arm64 @2901d17d5aa3+wt

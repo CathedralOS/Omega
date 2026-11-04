@@ -41,10 +41,13 @@ descends. The diagnostic is the missing private-coordinate assignment.
 
 ## What remains
 
-A helper that supplies an endpoint formal through a field projection or a
-computed argument still has no transported bound. The nine places that carry
-this whole-parameter endpoint are parameter, local, field, call result,
-match join, const name, nested machine, other machine, and target body.
+A field projection now supplies the endpoint formal in the parameter place
+[field_formal](../../../parameter/bounded_distance/computed_length/field_formal/main.omg).
+A helper that supplies an endpoint formal through a computed argument, rather
+than a whole parameter or a field projection, still has no transported bound.
+The nine places that carry this whole-parameter endpoint are parameter, local,
+field, call result, match join, const name, nested machine, other machine, and
+target body.
 
 ## Pinned fixtures
 

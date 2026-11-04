@@ -64,10 +64,13 @@ endpoint forms and the program is correctly accepted (native and Terminal exit 0
 
 ## What remains
 
-A helper that supplies an endpoint formal through a field projection or a
-computed argument has no transported bound yet. The nine places that carry
-this whole-parameter endpoint are parameter, local, field, call result,
-match join, const name, nested machine, other machine, and target body.
+A field projection now supplies the endpoint formal in
+[field_formal](field_formal/main.omg): `forward` passes `held.view` where
+`held` is a `Packet`. A helper that supplies an endpoint formal through a
+computed argument, rather than a whole parameter or a field projection, still
+has no transported bound. The nine places that carry this whole-parameter
+endpoint are parameter, local, field, call result, match join, const name,
+nested machine, other machine, and target body.
 
 ## Pinned fixtures
 
