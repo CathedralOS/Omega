@@ -340,6 +340,8 @@ pub enum BuiltinFunction {
     /// Total, proof-only projection of a fixed-width integer or address into
     /// mathematical Int. This has no callable implementation or runtime ABI.
     IntegerEmbed,
+    AsmStoreGdtr,
+    AsmLoadGdtr,
 }
 
 macro_rules! roster {
@@ -349,7 +351,7 @@ macro_rules! roster {
 }
 
 impl BuiltinFunction {
-    pub const COUNT: usize = 103;
+    pub const COUNT: usize = 105;
 
     /// The closed inventory in slot order: every compiler-installed builtin
     /// function paired with its exact spelling. The array position is the
@@ -478,6 +480,8 @@ impl BuiltinFunction {
         (Self::AsmAarch64LoadFence, "asm#dmb_ld"),
         (Self::AsmAarch64StoreFence, "asm#dmb_st"),
         (Self::AsmAarch64FullFence, "asm#dmb_sy"),
+        (Self::AsmStoreGdtr, "asm#sgdt"),
+        (Self::AsmLoadGdtr, "asm#lgdt"),
     ];
 
     pub fn from_ordinal(ordinal: usize) -> Option<Self> {
@@ -545,6 +549,8 @@ impl BuiltinFunction {
             | Self::AsmWriteCr0
             | Self::AsmWriteCr3
             | Self::AsmWriteCr4
+            | Self::AsmStoreGdtr
+            | Self::AsmLoadGdtr
             | Self::AsmWriteBackInvalidate
             | Self::AsmInvalidate
             | Self::AsmWriteBackNoInvalidate

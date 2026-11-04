@@ -1,185 +1,131 @@
-# Dynamic IEEE guarantee refinement
+# Dynamic floating-point return guarantees
 
-Inline exact IEEE value `0.25` guarantee refines public inclusive f64 interval
-`[0, 0.5]`; the dynamic call observes `0.25`.
+A dynamic call returns `0.25` under a public `f64` contract that allows values
+from `0.0` through `0.5`. The implementation proves the narrower exact value;
+callers use the public contract. Every program checks the observed result and
+traps if it differs from `0.25`.
 
-The unchanged root selects the named implementation `Quarter` as `dyn Fraction`,
-calls the public `Fraction::get` slot and crashes unless its completed result is
-`0.25`. The implementation separately proves its exact result guarantee.
-The checker must prove that guarantee implies the public lower and upper bounds.
-Neither an implementation body nor a selector's known target grants a caller a
-stronger public contract.
-
-At base `97fca7a18f744b0f7c0b54811b7d41b586d6bfb7`, the optimized compiler
-rejected both public bounds before execution:
-
-```text
-machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result >= 0.0`
-machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`
-```
-
-## Running the fact row
-
-Every positive place (and root `main.omg`) binds `ProgramEntry` for all four hosted
-targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`), declares
-`Expected exit: 0`, and passes `omega run --both`:
-
-```bash
-omega run --both samples/cli/facts/dynamic_float_refinement/main.omg
-omega run --both samples/cli/facts/dynamic_float_refinement/local/main.omg
-omega run --both samples/cli/facts/dynamic_float_refinement/field/main.omg
-omega run --both samples/cli/facts/dynamic_float_refinement/parameter/main.omg
-omega run --both samples/cli/facts/dynamic_float_refinement/call_result/main.omg
-omega run --both samples/cli/facts/dynamic_float_refinement/match_join/main.omg
-omega run --both samples/cli/facts/dynamic_float_refinement/const_name/main.omg
-omega run --both samples/cli/facts/dynamic_float_refinement/other_state/main.omg
-omega run --both samples/cli/facts/dynamic_float_refinement/other_machine/main.omg
-omega run --both samples/cli/facts/dynamic_float_refinement/target_body/main.omg
-```
-
-## Places and witnesses
+This row belongs to `BUILD-OWNED-TARGET-SELECTION` in [TASKS.md](../../../../TASKS.md).
+Four explicit Build rows select `SelectedFloatInvocation`, an ordinary named
+implementation of `FloatInvocation`, in place of the former target-prefixed
+`invoke` bodies. The dynamic selector
+remains an actual `dyn Fraction` argument, and the result remains `f64`.
 
 | Place | Positive | Reject twin |
 | --- | --- | --- |
-| root | [`main.omg`](main.omg) | - |
-| local | [`local/main.omg`](local/main.omg) | [`local/invalid/main.omg`](local/invalid/main.omg) |
-| field | [`field/main.omg`](field/main.omg) | [`field/invalid/main.omg`](field/invalid/main.omg) |
-| parameter | [`parameter/main.omg`](parameter/main.omg) | [`parameter/invalid/main.omg`](parameter/invalid/main.omg) |
-| call result | [`call_result/main.omg`](call_result/main.omg) | [`call_result/invalid/main.omg`](call_result/invalid/main.omg) |
-| match join | [`match_join/main.omg`](match_join/main.omg) | [`match_join/invalid/main.omg`](match_join/invalid/main.omg) |
-| const name | [`const_name/main.omg`](const_name/main.omg) | [`const_name/invalid/main.omg`](const_name/invalid/main.omg) |
-| a nested machine | [`other_state/main.omg`](other_state/main.omg) | [`other_state/invalid/main.omg`](other_state/invalid/main.omg) |
-| another machine | [`other_machine/main.omg`](other_machine/main.omg) | [`other_machine/invalid/main.omg`](other_machine/invalid/main.omg) |
-| another target body | [`target_body/main.omg`](target_body/main.omg) | [`target_body/invalid/main.omg`](target_body/invalid/main.omg) |
+| local | [program](local/main.omg) | [invalid](local/invalid/main.omg) |
+| field | [program](field/main.omg) | [invalid](field/invalid/main.omg) |
+| parameter | [program](parameter/main.omg) | [invalid](parameter/invalid/main.omg) |
+| call result | [program](call_result/main.omg) | [invalid](call_result/invalid/main.omg) |
+| match join | [program](match_join/main.omg) | [invalid](match_join/invalid/main.omg) |
+| named constant | [program](const_name/main.omg) | [invalid](const_name/invalid/main.omg) |
+| nested machine | [program](other_state/main.omg) | [invalid](other_state/invalid/main.omg) |
+| another machine | [program](other_machine/main.omg) | [invalid](other_machine/invalid/main.omg) |
+| selected implementation | [program](target_body/main.omg) | [invalid](target_body/invalid/main.omg) |
 
-### The oracle discriminates
+Each twin changes only Quarter's guarantee and return value from `0.25` to
+`0.75`. Its body still proves its own guarantee, but that guarantee violates the
+public upper bound. Rejection must name `ensures result <= 0.5`.
+The match example executes both choices and carries a different route marker
+with each selector; selecting the wrong arm changes its result to `0.125`,
+which the caller detects. The named constant stores the selector itself.
+The existing nested `controls/outside_interval` projects use the same migrated
+source and rejection metadata as their adjacent invalid twins.
 
-The dynamic call to `Fraction::get` returns `0.25`. The transition guard
-`transition observed == 0.25` branches to `done()` (exit 0) on match and `bad()`
-(`crash Trap;`) on discrepancy. Both execution engines (Terminal Psi interpreter
-and native target execution) agree on exit 0.
+The [named-predicate production](alias_contract/README.md) carries the same
+public interval into a caller precondition. The already ordinary
+[input predicate](input_alias/README.md) and
+[input alternatives](input_alternatives/README.md) productions are unchanged.
 
-### Reject twins
+The applicable requirements are:
 
-Each twin changes only Quarter's own guarantee and returned value to `0.75`:
-`machine get() -> f64 ensures result >= 0.75 && result <= 0.75 { 0.75 }`.
-Its body still satisfies its own internal guarantee; however, the unchanged
-public upper bound (`ensures result <= 0.5`) is violated because `0.75 <= 0.5` is
-false. Implementation refinement rejects with:
+- Construction and refinement: Quarter proves `result >= 0.25 && result <= 0.25`,
+  which must imply both public bounds. A later runtime comparison supplies no
+  proof premise.
+- Identity and lifetime: storing, copying, passing and returning a selector keeps
+  the chosen implementation. It grants no access to an implied data object.
+- Composition: the call preserves the public result contract. The named-predicate
+  production must pass that result directly to its constrained consumer.
+- Soundness: the `0.75` twins refuse the public upper bound even when their
+  implementation is not the selected target provider.
+- Terminal Psi: the artifact retains the dynamic selector separately from its
+  explicit arguments and executes the same floating-point call.
+- Provider and calling plans: Build chooses the ordinary wrapper for each target;
+  the selected implementation preserves the declared parameter and result types.
+- Native lowering and image emission: both engines must observe the authored
+  result on a matching host. Compilation or cross-target installation alone
+  does not count as native execution.
 
-```text
-machine `Quarter::get` realizes `Fraction::get` but does not guarantee its `ensures result <= 0.5`
-```
+The governing contracts are [dynamic dispatch](../../../../wiki/spec/terminal-psi/dynamic_dispatch.md),
+[named implementations](../../../../wiki/spec/language/conformances.md),
+[numeric values](../../../../wiki/spec/language/numeric_values.md) and
+[Build-owned target selection](../../../../wiki/spec/build/provider_selection.md#build-owned-target-selection).
 
-The match witness exercises both selector-producing arms. The const witness
-stores the selector itself, preserving its exact implementation and closed trait
-application, rather than naming a separate numeric constant.
+Pins are `tests/omega/{pass,fail}/facts/dynamic_float_refinement_through_<place>_*`.
+Every positive, including [the root program](main.omg), binds all four hosted
+targets and declares exit zero. Run a place with `omega run --both <place>/main.omg`.
 
-## Pinned Fixtures
+Linux x86-64 qualification is complete for both nine-place rows. Exact source
+`51ca56236d0f` has eighteen accepted corpus positives, eighteen intended corpus
+refusals and eighteen actual native/Terminal exit-zero pairs. The ordinary
+project checks cover eighteen passes and twenty-seven intended refusals,
+including the nine existing nested controls. The two complementary runs are
+[41754435705](https://github.com/CathedralOS/Omega/actions/runs/41754435705) and
+[41756155191](https://github.com/CathedralOS/Omega/actions/runs/41756155191).
 
-- Positives: `tests/omega/pass/facts/dynamic_float_refinement_through_<place>_exit` (9 places pinned, each byte-identical to `<place>/main.omg` with native exit 0).
-- Reject twins: `tests/omega/fail/facts/dynamic_float_refinement_through_<place>_outside_interval` (9 places pinned, each byte-identical to `<place>/invalid/main.omg`, rejecting with `machine 'Quarter::get' realizes 'Fraction::get' but does not guarantee its 'ensures result <= 0.5'`).
+The nested controls were then migrated to match their adjacent invalid twins.
+[Run 41756934771](https://github.com/CathedralOS/Omega/actions/runs/41756934771)
+checks all nine corrected controls for their intended refusal and runs both
+root programs with native/Terminal exit-zero agreement at `0f3013a5e471`.
+Its verified CLI binary has the same digest as the earlier Linux producer.
+No positive, pinned fixture, compiler or library input changed in that edit.
+The records keep the source revision at which each observation was made.
 
-### Recorded native evidence (macos_arm64)
+The retained macOS ARM64 reports also complete both rows at `51ca56236d0f`:
+eighteen accepted positives, eighteen intended corpus refusals, eighteen
+actual native/Terminal exit-zero pairs, forty-five ordinary projects
+(eighteen passes and twenty-seven intended refusals), and both root programs.
+[Run 41756122501](https://github.com/CathedralOS/Omega/actions/runs/41756122501)
+hit its one-hour limit and the workflow is canceled. Its retained pilot summary
+and all six stages had completed successfully. Preparing the optimized producer
+took 2,632 seconds; the workflow is not relabeled successful, and no additional
+execution was invented or needed to record these observed results.
 
-Measured on `macos_arm64` at revision `bc9ef5d9a334` with the producer built
-from that revision (`opt_level 1`):
+The source migration landed in [PR #1486](https://github.com/CathedralOS/Omega/pull/1486)
+at `fa33c81d5ef2`. Fetched-main verification confirmed the reviewed source,
+all 532 authored input hashes and both recorded files, preserving unrelated
+parent records. The macOS observations keep their actual earlier source stamp;
+no execution at that publication or a later metadata commit is inferred.
+Windows x86-64 and Linux ARM64 now have matching-host qualification for both
+rows at published source `9566f10e0d29`. Each host checked eighteen positives
+and eighteen intended corpus refusals, then observed eighteen native/Terminal
+exit-zero pairs. Each also ran the forty-five ordinary projects: eighteen
+exit-zero pairs and twenty-seven intended refusals, including the migrated
+nested controls. Both root programs completed with native/Terminal exit zero.
+The runs are [Windows 41779728390](https://github.com/CathedralOS/Omega/actions/runs/41779728390)
+and [Linux ARM64 41779730966](https://github.com/CathedralOS/Omega/actions/runs/41779730966).
+Their audits verify the optimized compiler profiles, all 532 frozen authored
+inputs and all 707 distinct authored/copied input hashes per host.
 
-```sh
-python3 tools/corpus_gate.py --native --filter pass/facts/dynamic_float_refinement_through
-```
+Both nine-place rows now have observed native/Terminal agreement on all four
+hosted targets. Programs, Build files, oracles, compiler and library inputs are
+unchanged in this record update. Each result keeps its actual observed source;
+the earlier Linux x86-64 and macOS results retain their earlier stamps.
+Broader dynamic dispatch and target-selection acceptance stays on the task board.
 
-Before the record the gate reported all nine positives as `new fixture
-(built)`, and the run reported `9 fixtures ({'built': 9})`,
-`executed 9 (exit codes {'0': 9})`, 0 rejected without their expected fragment
-and 0 fail fixtures that did not reject — every positive place already built
-and ran, so the gap was the durable record, not a compiler refusal. The nine
-rows now read `built ... exit:0 @bc9ef5d9a334` in
-`tests/omega/corpus_native_macos_arm64.txt`, spliced in as a pure addition
-(+9 lines, 0 deletions, no timeout rows, LOST 0). Re-run on the integration
-base `cf4879f2e8ee` (whose only incoming change was another fact's check-leg
-rows, 0 Rust files): the same filter is `clean — 9 fixtures ({'built': 9})`,
-`executed 9 (exit codes {'0': 9})`, 0 rejected without their expected
-fragment, 0 fail fixtures that did not reject.
+<details><summary>Historical baseline and retained source</summary>
 
-The mechanism is exercised by this host rather than merely compiled for it.
-No positive place is target-scoped except `target_body`, whose four bodies each
-invoke `Fraction::get`, so the realized `macos_arm64` body performs the dynamic
-call and the `f64` comparison itself; the other eight places are target-neutral
-and run the same dispatch on this host.
+[Baseline run 41475899137](https://github.com/CathedralOS/Omega/actions/runs/41475899137)
+checked both original nine-place productions and their eighteen intended
+refusals, then observed eighteen native/Terminal exit-zero pairs. The recording
+checkout was `c98fe475c9a7`; the actual verified optimized producer was
+`1f3c4da0217e`. It is not a run of the migrated source or current main.
 
-The recorded 0 is discriminating at the artifact level, not just at build
-level. Changing the authored comparison in
-`tests/omega/pass/facts/dynamic_float_refinement_through_local_exit/main.omg`
-from `transition observed == 0.25` to `transition observed == 0.5` — a
-comparison outcome, not a formatting difference — made the same gate report
-`expected native 0, observed built {'exit': 'signal', 'signal': '5'}` and the
-structural move `exit:0` to `exit:signal signal:5` (exit 3). Restoring the
-fixture byte-for-byte returned the same filter to `clean — 1 fixtures
-({'built': 1})`, `executed 1 (exit codes {'0': 1})`, so the recorded row is
-compared against the artifact's real exit and a wrong value is caught.
+The earlier measured core source is retained as a verified Git bundle in
+[PR #1486](https://github.com/CathedralOS/Omega/pull/1486#issuecomment-6620126120),
+with all thirteen posted parts read back and decoded. Raw reports, producer
+profiles and authored input hashes are retained in
+`build/dynamic-float-selected-20261104`. No execution is attributed to a later
+metadata-only commit.
 
-The nine reject twins are unchanged by this record and were re-verified on the
-check leg: `clean — 9 fixtures ({'rejected': 9})`, 0 rejected without their
-expected fragment, 0 fail fixtures that did not reject.
-
-Main then moved again to `4c81ee5883b4` with a compiler change (`compiler:
-retain captured placed interpretations across reference returns`), so the
-native leg was re-measured with a producer rebuilt from that base: 0
-structural moves, `9 fixtures ({'built': 9})`, `executed 9 (exit codes
-{'0': 9})`, 0 rejected without their expected fragment, 0 fail fixtures that
-did not reject. The four `perf_slower` notes are host load and worker count —
-the gate's own context records pre-run load and a jobs mismatch — and no row
-moved, so the recorded revision stays `bc9ef5d9a334`.
-
-One more integration step then landed five further compiler commits
-(`cc6fcc708be7`, 34 Rust files, scalar qualification and source-evidence
-scoping), and the leg was re-measured again with a producer rebuilt from that
-base: `clean — 9 fixtures ({'built': 9})`, `executed 9 (exit codes {'0': 9})`,
-0 rejected without their expected fragment, 0 fail fixtures that did not
-reject, and no perf noise at all. The recorded revision still stands; the
-re-measurements are what carry it across the landed compiler commits.
-
-Remaining open on other hosts: `tests/omega/corpus_native_linux_x86_64.txt` and
-`tests/omega/corpus_native_windows_x86_64.txt` carry no row for this fact yet
-and need those hosts; `linux_arm64` has no native golden in this checkout. The
-macOS rows recorded here do not stand in for them.
-
-## Requirements and Evidence
-
-- **Parent outcome:** `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` ([TASKS.md](../../../../TASKS.md)).
-- **Requirement established:** End-to-end nine-place IEEE floating-point contract refinement, copyable dynamic implementation selector transport, authenticated IEEE predicate implication, and native dynamic dispatch execution agreement.
-
-Full 8-layer specification and lowering evidence:
-
-- **Establishment:** The implementation `Quarter` proves its own return guarantee `ensures result >= 0.25 && result <= 0.25`. The compiler's IEEE implication judgment statically verifies that the proved interval `[0.25, 0.25]` implies the public trait requirement `ensures result >= 0.0 && result <= 0.5`. Establishment relies strictly on static contract entailment and declaration substitution rather than post-hoc caller equality guards.
-- **Identity and lifetime:** Dynamic selector values `Quarter as dyn Fraction` represent authenticated implementation choices with static nominal identity and zero runtime allocation. The dynamic selector is copyable, has static type `dyn Fraction`, and maintains dispatch table integrity across copies and transmissions. Writes to unrelated storage do not invalidate or alias selector bindings.
-- **Composition:** The dynamic selector and IEEE contract refinement compose across all 9 standard places:
-  - `local`: selector stored in an intermediate local variable (`let selected: dyn Fraction = Quarter as dyn Fraction;`).
-  - `field`: selector packed into and projected from a record field (`Holder { selected }.selected`).
-  - `parameter`: selector passed as argument into a callee machine parameter (`machine invoke(selected: dyn Fraction)`).
-  - `call_result`: selector returned from a helper function call (`machine make() -> dyn Fraction`).
-  - `match_join`: selector selected and unified across match branches (`match choice { 1 -> Quarter as dyn Fraction, _ -> Quarter as dyn Fraction }`).
-  - `const_name`: selector bound to a named constant (`const SELECTED: dyn Fraction = Quarter as dyn Fraction;`).
-  - `other_state`: selector forwarded across state transitions (`transition { _ -> consume(selected) }`).
-  - `other_machine`: selector passed through an inter-machine calling chain (`Consumer::run(selected)`).
-  - `target_body`: selector received and invoked in target-scoped machine bodies for all four hosted targets (`windows_x86_64`, `linux_x86_64`, `macos_arm64`, `linux_arm64`).
-  In each place, `<place>/main.omg` vs. `<place>/invalid/main.omg` differ only in Quarter returning `0.75` outside `[0.0, 0.5]`.
-- **Soundness boundaries:** If an implementation's guarantees do not imply the public contract (e.g. `0.75 <= 0.5` fails), the compiler strictly rejects during type and contract refinement checking with `machine 'Quarter::get' realizes 'Fraction::get' but does not guarantee its 'ensures result <= 0.5'`. Proof preserves ownership, carrier format, and strictness bounds, and unproved bounds cannot escape into Terminal Psi or native code.
-- **Checked-to-Terminal Psi lowering (`Psi 06–08`):** Source dynamic trait conversions (`Quarter as dyn Fraction`) and contract guarantees lower into canonical Terminal Psi (`PSITERM\0`). Dynamic dispatch routes lower into explicit selector table indices and `CallDynamic` invocations with separate selector and data lanes. Erased contracts leave no runtime footprint, and programs execute identically in the Terminal Psi interpreter (`omega run --both`), observing `0.25`.
-- **Provider settlement, layout geometry, and ABI calling plans (`Omega 00–02`):** Companion build rows bind `ProgramEntry` across all four hosted targets. Target layout plans evaluate geometry for `dyn Fraction` fat pointers/selectors and IEEE 8-byte `f64` scalar values. `CallPlan` and `StatePlan` map dynamic receiver fat pointers and return floating-point values into target ABI registers (`xmm0` on x86-64, `d0` on ARM64).
-- **Instruction selection, register homes, and activation frame realization (`Omega 03–06`):** Backend selects target ISA instructions (`x86_64` / `arm64`) for dynamic dispatch table loading and indirect calls (`call [rax + disp]` / `blr x16`), and floating-point comparison instructions (`ucomisd` / `fcmp`). Live-across-call spill slots and disjoint activation stack frames are reserved with WCSU bounded activation claims, inserting prologues and callee-saved restoration epilogues.
-- **Form encoding, branch relaxation, relocations, and native image emission (`Omega 07–09` + emission):** Read-only byte-pool dynamic dispatch tables, constant-pool float entries, and symbol relocations resolve. Basic blocks and branches relax with offset reflow. Direct PE/ELF/Mach-O images are emitted and execute with exit 0 agreeing with Terminal Psi across the four hosted targets.
-
-## What remains open
-
-Broader interval arithmetic chains, non-orderable float NaN handling across arithmetic domains, suspending dynamic traits, and product-source compiler parity remain governed under the wider `DYNAMIC-IMPLEMENTATION-SELECTION-MIGRATION` and `wiki/spec/language/numeric_values.md` roadmap.
-
-The [named mathematical interval production](alias_contract/README.md) carries
-the same IEEE guarantee through checked aliases and public caller preconditions.
-
-The [transparent input-predicate production](input_alias/README.md) carries the
-same IEEE fact through named caller preconditions at selector calls.
-
-The [input-alternative production](input_alternatives/README.md) proves public
-IEEE bounds from every admitted prefix alternative without choosing a branch.
+</details>

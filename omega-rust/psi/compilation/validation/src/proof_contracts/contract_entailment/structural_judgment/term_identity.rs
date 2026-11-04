@@ -211,14 +211,10 @@ impl StructuralTerm {
         }
     }
 
-    /// Stable key of an already authenticated completed value observation.
-    /// Reuse this owner's semantic formatting, also used by polynomial keys:
-    /// it erases observation-only shells exactly as semantic equality does.
-    /// Event handles and capture sequence remain part of the key, so another
-    /// prefix can compare the same snapshot without renaming a later read.
-    pub(in crate::proof_contracts::contract_entailment) fn observation_identity_key(
-        &self,
-    ) -> Option<String> {
+    /// Whether the value's semantic identity is recorded without an opaque spelling.
+    /// This checks representation only; callers still establish observation
+    /// authority and the meaning of each selected operation.
+    pub(in crate::proof_contracts::contract_entailment) fn has_observation_identity(&self) -> bool {
         fn available(value: &StructuralTerm, depth: usize) -> bool {
             if depth >= 64 {
                 return false;
@@ -236,7 +232,19 @@ impl StructuralTerm {
             !matches!(value, StructuralTerm::Opaque(_))
                 && !value.any_child(|child| !available(child, depth + 1))
         }
-        available(self, 0).then(|| format!("{:?}", self.semantic_value()))
+        available(self, 0)
+    }
+
+    /// Stable key of an already authenticated completed value observation.
+    /// Reuse this owner's semantic formatting, also used by polynomial keys:
+    /// it erases observation-only shells exactly as semantic equality does.
+    /// Event handles and capture sequence remain part of the key, so another
+    /// prefix can compare the same snapshot without renaming a later read.
+    pub(in crate::proof_contracts::contract_entailment) fn observation_identity_key(
+        &self,
+    ) -> Option<String> {
+        self.has_observation_identity()
+            .then(|| format!("{:?}", self.semantic_value()))
     }
 }
 

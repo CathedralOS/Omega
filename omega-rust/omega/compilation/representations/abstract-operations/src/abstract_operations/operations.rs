@@ -106,6 +106,27 @@ pub enum AbstractOperation {
         result: OperationResult,
         machine: semantic_vocabulary::MachineId,
     },
+    ActivateTaskRegister {
+        psi_operation: OperationId,
+        service: ServiceId,
+        result: AbstractResult,
+        entries: u16,
+        gdt: StructuralArgument,
+        task_state: StructuralArgument,
+        selector: ValueId,
+        scratch: StructuralArgument,
+    },
+    ReadTaskRegister {
+        psi_operation: OperationId,
+        service: ServiceId,
+        result: AbstractResult,
+    },
+    GlobalDescriptorTable {
+        psi_operation: OperationId,
+        service: ServiceId,
+        operation: terminal_psi::GlobalDescriptorTableOperation,
+        source: StructuralArgument,
+    },
     StorageAddress {
         psi_operation: OperationId,
         result: AbstractResult,
@@ -1173,6 +1194,18 @@ impl AbstractOperation {
                 .location()
                 .map(|location| vec![location.path.as_slice()])
                 .unwrap_or_default(),
+            Self::ActivateTaskRegister {
+                gdt,
+                task_state,
+                scratch,
+                ..
+            } => vec![
+                gdt.path.as_slice(),
+                task_state.path.as_slice(),
+                scratch.path.as_slice(),
+            ],
+            Self::ReadTaskRegister { .. } => vec![],
+            Self::GlobalDescriptorTable { source, .. } => vec![source.path.as_slice()],
             Self::StorageAddress { path, .. }
             | Self::PrimitiveScalarRead { path, .. }
             | Self::ElementViewRead { path, .. }
@@ -1300,6 +1333,9 @@ impl AbstractOperation {
             | Self::EstablishPrimitiveLocal { psi_operation, .. }
             | Self::PrimitiveLocalStore { psi_operation, .. }
             | Self::StorageAddress { psi_operation, .. }
+            | Self::GlobalDescriptorTable { psi_operation, .. }
+            | Self::ActivateTaskRegister { psi_operation, .. }
+            | Self::ReadTaskRegister { psi_operation, .. }
             | Self::PrimitiveScalarRead { psi_operation, .. }
             | Self::StructuralCaseMembership { psi_operation, .. }
             | Self::StructuralByteSequenceFieldLength { psi_operation, .. }

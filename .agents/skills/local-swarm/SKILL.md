@@ -240,7 +240,10 @@ helper actions before executing them.
     strict canonical suffix: variant, nested and legacy names otherwise read as
     "missing" and slots spend hours re-verifying rows that were already complete.
   - After launching a background command or subagent, end the turn and let
-    reactive wakeup resume execution instead of polling `manage_task`.
+    reactive wakeup (messages from subagents or other sessions and background
+    task completions) resume execution. Never set `schedule` timers, cron jobs,
+    or polling check-ins to monitor workers or the merge queue; coordinator
+    timers waste tokens.
 
 ## Finish
 

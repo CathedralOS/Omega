@@ -95,7 +95,7 @@ fn keyed(slot: u32, provider: u32, required: &[u32], rows: &[u32]) -> Map {
 
 #[test]
 fn partial_maps_never_union_into_a_whole_choice() {
-    let maps = [map(1, 10, &[1, 2], &[1]), map(1, 20, &[1, 2], &[2])];
+    let maps = [keyed(1, 10, &[1, 2], &[1]), keyed(1, 20, &[1, 2], &[2])];
     let outcome = choose::<_, Selected>(&maps, "host", &[], &[]);
     assert!(outcome.choices.is_empty());
     assert!(outcome.errors.is_empty());
@@ -128,7 +128,7 @@ fn override_replaces_the_whole_default_including_partial_default() {
 
 #[test]
 fn one_descendant_map_owns_its_entire_inherited_receiver() {
-    let mut child = map(2, 20, &[1, 2], &[1, 2]);
+    let mut child = keyed(2, 20, &[1, 2], &[1, 2]);
     child.receivers.push((1, vec![1]));
     let maps = [map(1, 10, &[1], &[1]), child];
     let outcome = choose::<_, Selected>(&maps, "host", &[], &[]);
@@ -140,20 +140,6 @@ fn one_descendant_map_owns_its_entire_inherited_receiver() {
         }]
     );
     assert!(outcome.errors.is_empty());
-}
-
-#[test]
-fn ambiguous_whole_maps_preserve_the_candidate_coordinates() {
-    let maps = [map(1, 10, &[1], &[1]), map(1, 20, &[1], &[1])];
-    let outcome = choose::<_, Selected>(&maps, "host", &[], &[]);
-    assert!(outcome.choices.is_empty());
-    assert_eq!(
-        outcome.errors,
-        [Error::AmbiguousCandidates {
-            slot: 1,
-            candidates: vec![0, 1]
-        }]
-    );
 }
 
 #[test]

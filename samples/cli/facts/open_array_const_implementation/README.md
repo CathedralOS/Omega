@@ -71,6 +71,10 @@ package's own `Base + 4` element to `Base + 3`.
 - [other_element_mismatch](controls/other_element_mismatch/main.omg) changes
   only element 0 (`Base + 1`); the projected element still matches, but the
   implementation's argument is a different array.
+- [specialization_agreement](controls/specialization_agreement/main.omg)
+  selects `[Base, 7]` for a bound that requires `[Base, Base + 4]`. The two
+  agree only at Base = 3, the one specialization `main` uses, but the generic
+  body must hold for every admitted Base, so it rejects in the body.
 
 ## Requirements
 

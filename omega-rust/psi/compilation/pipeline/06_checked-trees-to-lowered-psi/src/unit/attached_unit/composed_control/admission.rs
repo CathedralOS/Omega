@@ -30,12 +30,12 @@ pub(super) fn admit_calls<'a>(
     for state in call_states {
         for operation in state.operation_dependencies() {
             retain_call_boundaries(checked, plans, std::iter::once(operation), &mut boundaries)?;
-            // A call state's operations are its call and the effects that
+            // A call state retains its invocation and the effects that
             // prepare it: the ones the frame emits (`OperationFrame::lowers`),
             // plus the frame-local storage mints a statement establishes
             // without a callee. Nothing else belongs to a call state.
             match operation {
-                _ if operation.call().is_some() => {}
+                _ if OperationFrame::consumes_prepared_operands(operation) => {}
                 CheckedUnitEffectOperationPlan::EstablishLocal(
                     checked_trees::CheckedUnitLocalBindingPlan::Primitive { .. }
                     | checked_trees::CheckedUnitLocalBindingPlan::TrivialAffine { .. },

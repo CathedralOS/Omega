@@ -1,8 +1,11 @@
-// Fixed-token declaration heads: `operator +` names the builtin
-// arithmetic surface, `boundary machine []` and `boundary machine [..]`
-// bind fixture-owned collection operators — generic over `T`, with
-// requires contracts that stay provider-agnostic.
-operator + i32::add(left: i32, right: i32) -> i32;
+// Fixed-token declaration heads: `operator +` binds a fixture-owned `Cell`
+// operator (primitive `i32 +` belongs to the core semantic home), and
+// `boundary machine []` and `boundary machine [..]` bind fixture-owned
+// collection operators — generic over `T`, with requires contracts that stay
+// provider-agnostic.
+data Cell { value: i32; }
+
+operator + Cell::add(left: Cell, right: Cell) -> Cell;
 
 data Table<T> {
     cells: [T; 8];

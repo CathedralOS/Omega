@@ -2,6 +2,7 @@
   "role": "intended-invalid",
   "entry": "main.omg",
   "rejection_contains": [
-    "data `Outer`'s default domain is still FALSE"
+    "data `Outer`",
+    "unproved; restore them first"
   ]
 }

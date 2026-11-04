@@ -112,6 +112,7 @@ pub(crate) fn normalize_qualification_casts(
             &name,
             Some(authored_selection.source_span()),
             SymbolHandle::invalid(),
+            &arguments,
         );
         let [domain] = matches.as_slice() else {
             updates.push((

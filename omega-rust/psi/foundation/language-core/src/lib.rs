@@ -23,6 +23,7 @@ pub mod inline_assembly;
 pub mod layout_storage;
 pub mod operator_spelling;
 mod source_semantics;
+pub mod task_register;
 
 pub use atomic::{AtomicOrderingPlan, MemoryOrdering};
 pub use cast_form::CastForm;

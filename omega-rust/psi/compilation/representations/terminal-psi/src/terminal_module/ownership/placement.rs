@@ -113,16 +113,89 @@ pub struct TerminalAccessProfileRequirement {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalAccessStorage {
     pub carrier: semantic_vocabulary::StructuralTypeId,
+    /// The owner of occupied content. Backing remains an Extent even when
+    /// a counted run holds it in a field of a distinct linear descriptor.
+    pub owner: TerminalAccessOwner,
     pub base: semantic_vocabulary::StructuralFieldId,
     pub length: semantic_vocabulary::StructuralFieldId,
     pub granted: semantic_vocabulary::StructuralDomainId,
     /// Owned lifecycle roles are absent for a nonresident borrowed View. An
     /// absent content role is not vacancy and cannot authorize initialization.
     pub vacant: Option<semantic_vocabulary::StructuralDomainId>,
+    /// Occupied-content qualification on `owner_carrier()`: Resident for an
+    /// extent, Live for a run. It is not a grant on the nested backing.
     pub resident: Option<semantic_vocabulary::StructuralDomainId>,
 }
 
+/// Descriptor roles retained from the authenticated source declaration.
+/// These coordinates identify storage, never establish cells from a count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalAccessOwner {
+    Extent,
+    Run {
+        carrier: semantic_vocabulary::StructuralTypeId,
+        storage: semantic_vocabulary::StructuralFieldId,
+        count: semantic_vocabulary::StructuralFieldId,
+        singleton: Option<semantic_vocabulary::StructuralDomainId>,
+    },
+}
+
 impl TerminalAccessStorage {
+    /// Initialization may additionally promise Singleton. That result fact is
+    /// not part of the persistent backing/content roles extraction must match.
+    pub fn same_custody(&self, other: &Self) -> bool {
+        let owner_roles = |owner| match owner {
+            TerminalAccessOwner::Run {
+                carrier,
+                storage,
+                count,
+                ..
+            } => TerminalAccessOwner::Run {
+                carrier,
+                storage,
+                count,
+                singleton: None,
+            },
+            TerminalAccessOwner::Extent => TerminalAccessOwner::Extent,
+        };
+        self.carrier == other.carrier
+            && owner_roles(self.owner) == owner_roles(other.owner)
+            && self.base == other.base
+            && self.length == other.length
+            && self.granted == other.granted
+            && self.vacant == other.vacant
+            && self.resident == other.resident
+    }
+
+    /// The backing projection inside the occupied owner. The caller supplies
+    /// its retained type catalog; this role query grants no access or custody.
+    pub fn owner_storage_path(
+        &self,
+        types: &[crate::StructuralTypeDeclaration],
+    ) -> Option<Vec<crate::StructuralPathSegment>> {
+        match self.owner {
+            TerminalAccessOwner::Extent => Some(Vec::new()),
+            TerminalAccessOwner::Run {
+                carrier, storage, ..
+            } => {
+                let crate::StructuralTypeShape::Record { fields, .. } =
+                    &crate::find_structural_type(types, carrier)?.shape
+                else {
+                    return None;
+                };
+                let backing = fields.iter().find(|field| field.id == storage)?;
+                Some(vec![crate::StructuralPathSegment::Field(backing.identity)])
+            }
+        }
+    }
+
+    pub fn owner_carrier(&self) -> semantic_vocabulary::StructuralTypeId {
+        match self.owner {
+            TerminalAccessOwner::Extent => self.carrier,
+            TerminalAccessOwner::Run { carrier, .. } => carrier,
+        }
+    }
+
     pub fn owned_content(
         &self,
     ) -> Result<

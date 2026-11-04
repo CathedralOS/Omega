@@ -28,23 +28,23 @@ machine Main::main(main: &mut Main) reaches Console {
 
     let old1: u32 in Wrapping = main.counter.fetch_add(5, NoOrdering);
     transition old1 == 10 {
-        true -> after_add(main)
-        _ -> bad(main)
+        true -> block after_add(main)
+        _ -> block bad(main)
     }
 
     machine after_add(main: &mut Main) {
         // counter is now 15 (a field, so it survived the transition).
         let prior: u32 in Wrapping = main.counter.compare_exchange(15, 99, ReceivePublish, Receive);
         transition prior == 15 {
-            true -> after_cas(main)
-            _ -> bad(main)
+            true -> block after_cas(main)
+            _ -> block bad(main)
         }
     }
 
     machine after_cas(main: &mut Main) {
         transition main.counter == 99 {
-            true -> publish_receive(main)
-            _ -> bad(main)
+            true -> block publish_receive(main)
+            _ -> block bad(main)
         }
     }
 
@@ -52,8 +52,8 @@ machine Main::main(main: &mut Main) reaches Console {
         main.counter.store(100, Publish);
         let observed: u32 = main.counter.load(Receive);
         transition observed == 100 {
-            true -> global_order(main)
-            _ -> bad(main)
+            true -> block global_order(main)
+            _ -> block bad(main)
         }
     }
 
@@ -61,8 +61,8 @@ machine Main::main(main: &mut Main) reaches Console {
         main.counter.store(101, GlobalOrder);
         let observed: u32 = main.counter.load(GlobalOrder);
         transition observed == 101 {
-            true -> good(main)
-            _ -> bad(main)
+            true -> block good(main)
+            _ -> block bad(main)
         }
     }
 

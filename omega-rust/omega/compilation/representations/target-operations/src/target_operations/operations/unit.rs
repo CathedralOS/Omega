@@ -625,6 +625,27 @@ pub enum TargetUnitOperation {
         port: u16,
         value: u8,
     },
+    ActivateTaskRegister {
+        psi_operation: OperationId,
+        service: ServiceId,
+        entries: u16,
+        gdt: StructuralArgument,
+        task_state: StructuralArgument,
+        selector: TargetUnitScalarArgumentSource,
+        scratch: StructuralArgument,
+        result_home: TargetUnitScalarHomeRequirement,
+    },
+    ReadTaskRegister {
+        psi_operation: OperationId,
+        service: ServiceId,
+        result_home: TargetUnitScalarHomeRequirement,
+    },
+    GlobalDescriptorTable {
+        psi_operation: OperationId,
+        service: ServiceId,
+        operation: terminal_psi::GlobalDescriptorTableOperation,
+        source: terminal_psi::StructuralArgument,
+    },
     RegisterAccess {
         psi_operation: OperationId,
         service: Option<ServiceId>,
